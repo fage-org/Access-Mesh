@@ -126,8 +126,8 @@ permission_version --> identity-service / gateway
 
 3. **资源树继承展开**（由 inherit_mode 参数控制）
    - NONE（默认）：只匹配精确资源。
-   - CHILDREN：若直接匹配无结果，沿 path 向上查找父资源有无授权。
-   - PARENT：检查子资源的授权是否覆盖当前资源。
+   - CHILDREN：向下展开子资源，检查当前资源授权是否覆盖子资源。
+   - PARENT：向上检查父资源授权是否可覆盖当前资源。
    - BOTH：双向检查。
 
 4. **条件校验**
@@ -154,14 +154,15 @@ permission_version --> identity-service / gateway
 3. `permission-center` 从 `user_role`、`role_resource_permission`、`resource_entity`、`operation_permission` 组装可访问接口资源集合。
 4. 组装时执行冲突检测，冲突权限从快照中排除并触发异步通知。
 5. 对接口类资源，结合 `resource_api_mapping` 输出 `service_code + http_method + path_pattern + operation_code` 快照。
-6. `gateway` 完成路由匹配并决定放行/拒绝。
+6. 首期接口快照仅下发无条件授权，`condition_id != null` 的授权不进入快照。
+7. `gateway` 完成路由匹配并决定放行/拒绝。
 
 当前最小实现约定：
 
 - `principalContext.subjectId` 当前按 `abstract_user_id` 解释。
 - `permission-center` 通过真实查询链组装接口快照：`user_role -> abstract_role -> role_resource_permission -> resource_entity -> operation_permission -> resource_api_mapping`。
 - `InterfacePermissionRule.capabilityCode` 当前按 `resource_code + ":" + operation_code` 生成。
-- `condition_id != null` 的授权项暂不下发到接口快照（首批边界）。
+- `condition_id != null` 的授权项首期不下发到接口快照，仅参与精确鉴权（阶段性边界）。
 
 ---
 

@@ -32,5 +32,6 @@
 - 权限条件支持预设（handler 编码）+ 自定义（需审核），通过 `condition_source` 和 `status` 区分。
 - 冲突互斥在查询时检测失效，不在写入时阻止，异步通知管理员修正。
 - 资源依赖为声明式元数据，由资源注册方自动维护，写入时校验防环。
-- 资源树继承（子/父）由查询接口参数 `inherit_mode` 控制，不在表结构中定义。
+- 资源树继承（子/父）由查询接口参数 `inherit_mode` 控制，不在表结构中定义：`CHILDREN` 向下展开子资源，`PARENT` 向上检查父资源。
+- 首期接口快照只下发无条件授权；`condition_id != null` 的授权仅参与精确鉴权，不进入接口快照。
 - 所有表均含 tenant_id 及 created_by/updated_by/deleted_by/created_at/updated_at/deleted_at。

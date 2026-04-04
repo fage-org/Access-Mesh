@@ -86,8 +86,8 @@ public class PermissionContext {
 
 public enum InheritMode {
     NONE,       // 只匹配精确资源
-    CHILDREN,   // 沿 path 向上查找父资源授权
-    PARENT,     // 检查子资源授权覆盖
+    CHILDREN,   // 向下展开子资源
+    PARENT,     // 向上检查父资源授权
     BOTH        // 双向检查
 }
 
@@ -119,6 +119,7 @@ public interface PermissionMatcher {
 
 /**
  * 资源继承展开：按 inheritMode 展开资源 id 集合（含自身）。
+ * CHILDREN 向下展开子资源，PARENT 向上检查父资源。
  * 默认实现沿 resource_entity.path 做 LIKE 查询。
  * MENU 可定制树形遍历，DATA 可定制组织层级展开。
  */
@@ -190,12 +191,12 @@ public interface SnapshotAssembler {
 每个子操作的 Default 实现覆盖最通用逻辑（适用大部分资源类型）：
 
 - **DefaultPermissionMatcher**：标准 SQL 查 `role_resource_permission WHERE abstract_role_id IN (?) AND resource_entity_id IN (?) AND operation_permission_id = ?`
-- **DefaultInheritanceExpander**：NONE 返回 {自身}；CHILDREN 沿 path LIKE 向上查父；PARENT 沿 path LIKE 查子
+- **DefaultInheritanceExpander**：NONE 返回 {自身}；CHILDREN 沿 path LIKE 查子；PARENT 沿 path LIKE 向上查父
 - **DefaultConditionEvaluator**：PRESET 走 handler 编码分发（Spring Bean name 约定），CUSTOM 走表达式引擎（传入 ctx.evalContext）
 - **DefaultConflictDetector**：查 permission_conflict_rule，按 resource_type_value 过滤，OR 合并 grantedOperationIds 后检测互斥位
 - **DefaultDependencyChecker**：查 resource_dependency，递归校验用户对依赖资源是否有 required_operation
 - **DefaultGrantValidator**：校验 operation_permission.resource_type 与 resource_entity.resource_type 匹配
-- **DefaultSnapshotAssembler**：输出 (resource_code, operation_code, condition_id) 列表，无额外映射
+- **DefaultSnapshotAssembler**：输出 (resource_code, operation_code, condition_id) 列表；首期接口快照仅下发无条件授权，`condition_id != null` 的授权保留在精确鉴权链路
 
 ---
 
@@ -506,7 +507,7 @@ public PermissionSnapshot buildSnapshot(SnapshotRequest request) {
         // 子操作：冲突检测（快照级）
         List<MatchedPermission> filtered = applyConflictFilter(handler, entry.getValue(), ctx);
 
-        // 子操作：快照组装（每种资源类型用自己的 assembler）
+        // 子操作：快照组装（首期接口快照仅处理无条件授权）
         entries.addAll(handler.getSnapshotAssembler()
             .assemble(ctx.getUserId(), filtered, ctx));
     }
@@ -558,7 +559,7 @@ public class ApiPermissionMatcher implements PermissionMatcher {
 }
 ```
 
-**ApiSnapshotAssembler**：API 快照需要携带 `service_code + http_method + path_pattern`，供 gateway 直接消费。
+**ApiSnapshotAssembler**：API 快照需要携带 `service_code + http_method + path_pattern`，供 gateway 直接消费；首期仅组装无条件授权项，`condition_id != null` 的授权不进入接口快照。
 
 ```java
 @Component
@@ -606,10 +607,10 @@ public class MenuInheritanceExpander implements InheritanceExpander {
         result.add(resourceEntityId);
 
         if (mode == CHILDREN || mode == BOTH) {
-            result.addAll(findAncestors(resource.getPath(), ctx));
+            result.addAll(findDescendants(resource.getPath(), ctx));
         }
         if (mode == PARENT || mode == BOTH) {
-            result.addAll(findDescendants(resource.getPath(), ctx));
+            result.addAll(findAncestors(resource.getPath(), ctx));
         }
         return result;
     }
