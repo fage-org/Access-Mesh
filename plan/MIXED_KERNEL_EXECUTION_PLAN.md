@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-- 更新时间：2026-03-25
+- 更新时间：2026-04-04
 - Phase 0：已完成
 - Phase 1：已完成
 - Phase 2：已完成
@@ -14,7 +14,8 @@
 - Phase 8：未开始
 - Phase 1-4 骨架已完成本地编译与定向测试验证
 - 默认 Maven 聚合、默认部署文档、默认 CI、默认 Nacos 初始化脚本、默认 Docker/K8s 交付面已收敛为 `gateway + identity-service + permission-center` 三个核心启动项目
-- 下一阶段优先执行：Phase 6.2 `permission-center` 持久化替换，继续补充数据范围与条件占位的真实查询链
+- 表结构经评审后定为 17 张表：还原 permission_condition / resource_dependency / permission_conflict_rule / domain_relation_config / domain_scope_binding；system_config 改名 type_definition；operation_permission 改为 resource_type 绑定 + BIGINT 位运算；permission_condition 增加审核状态；domain_relation_config 简化为仅 ROLE_RESOURCE；资源树继承改为接口参数控制
+- 下一阶段优先执行：Phase 6.1 落实完整 17 张表 DDL 与实体对齐，Phase 6.2 持久化替换
 
 当前阻塞：
 
@@ -113,41 +114,10 @@
 
 状态：已完成
 
-优先级：已完成
-
 目标：
 
 - 将运行时拓扑收敛为 `ruoyi-gateway`、`ruoyi-auth`、`ruoyi-modules/ruoyi-permission-center` 三个核心启动项目。
 - 保留 `ruoyi-auth` 作为长期存在的 `identity-service`，只裁剪非核心业务模块与附属模块。
-- 停止继续演进非核心模块，并逐步从聚合、部署与文档中剥离冗余模块。
-
-范围：
-
-- 启动项目保留：`ruoyi-gateway`、`ruoyi-auth`、`ruoyi-modules/ruoyi-permission-center`
-- 优先剥离的非核心模块：`ruoyi-modules/ruoyi-resource`、`ruoyi-modules/ruoyi-system`、`ruoyi-modules/ruoyi-gen`、`ruoyi-modules/ruoyi-job`、`ruoyi-modules/ruoyi-workflow`
-- 优先剥离的附属模块：`ruoyi-visual/*`、`ruoyi-example/*`
-- 保留但需复核依赖边界的模块：`ruoyi-common/*`、`ruoyi-api/*`
-
-执行要点：
-
-- 梳理 `identity-service` 与 `permission-center` 的最终边界，避免身份域和授权域再次混用。
-- 收敛根 `pom.xml` 聚合模块，减少默认构建面。
-- 收敛 Nacos 配置、启动脚本、部署脚本、文档说明，只保留三个核心启动项目路径。
-- 清理对已下线模块的网关路由、接口契约、示例脚本、无效测试入口。
-
-当前进展：
-
-- 已完成第 1 批：默认 Maven 聚合裁剪
-- 已完成第 2 批：部署脚本、K8s 清单、Nacos 配置与文档中的历史模块说明收敛
-- 已完成第 3 批：主部署文档深度清理、历史 SQL/脚本目录分层、默认 CI 收敛与遗留网关代码收口
-
-本阶段补充结果：
-
-- `DEPLOY.md` 已重写为三核心默认部署文档
-- `.github/workflows` 已只保留三核心服务的默认构建与部署入口
-- `script/sql/ry-config.sql` 已调整为仅初始化三核心服务的默认 Nacos 配置数据
-- `script/sql/README.md` 已明确历史 SQL 资产的非默认定位
-- `ruoyi-gateway` 已移除历史 `/resource/sse` 白名单豁免
 
 完成标准：
 
@@ -163,23 +133,33 @@
 
 - 原权限表结构仍是主事实层，不再新建一套 kernel 主存储模型。
 - kernel 相关 DTO 与接口只作为运行时查询/消费包装层。
-- 仅补充两类最小支撑对象：`resource_api_mapping`、`permission_version`。
+- 完整 17 张表：含 type_definition、operation_permission（resource_type + BIGINT 位运算）、permission_condition（预设+自定义审核）、resource_dependency（声明式）、permission_conflict_rule（查询时检测失效）、domain_relation_config（仅 ROLE_RESOURCE）、domain_scope_binding。
 - `gateway` 不直接查库，只消费 `permission-center` 组装后的快照/判定/版本接口。
 
 ### Phase 6.1: 权限事实层落库
 
 状态：部分完成
 
-- 以 `plan/permission_center_schema.sql` 为准，固化原表 DDL。
-- 在原表基础上补充 `resource_api_mapping`。
-- 增加 `permission_version`，作为权限变更后的运行时版本游标。
+- 以 `plan/permission_center_schema.sql` 为准，固化完整 17 张表 DDL。
+- 已完成 `permission_version` 和 `resource_api_mapping` 的完整链路。
 - 输出迁移脚本、实体、Mapper、基础仓储。
 
 当前进展：
 
-- 已完成 `permission_version`：DDL 方案、实体、Mapper、Mapper XML、服务、kernel 版本查询适配层、定向测试。
-- 已完成 `resource_api_mapping`：DDL 方案、实体、Mapper、Mapper XML、基础查询服务、定向测试。
+- 已完成 `permission_version`：DDL、实体、Mapper、Mapper XML、服务、kernel 版本查询适配层、定向测试。
+- 已完成 `resource_api_mapping`：DDL、实体、Mapper、Mapper XML、基础查询服务、定向测试。
 - 已完成：将 `resource_api_mapping` 正式接入接口权限快照组装链。
+
+待完成（须与新 DDL 对齐）：
+
+- `type_definition` 实体与 Mapper（原 system_config 改名，config_key → type_key）。
+- `operation_permission` 实体更新（biz_domain_id → resource_type，binary_bit/inherit_mask 改 BIGINT）。
+- `permission_condition` 实体与 Mapper（新增 condition_source、status、reviewed_by、reviewed_at）。
+- `role_resource_permission` 实体还原 condition_id 字段。
+- `domain_relation_config` 实体与 Mapper（仅 ROLE_RESOURCE，移除 default_condition_id）。
+- `domain_scope_binding` 实体与 Mapper。
+- `resource_dependency` 实体与 Mapper。
+- `permission_conflict_rule` 实体与 Mapper。
 
 ### Phase 6.2: permission-center 持久化替换
 
@@ -188,15 +168,24 @@
 - 用数据库实现替换当前内存级 `policy` / `decision` / `version` 占位服务。
 - 从 `abstract_user`、`user_role`、`abstract_role`、`role_resource_permission`、`resource_entity`、`operation_permission` 组装接口权限快照。
 - 基于 `resource_api_mapping` 输出 `gateway` 可直接消费的接口快照。
-- 首批不实现通用表达式引擎，只保留 `permission_condition` 占位与简单校验能力。
+- 快照组装时执行 `permission_conflict_rule` 冲突检测，冲突权限排除并异步通知。
+- 资源树继承由查询接口 `inherit_mode` 参数控制。
+- 操作继承通过 `binary_bit | inherit_mask`（BIGINT）位运算表达。
 
 当前进展：
 
-- 已完成：新增 `PermissionKernelSnapshotMapper`，以原表 Join 方式直接查询用户当前可访问的接口规则记录。
-- 已完成：新增 `DatabaseInterfacePermissionRuleQueryService`，把查询记录组装为 `InterfacePermissionRule`，并以 `resource_code:operation_code` 生成 `capabilityCode`。
-- 已完成：`HybridPermissionKernelService` 的 `/api/perm/policy/interface-snapshot` 与 `/api/perm/decision/interface` 已优先走持久化快照查询，不再依赖内存目录返回接口规则。
-- 当前边界：`principalContext.subjectId` 在本阶段按 `abstract_user_id` 解释；`condition_id != null` 的授权项暂不下发到接口快照。
-- 尚未完成：`queryDataScopes` / `queryCustomScopes` 的持久化替换，以及更细粒度条件引擎支持。
+- 已完成：`PermissionKernelSnapshotMapper` 以原表 Join 方式查询。
+- 已完成：`DatabaseInterfacePermissionRuleQueryService` 组装 `InterfacePermissionRule`。
+- 已完成：`HybridPermissionKernelService` 的接口快照与判定已走持久化查询。
+- 当前边界：`principalContext.subjectId` 按 `abstract_user_id` 解释；`condition_id != null` 的授权项暂不下发到接口快照。
+
+尚未完成：
+
+- `queryDataScopes` / `queryCustomScopes` 持久化替换。
+- 冲突检测集成到快照组装链。
+- 条件校验集成（PRESET handler + CUSTOM 表达式引擎）。
+- 资源依赖查询接口。
+- `inherit_mode` 参数支持。
 
 ### Phase 6.3: identity-service 接入抽象用户与版本
 

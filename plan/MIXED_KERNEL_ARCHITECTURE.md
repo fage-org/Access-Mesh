@@ -15,7 +15,8 @@
 - 接口统一采用 `POST + JSON`。
 - **原表为事实层，kernel 为查询/消费层**。
 - `permission-center` 以 `abstract_user`、`abstract_role`、`user_role`、`resource_entity`、`operation_permission`、`role_resource_permission` 等原表作为权限事实来源。
-- `resource_api_mapping` 显式表达接口资源与 `service_code + http_method + path_pattern` 的映射，不把接口路由隐含在 `resource_entity.extra` 中。
+- `operation_permission` 通过 `resource_type` 直接绑定适用的资源类型，`binary_bit + inherit_mask`（BIGINT）表达操作继承。
+- `resource_api_mapping` 显式表达接口资源与 `service_code + http_method + path_pattern` 的映射。
 - `permission_version` 作为运行时版本游标，供 `identity-service` 写入令牌、供 `gateway` 判断是否刷新本地快照。
 - `gateway` 不直接查库，只消费 `permission-center` 暴露的快照、判定与版本接口。
 - `permission-center` 不承载具体业务系统的数据权限执行，只输出标准权限描述。
@@ -42,10 +43,9 @@
 
 ### 2.3 permission-center
 
-- 维护原始权限事实表与最小补充表，不再引入第二套主存储模型。
+- 维护 17 张权限事实表，不再引入第二套主存储模型。
 - 对外提供 kernel 风格的查询/消费接口，供 `gateway` 和其他运行时组件消费。
-- 第一阶段重点交付接口权限快照查询、接口判定、版本查询、用户与组织信息管理、角色授权管理。
-- 标准数据范围与更强扩展能力作为后续阶段增量建设，不阻塞现阶段主线。
+- 重点交付：接口权限快照查询、接口判定、版本查询、用户与角色授权管理、条件审核、冲突检测、依赖查询。
 
 ## 3. 核心模型
 
@@ -57,10 +57,14 @@
 
 ### 3.2 事实模型
 
-- 主表沿用原设计：`abstract_user`、`abstract_role`、`user_role`、`resource_entity`、`operation_permission`、`role_resource_permission`。
-- 配套保留原有条件、依赖、冲突、域配置、变更日志等表，继续作为后台管理与授权校验的事实来源。
-- `resource_entity` 继续承载菜单、按钮、接口、数据对象等资源定义。
-- `operation_permission` 继续承载 `VIEW`、`EDIT`、`ACCESS`、`INVOKE` 等操作语义。
+- 主表：`abstract_user`、`abstract_role`、`user_role`、`resource_entity`、`operation_permission`、`role_resource_permission`。
+- 配套保留域配置（`domain_scope_config`、`domain_relation_config`、`domain_scope_binding`）、权限条件（`permission_condition`）、资源依赖（`resource_dependency`）、冲突规则（`permission_conflict_rule`）、变更日志等表。
+- `operation_permission` 通过 `resource_type` 绑定适用的资源类型，`binary_bit + inherit_mask`（BIGINT）表达操作继承关系。
+- `resource_entity` 承载菜单、按钮、接口、数据对象等资源定义。资源树继承由查询接口参数控制。
+- `permission_condition` 支持预设（handler 编码）和自定义（需审核），通过 `condition_source` 和 `status` 管理。
+- `permission_conflict_rule` 在查询时检测冲突，冲突权限失效并异步通知管理员修正。
+- `resource_dependency` 由资源注册方自动维护，权限中台只负责存储与查询。
+- 类型定义使用专用 `type_definition` 表（原 system_config）。
 
 ### 3.3 运行时补充模型
 
@@ -70,9 +74,9 @@
 
 ### 3.4 扩展方向
 
-- 现阶段扩展优先通过原表补充字段、补充配置表或业务侧自定义处理器实现。
-- 不再强制要求先建“能力目录/扩展清单”才能落地业务权限。
-- 当标准模型无法覆盖剩余 20% 场景时，允许业务侧基于事实层结果做二次判定。
+- 17 张表覆盖标准 RBAC + 域隔离 + 条件 + 冲突 + 依赖场景。
+- 当标准模型无法覆盖剩余场景时，允许业务侧基于事实层结果做二次判定。
+- 数据权限执行由业务服务侧落地，权限中台只输出标准描述。
 
 ## 4. 关键流程
 
@@ -88,7 +92,7 @@
 1. `gateway` 校验令牌。
 2. 读取令牌中的 `permissionVersion`。
 3. 本地无快照或版本变更时，从 `permission-center` 拉取接口权限快照。
-4. `permission-center` 基于原始授权表 + `resource_api_mapping` 组装快照返回给 `gateway`。
+4. `permission-center` 基于原始授权表 + `resource_api_mapping` 组装快照，组装时执行冲突检测排除冲突权限。
 5. `gateway` 根据 `service_code + http_method + path_pattern` 匹配接口资源并执行拦截。
 
 ### 4.3 服务代表用户调用
@@ -110,13 +114,16 @@
 - `/api/perm/policy/*`
 - `/api/perm/decision/*`
 - `/api/perm/version/*`
+- `/api/perm/conditions/*`
+- `/api/perm/conflict-rules/*`
+- `/api/perm/resource-dependencies/*`
 - `/api/perm/audit/*`
 
 ## 6. 扩展约束
 
 - 扩展逻辑尽量保持单层接口，不引入深层回调链。
 - 对外 DTO 必须从事实层稳定映射出来，不能反向变成新的主存储模型。
-- `permission-center` 只关心“授权配置是否成立”和“描述是否可查询”，不关心业务 SQL 或领域对象装配。
+- `permission-center` 只关心"授权配置是否成立"和"描述是否可查询"，不关心业务 SQL 或领域对象装配。
 - `gateway` 的接口鉴权必须可关闭、可渐进接入，避免一次性替换现有链路。
 
 ## 7. 落地策略
