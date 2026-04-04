@@ -263,6 +263,12 @@ permission_version --> identity-service / gateway
 - **operation_permission**：`binary_bit` 为单一比特（如 1, 2, 4, 8），BIGINT 支持最多 63 个独立操作。
 - `inherit_mask` 为继承的位掩码：`effective = binary_bit | inherit_mask`。
 - 例如 VIEW=1、EDIT(binary_bit=4, inherit_mask=1) 则 EDIT 的 effective=5（含 VIEW）。
+- 首批操作位值约定：
+  - VIEW：`binary_bit=1`，`inherit_mask=0`
+  - EDIT：`binary_bit=4`，`inherit_mask=1`
+  - ACCESS：`binary_bit=8`，`inherit_mask=0`
+  - DATA_READ：`binary_bit=16`，`inherit_mask=0`
+  - DATA_EXPORT：`binary_bit=32`，`inherit_mask=0`
 - 操作绑定 `resource_type`：operation_permission.resource_type 直接表达此操作适用的资源类型，NULL 表示适用所有。
 
 ### 9.2 鉴权时位运算

@@ -116,6 +116,12 @@
 补充说明：
 
 - Phase 0 决策：接口类资源默认操作编码统一为 `ACCESS`。
+- 首批操作位值约定：
+  - `VIEW`：`binary_bit=1`，`inherit_mask=0`
+  - `EDIT`：`binary_bit=4`，`inherit_mask=1`
+  - `ACCESS`：`binary_bit=8`，`inherit_mask=0`
+  - `DATA_READ`：`binary_bit=16`，`inherit_mask=0`
+  - `DATA_EXPORT`：`binary_bit=32`，`inherit_mask=0`
 
 ## 5. 运行时语义冻结
 
