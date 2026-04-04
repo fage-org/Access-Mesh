@@ -15,6 +15,9 @@ import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.dromara.permission.service.AbstractRoleService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
+import org.dromara.permission.service.support.PermissionTreePathManager;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,8 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
     private final PcAbstractRoleMapper mapper;
     private final PcUserRoleMapper userRoleMapper;
     private final PcRoleResourcePermissionMapper roleResourcePermissionMapper;
+    private final TypeDefinitionReader typeDefinitionReader;
+    private final PermissionTreePathManager treePathManager;
 
     @Override
     public List<AbstractRoleVo> list(RoleListReq req) {
@@ -73,6 +78,7 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
         if (req == null || req.getTenantId() == null) {
             return;
         }
+        typeDefinitionReader.assertTypeValueExists(req.getTenantId(), req.getBizDomainId(), "role_type", req.getRoleType(), "无效的角色类型");
         LocalDateTime now = LocalDateTime.now();
         String parentPath = null;
         if (req.getParentId() != null && req.getParentId() != 0) {
@@ -88,6 +94,7 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
                 .eq(PcAbstractRole::getId, req.getId())
                 .eq(PcAbstractRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (entity != null) {
+                String oldPath = entity.getPath();
                 entity.setBizDomainId(req.getBizDomainId());
                 entity.setRoleType(req.getRoleType());
                 entity.setParentId(req.getParentId() != null && req.getParentId() != 0 ? req.getParentId() : null);
@@ -96,10 +103,9 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
                 entity.setSortOrder(req.getSortOrder() != null ? req.getSortOrder() : 0);
                 entity.setExtra(StrUtil.isNotBlank(req.getExtra()) ? req.getExtra() : "{}");
                 entity.setUpdatedAt(now);
-                if (parentPath != null) {
-                    entity.setPath(parentPath + "/" + entity.getId());
-                }
+                entity.setPath(treePathManager.buildPath(parentPath, entity.getId()));
                 mapper.updateById(entity);
+                treePathManager.refreshRoleSubtreePaths(req.getTenantId(), oldPath, entity.getPath());
             }
         } else {
             PcAbstractRole entity = new PcAbstractRole();
@@ -115,8 +121,7 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
             entity.setCreatedAt(now);
             entity.setUpdatedAt(now);
             mapper.insert(entity);
-            String path = parentPath == null ? "/" + entity.getId() : parentPath + "/" + entity.getId();
-            entity.setPath(path);
+            entity.setPath(treePathManager.buildPath(parentPath, entity.getId()));
             mapper.updateById(entity);
         }
     }
@@ -134,9 +139,8 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
             .eq(PcAbstractRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
         List<Long> roleIds = new ArrayList<>();
         for (PcAbstractRole entity : entities) {
-            entity.setDeleteFlag(entity.getId());
-            entity.setDeletedAt(now);
-            entity.setUpdatedAt(now);
+            treePathManager.assertRoleHasNoChildren(req.getTenantId(), entity.getId());
+            PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
             mapper.updateById(entity);
             roleIds.add(entity.getId());
         }
@@ -151,9 +155,7 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
             .in(PcUserRole::getAbstractRoleId, roleIds)
             .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcUserRole ur : userRoles) {
-            ur.setDeleteFlag(ur.getId());
-            ur.setDeletedAt(now);
-            ur.setUpdatedAt(now);
+            PermissionAuditSupport.markDeleted(ur, ur.getId(), now);
             userRoleMapper.updateById(ur);
         }
         List<PcRoleResourcePermission> rrps = roleResourcePermissionMapper.selectList(new LambdaQueryWrapper<PcRoleResourcePermission>()
@@ -161,9 +163,7 @@ public class AbstractRoleServiceImpl implements AbstractRoleService {
             .in(PcRoleResourcePermission::getAbstractRoleId, roleIds)
             .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcRoleResourcePermission rrp : rrps) {
-            rrp.setDeleteFlag(rrp.getId());
-            rrp.setDeletedAt(now);
-            rrp.setUpdatedAt(now);
+            PermissionAuditSupport.markDeleted(rrp, rrp.getId(), now);
             roleResourcePermissionMapper.updateById(rrp);
         }
     }

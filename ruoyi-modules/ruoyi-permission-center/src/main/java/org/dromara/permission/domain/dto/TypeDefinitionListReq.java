@@ -2,12 +2,9 @@ package org.dromara.permission.domain.dto;
 
 import lombok.Data;
 
-/**
- * 兼容旧的 system_config 查询请求。
- */
 @Data
-public class SystemConfigListReq {
+public class TypeDefinitionListReq {
     private Long tenantId;
     private Long bizDomainId;
-    private String configKey;
+    private String typeKey;
 }

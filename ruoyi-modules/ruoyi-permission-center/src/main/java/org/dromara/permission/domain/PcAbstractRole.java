@@ -26,7 +26,7 @@ public class PcAbstractRole extends PermissionBaseEntity {
     /** 所属业务域ID，NULL 表示全局角色 */
     private Long bizDomainId;
 
-    /** 角色类型枚举，来自 system_config */
+    /** 角色类型枚举，来自 type_definition */
     private Integer roleType;
 
     /** 父节点ID，NULL 为根 */

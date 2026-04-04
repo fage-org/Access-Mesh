@@ -12,6 +12,10 @@ import org.dromara.permission.domain.vo.AbstractRoleVo;
 import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.service.support.PermissionTreePathManager;
+import org.dromara.permission.service.support.TypeDefinitionReader;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class AbstractRoleServiceImplTest {
 
     @Mock
@@ -36,9 +41,22 @@ class AbstractRoleServiceImplTest {
     private PcUserRoleMapper userRoleMapper;
     @Mock
     private PcRoleResourcePermissionMapper roleResourcePermissionMapper;
+    @Mock
+    private TypeDefinitionReader typeDefinitionReader;
+    @Mock
+    private PermissionTreePathManager treePathManager;
 
     @InjectMocks
     private AbstractRoleServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        lenient().doAnswer(invocation -> {
+            String parentPath = invocation.getArgument(0);
+            Long id = invocation.getArgument(1);
+            return parentPath == null ? "/" + id : parentPath + "/" + id;
+        }).when(treePathManager).buildPath(any(), any());
+    }
 
     private PcAbstractRole buildRole(Long id, Long tenantId, Long bizDomainId,
                                       Long parentId, String name, String path, Integer sortOrder) {
@@ -341,5 +359,40 @@ class AbstractRoleServiceImplTest {
         service.remove(req);
 
         verify(mapper, never()).updateById(any(PcAbstractRole.class));
+    }
+
+    @Test
+    void save_moveRole_refreshesSubtreePaths() {
+        PcAbstractRole parent = buildRole(10L, 100L, null, null, "parent", "/10", 0);
+        PcAbstractRole existing = buildRole(5L, 100L, null, null, "role", "/5", 0);
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(parent).thenReturn(existing);
+
+        RoleSaveReq req = new RoleSaveReq();
+        req.setId(5L);
+        req.setTenantId(100L);
+        req.setParentId(10L);
+        req.setName("Moved");
+        req.setRoleType(1);
+
+        service.save(req);
+
+        verify(mapper).updateById(existing);
+        verify(treePathManager).refreshRoleSubtreePaths(100L, "/5", "/10/5");
+    }
+
+    @Test
+    void remove_withChildren_throwsIllegalState() {
+        PcAbstractRole entity = buildRole(5L, 100L, null, null, "r", "/5", 0);
+        when(mapper.selectList(any(LambdaQueryWrapper.class)))
+            .thenReturn(Collections.singletonList(entity));
+        doThrow(new IllegalStateException("存在未删除的子角色，禁止删除"))
+            .when(treePathManager).assertRoleHasNoChildren(100L, 5L);
+
+        IdsReq req = new IdsReq();
+        req.setTenantId(100L);
+        req.setIds(Collections.singletonList(5L));
+
+        assertThrows(IllegalStateException.class, () -> service.remove(req));
+        verify(mapper, never()).updateById(entity);
     }
 }

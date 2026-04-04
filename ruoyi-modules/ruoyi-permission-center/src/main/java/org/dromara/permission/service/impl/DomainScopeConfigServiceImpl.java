@@ -12,6 +12,7 @@ import org.dromara.permission.domain.dto.IdsReq;
 import org.dromara.permission.domain.vo.DomainScopeConfigVo;
 import org.dromara.permission.mapper.PcDomainScopeConfigMapper;
 import org.dromara.permission.service.DomainScopeConfigService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +56,7 @@ public class DomainScopeConfigServiceImpl implements DomainScopeConfigService {
             }
             if (item.getId() != null) {
                 PcDomainScopeConfig entity = mapper.selectOne(new LambdaQueryWrapper<PcDomainScopeConfig>()
+                    .eq(PcDomainScopeConfig::getTenantId, item.getTenantId())
                     .eq(PcDomainScopeConfig::getId, item.getId())
                     .eq(PcDomainScopeConfig::getDeleteFlag, PermissionConstants.NOT_DELETED));
                 if (entity != null) {
@@ -81,16 +83,17 @@ public class DomainScopeConfigServiceImpl implements DomainScopeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void remove(IdsReq req) {
-        if (req == null || req.getIds() == null || req.getIds().isEmpty()) {
+        if (req == null || req.getTenantId() == null || req.getIds() == null || req.getIds().isEmpty()) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
         for (Long id : req.getIds()) {
-            PcDomainScopeConfig entity = mapper.selectById(id);
+            PcDomainScopeConfig entity = mapper.selectOne(new LambdaQueryWrapper<PcDomainScopeConfig>()
+                .eq(PcDomainScopeConfig::getTenantId, req.getTenantId())
+                .eq(PcDomainScopeConfig::getId, id)
+                .eq(PcDomainScopeConfig::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (entity != null && PermissionConstants.NOT_DELETED.equals(entity.getDeleteFlag())) {
-                entity.setDeleteFlag(entity.getId());
-                entity.setDeletedAt(now);
-                entity.setUpdatedAt(now);
+                PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
                 mapper.updateById(entity);
             }
         }

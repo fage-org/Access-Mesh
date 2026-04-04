@@ -10,6 +10,8 @@ import org.dromara.permission.domain.dto.OperationSaveReq;
 import org.dromara.permission.domain.vo.OperationPermissionVo;
 import org.dromara.permission.mapper.PcOperationPermissionMapper;
 import org.dromara.permission.service.OperationPermissionService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class OperationPermissionServiceImpl implements OperationPermissionService {
 
     private final PcOperationPermissionMapper mapper;
+    private final TypeDefinitionReader typeDefinitionReader;
 
     @Override
     public List<OperationPermissionVo> list(OperationListReq req) {
@@ -33,8 +36,8 @@ public class OperationPermissionServiceImpl implements OperationPermissionServic
         LambdaQueryWrapper<PcOperationPermission> q = new LambdaQueryWrapper<PcOperationPermission>()
             .eq(PcOperationPermission::getTenantId, req.getTenantId())
             .eq(PcOperationPermission::getDeleteFlag, PermissionConstants.NOT_DELETED);
-        if (req.getBizDomainId() != null) {
-            q.eq(PcOperationPermission::getBizDomainId, req.getBizDomainId());
+        if (req.getResourceType() != null) {
+            q.eq(PcOperationPermission::getResourceType, req.getResourceType());
         }
         q.orderByAsc(PcOperationPermission::getId);
         return mapper.selectList(q).stream().map(this::toVo).collect(Collectors.toList());
@@ -46,13 +49,16 @@ public class OperationPermissionServiceImpl implements OperationPermissionServic
         if (req == null || req.getTenantId() == null) {
             return;
         }
+        if (req.getResourceType() != null) {
+            typeDefinitionReader.assertTypeValueExists(req.getTenantId(), null, "resource_type", req.getResourceType(), "无效的资源类型");
+        }
         LocalDateTime now = LocalDateTime.now();
         if (req.getId() != null) {
             PcOperationPermission entity = mapper.selectOne(new LambdaQueryWrapper<PcOperationPermission>()
                 .eq(PcOperationPermission::getId, req.getId())
                 .eq(PcOperationPermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (entity != null) {
-                entity.setBizDomainId(req.getBizDomainId());
+                entity.setResourceType(req.getResourceType());
                 entity.setCode(req.getCode());
                 entity.setName(req.getName());
                 entity.setBinaryBit(req.getBinaryBit());
@@ -63,7 +69,7 @@ public class OperationPermissionServiceImpl implements OperationPermissionServic
         } else {
             PcOperationPermission entity = new PcOperationPermission();
             entity.setTenantId(req.getTenantId());
-            entity.setBizDomainId(req.getBizDomainId());
+            entity.setResourceType(req.getResourceType());
             entity.setCode(req.getCode());
             entity.setName(req.getName());
             entity.setBinaryBit(req.getBinaryBit() != null ? req.getBinaryBit() : 0L);
@@ -87,9 +93,7 @@ public class OperationPermissionServiceImpl implements OperationPermissionServic
             .in(PcOperationPermission::getId, req.getIds())
             .eq(PcOperationPermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcOperationPermission entity : entities) {
-            entity.setDeleteFlag(entity.getId());
-            entity.setDeletedAt(now);
-            entity.setUpdatedAt(now);
+            PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
             mapper.updateById(entity);
         }
     }

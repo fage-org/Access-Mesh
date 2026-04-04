@@ -12,6 +12,7 @@ import org.dromara.permission.domain.vo.ConflictRuleVo;
 import org.dromara.permission.domain.vo.ConflictViolationVo;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.service.ConflictRuleService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -99,9 +100,7 @@ public class ConflictRuleServiceImpl implements ConflictRuleService {
             .in(PcPermissionConflictRule::getId, req.getIds())
             .eq(PcPermissionConflictRule::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcPermissionConflictRule entity : entities) {
-            entity.setDeleteFlag(entity.getId());
-            entity.setDeletedAt(now);
-            entity.setUpdatedAt(now);
+            PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
             conflictRuleMapper.updateById(entity);
         }
     }

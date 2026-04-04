@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 抽象用户表 abstract_user
- * user_type 来自 system_config
+ * user_type 来自 type_definition
  * 逻辑删除：基类 deleteFlag，0=未删除，删除时=id
  *
  * @author RuoYi-Cloud-Plus
@@ -23,7 +23,7 @@ public class PcAbstractUser extends PermissionBaseEntity {
     @TableId("id")
     private Long id;
 
-    /** 用户类型枚举值，来自 system_config.config_key=user_type */
+    /** 用户类型枚举值，来自 type_definition.type_key=user_type */
     private Integer userType;
 
     /** 外部业务系统唯一标识 */

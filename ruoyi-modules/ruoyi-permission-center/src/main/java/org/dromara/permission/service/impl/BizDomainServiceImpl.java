@@ -13,6 +13,7 @@ import org.dromara.permission.domain.dto.IdsReq;
 import org.dromara.permission.domain.vo.BizDomainVo;
 import org.dromara.permission.mapper.PcBizDomainMapper;
 import org.dromara.permission.service.BizDomainService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,9 +93,7 @@ public class BizDomainServiceImpl implements BizDomainService {
             .in(PcBizDomain::getId, req.getIds())
             .eq(PcBizDomain::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcBizDomain entity : entities) {
-            entity.setDeleteFlag(entity.getId());
-            entity.setDeletedAt(now);
-            entity.setUpdatedAt(now);
+            PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
             mapper.updateById(entity);
         }
     }

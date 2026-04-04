@@ -13,6 +13,7 @@ import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class UserRoleServiceImplTest {
 
     @Mock

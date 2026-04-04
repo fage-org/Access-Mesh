@@ -4,12 +4,14 @@ import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.reflection.SystemMetaObject;
 import org.dromara.permission.domain.PermissionBaseEntity;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("dev")
 class PermissionMetaObjectHandlerTest {
 
     private final PermissionMetaObjectHandler handler = new PermissionMetaObjectHandler();

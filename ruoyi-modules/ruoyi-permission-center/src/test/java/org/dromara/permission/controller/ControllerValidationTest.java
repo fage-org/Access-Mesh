@@ -11,6 +11,7 @@ import org.dromara.permission.domain.dto.SyncUsersReq;
 import org.dromara.permission.domain.dto.UserRoleAssignReq;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("Controller Request DTO Validation Tests")
+@Tag("dev")
 class ControllerValidationTest {
 
     private static Validator validator;

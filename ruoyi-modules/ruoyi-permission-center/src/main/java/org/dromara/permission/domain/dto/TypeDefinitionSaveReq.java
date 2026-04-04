@@ -4,19 +4,16 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * 兼容旧的 system_config 保存请求。
- */
 @Data
-public class SystemConfigSaveReq {
-    private List<SystemConfigItem> items;
+public class TypeDefinitionSaveReq {
+    private List<TypeDefinitionItem> items;
 
     @Data
-    public static class SystemConfigItem {
+    public static class TypeDefinitionItem {
         private Long id;
         private Long tenantId;
         private Long bizDomainId;
-        private String configKey;
+        private String typeKey;
         private Integer typeValue;
         private String name;
         private String description;

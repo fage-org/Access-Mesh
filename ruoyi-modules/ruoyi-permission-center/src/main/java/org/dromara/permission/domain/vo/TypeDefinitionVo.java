@@ -4,15 +4,12 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * 兼容旧的 system_config 返回结构。
- */
 @Data
-public class SystemConfigVo {
+public class TypeDefinitionVo {
     private Long id;
     private Long tenantId;
     private Long bizDomainId;
-    private String configKey;
+    private String typeKey;
     private Integer typeValue;
     private String name;
     private String description;

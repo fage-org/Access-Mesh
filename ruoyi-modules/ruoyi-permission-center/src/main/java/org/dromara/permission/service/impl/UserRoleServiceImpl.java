@@ -16,6 +16,7 @@ import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.dromara.permission.service.PermissionChangeLogService;
 import org.dromara.permission.service.UserRoleService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -131,9 +132,7 @@ public class UserRoleServiceImpl implements UserRoleService {
                 .eq(PcUserRole::getAbstractRoleId, roleId)
                 .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (ur != null) {
-                ur.setDeleteFlag(ur.getId());
-                ur.setDeletedAt(now);
-                ur.setUpdatedAt(now);
+                PermissionAuditSupport.markDeleted(ur, ur.getId(), now);
                 userRoleMapper.updateById(ur);
             }
         }

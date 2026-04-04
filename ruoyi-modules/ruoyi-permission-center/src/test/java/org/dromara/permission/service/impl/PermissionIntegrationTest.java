@@ -7,8 +7,11 @@ import org.dromara.permission.domain.dto.*;
 import org.dromara.permission.domain.vo.ConflictViolationVo;
 import org.dromara.permission.domain.vo.PermissionCheckVo;
 import org.dromara.permission.mapper.*;
+import org.dromara.permission.service.support.PermissionTreePathManager;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,6 +28,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("dev")
 class PermissionIntegrationTest {
 
     private static final Long NOT_DELETED = PermissionConstants.NOT_DELETED;
@@ -39,6 +43,8 @@ class PermissionIntegrationTest {
     @Mock private PcPermissionChangeLogMapper changeLogMapper;
     @Mock private PcResourceDependencyMapper resourceDependencyMapper;
     @Mock private PcPermissionConflictRuleMapper conflictRuleMapper;
+    @Mock private PermissionTreePathManager treePathManager;
+    @Mock private TypeDefinitionReader typeDefinitionReader;
 
     private PermissionChangeLogServiceImpl changeLogService;
     private PermissionSyncServiceImpl syncService;
@@ -52,10 +58,16 @@ class PermissionIntegrationTest {
     void setUp() {
         idSeq.set(1000);
         changeLogService = new PermissionChangeLogServiceImpl(changeLogMapper);
+        lenient().doAnswer(inv -> {
+            String parentPath = inv.getArgument(0);
+            Long id = inv.getArgument(1);
+            return parentPath == null ? "/" + id : parentPath + "/" + id;
+        }).when(treePathManager).buildPath(any(), any());
         syncService = new PermissionSyncServiceImpl(
             abstractUserMapper, abstractRoleMapper, resourceEntityMapper,
             operationPermissionMapper, permissionConditionMapper,
-            userRoleMapper, roleResourcePermissionMapper, changeLogService
+            userRoleMapper, roleResourcePermissionMapper, changeLogService,
+            treePathManager, typeDefinitionReader
         );
         checkService = new PermissionCheckServiceImpl(
             userRoleMapper, abstractRoleMapper, roleResourcePermissionMapper,

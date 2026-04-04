@@ -8,6 +8,7 @@ import org.dromara.permission.domain.bo.ChangeLogQueryBo;
 import org.dromara.permission.domain.dto.ChangeLogParam;
 import org.dromara.permission.domain.vo.ChangeLogVo;
 import org.dromara.permission.mapper.PcPermissionChangeLogMapper;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class PermissionChangeLogServiceImplTest {
 
     @Mock

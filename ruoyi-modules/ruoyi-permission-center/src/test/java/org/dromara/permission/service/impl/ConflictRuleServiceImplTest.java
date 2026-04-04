@@ -15,6 +15,7 @@ import org.dromara.permission.mapper.PcPermissionConflictRuleMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class ConflictRuleServiceImplTest {
 
     @Mock

@@ -8,5 +8,5 @@ import lombok.Data;
 @Data
 public class OperationListReq {
     private Long tenantId;
-    private Long bizDomainId;
+    private Integer resourceType;
 }

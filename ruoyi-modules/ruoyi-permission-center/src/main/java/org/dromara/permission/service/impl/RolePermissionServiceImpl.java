@@ -12,6 +12,7 @@ import org.dromara.permission.domain.vo.RolePermissionVo;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.service.PermissionChangeLogService;
 import org.dromara.permission.service.RolePermissionService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -130,9 +131,7 @@ public class RolePermissionServiceImpl implements RolePermissionService {
                     .eq(PcRoleResourcePermission::getOperationPermissionId, pair.getOperationPermissionId())
                     .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (rrp != null) {
-                rrp.setDeleteFlag(rrp.getId());
-                rrp.setDeletedAt(now);
-                rrp.setUpdatedAt(now);
+                PermissionAuditSupport.markDeleted(rrp, rrp.getId(), now);
                 roleResourcePermissionMapper.updateById(rrp);
             }
         }

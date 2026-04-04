@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 权限资源实体表 resource_entity
- * 树形；resource_type 来自 system_config
+ * 树形；resource_type 来自 type_definition
  * 逻辑删除：基类 deleteFlag，0=未删除，删除时=id
  *
  * @author RuoYi-Cloud-Plus
@@ -35,7 +35,7 @@ public class PcResourceEntity extends PermissionBaseEntity {
     /** 名称 */
     private String name;
 
-    /** 资源类型枚举，来自 system_config */
+    /** 资源类型枚举，来自 type_definition */
     private Integer resourceType;
 
     /** 树路径 */

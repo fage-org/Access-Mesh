@@ -23,8 +23,8 @@ public class PcOperationPermission extends PermissionBaseEntity {
     @TableId("id")
     private Long id;
 
-    /** 所属业务域ID，NULL 表示全局操作 */
-    private Long bizDomainId;
+    /** 适用资源类型，NULL 表示适用全部资源类型 */
+    private Integer resourceType;
 
     /** 操作编码，如 VIEW、EDIT */
     private String code;

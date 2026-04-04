@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public class OperationPermissionVo {
     private Long id;
     private Long tenantId;
-    private Long bizDomainId;
+    private Integer resourceType;
     private String code;
     private String name;
     private Long binaryBit;

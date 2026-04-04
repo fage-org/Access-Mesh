@@ -13,6 +13,8 @@ import org.dromara.permission.domain.dto.UserSaveReq;
 import org.dromara.permission.domain.vo.AbstractUserVo;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.service.AbstractUserService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 public class AbstractUserServiceImpl implements AbstractUserService {
 
     private final PcAbstractUserMapper mapper;
+    private final TypeDefinitionReader typeDefinitionReader;
 
     @Override
     public TableDataInfo<AbstractUserVo> page(UserPageReq req) {
@@ -58,6 +61,7 @@ public class AbstractUserServiceImpl implements AbstractUserService {
         if (req == null || req.getTenantId() == null) {
             return;
         }
+        typeDefinitionReader.assertTypeValueExists(req.getTenantId(), null, "user_type", req.getUserType(), "无效的用户类型");
         LocalDateTime now = LocalDateTime.now();
         if (req.getId() != null) {
             PcAbstractUser entity = mapper.selectOne(new LambdaQueryWrapper<PcAbstractUser>()
@@ -95,9 +99,7 @@ public class AbstractUserServiceImpl implements AbstractUserService {
         for (Long id : req.getIds()) {
             PcAbstractUser entity = mapper.selectById(id);
             if (entity != null && PermissionConstants.NOT_DELETED.equals(entity.getDeleteFlag())) {
-                entity.setDeleteFlag(entity.getId());
-                entity.setDeletedAt(now);
-                entity.setUpdatedAt(now);
+                PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
                 mapper.updateById(entity);
             }
         }

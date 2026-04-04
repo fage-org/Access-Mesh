@@ -1,8 +1,10 @@
 package org.dromara.permission.domain;
 
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+import org.dromara.permission.handler.PgLongArrayToStringTypeHandler;
 
 import java.time.LocalDateTime;
 
@@ -13,7 +15,7 @@ import java.time.LocalDateTime;
  * @author RuoYi-Cloud-Plus
  */
 @Data
-@TableName("permission_change_log")
+@TableName(value = "permission_change_log", autoResultMap = true)
 public class PcPermissionChangeLog implements java.io.Serializable {
 
     @java.io.Serial
@@ -45,9 +47,11 @@ public class PcPermissionChangeLog implements java.io.Serializable {
     private String newSnapshot;
 
     /** 本条变更影响的用户ID数组，PostgreSQL BIGINT[] 存为逗号分隔或 JSON */
+    @TableField(typeHandler = PgLongArrayToStringTypeHandler.class)
     private String affectedAbstractUserIds;
 
     /** 本条变更影响的角色ID数组 */
+    @TableField(typeHandler = PgLongArrayToStringTypeHandler.class)
     private String affectedAbstractRoleIds;
 
     /** 变更原因说明 */

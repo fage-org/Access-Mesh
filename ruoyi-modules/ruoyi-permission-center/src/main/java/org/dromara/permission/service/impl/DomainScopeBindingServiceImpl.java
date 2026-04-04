@@ -11,6 +11,7 @@ import org.dromara.permission.domain.dto.IdsReq;
 import org.dromara.permission.domain.vo.DomainScopeBindingVo;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.service.DomainScopeBindingService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +61,7 @@ public class DomainScopeBindingServiceImpl implements DomainScopeBindingService 
             }
             if (item.getId() != null) {
                 PcDomainScopeBinding entity = mapper.selectOne(new LambdaQueryWrapper<PcDomainScopeBinding>()
+                    .eq(PcDomainScopeBinding::getTenantId, item.getTenantId())
                     .eq(PcDomainScopeBinding::getId, item.getId())
                     .eq(PcDomainScopeBinding::getDeleteFlag, PermissionConstants.NOT_DELETED));
                 if (entity != null) {
@@ -102,7 +104,7 @@ public class DomainScopeBindingServiceImpl implements DomainScopeBindingService 
                     .eq(PcOperationPermission::getTenantId, tenantId)
                     .eq(PcOperationPermission::getId, boundEntityId)
                     .eq(PcOperationPermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
-                return op != null && op.getBizDomainId() == null;
+                return op != null;
             default:
                 return false;
         }
@@ -111,16 +113,17 @@ public class DomainScopeBindingServiceImpl implements DomainScopeBindingService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void remove(IdsReq req) {
-        if (req == null || req.getIds() == null || req.getIds().isEmpty()) {
+        if (req == null || req.getTenantId() == null || req.getIds() == null || req.getIds().isEmpty()) {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
         for (Long id : req.getIds()) {
-            PcDomainScopeBinding entity = mapper.selectById(id);
+            PcDomainScopeBinding entity = mapper.selectOne(new LambdaQueryWrapper<PcDomainScopeBinding>()
+                .eq(PcDomainScopeBinding::getTenantId, req.getTenantId())
+                .eq(PcDomainScopeBinding::getId, id)
+                .eq(PcDomainScopeBinding::getDeleteFlag, PermissionConstants.NOT_DELETED));
             if (entity != null && PermissionConstants.NOT_DELETED.equals(entity.getDeleteFlag())) {
-                entity.setDeleteFlag(entity.getId());
-                entity.setDeletedAt(now);
-                entity.setUpdatedAt(now);
+                PermissionAuditSupport.markDeleted(entity, entity.getId(), now);
                 mapper.updateById(entity);
             }
         }

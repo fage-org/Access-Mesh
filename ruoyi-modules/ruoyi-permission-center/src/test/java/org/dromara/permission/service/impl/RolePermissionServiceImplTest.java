@@ -14,6 +14,7 @@ import org.dromara.permission.mapper.PcOperationPermissionMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class RolePermissionServiceImplTest {
 
     @Mock

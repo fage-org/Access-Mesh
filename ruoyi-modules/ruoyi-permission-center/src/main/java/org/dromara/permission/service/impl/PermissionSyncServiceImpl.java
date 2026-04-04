@@ -11,6 +11,9 @@ import org.dromara.permission.domain.dto.*;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.service.PermissionChangeLogService;
 import org.dromara.permission.service.PermissionSyncService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
+import org.dromara.permission.service.support.PermissionTreePathManager;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +43,8 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
     private final PcUserRoleMapper userRoleMapper;
     private final PcRoleResourcePermissionMapper roleResourcePermissionMapper;
     private final PermissionChangeLogService permissionChangeLogService;
+    private final PermissionTreePathManager treePathManager;
+    private final TypeDefinitionReader typeDefinitionReader;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -52,6 +57,7 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
         }
         Long tenantId = req.getTenantId();
         Integer userType = req.getUserType();
+        typeDefinitionReader.assertTypeValueExists(tenantId, null, "user_type", userType, "无效的用户类型");
         LocalDateTime now = LocalDateTime.now();
 
         List<String> externalIds = req.getItems().stream()
@@ -151,6 +157,8 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
 
             PcAbstractRole existing = existingMap.get(item.getExternalId());
             if (existing != null) {
+                typeDefinitionReader.assertTypeValueExists(tenantId, bizDomainId, "role_type", item.getRoleType(), "无效的角色类型");
+                String oldPath = existing.getPath();
                 existing.setRoleType(item.getRoleType());
                 existing.setName(item.getName());
                 existing.setParentId(parentId);
@@ -158,12 +166,14 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
                 if (item.getExtra() != null) {
                     existing.setExtra(item.getExtra());
                 }
-                existing.setPath(buildPath(parentPath, existing.getId()));
+                existing.setPath(treePathManager.buildPath(parentPath, existing.getId()));
                 existing.setUpdatedAt(now);
                 abstractRoleMapper.updateById(existing);
+                treePathManager.refreshRoleSubtreePaths(tenantId, oldPath, existing.getPath());
                 parentMap.put(item.getExternalId(), existing);
                 updateCount++;
             } else {
+                typeDefinitionReader.assertTypeValueExists(tenantId, bizDomainId, "role_type", item.getRoleType(), "无效的角色类型");
                 PcAbstractRole entity = new PcAbstractRole();
                 entity.setTenantId(tenantId);
                 entity.setBizDomainId(bizDomainId);
@@ -177,7 +187,7 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
                 entity.setCreatedAt(now);
                 entity.setUpdatedAt(now);
                 abstractRoleMapper.insert(entity);
-                entity.setPath(buildPath(parentPath, entity.getId()));
+                entity.setPath(treePathManager.buildPath(parentPath, entity.getId()));
                 abstractRoleMapper.updateById(entity);
                 existingMap.put(item.getExternalId(), entity);
                 parentMap.put(item.getExternalId(), entity);
@@ -247,6 +257,8 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
 
             PcResourceEntity existing = existingMap.get(item.getCode());
             if (existing != null) {
+                typeDefinitionReader.assertTypeValueExists(tenantId, bizDomainId, "resource_type", resourceType, "无效的资源类型");
+                String oldPath = existing.getPath();
                 existing.setName(item.getName());
                 existing.setParentId(parentId);
                 existing.setResourceType(resourceType);
@@ -254,12 +266,14 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
                 if (item.getExtra() != null) {
                     existing.setExtra(item.getExtra());
                 }
-                existing.setPath(buildPath(parentPath, existing.getId()));
+                existing.setPath(treePathManager.buildPath(parentPath, existing.getId()));
                 existing.setUpdatedAt(now);
                 resourceEntityMapper.updateById(existing);
+                treePathManager.refreshResourceSubtreePaths(tenantId, oldPath, existing.getPath());
                 parentMap.put(item.getCode(), existing);
                 updateCount++;
             } else {
+                typeDefinitionReader.assertTypeValueExists(tenantId, bizDomainId, "resource_type", resourceType, "无效的资源类型");
                 PcResourceEntity entity = new PcResourceEntity();
                 entity.setTenantId(tenantId);
                 entity.setBizDomainId(bizDomainId);
@@ -273,7 +287,7 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
                 entity.setCreatedAt(now);
                 entity.setUpdatedAt(now);
                 resourceEntityMapper.insert(entity);
-                entity.setPath(buildPath(parentPath, entity.getId()));
+                entity.setPath(treePathManager.buildPath(parentPath, entity.getId()));
                 resourceEntityMapper.updateById(entity);
                 existingMap.put(item.getCode(), entity);
                 parentMap.put(item.getCode(), entity);
@@ -417,8 +431,8 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
             .map(SyncRolePermissionsReq.SyncRolePermissionItem::getOperationCode)
             .distinct().collect(Collectors.toList());
         Map<String, PcOperationPermission> opMap = operationPermissionMapper.selectList(
-            buildBizDomainQuery(new LambdaQueryWrapper<PcOperationPermission>(), PcOperationPermission::getTenantId,
-                PcOperationPermission::getBizDomainId, tenantId, bizDomainId)
+            new LambdaQueryWrapper<PcOperationPermission>()
+                .eq(PcOperationPermission::getTenantId, tenantId)
                 .in(PcOperationPermission::getCode, operationCodes)
                 .eq(PcOperationPermission::getDeleteFlag, NOT_DELETED)
         ).stream().collect(Collectors.toMap(PcOperationPermission::getCode, Function.identity(), (a, b) -> a));
@@ -510,16 +524,12 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
     // ===================== 私有辅助方法 =====================
 
     private void logicDeleteUserRole(PcUserRole ur, LocalDateTime now) {
-        ur.setDeleteFlag(ur.getId());
-        ur.setDeletedAt(now);
-        ur.setUpdatedAt(now);
+        PermissionAuditSupport.markDeleted(ur, ur.getId(), now);
         userRoleMapper.updateById(ur);
     }
 
     private void logicDeleteRoleResourcePermission(PcRoleResourcePermission rrp, LocalDateTime now) {
-        rrp.setDeleteFlag(rrp.getId());
-        rrp.setDeletedAt(now);
-        rrp.setUpdatedAt(now);
+        PermissionAuditSupport.markDeleted(rrp, rrp.getId(), now);
         roleResourcePermissionMapper.updateById(rrp);
     }
 
@@ -539,10 +549,6 @@ public class PermissionSyncServiceImpl implements PermissionSyncService {
             wrapper.isNull(bizDomainGetter);
         }
         return wrapper;
-    }
-
-    private String buildPath(String parentPath, Long id) {
-        return parentPath == null ? "/" + id : parentPath + "/" + id;
     }
 
     private String buildOperation(int insertCount, int updateCount) {

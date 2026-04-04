@@ -7,6 +7,7 @@ import org.dromara.permission.domain.dto.PermissionCheckReq;
 import org.dromara.permission.domain.vo.PermissionCheckVo;
 import org.dromara.permission.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class PermissionCheckServiceImplTest {
 
     @Mock

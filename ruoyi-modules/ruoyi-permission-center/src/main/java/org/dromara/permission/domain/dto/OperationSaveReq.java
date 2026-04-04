@@ -9,7 +9,7 @@ import lombok.Data;
 public class OperationSaveReq {
     private Long id;
     private Long tenantId;
-    private Long bizDomainId;
+    private Integer resourceType;
     private String code;
     private String name;
     private Long binaryBit;

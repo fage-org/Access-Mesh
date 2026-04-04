@@ -1,11 +1,12 @@
 package org.dromara.permission.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
-import org.dromara.common.json.utils.JsonUtils;
 import org.dromara.permission.domain.PcPermissionChangeLog;
 import org.dromara.permission.domain.bo.ChangeLogQueryBo;
 import org.dromara.permission.domain.dto.ChangeLogParam;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 权限变更记录服务实现：写入 permission_change_log，供同步模块及其他模块调用
@@ -29,13 +31,32 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PermissionChangeLogServiceImpl implements PermissionChangeLogService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final PcPermissionChangeLogMapper changeLogMapper;
 
     @Override
     public void writeChangeLog(ChangeLogParam param) {
-        writeChangeLog(param.getTenantId(), param.getBizDomainId(), param.getEntityType(),
-            param.getEntityId(), param.getOperation(), param.getOldSnapshot(),
-            param.getNewSnapshot(), param.getRequestId(), param.getChangeSource());
+        try {
+            PcPermissionChangeLog logEntity = new PcPermissionChangeLog();
+            logEntity.setTenantId(param.getTenantId());
+            logEntity.setBizDomainId(param.getBizDomainId());
+            logEntity.setEntityType(param.getEntityType());
+            logEntity.setEntityId(param.getEntityId());
+            logEntity.setOperation(param.getOperation());
+            logEntity.setOldSnapshot(serializeSnapshot(param.getOldSnapshot()));
+            logEntity.setNewSnapshot(serializeSnapshot(param.getNewSnapshot()));
+            logEntity.setAffectedAbstractUserIds(joinIds(param.getAffectedAbstractUserIds()));
+            logEntity.setAffectedAbstractRoleIds(joinIds(param.getAffectedAbstractRoleIds()));
+            logEntity.setChangeReason(param.getChangeReason());
+            logEntity.setChangeSource(param.getChangeSource());
+            logEntity.setRequestId(param.getRequestId());
+            logEntity.setCreatedAt(LocalDateTime.now());
+            changeLogMapper.insert(logEntity);
+        } catch (Exception e) {
+            log.error("[CRITICAL] writeChangeLog failed, entityType={}, entityId={}, tenantId={}",
+                param.getEntityType(), param.getEntityId(), param.getTenantId(), e);
+        }
     }
 
     @Override
@@ -49,8 +70,8 @@ public class PermissionChangeLogServiceImpl implements PermissionChangeLogServic
             logEntity.setEntityType(entityType);
             logEntity.setEntityId(entityId);
             logEntity.setOperation(operation);
-            logEntity.setOldSnapshot(oldSnapshot != null ? JsonUtils.toJsonString(oldSnapshot) : null);
-            logEntity.setNewSnapshot(newSnapshot != null ? JsonUtils.toJsonString(newSnapshot) : null);
+            logEntity.setOldSnapshot(serializeSnapshot(oldSnapshot));
+            logEntity.setNewSnapshot(serializeSnapshot(newSnapshot));
             logEntity.setChangeSource(changeSource);
             logEntity.setRequestId(requestId);
             logEntity.setCreatedAt(LocalDateTime.now());
@@ -80,5 +101,24 @@ public class PermissionChangeLogServiceImpl implements PermissionChangeLogServic
         ChangeLogVo vo = new ChangeLogVo();
         BeanUtils.copyProperties(entity, vo);
         return vo;
+    }
+
+    private String joinIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return null;
+        }
+        return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+    }
+
+    private String serializeSnapshot(Object snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            log.warn("serializeSnapshot failed, fallback to toString, type={}", snapshot.getClass().getName(), e);
+            return String.valueOf(snapshot);
+        }
     }
 }

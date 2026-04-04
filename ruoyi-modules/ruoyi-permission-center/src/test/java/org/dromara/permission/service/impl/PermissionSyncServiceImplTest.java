@@ -6,8 +6,12 @@ import org.dromara.permission.domain.*;
 import org.dromara.permission.domain.dto.*;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.dromara.permission.service.support.PermissionTreePathManager;
+import org.dromara.permission.service.support.TypeDefinitionReader;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +31,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("dev")
 class PermissionSyncServiceImplTest {
 
     private static final long NOT_DELETED = 0L;
@@ -48,11 +53,25 @@ class PermissionSyncServiceImplTest {
     private PcRoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock
     private PermissionChangeLogService permissionChangeLogService;
+    @Mock
+    private PermissionTreePathManager treePathManager;
+    @Mock
+    private TypeDefinitionReader typeDefinitionReader;
 
     @InjectMocks
     private PermissionSyncServiceImpl syncService;
 
     private final AtomicLong idSeq = new AtomicLong(1000);
+
+    @BeforeEach
+    void setUp() {
+        idSeq.set(1000);
+        lenient().doAnswer(inv -> {
+            String parentPath = inv.getArgument(0);
+            Long id = inv.getArgument(1);
+            return parentPath == null ? "/" + id : parentPath + "/" + id;
+        }).when(treePathManager).buildPath(any(), any());
+    }
 
     // ========================= syncUsers =========================
 
