@@ -9,13 +9,17 @@
 | **permission_center_schema.sql** | 完整建表 DDL：17 张表、唯一约束与部分唯一索引、GIN 索引、表/列中文注释。无外键，按文件内顺序执行即可。 |
 | **DESIGN.md** | 详细设计文档：概念、表清单、鉴权/授权流程、位运算约定、条件审核、冲突检测、资源依赖、管理端与接口建议，供 AI 开发项目使用。 |
 | **MIXED_KERNEL_ARCHITECTURE.md** | 混合内核架构文档：三服务拓扑（gateway + identity-service + permission-center）、运行时边界、核心模型、关键流程。 |
-| **MIXED_KERNEL_EXECUTION_PLAN.md** | 分阶段执行计划：Phase 0-8 的状态、交付物与验证记录。 |
+| **MIXED_KERNEL_EXECUTION_PLAN.md** | 分阶段执行计划：Phase 0-13 的状态、交付物与验证记录。 |
+| **PHASE0_DATA_MODEL_DICTIONARY.md** | Phase 0 数据模型字典：基于 17 张事实表冻结表职责、关键字段、约束与首期枚举范围。 |
+| **PHASE0_API_CONTRACT.md** | Phase 0 API 契约说明：基于现有设计文档冻结权限中心对外接口、请求/响应结构与边界。 |
+| **PHASE0_ERROR_CODES.md** | Phase 0 错误码表：冻结权限中心首期拒绝原因与通用错误语义的编码规则。 |
 
 ## 使用方式
 
 1. **建表**：在目标 PostgreSQL 库中按**文件内顺序**执行 `permission_center_schema.sql`（建议先建库或 schema，再执行）。
-2. **开发**：将 `DESIGN.md` 与 `permission_center_schema.sql` 一并提供给 AI 或开发人员，作为实现权限中心后端、鉴权服务、管理端页面的依据。
+2. **开发**：Phase 0 之后，默认将 `PHASE0_DATA_MODEL_DICTIONARY.md`、`PHASE0_API_CONTRACT.md`、`PHASE0_ERROR_CODES.md` 与 `DESIGN.md`、`permission_center_schema.sql` 一并作为实现权限中心后端、鉴权服务、管理端页面的基线依据。
 3. **架构**：参阅 `MIXED_KERNEL_ARCHITECTURE.md` 了解三服务拓扑与运行时边界。
+4. **Phase 0 基线**：优先读取 `PHASE0_DATA_MODEL_DICTIONARY.md`、`PHASE0_API_CONTRACT.md`、`PHASE0_ERROR_CODES.md`，以冻结后的首期基线为准。
 
 ## 表一览（17 张）
 

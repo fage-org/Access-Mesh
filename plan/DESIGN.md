@@ -31,7 +31,7 @@
 | 业务域 (biz_domain) | 对权限对象分类，控制数据量与管理边界。 |
 | 抽象用户 (abstract_user) | 对应具体业务的人/服务/第三方，通过 user_type 区分，无 biz_domain，通过角色关联到域。 |
 | 抽象角色 (abstract_role) | 对应角色/组织/团队/职位等，属于某 biz_domain 或全局；与权限直接关联。 |
-| 操作权限 (operation_permission) | 如 VIEW、EDIT、INVOKE；绑定 resource_type；用 binary_bit + inherit_mask 表达继承。 |
+| 操作权限 (operation_permission) | 如 VIEW、EDIT、ACCESS；绑定 resource_type；用 binary_bit + inherit_mask 表达继承。 |
 | 权限资源实体 (resource_entity) | 权限作用对象（菜单、报表、数据集等），支持树形。 |
 | 接口资源映射 (resource_api_mapping) | 接口类资源到 `service_code + http_method + path_pattern` 的显式映射。 |
 | 权限条件 (permission_condition) | 权限生效条件：预设（handler 编码）或自定义（需审核）。 |
@@ -97,7 +97,7 @@ permission_version --> identity-service / gateway
 - 显示名称与描述从 type_definition 按 (type_key, type_value) 查询；biz_domain_id 可空表示租户全局类型。
 - `user_type` 首批至少覆盖 `USER`、`SERVICE`。
 - `resource_type` 首批至少覆盖 `MENU`、`BUTTON`、`API`、`DATA`。
-- 接口类资源建议使用 `ACCESS` 或 `INVOKE` 作为默认操作编码。
+- 接口类资源默认操作编码统一使用 `ACCESS`。
 - **operation_permission.resource_type**：引用 type_definition 中 type_key='resource_type' 的 type_value，NULL 表示适用所有资源类型。
 - **domain_scope_config.scope_type**：`ROLE_TYPE` | `RESOURCE_TYPE` | `OPERATION`。
 - **domain_relation_config.relation_type**：当前仅 `ROLE_RESOURCE`。

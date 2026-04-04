@@ -86,6 +86,9 @@
 - 数据模型字典
 - API 契约说明
 - 错误码表
+- `PHASE0_DATA_MODEL_DICTIONARY.md`
+- `PHASE0_API_CONTRACT.md`
+- `PHASE0_ERROR_CODES.md`
 
 验收标准：
 
@@ -137,7 +140,7 @@
 - 建立首批操作数据：
   - VIEW
   - EDIT
-  - ACCESS 或 INVOKE
+  - ACCESS
   - DATA_READ
   - DATA_EXPORT
 - 为 `operation_permission` 固定 `binary_bit + inherit_mask` 规则。
