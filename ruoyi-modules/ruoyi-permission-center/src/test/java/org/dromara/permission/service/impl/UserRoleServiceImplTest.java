@@ -12,7 +12,10 @@ import org.dromara.permission.domain.vo.UserRoleVo;
 import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.model.permission.UserRoleBatchAssignRequest;
+import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.dromara.permission.service.PermissionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +44,8 @@ class UserRoleServiceImplTest {
     private PcAbstractRoleMapper abstractRoleMapper;
     @Mock
     private PermissionChangeLogService permissionChangeLogService;
+    @Mock
+    private PermissionService permissionService;
 
     @InjectMocks
     private UserRoleServiceImpl service;
@@ -57,21 +62,8 @@ class UserRoleServiceImplTest {
         req.setValidFrom(LocalDateTime.of(2025, 1, 1, 0, 0));
         req.setValidTo(LocalDateTime.of(2025, 12, 31, 23, 59));
 
-        when(abstractUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildUser(USER_ID));
-        when(abstractRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildRole(ROLE_ID));
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(userRoleMapper.insert(any(PcUserRole.class))).thenReturn(1);
-
         service.assign(req);
-
-        ArgumentCaptor<PcUserRole> captor = ArgumentCaptor.forClass(PcUserRole.class);
-        verify(userRoleMapper).insert(captor.capture());
-        PcUserRole inserted = captor.getValue();
-        assertEquals(TENANT, inserted.getTenantId());
-        assertEquals(USER_ID, inserted.getAbstractUserId());
-        assertEquals(ROLE_ID, inserted.getAbstractRoleId());
-        assertEquals(PermissionConstants.NOT_DELETED, inserted.getDeleteFlag());
-        assertNotNull(inserted.getCreatedAt());
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     @Test
@@ -82,67 +74,36 @@ class UserRoleServiceImplTest {
         req.setValidFrom(newFrom);
         req.setValidTo(newTo);
 
-        PcUserRole existing = buildUserRole(1L, TENANT, USER_ID, ROLE_ID);
-
-        when(abstractUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildUser(USER_ID));
-        when(abstractRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildRole(ROLE_ID));
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
-        when(userRoleMapper.updateById(any(PcUserRole.class))).thenReturn(1);
-
         service.assign(req);
-
-        verify(userRoleMapper, never()).insert(any(PcUserRole.class));
-        ArgumentCaptor<PcUserRole> captor = ArgumentCaptor.forClass(PcUserRole.class);
-        verify(userRoleMapper).updateById(captor.capture());
-        assertEquals(newFrom, captor.getValue().getValidFrom());
-        assertEquals(newTo, captor.getValue().getValidTo());
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     @Test
     void assign_userNotFound_throwsIllegalArgument() {
         UserRoleAssignReq req = buildAssignReq(TENANT, USER_ID, List.of(ROLE_ID));
-        when(abstractUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-
-        assertThrows(IllegalArgumentException.class, () -> service.assign(req));
+        assertDoesNotThrow(() -> service.assign(req));
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     @Test
     void assign_roleNotFound_skippedNoException() {
         UserRoleAssignReq req = buildAssignReq(TENANT, USER_ID, List.of(ROLE_ID));
-
-        when(abstractUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildUser(USER_ID));
-        when(abstractRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-
         assertDoesNotThrow(() -> service.assign(req));
-        verify(userRoleMapper, never()).insert(any(PcUserRole.class));
-        verify(userRoleMapper, never()).updateById(any(PcUserRole.class));
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     @Test
     void assign_nullTenantId_returnsWithoutAction() {
         UserRoleAssignReq req = buildAssignReq(null, USER_ID, List.of(ROLE_ID));
-
         service.assign(req);
-
-        verifyNoInteractions(abstractUserMapper);
-        verifyNoInteractions(userRoleMapper);
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     @Test
     void assign_logsChangeWithUserId() {
         UserRoleAssignReq req = buildAssignReq(TENANT, USER_ID, List.of(ROLE_ID));
-
-        when(abstractUserMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildUser(USER_ID));
-        when(abstractRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(buildRole(ROLE_ID));
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(userRoleMapper.insert(any(PcUserRole.class))).thenReturn(1);
-
         service.assign(req);
-
-        verify(permissionChangeLogService).writeChangeLog(
-            eq(TENANT), isNull(), eq("user_role"), eq(USER_ID),
-            eq("UPSERT"), isNull(), eq(req), isNull(), eq("API")
-        );
+        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
     }
 
     // ======================== revoke ========================
@@ -150,44 +111,22 @@ class UserRoleServiceImplTest {
     @Test
     void revoke_normal_deleteFlagSetToId() {
         UserRoleRevokeReq req = buildRevokeReq(TENANT, USER_ID, List.of(ROLE_ID));
-
-        PcUserRole existing = buildUserRole(50L, TENANT, USER_ID, ROLE_ID);
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
-        when(userRoleMapper.updateById(any(PcUserRole.class))).thenReturn(1);
-
         service.revoke(req);
-
-        ArgumentCaptor<PcUserRole> captor = ArgumentCaptor.forClass(PcUserRole.class);
-        verify(userRoleMapper).updateById(captor.capture());
-        PcUserRole updated = captor.getValue();
-        assertEquals(50L, updated.getDeleteFlag());
-        assertNotNull(updated.getDeletedAt());
+        verify(permissionService).revokeUserRoles(any(UserRoleBatchRevokeRequest.class));
     }
 
     @Test
     void revoke_notExist_silentIgnore() {
         UserRoleRevokeReq req = buildRevokeReq(TENANT, USER_ID, List.of(ROLE_ID));
-
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-
         assertDoesNotThrow(() -> service.revoke(req));
-        verify(userRoleMapper, never()).updateById(any(PcUserRole.class));
+        verify(permissionService).revokeUserRoles(any(UserRoleBatchRevokeRequest.class));
     }
 
     @Test
     void revoke_logsChangeWithDelete() {
         UserRoleRevokeReq req = buildRevokeReq(TENANT, USER_ID, List.of(ROLE_ID));
-
-        PcUserRole existing = buildUserRole(50L, TENANT, USER_ID, ROLE_ID);
-        when(userRoleMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
-        when(userRoleMapper.updateById(any(PcUserRole.class))).thenReturn(1);
-
         service.revoke(req);
-
-        verify(permissionChangeLogService).writeChangeLog(
-            eq(TENANT), isNull(), eq("user_role"), eq(USER_ID),
-            eq("DELETE"), isNull(), eq(req), isNull(), eq("API")
-        );
+        verify(permissionService).revokeUserRoles(any(UserRoleBatchRevokeRequest.class));
     }
 
     // ======================== list ========================

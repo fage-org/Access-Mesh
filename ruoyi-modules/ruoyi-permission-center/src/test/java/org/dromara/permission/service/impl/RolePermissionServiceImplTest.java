@@ -13,7 +13,10 @@ import org.dromara.permission.domain.vo.RolePermissionVo;
 import org.dromara.permission.mapper.PcOperationPermissionMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
+import org.dromara.permission.model.permission.RolePermissionBatchGrantRequest;
+import org.dromara.permission.model.permission.RolePermissionBatchRevokeRequest;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.dromara.permission.service.PermissionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +44,8 @@ class RolePermissionServiceImplTest {
     private PcOperationPermissionMapper operationPermissionMapper;
     @Mock
     private PermissionChangeLogService permissionChangeLogService;
+    @Mock
+    private PermissionService permissionService;
 
     @InjectMocks
     private RolePermissionServiceImpl service;
@@ -56,41 +61,16 @@ class RolePermissionServiceImplTest {
     void add_insertNew_permissionInserted() {
         RolePermissionAddReq req = buildAddReq(TENANT, ROLE_ID, RESOURCE_ID, OP_ID, true, 10L);
 
-        when(roleResourcePermissionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenReturn(1);
-
         service.add(req);
-
-        ArgumentCaptor<PcRoleResourcePermission> captor = ArgumentCaptor.forClass(PcRoleResourcePermission.class);
-        verify(roleResourcePermissionMapper).insert(captor.capture());
-        PcRoleResourcePermission inserted = captor.getValue();
-        assertEquals(TENANT, inserted.getTenantId());
-        assertEquals(ROLE_ID, inserted.getAbstractRoleId());
-        assertEquals(RESOURCE_ID, inserted.getResourceEntityId());
-        assertEquals(OP_ID, inserted.getOperationPermissionId());
-        assertTrue(inserted.getCanManage());
-        assertEquals(10L, inserted.getConditionId());
-        assertEquals(PermissionConstants.NOT_DELETED, inserted.getDeleteFlag());
+        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
     }
 
     @Test
     void add_updateExisting_canManageAndConditionIdUpdated() {
         RolePermissionAddReq req = buildAddReq(TENANT, ROLE_ID, RESOURCE_ID, OP_ID, true, 20L);
 
-        PcRoleResourcePermission existing = buildPermission(1L, TENANT, ROLE_ID, RESOURCE_ID, OP_ID);
-        existing.setCanManage(false);
-        existing.setConditionId(10L);
-
-        when(roleResourcePermissionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
-        when(roleResourcePermissionMapper.updateById(any(PcRoleResourcePermission.class))).thenReturn(1);
-
         service.add(req);
-
-        verify(roleResourcePermissionMapper, never()).insert(any(PcRoleResourcePermission.class));
-        ArgumentCaptor<PcRoleResourcePermission> captor = ArgumentCaptor.forClass(PcRoleResourcePermission.class);
-        verify(roleResourcePermissionMapper).updateById(captor.capture());
-        assertTrue(captor.getValue().getCanManage());
-        assertEquals(20L, captor.getValue().getConditionId());
+        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
     }
 
     @Test
@@ -104,31 +84,21 @@ class RolePermissionServiceImplTest {
         req.setItems(List.of(item));
 
         service.add(req);
-
-        verify(roleResourcePermissionMapper, never()).selectOne(any(Wrapper.class));
-        verify(roleResourcePermissionMapper, never()).insert(any(PcRoleResourcePermission.class));
+        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
     }
 
     @Test
     void add_nullReq_returnsWithoutAction() {
         service.add(null);
-
-        verifyNoInteractions(roleResourcePermissionMapper);
+        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
     }
 
     @Test
     void add_logsChange_entityIdIsRoleId() {
         RolePermissionAddReq req = buildAddReq(TENANT, ROLE_ID, RESOURCE_ID, OP_ID, false, null);
 
-        when(roleResourcePermissionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenReturn(1);
-
         service.add(req);
-
-        verify(permissionChangeLogService).writeChangeLog(
-            eq(TENANT), isNull(), eq("role_resource_permission"), eq(ROLE_ID),
-            eq("UPSERT"), isNull(), eq(req), isNull(), eq("API")
-        );
+        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
     }
 
     // ======================== remove ========================
@@ -137,26 +107,15 @@ class RolePermissionServiceImplTest {
     void remove_normal_deleteFlagSetToId() {
         RolePermissionRemoveReq req = buildRemoveReq(TENANT, ROLE_ID, RESOURCE_ID, OP_ID);
 
-        PcRoleResourcePermission existing = buildPermission(77L, TENANT, ROLE_ID, RESOURCE_ID, OP_ID);
-        when(roleResourcePermissionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
-        when(roleResourcePermissionMapper.updateById(any(PcRoleResourcePermission.class))).thenReturn(1);
-
         service.remove(req);
-
-        ArgumentCaptor<PcRoleResourcePermission> captor = ArgumentCaptor.forClass(PcRoleResourcePermission.class);
-        verify(roleResourcePermissionMapper).updateById(captor.capture());
-        assertEquals(77L, captor.getValue().getDeleteFlag());
-        assertNotNull(captor.getValue().getDeletedAt());
+        verify(permissionService).revokeRolePermissions(any(RolePermissionBatchRevokeRequest.class));
     }
 
     @Test
     void remove_notExist_silentIgnore() {
         RolePermissionRemoveReq req = buildRemoveReq(TENANT, ROLE_ID, RESOURCE_ID, OP_ID);
-
-        when(roleResourcePermissionMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-
         assertDoesNotThrow(() -> service.remove(req));
-        verify(roleResourcePermissionMapper, never()).updateById(any(PcRoleResourcePermission.class));
+        verify(permissionService).revokeRolePermissions(any(RolePermissionBatchRevokeRequest.class));
     }
 
     // ======================== list ========================

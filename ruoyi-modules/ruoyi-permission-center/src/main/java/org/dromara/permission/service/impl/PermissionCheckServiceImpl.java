@@ -3,22 +3,28 @@ package org.dromara.permission.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.dromara.permission.constant.PermissionConstants;
-import org.dromara.permission.domain.*;
+import org.dromara.permission.domain.PcAbstractRole;
+import org.dromara.permission.domain.PcPermissionCondition;
+import org.dromara.permission.domain.PcResourceDependency;
+import org.dromara.permission.domain.PcRoleResourcePermission;
+import org.dromara.permission.domain.PcUserRole;
 import org.dromara.permission.domain.dto.PermissionCheckReq;
 import org.dromara.permission.domain.vo.PermissionCheckVo;
-import org.dromara.permission.mapper.*;
+import org.dromara.permission.mapper.PcAbstractRoleMapper;
+import org.dromara.permission.mapper.PcPermissionConditionMapper;
+import org.dromara.permission.mapper.PcResourceDependencyMapper;
+import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
+import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.dromara.permission.service.PermissionCheckService;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * 鉴权实现：解析用户角色 → 解析授权 → 依赖展开
- */
 @Service
 @RequiredArgsConstructor
 public class PermissionCheckServiceImpl implements PermissionCheckService {
@@ -41,7 +47,8 @@ public class PermissionCheckServiceImpl implements PermissionCheckService {
         if (roleIds.isEmpty()) {
             return PermissionCheckVo.deny("无角色");
         }
-        boolean hasGrant = hasRoleResourceGrant(req.getTenantId(), roleIds, req.getResourceEntityId(), req.getOperationPermissionId(), req.getContext());
+        boolean hasGrant = hasRoleResourceGrant(req.getTenantId(), roleIds, req.getResourceEntityId(),
+            req.getOperationPermissionId(), req.getContext());
         if (!hasGrant) {
             return PermissionCheckVo.deny("无授权");
         }
@@ -80,7 +87,8 @@ public class PermissionCheckServiceImpl implements PermissionCheckService {
         return new ArrayList<>(validRoleIds);
     }
 
-    private boolean hasRoleResourceGrant(Long tenantId, List<Long> roleIds, Long resourceEntityId, Long operationPermissionId, java.util.Map<String, String> context) {
+    private boolean hasRoleResourceGrant(Long tenantId, List<Long> roleIds, Long resourceEntityId, Long operationPermissionId,
+                                         Map<String, Object> context) {
         List<PcRoleResourcePermission> list = roleResourcePermissionMapper.selectList(
             new LambdaQueryWrapper<PcRoleResourcePermission>()
                 .eq(PcRoleResourcePermission::getTenantId, tenantId)
@@ -91,12 +99,60 @@ public class PermissionCheckServiceImpl implements PermissionCheckService {
         for (PcRoleResourcePermission rrp : list) {
             if (rrp.getConditionId() != null) {
                 PcPermissionCondition cond = permissionConditionMapper.selectById(rrp.getConditionId());
-                if (cond != null && PermissionConstants.NOT_DELETED.equals(cond.getDeleteFlag()) && cond.getExpression() != null && !cond.getExpression().isEmpty()) {
-                    // 条件表达式求值暂不实现，视为不通过
+                if (!isConditionSatisfied(cond, context)) {
                     continue;
                 }
             }
             return true;
+        }
+        return false;
+    }
+
+    private boolean isConditionSatisfied(PcPermissionCondition condition, Map<String, Object> evalContext) {
+        if (condition == null || !PermissionConstants.NOT_DELETED.equals(condition.getDeleteFlag())) {
+            return false;
+        }
+        if (!PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())) {
+            return false;
+        }
+        if (condition.getExpression() == null || condition.getExpression().isBlank()) {
+            return true;
+        }
+        if ("true".equalsIgnoreCase(condition.getExpression())) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(condition.getExpression())) {
+            return false;
+        }
+        if (evalContext == null || evalContext.isEmpty()) {
+            return false;
+        }
+        return resolveContextBoolean(evalContext, condition.getCode(), condition.getExpression());
+    }
+
+    private boolean resolveContextBoolean(Map<String, Object> evalContext, String code, String expression) {
+        List<String> keys = new ArrayList<>();
+        if (code != null && !code.isBlank()) {
+            keys.add(code);
+            keys.add("condition:" + code);
+        }
+        if (expression != null && !expression.isBlank()) {
+            keys.add(expression);
+            keys.add("condition:" + expression);
+        }
+        for (String key : keys) {
+            Object value = evalContext.get(key);
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value instanceof String str) {
+                if ("true".equalsIgnoreCase(str)) {
+                    return true;
+                }
+                if ("false".equalsIgnoreCase(str)) {
+                    return false;
+                }
+            }
         }
         return false;
     }
@@ -113,7 +169,8 @@ public class PermissionCheckServiceImpl implements PermissionCheckService {
                     .or().eq(PcResourceDependency::getSourceOperationPermissionId, req.getOperationPermissionId()))
                 .eq(PcResourceDependency::getDeleteFlag, PermissionConstants.NOT_DELETED));
         for (PcResourceDependency dep : deps) {
-            boolean depGrant = hasRoleResourceGrant(req.getTenantId(), roleIds, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationPermissionId(), req.getContext());
+            boolean depGrant = hasRoleResourceGrant(req.getTenantId(), roleIds, dep.getDependsOnResourceEntityId(),
+                dep.getRequiredOperationPermissionId(), req.getContext());
             if (!depGrant) {
                 return false;
             }

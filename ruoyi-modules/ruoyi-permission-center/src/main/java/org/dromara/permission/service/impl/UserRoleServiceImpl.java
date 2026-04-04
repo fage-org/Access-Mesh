@@ -14,6 +14,9 @@ import org.dromara.permission.domain.vo.UserRoleVo;
 import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.model.permission.UserRoleBatchAssignRequest;
+import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
+import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.PermissionChangeLogService;
 import org.dromara.permission.service.UserRoleService;
 import org.dromara.permission.service.support.PermissionAuditSupport;
@@ -36,6 +39,7 @@ public class UserRoleServiceImpl implements UserRoleService {
     private final PcAbstractUserMapper abstractUserMapper;
     private final PcAbstractRoleMapper abstractRoleMapper;
     private final PermissionChangeLogService permissionChangeLogService;
+    private final PermissionService permissionService;
 
     @Override
     public List<UserRoleVo> list(UserRoleListReq req) {
@@ -73,69 +77,22 @@ public class UserRoleServiceImpl implements UserRoleService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void assign(UserRoleAssignReq req) {
-        if (req == null || req.getTenantId() == null || req.getAbstractUserId() == null || CollUtil.isEmpty(req.getRoleIds())) {
-            return;
-        }
-        PcAbstractUser user = abstractUserMapper.selectOne(new LambdaQueryWrapper<PcAbstractUser>()
-            .eq(PcAbstractUser::getTenantId, req.getTenantId())
-            .eq(PcAbstractUser::getId, req.getAbstractUserId())
-            .eq(PcAbstractUser::getDeleteFlag, PermissionConstants.NOT_DELETED));
-        if (user == null) {
-            throw new IllegalArgumentException("abstract_user not found: " + req.getAbstractUserId());
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (Long roleId : req.getRoleIds()) {
-            PcAbstractRole role = abstractRoleMapper.selectOne(new LambdaQueryWrapper<PcAbstractRole>()
-                .eq(PcAbstractRole::getTenantId, req.getTenantId())
-                .eq(PcAbstractRole::getId, roleId)
-                .eq(PcAbstractRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (role == null) {
-                continue;
-            }
-            PcUserRole existing = userRoleMapper.selectOne(new LambdaQueryWrapper<PcUserRole>()
-                .eq(PcUserRole::getTenantId, req.getTenantId())
-                .eq(PcUserRole::getAbstractUserId, req.getAbstractUserId())
-                .eq(PcUserRole::getAbstractRoleId, roleId)
-                .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (existing != null) {
-                existing.setValidFrom(req.getValidFrom());
-                existing.setValidTo(req.getValidTo());
-                existing.setUpdatedAt(now);
-                userRoleMapper.updateById(existing);
-            } else {
-                PcUserRole ur = new PcUserRole();
-                ur.setTenantId(req.getTenantId());
-                ur.setAbstractUserId(req.getAbstractUserId());
-                ur.setAbstractRoleId(roleId);
-                ur.setValidFrom(req.getValidFrom());
-                ur.setValidTo(req.getValidTo());
-                ur.setDeleteFlag(PermissionConstants.NOT_DELETED);
-                ur.setCreatedAt(now);
-                ur.setUpdatedAt(now);
-                userRoleMapper.insert(ur);
-            }
-        }
-        permissionChangeLogService.writeChangeLog(req.getTenantId(), null, "user_role", req.getAbstractUserId(), "UPSERT", null, req, null, "API");
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(req == null ? null : req.getTenantId());
+        request.setAbstractUserId(req == null ? null : req.getAbstractUserId());
+        request.setRoleIds(req == null ? null : req.getRoleIds());
+        request.setValidFrom(req == null ? null : req.getValidFrom());
+        request.setValidTo(req == null ? null : req.getValidTo());
+        permissionService.assignUserRoles(request);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revoke(UserRoleRevokeReq req) {
-        if (req == null || req.getTenantId() == null || req.getAbstractUserId() == null || CollUtil.isEmpty(req.getRoleIds())) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (Long roleId : req.getRoleIds()) {
-            PcUserRole ur = userRoleMapper.selectOne(new LambdaQueryWrapper<PcUserRole>()
-                .eq(PcUserRole::getTenantId, req.getTenantId())
-                .eq(PcUserRole::getAbstractUserId, req.getAbstractUserId())
-                .eq(PcUserRole::getAbstractRoleId, roleId)
-                .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (ur != null) {
-                PermissionAuditSupport.markDeleted(ur, ur.getId(), now);
-                userRoleMapper.updateById(ur);
-            }
-        }
-        permissionChangeLogService.writeChangeLog(req.getTenantId(), null, "user_role", req.getAbstractUserId(), "DELETE", null, req, null, "API");
+        UserRoleBatchRevokeRequest request = new UserRoleBatchRevokeRequest();
+        request.setTenantId(req == null ? null : req.getTenantId());
+        request.setAbstractUserId(req == null ? null : req.getAbstractUserId());
+        request.setRoleIds(req == null ? null : req.getRoleIds());
+        permissionService.revokeUserRoles(request);
     }
 }

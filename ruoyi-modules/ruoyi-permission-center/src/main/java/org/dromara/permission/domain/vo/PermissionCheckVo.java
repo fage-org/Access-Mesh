@@ -4,22 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * 鉴权结果
- */
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class PermissionCheckVo {
     private Boolean allowed;
-    /** 原因：无角色 | 无授权 | 依赖不满足 | 条件不满足 */
     private String reason;
+    private List<PermissionCheckGrantedByVo> grantedBy;
+    private List<PermissionCheckConflictVo> conflicts;
+    private List<PermissionCheckDependencyGapVo> dependencyGaps;
 
     public static PermissionCheckVo allow() {
-        return new PermissionCheckVo(true, null);
+        return new PermissionCheckVo(true, null, null, null, null);
     }
 
     public static PermissionCheckVo deny(String reason) {
-        return new PermissionCheckVo(false, reason);
+        return new PermissionCheckVo(false, reason, null, null, null);
     }
 }

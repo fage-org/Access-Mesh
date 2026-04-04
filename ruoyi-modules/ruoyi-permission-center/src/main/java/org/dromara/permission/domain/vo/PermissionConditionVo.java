@@ -10,7 +10,11 @@ public class PermissionConditionVo {
     private Long tenantId;
     private String code;
     private String name;
+    private String conditionSource;
     private String expression;
+    private String status;
     private String description;
+    private Long reviewedBy;
+    private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
 }

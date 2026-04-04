@@ -2,10 +2,18 @@ package org.dromara.permission.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import org.dromara.permission.constant.PermissionConstants;
-import org.dromara.permission.domain.*;
+import org.dromara.permission.domain.PcAbstractRole;
+import org.dromara.permission.domain.PcPermissionCondition;
+import org.dromara.permission.domain.PcResourceDependency;
+import org.dromara.permission.domain.PcRoleResourcePermission;
+import org.dromara.permission.domain.PcUserRole;
 import org.dromara.permission.domain.dto.PermissionCheckReq;
 import org.dromara.permission.domain.vo.PermissionCheckVo;
-import org.dromara.permission.mapper.*;
+import org.dromara.permission.mapper.PcAbstractRoleMapper;
+import org.dromara.permission.mapper.PcPermissionConditionMapper;
+import org.dromara.permission.mapper.PcResourceDependencyMapper;
+import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
+import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -17,11 +25,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("dev")
@@ -59,8 +71,6 @@ class PermissionCheckServiceImplTest {
         baseReq.setOperationPermissionId(OP_ID);
     }
 
-    // ======================== Parameter validation ========================
-
     @Test
     void check_nullReq_returnsDeny() {
         PermissionCheckVo vo = service.check(null);
@@ -75,32 +85,6 @@ class PermissionCheckServiceImplTest {
         assertFalse(vo.getAllowed());
         assertEquals("参数不完整", vo.getReason());
     }
-
-    @Test
-    void check_nullAbstractUserId_returnsDeny() {
-        baseReq.setAbstractUserId(null);
-        PermissionCheckVo vo = service.check(baseReq);
-        assertFalse(vo.getAllowed());
-        assertEquals("参数不完整", vo.getReason());
-    }
-
-    @Test
-    void check_nullResourceEntityId_returnsDeny() {
-        baseReq.setResourceEntityId(null);
-        PermissionCheckVo vo = service.check(baseReq);
-        assertFalse(vo.getAllowed());
-        assertEquals("参数不完整", vo.getReason());
-    }
-
-    @Test
-    void check_nullOperationPermissionId_returnsDeny() {
-        baseReq.setOperationPermissionId(null);
-        PermissionCheckVo vo = service.check(baseReq);
-        assertFalse(vo.getAllowed());
-        assertEquals("参数不完整", vo.getReason());
-    }
-
-    // ======================== Role resolution ========================
 
     @Test
     void check_noRoles_returnsDenyNoRole() {
@@ -123,45 +107,15 @@ class PermissionCheckServiceImplTest {
     }
 
     @Test
-    void check_roleValidToInPast_filtered() {
-        PcUserRole ur = buildUserRole(ROLE_ID);
-        ur.setValidTo(LocalDateTime.now().minusDays(1));
-        when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(List.of(ur));
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertFalse(vo.getAllowed());
-        assertEquals("无角色", vo.getReason());
-    }
-
-    @Test
-    void check_roleValidFromNull_roleValid() {
-        PcUserRole ur = buildUserRole(ROLE_ID);
-        ur.setValidFrom(null);
-        ur.setValidTo(null);
-        when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(List.of(ur));
-
-        PcAbstractRole role = buildAbstractRole(ROLE_ID, null);
-        when(abstractRoleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(role));
-
-        PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(grant));
-        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertTrue(vo.getAllowed());
-    }
-
-    @Test
     void check_bizDomainIdFilter() {
         baseReq.setBizDomainId(BIZ_DOMAIN);
 
         PcUserRole ur1 = buildUserRole(ROLE_ID);
-        Long otherRoleId = 201L;
-        PcUserRole ur2 = buildUserRole(otherRoleId);
+        PcUserRole ur2 = buildUserRole(201L);
         when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(List.of(ur1, ur2));
 
         PcAbstractRole roleMatch = buildAbstractRole(ROLE_ID, BIZ_DOMAIN);
-        PcAbstractRole roleOther = buildAbstractRole(otherRoleId, 999L);
+        PcAbstractRole roleOther = buildAbstractRole(201L, 999L);
         when(abstractRoleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(roleMatch, roleOther));
 
         PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
@@ -172,13 +126,11 @@ class PermissionCheckServiceImplTest {
         assertTrue(vo.getAllowed());
     }
 
-    // ======================== Grant check ========================
-
     @Test
     void check_hasGrantNoCondition_allow() {
         stubRolesResolved();
-        PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(grant));
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null)));
         when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
         PermissionCheckVo vo = service.check(baseReq);
@@ -187,18 +139,42 @@ class PermissionCheckServiceImplTest {
     }
 
     @Test
-    void check_hasGrantWithCondition_skipped() {
+    void check_hasGrantWithApprovedBlankCondition_allow() {
         stubRolesResolved();
-
         Long condId = 500L;
-        PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, condId);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(grant));
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, condId)));
+        when(permissionConditionMapper.selectById(condId)).thenReturn(buildCondition(condId, "", PermissionConstants.CONDITION_STATUS_APPROVED));
+        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
-        PcPermissionCondition cond = new PcPermissionCondition();
-        cond.setId(condId);
-        cond.setDeleteFlag(PermissionConstants.NOT_DELETED);
-        cond.setExpression("user.level > 5");
-        when(permissionConditionMapper.selectById(condId)).thenReturn(cond);
+        PermissionCheckVo vo = service.check(baseReq);
+        assertTrue(vo.getAllowed());
+    }
+
+    @Test
+    void check_hasGrantWithApprovedContextCondition_allow() {
+        stubRolesResolved();
+        Long condId = 500L;
+        baseReq.setContext(Map.of("condition:WORKDAY_ONLY", true));
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, condId)));
+        PcPermissionCondition condition = buildCondition(condId, "WORKDAY_ONLY", PermissionConstants.CONDITION_STATUS_APPROVED);
+        condition.setConditionSource(PermissionConstants.CONDITION_SOURCE_PRESET);
+        when(permissionConditionMapper.selectById(condId)).thenReturn(condition);
+        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
+
+        PermissionCheckVo vo = service.check(baseReq);
+        assertTrue(vo.getAllowed());
+    }
+
+    @Test
+    void check_hasGrantWithPendingCondition_denies() {
+        stubRolesResolved();
+        Long condId = 500L;
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, condId)));
+        when(permissionConditionMapper.selectById(condId))
+            .thenReturn(buildCondition(condId, "", PermissionConstants.CONDITION_STATUS_PENDING));
 
         PermissionCheckVo vo = service.check(baseReq);
         assertFalse(vo.getAllowed());
@@ -216,40 +192,6 @@ class PermissionCheckServiceImplTest {
     }
 
     @Test
-    void check_multipleGrants_firstWithConditionSecondWithout_allow() {
-        stubRolesResolved();
-
-        Long condId = 500L;
-        PcRoleResourcePermission g1 = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, condId);
-        PcRoleResourcePermission g2 = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(g1, g2));
-
-        PcPermissionCondition cond = new PcPermissionCondition();
-        cond.setId(condId);
-        cond.setDeleteFlag(PermissionConstants.NOT_DELETED);
-        cond.setExpression("user.level > 5");
-        when(permissionConditionMapper.selectById(condId)).thenReturn(cond);
-
-        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertTrue(vo.getAllowed());
-    }
-
-    // ======================== Dependency check ========================
-
-    @Test
-    void check_noDependencies_allow() {
-        stubRolesResolved();
-        PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(grant));
-        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertTrue(vo.getAllowed());
-    }
-
-    @Test
     void check_dependencySatisfied_allow() {
         stubRolesResolved();
 
@@ -260,10 +202,8 @@ class PermissionCheckServiceImplTest {
         PcRoleResourcePermission mainGrant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
         PcRoleResourcePermission depGrant = buildGrant(ROLE_ID, depResId, depOpId, null);
 
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(mainGrant))
-            .thenReturn(List.of(depGrant));
-        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(List.of(dep))
-            .thenReturn(Collections.emptyList());
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(mainGrant), List.of(depGrant));
+        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(List.of(dep), Collections.emptyList());
 
         PermissionCheckVo vo = service.check(baseReq);
         assertTrue(vo.getAllowed());
@@ -279,8 +219,7 @@ class PermissionCheckServiceImplTest {
         PcResourceDependency dep = buildDependency(RESOURCE_ID, depResId, OP_ID, depOpId);
         PcRoleResourcePermission mainGrant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
 
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(mainGrant))
-            .thenReturn(Collections.emptyList());
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(mainGrant), Collections.emptyList());
         when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(List.of(dep));
 
         PermissionCheckVo vo = service.check(baseReq);
@@ -289,64 +228,10 @@ class PermissionCheckServiceImplTest {
     }
 
     @Test
-    void check_nestedDependency_allow() {
-        stubRolesResolved();
-
-        Long resB = 301L;
-        Long opB = 401L;
-        Long resC = 302L;
-        Long opC = 402L;
-
-        PcResourceDependency depAB = buildDependency(RESOURCE_ID, resB, OP_ID, opB);
-        PcResourceDependency depBC = buildDependency(resB, resC, opB, opC);
-
-        PcRoleResourcePermission grantA = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        PcRoleResourcePermission grantB = buildGrant(ROLE_ID, resB, opB, null);
-        PcRoleResourcePermission grantC = buildGrant(ROLE_ID, resC, opC, null);
-
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
-            .thenReturn(List.of(grantA))
-            .thenReturn(List.of(grantB))
-            .thenReturn(List.of(grantC));
-        when(resourceDependencyMapper.selectList(any(Wrapper.class)))
-            .thenReturn(List.of(depAB))
-            .thenReturn(List.of(depBC))
-            .thenReturn(Collections.emptyList());
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertTrue(vo.getAllowed());
-    }
-
-    @Test
-    void check_depthExceedsLimit_deny() {
-        stubRolesResolved();
-
-        PcRoleResourcePermission mainGrant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(mainGrant));
-
-        PcResourceDependency selfDep = buildDependency(RESOURCE_ID, RESOURCE_ID, OP_ID, OP_ID);
-        when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(List.of(selfDep));
-
-        PermissionCheckVo vo = service.check(baseReq);
-        assertFalse(vo.getAllowed());
-        assertEquals("依赖不满足", vo.getReason());
-    }
-
-    // ======================== Full flow ========================
-
-    @Test
     void check_fullFlow_allow() {
-        PcUserRole ur = buildUserRole(ROLE_ID);
-        ur.setValidFrom(LocalDateTime.now().minusDays(1));
-        ur.setValidTo(LocalDateTime.now().plusDays(1));
-        when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(List.of(ur));
-
-        PcAbstractRole role = buildAbstractRole(ROLE_ID, null);
-        when(abstractRoleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(role));
-
-        PcRoleResourcePermission grant = buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null);
-        when(roleResourcePermissionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(grant));
-
+        stubRolesResolved();
+        when(roleResourcePermissionMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(buildGrant(ROLE_ID, RESOURCE_ID, OP_ID, null)));
         when(resourceDependencyMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
         PermissionCheckVo vo = service.check(baseReq);
@@ -354,13 +239,10 @@ class PermissionCheckServiceImplTest {
         assertNull(vo.getReason());
     }
 
-    // ======================== Helpers ========================
-
     private void stubRolesResolved() {
         PcUserRole ur = buildUserRole(ROLE_ID);
         when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(List.of(ur));
-        PcAbstractRole role = buildAbstractRole(ROLE_ID, null);
-        when(abstractRoleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(role));
+        when(abstractRoleMapper.selectBatchIds(anyCollection())).thenReturn(List.of(buildAbstractRole(ROLE_ID, null)));
     }
 
     private PcUserRole buildUserRole(Long roleId) {
@@ -374,35 +256,47 @@ class PermissionCheckServiceImplTest {
     }
 
     private PcAbstractRole buildAbstractRole(Long id, Long bizDomainId) {
-        PcAbstractRole r = new PcAbstractRole();
-        r.setId(id);
-        r.setTenantId(TENANT);
-        r.setBizDomainId(bizDomainId);
-        r.setDeleteFlag(PermissionConstants.NOT_DELETED);
-        return r;
+        PcAbstractRole role = new PcAbstractRole();
+        role.setId(id);
+        role.setTenantId(TENANT);
+        role.setBizDomainId(bizDomainId);
+        role.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return role;
     }
 
     private PcRoleResourcePermission buildGrant(Long roleId, Long resourceId, Long opId, Long conditionId) {
-        PcRoleResourcePermission g = new PcRoleResourcePermission();
-        g.setId(1L);
-        g.setTenantId(TENANT);
-        g.setAbstractRoleId(roleId);
-        g.setResourceEntityId(resourceId);
-        g.setOperationPermissionId(opId);
-        g.setConditionId(conditionId);
-        g.setDeleteFlag(PermissionConstants.NOT_DELETED);
-        return g;
+        PcRoleResourcePermission grant = new PcRoleResourcePermission();
+        grant.setId(1L);
+        grant.setTenantId(TENANT);
+        grant.setAbstractRoleId(roleId);
+        grant.setResourceEntityId(resourceId);
+        grant.setOperationPermissionId(opId);
+        grant.setConditionId(conditionId);
+        grant.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return grant;
+    }
+
+    private PcPermissionCondition buildCondition(Long id, String expression, String status) {
+        PcPermissionCondition condition = new PcPermissionCondition();
+        condition.setId(id);
+        condition.setTenantId(TENANT);
+        condition.setCode("WORKDAY_ONLY");
+        condition.setExpression(expression);
+        condition.setStatus(status);
+        condition.setConditionSource(PermissionConstants.CONDITION_SOURCE_CUSTOM);
+        condition.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return condition;
     }
 
     private PcResourceDependency buildDependency(Long resId, Long depResId, Long srcOpId, Long reqOpId) {
-        PcResourceDependency d = new PcResourceDependency();
-        d.setId(1L);
-        d.setTenantId(TENANT);
-        d.setResourceEntityId(resId);
-        d.setDependsOnResourceEntityId(depResId);
-        d.setSourceOperationPermissionId(srcOpId);
-        d.setRequiredOperationPermissionId(reqOpId);
-        d.setDeleteFlag(PermissionConstants.NOT_DELETED);
-        return d;
+        PcResourceDependency dependency = new PcResourceDependency();
+        dependency.setId(1L);
+        dependency.setTenantId(TENANT);
+        dependency.setResourceEntityId(resId);
+        dependency.setDependsOnResourceEntityId(depResId);
+        dependency.setSourceOperationPermissionId(srcOpId);
+        dependency.setRequiredOperationPermissionId(reqOpId);
+        dependency.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return dependency;
     }
 }

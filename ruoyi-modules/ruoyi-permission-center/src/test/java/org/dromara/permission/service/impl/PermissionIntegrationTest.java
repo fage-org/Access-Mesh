@@ -7,6 +7,8 @@ import org.dromara.permission.domain.dto.*;
 import org.dromara.permission.domain.vo.ConflictViolationVo;
 import org.dromara.permission.domain.vo.PermissionCheckVo;
 import org.dromara.permission.mapper.*;
+import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
+import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.support.PermissionTreePathManager;
 import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +47,7 @@ class PermissionIntegrationTest {
     @Mock private PcPermissionConflictRuleMapper conflictRuleMapper;
     @Mock private PermissionTreePathManager treePathManager;
     @Mock private TypeDefinitionReader typeDefinitionReader;
+    @Mock private PermissionService permissionService;
 
     private PermissionChangeLogServiceImpl changeLogService;
     private PermissionSyncServiceImpl syncService;
@@ -74,7 +77,7 @@ class PermissionIntegrationTest {
             permissionConditionMapper, resourceDependencyMapper
         );
         userRoleService = new UserRoleServiceImpl(
-            userRoleMapper, abstractUserMapper, abstractRoleMapper, changeLogService
+            userRoleMapper, abstractUserMapper, abstractRoleMapper, changeLogService, permissionService
         );
         conflictRuleService = new ConflictRuleServiceImpl(
             conflictRuleMapper, userRoleMapper, roleResourcePermissionMapper, resourceEntityMapper
@@ -194,18 +197,13 @@ class PermissionIntegrationTest {
         Long userId = 100L;
         Long roleId = 200L;
 
-        PcUserRole existingUr = newUserRole(500L, tenantId, userId, roleId);
-        when(userRoleMapper.selectOne(any(Wrapper.class))).thenReturn(existingUr);
-        when(userRoleMapper.updateById(any(PcUserRole.class))).thenReturn(1);
-
         UserRoleRevokeReq revokeReq = new UserRoleRevokeReq();
         revokeReq.setTenantId(tenantId);
         revokeReq.setAbstractUserId(userId);
         revokeReq.setRoleIds(Collections.singletonList(roleId));
         userRoleService.revoke(revokeReq);
 
-        verify(userRoleMapper).updateById(existingUr);
-        assertEquals(500L, existingUr.getDeleteFlag());
+        verify(permissionService).revokeUserRoles(any(UserRoleBatchRevokeRequest.class));
 
         when(userRoleMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
 

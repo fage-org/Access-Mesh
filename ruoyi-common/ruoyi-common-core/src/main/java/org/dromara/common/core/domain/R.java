@@ -44,6 +44,8 @@ public class R<T> implements Serializable {
      */
     private T data;
 
+    private String errorCode;
+
     public static <T> R<T> ok() {
         return restResult(null, SUCCESS, "操作成功");
     }

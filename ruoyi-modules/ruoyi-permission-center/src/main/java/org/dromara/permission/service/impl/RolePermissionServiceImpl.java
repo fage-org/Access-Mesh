@@ -10,6 +10,9 @@ import org.dromara.permission.domain.dto.RolePermissionListReq;
 import org.dromara.permission.domain.dto.RolePermissionRemoveReq;
 import org.dromara.permission.domain.vo.RolePermissionVo;
 import org.dromara.permission.mapper.*;
+import org.dromara.permission.model.permission.RolePermissionBatchGrantRequest;
+import org.dromara.permission.model.permission.RolePermissionBatchRevokeRequest;
+import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.PermissionChangeLogService;
 import org.dromara.permission.service.RolePermissionService;
 import org.dromara.permission.service.support.PermissionAuditSupport;
@@ -32,6 +35,7 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     private final PcResourceEntityMapper resourceEntityMapper;
     private final PcOperationPermissionMapper operationPermissionMapper;
     private final PermissionChangeLogService permissionChangeLogService;
+    private final PermissionService permissionService;
 
     @Override
     public List<RolePermissionVo> list(RolePermissionListReq req) {
@@ -75,66 +79,32 @@ public class RolePermissionServiceImpl implements RolePermissionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void add(RolePermissionAddReq req) {
-        if (req == null || req.getTenantId() == null || req.getAbstractRoleId() == null || CollUtil.isEmpty(req.getItems())) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (RolePermissionAddReq.RolePermissionItem item : req.getItems()) {
-            if (item.getResourceEntityId() == null || item.getOperationPermissionId() == null) {
-                continue;
-            }
-            PcRoleResourcePermission existing = roleResourcePermissionMapper.selectOne(
-                new LambdaQueryWrapper<PcRoleResourcePermission>()
-                    .eq(PcRoleResourcePermission::getTenantId, req.getTenantId())
-                    .eq(PcRoleResourcePermission::getAbstractRoleId, req.getAbstractRoleId())
-                    .eq(PcRoleResourcePermission::getResourceEntityId, item.getResourceEntityId())
-                    .eq(PcRoleResourcePermission::getOperationPermissionId, item.getOperationPermissionId())
-                    .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (existing != null) {
-                existing.setCanManage(Boolean.TRUE.equals(item.getCanManage()));
-                existing.setConditionId(item.getConditionId());
-                existing.setUpdatedAt(now);
-                roleResourcePermissionMapper.updateById(existing);
-            } else {
-                PcRoleResourcePermission rrp = new PcRoleResourcePermission();
-                rrp.setTenantId(req.getTenantId());
-                rrp.setAbstractRoleId(req.getAbstractRoleId());
-                rrp.setResourceEntityId(item.getResourceEntityId());
-                rrp.setOperationPermissionId(item.getOperationPermissionId());
-                rrp.setCanManage(Boolean.TRUE.equals(item.getCanManage()));
-                rrp.setConditionId(item.getConditionId());
-                rrp.setDeleteFlag(PermissionConstants.NOT_DELETED);
-                rrp.setCreatedAt(now);
-                rrp.setUpdatedAt(now);
-                roleResourcePermissionMapper.insert(rrp);
-            }
-        }
-        permissionChangeLogService.writeChangeLog(req.getTenantId(), null, "role_resource_permission", req.getAbstractRoleId(), "UPSERT", null, req, null, "API");
+        RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
+        request.setTenantId(req == null ? null : req.getTenantId());
+        request.setAbstractRoleId(req == null ? null : req.getAbstractRoleId());
+        request.setItems(req == null || req.getItems() == null ? null : req.getItems().stream().map(item -> {
+            RolePermissionBatchGrantRequest.RolePermissionGrantItem mapped = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
+            mapped.setResourceEntityId(item.getResourceEntityId());
+            mapped.setOperationPermissionId(item.getOperationPermissionId());
+            mapped.setCanManage(item.getCanManage());
+            mapped.setConditionId(item.getConditionId());
+            return mapped;
+        }).toList());
+        permissionService.grantRolePermissions(request);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void remove(RolePermissionRemoveReq req) {
-        if (req == null || req.getTenantId() == null || req.getAbstractRoleId() == null || CollUtil.isEmpty(req.getItems())) {
-            return;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        for (RolePermissionRemoveReq.RolePermissionPair pair : req.getItems()) {
-            if (pair.getResourceEntityId() == null || pair.getOperationPermissionId() == null) {
-                continue;
-            }
-            PcRoleResourcePermission rrp = roleResourcePermissionMapper.selectOne(
-                new LambdaQueryWrapper<PcRoleResourcePermission>()
-                    .eq(PcRoleResourcePermission::getTenantId, req.getTenantId())
-                    .eq(PcRoleResourcePermission::getAbstractRoleId, req.getAbstractRoleId())
-                    .eq(PcRoleResourcePermission::getResourceEntityId, pair.getResourceEntityId())
-                    .eq(PcRoleResourcePermission::getOperationPermissionId, pair.getOperationPermissionId())
-                    .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (rrp != null) {
-                PermissionAuditSupport.markDeleted(rrp, rrp.getId(), now);
-                roleResourcePermissionMapper.updateById(rrp);
-            }
-        }
-        permissionChangeLogService.writeChangeLog(req.getTenantId(), null, "role_resource_permission", req.getAbstractRoleId(), "DELETE", null, req, null, "API");
+        RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
+        request.setTenantId(req == null ? null : req.getTenantId());
+        request.setAbstractRoleId(req == null ? null : req.getAbstractRoleId());
+        request.setItems(req == null || req.getItems() == null ? null : req.getItems().stream().map(item -> {
+            RolePermissionBatchRevokeRequest.RolePermissionRevokeItem mapped = new RolePermissionBatchRevokeRequest.RolePermissionRevokeItem();
+            mapped.setResourceEntityId(item.getResourceEntityId());
+            mapped.setOperationPermissionId(item.getOperationPermissionId());
+            return mapped;
+        }).toList());
+        permissionService.revokeRolePermissions(request);
     }
 }
