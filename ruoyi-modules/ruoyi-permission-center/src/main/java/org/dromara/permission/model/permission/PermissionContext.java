@@ -2,9 +2,12 @@ package org.dromara.permission.model.permission;
 
 import lombok.Data;
 import org.dromara.permission.domain.PcOperationPermission;
+import org.dromara.permission.domain.PcPermissionCondition;
 import org.dromara.permission.domain.PcResourceEntity;
+import org.dromara.permission.operation.ConditionEvaluator;
 
 import java.util.ArrayList;
+import java.util.function.Function;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -22,9 +25,13 @@ public class PermissionContext {
     private List<ResolvedRole> roles = new ArrayList<>();
     private PcResourceEntity resource;
     private PcOperationPermission operation;
+    private Map<Long, PcResourceEntity> resources = new HashMap<>();
+    private Map<Long, PcOperationPermission> operations = new HashMap<>();
+    private Map<Long, PcPermissionCondition> conditions = new HashMap<>();
     private Set<Long> expandedResourceIds = new HashSet<>();
     private List<MatchedPermission> matchedPermissions = new ArrayList<>();
     private List<ConflictDetail> detectedConflicts = new ArrayList<>();
+    private Function<Integer, ConditionEvaluator> conditionEvaluatorResolver;
     private String action;
     private String requestId;
     private String changeSource;

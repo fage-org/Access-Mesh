@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -58,5 +60,16 @@ public class TypeDefinitionReader {
         if (!existsTypeValue(tenantId, bizDomainId, typeKey, typeValue)) {
             throw new IllegalArgumentException(message);
         }
+    }
+
+    public Optional<String> findTypeName(Long tenantId, String typeKey, Integer typeValue) {
+        if (tenantId == null || typeValue == null || typeKey == null || typeKey.isBlank()) {
+            return Optional.empty();
+        }
+        PcTypeDefinition definition = mapper.selectByTenantAndTypeKeyAndValue(tenantId, typeKey, typeValue);
+        if (definition == null || definition.getName() == null || definition.getName().isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(definition.getName().trim().toUpperCase(Locale.ROOT));
     }
 }

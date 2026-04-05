@@ -12,6 +12,7 @@ import org.dromara.permission.model.permission.PermissionVersionQueryRequest;
 import org.dromara.permission.model.permission.PermissionVersionResult;
 import org.dromara.permission.model.permission.RevokePermissionRequest;
 import org.dromara.permission.model.permission.RevokeResult;
+import org.dromara.permission.model.permission.SnapshotEntry;
 import org.dromara.permission.model.permission.SnapshotRequest;
 import org.dromara.permission.service.PermissionService;
 import org.junit.jupiter.api.Tag;
@@ -64,12 +65,20 @@ class PermissionServiceControllerTest {
         SnapshotRequest request = new SnapshotRequest();
         PermissionSnapshot snapshot = new PermissionSnapshot();
         snapshot.setVersionToken("1-v1");
+        SnapshotEntry entry = new SnapshotEntry();
+        entry.setResourceType(2);
+        entry.setServiceCode("system-service");
+        entry.setHttpMethod("GET");
+        entry.setPathPattern("/api/system/user/list");
+        snapshot.setEntries(java.util.List.of(entry));
         when(permissionService.buildSnapshot(request)).thenReturn(snapshot);
 
         R<PermissionSnapshotVo> response = controller.snapshot(request);
 
         verify(permissionService).buildSnapshot(request);
         assertEquals("1-v1", response.getData().getVersionToken());
+        assertEquals(2, response.getData().getEntries().get(0).getResourceType());
+        assertEquals("system-service", response.getData().getEntries().get(0).getServiceCode());
     }
 
     @Test

@@ -63,10 +63,15 @@ public class PermissionServiceController {
             entryVo.setRoleId(item.getRoleId());
             entryVo.setResourceId(item.getResourceId());
             entryVo.setResourceCode(item.getResourceCode());
+            entryVo.setResourceType(item.getResourceType());
             entryVo.setOperationId(item.getOperationId());
             entryVo.setOperationCode(item.getOperationCode());
             entryVo.setConditionId(item.getConditionId());
             entryVo.setCanManage(item.getCanManage());
+            entryVo.setServiceCode(item.getServiceCode());
+            entryVo.setHttpMethod(item.getHttpMethod());
+            entryVo.setPathPattern(item.getPathPattern());
+            entryVo.setExtra(item.getExtra());
             return entryVo;
         }).collect(Collectors.toList()));
         vo.setConflicts(result.getConflicts().stream().map(item -> {

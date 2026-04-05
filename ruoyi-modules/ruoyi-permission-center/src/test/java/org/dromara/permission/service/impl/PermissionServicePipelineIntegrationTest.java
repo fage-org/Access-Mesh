@@ -1,6 +1,12 @@
 package org.dromara.permission.service.impl;
 
 import org.dromara.permission.constant.PermissionConstants;
+import org.dromara.permission.constant.ResourceTypeConstants;
+import org.dromara.permission.handler.DefaultResourceTypeHandler;
+import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
+import org.dromara.permission.handler.types.ApiResourceTypeHandler;
+import org.dromara.permission.handler.types.DataResourceTypeHandler;
+import org.dromara.permission.handler.types.MenuResourceTypeHandler;
 import org.dromara.permission.domain.PcAbstractRole;
 import org.dromara.permission.domain.PcOperationPermission;
 import org.dromara.permission.domain.PcPermissionCondition;
@@ -21,13 +27,29 @@ import org.dromara.permission.mapper.PcResourceDependencyMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.operation.custom.ApiGrantValidator;
+import org.dromara.permission.operation.custom.ApiPermissionMatcher;
+import org.dromara.permission.operation.custom.ApiSnapshotAssembler;
+import org.dromara.permission.operation.custom.DataInheritanceExpander;
+import org.dromara.permission.operation.custom.DataSnapshotAssembler;
+import org.dromara.permission.operation.custom.MenuInheritanceExpander;
+import org.dromara.permission.operation.defaults.DefaultConditionEvaluator;
+import org.dromara.permission.operation.defaults.DefaultConflictDetector;
+import org.dromara.permission.operation.defaults.DefaultDependencyChecker;
+import org.dromara.permission.operation.defaults.DefaultGrantValidator;
+import org.dromara.permission.operation.defaults.DefaultInheritanceExpander;
+import org.dromara.permission.operation.defaults.DefaultPermissionMatcher;
+import org.dromara.permission.operation.defaults.DefaultSnapshotAssembler;
 import org.dromara.permission.model.permission.PermissionCheckRequest;
 import org.dromara.permission.model.permission.PermissionVersionQueryRequest;
 import org.dromara.permission.model.permission.SnapshotRequest;
 import org.dromara.permission.service.ChangeLogService;
 import org.dromara.permission.service.OperationInheritanceService;
 import org.dromara.permission.service.PermissionVersionService;
+import org.dromara.permission.service.ResourceApiMappingService;
 import org.dromara.permission.service.RoleResolverService;
+import org.dromara.permission.service.support.PermissionBridgeSupport;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -39,6 +61,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -62,6 +85,8 @@ class PermissionServicePipelineIntegrationTest {
     @Mock private PcPermissionVersionMapper permissionVersionMapper;
     @Mock private PcDomainScopeConfigMapper domainScopeConfigMapper;
     @Mock private PcDomainRelationConfigMapper domainRelationConfigMapper;
+    @Mock private ResourceApiMappingService resourceApiMappingService;
+    @Mock private TypeDefinitionReader typeDefinitionReader;
 
     private PermissionServiceImpl permissionService;
 
@@ -71,12 +96,70 @@ class PermissionServicePipelineIntegrationTest {
         OperationInheritanceService operationInheritanceService = new OperationInheritanceServiceImpl();
         PermissionVersionService permissionVersionService = new PermissionVersionServiceImpl(permissionVersionMapper);
         ChangeLogService changeLogService = new ChangeLogServiceImpl(new PermissionChangeLogServiceImpl(changeLogMapper));
+        PermissionBridgeSupport bridgeSupport = new PermissionBridgeSupport(
+            operationInheritanceService,
+            resourceApiMappingService,
+            resourceEntityMapper,
+            operationPermissionMapper,
+            roleResourcePermissionMapper,
+            permissionConditionMapper,
+            permissionConflictRuleMapper,
+            resourceDependencyMapper
+        );
+        DefaultPermissionMatcher defaultPermissionMatcher = new DefaultPermissionMatcher(bridgeSupport);
+        DefaultInheritanceExpander defaultInheritanceExpander = new DefaultInheritanceExpander(bridgeSupport);
+        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator();
+        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport);
+        DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
+        DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
+        DefaultSnapshotAssembler defaultSnapshotAssembler = new DefaultSnapshotAssembler(bridgeSupport);
+        mockTypeDefinitions();
+        ResourceTypeHandlerRegistry registry = new ResourceTypeHandlerRegistry(List.of(
+            new DefaultResourceTypeHandler(
+                defaultPermissionMatcher,
+                defaultInheritanceExpander,
+                defaultConditionEvaluator,
+                defaultConflictDetector,
+                defaultDependencyChecker,
+                defaultGrantValidator,
+                defaultSnapshotAssembler
+            ),
+            new ApiResourceTypeHandler(
+                defaultInheritanceExpander,
+                defaultConditionEvaluator,
+                defaultConflictDetector,
+                defaultDependencyChecker,
+                new ApiPermissionMatcher(bridgeSupport),
+                new ApiGrantValidator(resourceApiMappingService),
+                new ApiSnapshotAssembler(bridgeSupport)
+            ),
+            new MenuResourceTypeHandler(
+                defaultPermissionMatcher,
+                new MenuInheritanceExpander(bridgeSupport),
+                defaultConditionEvaluator,
+                defaultConflictDetector,
+                defaultDependencyChecker,
+                defaultGrantValidator,
+                defaultSnapshotAssembler
+            ),
+            new DataResourceTypeHandler(
+                defaultPermissionMatcher,
+                new DataInheritanceExpander(bridgeSupport),
+                defaultConditionEvaluator,
+                defaultConflictDetector,
+                defaultDependencyChecker,
+                defaultGrantValidator,
+                new DataSnapshotAssembler(bridgeSupport)
+            )
+        ), typeDefinitionReader);
         permissionService = new PermissionServiceImpl(
             roleResolverService,
             operationInheritanceService,
             new DomainScopeValidatorImpl(domainScopeConfigMapper, domainRelationConfigMapper),
             changeLogService,
             permissionVersionService,
+            registry,
+            bridgeSupport,
             resourceEntityMapper,
             operationPermissionMapper,
             roleResourcePermissionMapper,
@@ -215,5 +298,19 @@ class PermissionServicePipelineIntegrationTest {
         version.setRemark("test");
         version.setUpdatedAt(LocalDateTime.now());
         return version;
+    }
+
+    private void mockTypeDefinitions() {
+        when(typeDefinitionReader.findTypeName(org.mockito.ArgumentMatchers.anyLong(),
+            org.mockito.ArgumentMatchers.eq(ResourceTypeConstants.TYPE_KEY), org.mockito.ArgumentMatchers.anyInt()))
+            .thenAnswer(invocation -> {
+                Integer value = invocation.getArgument(2);
+                return Optional.ofNullable(switch (value) {
+                    case 1 -> ResourceTypeConstants.MENU;
+                    case 2 -> ResourceTypeConstants.API;
+                    case 3 -> ResourceTypeConstants.DATA;
+                    default -> null;
+                });
+            });
     }
 }

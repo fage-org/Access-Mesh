@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,5 +82,23 @@ class TypeDefinitionReaderTest {
 
         assertDoesNotThrow(() ->
             reader.assertTypeValueExists(1L, null, "user_type", 1, "invalid"));
+    }
+
+    @Test
+    void findTypeName_returnsUppercaseTrimmedName() {
+        PcTypeDefinition definition = new PcTypeDefinition();
+        definition.setName(" api ");
+        when(mapper.selectByTenantAndTypeKeyAndValue(1L, "resource_type", 2)).thenReturn(definition);
+
+        String result = reader.findTypeName(1L, "resource_type", 2).orElseThrow();
+
+        assertEquals("API", result);
+    }
+
+    @Test
+    void findTypeName_missingDefinition_returnsEmpty() {
+        when(mapper.selectByTenantAndTypeKeyAndValue(1L, "resource_type", 99)).thenReturn(null);
+
+        assertTrue(reader.findTypeName(1L, "resource_type", 99).isEmpty());
     }
 }

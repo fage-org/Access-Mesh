@@ -1,11 +1,13 @@
 package org.dromara.permission.service.impl;
 
 import org.dromara.permission.constant.PermissionConstants;
+import org.dromara.permission.constant.ResourceTypeConstants;
 import org.dromara.permission.domain.PcAbstractRole;
 import org.dromara.permission.domain.PcOperationPermission;
 import org.dromara.permission.domain.PcPermissionCondition;
 import org.dromara.permission.domain.PcPermissionConflictRule;
 import org.dromara.permission.domain.PcPermissionVersion;
+import org.dromara.permission.domain.PcResourceApiMapping;
 import org.dromara.permission.domain.PcAbstractUser;
 import org.dromara.permission.domain.PcResourceEntity;
 import org.dromara.permission.domain.PcRoleResourcePermission;
@@ -22,6 +24,11 @@ import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.handler.DefaultResourceTypeHandler;
+import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
+import org.dromara.permission.handler.types.ApiResourceTypeHandler;
+import org.dromara.permission.handler.types.DataResourceTypeHandler;
+import org.dromara.permission.handler.types.MenuResourceTypeHandler;
 import org.dromara.permission.model.permission.DenyReason;
 import org.dromara.permission.model.permission.GrantPermissionRequest;
 import org.dromara.permission.model.permission.MatchedPermission;
@@ -36,22 +43,39 @@ import org.dromara.permission.model.permission.RevokePermissionRequest;
 import org.dromara.permission.model.permission.SnapshotRequest;
 import org.dromara.permission.model.permission.UserRoleBatchAssignRequest;
 import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
+import org.dromara.permission.operation.custom.ApiGrantValidator;
+import org.dromara.permission.operation.custom.ApiPermissionMatcher;
+import org.dromara.permission.operation.custom.ApiSnapshotAssembler;
+import org.dromara.permission.operation.custom.DataInheritanceExpander;
+import org.dromara.permission.operation.custom.DataSnapshotAssembler;
+import org.dromara.permission.operation.custom.MenuInheritanceExpander;
+import org.dromara.permission.operation.defaults.DefaultConditionEvaluator;
+import org.dromara.permission.operation.defaults.DefaultConflictDetector;
+import org.dromara.permission.operation.defaults.DefaultDependencyChecker;
+import org.dromara.permission.operation.defaults.DefaultGrantValidator;
+import org.dromara.permission.operation.defaults.DefaultInheritanceExpander;
+import org.dromara.permission.operation.defaults.DefaultPermissionMatcher;
+import org.dromara.permission.operation.defaults.DefaultSnapshotAssembler;
 import org.dromara.permission.service.ChangeLogService;
 import org.dromara.permission.service.DomainScopeValidator;
 import org.dromara.permission.service.OperationInheritanceService;
 import org.dromara.permission.service.PermissionVersionService;
+import org.dromara.permission.service.ResourceApiMappingService;
 import org.dromara.permission.service.RoleResolverService;
+import org.dromara.permission.service.support.PermissionBridgeSupport;
+import org.dromara.permission.service.support.TypeDefinitionReader;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -71,6 +95,10 @@ import static org.mockito.Mockito.when;
 @Tag("dev")
 class PermissionServiceImplTest {
 
+    private static final int MENU_TYPE = 1;
+    private static final int API_TYPE = 2;
+    private static final int DATA_TYPE = 3;
+
     @Mock private RoleResolverService roleResolverService;
     @Mock private OperationInheritanceService operationInheritanceService;
     @Mock private DomainScopeValidator domainScopeValidator;
@@ -85,9 +113,87 @@ class PermissionServiceImplTest {
     @Mock private PcAbstractRoleMapper abstractRoleMapper;
     @Mock private PcAbstractUserMapper abstractUserMapper;
     @Mock private PcUserRoleMapper userRoleMapper;
+    @Mock private ResourceApiMappingService resourceApiMappingService;
+    @Mock private TypeDefinitionReader typeDefinitionReader;
 
-    @InjectMocks
     private PermissionServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        PermissionBridgeSupport bridgeSupport = new PermissionBridgeSupport(
+            operationInheritanceService,
+            resourceApiMappingService,
+            resourceEntityMapper,
+            operationPermissionMapper,
+            roleResourcePermissionMapper,
+            permissionConditionMapper,
+            permissionConflictRuleMapper,
+            resourceDependencyMapper
+        );
+        DefaultPermissionMatcher defaultPermissionMatcher = new DefaultPermissionMatcher(bridgeSupport);
+        DefaultInheritanceExpander defaultInheritanceExpander = new DefaultInheritanceExpander(bridgeSupport);
+        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator();
+        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport);
+        DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
+        DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
+        DefaultSnapshotAssembler defaultSnapshotAssembler = new DefaultSnapshotAssembler(bridgeSupport);
+        DefaultResourceTypeHandler defaultHandler = new DefaultResourceTypeHandler(
+            defaultPermissionMatcher,
+            defaultInheritanceExpander,
+            defaultConditionEvaluator,
+            defaultConflictDetector,
+            defaultDependencyChecker,
+            defaultGrantValidator,
+            defaultSnapshotAssembler
+        );
+        ApiResourceTypeHandler apiHandler = new ApiResourceTypeHandler(
+            defaultInheritanceExpander,
+            defaultConditionEvaluator,
+            defaultConflictDetector,
+            defaultDependencyChecker,
+            new ApiPermissionMatcher(bridgeSupport),
+            new ApiGrantValidator(resourceApiMappingService),
+            new ApiSnapshotAssembler(bridgeSupport)
+        );
+        MenuResourceTypeHandler menuHandler = new MenuResourceTypeHandler(
+            defaultPermissionMatcher,
+            new MenuInheritanceExpander(bridgeSupport),
+            defaultConditionEvaluator,
+            defaultConflictDetector,
+            defaultDependencyChecker,
+            defaultGrantValidator,
+            defaultSnapshotAssembler
+        );
+        DataResourceTypeHandler dataHandler = new DataResourceTypeHandler(
+            defaultPermissionMatcher,
+            new DataInheritanceExpander(bridgeSupport),
+            defaultConditionEvaluator,
+            defaultConflictDetector,
+            defaultDependencyChecker,
+            defaultGrantValidator,
+            new DataSnapshotAssembler(bridgeSupport)
+        );
+        mockTypeDefinitions();
+        ResourceTypeHandlerRegistry registry = new ResourceTypeHandlerRegistry(List.of(defaultHandler, apiHandler, menuHandler, dataHandler), typeDefinitionReader);
+        service = new PermissionServiceImpl(
+            roleResolverService,
+            operationInheritanceService,
+            domainScopeValidator,
+            changeLogService,
+            permissionVersionService,
+            registry,
+            bridgeSupport,
+            resourceEntityMapper,
+            operationPermissionMapper,
+            roleResourcePermissionMapper,
+            permissionConditionMapper,
+            permissionConflictRuleMapper,
+            resourceDependencyMapper,
+            abstractRoleMapper,
+            abstractUserMapper,
+            userRoleMapper
+        );
+    }
 
     @Test
     void check_noRoles_returnsNoRole() {
@@ -126,6 +232,11 @@ class PermissionServiceImplTest {
                 matched(500L, 200L, 300L, 400L, null),
                 matched(501L, 200L, 300L, 401L, null)
             ));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(
+            operation(400L, 1, 1L, 0L),
+            operation(401L, 1, 2L, 0L)
+        ));
 
         PcPermissionConflictRule rule = new PcPermissionConflictRule();
         rule.setId(1L);
@@ -154,6 +265,11 @@ class PermissionServiceImplTest {
                 matched(500L, 200L, 300L, 400L, null),
                 matched(501L, 200L, 300L, 401L, 700L)
             ));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(
+            operation(400L, 1, 1L, 0L),
+            operation(401L, 1, 2L, 0L)
+        ));
         PcPermissionConflictRule rule = new PcPermissionConflictRule();
         rule.setId(1L);
         rule.setFirstOperationPermissionId(400L);
@@ -164,6 +280,50 @@ class PermissionServiceImplTest {
 
         assertTrue(result.isGranted());
         assertEquals(1, result.getGrantedBy().size());
+        assertEquals(400L, result.getGrantedBy().get(0).getOperationId());
+    }
+
+    @Test
+    void check_conflictOnExpandedChild_doesNotRemoveParentPermission() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setInheritMode(org.dromara.permission.model.permission.InheritMode.CHILDREN);
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        PcResourceEntity parent = resource(300L, 1);
+        parent.setPath("/300");
+        PcResourceEntity child = resource(301L, 1);
+        child.setPath("/300/301");
+        when(resourceEntityMapper.selectOne(any())).thenReturn(parent);
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(resourceEntityMapper.selectList(any())).thenReturn(
+            List.of(child),
+            List.of(parent, child)
+        );
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(
+            grant(500L, 200L, 300L, 400L, null),
+            grant(501L, 200L, 301L, 400L, null),
+            grant(502L, 200L, 301L, 401L, null)
+        ));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(
+            operation(400L, 1, 1L, 0L),
+            operation(401L, 1, 2L, 0L)
+        ));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(
+                matched(500L, 200L, 300L, 400L, null),
+                matched(501L, 200L, 301L, 400L, null),
+                matched(502L, 200L, 301L, 401L, null)
+            ));
+        PcPermissionConflictRule rule = new PcPermissionConflictRule();
+        rule.setId(10L);
+        rule.setFirstOperationPermissionId(400L);
+        rule.setSecondOperationPermissionId(401L);
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(rule));
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(1, result.getGrantedBy().size());
+        assertEquals(300L, result.getGrantedBy().get(0).getResourceId());
         assertEquals(400L, result.getGrantedBy().get(0).getOperationId());
     }
 
@@ -180,12 +340,51 @@ class PermissionServiceImplTest {
         when(permissionConditionMapper.selectBatchIds(anyCollection()))
             .thenReturn(List.of(condition(700L, "WORKDAY_ONLY", PermissionConstants.CONDITION_SOURCE_PRESET,
                 PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
         when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
 
         var result = service.check(request);
 
         assertTrue(result.isGranted());
         assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
+    void check_dependencyConditionalPermissionNotSatisfied_returnsDependencyFail() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setCheckDependency(true);
+        request.setContext(Map.of("condition:LEVEL_OK", false));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(
+            operation(400L, 1, 1L, 0L),
+            operation(401L, 1, 2L, 0L)
+        );
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(
+            List.of(grant(500L, 200L, 300L, 400L, null)),
+            List.of(grant(501L, 200L, 301L, 401L, 700L))
+        );
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, null)))
+            .thenReturn(List.of(matched(501L, 200L, 301L, 401L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "LEVEL_OK", PermissionConstants.CONDITION_SOURCE_PRESET,
+                PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(
+            List.of(resource(300L, 1)),
+            List.of(resource(301L, 1))
+        );
+        when(operationPermissionMapper.selectList(any())).thenReturn(
+            List.of(operation(400L, 1, 1L, 0L)),
+            List.of(operation(401L, 1, 2L, 0L))
+        );
+        when(resourceDependencyMapper.selectList(any())).thenReturn(List.of(dependency(300L, 301L, 400L, 401L)), Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertFalse(result.isGranted());
+        assertEquals(DenyReason.DEPENDENCY_FAIL, result.getDenyReason());
     }
 
     @Test
@@ -228,7 +427,6 @@ class PermissionServiceImplTest {
         when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
-        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
         when(permissionConditionMapper.selectOne(any()))
             .thenReturn(condition(700L, "", PermissionConstants.CONDITION_SOURCE_CUSTOM,
                 PermissionConstants.CONDITION_STATUS_PENDING));
@@ -384,6 +582,71 @@ class PermissionServiceImplTest {
 
         assertEquals(1, snapshot.getEntries().size());
         assertEquals(700L, snapshot.getEntries().get(0).getConditionId());
+    }
+
+    @Test
+    void buildSnapshot_apiResource_assemblesRouteEntry() {
+        SnapshotRequest request = new SnapshotRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setIncludeConditional(false);
+
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(permissionVersionService.queryCurrentVersion(1L)).thenReturn(version(1L, 5L));
+        when(permissionVersionService.buildVersionToken(1L, 5L)).thenReturn("1-v5");
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(
+            grant(900L, 200L, 300L, 400L, null)
+        ));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, API_TYPE)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(
+            operation(400L, API_TYPE, 1L, 0L)
+        ));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, API_TYPE)).thenReturn(Collections.emptyList());
+        when(resourceApiMappingService.listEnabledMappings(eq(1L), anyCollection())).thenReturn(List.of(apiMapping(600L, 300L)));
+
+        var snapshot = service.buildSnapshot(request);
+
+        assertEquals(1, snapshot.getEntries().size());
+        assertEquals("system-service", snapshot.getEntries().get(0).getServiceCode());
+        assertEquals("GET", snapshot.getEntries().get(0).getHttpMethod());
+        assertEquals("/api/system/user/list", snapshot.getEntries().get(0).getPathPattern());
+    }
+
+    @Test
+    void grant_apiResourceWithoutMapping_rejected() {
+        GrantPermissionRequest request = new GrantPermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, API_TYPE));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, API_TYPE, 1L, 0L));
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+        when(resourceApiMappingService.listEnabledMappings(eq(1L), anyCollection())).thenReturn(Collections.emptyList());
+
+        var result = service.grant(request);
+
+        assertFalse(result.isSuccess());
+        assertEquals(List.of("API resource missing enabled route mapping"), result.getRejectReasons());
+    }
+
+    @Test
+    void check_apiRequestContext_doesNotGrantOtherResourcePermission() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setContext(Map.of("requestPath", "/api/system/user/list", "httpMethod", "GET", "serviceCode", "system-service"));
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, API_TYPE));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, API_TYPE, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 301L, 400L, null)));
+
+        var result = service.check(request);
+
+        assertFalse(result.isGranted());
+        assertEquals(DenyReason.NO_PERMISSION, result.getDenyReason());
     }
 
     @Test
@@ -546,6 +809,32 @@ class PermissionServiceImplTest {
         return condition;
     }
 
+    private PcResourceApiMapping apiMapping(Long id, Long resourceId) {
+        PcResourceApiMapping mapping = new PcResourceApiMapping();
+        mapping.setId(id);
+        mapping.setTenantId(1L);
+        mapping.setResourceEntityId(resourceId);
+        mapping.setServiceCode("system-service");
+        mapping.setHttpMethod("GET");
+        mapping.setPathPattern("/api/system/user/list");
+        mapping.setEnabled(Boolean.TRUE);
+        mapping.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return mapping;
+    }
+
+    private org.dromara.permission.domain.PcResourceDependency dependency(Long resourceId, Long dependsOnResourceId,
+                                                                          Long sourceOperationId, Long requiredOperationId) {
+        org.dromara.permission.domain.PcResourceDependency dependency = new org.dromara.permission.domain.PcResourceDependency();
+        dependency.setId(1L);
+        dependency.setTenantId(1L);
+        dependency.setResourceEntityId(resourceId);
+        dependency.setDependsOnResourceEntityId(dependsOnResourceId);
+        dependency.setSourceOperationPermissionId(sourceOperationId);
+        dependency.setRequiredOperationPermissionId(requiredOperationId);
+        dependency.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return dependency;
+    }
+
     private PcUserRole grantUserRole(Long id, Long userId, Long roleId) {
         PcUserRole entity = new PcUserRole();
         entity.setId(id);
@@ -554,5 +843,25 @@ class PermissionServiceImplTest {
         entity.setAbstractRoleId(roleId);
         entity.setDeleteFlag(PermissionConstants.NOT_DELETED);
         return entity;
+    }
+
+    private void mockTypeDefinitions() {
+        org.mockito.Mockito.lenient().when(typeDefinitionReader.findTypeName(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.eq(ResourceTypeConstants.TYPE_KEY),
+                org.mockito.ArgumentMatchers.anyInt()))
+            .thenAnswer(invocation -> Optional.ofNullable(resolveTypeName(invocation.getArgument(2))));
+    }
+
+    private String resolveTypeName(Integer resourceType) {
+        if (resourceType == null) {
+            return null;
+        }
+        return switch (resourceType) {
+            case MENU_TYPE -> ResourceTypeConstants.MENU;
+            case API_TYPE -> ResourceTypeConstants.API;
+            case DATA_TYPE -> ResourceTypeConstants.DATA;
+            default -> null;
+        };
     }
 }

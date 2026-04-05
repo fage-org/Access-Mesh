@@ -52,7 +52,7 @@ ResourceTypeHandler (interface)
 
 | 子操作 | 接口名 | 职责 | 典型变化场景 |
 |--------|--------|------|-------------|
-| 权限匹配 | PermissionMatcher | 从 role_resource_permission 中查找匹配记录 | API 可能需路径前缀匹配，MENU 精确匹配 |
+| 权限匹配 | PermissionMatcher | 从 role_resource_permission 中查找匹配记录 | API 在 `check` 链路中做资源级精确匹配；路由级解析留给 interface decision / gateway |
 | 资源继承展开 | InheritanceExpander | 按 inherit_mode 展开资源树 | MENU 树形遍历、API 扁平/前缀、DATA 组织层级 |
 | 条件评估 | ConditionEvaluator | 评估 permission_condition 是否满足 | 不同资源类型可注入不同上下文变量 |
 | 冲突检测 | ConflictDetector | 检查 permission_conflict_rule 互斥 | 按 resource_type_value 过滤规则集 |
@@ -214,7 +214,7 @@ public interface ResourceTypeHandler {
      * 返回所处理的 resource_type 枚举值（来自 type_definition.type_key='resource_type'）。
      * 返回 null 表示默认处理器，匹配所有未注册专用 Handler 的资源类型。
      */
-    Integer getResourceType();
+    String getResourceType();
 
     default PermissionMatcher getPermissionMatcher() {
         return DefaultPermissionMatcher.INSTANCE;
@@ -278,10 +278,12 @@ public class ApiResourceTypeHandler implements ResourceTypeHandler {
  */
 @Component
 public class ResourceTypeHandlerRegistry {
-    private final Map<Integer, ResourceTypeHandler> handlers;
+    private final Map<String, ResourceTypeHandler> handlers;
     private final ResourceTypeHandler defaultHandler;
+    private final TypeDefinitionReader typeDefinitionReader;
 
-    public ResourceTypeHandlerRegistry(List<ResourceTypeHandler> allHandlers) {
+    public ResourceTypeHandlerRegistry(List<ResourceTypeHandler> allHandlers,
+                                       TypeDefinitionReader typeDefinitionReader) {
         this.defaultHandler = allHandlers.stream()
             .filter(h -> h.getResourceType() == null)
             .findFirst()
@@ -289,16 +291,21 @@ public class ResourceTypeHandlerRegistry {
 
         this.handlers = allHandlers.stream()
             .filter(h -> h.getResourceType() != null)
-            .collect(Collectors.toMap(ResourceTypeHandler::getResourceType, h -> h));
+            .collect(Collectors.toMap(
+                h -> h.getResourceType().toUpperCase(Locale.ROOT), h -> h));
+        this.typeDefinitionReader = typeDefinitionReader;
     }
 
     /**
      * 按 resource_type 获取 Handler。
-     * resourceType 为 null 或未注册时返回默认 Handler。
+     * 实际分发口径取自 type_definition.name（英文标识，如 MENU/API/DATA/BUTTON）。
+     * resourceType 为 null 时返回默认 Handler；未找到 type_definition 时直接报错。
      */
-    public ResourceTypeHandler getHandler(Integer resourceType) {
+    public ResourceTypeHandler getHandler(Long tenantId, Integer resourceType) {
         if (resourceType == null) return defaultHandler;
-        return handlers.getOrDefault(resourceType, defaultHandler);
+        String typeName = typeDefinitionReader.findTypeName(tenantId, "resource_type", resourceType)
+            .orElseThrow(() -> new IllegalArgumentException("resource_type definition not found"));
+        return handlers.getOrDefault(typeName, defaultHandler);
     }
 }
 ```
@@ -539,7 +546,7 @@ public class ApiResourceTypeHandler implements ResourceTypeHandler {
 }
 ```
 
-**ApiPermissionMatcher**：API 资源除标准 resource_entity_id 匹配外，还可通过 resource_api_mapping 做路径级匹配。
+**ApiPermissionMatcher**：在 `PermissionService.check` 这条资源级精确鉴权链路中，API 资源仍按标准 `resource_entity_id` 精确匹配；基于 `service_code + http_method + path_pattern` 的路由解析与反查，保留给 `/api/perm/decision/interface`、`/api/perm/policy/interface-snapshot` 和后续 gateway 接入链路。
 
 ```java
 @Component
@@ -547,14 +554,8 @@ public class ApiPermissionMatcher implements PermissionMatcher {
     @Override
     public List<MatchedPermission> match(Set<Long> roleIds, Set<Long> resourceIds,
                                           Long opId, PermissionContext ctx) {
-        // 1. 先标准匹配 role_resource_permission
-        List<MatchedPermission> result = defaultMatch(roleIds, resourceIds, opId);
-
-        // 2. 如果请求带了 path 信息，额外通过 resource_api_mapping 做路径匹配
-        if (ctx.getEvalContext().containsKey("requestPath")) {
-            result.addAll(matchByApiRoute(roleIds, ctx));
-        }
-        return result;
+        // PermissionService.check 只做资源级精确鉴权，不根据路由反推其他 API 资源
+        return defaultMatch(roleIds, resourceIds, opId);
     }
 }
 ```

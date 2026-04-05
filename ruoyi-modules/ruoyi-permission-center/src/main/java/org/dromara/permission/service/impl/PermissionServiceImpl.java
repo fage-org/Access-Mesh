@@ -3,12 +3,40 @@ package org.dromara.permission.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.dromara.permission.constant.PermissionConstants;
+import org.dromara.permission.handler.ResourceTypeHandler;
+import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.domain.*;
 import org.dromara.permission.domain.dto.ChangeLogParam;
 import org.dromara.permission.mapper.*;
-import org.dromara.permission.model.permission.*;
+import org.dromara.permission.model.permission.ConflictDetail;
+import org.dromara.permission.model.permission.DependencyCheckResult;
+import org.dromara.permission.model.permission.DependencyGap;
+import org.dromara.permission.model.permission.DenyReason;
+import org.dromara.permission.model.permission.GrantPermissionRequest;
+import org.dromara.permission.model.permission.GrantResult;
+import org.dromara.permission.model.permission.InheritMode;
+import org.dromara.permission.model.permission.MatchedPermission;
+import org.dromara.permission.model.permission.PermissionCheckRequest;
+import org.dromara.permission.model.permission.PermissionCheckResult;
+import org.dromara.permission.model.permission.PermissionContext;
+import org.dromara.permission.model.permission.PermissionErrorCode;
+import org.dromara.permission.model.permission.PermissionServiceException;
+import org.dromara.permission.model.permission.PermissionSnapshot;
+import org.dromara.permission.model.permission.PermissionVersionQueryRequest;
+import org.dromara.permission.model.permission.PermissionVersionResult;
+import org.dromara.permission.model.permission.ResolvedRole;
+import org.dromara.permission.model.permission.RevokePermissionRequest;
+import org.dromara.permission.model.permission.RevokeResult;
+import org.dromara.permission.model.permission.RolePermissionBatchGrantRequest;
+import org.dromara.permission.model.permission.RolePermissionBatchRevokeRequest;
+import org.dromara.permission.model.permission.SnapshotEntry;
+import org.dromara.permission.model.permission.SnapshotRequest;
+import org.dromara.permission.model.permission.UserRoleBatchAssignRequest;
+import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
+import org.dromara.permission.model.permission.ValidationResult;
 import org.dromara.permission.service.*;
 import org.dromara.permission.service.support.PermissionAuditSupport;
+import org.dromara.permission.service.support.PermissionBridgeSupport;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +55,8 @@ public class PermissionServiceImpl implements PermissionService {
     private final DomainScopeValidator domainScopeValidator;
     private final ChangeLogService changeLogService;
     private final PermissionVersionService permissionVersionService;
+    private final ResourceTypeHandlerRegistry resourceTypeHandlerRegistry;
+    private final PermissionBridgeSupport permissionBridgeSupport;
     private final PcResourceEntityMapper resourceEntityMapper;
     private final PcOperationPermissionMapper operationPermissionMapper;
     private final PcRoleResourcePermissionMapper roleResourcePermissionMapper;
@@ -47,37 +77,50 @@ public class PermissionServiceImpl implements PermissionService {
         if (roles.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.NO_ROLE, Collections.emptyList(), Collections.emptyList());
         }
-        PcResourceEntity resource = loadResource(request.getTenantId(), request.getResourceEntityId());
-        PcOperationPermission operation = loadOperation(request.getTenantId(), request.getOperationPermissionId());
-        validateResourceOperationType(resource, operation);
+        PcResourceEntity resource = permissionBridgeSupport.loadResource(request.getTenantId(), request.getResourceEntityId());
+        PcOperationPermission operation = permissionBridgeSupport.loadOperation(request.getTenantId(), request.getOperationPermissionId());
+        permissionBridgeSupport.validateResourceOperationType(resource, operation);
         ctx.setResource(resource);
         ctx.setOperation(operation);
-        ctx.setExpandedResourceIds(expandResourceIds(resource, ctx.getInheritMode()));
+        ResourceTypeHandler handler = resourceTypeHandlerRegistry.getHandler(ctx.getTenantId(), resource.getResourceType());
+        ctx.setExpandedResourceIds(handler.getInheritanceExpander().expand(resource.getId(), ctx.getInheritMode(), ctx));
 
         List<Long> roleIds = roles.stream().map(ResolvedRole::getRoleId).collect(Collectors.toList());
-        List<PcRoleResourcePermission> grants = loadRolePermissions(ctx.getTenantId(), roleIds, ctx.getExpandedResourceIds());
-        Map<Long, PcOperationPermission> grantedOperations = loadOperationsByIds(
-            grants.stream().map(PcRoleResourcePermission::getOperationPermissionId).collect(Collectors.toSet()), ctx.getTenantId());
-        List<MatchedPermission> matched = operationInheritanceService.filterByInheritance(
-            toMatchedPermissions(grants), operation, grantedOperations).stream()
-            .filter(permission -> ctx.getExpandedResourceIds().contains(permission.getResourceId()))
-            .collect(Collectors.toList());
+        List<MatchedPermission> matched = handler.getPermissionMatcher()
+            .match(new HashSet<>(roleIds), ctx.getExpandedResourceIds(), request.getOperationPermissionId(), ctx);
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.NO_PERMISSION, Collections.emptyList(), Collections.emptyList());
         }
-        matched = filterByCondition(matched, ctx.getEvalContext());
+        Map<Long, PcOperationPermission> grantedOperations = permissionBridgeSupport.loadOperationsByIds(
+            matched.stream().map(MatchedPermission::getOperationId).collect(Collectors.toSet()), ctx.getTenantId());
+        Map<Long, PcResourceEntity> resources = permissionBridgeSupport.loadResourcesByIds(
+            matched.stream().map(MatchedPermission::getResourceId).collect(Collectors.toSet()), ctx.getTenantId());
+        Map<Long, PcPermissionCondition> conditions = permissionBridgeSupport.loadConditionsByIds(
+            matched.stream().map(MatchedPermission::getConditionId).filter(Objects::nonNull).collect(Collectors.toSet()));
+        ctx.setOperations(grantedOperations);
+        ctx.setResources(resources);
+        ctx.setConditions(conditions);
+        permissionBridgeSupport.attachPermissionMetadata(matched, resources, grantedOperations, conditions);
+        matched = operationInheritanceService.filterByInheritance(matched, operation, grantedOperations);
+        permissionBridgeSupport.attachPermissionMetadata(matched, resources, grantedOperations, conditions);
+        if (matched.isEmpty()) {
+            return PermissionCheckResult.denied(DenyReason.NO_PERMISSION, Collections.emptyList(), Collections.emptyList());
+        }
+        matched = matched.stream()
+            .filter(permission -> handler.getConditionEvaluator().evaluate(permission, ctx))
+            .collect(Collectors.toList());
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.CONDITION_FAIL, Collections.emptyList(), Collections.emptyList());
         }
-        List<ConflictDetail> conflicts = detectConflicts(ctx.getTenantId(), resource, matched);
+        List<ConflictDetail> conflicts = handler.getConflictDetector().detect(matched, ctx);
         ctx.setDetectedConflicts(conflicts);
-        matched = removeConflicted(matched, conflicts, operation.getId());
+        matched = permissionBridgeSupport.removeConflicted(matched, conflicts, operation.getId());
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.CONFLICT, conflicts, Collections.emptyList());
         }
         if (Boolean.TRUE.equals(request.getCheckDependency())) {
-            DependencyCheckResult dependencyResult = checkDependencies(ctx, request.getResourceEntityId(),
-                request.getOperationPermissionId(), roleIds, new HashSet<>(), 0);
+            DependencyCheckResult dependencyResult = handler.getDependencyChecker()
+                .check(request.getResourceEntityId(), request.getOperationPermissionId(), ctx);
             if (!dependencyResult.isSatisfied()) {
                 return PermissionCheckResult.denied(DenyReason.DEPENDENCY_FAIL, conflicts, dependencyResult.getGaps());
             }
@@ -94,13 +137,15 @@ public class PermissionServiceImpl implements PermissionService {
             resolveChangeSource(request.getChangeSource()), "grant");
         ctx.setVersionRemark("grant");
         PcAbstractRole role = loadRole(request.getTenantId(), request.getAbstractRoleId());
-        PcResourceEntity resource = loadResource(request.getTenantId(), request.getResourceEntityId());
-        PcOperationPermission operation = loadOperation(request.getTenantId(), request.getOperationPermissionId());
+        PcResourceEntity resource = permissionBridgeSupport.loadResource(request.getTenantId(), request.getResourceEntityId());
+        PcOperationPermission operation = permissionBridgeSupport.loadOperation(request.getTenantId(), request.getOperationPermissionId());
         applyRoleToContext(ctx, role);
         fillResourceOperation(ctx, resource, operation);
-        validateResourceOperationType(resource, operation);
+        permissionBridgeSupport.validateResourceOperationType(resource, operation);
+        permissionBridgeSupport.assertGrantConditionApproved(request);
         domainScopeValidator.validateGrantScope(ctx.getTenantId(), ctx.getBizDomainId(), role, resource, operation);
-        ValidationResult validationResult = validateGrant(request, resource, operation);
+        ValidationResult validationResult = resourceTypeHandlerRegistry.getHandler(ctx.getTenantId(), resource.getResourceType())
+            .getGrantValidator().validate(request, ctx);
         if (!validationResult.isValid()) {
             return GrantResult.rejected(validationResult.getReasons());
         }
@@ -712,45 +757,34 @@ public class PermissionServiceImpl implements PermissionService {
             return snapshot;
         }
         List<Long> roleIds = roles.stream().map(ResolvedRole::getRoleId).collect(Collectors.toList());
-        List<PcRoleResourcePermission> grants = loadRolePermissions(request.getTenantId(), roleIds, null);
-        Map<Long, PcResourceEntity> resources = loadResourcesByIds(grants.stream()
-            .map(PcRoleResourcePermission::getResourceEntityId).collect(Collectors.toSet()), request.getTenantId());
-        Map<Long, PcOperationPermission> operations = loadOperationsByIds(grants.stream()
-            .map(PcRoleResourcePermission::getOperationPermissionId).collect(Collectors.toSet()), request.getTenantId());
-        Map<Long, PcPermissionCondition> conditions = loadConditionsByIds(grants.stream()
-            .map(PcRoleResourcePermission::getConditionId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet()));
-        List<MatchedPermission> matchedPermissions = toMatchedPermissions(grants).stream()
-            .filter(permission -> includeInSnapshot(permission, request.getIncludeConditional(), conditions))
-            .collect(Collectors.toList());
-        List<ConflictDetail> conflicts = detectConflictsForSnapshot(request.getTenantId(), matchedPermissions, resources);
-        snapshot.setConflicts(conflicts);
-        Set<String> conflictedKeys = conflicts.stream()
-            .flatMap(conflict -> List.of(conflict.getResourceId() + ":" + conflict.getFirstOperationId(),
-                conflict.getResourceId() + ":" + conflict.getSecondOperationId()).stream())
-            .collect(Collectors.toSet());
+        List<MatchedPermission> matchedPermissions = permissionBridgeSupport.loadMatchedPermissions(request.getTenantId(), roleIds, null);
+        Map<Long, PcResourceEntity> resources = permissionBridgeSupport.loadResourcesByIds(matchedPermissions.stream()
+            .map(MatchedPermission::getResourceId).collect(Collectors.toSet()), request.getTenantId());
+        Map<Long, PcOperationPermission> operations = permissionBridgeSupport.loadOperationsByIds(matchedPermissions.stream()
+            .map(MatchedPermission::getOperationId).collect(Collectors.toSet()), request.getTenantId());
+        Map<Long, PcPermissionCondition> conditions = permissionBridgeSupport.loadConditionsByIds(matchedPermissions.stream()
+            .map(MatchedPermission::getConditionId).filter(Objects::nonNull).collect(Collectors.toSet()));
+        ctx.setResources(resources);
+        ctx.setOperations(operations);
+        ctx.setConditions(conditions);
+        permissionBridgeSupport.attachPermissionMetadata(matchedPermissions, resources, operations, conditions);
+        matchedPermissions = permissionBridgeSupport.filterSnapshotPermissions(matchedPermissions, request.getIncludeConditional());
+
+        Map<Integer, List<MatchedPermission>> byResourceType = matchedPermissions.stream()
+            .collect(Collectors.groupingBy(MatchedPermission::getResourceType, LinkedHashMap::new, Collectors.toList()));
+        List<ConflictDetail> conflicts = new ArrayList<>();
         List<SnapshotEntry> entries = new ArrayList<>();
-        for (MatchedPermission matchedPermission : matchedPermissions) {
-            String key = matchedPermission.getResourceId() + ":" + matchedPermission.getOperationId();
-            if (conflictedKeys.contains(key)) {
-                continue;
-            }
-            PcResourceEntity resource = resources.get(matchedPermission.getResourceId());
-            PcOperationPermission operation = operations.get(matchedPermission.getOperationId());
-            if (resource == null || operation == null) {
-                continue;
-            }
-            SnapshotEntry entry = new SnapshotEntry();
-            entry.setRoleId(matchedPermission.getRoleId());
-            entry.setResourceId(resource.getId());
-            entry.setResourceCode(resource.getCode());
-            entry.setOperationId(operation.getId());
-            entry.setOperationCode(operation.getCode());
-            entry.setConditionId(matchedPermission.getConditionId());
-            entry.setCanManage(matchedPermission.getCanManage());
-            entries.add(entry);
+        for (Map.Entry<Integer, List<MatchedPermission>> entry : byResourceType.entrySet()) {
+            ResourceTypeHandler handler = resourceTypeHandlerRegistry.getHandler(ctx.getTenantId(), entry.getKey());
+            List<ConflictDetail> typeConflicts = handler.getConflictDetector().detect(entry.getValue(), ctx);
+            conflicts.addAll(typeConflicts);
+            Set<String> conflictedKeys = permissionBridgeSupport.buildConflictKeys(typeConflicts);
+            List<MatchedPermission> filtered = entry.getValue().stream()
+                .filter(permission -> !conflictedKeys.contains(permission.getResourceId() + ":" + permission.getOperationId()))
+                .collect(Collectors.toList());
+            entries.addAll(handler.getSnapshotAssembler().assemble(filtered, ctx));
         }
+        snapshot.setConflicts(conflicts);
         snapshot.setEntries(entries);
         return snapshot;
     }
@@ -758,6 +792,8 @@ public class PermissionServiceImpl implements PermissionService {
     private PermissionContext createContext(Long tenantId, Long userId, Long bizDomainId, String requestId,
                                             String changeSource, String action) {
         PermissionContext ctx = new PermissionContext(tenantId, userId, bizDomainId, InheritMode.NONE, null);
+        ctx.setConditionEvaluatorResolver(resourceType ->
+            resourceTypeHandlerRegistry.getHandler(tenantId, resourceType).getConditionEvaluator());
         ctx.setRequestId(requestId);
         ctx.setChangeSource(changeSource);
         ctx.setAction(action);
