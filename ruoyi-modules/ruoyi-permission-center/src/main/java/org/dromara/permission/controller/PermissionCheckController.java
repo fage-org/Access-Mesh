@@ -31,7 +31,7 @@ public class PermissionCheckController {
     public R<PermissionCheckVo> check(@Validated @RequestBody PermissionCheckReq req) {
         PermissionCheckRequest request = new PermissionCheckRequest();
         request.setTenantId(req.getTenantId());
-        request.setAbstractUserId(req.getAbstractUserId());
+        request.setAbstractUserId(req.getUserId());
         request.setResourceEntityId(req.getResourceEntityId());
         request.setOperationPermissionId(req.getOperationPermissionId());
         request.setBizDomainId(req.getBizDomainId());

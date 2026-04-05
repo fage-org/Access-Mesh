@@ -251,18 +251,11 @@ public class PermissionBridgeSupport {
         return conflicts;
     }
 
-    public List<MatchedPermission> removeConflicted(List<MatchedPermission> matchedPermissions, List<ConflictDetail> conflicts,
-                                                    Long targetOperationId) {
+    public List<MatchedPermission> removeConflicted(List<MatchedPermission> matchedPermissions, List<ConflictDetail> conflicts) {
         if (conflicts.isEmpty()) {
             return matchedPermissions;
         }
-        Set<String> deniedKeys = conflicts.stream()
-            .filter(conflict -> Objects.equals(conflict.getFirstOperationId(), targetOperationId)
-                || Objects.equals(conflict.getSecondOperationId(), targetOperationId))
-            .flatMap(conflict -> List.of(
-                conflict.getResourceId() + ":" + conflict.getFirstOperationId(),
-                conflict.getResourceId() + ":" + conflict.getSecondOperationId()).stream())
-            .collect(Collectors.toSet());
+        Set<String> deniedKeys = buildConflictKeys(conflicts);
         return matchedPermissions.stream()
             .filter(permission -> !deniedKeys.contains(permission.getResourceId() + ":" + permission.getOperationId()))
             .collect(Collectors.toList());

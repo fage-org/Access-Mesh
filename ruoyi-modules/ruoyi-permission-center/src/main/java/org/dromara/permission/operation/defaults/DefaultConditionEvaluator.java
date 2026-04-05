@@ -1,5 +1,8 @@
 package org.dromara.permission.operation.defaults;
 
+import lombok.RequiredArgsConstructor;
+import org.dromara.permission.condition.PermissionConditionExpressionEvaluator;
+import org.dromara.permission.condition.PermissionConditionPresetHandlerRegistry;
 import org.dromara.permission.constant.PermissionConstants;
 import org.dromara.permission.domain.PcPermissionCondition;
 import org.dromara.permission.model.permission.MatchedPermission;
@@ -13,7 +16,11 @@ import java.util.List;
 
 @Component
 @Primary
+@RequiredArgsConstructor
 public class DefaultConditionEvaluator implements ConditionEvaluator {
+
+    private final PermissionConditionPresetHandlerRegistry presetHandlerRegistry;
+    private final PermissionConditionExpressionEvaluator expressionEvaluator;
 
     @Override
     public boolean evaluate(MatchedPermission permission, PermissionContext ctx) {
@@ -32,6 +39,25 @@ public class DefaultConditionEvaluator implements ConditionEvaluator {
     }
 
     private Boolean resolveConditionValue(PcPermissionCondition condition, PermissionContext ctx) {
+        if (PermissionConstants.CONDITION_SOURCE_PRESET.equals(condition.getConditionSource())) {
+            return resolvePresetCondition(condition, ctx);
+        }
+        if (PermissionConstants.CONDITION_SOURCE_CUSTOM.equals(condition.getConditionSource())) {
+            return resolveCustomCondition(condition, ctx);
+        }
+        return resolveLegacyCondition(condition, ctx);
+    }
+
+    private Boolean resolvePresetCondition(PcPermissionCondition condition, PermissionContext ctx) {
+        String handlerCode = condition.getExpression() == null || condition.getExpression().isBlank()
+            ? condition.getCode()
+            : condition.getExpression();
+        return presetHandlerRegistry.find(handlerCode)
+            .map(handler -> handler.evaluate(condition, ctx))
+            .orElseGet(() -> resolveLegacyCondition(condition, ctx));
+    }
+
+    private Boolean resolveCustomCondition(PcPermissionCondition condition, PermissionContext ctx) {
         String expression = condition.getExpression();
         if ("true".equalsIgnoreCase(expression)) {
             return Boolean.TRUE;
@@ -39,6 +65,11 @@ public class DefaultConditionEvaluator implements ConditionEvaluator {
         if ("false".equalsIgnoreCase(expression)) {
             return Boolean.FALSE;
         }
+        return expressionEvaluator.evaluate(expression, ctx.getEvalContext());
+    }
+
+    private Boolean resolveLegacyCondition(PcPermissionCondition condition, PermissionContext ctx) {
+        String expression = condition.getExpression();
         if (ctx.getEvalContext() == null || ctx.getEvalContext().isEmpty()) {
             return null;
         }

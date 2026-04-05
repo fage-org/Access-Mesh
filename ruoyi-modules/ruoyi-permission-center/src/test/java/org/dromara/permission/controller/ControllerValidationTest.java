@@ -40,7 +40,7 @@ class ControllerValidationTest {
     @DisplayName("PermissionCheckReq: missing tenantId → violation")
     void checkReq_missingTenantId_hasViolation() {
         PermissionCheckReq req = new PermissionCheckReq();
-        req.setAbstractUserId(1L);
+        req.setUserId(1L);
         req.setResourceEntityId(2L);
         req.setOperationPermissionId(3L);
 
@@ -53,7 +53,7 @@ class ControllerValidationTest {
     void checkReq_allFieldsPresent_noViolation() {
         PermissionCheckReq req = new PermissionCheckReq();
         req.setTenantId(1L);
-        req.setAbstractUserId(2L);
+        req.setUserId(2L);
         req.setResourceEntityId(3L);
         req.setOperationPermissionId(4L);
 

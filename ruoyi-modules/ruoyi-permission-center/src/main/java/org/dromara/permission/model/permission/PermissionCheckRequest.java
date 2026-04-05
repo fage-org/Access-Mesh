@@ -17,6 +17,6 @@ public class PermissionCheckRequest {
     private Long operationPermissionId;
     private Long bizDomainId;
     private InheritMode inheritMode = InheritMode.NONE;
-    private Boolean checkDependency = Boolean.TRUE;
+    private Boolean checkDependency = Boolean.FALSE;
     private Map<String, Object> context;
 }

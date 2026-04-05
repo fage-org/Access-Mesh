@@ -1,7 +1,12 @@
 package org.dromara.permission.service.impl;
 
+import org.dromara.permission.condition.PermissionConditionExpressionEvaluator;
+import org.dromara.permission.condition.PermissionConditionPresetHandlerRegistry;
+import org.dromara.permission.condition.builtin.InternalIpConditionHandler;
+import org.dromara.permission.condition.builtin.WorkdayOnlyConditionHandler;
 import org.dromara.permission.constant.PermissionConstants;
 import org.dromara.permission.constant.ResourceTypeConstants;
+import org.dromara.permission.event.PermissionConflictEventPublisher;
 import org.dromara.permission.handler.DefaultResourceTypeHandler;
 import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.handler.types.ApiResourceTypeHandler;
@@ -108,8 +113,12 @@ class PermissionServicePipelineIntegrationTest {
         );
         DefaultPermissionMatcher defaultPermissionMatcher = new DefaultPermissionMatcher(bridgeSupport);
         DefaultInheritanceExpander defaultInheritanceExpander = new DefaultInheritanceExpander(bridgeSupport);
-        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator();
-        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport);
+        PermissionConditionPresetHandlerRegistry presetHandlerRegistry = new PermissionConditionPresetHandlerRegistry(
+            List.of(new WorkdayOnlyConditionHandler(), new InternalIpConditionHandler()));
+        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator(
+            presetHandlerRegistry, new PermissionConditionExpressionEvaluator());
+        PermissionConflictEventPublisher conflictEventPublisher = (ctx, conflicts) -> { };
+        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport, conflictEventPublisher);
         DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
         DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
         DefaultSnapshotAssembler defaultSnapshotAssembler = new DefaultSnapshotAssembler(bridgeSupport);
@@ -203,6 +212,7 @@ class PermissionServicePipelineIntegrationTest {
         checkRequest.setAbstractUserId(userId);
         checkRequest.setResourceEntityId(resourceId);
         checkRequest.setOperationPermissionId(operationId);
+        checkRequest.setCheckDependency(true);
         checkRequest.setContext(Map.of("condition:WORKDAY_ONLY", true));
         var checkResult = permissionService.check(checkRequest);
 

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ class PermissionCheckControllerTest {
     void check_mapsExpandedRequestAndResponse() {
         PermissionCheckReq req = new PermissionCheckReq();
         req.setTenantId(1L);
-        req.setAbstractUserId(100L);
+        req.setUserId(100L);
         req.setResourceEntityId(300L);
         req.setOperationPermissionId(400L);
         req.setInheritMode(InheritMode.CHILDREN);
@@ -54,9 +55,12 @@ class PermissionCheckControllerTest {
 
         R<PermissionCheckVo> response = controller.check(req);
 
-        verify(permissionService).check(any());
-        assertFalse(response.getData().getAllowed());
-        assertEquals("CONFLICT", response.getData().getReason());
+        ArgumentCaptor<org.dromara.permission.model.permission.PermissionCheckRequest> captor =
+            ArgumentCaptor.forClass(org.dromara.permission.model.permission.PermissionCheckRequest.class);
+        verify(permissionService).check(captor.capture());
+        assertEquals(100L, captor.getValue().getAbstractUserId());
+        assertFalse(response.getData().getGranted());
+        assertEquals("CONFLICT", response.getData().getDenyReason());
         assertNotNull(response.getData().getConflicts());
         assertNotNull(response.getData().getGrantedBy());
     }

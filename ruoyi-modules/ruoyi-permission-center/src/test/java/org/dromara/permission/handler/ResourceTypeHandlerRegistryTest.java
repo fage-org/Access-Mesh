@@ -1,6 +1,11 @@
 package org.dromara.permission.handler;
 
+import org.dromara.permission.condition.PermissionConditionExpressionEvaluator;
+import org.dromara.permission.condition.PermissionConditionPresetHandlerRegistry;
+import org.dromara.permission.condition.builtin.InternalIpConditionHandler;
+import org.dromara.permission.condition.builtin.WorkdayOnlyConditionHandler;
 import org.dromara.permission.constant.ResourceTypeConstants;
+import org.dromara.permission.event.PermissionConflictEventPublisher;
 import org.dromara.permission.handler.types.ApiResourceTypeHandler;
 import org.dromara.permission.handler.types.DataResourceTypeHandler;
 import org.dromara.permission.handler.types.MenuResourceTypeHandler;
@@ -67,8 +72,12 @@ class ResourceTypeHandlerRegistryTest {
         );
         DefaultPermissionMatcher defaultPermissionMatcher = new DefaultPermissionMatcher(bridgeSupport);
         DefaultInheritanceExpander defaultInheritanceExpander = new DefaultInheritanceExpander(bridgeSupport);
-        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator();
-        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport);
+        PermissionConditionPresetHandlerRegistry presetHandlerRegistry = new PermissionConditionPresetHandlerRegistry(
+            List.of(new WorkdayOnlyConditionHandler(), new InternalIpConditionHandler()));
+        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator(
+            presetHandlerRegistry, new PermissionConditionExpressionEvaluator());
+        PermissionConflictEventPublisher conflictEventPublisher = (ctx, conflicts) -> { };
+        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport, conflictEventPublisher);
         DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
         DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
         DefaultSnapshotAssembler defaultSnapshotAssembler = new DefaultSnapshotAssembler(bridgeSupport);

@@ -33,8 +33,8 @@ class PermissionServiceExceptionHandlerTest {
         R<Void> response = handler.handlePermissionServiceException(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getCode());
-        assertEquals("PERM_403_CONDITION", response.getErrorCode());
-        assertEquals("PERM_403_CONDITION: Condition is not approved: cond-1", response.getMsg());
+        assertEquals("PERM-106", response.getErrorCode());
+        assertEquals("PERM-106: Condition is not approved: cond-1", response.getMsg());
     }
 
     @Test
@@ -46,7 +46,7 @@ class PermissionServiceExceptionHandlerTest {
         R<Void> response = handler.handlePermissionServiceException(ex, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getCode());
-        assertEquals("PERM_404_RESOURCE", response.getErrorCode());
-        assertEquals("PERM_404_RESOURCE: Resource not found", response.getMsg());
+        assertEquals("PERM-102", response.getErrorCode());
+        assertEquals("PERM-102: Resource not found", response.getMsg());
     }
 }

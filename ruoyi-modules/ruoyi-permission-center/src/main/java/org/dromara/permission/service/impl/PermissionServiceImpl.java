@@ -72,6 +72,10 @@ public class PermissionServiceImpl implements PermissionService {
         validateCheckRequest(request);
         PermissionContext ctx = new PermissionContext(request.getTenantId(), request.getAbstractUserId(),
             request.getBizDomainId(), request.getInheritMode(), request.getContext());
+        ctx.setAction("check");
+        ctx.setChangeSource("API");
+        ctx.setConditionEvaluatorResolver(resourceType ->
+            resourceTypeHandlerRegistry.getHandler(request.getTenantId(), resourceType).getConditionEvaluator());
         List<ResolvedRole> roles = roleResolverService.resolve(ctx.getTenantId(), ctx.getUserId(), ctx.getBizDomainId());
         ctx.setRoles(roles);
         if (roles.isEmpty()) {
@@ -91,6 +95,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.NO_PERMISSION, Collections.emptyList(), Collections.emptyList());
         }
+        List<MatchedPermission> allMatchedPermissions = new ArrayList<>(matched);
         Map<Long, PcOperationPermission> grantedOperations = permissionBridgeSupport.loadOperationsByIds(
             matched.stream().map(MatchedPermission::getOperationId).collect(Collectors.toSet()), ctx.getTenantId());
         Map<Long, PcResourceEntity> resources = permissionBridgeSupport.loadResourcesByIds(
@@ -106,15 +111,22 @@ public class PermissionServiceImpl implements PermissionService {
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.NO_PERMISSION, Collections.emptyList(), Collections.emptyList());
         }
-        matched = matched.stream()
+        List<MatchedPermission> effectivePermissions = allMatchedPermissions.stream()
             .filter(permission -> handler.getConditionEvaluator().evaluate(permission, ctx))
+            .collect(Collectors.toList());
+        Set<Long> effectivePermissionIds = effectivePermissions.stream()
+            .map(MatchedPermission::getPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        matched = matched.stream()
+            .filter(permission -> permission.getPermissionId() != null && effectivePermissionIds.contains(permission.getPermissionId()))
             .collect(Collectors.toList());
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.CONDITION_FAIL, Collections.emptyList(), Collections.emptyList());
         }
-        List<ConflictDetail> conflicts = handler.getConflictDetector().detect(matched, ctx);
+        List<ConflictDetail> conflicts = handler.getConflictDetector().detect(effectivePermissions, ctx);
         ctx.setDetectedConflicts(conflicts);
-        matched = permissionBridgeSupport.removeConflicted(matched, conflicts, operation.getId());
+        matched = permissionBridgeSupport.removeConflicted(matched, conflicts);
         if (matched.isEmpty()) {
             return PermissionCheckResult.denied(DenyReason.CONFLICT, conflicts, Collections.emptyList());
         }

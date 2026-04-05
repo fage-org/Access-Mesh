@@ -57,8 +57,8 @@ class PermissionServiceMvcExceptionTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(403))
-            .andExpect(jsonPath("$.errorCode").value("PERM_403_CONDITION"))
-            .andExpect(jsonPath("$.msg").value("PERM_403_CONDITION: Condition is not approved: cond-1"));
+            .andExpect(jsonPath("$.errorCode").value("PERM-106"))
+            .andExpect(jsonPath("$.msg").value("PERM-106: Condition is not approved: cond-1"));
     }
 
     @Test
@@ -71,14 +71,14 @@ class PermissionServiceMvcExceptionTest {
                 .content("""
                     {
                       "tenantId": 1,
-                      "abstractUserId": 2,
+                      "userId": 2,
                       "resourceEntityId": 3,
                       "operationPermissionId": 4
                     }
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(404))
-            .andExpect(jsonPath("$.errorCode").value("PERM_404_RESOURCE"))
-            .andExpect(jsonPath("$.msg").value("PERM_404_RESOURCE: Resource not found"));
+            .andExpect(jsonPath("$.errorCode").value("PERM-102"))
+            .andExpect(jsonPath("$.msg").value("PERM-102: Resource not found"));
     }
 }

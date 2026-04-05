@@ -1,5 +1,9 @@
 package org.dromara.permission.service.impl;
 
+import org.dromara.permission.condition.PermissionConditionExpressionEvaluator;
+import org.dromara.permission.condition.PermissionConditionPresetHandlerRegistry;
+import org.dromara.permission.condition.builtin.InternalIpConditionHandler;
+import org.dromara.permission.condition.builtin.WorkdayOnlyConditionHandler;
 import org.dromara.permission.constant.PermissionConstants;
 import org.dromara.permission.constant.ResourceTypeConstants;
 import org.dromara.permission.domain.PcAbstractRole;
@@ -24,6 +28,7 @@ import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
+import org.dromara.permission.event.PermissionConflictEventPublisher;
 import org.dromara.permission.handler.DefaultResourceTypeHandler;
 import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.handler.types.ApiResourceTypeHandler;
@@ -115,6 +120,7 @@ class PermissionServiceImplTest {
     @Mock private PcUserRoleMapper userRoleMapper;
     @Mock private ResourceApiMappingService resourceApiMappingService;
     @Mock private TypeDefinitionReader typeDefinitionReader;
+    @Mock private PermissionConflictEventPublisher conflictEventPublisher;
 
     private PermissionServiceImpl service;
 
@@ -132,8 +138,11 @@ class PermissionServiceImplTest {
         );
         DefaultPermissionMatcher defaultPermissionMatcher = new DefaultPermissionMatcher(bridgeSupport);
         DefaultInheritanceExpander defaultInheritanceExpander = new DefaultInheritanceExpander(bridgeSupport);
-        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator();
-        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport);
+        PermissionConditionPresetHandlerRegistry presetHandlerRegistry = new PermissionConditionPresetHandlerRegistry(
+            List.of(new WorkdayOnlyConditionHandler(), new InternalIpConditionHandler()));
+        DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator(
+            presetHandlerRegistry, new PermissionConditionExpressionEvaluator());
+        DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport, conflictEventPublisher);
         DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
         DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
         DefaultSnapshotAssembler defaultSnapshotAssembler = new DefaultSnapshotAssembler(bridgeSupport);
@@ -248,6 +257,7 @@ class PermissionServiceImplTest {
 
         assertFalse(result.isGranted());
         assertEquals(DenyReason.CONFLICT, result.getDenyReason());
+        verify(conflictEventPublisher).publish(any(), any());
     }
 
     @Test
@@ -281,6 +291,35 @@ class PermissionServiceImplTest {
         assertTrue(result.isGranted());
         assertEquals(1, result.getGrantedBy().size());
         assertEquals(400L, result.getGrantedBy().get(0).getOperationId());
+    }
+
+    @Test
+    void check_inheritedGrantWithConflictingSiblingOperation_returnsConflict() {
+        PermissionCheckRequest request = baseCheckRequest();
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+
+        PcRoleResourcePermission editGrant = grant(500L, 200L, 300L, 401L, null);
+        PcRoleResourcePermission deleteGrant = grant(501L, 200L, 300L, 402L, null);
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(editGrant, deleteGrant));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 401L, null)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(
+            operation(401L, 1, 4L, 1L),
+            operation(402L, 1, 8L, 0L)
+        ));
+        PcPermissionConflictRule rule = new PcPermissionConflictRule();
+        rule.setId(11L);
+        rule.setFirstOperationPermissionId(401L);
+        rule.setSecondOperationPermissionId(402L);
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(rule));
+
+        var result = service.check(request);
+
+        assertFalse(result.isGranted());
+        assertEquals(DenyReason.CONFLICT, result.getDenyReason());
     }
 
     @Test
@@ -351,6 +390,29 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void check_customExpressionCondition_usesExpressionEngine() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setContext(Map.of("enabled", true, "level", 3));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, 700L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "['enabled'] and ['level'] >= 3",
+                PermissionConstants.CONDITION_SOURCE_CUSTOM, PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
     void check_dependencyConditionalPermissionNotSatisfied_returnsDependencyFail() {
         PermissionCheckRequest request = baseCheckRequest();
         request.setCheckDependency(true);
@@ -385,6 +447,62 @@ class PermissionServiceImplTest {
 
         assertFalse(result.isGranted());
         assertEquals(DenyReason.DEPENDENCY_FAIL, result.getDenyReason());
+    }
+
+    @Test
+    void check_parentInheritance_allowsParentGrantForChildResource() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setResourceEntityId(301L);
+        request.setInheritMode(org.dromara.permission.model.permission.InheritMode.PARENT);
+        PcResourceEntity child = resource(301L, 1);
+        child.setPath("/300/301");
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(child);
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, null)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, null)));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(300L, result.getGrantedBy().get(0).getResourceId());
+    }
+
+    @Test
+    void check_bothInheritance_expandsParentAndChildren() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setInheritMode(org.dromara.permission.model.permission.InheritMode.BOTH);
+        PcResourceEntity current = resource(300L, 1);
+        current.setPath("/100/300");
+        PcResourceEntity child = resource(301L, 1);
+        child.setPath("/100/300/301");
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(current);
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(resourceEntityMapper.selectList(any())).thenReturn(
+            List.of(child),
+            List.of(resource(100L, 1), current, child)
+        );
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(
+            grant(500L, 200L, 100L, 400L, null),
+            grant(501L, 200L, 301L, 400L, null)
+        ));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(
+                matched(500L, 200L, 100L, 400L, null),
+                matched(501L, 200L, 301L, 400L, null)
+            ));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(2, result.getGrantedBy().size());
     }
 
     @Test
