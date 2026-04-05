@@ -8,6 +8,9 @@ import java.util.List;
 public class RolePermissionBatchRevokeRequest {
     private Long tenantId;
     private Long abstractRoleId;
+    private String requestId;
+    private String changeSource;
+    private String changeReason;
     private List<RolePermissionRevokeItem> items;
 
     @Data

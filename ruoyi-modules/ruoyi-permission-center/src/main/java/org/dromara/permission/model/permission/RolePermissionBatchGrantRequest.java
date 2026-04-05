@@ -8,6 +8,9 @@ import java.util.List;
 public class RolePermissionBatchGrantRequest {
     private Long tenantId;
     private Long abstractRoleId;
+    private String requestId;
+    private String changeSource;
+    private String changeReason;
     private List<RolePermissionGrantItem> items;
 
     @Data

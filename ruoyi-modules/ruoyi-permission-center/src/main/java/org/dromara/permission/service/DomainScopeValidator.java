@@ -6,5 +6,7 @@ import org.dromara.permission.domain.PcResourceEntity;
 
 public interface DomainScopeValidator {
 
+    Long resolveGrantBizDomainId(Long requestedBizDomainId, PcAbstractRole role, PcResourceEntity resource);
+
     void validateGrantScope(Long tenantId, Long bizDomainId, PcAbstractRole role, PcResourceEntity resource, PcOperationPermission operation);
 }

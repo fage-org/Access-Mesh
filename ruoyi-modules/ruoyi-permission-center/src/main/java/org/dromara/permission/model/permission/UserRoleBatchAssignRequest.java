@@ -9,6 +9,9 @@ import java.util.List;
 public class UserRoleBatchAssignRequest {
     private Long tenantId;
     private Long abstractUserId;
+    private String requestId;
+    private String changeSource;
+    private String changeReason;
     private List<Long> roleIds;
     private LocalDateTime validFrom;
     private LocalDateTime validTo;

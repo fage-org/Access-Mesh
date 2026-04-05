@@ -2,7 +2,9 @@ package org.dromara.permission.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.dromara.common.mybatis.core.page.PageQuery;
@@ -13,6 +15,7 @@ import org.dromara.permission.domain.dto.ChangeLogParam;
 import org.dromara.permission.domain.vo.ChangeLogVo;
 import org.dromara.permission.mapper.PcPermissionChangeLogMapper;
 import org.dromara.permission.service.PermissionChangeLogService;
+import org.dromara.permission.service.support.PermissionAuditSupport;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
@@ -31,54 +34,49 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PermissionChangeLogServiceImpl implements PermissionChangeLogService {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+        .registerModule(new JavaTimeModule())
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private final PcPermissionChangeLogMapper changeLogMapper;
 
     @Override
     public void writeChangeLog(ChangeLogParam param) {
-        try {
-            PcPermissionChangeLog logEntity = new PcPermissionChangeLog();
-            logEntity.setTenantId(param.getTenantId());
-            logEntity.setBizDomainId(param.getBizDomainId());
-            logEntity.setEntityType(param.getEntityType());
-            logEntity.setEntityId(param.getEntityId());
-            logEntity.setOperation(param.getOperation());
-            logEntity.setOldSnapshot(serializeSnapshot(param.getOldSnapshot()));
-            logEntity.setNewSnapshot(serializeSnapshot(param.getNewSnapshot()));
-            logEntity.setAffectedAbstractUserIds(joinIds(param.getAffectedAbstractUserIds()));
-            logEntity.setAffectedAbstractRoleIds(joinIds(param.getAffectedAbstractRoleIds()));
-            logEntity.setChangeReason(param.getChangeReason());
-            logEntity.setChangeSource(param.getChangeSource());
-            logEntity.setRequestId(param.getRequestId());
-            logEntity.setCreatedAt(LocalDateTime.now());
-            changeLogMapper.insert(logEntity);
-        } catch (Exception e) {
-            log.error("[CRITICAL] writeChangeLog failed, entityType={}, entityId={}, tenantId={}",
-                param.getEntityType(), param.getEntityId(), param.getTenantId(), e);
-        }
+        PcPermissionChangeLog logEntity = new PcPermissionChangeLog();
+        logEntity.setTenantId(param.getTenantId());
+        logEntity.setBizDomainId(param.getBizDomainId());
+        logEntity.setEntityType(param.getEntityType());
+        logEntity.setEntityId(param.getEntityId());
+        logEntity.setOperation(param.getOperation());
+        logEntity.setOldSnapshot(serializeSnapshot(param.getOldSnapshot()));
+        logEntity.setNewSnapshot(serializeSnapshot(param.getNewSnapshot()));
+        logEntity.setAffectedAbstractUserIds(joinIds(param.getAffectedAbstractUserIds()));
+        logEntity.setAffectedAbstractRoleIds(joinIds(param.getAffectedAbstractRoleIds()));
+        logEntity.setChangeReason(param.getChangeReason());
+        logEntity.setChangeSource(param.getChangeSource());
+        logEntity.setRequestId(param.getRequestId());
+        logEntity.setCreatedBy(PermissionAuditSupport.currentUserId());
+        logEntity.setCreatedAt(LocalDateTime.now());
+        changeLogMapper.insert(logEntity);
     }
 
     @Override
     public void writeChangeLog(Long tenantId, Long bizDomainId, String entityType, Long entityId,
                                String operation, Object oldSnapshot, Object newSnapshot,
                                String requestId, String changeSource) {
-        try {
-            PcPermissionChangeLog logEntity = new PcPermissionChangeLog();
-            logEntity.setTenantId(tenantId);
-            logEntity.setBizDomainId(bizDomainId);
-            logEntity.setEntityType(entityType);
-            logEntity.setEntityId(entityId);
-            logEntity.setOperation(operation);
-            logEntity.setOldSnapshot(serializeSnapshot(oldSnapshot));
-            logEntity.setNewSnapshot(serializeSnapshot(newSnapshot));
-            logEntity.setChangeSource(changeSource);
-            logEntity.setRequestId(requestId);
-            logEntity.setCreatedAt(LocalDateTime.now());
-            changeLogMapper.insert(logEntity);
-        } catch (Exception e) {
-            log.error("[CRITICAL] writeChangeLog failed, entityType={}, entityId={}, operation={}, tenantId={}", entityType, entityId, operation, tenantId, e);
-        }
+        PcPermissionChangeLog logEntity = new PcPermissionChangeLog();
+        logEntity.setTenantId(tenantId);
+        logEntity.setBizDomainId(bizDomainId);
+        logEntity.setEntityType(entityType);
+        logEntity.setEntityId(entityId);
+        logEntity.setOperation(operation);
+        logEntity.setOldSnapshot(serializeSnapshot(oldSnapshot));
+        logEntity.setNewSnapshot(serializeSnapshot(newSnapshot));
+        logEntity.setChangeSource(changeSource);
+        logEntity.setRequestId(requestId);
+        logEntity.setCreatedBy(PermissionAuditSupport.currentUserId());
+        logEntity.setCreatedAt(LocalDateTime.now());
+        changeLogMapper.insert(logEntity);
     }
 
     @Override

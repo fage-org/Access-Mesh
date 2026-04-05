@@ -2,10 +2,12 @@ package org.dromara.permission.service.impl;
 
 import org.dromara.permission.constant.PermissionConstants;
 import org.dromara.permission.domain.PcAbstractRole;
+import org.dromara.permission.domain.PcDomainScopeBinding;
 import org.dromara.permission.domain.PcDomainRelationConfig;
 import org.dromara.permission.domain.PcDomainScopeConfig;
 import org.dromara.permission.domain.PcOperationPermission;
 import org.dromara.permission.domain.PcResourceEntity;
+import org.dromara.permission.mapper.PcDomainScopeBindingMapper;
 import org.dromara.permission.mapper.PcDomainRelationConfigMapper;
 import org.dromara.permission.mapper.PcDomainScopeConfigMapper;
 import org.dromara.permission.model.permission.PermissionErrorCode;
@@ -33,6 +35,8 @@ class DomainScopeValidatorImplTest {
     private PcDomainScopeConfigMapper domainScopeConfigMapper;
     @Mock
     private PcDomainRelationConfigMapper domainRelationConfigMapper;
+    @Mock
+    private PcDomainScopeBindingMapper domainScopeBindingMapper;
 
     @InjectMocks
     private DomainScopeValidatorImpl validator;
@@ -45,12 +49,14 @@ class DomainScopeValidatorImplTest {
             scope("OPERATION", 30L)
         ));
         when(domainRelationConfigMapper.selectList(any())).thenReturn(List.of(relation("ROLE_RESOURCE", 1L, 2L)));
+        when(domainScopeBindingMapper.selectOne(any())).thenReturn(binding("OPERATION", 30L));
 
         assertDoesNotThrow(() -> validator.validateGrantScope(1L, 10L, role(20L, 10L, 1), resource(30L, 10L, 2), operation(30L)));
     }
 
     @Test
     void validateGrantScope_roleResourceMismatch_throws() {
+        when(domainScopeBindingMapper.selectOne(any())).thenReturn(binding("OPERATION", 30L));
         when(domainScopeConfigMapper.selectList(any())).thenReturn(List.of(
             scope("ROLE_TYPE", 1L),
             scope("RESOURCE_TYPE", 2L),
@@ -60,6 +66,21 @@ class DomainScopeValidatorImplTest {
 
         PermissionServiceException ex = assertThrows(PermissionServiceException.class,
             () -> validator.validateGrantScope(1L, 10L, role(20L, 10L, 1), resource(30L, 10L, 2), operation(30L)));
+
+        assertEquals(PermissionErrorCode.DOMAIN_SCOPE_NOT_ALLOWED, ex.getErrorCode());
+    }
+
+    @Test
+    void resolveGrantBizDomainId_prefersEntityDomainWhenRequestMissing() {
+        Long resolved = validator.resolveGrantBizDomainId(null, role(20L, 10L, 1), resource(30L, 10L, 2));
+
+        assertEquals(10L, resolved);
+    }
+
+    @Test
+    void validateGrantScope_globalRoleWithoutBinding_throws() {
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class,
+            () -> validator.validateGrantScope(1L, 10L, role(20L, null, 1), resource(30L, 10L, 2), operation(30L)));
 
         assertEquals(PermissionErrorCode.DOMAIN_SCOPE_NOT_ALLOWED, ex.getErrorCode());
     }
@@ -111,5 +132,15 @@ class DomainScopeValidatorImplTest {
         operation.setTenantId(1L);
         operation.setDeleteFlag(PermissionConstants.NOT_DELETED);
         return operation;
+    }
+
+    private PcDomainScopeBinding binding(String boundType, Long boundEntityId) {
+        PcDomainScopeBinding binding = new PcDomainScopeBinding();
+        binding.setTenantId(1L);
+        binding.setBizDomainId(10L);
+        binding.setBoundType(boundType);
+        binding.setBoundEntityId(boundEntityId);
+        binding.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        return binding;
     }
 }

@@ -51,6 +51,7 @@ class PermissionVersionServiceImplTest {
 
         PcPermissionVersion current = service.bumpVersion(1L, "user_role", 99L, "grant-role");
 
+        verify(mapper).lockTenantVersion(1L);
         ArgumentCaptor<PcPermissionVersion> captor = ArgumentCaptor.forClass(PcPermissionVersion.class);
         verify(mapper).insert(captor.capture());
         PcPermissionVersion inserted = captor.getValue();

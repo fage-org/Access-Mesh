@@ -17,4 +17,9 @@ public interface PcPermissionVersionMapper extends BaseMapper<PcPermissionVersio
      * 查询租户当前最新权限版本
      */
     PcPermissionVersion selectLatestByTenant(@Param("tenantId") Long tenantId);
+
+    /**
+     * PostgreSQL 事务级租户版本锁，防止同租户并发递增冲突
+     */
+    void lockTenantVersion(@Param("tenantId") Long tenantId);
 }

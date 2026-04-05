@@ -11,13 +11,13 @@ import org.dromara.permission.model.permission.RolePermissionBatchRevokeRequest;
 import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.RolePermissionService;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 角色-资源-操作权限 role_resource_permission 接口
- */
 @Validated
 @RequiredArgsConstructor
 @RestController
@@ -34,9 +34,23 @@ public class RolePermissionController {
 
     @PostMapping("/add")
     public R<Void> add(@Validated @RequestBody RolePermissionAddReq req) {
+        permissionService.grantRolePermissions(toBatchGrantRequest(req, req.getAbstractRoleId()));
+        return R.ok();
+    }
+
+    @PostMapping("/remove")
+    public R<Void> remove(@Validated @RequestBody RolePermissionRemoveReq req) {
+        permissionService.revokeRolePermissions(toBatchRevokeRequest(req, req.getAbstractRoleId()));
+        return R.ok();
+    }
+
+    static RolePermissionBatchGrantRequest toBatchGrantRequest(RolePermissionAddReq req, Long roleId) {
         RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
         request.setTenantId(req.getTenantId());
-        request.setAbstractRoleId(req.getAbstractRoleId());
+        request.setAbstractRoleId(roleId);
+        request.setRequestId(req.getRequestId());
+        request.setChangeSource(req.getChangeSource());
+        request.setChangeReason(req.getChangeReason());
         request.setItems(req.getItems().stream().map(item -> {
             RolePermissionBatchGrantRequest.RolePermissionGrantItem mapped = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
             mapped.setResourceEntityId(item.getResourceEntityId());
@@ -45,22 +59,22 @@ public class RolePermissionController {
             mapped.setConditionId(item.getConditionId());
             return mapped;
         }).toList());
-        permissionService.grantRolePermissions(request);
-        return R.ok();
+        return request;
     }
 
-    @PostMapping("/remove")
-    public R<Void> remove(@Validated @RequestBody RolePermissionRemoveReq req) {
+    static RolePermissionBatchRevokeRequest toBatchRevokeRequest(RolePermissionRemoveReq req, Long roleId) {
         RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
         request.setTenantId(req.getTenantId());
-        request.setAbstractRoleId(req.getAbstractRoleId());
+        request.setAbstractRoleId(roleId);
+        request.setRequestId(req.getRequestId());
+        request.setChangeSource(req.getChangeSource());
+        request.setChangeReason(req.getChangeReason());
         request.setItems(req.getItems().stream().map(item -> {
             RolePermissionBatchRevokeRequest.RolePermissionRevokeItem mapped = new RolePermissionBatchRevokeRequest.RolePermissionRevokeItem();
             mapped.setResourceEntityId(item.getResourceEntityId());
             mapped.setOperationPermissionId(item.getOperationPermissionId());
             return mapped;
         }).toList());
-        permissionService.revokeRolePermissions(request);
-        return R.ok();
+        return request;
     }
 }

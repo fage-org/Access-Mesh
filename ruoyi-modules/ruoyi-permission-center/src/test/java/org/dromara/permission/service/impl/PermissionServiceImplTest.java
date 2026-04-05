@@ -29,6 +29,7 @@ import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcUserRoleMapper;
 import org.dromara.permission.event.PermissionConflictEventPublisher;
+import org.dromara.permission.event.PermissionWriteRefreshEventPublisher;
 import org.dromara.permission.handler.DefaultResourceTypeHandler;
 import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.handler.types.ApiResourceTypeHandler;
@@ -89,8 +90,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -121,11 +124,13 @@ class PermissionServiceImplTest {
     @Mock private ResourceApiMappingService resourceApiMappingService;
     @Mock private TypeDefinitionReader typeDefinitionReader;
     @Mock private PermissionConflictEventPublisher conflictEventPublisher;
+    @Mock private PermissionWriteRefreshEventPublisher permissionWriteRefreshEventPublisher;
 
     private PermissionServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(domainScopeValidator.resolveGrantBizDomainId(any(), any(), any())).thenReturn(null);
         PermissionBridgeSupport bridgeSupport = new PermissionBridgeSupport(
             operationInheritanceService,
             resourceApiMappingService,
@@ -192,6 +197,7 @@ class PermissionServiceImplTest {
             permissionVersionService,
             registry,
             bridgeSupport,
+            permissionWriteRefreshEventPublisher,
             resourceEntityMapper,
             operationPermissionMapper,
             roleResourcePermissionMapper,
@@ -517,7 +523,7 @@ class PermissionServiceImplTest {
         when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
-        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(null);
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(Collections.emptyList());
         doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
         when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenAnswer(invocation -> {
             PcRoleResourcePermission entity = invocation.getArgument(0);
@@ -555,6 +561,66 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void grant_sameExistingPermission_isNoOp() {
+        GrantPermissionRequest request = new GrantPermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+        request.setCanManage(false);
+
+        PcRoleResourcePermission existing = grant(900L, 200L, 300L, 400L, null);
+        existing.setCanManage(false);
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(existing));
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+
+        var result = service.grant(request);
+
+        assertTrue(result.isSuccess());
+        assertFalse(result.isChanged());
+        verify(roleResourcePermissionMapper, never()).updateById(any(PcRoleResourcePermission.class));
+        verify(changeLogService, never()).log(any(ChangeLogParam.class));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+        verify(permissionWriteRefreshEventPublisher, never()).publish(any(), any());
+    }
+
+    @Test
+    void grant_softDeletedPermission_restoresRecord() {
+        GrantPermissionRequest request = new GrantPermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+        request.setCanManage(true);
+        request.setConditionId(700L);
+
+        PcRoleResourcePermission deleted = grant(901L, 200L, 300L, 400L, null);
+        deleted.setDeleteFlag(901L);
+        deleted.setDeletedBy(99L);
+        deleted.setDeletedAt(java.time.LocalDateTime.now().minusDays(1));
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(deleted));
+        when(permissionConditionMapper.selectOne(any()))
+            .thenReturn(condition(700L, "", PermissionConstants.CONDITION_SOURCE_CUSTOM,
+                PermissionConstants.CONDITION_STATUS_APPROVED));
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+        when(permissionVersionService.bumpVersion(1L, "role_resource_permission", 901L, "grant"))
+            .thenReturn(version(1L, 7L));
+
+        var result = service.grant(request);
+
+        assertTrue(result.isChanged());
+        verify(roleResourcePermissionMapper).updateById(any(PcRoleResourcePermission.class));
+        verify(permissionVersionService).bumpVersion(1L, "role_resource_permission", 901L, "grant");
+        verify(permissionWriteRefreshEventPublisher).publish(any(), any());
+    }
+
+    @Test
     void grantRolePermissions_batchDelegatesWithinSingleServiceBoundary() {
         RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
         request.setTenantId(1L);
@@ -571,8 +637,9 @@ class PermissionServiceImplTest {
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1), resource(301L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(
             operation(400L, 1, 1L, 0L), operation(401L, 1, 2L, 0L));
-        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(null);
-        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(Collections.emptyList(), Collections.emptyList());
+        when(domainScopeValidator.resolveGrantBizDomainId(any(), any(), any())).thenReturn(10L);
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(10L), any(), any(), any());
         when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenAnswer(invocation -> {
             PcRoleResourcePermission entity = invocation.getArgument(0);
             entity.setId(entity.getOperationPermissionId());
@@ -591,7 +658,53 @@ class PermissionServiceImplTest {
             .orElseThrow();
         assertEquals("BATCH_GRANT", batchLog.getOperation());
         assertEquals(200L, batchLog.getEntityId());
+        assertEquals(10L, batchLog.getBizDomainId());
         assertNotNull(batchLog.getNewSnapshot());
+    }
+
+    @Test
+    void grantRolePermissions_noOpBatch_skipsAuditLog() {
+        RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        RolePermissionBatchGrantRequest.RolePermissionGrantItem item = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
+        item.setResourceEntityId(300L);
+        item.setOperationPermissionId(400L);
+        request.setItems(List.of(item));
+
+        PcRoleResourcePermission existing = grant(900L, 200L, 300L, 400L, null);
+        existing.setCanManage(false);
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(existing));
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+
+        service.grantRolePermissions(request);
+
+        verify(changeLogService, never()).log(argThat(param -> "batch_role_resource_permission".equals(param.getEntityType())));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+    }
+
+    @Test
+    void grantRolePermissions_rejectedItem_throwsAndStopsBatch() {
+        RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        RolePermissionBatchGrantRequest.RolePermissionGrantItem item = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
+        item.setResourceEntityId(300L);
+        item.setOperationPermissionId(400L);
+        request.setItems(List.of(item));
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, API_TYPE));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, API_TYPE, 1L, 0L));
+        when(resourceApiMappingService.listEnabledMappings(eq(1L), anyCollection())).thenReturn(Collections.emptyList());
+
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> service.grantRolePermissions(request));
+
+        assertEquals(PermissionErrorCode.INVALID_REQUEST, ex.getErrorCode());
+        verify(changeLogService, never()).log(argThat(param -> "batch_role_resource_permission".equals(param.getEntityType())));
     }
 
     @Test
@@ -617,6 +730,24 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void revoke_missingPermission_isNoOp() {
+        RevokePermissionRequest request = new RevokePermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+
+        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(null);
+
+        var result = service.revoke(request);
+
+        assertTrue(result.isSuccess());
+        assertFalse(result.isChanged());
+        verify(changeLogService, never()).log(any(ChangeLogParam.class));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+    }
+
+    @Test
     void revokeRolePermissions_writesBatchAuditLog() {
         RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
         request.setTenantId(1L);
@@ -630,6 +761,7 @@ class PermissionServiceImplTest {
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
         when(roleResourcePermissionMapper.selectOne(any())).thenReturn(grant(900L, 200L, 300L, 400L, null));
+        when(domainScopeValidator.resolveGrantBizDomainId(any(), any(), any())).thenReturn(10L);
 
         service.revokeRolePermissions(request);
 
@@ -640,7 +772,28 @@ class PermissionServiceImplTest {
             .findFirst()
             .orElseThrow();
         assertEquals("BATCH_REVOKE", batchLog.getOperation());
+        assertEquals(10L, batchLog.getBizDomainId());
         assertNotNull(batchLog.getOldSnapshot());
+    }
+
+    @Test
+    void revokeRolePermissions_noExistingRecord_skipsBatchAuditLog() {
+        RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        RolePermissionBatchRevokeRequest.RolePermissionRevokeItem item = new RolePermissionBatchRevokeRequest.RolePermissionRevokeItem();
+        item.setResourceEntityId(300L);
+        item.setOperationPermissionId(400L);
+        request.setItems(List.of(item));
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(null);
+
+        service.revokeRolePermissions(request);
+
+        verify(changeLogService, never()).log(argThat(param -> "batch_role_resource_permission".equals(param.getEntityType())));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
     }
 
     @Test
@@ -786,11 +939,16 @@ class PermissionServiceImplTest {
         UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
         request.setTenantId(1L);
         request.setAbstractUserId(100L);
+        request.setRequestId("req-assign");
+        request.setChangeSource("ADMIN");
+        request.setChangeReason("assign roles");
         request.setRoleIds(List.of(200L));
 
         when(abstractUserMapper.selectOne(any())).thenReturn(buildUser(100L));
         when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
-        when(userRoleMapper.selectOne(any())).thenReturn(null);
+        when(userRoleMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(permissionVersionService.bumpVersion(1L, "user_role", 100L, "assign-user-roles"))
+            .thenReturn(version(1L, 8L));
 
         service.assignUserRoles(request);
 
@@ -800,7 +958,59 @@ class PermissionServiceImplTest {
         assertEquals("batch_user_role", captor.getValue().getEntityType());
         assertEquals("BATCH_ASSIGN", captor.getValue().getOperation());
         assertNotNull(captor.getValue().getNewSnapshot());
+        assertEquals("req-assign", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("assign roles", captor.getValue().getChangeReason());
         verify(permissionVersionService).bumpVersion(1L, "user_role", 100L, "assign-user-roles");
+        verify(permissionWriteRefreshEventPublisher).publish(any(), any());
+    }
+
+    @Test
+    void assignUserRoles_sameAssignment_isNoOp() {
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(List.of(200L));
+        request.setValidFrom(java.time.LocalDateTime.of(2025, 1, 1, 0, 0));
+        request.setValidTo(java.time.LocalDateTime.of(2025, 12, 31, 0, 0));
+
+        PcUserRole existing = grantUserRole(300L, 100L, 200L);
+        existing.setValidFrom(request.getValidFrom());
+        existing.setValidTo(request.getValidTo());
+        when(abstractUserMapper.selectOne(any())).thenReturn(buildUser(100L));
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(existing));
+
+        service.assignUserRoles(request);
+
+        verify(userRoleMapper, never()).insert(any(PcUserRole.class));
+        verify(userRoleMapper, never()).updateById(any(PcUserRole.class));
+        verify(changeLogService, never()).log(any(ChangeLogParam.class));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+    }
+
+    @Test
+    void assignUserRoles_softDeletedAssignment_restoresRecord() {
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(List.of(200L));
+
+        PcUserRole deleted = grantUserRole(300L, 100L, 200L);
+        deleted.setDeleteFlag(300L);
+        deleted.setDeletedBy(99L);
+        deleted.setDeletedAt(java.time.LocalDateTime.now().minusDays(1));
+        when(abstractUserMapper.selectOne(any())).thenReturn(buildUser(100L));
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(deleted));
+        when(permissionVersionService.bumpVersion(1L, "user_role", 100L, "assign-user-roles"))
+            .thenReturn(version(1L, 10L));
+
+        service.assignUserRoles(request);
+
+        verify(userRoleMapper).updateById(any(PcUserRole.class));
+        verify(permissionVersionService).bumpVersion(1L, "user_role", 100L, "assign-user-roles");
+        verify(permissionWriteRefreshEventPublisher).publish(any(), any());
     }
 
     @Test
@@ -808,9 +1018,14 @@ class PermissionServiceImplTest {
         UserRoleBatchRevokeRequest request = new UserRoleBatchRevokeRequest();
         request.setTenantId(1L);
         request.setAbstractUserId(100L);
+        request.setRequestId("req-revoke");
+        request.setChangeSource("ADMIN");
+        request.setChangeReason("revoke roles");
         request.setRoleIds(List.of(200L));
 
         when(userRoleMapper.selectOne(any())).thenReturn(grantUserRole(300L, 100L, 200L));
+        when(permissionVersionService.bumpVersion(1L, "user_role", 100L, "revoke-user-roles"))
+            .thenReturn(version(1L, 9L));
 
         service.revokeUserRoles(request);
 
@@ -820,7 +1035,43 @@ class PermissionServiceImplTest {
         assertEquals("batch_user_role", captor.getValue().getEntityType());
         assertEquals("BATCH_REVOKE", captor.getValue().getOperation());
         assertNotNull(captor.getValue().getOldSnapshot());
+        assertEquals("req-revoke", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("revoke roles", captor.getValue().getChangeReason());
         verify(permissionVersionService).bumpVersion(1L, "user_role", 100L, "revoke-user-roles");
+        verify(permissionWriteRefreshEventPublisher).publish(any(), any());
+    }
+
+    @Test
+    void revokeUserRoles_noExistingAssignment_skipsVersion() {
+        UserRoleBatchRevokeRequest request = new UserRoleBatchRevokeRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(List.of(200L));
+
+        when(userRoleMapper.selectOne(any())).thenReturn(null);
+
+        service.revokeUserRoles(request);
+
+        verify(userRoleMapper, never()).updateById(any(PcUserRole.class));
+        verify(changeLogService, never()).log(any(ChangeLogParam.class));
+        verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+        verify(permissionWriteRefreshEventPublisher, never()).publish(any(), any());
+    }
+
+    @Test
+    void assignUserRoles_invalidValidityWindow_throws() {
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(List.of(200L));
+        request.setValidFrom(java.time.LocalDateTime.of(2025, 12, 31, 0, 0));
+        request.setValidTo(java.time.LocalDateTime.of(2025, 1, 1, 0, 0));
+
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> service.assignUserRoles(request));
+
+        assertEquals(PermissionErrorCode.INVALID_REQUEST, ex.getErrorCode());
+        verify(userRoleMapper, never()).insert(any(PcUserRole.class));
     }
 
     private PermissionCheckRequest baseCheckRequest() {

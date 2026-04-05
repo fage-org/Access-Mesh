@@ -7,6 +7,7 @@ import org.dromara.permission.handler.ResourceTypeHandler;
 import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.domain.*;
 import org.dromara.permission.domain.dto.ChangeLogParam;
+import org.dromara.permission.event.PermissionWriteRefreshEventPublisher;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.model.permission.ConflictDetail;
 import org.dromara.permission.model.permission.DependencyCheckResult;
@@ -57,6 +58,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionVersionService permissionVersionService;
     private final ResourceTypeHandlerRegistry resourceTypeHandlerRegistry;
     private final PermissionBridgeSupport permissionBridgeSupport;
+    private final PermissionWriteRefreshEventPublisher permissionWriteRefreshEventPublisher;
     private final PcResourceEntityMapper resourceEntityMapper;
     private final PcOperationPermissionMapper operationPermissionMapper;
     private final PcRoleResourcePermissionMapper roleResourcePermissionMapper;
@@ -151,11 +153,12 @@ public class PermissionServiceImpl implements PermissionService {
         PcAbstractRole role = loadRole(request.getTenantId(), request.getAbstractRoleId());
         PcResourceEntity resource = permissionBridgeSupport.loadResource(request.getTenantId(), request.getResourceEntityId());
         PcOperationPermission operation = permissionBridgeSupport.loadOperation(request.getTenantId(), request.getOperationPermissionId());
+        Long resolvedBizDomainId = domainScopeValidator.resolveGrantBizDomainId(request.getBizDomainId(), role, resource);
         applyRoleToContext(ctx, role);
         fillResourceOperation(ctx, resource, operation);
         permissionBridgeSupport.validateResourceOperationType(resource, operation);
         permissionBridgeSupport.assertGrantConditionApproved(request);
-        domainScopeValidator.validateGrantScope(ctx.getTenantId(), ctx.getBizDomainId(), role, resource, operation);
+        domainScopeValidator.validateGrantScope(ctx.getTenantId(), resolvedBizDomainId, role, resource, operation);
         ValidationResult validationResult = resourceTypeHandlerRegistry.getHandler(ctx.getTenantId(), resource.getResourceType())
             .getGrantValidator().validate(request, ctx);
         if (!validationResult.isValid()) {
@@ -163,18 +166,16 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        PcRoleResourcePermission existing = roleResourcePermissionMapper.selectOne(new LambdaQueryWrapper<PcRoleResourcePermission>()
-            .eq(PcRoleResourcePermission::getTenantId, request.getTenantId())
-            .eq(PcRoleResourcePermission::getAbstractRoleId, request.getAbstractRoleId())
-            .eq(PcRoleResourcePermission::getResourceEntityId, request.getResourceEntityId())
-            .eq(PcRoleResourcePermission::getOperationPermissionId, request.getOperationPermissionId())
-            .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
+        PcRoleResourcePermission existing = findLatestRolePermission(
+            request.getTenantId(), request.getAbstractRoleId(), request.getResourceEntityId(), request.getOperationPermissionId());
+        if (existing != null && PermissionConstants.NOT_DELETED.equals(existing.getDeleteFlag())
+            && sameGrantState(existing, request)) {
+            return GrantResult.noOp(existing.getId());
+        }
         Object oldSnapshot = existing == null ? null : snapshotPermission(existing);
         Long permissionId;
         if (existing != null) {
-            existing.setCanManage(Boolean.TRUE.equals(request.getCanManage()));
-            existing.setConditionId(request.getConditionId());
-            existing.setUpdatedAt(now);
+            restorePermission(existing, request, now);
             roleResourcePermissionMapper.updateById(existing);
             permissionId = existing.getId();
         } else {
@@ -192,7 +193,7 @@ public class PermissionServiceImpl implements PermissionService {
             permissionId = entity.getId();
             existing = entity;
         }
-        logGrantChange(ctx, request, permissionId, oldSnapshot, existing);
+        logGrantChange(ctx, request, resolvedBizDomainId, permissionId, oldSnapshot, existing);
         bumpVersion(ctx, "role_resource_permission", permissionId);
         return GrantResult.success(permissionId);
     }
@@ -204,24 +205,21 @@ public class PermissionServiceImpl implements PermissionService {
         PermissionContext ctx = createContext(request.getTenantId(), null, null, request.getRequestId(),
             resolveChangeSource(request.getChangeSource()), "revoke");
         ctx.setVersionRemark("revoke");
-        PcRoleResourcePermission existing = roleResourcePermissionMapper.selectOne(new LambdaQueryWrapper<PcRoleResourcePermission>()
-            .eq(PcRoleResourcePermission::getTenantId, request.getTenantId())
-            .eq(PcRoleResourcePermission::getAbstractRoleId, request.getAbstractRoleId())
-            .eq(PcRoleResourcePermission::getResourceEntityId, request.getResourceEntityId())
-            .eq(PcRoleResourcePermission::getOperationPermissionId, request.getOperationPermissionId())
-            .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
+        PcRoleResourcePermission existing = findActiveRolePermission(
+            request.getTenantId(), request.getAbstractRoleId(), request.getResourceEntityId(), request.getOperationPermissionId());
         if (existing == null) {
-            return RevokeResult.success(null);
+            return RevokeResult.noOp(null);
         }
         PcAbstractRole role = loadRole(request.getTenantId(), request.getAbstractRoleId());
         PcResourceEntity resource = loadResource(request.getTenantId(), request.getResourceEntityId());
         PcOperationPermission operation = loadOperation(request.getTenantId(), request.getOperationPermissionId());
+        Long resolvedBizDomainId = domainScopeValidator.resolveGrantBizDomainId(null, role, resource);
         applyRoleToContext(ctx, role);
         fillResourceOperation(ctx, resource, operation);
         Object oldSnapshot = snapshotPermission(existing);
         PermissionAuditSupport.markDeleted(existing, existing.getId(), LocalDateTime.now());
         roleResourcePermissionMapper.updateById(existing);
-        logRevokeChange(ctx, request, existing.getId(), oldSnapshot);
+        logRevokeChange(ctx, request, resolvedBizDomainId, existing.getId(), oldSnapshot);
         bumpVersion(ctx, "role_resource_permission", existing.getId());
         return RevokeResult.success(existing.getId());
     }
@@ -233,14 +231,19 @@ public class PermissionServiceImpl implements PermissionService {
             || request.getItems() == null || request.getItems().isEmpty()) {
             throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST);
         }
-        PermissionContext ctx = createContext(request.getTenantId(), null, null, null, "API", "grantRolePermissions");
+        PermissionContext ctx = createContext(request.getTenantId(), null, null, request.getRequestId(),
+            resolveChangeSource(request.getChangeSource()), "grantRolePermissions");
         ctx.setVersionRemark("grant");
-        applyRoleToContext(ctx, loadRole(request.getTenantId(), request.getAbstractRoleId()));
+        PcAbstractRole role = loadRole(request.getTenantId(), request.getAbstractRoleId());
+        applyRoleToContext(ctx, role);
         List<Map<String, Object>> grantedItems = new ArrayList<>();
+        Set<Long> changedBizDomainIds = new LinkedHashSet<>();
         for (RolePermissionBatchGrantRequest.RolePermissionGrantItem item : request.getItems()) {
             if (item.getResourceEntityId() == null || item.getOperationPermissionId() == null) {
-                continue;
+                throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST, "grant item missing resource or operation");
             }
+            PcResourceEntity resource = permissionBridgeSupport.loadResource(request.getTenantId(), item.getResourceEntityId());
+            Long resolvedBizDomainId = domainScopeValidator.resolveGrantBizDomainId(null, role, resource);
             GrantPermissionRequest grantRequest = new GrantPermissionRequest();
             grantRequest.setTenantId(request.getTenantId());
             grantRequest.setAbstractRoleId(request.getAbstractRoleId());
@@ -248,17 +251,33 @@ public class PermissionServiceImpl implements PermissionService {
             grantRequest.setOperationPermissionId(item.getOperationPermissionId());
             grantRequest.setCanManage(item.getCanManage());
             grantRequest.setConditionId(item.getConditionId());
-            grant(grantRequest);
-            grantedItems.add(buildRolePermissionBatchItem(item));
+            grantRequest.setBizDomainId(resolvedBizDomainId);
+            grantRequest.setRequestId(request.getRequestId());
+            grantRequest.setChangeSource(request.getChangeSource());
+            grantRequest.setChangeReason(request.getChangeReason());
+            GrantResult result = grant(grantRequest);
+            if (!result.isSuccess()) {
+                throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST,
+                    String.join("; ", result.getRejectReasons()));
+            }
+            if (result.isChanged()) {
+                grantedItems.add(buildRolePermissionBatchItem(item));
+                if (resolvedBizDomainId != null) {
+                    changedBizDomainIds.add(resolvedBizDomainId);
+                }
+            }
         }
         if (!grantedItems.isEmpty()) {
             logChange(ctx, new ChangeLogParam()
+                .setBizDomainId(resolveBatchBizDomainId(changedBizDomainIds))
                 .setEntityType("batch_role_resource_permission")
                 .setEntityId(request.getAbstractRoleId())
                 .setOperation("BATCH_GRANT")
                 .setNewSnapshot(buildRolePermissionBatchSnapshot(request.getAbstractRoleId(), grantedItems))
                 .setAffectedAbstractRoleIds(List.of(request.getAbstractRoleId()))
-                .setChangeSource("API"));
+                .setChangeReason(request.getChangeReason())
+                .setRequestId(request.getRequestId())
+                .setChangeSource(resolveChangeSource(request.getChangeSource())));
         }
     }
 
@@ -269,30 +288,46 @@ public class PermissionServiceImpl implements PermissionService {
             || request.getItems() == null || request.getItems().isEmpty()) {
             throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST);
         }
-        PermissionContext ctx = createContext(request.getTenantId(), null, null, null, "API", "revokeRolePermissions");
+        PermissionContext ctx = createContext(request.getTenantId(), null, null, request.getRequestId(),
+            resolveChangeSource(request.getChangeSource()), "revokeRolePermissions");
         ctx.setVersionRemark("revoke");
-        applyRoleToContext(ctx, loadRole(request.getTenantId(), request.getAbstractRoleId()));
+        PcAbstractRole role = loadRole(request.getTenantId(), request.getAbstractRoleId());
+        applyRoleToContext(ctx, role);
         List<Map<String, Object>> revokedItems = new ArrayList<>();
+        Set<Long> changedBizDomainIds = new LinkedHashSet<>();
         for (RolePermissionBatchRevokeRequest.RolePermissionRevokeItem item : request.getItems()) {
             if (item.getResourceEntityId() == null || item.getOperationPermissionId() == null) {
-                continue;
+                throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST, "revoke item missing resource or operation");
             }
+            PcResourceEntity resource = loadResource(request.getTenantId(), item.getResourceEntityId());
+            Long resolvedBizDomainId = domainScopeValidator.resolveGrantBizDomainId(null, role, resource);
             RevokePermissionRequest revokeRequest = new RevokePermissionRequest();
             revokeRequest.setTenantId(request.getTenantId());
             revokeRequest.setAbstractRoleId(request.getAbstractRoleId());
             revokeRequest.setResourceEntityId(item.getResourceEntityId());
             revokeRequest.setOperationPermissionId(item.getOperationPermissionId());
-            revoke(revokeRequest);
-            revokedItems.add(buildRolePermissionBatchItem(item));
+            revokeRequest.setRequestId(request.getRequestId());
+            revokeRequest.setChangeSource(request.getChangeSource());
+            revokeRequest.setChangeReason(request.getChangeReason());
+            RevokeResult result = revoke(revokeRequest);
+            if (result.isChanged()) {
+                revokedItems.add(buildRolePermissionBatchItem(item));
+                if (resolvedBizDomainId != null) {
+                    changedBizDomainIds.add(resolvedBizDomainId);
+                }
+            }
         }
         if (!revokedItems.isEmpty()) {
             logChange(ctx, new ChangeLogParam()
+                .setBizDomainId(resolveBatchBizDomainId(changedBizDomainIds))
                 .setEntityType("batch_role_resource_permission")
                 .setEntityId(request.getAbstractRoleId())
                 .setOperation("BATCH_REVOKE")
                 .setOldSnapshot(buildRolePermissionBatchSnapshot(request.getAbstractRoleId(), revokedItems))
                 .setAffectedAbstractRoleIds(List.of(request.getAbstractRoleId()))
-                .setChangeSource("API"));
+                .setChangeReason(request.getChangeReason())
+                .setRequestId(request.getRequestId())
+                .setChangeSource(resolveChangeSource(request.getChangeSource())));
         }
     }
 
@@ -303,7 +338,9 @@ public class PermissionServiceImpl implements PermissionService {
             || request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
             throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST);
         }
-        PermissionContext ctx = createContext(request.getTenantId(), request.getAbstractUserId(), null, null, "API", "assignUserRoles");
+        validateUserRoleValidityWindow(request.getValidFrom(), request.getValidTo());
+        PermissionContext ctx = createContext(request.getTenantId(), request.getAbstractUserId(), null, request.getRequestId(),
+            resolveChangeSource(request.getChangeSource()), "assignUserRoles");
         ctx.setVersionRemark("assign-user-roles");
         PcAbstractUser user = abstractUserMapper.selectOne(new LambdaQueryWrapper<PcAbstractUser>()
             .eq(PcAbstractUser::getTenantId, request.getTenantId())
@@ -313,17 +350,24 @@ public class PermissionServiceImpl implements PermissionService {
             throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST, "user not found");
         }
         LocalDateTime now = LocalDateTime.now();
+        List<Long> changedRoleIds = new ArrayList<>();
         for (Long roleId : request.getRoleIds()) {
+            if (roleId == null) {
+                throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST, "roleId cannot be null");
+            }
             PcAbstractRole role = loadRole(request.getTenantId(), roleId);
             ctx.getRoles().add(toResolvedRole(role));
-            PcUserRole existing = userRoleMapper.selectOne(new LambdaQueryWrapper<PcUserRole>()
-                .eq(PcUserRole::getTenantId, request.getTenantId())
-                .eq(PcUserRole::getAbstractUserId, request.getAbstractUserId())
-                .eq(PcUserRole::getAbstractRoleId, role.getId())
-                .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
+            PcUserRole existing = findLatestUserRole(request.getTenantId(), request.getAbstractUserId(), role.getId());
             if (existing != null) {
+                if (PermissionConstants.NOT_DELETED.equals(existing.getDeleteFlag())
+                    && sameUserRoleState(existing, request)) {
+                    continue;
+                }
                 existing.setValidFrom(request.getValidFrom());
                 existing.setValidTo(request.getValidTo());
+                existing.setDeleteFlag(PermissionConstants.NOT_DELETED);
+                existing.setDeletedAt(null);
+                existing.setDeletedBy(null);
                 existing.setUpdatedAt(now);
                 userRoleMapper.updateById(existing);
             } else {
@@ -338,17 +382,22 @@ public class PermissionServiceImpl implements PermissionService {
                 entity.setUpdatedAt(now);
                 userRoleMapper.insert(entity);
             }
+            changedRoleIds.add(roleId);
         }
-        Map<String, Object> newSnapshot = buildUserRoleBatchSnapshot(request);
-        logChange(ctx, new ChangeLogParam()
-            .setEntityType("batch_user_role")
-            .setEntityId(request.getAbstractUserId())
-            .setOperation("BATCH_ASSIGN")
-            .setNewSnapshot(newSnapshot)
-            .setAffectedAbstractUserIds(List.of(request.getAbstractUserId()))
-            .setAffectedAbstractRoleIds(new ArrayList<>(request.getRoleIds()))
-            .setChangeSource("API"));
-        bumpVersion(ctx, "user_role", request.getAbstractUserId());
+        if (!changedRoleIds.isEmpty()) {
+            Map<String, Object> newSnapshot = buildUserRoleBatchSnapshot(request, changedRoleIds);
+            logChange(ctx, new ChangeLogParam()
+                .setEntityType("batch_user_role")
+                .setEntityId(request.getAbstractUserId())
+                .setOperation("BATCH_ASSIGN")
+                .setNewSnapshot(newSnapshot)
+                .setAffectedAbstractUserIds(List.of(request.getAbstractUserId()))
+                .setAffectedAbstractRoleIds(new ArrayList<>(changedRoleIds))
+                .setChangeReason(request.getChangeReason())
+                .setRequestId(request.getRequestId())
+                .setChangeSource(resolveChangeSource(request.getChangeSource())));
+            bumpVersion(ctx, "user_role", request.getAbstractUserId());
+        }
     }
 
     @Override
@@ -358,33 +407,36 @@ public class PermissionServiceImpl implements PermissionService {
             || request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
             throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST);
         }
-        PermissionContext ctx = createContext(request.getTenantId(), request.getAbstractUserId(), null, null, "API", "revokeUserRoles");
+        PermissionContext ctx = createContext(request.getTenantId(), request.getAbstractUserId(), null, request.getRequestId(),
+            resolveChangeSource(request.getChangeSource()), "revokeUserRoles");
         ctx.setVersionRemark("revoke-user-roles");
         LocalDateTime now = LocalDateTime.now();
+        List<Long> changedRoleIds = new ArrayList<>();
         for (Long roleId : request.getRoleIds()) {
             ResolvedRole resolvedRole = new ResolvedRole();
             resolvedRole.setRoleId(roleId);
             ctx.getRoles().add(resolvedRole);
-            PcUserRole existing = userRoleMapper.selectOne(new LambdaQueryWrapper<PcUserRole>()
-                .eq(PcUserRole::getTenantId, request.getTenantId())
-                .eq(PcUserRole::getAbstractUserId, request.getAbstractUserId())
-                .eq(PcUserRole::getAbstractRoleId, roleId)
-                .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
+            PcUserRole existing = findActiveUserRole(request.getTenantId(), request.getAbstractUserId(), roleId);
             if (existing != null) {
                 PermissionAuditSupport.markDeleted(existing, existing.getId(), now);
                 userRoleMapper.updateById(existing);
+                changedRoleIds.add(roleId);
             }
         }
-        Map<String, Object> oldSnapshot = buildUserRoleBatchSnapshot(request);
-        logChange(ctx, new ChangeLogParam()
-            .setEntityType("batch_user_role")
-            .setEntityId(request.getAbstractUserId())
-            .setOperation("BATCH_REVOKE")
-            .setOldSnapshot(oldSnapshot)
-            .setAffectedAbstractUserIds(List.of(request.getAbstractUserId()))
-            .setAffectedAbstractRoleIds(new ArrayList<>(request.getRoleIds()))
-            .setChangeSource("API"));
-        bumpVersion(ctx, "user_role", request.getAbstractUserId());
+        if (!changedRoleIds.isEmpty()) {
+            Map<String, Object> oldSnapshot = buildUserRoleBatchSnapshot(request, changedRoleIds);
+            logChange(ctx, new ChangeLogParam()
+                .setEntityType("batch_user_role")
+                .setEntityId(request.getAbstractUserId())
+                .setOperation("BATCH_REVOKE")
+                .setOldSnapshot(oldSnapshot)
+                .setAffectedAbstractUserIds(List.of(request.getAbstractUserId()))
+                .setAffectedAbstractRoleIds(new ArrayList<>(changedRoleIds))
+                .setChangeReason(request.getChangeReason())
+                .setRequestId(request.getRequestId())
+                .setChangeSource(resolveChangeSource(request.getChangeSource())));
+            bumpVersion(ctx, "user_role", request.getAbstractUserId());
+        }
     }
 
     @Override
@@ -832,17 +884,21 @@ public class PermissionServiceImpl implements PermissionService {
     private void logChange(PermissionContext ctx, ChangeLogParam param) {
         changeLogService.log(param
             .setTenantId(ctx.getTenantId())
-            .setBizDomainId(ctx.getBizDomainId())
+            .setBizDomainId(param.getBizDomainId() == null ? ctx.getBizDomainId() : param.getBizDomainId())
             .setRequestId(param.getRequestId() == null ? ctx.getRequestId() : param.getRequestId())
             .setChangeSource(param.getChangeSource() == null ? ctx.getChangeSource() : param.getChangeSource()));
     }
 
     private void bumpVersion(PermissionContext ctx, String triggerEntityType, Long triggerEntityId) {
-        permissionVersionService.bumpVersion(ctx.getTenantId(), triggerEntityType, triggerEntityId, ctx.getVersionRemark());
+        PcPermissionVersion version = permissionVersionService.bumpVersion(
+            ctx.getTenantId(), triggerEntityType, triggerEntityId, ctx.getVersionRemark());
+        permissionWriteRefreshEventPublisher.publish(ctx, version);
     }
 
-    private void logGrantChange(PermissionContext ctx, GrantPermissionRequest request, Long permissionId, Object oldSnapshot, PcRoleResourcePermission entity) {
+    private void logGrantChange(PermissionContext ctx, GrantPermissionRequest request, Long bizDomainId,
+                                Long permissionId, Object oldSnapshot, PcRoleResourcePermission entity) {
         logChange(ctx, new ChangeLogParam()
+            .setBizDomainId(bizDomainId)
             .setEntityType("role_resource_permission")
             .setEntityId(permissionId)
             .setOperation(oldSnapshot == null ? "INSERT" : "UPDATE")
@@ -854,8 +910,10 @@ public class PermissionServiceImpl implements PermissionService {
             .setChangeSource(resolveChangeSource(request.getChangeSource())));
     }
 
-    private void logRevokeChange(PermissionContext ctx, RevokePermissionRequest request, Long permissionId, Object oldSnapshot) {
+    private void logRevokeChange(PermissionContext ctx, RevokePermissionRequest request, Long bizDomainId,
+                                 Long permissionId, Object oldSnapshot) {
         logChange(ctx, new ChangeLogParam()
+            .setBizDomainId(bizDomainId)
             .setEntityType("role_resource_permission")
             .setEntityId(permissionId)
             .setOperation("DELETE")
@@ -867,11 +925,11 @@ public class PermissionServiceImpl implements PermissionService {
             .setChangeSource(resolveChangeSource(request.getChangeSource())));
     }
 
-    private Map<String, Object> buildUserRoleBatchSnapshot(UserRoleBatchAssignRequest request) {
+    private Map<String, Object> buildUserRoleBatchSnapshot(UserRoleBatchAssignRequest request, List<Long> roleIds) {
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("abstractUserId", request.getAbstractUserId());
-        snapshot.put("roleIds", request.getRoleIds());
-        snapshot.put("assignments", request.getRoleIds().stream().map(roleId -> {
+        snapshot.put("roleIds", roleIds);
+        snapshot.put("assignments", roleIds.stream().map(roleId -> {
             Map<String, Object> assignment = new HashMap<>();
             assignment.put("abstractRoleId", roleId);
             assignment.put("validFrom", request.getValidFrom());
@@ -883,16 +941,83 @@ public class PermissionServiceImpl implements PermissionService {
         return snapshot;
     }
 
-    private Map<String, Object> buildUserRoleBatchSnapshot(UserRoleBatchRevokeRequest request) {
+    private Map<String, Object> buildUserRoleBatchSnapshot(UserRoleBatchRevokeRequest request, List<Long> roleIds) {
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("abstractUserId", request.getAbstractUserId());
-        snapshot.put("roleIds", request.getRoleIds());
-        snapshot.put("assignments", request.getRoleIds().stream().map(roleId -> {
+        snapshot.put("roleIds", roleIds);
+        snapshot.put("assignments", roleIds.stream().map(roleId -> {
             Map<String, Object> assignment = new HashMap<>();
             assignment.put("abstractRoleId", roleId);
             return assignment;
         }).collect(Collectors.toList()));
         return snapshot;
+    }
+
+    private PcRoleResourcePermission findActiveRolePermission(Long tenantId, Long roleId, Long resourceId, Long operationId) {
+        return roleResourcePermissionMapper.selectOne(new LambdaQueryWrapper<PcRoleResourcePermission>()
+            .eq(PcRoleResourcePermission::getTenantId, tenantId)
+            .eq(PcRoleResourcePermission::getAbstractRoleId, roleId)
+            .eq(PcRoleResourcePermission::getResourceEntityId, resourceId)
+            .eq(PcRoleResourcePermission::getOperationPermissionId, operationId)
+            .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED));
+    }
+
+    private PcRoleResourcePermission findLatestRolePermission(Long tenantId, Long roleId, Long resourceId, Long operationId) {
+        List<PcRoleResourcePermission> records = roleResourcePermissionMapper.selectList(new LambdaQueryWrapper<PcRoleResourcePermission>()
+            .eq(PcRoleResourcePermission::getTenantId, tenantId)
+            .eq(PcRoleResourcePermission::getAbstractRoleId, roleId)
+            .eq(PcRoleResourcePermission::getResourceEntityId, resourceId)
+            .eq(PcRoleResourcePermission::getOperationPermissionId, operationId)
+            .orderByDesc(PcRoleResourcePermission::getId));
+        return records.isEmpty() ? null : records.get(0);
+    }
+
+    private PcUserRole findActiveUserRole(Long tenantId, Long userId, Long roleId) {
+        return userRoleMapper.selectOne(new LambdaQueryWrapper<PcUserRole>()
+            .eq(PcUserRole::getTenantId, tenantId)
+            .eq(PcUserRole::getAbstractUserId, userId)
+            .eq(PcUserRole::getAbstractRoleId, roleId)
+            .eq(PcUserRole::getDeleteFlag, PermissionConstants.NOT_DELETED));
+    }
+
+    private PcUserRole findLatestUserRole(Long tenantId, Long userId, Long roleId) {
+        List<PcUserRole> records = userRoleMapper.selectList(new LambdaQueryWrapper<PcUserRole>()
+            .eq(PcUserRole::getTenantId, tenantId)
+            .eq(PcUserRole::getAbstractUserId, userId)
+            .eq(PcUserRole::getAbstractRoleId, roleId)
+            .orderByDesc(PcUserRole::getId));
+        return records.isEmpty() ? null : records.get(0);
+    }
+
+    private boolean sameGrantState(PcRoleResourcePermission existing, GrantPermissionRequest request) {
+        return Objects.equals(Boolean.TRUE.equals(request.getCanManage()), Boolean.TRUE.equals(existing.getCanManage()))
+            && Objects.equals(request.getConditionId(), existing.getConditionId())
+            && PermissionConstants.NOT_DELETED.equals(existing.getDeleteFlag());
+    }
+
+    private boolean sameUserRoleState(PcUserRole existing, UserRoleBatchAssignRequest request) {
+        return Objects.equals(existing.getValidFrom(), request.getValidFrom())
+            && Objects.equals(existing.getValidTo(), request.getValidTo())
+            && PermissionConstants.NOT_DELETED.equals(existing.getDeleteFlag());
+    }
+
+    private void validateUserRoleValidityWindow(LocalDateTime validFrom, LocalDateTime validTo) {
+        if (validFrom != null && validTo != null && validFrom.isAfter(validTo)) {
+            throw new PermissionServiceException(PermissionErrorCode.INVALID_REQUEST, "validFrom must be <= validTo");
+        }
+    }
+
+    private Long resolveBatchBizDomainId(Set<Long> bizDomainIds) {
+        return bizDomainIds.size() == 1 ? bizDomainIds.iterator().next() : null;
+    }
+
+    private void restorePermission(PcRoleResourcePermission existing, GrantPermissionRequest request, LocalDateTime now) {
+        existing.setCanManage(Boolean.TRUE.equals(request.getCanManage()));
+        existing.setConditionId(request.getConditionId());
+        existing.setDeleteFlag(PermissionConstants.NOT_DELETED);
+        existing.setDeletedAt(null);
+        existing.setDeletedBy(null);
+        existing.setUpdatedAt(now);
     }
 
     private Map<String, Object> buildRolePermissionBatchSnapshot(Long abstractRoleId, List<Map<String, Object>> items) {

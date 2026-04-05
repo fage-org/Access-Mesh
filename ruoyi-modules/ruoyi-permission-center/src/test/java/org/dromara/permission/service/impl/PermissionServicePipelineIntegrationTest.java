@@ -7,6 +7,7 @@ import org.dromara.permission.condition.builtin.WorkdayOnlyConditionHandler;
 import org.dromara.permission.constant.PermissionConstants;
 import org.dromara.permission.constant.ResourceTypeConstants;
 import org.dromara.permission.event.PermissionConflictEventPublisher;
+import org.dromara.permission.event.PermissionWriteRefreshEventPublisher;
 import org.dromara.permission.handler.DefaultResourceTypeHandler;
 import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
 import org.dromara.permission.handler.types.ApiResourceTypeHandler;
@@ -22,6 +23,7 @@ import org.dromara.permission.domain.PcUserRole;
 import org.dromara.permission.mapper.PcAbstractRoleMapper;
 import org.dromara.permission.mapper.PcAbstractUserMapper;
 import org.dromara.permission.mapper.PcDomainRelationConfigMapper;
+import org.dromara.permission.mapper.PcDomainScopeBindingMapper;
 import org.dromara.permission.mapper.PcDomainScopeConfigMapper;
 import org.dromara.permission.mapper.PcOperationPermissionMapper;
 import org.dromara.permission.mapper.PcPermissionChangeLogMapper;
@@ -90,6 +92,7 @@ class PermissionServicePipelineIntegrationTest {
     @Mock private PcPermissionVersionMapper permissionVersionMapper;
     @Mock private PcDomainScopeConfigMapper domainScopeConfigMapper;
     @Mock private PcDomainRelationConfigMapper domainRelationConfigMapper;
+    @Mock private PcDomainScopeBindingMapper domainScopeBindingMapper;
     @Mock private ResourceApiMappingService resourceApiMappingService;
     @Mock private TypeDefinitionReader typeDefinitionReader;
 
@@ -118,6 +121,7 @@ class PermissionServicePipelineIntegrationTest {
         DefaultConditionEvaluator defaultConditionEvaluator = new DefaultConditionEvaluator(
             presetHandlerRegistry, new PermissionConditionExpressionEvaluator());
         PermissionConflictEventPublisher conflictEventPublisher = (ctx, conflicts) -> { };
+        PermissionWriteRefreshEventPublisher writeRefreshEventPublisher = (ctx, version) -> { };
         DefaultConflictDetector defaultConflictDetector = new DefaultConflictDetector(bridgeSupport, conflictEventPublisher);
         DefaultDependencyChecker defaultDependencyChecker = new DefaultDependencyChecker(bridgeSupport);
         DefaultGrantValidator defaultGrantValidator = new DefaultGrantValidator();
@@ -164,11 +168,12 @@ class PermissionServicePipelineIntegrationTest {
         permissionService = new PermissionServiceImpl(
             roleResolverService,
             operationInheritanceService,
-            new DomainScopeValidatorImpl(domainScopeConfigMapper, domainRelationConfigMapper),
+            new DomainScopeValidatorImpl(domainScopeConfigMapper, domainRelationConfigMapper, domainScopeBindingMapper),
             changeLogService,
             permissionVersionService,
             registry,
             bridgeSupport,
+            writeRefreshEventPublisher,
             resourceEntityMapper,
             operationPermissionMapper,
             roleResourcePermissionMapper,

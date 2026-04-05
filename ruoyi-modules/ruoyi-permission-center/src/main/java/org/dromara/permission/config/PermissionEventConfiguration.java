@@ -14,4 +14,11 @@ public class PermissionEventConfiguration {
         executor.setConcurrencyLimit(4);
         return executor;
     }
+
+    @Bean("permissionWriteRefreshEventExecutor")
+    public TaskExecutor permissionWriteRefreshEventExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("permission-refresh-");
+        executor.setConcurrencyLimit(4);
+        return executor;
+    }
 }

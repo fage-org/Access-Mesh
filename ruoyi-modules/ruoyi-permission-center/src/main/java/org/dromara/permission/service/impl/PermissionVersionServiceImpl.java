@@ -38,6 +38,7 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PcPermissionVersion bumpVersion(Long tenantId, String triggerEntityType, Long triggerEntityId, String remark) {
+        mapper.lockTenantVersion(tenantId);
         PcPermissionVersion current = queryCurrentVersion(tenantId);
         LocalDateTime now = LocalDateTime.now();
 

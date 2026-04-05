@@ -75,12 +75,13 @@ class PermissionChangeLogServiceImplTest {
     }
 
     @Test
-    void writeChangeLog_exceptionSwallowed_noRethrow() {
+    void writeChangeLog_insertFailure_propagatesException() {
         doThrow(new RuntimeException("DB error")).when(changeLogMapper).insert(any(PcPermissionChangeLog.class));
 
-        assertDoesNotThrow(() -> service.writeChangeLog(
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.writeChangeLog(
             TENANT, null, "user_role", 1L, "INSERT", null, null, null, "API"
         ));
+        assertEquals("DB error", ex.getMessage());
     }
 
     @Test
@@ -120,6 +121,24 @@ class PermissionChangeLogServiceImplTest {
         verify(changeLogMapper).insert(captor.capture());
         assertNull(captor.getValue().getOldSnapshot());
         assertNull(captor.getValue().getNewSnapshot());
+    }
+
+    @Test
+    void writeChangeLog_localDateTimeSnapshot_serializesAsJson() {
+        when(changeLogMapper.insert(any(PcPermissionChangeLog.class))).thenReturn(1);
+        LocalDateTime validFrom = LocalDateTime.of(2025, 1, 1, 0, 0);
+        ChangeLogParam param = new ChangeLogParam()
+            .setTenantId(TENANT)
+            .setEntityType("batch_user_role")
+            .setEntityId(1L)
+            .setOperation("BATCH_ASSIGN")
+            .setNewSnapshot(java.util.Map.of("validFrom", validFrom));
+
+        service.writeChangeLog(param);
+
+        ArgumentCaptor<PcPermissionChangeLog> captor = ArgumentCaptor.forClass(PcPermissionChangeLog.class);
+        verify(changeLogMapper).insert(captor.capture());
+        assertEquals("{\"validFrom\":\"2025-01-01T00:00:00\"}", captor.getValue().getNewSnapshot());
     }
 
     // ======================== queryPage ========================
