@@ -211,7 +211,8 @@ permission_version --> identity-service / gateway
 
 - **单条 user_role**：entity_type=user_role，entity_id=user_role.id，affected_abstract_user_ids=[该用户]，affected_abstract_role_ids=[该角色]。
 - **批量用户-角色**：entity_type=batch_user_role，affected_abstract_user_ids=本批全部用户，affected_abstract_role_ids=本批全部角色，new_snapshot 含 assignments 列表。
-- **批量角色-资源-操作**：entity_type=batch_role_resource_permission，new_snapshot/old_snapshot 含 resource_entity_ids、operation_permission_ids。
+- **单条 role_resource_permission**：entity_type=role_resource_permission，entity_id=role_resource_permission.id，affected_abstract_user_ids=当前时刻有效命中的用户，affected_abstract_role_ids=[该角色]。
+- **批量角色-资源-操作**：entity_type=batch_role_resource_permission，affected_abstract_user_ids=当前时刻有效命中的用户，affected_abstract_role_ids=[该角色]，new_snapshot/old_snapshot 含 resource_entity_ids、operation_permission_ids。
 
 ### 6.2 查询
 
@@ -249,7 +250,7 @@ permission_version --> identity-service / gateway
 | 资源依赖 | GET/POST/DELETE /api/perm/resource-dependencies | 列表/新增/删除；写入时校验防环。 |
 | 冲突规则 | GET/POST/DELETE /api/perm/conflict-rules | 列表/新增/删除。 |
 | 冲突检测 | POST /api/perm/conflict-detection | 返回违规用户/资源/操作列表。 |
-| 变更记录 | GET /api/perm/change-logs | 支持按 user_id、role_id、biz_domain_id、时间、entity_type、request_id 过滤。 |
+| 变更记录 | POST /api/perm/change-logs | 支持按 user_id、role_id、biz_domain_id、时间、entity_type、request_id 过滤。 |
 | 接口快照 | POST /api/perm/policy/interface-snapshot | 返回 gateway 可直接消费的接口资源快照。 |
 | 接口判定 | POST /api/perm/decision/interface | 按 `service_code + http_method + path` 做单次接口判定。 |
 | 版本查询 | POST /api/perm/version/query | 查询当前租户权限版本。 |

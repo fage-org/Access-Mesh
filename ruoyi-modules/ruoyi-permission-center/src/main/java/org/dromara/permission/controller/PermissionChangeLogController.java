@@ -5,7 +5,6 @@ import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.web.core.BaseController;
 import org.dromara.permission.domain.bo.ChangeLogQueryBo;
-import org.dromara.permission.domain.dto.ChangeLogPagePlanReq;
 import org.dromara.permission.domain.dto.ChangeLogPageReq;
 import org.dromara.permission.domain.vo.ChangeLogVo;
 import org.dromara.permission.service.PermissionChangeLogService;
@@ -41,30 +40,6 @@ public class PermissionChangeLogController extends BaseController {
         }
         ChangeLogQueryBo query = req.getQuery() != null ? req.getQuery() : new ChangeLogQueryBo();
         PageQuery pageQuery = req.getPageQuery() != null ? req.getPageQuery() : new PageQuery();
-        return permissionChangeLogService.queryPage(query, pageQuery);
-    }
-
-    /**
-     * 分页查询变更记录（规划 §3.8 路径与参数）
-     * 请求体：tenantId, bizDomainId, entityType, affectedAbstractUserId, affectedAbstractRoleId, requestId, timeFrom, timeTo, pageNum, pageSize
-     */
-    @PostMapping("/change-logs/page")
-    public TableDataInfo<ChangeLogVo> page(@RequestBody(required = false) ChangeLogPagePlanReq req) {
-        if (req == null || req.getTenantId() == null) {
-            return TableDataInfo.build();
-        }
-        ChangeLogQueryBo query = new ChangeLogQueryBo();
-        query.setTenantId(req.getTenantId());
-        query.setBizDomainId(req.getBizDomainId());
-        query.setEntityType(req.getEntityType());
-        query.setAbstractUserId(req.getAffectedAbstractUserId());
-        query.setAbstractRoleId(req.getAffectedAbstractRoleId());
-        query.setRequestId(req.getRequestId());
-        query.setBeginTime(req.getTimeFrom());
-        query.setEndTime(req.getTimeTo());
-        PageQuery pageQuery = new PageQuery();
-        pageQuery.setPageNum(req.getPageNum());
-        pageQuery.setPageSize(req.getPageSize());
         return permissionChangeLogService.queryPage(query, pageQuery);
     }
 }

@@ -30,7 +30,7 @@
 | 资源依赖 | `GET/POST/DELETE /api/perm/resource-dependencies` | 资源依赖维护 |
 | 冲突规则 | `GET/POST/DELETE /api/perm/conflict-rules` | 冲突规则维护 |
 | 冲突检测 | `POST /api/perm/conflict-detection` | 冲突扫描 |
-| 变更记录 | `GET /api/perm/change-logs` | 审计查询 |
+| 变更记录 | `POST /api/perm/change-logs` | 审计查询 |
 | 接口快照 | `POST /api/perm/policy/interface-snapshot` | 面向 gateway 的接口权限快照 |
 | 接口判定 | `POST /api/perm/decision/interface` | 单次接口访问判定 |
 | 版本查询 | `POST /api/perm/version/query` | 查询当前权限版本 |

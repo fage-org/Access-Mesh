@@ -15,6 +15,7 @@ import org.dromara.permission.service.UserRoleService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -56,11 +57,24 @@ class UserRoleContractControllerTest {
     void assign_usesFrozenContractPath() {
         UserRoleAssignReq req = new UserRoleAssignReq();
         req.setTenantId(1L);
+        req.setRequestId("req-assign");
+        req.setChangeSource("ADMIN");
+        req.setChangeReason("assign role");
         req.setRoleIds(List.of(3L));
+        req.setValidFrom(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        req.setValidTo(java.time.LocalDateTime.of(2026, 12, 31, 23, 59));
 
         controller.assign(2L, req);
 
-        verify(permissionService).assignUserRoles(any(UserRoleBatchAssignRequest.class));
+        ArgumentCaptor<UserRoleBatchAssignRequest> captor = ArgumentCaptor.forClass(UserRoleBatchAssignRequest.class);
+        verify(permissionService).assignUserRoles(captor.capture());
+        assertEquals(2L, captor.getValue().getAbstractUserId());
+        assertEquals("req-assign", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("assign role", captor.getValue().getChangeReason());
+        assertEquals(req.getRoleIds(), captor.getValue().getRoleIds());
+        assertEquals(req.getValidFrom(), captor.getValue().getValidFrom());
+        assertEquals(req.getValidTo(), captor.getValue().getValidTo());
     }
 
     @Test
@@ -71,6 +85,26 @@ class UserRoleContractControllerTest {
         req.setRoleIds(List.of(3L));
 
         assertThrows(PermissionServiceException.class, () -> controller.revoke(2L, req));
+    }
+
+    @Test
+    void revoke_mapsMetadataToBatchRequest() {
+        UserRoleRevokeReq req = new UserRoleRevokeReq();
+        req.setTenantId(1L);
+        req.setRequestId("req-revoke");
+        req.setChangeSource("ADMIN");
+        req.setChangeReason("revoke role");
+        req.setRoleIds(List.of(3L));
+
+        controller.revoke(2L, req);
+
+        ArgumentCaptor<UserRoleBatchRevokeRequest> captor = ArgumentCaptor.forClass(UserRoleBatchRevokeRequest.class);
+        verify(permissionService).revokeUserRoles(captor.capture());
+        assertEquals(2L, captor.getValue().getAbstractUserId());
+        assertEquals("req-revoke", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("revoke role", captor.getValue().getChangeReason());
+        assertEquals(req.getRoleIds(), captor.getValue().getRoleIds());
     }
 
     @Test

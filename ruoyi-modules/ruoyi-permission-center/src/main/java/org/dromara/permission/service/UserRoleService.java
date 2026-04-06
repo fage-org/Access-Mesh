@@ -1,8 +1,6 @@
 package org.dromara.permission.service;
 
-import org.dromara.permission.domain.dto.UserRoleAssignReq;
 import org.dromara.permission.domain.dto.UserRoleListReq;
-import org.dromara.permission.domain.dto.UserRoleRevokeReq;
 import org.dromara.permission.domain.vo.UserRoleVo;
 
 import java.util.List;
@@ -13,8 +11,4 @@ import java.util.List;
 public interface UserRoleService {
 
     List<UserRoleVo> list(UserRoleListReq req);
-
-    void assign(UserRoleAssignReq req);
-
-    void revoke(UserRoleRevokeReq req);
 }

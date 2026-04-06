@@ -8,6 +8,8 @@ import org.dromara.permission.domain.dto.UserRoleRevokeReq;
 import org.dromara.permission.domain.vo.UserRoleVo;
 import org.dromara.permission.model.permission.PermissionErrorCode;
 import org.dromara.permission.model.permission.PermissionServiceException;
+import org.dromara.permission.model.permission.UserRoleBatchAssignRequest;
+import org.dromara.permission.model.permission.UserRoleBatchRevokeRequest;
 import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.UserRoleService;
 import org.springframework.validation.annotation.Validated;
@@ -43,15 +45,39 @@ public class UserRoleContractController {
     @PostMapping
     public R<Void> assign(@PathVariable("userId") Long userId, @Validated @RequestBody UserRoleAssignReq req) {
         ensureUserId(userId, req.getAbstractUserId());
-        permissionService.assignUserRoles(UserRoleController.toBatchAssignRequest(req, userId));
+        permissionService.assignUserRoles(toBatchAssignRequest(req, userId));
         return R.ok();
     }
 
     @DeleteMapping
     public R<Void> revoke(@PathVariable("userId") Long userId, @Validated @RequestBody UserRoleRevokeReq req) {
         ensureUserId(userId, req.getAbstractUserId());
-        permissionService.revokeUserRoles(UserRoleController.toBatchRevokeRequest(req, userId));
+        permissionService.revokeUserRoles(toBatchRevokeRequest(req, userId));
         return R.ok();
+    }
+
+    static UserRoleBatchAssignRequest toBatchAssignRequest(UserRoleAssignReq req, Long userId) {
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(req.getTenantId());
+        request.setAbstractUserId(userId);
+        request.setRequestId(req.getRequestId());
+        request.setChangeSource(req.getChangeSource());
+        request.setChangeReason(req.getChangeReason());
+        request.setRoleIds(req.getRoleIds());
+        request.setValidFrom(req.getValidFrom());
+        request.setValidTo(req.getValidTo());
+        return request;
+    }
+
+    static UserRoleBatchRevokeRequest toBatchRevokeRequest(UserRoleRevokeReq req, Long userId) {
+        UserRoleBatchRevokeRequest request = new UserRoleBatchRevokeRequest();
+        request.setTenantId(req.getTenantId());
+        request.setAbstractUserId(userId);
+        request.setRequestId(req.getRequestId());
+        request.setChangeSource(req.getChangeSource());
+        request.setChangeReason(req.getChangeReason());
+        request.setRoleIds(req.getRoleIds());
+        return request;
     }
 
     private void ensureUserId(Long pathUserId, Long bodyUserId) {

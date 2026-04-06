@@ -15,6 +15,7 @@ import org.dromara.permission.service.RolePermissionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -57,14 +58,28 @@ class RolePermissionContractControllerTest {
         RolePermissionAddReq req = new RolePermissionAddReq();
         req.setTenantId(1L);
         req.setRequestId("req-1");
+        req.setChangeSource("ADMIN");
+        req.setChangeReason("grant permission");
         RolePermissionAddReq.RolePermissionItem item = new RolePermissionAddReq.RolePermissionItem();
         item.setResourceEntityId(3L);
         item.setOperationPermissionId(4L);
+        item.setCanManage(Boolean.TRUE);
+        item.setConditionId(5L);
         req.setItems(List.of(item));
 
         controller.grant(2L, req);
 
-        verify(permissionService).grantRolePermissions(any(RolePermissionBatchGrantRequest.class));
+        ArgumentCaptor<RolePermissionBatchGrantRequest> captor = ArgumentCaptor.forClass(RolePermissionBatchGrantRequest.class);
+        verify(permissionService).grantRolePermissions(captor.capture());
+        assertEquals(2L, captor.getValue().getAbstractRoleId());
+        assertEquals("req-1", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("grant permission", captor.getValue().getChangeReason());
+        assertEquals(1, captor.getValue().getItems().size());
+        assertEquals(3L, captor.getValue().getItems().get(0).getResourceEntityId());
+        assertEquals(4L, captor.getValue().getItems().get(0).getOperationPermissionId());
+        assertEquals(Boolean.TRUE, captor.getValue().getItems().get(0).getCanManage());
+        assertEquals(5L, captor.getValue().getItems().get(0).getConditionId());
     }
 
     @Test
@@ -75,6 +90,31 @@ class RolePermissionContractControllerTest {
         req.setItems(List.of(new RolePermissionRemoveReq.RolePermissionPair()));
 
         assertThrows(PermissionServiceException.class, () -> controller.revoke(2L, req));
+    }
+
+    @Test
+    void revoke_mapsMetadataToBatchRequest() {
+        RolePermissionRemoveReq req = new RolePermissionRemoveReq();
+        req.setTenantId(1L);
+        req.setRequestId("req-2");
+        req.setChangeSource("ADMIN");
+        req.setChangeReason("revoke permission");
+        RolePermissionRemoveReq.RolePermissionPair item = new RolePermissionRemoveReq.RolePermissionPair();
+        item.setResourceEntityId(3L);
+        item.setOperationPermissionId(4L);
+        req.setItems(List.of(item));
+
+        controller.revoke(2L, req);
+
+        ArgumentCaptor<RolePermissionBatchRevokeRequest> captor = ArgumentCaptor.forClass(RolePermissionBatchRevokeRequest.class);
+        verify(permissionService).revokeRolePermissions(captor.capture());
+        assertEquals(2L, captor.getValue().getAbstractRoleId());
+        assertEquals("req-2", captor.getValue().getRequestId());
+        assertEquals("ADMIN", captor.getValue().getChangeSource());
+        assertEquals("revoke permission", captor.getValue().getChangeReason());
+        assertEquals(1, captor.getValue().getItems().size());
+        assertEquals(3L, captor.getValue().getItems().get(0).getResourceEntityId());
+        assertEquals(4L, captor.getValue().getItems().get(0).getOperationPermissionId());
     }
 
     @Test

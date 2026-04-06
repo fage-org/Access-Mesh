@@ -1,8 +1,6 @@
 package org.dromara.permission.service;
 
-import org.dromara.permission.domain.dto.RolePermissionAddReq;
 import org.dromara.permission.domain.dto.RolePermissionListReq;
-import org.dromara.permission.domain.dto.RolePermissionRemoveReq;
 import org.dromara.permission.domain.vo.RolePermissionVo;
 
 import java.util.List;
@@ -13,8 +11,4 @@ import java.util.List;
 public interface RolePermissionService {
 
     List<RolePermissionVo> list(RolePermissionListReq req);
-
-    void add(RolePermissionAddReq req);
-
-    void remove(RolePermissionRemoveReq req);
 }

@@ -65,6 +65,7 @@ import org.dromara.permission.operation.defaults.DefaultSnapshotAssembler;
 import org.dromara.permission.service.ChangeLogService;
 import org.dromara.permission.service.DomainScopeValidator;
 import org.dromara.permission.service.OperationInheritanceService;
+import org.dromara.permission.service.PermissionService;
 import org.dromara.permission.service.PermissionVersionService;
 import org.dromara.permission.service.ResourceApiMappingService;
 import org.dromara.permission.service.RoleResolverService;
@@ -78,6 +79,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +104,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -524,6 +536,7 @@ class PermissionServiceImplTest {
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
         when(roleResourcePermissionMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(grantUserRole(300L, 100L, 200L), grantUserRole(301L, 101L, 200L)));
         doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
         when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenAnswer(invocation -> {
             PcRoleResourcePermission entity = invocation.getArgument(0);
@@ -535,7 +548,9 @@ class PermissionServiceImplTest {
 
         assertTrue(result.isSuccess());
         assertEquals(900L, result.getPermissionId());
-        verify(changeLogService).log(any(ChangeLogParam.class));
+        ArgumentCaptor<ChangeLogParam> captor = ArgumentCaptor.forClass(ChangeLogParam.class);
+        verify(changeLogService).log(captor.capture());
+        assertEquals(List.of(100L, 101L), captor.getValue().getAffectedAbstractUserIds());
         verify(permissionVersionService).bumpVersion(1L, "role_resource_permission", 900L, "grant");
     }
 
@@ -638,6 +653,7 @@ class PermissionServiceImplTest {
         when(operationPermissionMapper.selectOne(any())).thenReturn(
             operation(400L, 1, 1L, 0L), operation(401L, 1, 2L, 0L));
         when(roleResourcePermissionMapper.selectList(any())).thenReturn(Collections.emptyList(), Collections.emptyList());
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(grantUserRole(300L, 100L, 200L), grantUserRole(301L, 101L, 200L)));
         when(domainScopeValidator.resolveGrantBizDomainId(any(), any(), any())).thenReturn(10L);
         doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(10L), any(), any(), any());
         when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenAnswer(invocation -> {
@@ -659,6 +675,7 @@ class PermissionServiceImplTest {
         assertEquals("BATCH_GRANT", batchLog.getOperation());
         assertEquals(200L, batchLog.getEntityId());
         assertEquals(10L, batchLog.getBizDomainId());
+        assertEquals(List.of(100L, 101L), batchLog.getAffectedAbstractUserIds());
         assertNotNull(batchLog.getNewSnapshot());
     }
 
@@ -708,6 +725,69 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void grantRolePermissions_transactionProxy_rollsBackStagedSideEffects() {
+        RolePermissionBatchGrantRequest request = new RolePermissionBatchGrantRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        RolePermissionBatchGrantRequest.RolePermissionGrantItem item1 = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
+        item1.setResourceEntityId(300L);
+        item1.setOperationPermissionId(400L);
+        RolePermissionBatchGrantRequest.RolePermissionGrantItem item2 = new RolePermissionBatchGrantRequest.RolePermissionGrantItem();
+        item2.setResourceEntityId(301L);
+        item2.setOperationPermissionId(401L);
+        item2.setConditionId(700L);
+        request.setItems(List.of(item1, item2));
+
+        List<Long> committedPermissionIds = new ArrayList<>();
+        List<String> committedLogOperations = new ArrayList<>();
+        List<Long> committedVersionNos = new ArrayList<>();
+        List<String> committedEventActions = new ArrayList<>();
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1), resource(301L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(
+            operation(400L, 1, 1L, 0L), operation(401L, 1, 2L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(Collections.emptyList(), Collections.emptyList());
+        when(permissionConditionMapper.selectOne(any()))
+            .thenReturn(condition(700L, "", PermissionConstants.CONDITION_SOURCE_CUSTOM,
+                PermissionConstants.CONDITION_STATUS_PENDING));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(grantUserRole(300L, 100L, 200L)));
+        doNothing().when(domainScopeValidator).validateGrantScope(eq(1L), eq(null), any(), any(), any());
+        when(roleResourcePermissionMapper.insert(any(PcRoleResourcePermission.class))).thenAnswer(invocation -> {
+            PcRoleResourcePermission entity = invocation.getArgument(0);
+            entity.setId(900L);
+            registerAfterCommit(() -> committedPermissionIds.add(entity.getId()));
+            return 1;
+        });
+        when(permissionVersionService.bumpVersion(any(), any(), any(), any())).thenAnswer(invocation -> {
+            PcPermissionVersion version = version(1L, 9L);
+            version.setTriggerEntityId(invocation.getArgument(2));
+            registerAfterCommit(() -> committedVersionNos.add(version.getVersionNo()));
+            return version;
+        });
+        doAnswer(invocation -> {
+            ChangeLogParam param = invocation.getArgument(0);
+            registerAfterCommit(() -> committedLogOperations.add(param.getOperation()));
+            return null;
+        }).when(changeLogService).log(any(ChangeLogParam.class));
+        doAnswer(invocation -> {
+            var ctx = invocation.getArgument(0, org.dromara.permission.model.permission.PermissionContext.class);
+            registerAfterCommit(() -> committedEventActions.add(ctx.getAction()));
+            return null;
+        }).when(permissionWriteRefreshEventPublisher).publish(any(), any());
+
+        PermissionService proxiedService = transactionalProxy(service);
+
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> proxiedService.grantRolePermissions(request));
+
+        assertEquals(PermissionErrorCode.CONDITION_NOT_APPROVED, ex.getErrorCode());
+        assertTrue(committedPermissionIds.isEmpty());
+        assertTrue(committedLogOperations.isEmpty());
+        assertTrue(committedVersionNos.isEmpty());
+        assertTrue(committedEventActions.isEmpty());
+    }
+
+    @Test
     void revoke_existing_success() {
         RevokePermissionRequest request = new RevokePermissionRequest();
         request.setTenantId(1L);
@@ -717,7 +797,6 @@ class PermissionServiceImplTest {
 
         when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
-        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
         when(roleResourcePermissionMapper.selectOne(any())).thenReturn(grant(900L, 200L, 300L, 400L, null));
 
         var result = service.revoke(request);
@@ -748,6 +827,30 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void revoke_deletedRoleAndResource_stillSucceeds() {
+        RevokePermissionRequest request = new RevokePermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(null);
+        when(resourceEntityMapper.selectOne(any())).thenReturn(null);
+        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(grant(900L, 200L, 300L, 400L, null));
+        when(permissionVersionService.bumpVersion(1L, "role_resource_permission", 900L, "revoke"))
+            .thenReturn(version(1L, 9L));
+
+        var result = service.revoke(request);
+
+        assertTrue(result.isSuccess());
+        assertEquals(900L, result.getPermissionId());
+        verify(roleResourcePermissionMapper).updateById(any(PcRoleResourcePermission.class));
+        verify(changeLogService).log(any(ChangeLogParam.class));
+        verify(permissionVersionService).bumpVersion(1L, "role_resource_permission", 900L, "revoke");
+        verify(permissionWriteRefreshEventPublisher).publish(any(), any());
+    }
+
+    @Test
     void revokeRolePermissions_writesBatchAuditLog() {
         RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
         request.setTenantId(1L);
@@ -757,11 +860,10 @@ class PermissionServiceImplTest {
         item.setOperationPermissionId(400L);
         request.setItems(List.of(item));
 
-        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, 10L, 1));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
-        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(grantUserRole(300L, 100L, 200L)));
         when(roleResourcePermissionMapper.selectOne(any())).thenReturn(grant(900L, 200L, 300L, 400L, null));
-        when(domainScopeValidator.resolveGrantBizDomainId(any(), any(), any())).thenReturn(10L);
 
         service.revokeRolePermissions(request);
 
@@ -773,7 +875,65 @@ class PermissionServiceImplTest {
             .orElseThrow();
         assertEquals("BATCH_REVOKE", batchLog.getOperation());
         assertEquals(10L, batchLog.getBizDomainId());
+        assertEquals(List.of(100L), batchLog.getAffectedAbstractUserIds());
         assertNotNull(batchLog.getOldSnapshot());
+    }
+
+    @Test
+    void revokeRolePermissions_transactionProxy_rollsBackStagedSideEffects() {
+        RolePermissionBatchRevokeRequest request = new RolePermissionBatchRevokeRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        RolePermissionBatchRevokeRequest.RolePermissionRevokeItem item1 = new RolePermissionBatchRevokeRequest.RolePermissionRevokeItem();
+        item1.setResourceEntityId(300L);
+        item1.setOperationPermissionId(400L);
+        RolePermissionBatchRevokeRequest.RolePermissionRevokeItem item2 = new RolePermissionBatchRevokeRequest.RolePermissionRevokeItem();
+        item2.setResourceEntityId(301L);
+        item2.setOperationPermissionId(401L);
+        request.setItems(List.of(item1, item2));
+
+        List<Long> committedPermissionIds = new ArrayList<>();
+        List<String> committedLogOperations = new ArrayList<>();
+        List<Long> committedVersionNos = new ArrayList<>();
+        List<String> committedEventActions = new ArrayList<>();
+
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any()))
+            .thenReturn(resource(300L, 1), resource(300L, 1))
+            .thenThrow(new RuntimeException("resource lookup failed"));
+        when(roleResourcePermissionMapper.selectOne(any())).thenReturn(grant(900L, 200L, 300L, 400L, null));
+        when(userRoleMapper.selectList(any())).thenReturn(List.of(grantUserRole(300L, 100L, 200L)));
+        when(permissionVersionService.bumpVersion(any(), any(), any(), any())).thenAnswer(invocation -> {
+            PcPermissionVersion version = version(1L, 12L);
+            version.setTriggerEntityId(invocation.getArgument(2));
+            registerAfterCommit(() -> committedVersionNos.add(version.getVersionNo()));
+            return version;
+        });
+        doAnswer(invocation -> {
+            PcRoleResourcePermission entity = invocation.getArgument(0);
+            registerAfterCommit(() -> committedPermissionIds.add(entity.getId()));
+            return 1;
+        }).when(roleResourcePermissionMapper).updateById(any(PcRoleResourcePermission.class));
+        doAnswer(invocation -> {
+            ChangeLogParam param = invocation.getArgument(0);
+            registerAfterCommit(() -> committedLogOperations.add(param.getOperation()));
+            return null;
+        }).when(changeLogService).log(any(ChangeLogParam.class));
+        doAnswer(invocation -> {
+            var ctx = invocation.getArgument(0, org.dromara.permission.model.permission.PermissionContext.class);
+            registerAfterCommit(() -> committedEventActions.add(ctx.getAction()));
+            return null;
+        }).when(permissionWriteRefreshEventPublisher).publish(any(), any());
+
+        PermissionService proxiedService = transactionalProxy(service);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> proxiedService.revokeRolePermissions(request));
+
+        assertEquals("resource lookup failed", ex.getMessage());
+        assertTrue(committedPermissionIds.isEmpty());
+        assertTrue(committedLogOperations.isEmpty());
+        assertTrue(committedVersionNos.isEmpty());
+        assertTrue(committedEventActions.isEmpty());
     }
 
     @Test
@@ -794,6 +954,39 @@ class PermissionServiceImplTest {
 
         verify(changeLogService, never()).log(argThat(param -> "batch_role_resource_permission".equals(param.getEntityType())));
         verify(permissionVersionService, never()).bumpVersion(any(), any(), any(), any());
+    }
+
+    @Test
+    void assignUserRoles_transactionProxy_rollsBackStagedSideEffects() {
+        UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(java.util.Arrays.asList(200L, null));
+
+        List<Long> committedUserRoleIds = new ArrayList<>();
+        List<String> committedLogOperations = new ArrayList<>();
+        List<Long> committedVersionNos = new ArrayList<>();
+        List<String> committedEventActions = new ArrayList<>();
+
+        when(abstractUserMapper.selectOne(any())).thenReturn(buildUser(100L));
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(userRoleMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(userRoleMapper.insert(any(PcUserRole.class))).thenAnswer(invocation -> {
+            PcUserRole entity = invocation.getArgument(0);
+            entity.setId(901L);
+            registerAfterCommit(() -> committedUserRoleIds.add(entity.getId()));
+            return 1;
+        });
+
+        PermissionService proxiedService = transactionalProxy(service);
+
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> proxiedService.assignUserRoles(request));
+
+        assertEquals(PermissionErrorCode.INVALID_REQUEST, ex.getErrorCode());
+        assertTrue(committedUserRoleIds.isEmpty());
+        assertTrue(committedLogOperations.isEmpty());
+        assertTrue(committedVersionNos.isEmpty());
+        assertTrue(committedEventActions.isEmpty());
     }
 
     @Test
@@ -1060,6 +1253,32 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void revokeUserRoles_transactionProxy_rollsBackStagedUpdates() {
+        UserRoleBatchRevokeRequest request = new UserRoleBatchRevokeRequest();
+        request.setTenantId(1L);
+        request.setAbstractUserId(100L);
+        request.setRoleIds(List.of(200L, 201L));
+
+        List<Long> committedUserRoleIds = new ArrayList<>();
+
+        when(userRoleMapper.selectOne(any()))
+            .thenReturn(grantUserRole(300L, 100L, 200L))
+            .thenThrow(new RuntimeException("user role lookup failed"));
+        doAnswer(invocation -> {
+            PcUserRole entity = invocation.getArgument(0);
+            registerAfterCommit(() -> committedUserRoleIds.add(entity.getId()));
+            return 1;
+        }).when(userRoleMapper).updateById(any(PcUserRole.class));
+
+        PermissionService proxiedService = transactionalProxy(service);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> proxiedService.revokeUserRoles(request));
+
+        assertEquals("user role lookup failed", ex.getMessage());
+        assertTrue(committedUserRoleIds.isEmpty());
+    }
+
+    @Test
     void assignUserRoles_invalidValidityWindow_throws() {
         UserRoleBatchAssignRequest request = new UserRoleBatchAssignRequest();
         request.setTenantId(1L);
@@ -1212,6 +1431,49 @@ class PermissionServiceImplTest {
         entity.setAbstractRoleId(roleId);
         entity.setDeleteFlag(PermissionConstants.NOT_DELETED);
         return entity;
+    }
+
+    private PermissionService transactionalProxy(PermissionService target) {
+        ProxyFactory proxyFactory = new ProxyFactory(target);
+        proxyFactory.setInterfaces(PermissionService.class);
+        proxyFactory.addAdvice(new TransactionInterceptor(new TestTransactionManager(), new AnnotationTransactionAttributeSource()));
+        return (PermissionService) proxyFactory.getProxy();
+    }
+
+    private static void registerAfterCommit(Runnable callback) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            callback.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                callback.run();
+            }
+        });
+    }
+
+    private static final class TestTransactionManager extends AbstractPlatformTransactionManager {
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+            // AbstractPlatformTransactionManager manages synchronization state for the test.
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+            // No backing resource is needed for the staged side-effect assertions.
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+            // Rollback simply skips afterCommit callbacks.
+        }
     }
 
     private void mockTypeDefinitions() {

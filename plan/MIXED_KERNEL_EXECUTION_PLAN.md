@@ -414,6 +414,32 @@
 - 任意授权变化都能被审计并触发版本变化。
 - 批量授权、批量分配、批量回收均具备稳定事务行为。
 
+Phase 6 验收补记：
+
+- 输入依赖：
+  - Phase 2 的 `user_role` / `role_resource_permission` / `permission_change_log` / `permission_version` 仓储能力
+  - Phase 3 的 `PermissionService`、`ChangeLogService`、`PermissionVersionService`
+  - Phase 4 的 `ResourceTypeHandler` 与 `GrantValidator`
+- 输出接口：
+  - `GET/POST/DELETE /api/perm/users/{userId}/roles`
+  - `GET/POST/DELETE /api/perm/roles/{roleId}/permissions`
+- 失败模式：
+  - 请求参数缺失或批量项不完整时返回 `PERM-101`
+  - 域范围不允许、条件未审核、资源类型与操作不匹配时拒绝写入
+  - 重复授权/重复分配按 no-op 处理，不写脏数据、不递增版本
+  - 回收链路允许在角色/资源已软删场景下继续清理历史授权
+- 回滚方式：
+  - 单条与批量写接口统一使用 `@Transactional(rollbackFor = Exception.class)`
+  - 版本刷新事件通过 after-commit 触发，事务回滚时不派发
+  - 软删记录通过恢复原记录完成重建，不新增平行事实
+- 兼容方式：
+  - DTO 层继续接受 `requestId` / `changeSource` / `changeReason`
+  - 审计查询仍以 `affected_abstract_user_ids` / `affected_abstract_role_ids` 过滤
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=PermissionServiceImplTest,RolePermissionServiceImplTest,UserRoleServiceImplTest,RolePermissionContractControllerTest,UserRoleContractControllerTest,PermissionChangeLogControllerTest,PermissionServiceControllerTest,PermissionServiceMvcExceptionTest,PermissionChangeLogServiceImplTest,PermissionVersionServiceImplTest,AsyncPermissionWriteRefreshEventPublisherTest"`
+  - 模块全量：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev`
+  - 关键新增验证：角色权限变更日志补齐受影响用户；批量 grant/assign/revoke 的事务回滚场景完成单测覆盖
+
 ---
 
 ### Phase 7: 条件系统
