@@ -1,7 +1,10 @@
 package org.dromara.permission.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.dromara.common.core.domain.R;
+import org.dromara.common.core.utils.ServletUtils;
+import org.dromara.permission.condition.PermissionConditionContextSupport;
 import org.dromara.permission.domain.dto.PermissionCheckReq;
 import org.dromara.permission.domain.vo.PermissionCheckConflictVo;
 import org.dromara.permission.domain.vo.PermissionCheckDependencyGapVo;
@@ -16,7 +19,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Validated
@@ -28,7 +35,7 @@ public class PermissionCheckController {
     private final PermissionService permissionService;
 
     @PostMapping("/check")
-    public R<PermissionCheckVo> check(@Validated @RequestBody PermissionCheckReq req) {
+    public R<PermissionCheckVo> check(@Validated @RequestBody PermissionCheckReq req, HttpServletRequest servletRequest) {
         PermissionCheckRequest request = new PermissionCheckRequest();
         request.setTenantId(req.getTenantId());
         request.setAbstractUserId(req.getUserId());
@@ -37,7 +44,8 @@ public class PermissionCheckController {
         request.setBizDomainId(req.getBizDomainId());
         request.setInheritMode(req.getInheritMode());
         request.setCheckDependency(req.getCheckDependency());
-        request.setContext(req.getContext() == null ? null : new java.util.HashMap<>(req.getContext()));
+        request.setContext(PermissionConditionContextSupport.extractBusinessContext(req.getContext()));
+        request.setTrustedContext(buildTrustedContext(servletRequest));
         PermissionCheckResult result = permissionService.check(request);
         return R.ok(new PermissionCheckVo(
             result.isGranted(),
@@ -88,5 +96,51 @@ public class PermissionCheckController {
             vo.setOperationPermissionId(item.getOperationPermissionId());
             return vo;
         }).collect(Collectors.toList());
+    }
+
+    private Map<String, Object> buildTrustedContext(HttpServletRequest servletRequest) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (servletRequest != null) {
+            context.put("request", buildRequestContext(servletRequest));
+            context.put("network", buildNetworkContext(servletRequest));
+        }
+        return context;
+    }
+
+    private Map<String, Object> buildRequestContext(HttpServletRequest servletRequest) {
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Object> requestContext = new LinkedHashMap<>();
+        requestContext.put("currentDateTime", now);
+        requestContext.put("currentDate", LocalDate.from(now));
+        requestContext.put("httpMethod", servletRequest.getMethod());
+        requestContext.put("method", servletRequest.getMethod());
+        requestContext.put("httpPath", servletRequest.getRequestURI());
+        requestContext.put("path", servletRequest.getRequestURI());
+        String requestId = resolveRequestId(servletRequest);
+        if (requestId != null && !requestId.isBlank()) {
+            requestContext.put("requestId", requestId);
+        }
+        return requestContext;
+    }
+
+    private Map<String, Object> buildNetworkContext(HttpServletRequest servletRequest) {
+        Map<String, Object> networkContext = new LinkedHashMap<>();
+        networkContext.put("clientIp", ServletUtils.getClientIP(servletRequest));
+        networkContext.put("remoteIp", servletRequest.getRemoteAddr());
+        return networkContext;
+    }
+
+    private String resolveRequestId(HttpServletRequest servletRequest) {
+        String requestId = servletRequest.getHeader("X-Request-Id");
+        if (requestId == null || requestId.isBlank()) {
+            requestId = servletRequest.getHeader("requestId");
+        }
+        if (requestId == null || requestId.isBlank()) {
+            Object attribute = servletRequest.getAttribute("requestId");
+            if (attribute instanceof String text && !text.isBlank()) {
+                requestId = text;
+            }
+        }
+        return requestId;
     }
 }

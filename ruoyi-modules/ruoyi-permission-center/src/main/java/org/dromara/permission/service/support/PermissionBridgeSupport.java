@@ -94,8 +94,10 @@ public class PermissionBridgeSupport {
             .eq(PcPermissionCondition::getTenantId, request.getTenantId())
             .eq(PcPermissionCondition::getId, request.getConditionId())
             .eq(PcPermissionCondition::getDeleteFlag, PermissionConstants.NOT_DELETED));
-        if (condition == null || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())) {
-            throw new PermissionServiceException(PermissionErrorCode.CONDITION_NOT_APPROVED);
+        if (condition == null
+            || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())
+            || Boolean.FALSE.equals(condition.getEnabled())) {
+            throw new PermissionServiceException(PermissionErrorCode.CONDITION_UNAVAILABLE);
         }
     }
 
@@ -213,7 +215,9 @@ public class PermissionBridgeSupport {
             return false;
         }
         PcPermissionCondition condition = permission.getCondition();
-        return condition != null && PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus());
+        return condition != null
+            && PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())
+            && !Boolean.FALSE.equals(condition.getEnabled());
     }
 
     public List<ConflictDetail> detectConflicts(Long tenantId, PcResourceEntity resource, List<MatchedPermission> matchedPermissions) {
@@ -369,7 +373,11 @@ public class PermissionBridgeSupport {
                 .map(MatchedPermission::getResourceId)
                 .collect(Collectors.toSet()), ctx.getTenantId());
             attachPermissionMetadata(grants, resources, operations, conditions);
+            ctx.setOperations(mergeContextMap(ctx.getOperations(), operations));
+            ctx.setResources(mergeContextMap(ctx.getResources(), resources));
+            ctx.setConditions(mergeContextMap(ctx.getConditions(), conditions));
             List<MatchedPermission> matched = operationInheritanceService.filterByInheritance(grants, requiredOperation, operations).stream()
+                .peek(permission -> attachPermissionMetadata(List.of(permission), resources, operations, conditions))
                 .filter(permission -> isConditionSatisfied(permission, ctx))
                 .collect(Collectors.toList());
             if (matched.isEmpty()) {
@@ -391,9 +399,23 @@ public class PermissionBridgeSupport {
         }
         if (ctx.getConditionEvaluatorResolver() == null) {
             return permission.getCondition() != null
-                && PermissionConstants.CONDITION_STATUS_APPROVED.equals(permission.getCondition().getStatus());
+                && PermissionConstants.CONDITION_STATUS_APPROVED.equals(permission.getCondition().getStatus())
+                && !Boolean.FALSE.equals(permission.getCondition().getEnabled());
         }
         ConditionEvaluator evaluator = ctx.getConditionEvaluatorResolver().apply(permission.getResourceType());
-        return evaluator != null && evaluator.evaluate(permission, ctx);
+        PcResourceEntity grantedResource = ctx.getResources().getOrDefault(permission.getResourceId(), ctx.getResource());
+        PcOperationPermission grantedOperation = ctx.getOperations().getOrDefault(permission.getOperationId(), ctx.getOperation());
+        return evaluator != null && evaluator.evaluate(permission, ctx.scopedFor(grantedResource, grantedOperation));
+    }
+
+    private <K, V> Map<K, V> mergeContextMap(Map<K, V> existing, Map<K, V> additions) {
+        Map<K, V> merged = new HashMap<>();
+        if (existing != null) {
+            merged.putAll(existing);
+        }
+        if (additions != null) {
+            merged.putAll(additions);
+        }
+        return merged;
     }
 }

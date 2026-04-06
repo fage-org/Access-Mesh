@@ -19,14 +19,6 @@ public class WorkdayOnlyConditionHandler implements PermissionConditionPresetHan
 
     @Override
     public boolean evaluate(PcPermissionCondition condition, PermissionContext context) {
-        Boolean explicitByCode = readExplicitBoolean(condition, context);
-        if (explicitByCode != null) {
-            return explicitByCode;
-        }
-        Object explicit = context.getEvalContext().get("isWorkday");
-        if (explicit instanceof Boolean value) {
-            return value;
-        }
         Object dateValue = context.getEvalContext().getOrDefault("currentDate", context.getEvalContext().get("currentDateTime"));
         LocalDate date = toLocalDate(dateValue);
         if (date == null) {
@@ -34,18 +26,6 @@ public class WorkdayOnlyConditionHandler implements PermissionConditionPresetHan
         }
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
-    }
-
-    private Boolean readExplicitBoolean(PcPermissionCondition condition, PermissionContext context) {
-        Object direct = context.getEvalContext().get(condition.getCode());
-        if (direct instanceof Boolean bool) {
-            return bool;
-        }
-        Object namespaced = context.getEvalContext().get("condition:" + condition.getCode());
-        if (namespaced instanceof Boolean bool) {
-            return bool;
-        }
-        return null;
     }
 
     private LocalDate toLocalDate(Object value) {

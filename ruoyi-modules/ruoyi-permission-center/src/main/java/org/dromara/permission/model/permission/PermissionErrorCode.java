@@ -9,7 +9,7 @@ public enum PermissionErrorCode {
     OPERATION_NOT_FOUND("PERM-103", "Operation not found"),
     RESOURCE_OPERATION_TYPE_MISMATCH("PERM-104", "Resource type does not match operation type"),
     DOMAIN_SCOPE_NOT_ALLOWED("PERM-105", "Domain scope is not allowed"),
-    CONDITION_NOT_APPROVED("PERM-106", "Condition is not approved");
+    CONDITION_UNAVAILABLE("PERM-106", "Condition is not approved or disabled");
 
     private final String code;
     private final String message;

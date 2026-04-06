@@ -26,7 +26,7 @@
 | 域配置 | `GET/PUT /api/perm/domains/{domainId}/scope` | 域范围配置 |
 | 域关系 | `GET/PUT /api/perm/domains/{domainId}/relation` | 域关系配置 |
 | 域引用 | `GET/PUT /api/perm/domains/{domainId}/binding` | 域引用绑定 |
-| 权限条件 | `GET/POST/PUT /api/perm/conditions` | 条件 CRUD 与审核 |
+| 权限条件 | `GET/POST/PUT /api/perm/conditions` | 条件 CRUD、审核与启停；删除继续沿用兼容入口 `POST /api/perm/conditions/remove` |
 | 资源依赖 | `GET/POST/DELETE /api/perm/resource-dependencies` | 资源依赖维护 |
 | 冲突规则 | `GET/POST/DELETE /api/perm/conflict-rules` | 冲突规则维护 |
 | 冲突检测 | `POST /api/perm/conflict-detection` | 冲突扫描 |

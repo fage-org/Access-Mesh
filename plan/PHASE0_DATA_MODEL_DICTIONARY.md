@@ -57,7 +57,7 @@
 | `operation_permission` | 操作权限定义 | `resource_type`, `code`, `binary_bit`, `inherit_mask` | `resource_type` 可空表示适用于全部资源类型 |
 | `resource_entity` | 资源实体 | `biz_domain_id`, `parent_id`, `code`, `resource_type`, `path` | 支持树形；`biz_domain_id` 为空表示全局资源 |
 | `resource_api_mapping` | API 资源与路由映射 | `resource_entity_id`, `service_code`, `http_method`, `path_pattern`, `match_order` | 面向 gateway 快照消费 |
-| `permission_condition` | 权限生效条件 | `code`, `condition_source`, `expression`, `status` | `PRESET` 为系统预设；`CUSTOM` 需审核 |
+| `permission_condition` | 权限生效条件 | `code`, `condition_source`, `expression`, `status`, `enabled` | `PRESET` 为系统预设；`CUSTOM` 需审核；`enabled` 为独立启停开关 |
 | `user_role` | 用户与角色关联 | `abstract_user_id`, `abstract_role_id`, `valid_from`, `valid_to` | 支持有效期 |
 | `role_resource_permission` | 角色对资源操作的授权 | `abstract_role_id`, `resource_entity_id`, `operation_permission_id`, `can_manage`, `condition_id` | `condition_id` 为空表示无条件授权 |
 | `domain_scope_config` | 域范围配置 | `biz_domain_id`, `scope_type`, `scope_ref_id` | `scope_type` 为 `ROLE_TYPE`、`RESOURCE_TYPE`、`OPERATION` |
@@ -99,6 +99,7 @@
 |------|------------|
 | `permission_condition.condition_source` | `PRESET`、`CUSTOM` |
 | `permission_condition.status` | `APPROVED`、`PENDING`、`REJECTED` |
+| `permission_condition.enabled` | `true`、`false` |
 | `domain_scope_config.scope_type` | `ROLE_TYPE`、`RESOURCE_TYPE`、`OPERATION` |
 | `domain_relation_config.relation_type` | `ROLE_RESOURCE` |
 | `domain_scope_binding.bound_type` | `ROLE`、`RESOURCE`、`OPERATION` |
@@ -139,6 +140,15 @@
 - `effective = binary_bit | inherit_mask`
 - `operation_permission.resource_type` 直接表示操作适用资源类型
 - `NULL` 表示操作适用于全部资源类型
+
+### 5.2A 条件审核与启停语义
+
+- `permission_condition.status` 表示审核状态，不承担启停语义
+- `permission_condition.enabled = true` 表示条件已启用
+- `permission_condition.enabled = false` 表示条件已停用
+- 运行时条件生效要求同时满足：
+  - `status = APPROVED`
+  - `enabled = true`
 
 ### 5.3 快照边界
 

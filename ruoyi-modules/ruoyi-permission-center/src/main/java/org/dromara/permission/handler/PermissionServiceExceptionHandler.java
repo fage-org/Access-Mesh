@@ -28,7 +28,7 @@ public class PermissionServiceExceptionHandler {
         return switch (errorCode) {
             case INVALID_REQUEST, RESOURCE_OPERATION_TYPE_MISMATCH -> HttpStatus.BAD_REQUEST;
             case RESOURCE_NOT_FOUND, OPERATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case DOMAIN_SCOPE_NOT_ALLOWED, CONDITION_NOT_APPROVED -> HttpStatus.FORBIDDEN;
+            case DOMAIN_SCOPE_NOT_ALLOWED, CONDITION_UNAVAILABLE -> HttpStatus.FORBIDDEN;
         };
     }
 }

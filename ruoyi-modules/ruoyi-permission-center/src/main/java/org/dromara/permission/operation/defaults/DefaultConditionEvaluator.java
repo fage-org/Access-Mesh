@@ -28,7 +28,9 @@ public class DefaultConditionEvaluator implements ConditionEvaluator {
             return true;
         }
         PcPermissionCondition condition = permission.getCondition();
-        if (condition == null || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())) {
+        if (condition == null
+            || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())
+            || Boolean.FALSE.equals(condition.getEnabled())) {
             return false;
         }
         if (condition.getExpression() == null || condition.getExpression().isBlank()) {
@@ -54,7 +56,7 @@ public class DefaultConditionEvaluator implements ConditionEvaluator {
             : condition.getExpression();
         return presetHandlerRegistry.find(handlerCode)
             .map(handler -> handler.evaluate(condition, ctx))
-            .orElseGet(() -> resolveLegacyCondition(condition, ctx));
+            .orElse(Boolean.FALSE);
     }
 
     private Boolean resolveCustomCondition(PcPermissionCondition condition, PermissionContext ctx) {

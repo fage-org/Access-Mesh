@@ -17,6 +17,8 @@ import org.dromara.permission.mapper.PcOperationPermissionMapper;
 import org.dromara.permission.mapper.PcPermissionConditionMapper;
 import org.dromara.permission.mapper.PcResourceDependencyMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
+import org.dromara.permission.model.permission.PermissionErrorCode;
+import org.dromara.permission.model.permission.PermissionServiceException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +26,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -103,15 +107,17 @@ class Phase2TenantIsolationTest {
     }
 
     @Test
-    void permissionConditionUpdate_mismatchedTenant_skipsUpdate() {
+    void permissionConditionUpdate_mismatchedTenant_returnsInvalidRequest() {
         when(permissionConditionMapper.selectOne(any())).thenReturn(null);
 
         ConditionSaveReq req = new ConditionSaveReq();
         req.setId(1L);
         req.setTenantId(2L);
 
-        permissionConditionService.save(req);
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class,
+            () -> permissionConditionService.save(req));
 
+        assertEquals(PermissionErrorCode.INVALID_REQUEST, ex.getErrorCode());
         verify(permissionConditionMapper, never()).updateById(any(PcPermissionCondition.class));
     }
 

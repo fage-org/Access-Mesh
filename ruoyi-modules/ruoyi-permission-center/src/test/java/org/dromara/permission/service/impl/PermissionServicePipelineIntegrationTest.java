@@ -177,9 +177,7 @@ class PermissionServicePipelineIntegrationTest {
             resourceEntityMapper,
             operationPermissionMapper,
             roleResourcePermissionMapper,
-            permissionConditionMapper,
             permissionConflictRuleMapper,
-            resourceDependencyMapper,
             abstractRoleMapper,
             abstractUserMapper,
             userRoleMapper
@@ -218,7 +216,7 @@ class PermissionServicePipelineIntegrationTest {
         checkRequest.setResourceEntityId(resourceId);
         checkRequest.setOperationPermissionId(operationId);
         checkRequest.setCheckDependency(true);
-        checkRequest.setContext(Map.of("condition:WORKDAY_ONLY", true));
+        checkRequest.setTrustedContext(Map.of("request", Map.of("currentDate", "2026-04-06")));
         var checkResult = permissionService.check(checkRequest);
 
         SnapshotRequest snapshotRequest = new SnapshotRequest();
@@ -300,6 +298,7 @@ class PermissionServicePipelineIntegrationTest {
         condition.setConditionSource(PermissionConstants.CONDITION_SOURCE_PRESET);
         condition.setExpression(expression);
         condition.setStatus(PermissionConstants.CONDITION_STATUS_APPROVED);
+        condition.setEnabled(Boolean.TRUE);
         condition.setDeleteFlag(PermissionConstants.NOT_DELETED);
         return condition;
     }

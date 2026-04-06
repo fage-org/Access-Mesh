@@ -11,7 +11,6 @@ import org.dromara.permission.event.PermissionWriteRefreshEventPublisher;
 import org.dromara.permission.mapper.*;
 import org.dromara.permission.model.permission.ConflictDetail;
 import org.dromara.permission.model.permission.DependencyCheckResult;
-import org.dromara.permission.model.permission.DependencyGap;
 import org.dromara.permission.model.permission.DenyReason;
 import org.dromara.permission.model.permission.GrantPermissionRequest;
 import org.dromara.permission.model.permission.GrantResult;
@@ -49,8 +48,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PermissionServiceImpl implements PermissionService {
 
-    private static final int DEPTH_LIMIT = 5;
-
     private final RoleResolverService roleResolverService;
     private final OperationInheritanceService operationInheritanceService;
     private final DomainScopeValidator domainScopeValidator;
@@ -62,9 +59,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final PcResourceEntityMapper resourceEntityMapper;
     private final PcOperationPermissionMapper operationPermissionMapper;
     private final PcRoleResourcePermissionMapper roleResourcePermissionMapper;
-    private final PcPermissionConditionMapper permissionConditionMapper;
     private final PcPermissionConflictRuleMapper permissionConflictRuleMapper;
-    private final PcResourceDependencyMapper resourceDependencyMapper;
     private final PcAbstractRoleMapper abstractRoleMapper;
     private final PcAbstractUserMapper abstractUserMapper;
     private final PcUserRoleMapper userRoleMapper;
@@ -73,7 +68,7 @@ public class PermissionServiceImpl implements PermissionService {
     public PermissionCheckResult check(PermissionCheckRequest request) {
         validateCheckRequest(request);
         PermissionContext ctx = new PermissionContext(request.getTenantId(), request.getAbstractUserId(),
-            request.getBizDomainId(), request.getInheritMode(), request.getContext());
+            request.getBizDomainId(), request.getInheritMode(), request.getContext(), request.getTrustedContext());
         ctx.setAction("check");
         ctx.setChangeSource("API");
         ctx.setConditionEvaluatorResolver(resourceType ->
@@ -88,6 +83,7 @@ public class PermissionServiceImpl implements PermissionService {
         permissionBridgeSupport.validateResourceOperationType(resource, operation);
         ctx.setResource(resource);
         ctx.setOperation(operation);
+        ctx.bindResourceContext();
         ResourceTypeHandler handler = resourceTypeHandlerRegistry.getHandler(ctx.getTenantId(), resource.getResourceType());
         ctx.setExpandedResourceIds(handler.getInheritanceExpander().expand(resource.getId(), ctx.getInheritMode(), ctx));
 
@@ -114,7 +110,7 @@ public class PermissionServiceImpl implements PermissionService {
             return PermissionCheckResult.denied(DenyReason.NO_PERMISSION, Collections.emptyList(), Collections.emptyList());
         }
         List<MatchedPermission> effectivePermissions = allMatchedPermissions.stream()
-            .filter(permission -> handler.getConditionEvaluator().evaluate(permission, ctx))
+            .filter(permission -> evaluateCondition(permission, ctx, handler.getConditionEvaluator()))
             .collect(Collectors.toList());
         Set<Long> effectivePermissionIds = effectivePermissions.stream()
             .map(MatchedPermission::getPermissionId)
@@ -554,22 +550,6 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
-    private ValidationResult validateGrant(GrantPermissionRequest request, PcResourceEntity resource, PcOperationPermission operation) {
-        if (operation.getResourceType() != null && !Objects.equals(operation.getResourceType(), resource.getResourceType())) {
-            return ValidationResult.fail(PermissionErrorCode.RESOURCE_OPERATION_TYPE_MISMATCH.getMessage());
-        }
-        if (request.getConditionId() != null) {
-            PcPermissionCondition condition = permissionConditionMapper.selectOne(new LambdaQueryWrapper<PcPermissionCondition>()
-                .eq(PcPermissionCondition::getTenantId, request.getTenantId())
-                .eq(PcPermissionCondition::getId, request.getConditionId())
-                .eq(PcPermissionCondition::getDeleteFlag, PermissionConstants.NOT_DELETED));
-            if (condition == null || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())) {
-                throw new PermissionServiceException(PermissionErrorCode.CONDITION_NOT_APPROVED);
-            }
-        }
-        return ValidationResult.ok();
-    }
-
     private Set<Long> expandResourceIds(PcResourceEntity resource, InheritMode inheritMode) {
         Set<Long> ids = new HashSet<>();
         ids.add(resource.getId());
@@ -594,33 +574,6 @@ public class PermissionServiceImpl implements PermissionService {
         return ids;
     }
 
-    private List<PcRoleResourcePermission> loadRolePermissions(Long tenantId, Collection<Long> roleIds, Set<Long> resourceIds) {
-        if (roleIds == null || roleIds.isEmpty()) {
-            return new ArrayList<>();
-        }
-        LambdaQueryWrapper<PcRoleResourcePermission> query = new LambdaQueryWrapper<PcRoleResourcePermission>()
-            .eq(PcRoleResourcePermission::getTenantId, tenantId)
-            .in(PcRoleResourcePermission::getAbstractRoleId, roleIds)
-            .eq(PcRoleResourcePermission::getDeleteFlag, PermissionConstants.NOT_DELETED);
-        if (resourceIds != null && !resourceIds.isEmpty()) {
-            query.in(PcRoleResourcePermission::getResourceEntityId, resourceIds);
-        }
-        return roleResourcePermissionMapper.selectList(query);
-    }
-
-    private List<MatchedPermission> toMatchedPermissions(List<PcRoleResourcePermission> grants) {
-        return grants.stream().map(grant -> {
-            MatchedPermission permission = new MatchedPermission();
-            permission.setPermissionId(grant.getId());
-            permission.setRoleId(grant.getAbstractRoleId());
-            permission.setResourceId(grant.getResourceEntityId());
-            permission.setOperationId(grant.getOperationPermissionId());
-            permission.setConditionId(grant.getConditionId());
-            permission.setCanManage(grant.getCanManage());
-            return permission;
-        }).collect(Collectors.toList());
-    }
-
     private Map<Long, PcOperationPermission> loadOperationsByIds(Set<Long> ids, Long tenantId) {
         if (ids == null || ids.isEmpty()) {
             return new HashMap<>();
@@ -643,31 +596,6 @@ public class PermissionServiceImpl implements PermissionService {
             .stream().collect(Collectors.toMap(PcResourceEntity::getId, resource -> resource));
     }
 
-    private Map<Long, PcPermissionCondition> loadConditionsByIds(Set<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return permissionConditionMapper.selectBatchIds(ids).stream()
-            .filter(condition -> PermissionConstants.NOT_DELETED.equals(condition.getDeleteFlag()))
-            .collect(Collectors.toMap(PcPermissionCondition::getId, condition -> condition));
-    }
-
-    private List<MatchedPermission> filterByCondition(List<MatchedPermission> matchedPermissions, Map<String, Object> evalContext) {
-        if (matchedPermissions.isEmpty()) {
-            return matchedPermissions;
-        }
-        Set<Long> conditionIds = matchedPermissions.stream().map(MatchedPermission::getConditionId)
-            .filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, PcPermissionCondition> conditions = loadConditionsByIds(conditionIds);
-        return matchedPermissions.stream().filter(permission -> {
-            if (permission.getConditionId() == null) {
-                return true;
-            }
-            PcPermissionCondition condition = conditions.get(permission.getConditionId());
-            return isConditionSatisfied(condition, evalContext);
-        }).collect(Collectors.toList());
-    }
-
     private boolean includeInSnapshot(MatchedPermission permission, Boolean includeConditional,
                                       Map<Long, PcPermissionCondition> conditions) {
         if (permission.getConditionId() == null) {
@@ -677,63 +605,9 @@ public class PermissionServiceImpl implements PermissionService {
             return false;
         }
         PcPermissionCondition condition = conditions.get(permission.getConditionId());
-        return condition != null && PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus());
-    }
-
-    private boolean isConditionSatisfied(PcPermissionCondition condition, Map<String, Object> evalContext) {
-        if (condition == null || !PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())) {
-            return false;
-        }
-        if (condition.getExpression() == null || condition.getExpression().isBlank()) {
-            return true;
-        }
-        Boolean resolved = resolveConditionValue(condition, evalContext);
-        return Boolean.TRUE.equals(resolved);
-    }
-
-    private Boolean resolveConditionValue(PcPermissionCondition condition, Map<String, Object> evalContext) {
-        String expression = condition.getExpression();
-        if ("true".equalsIgnoreCase(expression)) {
-            return Boolean.TRUE;
-        }
-        if ("false".equalsIgnoreCase(expression)) {
-            return Boolean.FALSE;
-        }
-        if (evalContext == null || evalContext.isEmpty()) {
-            return null;
-        }
-        List<String> keys = new ArrayList<>();
-        if (condition.getCode() != null && !condition.getCode().isBlank()) {
-            keys.add(condition.getCode());
-            keys.add("condition:" + condition.getCode());
-        }
-        if (expression != null && !expression.isBlank()) {
-            keys.add(expression);
-            keys.add("condition:" + expression);
-        }
-        for (String key : keys) {
-            Object value = evalContext.get(key);
-            Boolean normalized = normalizeBoolean(value);
-            if (normalized != null) {
-                return normalized;
-            }
-        }
-        return null;
-    }
-
-    private Boolean normalizeBoolean(Object value) {
-        if (value instanceof Boolean bool) {
-            return bool;
-        }
-        if (value instanceof String str) {
-            if ("true".equalsIgnoreCase(str)) {
-                return Boolean.TRUE;
-            }
-            if ("false".equalsIgnoreCase(str)) {
-                return Boolean.FALSE;
-            }
-        }
-        return null;
+        return condition != null
+            && PermissionConstants.CONDITION_STATUS_APPROVED.equals(condition.getStatus())
+            && !Boolean.FALSE.equals(condition.getEnabled());
     }
 
     private List<ConflictDetail> detectConflicts(Long tenantId, PcResourceEntity resource,
@@ -794,46 +668,6 @@ public class PermissionServiceImpl implements PermissionService {
             .flatMap(conflict -> List.of(conflict.getFirstOperationId(), conflict.getSecondOperationId()).stream())
             .collect(Collectors.toSet());
         return matchedPermissions.stream().filter(permission -> !deniedOps.contains(permission.getOperationId())).collect(Collectors.toList());
-    }
-
-    private DependencyCheckResult checkDependencies(PermissionContext ctx, Long resourceEntityId, Long operationPermissionId,
-                                                    List<Long> roleIds, Set<String> visited, int depth) {
-        if (depth >= DEPTH_LIMIT) {
-            return DependencyCheckResult.fail(List.of(new DependencyGap(resourceEntityId, operationPermissionId)));
-        }
-        String visitKey = resourceEntityId + ":" + operationPermissionId;
-        if (!visited.add(visitKey)) {
-            return DependencyCheckResult.ok();
-        }
-        List<PcResourceDependency> dependencies = resourceDependencyMapper.selectList(new LambdaQueryWrapper<PcResourceDependency>()
-            .eq(PcResourceDependency::getTenantId, ctx.getTenantId())
-            .eq(PcResourceDependency::getResourceEntityId, resourceEntityId)
-            .and(wrapper -> wrapper.isNull(PcResourceDependency::getSourceOperationPermissionId)
-                .or().eq(PcResourceDependency::getSourceOperationPermissionId, operationPermissionId))
-            .eq(PcResourceDependency::getDeleteFlag, PermissionConstants.NOT_DELETED));
-        if (dependencies.isEmpty()) {
-            return DependencyCheckResult.ok();
-        }
-        List<DependencyGap> gaps = new ArrayList<>();
-        for (PcResourceDependency dependency : dependencies) {
-            PcOperationPermission requiredOperation = loadOperation(ctx.getTenantId(), dependency.getRequiredOperationPermissionId());
-            List<PcRoleResourcePermission> grants = loadRolePermissions(ctx.getTenantId(), roleIds, Collections.singleton(dependency.getDependsOnResourceEntityId()));
-            Map<Long, PcOperationPermission> operations = loadOperationsByIds(
-                grants.stream().map(PcRoleResourcePermission::getOperationPermissionId).collect(Collectors.toSet()), ctx.getTenantId());
-            List<MatchedPermission> matched = operationInheritanceService.filterByInheritance(
-                toMatchedPermissions(grants), requiredOperation, operations);
-            matched = filterByCondition(matched, ctx.getEvalContext());
-            if (matched.isEmpty()) {
-                gaps.add(new DependencyGap(dependency.getDependsOnResourceEntityId(), dependency.getRequiredOperationPermissionId()));
-                continue;
-            }
-            DependencyCheckResult nested = checkDependencies(ctx, dependency.getDependsOnResourceEntityId(),
-                dependency.getRequiredOperationPermissionId(), roleIds, visited, depth + 1);
-            if (!nested.isSatisfied()) {
-                gaps.addAll(nested.getGaps());
-            }
-        }
-        return gaps.isEmpty() ? DependencyCheckResult.ok() : DependencyCheckResult.fail(gaps);
     }
 
     private PermissionSnapshot doBuildSnapshot(SnapshotRequest request) {
@@ -901,6 +735,13 @@ public class PermissionServiceImpl implements PermissionService {
     private void fillResourceOperation(PermissionContext ctx, PcResourceEntity resource, PcOperationPermission operation) {
         ctx.setResource(resource);
         ctx.setOperation(operation);
+        ctx.bindResourceContext();
+    }
+
+    private boolean evaluateCondition(MatchedPermission permission, PermissionContext ctx, org.dromara.permission.operation.ConditionEvaluator evaluator) {
+        PcResourceEntity grantedResource = ctx.getResources().getOrDefault(permission.getResourceId(), ctx.getResource());
+        PcOperationPermission grantedOperation = ctx.getOperations().getOrDefault(permission.getOperationId(), ctx.getOperation());
+        return evaluator.evaluate(permission, ctx.scopedFor(grantedResource, grantedOperation));
     }
 
     private ResolvedRole toResolvedRole(PcAbstractRole role) {

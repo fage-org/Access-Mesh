@@ -32,7 +32,7 @@
 | `PERM-103` | 操作不存在 | `operation_permission` 不存在或已删除 |
 | `PERM-104` | 资源类型与操作类型不匹配 | `operation_permission.resource_type` 与资源类型不兼容 |
 | `PERM-105` | 域配置不允许 | 不满足 `domain_scope_config` 或 `domain_relation_config` 约束 |
-| `PERM-106` | 条件未审核通过 | `permission_condition.status` 非 `APPROVED` |
+| `PERM-106` | 条件不可用 | `permission_condition.status` 非 `APPROVED` 或 `permission_condition.enabled = false` |
 
 ## 4. 使用约束
 

@@ -15,14 +15,6 @@ public class InternalIpConditionHandler implements PermissionConditionPresetHand
 
     @Override
     public boolean evaluate(PcPermissionCondition condition, PermissionContext context) {
-        Object explicit = context.getEvalContext().get(condition.getCode());
-        if (explicit instanceof Boolean bool) {
-            return bool;
-        }
-        Object namespaced = context.getEvalContext().get("condition:" + condition.getCode());
-        if (namespaced instanceof Boolean bool) {
-            return bool;
-        }
         Object ipValue = context.getEvalContext().getOrDefault("clientIp", context.getEvalContext().get("remoteIp"));
         if (!(ipValue instanceof String ip) || ip.isBlank()) {
             return false;

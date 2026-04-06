@@ -43,7 +43,7 @@ class PermissionServiceMvcExceptionTest {
     @Test
     void grant_endpoint_usesPermissionExceptionAdvice() throws Exception {
         when(permissionService.grant(any()))
-            .thenThrow(new PermissionServiceException(PermissionErrorCode.CONDITION_NOT_APPROVED, "cond-1"));
+            .thenThrow(new PermissionServiceException(PermissionErrorCode.CONDITION_UNAVAILABLE, "cond-1"));
 
         mockMvc.perform(post("/api/perm/service/grant")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -58,7 +58,7 @@ class PermissionServiceMvcExceptionTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(403))
             .andExpect(jsonPath("$.errorCode").value("PERM-106"))
-            .andExpect(jsonPath("$.msg").value("PERM-106: Condition is not approved: cond-1"));
+            .andExpect(jsonPath("$.msg").value("PERM-106: Condition is not approved or disabled: cond-1"));
     }
 
     @Test

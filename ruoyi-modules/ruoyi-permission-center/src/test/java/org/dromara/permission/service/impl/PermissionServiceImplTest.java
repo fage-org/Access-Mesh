@@ -213,9 +213,7 @@ class PermissionServiceImplTest {
             resourceEntityMapper,
             operationPermissionMapper,
             roleResourcePermissionMapper,
-            permissionConditionMapper,
             permissionConflictRuleMapper,
-            resourceDependencyMapper,
             abstractRoleMapper,
             abstractUserMapper,
             userRoleMapper
@@ -387,7 +385,7 @@ class PermissionServiceImplTest {
     @Test
     void check_approvedConditionalPermission_usesContextAndGrants() {
         PermissionCheckRequest request = baseCheckRequest();
-        request.setContext(Map.of("condition:WORKDAY_ONLY", true));
+        request.setTrustedContext(Map.of("request", Map.of("currentDate", "2026-04-06")));
         when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
@@ -405,6 +403,55 @@ class PermissionServiceImplTest {
 
         assertTrue(result.isGranted());
         assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
+    void check_presetCondition_ignoresExplicitOverrideKeys() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setContext(Map.of(
+            "WORKDAY_ONLY", false,
+            "condition:WORKDAY_ONLY", false
+        ));
+        request.setTrustedContext(Map.of("request", Map.of("currentDate", "2026-04-06")));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, 700L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "WORKDAY_ONLY", PermissionConstants.CONDITION_SOURCE_PRESET,
+                PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
+    void check_rawRequestNamespaceIsIgnoredWithoutTrustedContext() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setContext(Map.of("request", Map.of("currentDate", "2026-04-06")));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, 700L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "WORKDAY_ONLY", PermissionConstants.CONDITION_SOURCE_PRESET,
+                PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+
+        var result = service.check(request);
+
+        assertFalse(result.isGranted());
+        assertEquals(DenyReason.CONDITION_FAIL, result.getDenyReason());
     }
 
     @Test
@@ -431,10 +478,58 @@ class PermissionServiceImplTest {
     }
 
     @Test
-    void check_dependencyConditionalPermissionNotSatisfied_returnsDependencyFail() {
+    void check_parentInheritedConditionalPermission_usesGrantedResourceContext() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setResourceEntityId(301L);
+        request.setInheritMode(org.dromara.permission.model.permission.InheritMode.PARENT);
+        PcResourceEntity child = resource(301L, 1);
+        child.setPath("/300/301");
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(child);
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, 700L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "['resource']['resourceCode'] == 'RES-300'",
+                PermissionConstants.CONDITION_SOURCE_CUSTOM, PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(300L, result.getGrantedBy().get(0).getResourceId());
+    }
+
+    @Test
+    void check_flatResourceAliasUsesBoundResourceContext() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setContext(Map.of("resource", Map.of("resourceCode", "FAKE")));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(List.of(grant(500L, 200L, 300L, 400L, 700L)));
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "['resourceCode'] == 'RES-300'",
+                PermissionConstants.CONDITION_SOURCE_CUSTOM, PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(List.of(resource(300L, 1)));
+        when(operationPermissionMapper.selectList(any())).thenReturn(List.of(operation(400L, 1, 1L, 0L)));
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
+    void check_dependencyConditionalPermission_usesDependencyResourceContext() {
         PermissionCheckRequest request = baseCheckRequest();
         request.setCheckDependency(true);
-        request.setContext(Map.of("condition:LEVEL_OK", false));
         when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
         when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
         when(operationPermissionMapper.selectOne(any())).thenReturn(
@@ -449,7 +544,45 @@ class PermissionServiceImplTest {
             .thenReturn(List.of(matched(500L, 200L, 300L, 400L, null)))
             .thenReturn(List.of(matched(501L, 200L, 301L, 401L, 700L)));
         when(permissionConditionMapper.selectBatchIds(anyCollection()))
-            .thenReturn(List.of(condition(700L, "LEVEL_OK", PermissionConstants.CONDITION_SOURCE_PRESET,
+            .thenReturn(List.of(condition(700L, "['resource']['resourceCode'] == 'RES-301'",
+                PermissionConstants.CONDITION_SOURCE_CUSTOM, PermissionConstants.CONDITION_STATUS_APPROVED)));
+        when(resourceEntityMapper.selectList(any())).thenReturn(
+            List.of(resource(300L, 1)),
+            List.of(resource(301L, 1))
+        );
+        when(operationPermissionMapper.selectList(any())).thenReturn(
+            List.of(operation(400L, 1, 1L, 0L)),
+            List.of(operation(401L, 1, 2L, 0L))
+        );
+        when(resourceDependencyMapper.selectList(any())).thenReturn(List.of(dependency(300L, 301L, 400L, 401L)), Collections.emptyList());
+        when(permissionConflictRuleMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(Collections.emptyList());
+
+        var result = service.check(request);
+
+        assertTrue(result.isGranted());
+        assertEquals(1, result.getGrantedBy().size());
+    }
+
+    @Test
+    void check_dependencyConditionalPermissionNotSatisfied_returnsDependencyFail() {
+        PermissionCheckRequest request = baseCheckRequest();
+        request.setCheckDependency(true);
+        request.setContext(Map.of("levelOk", false));
+        when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(
+            operation(400L, 1, 1L, 0L),
+            operation(401L, 1, 2L, 0L)
+        );
+        when(roleResourcePermissionMapper.selectList(any())).thenReturn(
+            List.of(grant(500L, 200L, 300L, 400L, null)),
+            List.of(grant(501L, 200L, 301L, 401L, 700L))
+        );
+        when(operationInheritanceService.filterByInheritance(any(), any(), any()))
+            .thenReturn(List.of(matched(500L, 200L, 300L, 400L, null)))
+            .thenReturn(List.of(matched(501L, 200L, 301L, 401L, 700L)));
+        when(permissionConditionMapper.selectBatchIds(anyCollection()))
+            .thenReturn(List.of(condition(700L, "['levelOk']", PermissionConstants.CONDITION_SOURCE_CUSTOM,
                 PermissionConstants.CONDITION_STATUS_APPROVED)));
         when(resourceEntityMapper.selectList(any())).thenReturn(
             List.of(resource(300L, 1)),
@@ -572,7 +705,29 @@ class PermissionServiceImplTest {
 
         PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> service.grant(request));
 
-        assertEquals(PermissionErrorCode.CONDITION_NOT_APPROVED, ex.getErrorCode());
+        assertEquals(PermissionErrorCode.CONDITION_UNAVAILABLE, ex.getErrorCode());
+    }
+
+    @Test
+    void grant_disabledCondition_throwsConditionNotApproved() {
+        GrantPermissionRequest request = new GrantPermissionRequest();
+        request.setTenantId(1L);
+        request.setAbstractRoleId(200L);
+        request.setResourceEntityId(300L);
+        request.setOperationPermissionId(400L);
+        request.setConditionId(700L);
+
+        PcPermissionCondition disabled = condition(700L, "", PermissionConstants.CONDITION_SOURCE_CUSTOM,
+            PermissionConstants.CONDITION_STATUS_APPROVED);
+        disabled.setEnabled(Boolean.FALSE);
+        when(abstractRoleMapper.selectOne(any())).thenReturn(role(200L, null, 1));
+        when(resourceEntityMapper.selectOne(any())).thenReturn(resource(300L, 1));
+        when(operationPermissionMapper.selectOne(any())).thenReturn(operation(400L, 1, 1L, 0L));
+        when(permissionConditionMapper.selectOne(any())).thenReturn(disabled);
+
+        PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> service.grant(request));
+
+        assertEquals(PermissionErrorCode.CONDITION_UNAVAILABLE, ex.getErrorCode());
     }
 
     @Test
@@ -780,7 +935,7 @@ class PermissionServiceImplTest {
 
         PermissionServiceException ex = assertThrows(PermissionServiceException.class, () -> proxiedService.grantRolePermissions(request));
 
-        assertEquals(PermissionErrorCode.CONDITION_NOT_APPROVED, ex.getErrorCode());
+        assertEquals(PermissionErrorCode.CONDITION_UNAVAILABLE, ex.getErrorCode());
         assertTrue(committedPermissionIds.isEmpty());
         assertTrue(committedLogOperations.isEmpty());
         assertTrue(committedVersionNos.isEmpty());
@@ -1099,7 +1254,8 @@ class PermissionServiceImplTest {
     @Test
     void check_apiRequestContext_doesNotGrantOtherResourcePermission() {
         PermissionCheckRequest request = baseCheckRequest();
-        request.setContext(Map.of("requestPath", "/api/system/user/list", "httpMethod", "GET", "serviceCode", "system-service"));
+        request.setContext(Map.of("serviceCode", "system-service"));
+        request.setTrustedContext(Map.of("request", Map.of("httpMethod", "GET", "httpPath", "/api/system/user/list")));
         request.setResourceEntityId(300L);
         request.setOperationPermissionId(400L);
         when(roleResolverService.resolve(1L, 100L, null)).thenReturn(List.of(resolvedRole(200L, 1)));
@@ -1393,6 +1549,7 @@ class PermissionServiceImplTest {
         condition.setExpression(expression);
         condition.setConditionSource(conditionSource);
         condition.setStatus(status);
+        condition.setEnabled(Boolean.TRUE);
         condition.setDeleteFlag(PermissionConstants.NOT_DELETED);
         return condition;
     }

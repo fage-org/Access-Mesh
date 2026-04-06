@@ -78,7 +78,7 @@ permission_version --> identity-service / gateway
 | operation_permission | 操作权限（绑定资源类型） | tenant_id, resource_type, code, binary_bit, inherit_mask |
 | resource_entity | 资源实体（树） | tenant_id, biz_domain_id, parent_id, code, name, resource_type, path |
 | resource_api_mapping | 接口资源映射 | tenant_id, resource_entity_id, service_code, http_method, path_pattern |
-| permission_condition | 权限生效条件 | tenant_id, code, condition_source, expression, status |
+| permission_condition | 权限生效条件 | tenant_id, code, condition_source, expression, status, enabled |
 | user_role | 用户-角色关联 | tenant_id, abstract_user_id, abstract_role_id, valid_from, valid_to |
 | role_resource_permission | 角色-资源-操作 | tenant_id, abstract_role_id, resource_entity_id, operation_permission_id, condition_id |
 | domain_scope_config | 域下允许的类型/操作 | tenant_id, biz_domain_id, scope_type, scope_ref_id |
@@ -104,6 +104,7 @@ permission_version --> identity-service / gateway
 - **domain_scope_binding.bound_type**：`ROLE` | `RESOURCE` | `OPERATION`。
 - **permission_condition.condition_source**：`PRESET` | `CUSTOM`。
 - **permission_condition.status**：`APPROVED` | `PENDING` | `REJECTED`。
+- **permission_condition.enabled**：`true` | `false`。
 - **permission_change_log.entity_type**：`user_role` | `batch_user_role` | `role_resource_permission` | `batch_role_resource_permission` | `abstract_user` | `abstract_role` | `resource_entity` 等。
 - **permission_change_log.change_source**：`ADMIN` | `MQ_SYNC` | `API` | `SYSTEM`。
 
@@ -131,7 +132,7 @@ permission_version --> identity-service / gateway
    - BOTH：双向检查。
 
 4. **条件校验**
-   若 role_resource_permission.condition_id 不为空，查 permission_condition（须 status=APPROVED），执行条件判定（PRESET 走 handler，CUSTOM 走表达式引擎），不通过则该条授权无效。
+   若 role_resource_permission.condition_id 不为空，查 permission_condition（须 `status=APPROVED` 且 `enabled=true`），执行条件判定（PRESET 走 handler，CUSTOM 走表达式引擎），不通过则该条授权无效。
 
 5. **冲突检测**
    查 permission_conflict_rule，检查该用户对同一资源是否同时拥有互斥操作对。若冲突，相关权限失效并触发异步通知。
@@ -176,7 +177,7 @@ permission_version --> identity-service / gateway
 ### 5.2 角色配置权限（role_resource_permission）
 
 - **校验**：角色、资源、操作存在且未删；若启用域配置校验，则通过 domain_scope_config / domain_relation_config 校验该域下该角色类型可关联该资源类型。操作与资源类型的匹配通过 operation_permission.resource_type 校验。
-- **condition_id**：可选，引用 permission_condition（须 status=APPROVED）。
+- **condition_id**：可选，引用 permission_condition（须 `status=APPROVED` 且 `enabled=true`）。
 - **写入**：INSERT role_resource_permission；写 permission_change_log。
 
 ### 5.3 域配置
@@ -199,9 +200,9 @@ permission_version --> identity-service / gateway
 
 ### 5.6 权限条件（permission_condition）
 
-- **预设条件**（condition_source=PRESET）：系统内置，expression 存 handler 编码（如 `WORKDAY_ONLY`、`INTERNAL_IP`），应用层有对应 handler 实现。status 始终为 APPROVED。
-- **自定义条件**（condition_source=CUSTOM）：用户创建 → status=PENDING → 管理员审核 → APPROVED 或 REJECTED。只有 APPROVED 的条件可被 role_resource_permission 引用。
-- **鉴权时**：查 permission_condition，PRESET 走 handler 执行，CUSTOM 走表达式引擎（传入 context Map）。
+- **预设条件**（condition_source=PRESET）：系统内置，expression 存 handler 编码（如 `WORKDAY_ONLY`、`INTERNAL_IP`），应用层有对应 handler 实现。status 始终为 `APPROVED`，启停由独立 `enabled` 控制。
+- **自定义条件**（condition_source=CUSTOM）：用户创建 → status=`PENDING` → 管理员审核 → `APPROVED` 或 `REJECTED`。只有 `status=APPROVED` 且 `enabled=true` 的条件可被 `role_resource_permission` 引用。
+- **鉴权时**：查 `permission_condition`，要求 `status=APPROVED` 且 `enabled=true`；PRESET 走 handler 执行，CUSTOM 走表达式引擎（传入 context Map）。
 
 ---
 
@@ -246,7 +247,7 @@ permission_version --> identity-service / gateway
 | 用户角色 | GET/POST/DELETE /api/perm/users/{userId}/roles | 列表/批量分配/回收。 |
 | 角色权限 | GET/POST/DELETE /api/perm/roles/{roleId}/permissions | 列表/批量添加/回收 (resource_id, operation_id)；可带 can_manage、condition_id。 |
 | 域配置 | GET/PUT /api/perm/domains/{domainId}/scope, /relation, /binding | 域范围、域关系、域引用。 |
-| 权限条件 | GET/POST/PUT /api/perm/conditions | 条件 CRUD；PUT 含审核操作。 |
+| 权限条件 | GET/POST/PUT /api/perm/conditions | 条件 CRUD；PUT 含审核与启停；删除沿用兼容入口 `POST /api/perm/conditions/remove`。 |
 | 资源依赖 | GET/POST/DELETE /api/perm/resource-dependencies | 列表/新增/删除；写入时校验防环。 |
 | 冲突规则 | GET/POST/DELETE /api/perm/conflict-rules | 列表/新增/删除。 |
 | 冲突检测 | POST /api/perm/conflict-detection | 返回违规用户/资源/操作列表。 |
@@ -287,6 +288,6 @@ permission_version --> identity-service / gateway
 - **唯一约束**：均带 `WHERE delete_flag = 0`，注意 biz_domain_id/resource_type 可空表的分开约束。
 - **操作继承**：`binary_bit | inherit_mask`（BIGINT），通过 `operation_permission.resource_type` 绑定资源类型。
 - **资源继承**：查询接口参数 `inherit_mode`（NONE/CHILDREN/PARENT/BOTH）控制，不在表结构中定义。
-- **条件审核**：自定义条件须 status=APPROVED 才可被引用。
+- **条件审核与启停**：条件被引用前须 `status=APPROVED` 且 `enabled=true`。
 - **冲突检测**：查询时失效 + 异步通知，不修改授权表数据。
 - **资源依赖**：声明式元数据，写入时防环，按需查询不内建到标准鉴权流程。

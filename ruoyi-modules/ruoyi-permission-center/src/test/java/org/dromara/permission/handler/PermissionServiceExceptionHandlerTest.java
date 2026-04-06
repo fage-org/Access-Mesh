@@ -28,13 +28,13 @@ class PermissionServiceExceptionHandlerTest {
         when(request.getRequestURI()).thenReturn("/api/perm/service/grant");
 
         PermissionServiceException ex = new PermissionServiceException(
-            PermissionErrorCode.CONDITION_NOT_APPROVED, "cond-1");
+            PermissionErrorCode.CONDITION_UNAVAILABLE, "cond-1");
 
         R<Void> response = handler.handlePermissionServiceException(ex, request);
 
         assertEquals(HttpStatus.FORBIDDEN, response.getCode());
         assertEquals("PERM-106", response.getErrorCode());
-        assertEquals("PERM-106: Condition is not approved: cond-1", response.getMsg());
+        assertEquals("PERM-106: Condition is not approved or disabled: cond-1", response.getMsg());
     }
 
     @Test

@@ -27,6 +27,8 @@ public class PcPermissionCondition extends PermissionBaseEntity {
 
     private String status;
 
+    private Boolean enabled;
+
     private String description;
 
     private Long reviewedBy;

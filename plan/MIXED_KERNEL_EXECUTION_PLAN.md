@@ -339,7 +339,7 @@
 - 条件规则：
   - `PRESET` 走 handler
   - `CUSTOM` 走表达式引擎
-  - `PENDING / REJECTED` 一律视为不可用
+  - `PENDING / REJECTED / enabled = false` 一律视为不可用
 - 冲突规则：
   - 同资源互斥操作同时命中则双方失效
   - 返回冲突明细
@@ -455,6 +455,7 @@ Phase 6 验收补记：
   - CUSTOM 条件创建
   - 审核
   - 启停
+  - 独立 `enabled` 开关，不与审核状态复用同一字段
 - 固定 PRESET 条件执行机制：
   - `handler code -> Spring Bean`
   - 标准输入上下文
@@ -486,6 +487,29 @@ Phase 6 验收补记：
 
 - 管理端可创建和审核条件。
 - 精确鉴权可正确执行 PRESET 与 CUSTOM 条件，并给出可解释失败结果。
+
+Phase 7 验收补记：
+
+- 输入依赖：
+  - Phase 1 的 `permission_condition` 表结构与 `enabled` 字段
+  - Phase 3 的 `PermissionService` 条件评估挂点
+  - Phase 4 的 `ResourceTypeHandler` / `ConditionEvaluator`
+- 输出接口：
+  - `GET/POST/PUT /api/perm/conditions`
+  - 兼容入口 `POST /api/perm/conditions/list|save|remove`
+  - `POST /api/perm/check` 通过 `trustedContext` 注入受信任的 `request` / `network`
+- 失败模式：
+  - 非法 `conditionSource` / `status` / CUSTOM 表达式 / 未注册 PRESET 统一返回 `PERM-101`
+  - `status != APPROVED` 或 `enabled = false` 的条件在授权写入与运行时统一按 `PERM-106` 处理
+  - `business` 上下文若与保留别名重名，统一按 `PERM-101` 拒绝，不再静默丢弃
+- 兼容方式：
+  - PRESET handler 继续使用 `handler code -> Spring Bean`
+  - `PUT /api/perm/conditions/{conditionId}` 当前保留冻结契约，但已收敛为审核/启停等局部更新语义
+  - 首期接口快照继续排除 `condition_id != null` 的授权
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=PermissionConditionServiceImplTest,PermissionCheckControllerTest,PermissionConditionContextSupportTest,PermissionConditionControllerTest,ControllerValidationTest,PermissionServiceImplTest,PermissionServicePipelineIntegrationTest,DefaultConditionEvaluatorTest,PermissionConditionExpressionEvaluatorTest"`
+  - 模块全量：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev`
+  - 关键新增验证：审核元数据不会被启停更新污染；PRESET handler code 与条件 code 解耦；`trustedContext` 与 `business` 上下文边界完成单测覆盖
 
 ---
 

@@ -14,6 +14,8 @@ public final class PermissionConstants {
 
     public static final String CONDITION_STATUS_REJECTED = "REJECTED";
 
+    public static final Boolean CONDITION_ENABLED = Boolean.TRUE;
+
     private PermissionConstants() {
     }
 }

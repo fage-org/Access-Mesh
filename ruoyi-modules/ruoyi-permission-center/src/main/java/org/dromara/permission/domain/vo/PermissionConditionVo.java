@@ -13,8 +13,10 @@ public class PermissionConditionVo {
     private String conditionSource;
     private String expression;
     private String status;
+    private Boolean enabled;
     private String description;
     private Long reviewedBy;
     private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

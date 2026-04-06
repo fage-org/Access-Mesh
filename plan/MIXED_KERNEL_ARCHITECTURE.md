@@ -61,7 +61,7 @@
 - 配套保留域配置（`domain_scope_config`、`domain_relation_config`、`domain_scope_binding`）、权限条件（`permission_condition`）、资源依赖（`resource_dependency`）、冲突规则（`permission_conflict_rule`）、变更日志等表。
 - `operation_permission` 通过 `resource_type` 绑定适用的资源类型，`binary_bit + inherit_mask`（BIGINT）表达操作继承关系。
 - `resource_entity` 承载菜单、按钮、接口、数据对象等资源定义。资源树继承由查询接口参数控制。
-- `permission_condition` 支持预设（handler 编码）和自定义（需审核），通过 `condition_source` 和 `status` 管理。
+- `permission_condition` 支持预设（handler 编码）和自定义（需审核），通过 `condition_source`、审核状态 `status` 与独立启停开关 `enabled` 管理。
 - `permission_conflict_rule` 在查询时检测冲突，冲突权限失效并异步通知管理员修正。
 - `resource_dependency` 由资源注册方自动维护，权限中台只负责存储与查询。
 - 类型定义使用专用 `type_definition` 表（原 system_config）。

@@ -313,6 +313,7 @@ CREATE TABLE permission_condition (
     condition_source VARCHAR(16) NOT NULL DEFAULT 'PRESET',
     expression       TEXT NOT NULL,
     status           VARCHAR(16) NOT NULL DEFAULT 'APPROVED',
+    enabled          BOOLEAN NOT NULL DEFAULT true,
     description      VARCHAR(512),
     reviewed_by      BIGINT,
     reviewed_at      TIMESTAMPTZ,
@@ -327,14 +328,15 @@ CREATE TABLE permission_condition (
 
 CREATE UNIQUE INDEX uk_permission_condition ON permission_condition (tenant_id, code) WHERE delete_flag = 0;
 
-COMMENT ON TABLE permission_condition IS '权限生效条件；condition_source=PRESET 为系统预设（始终 APPROVED），CUSTOM 为自定义（需审核）';
+COMMENT ON TABLE permission_condition IS '权限生效条件；condition_source=PRESET 为系统预设（始终 APPROVED），CUSTOM 为自定义（需审核），enabled 为独立启停开关';
 COMMENT ON COLUMN permission_condition.id IS '主键';
 COMMENT ON COLUMN permission_condition.tenant_id IS '租户ID';
 COMMENT ON COLUMN permission_condition.code IS '条件编码';
 COMMENT ON COLUMN permission_condition.name IS '名称';
 COMMENT ON COLUMN permission_condition.condition_source IS '条件来源：PRESET=系统预设 / CUSTOM=自定义';
 COMMENT ON COLUMN permission_condition.expression IS '条件表达式（PRESET 为 handler 编码，CUSTOM 为表达式文本）';
-COMMENT ON COLUMN permission_condition.status IS '状态：APPROVED=已通过 / PENDING=待审核 / REJECTED=已拒绝';
+COMMENT ON COLUMN permission_condition.status IS '审核状态：APPROVED=已通过 / PENDING=待审核 / REJECTED=已拒绝';
+COMMENT ON COLUMN permission_condition.enabled IS '启停开关：true=启用 / false=停用';
 COMMENT ON COLUMN permission_condition.description IS '说明/变量约定';
 COMMENT ON COLUMN permission_condition.reviewed_by IS '审核人ID';
 COMMENT ON COLUMN permission_condition.reviewed_at IS '审核时间';

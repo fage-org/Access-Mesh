@@ -4,6 +4,9 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.dromara.permission.domain.dto.ConflictDetectReq;
+import org.dromara.permission.domain.dto.ConditionListReq;
+import org.dromara.permission.domain.dto.ConditionSaveReq;
+import org.dromara.permission.domain.dto.ConditionUpdateReq;
 import org.dromara.permission.domain.dto.IdsReq;
 import org.dromara.permission.domain.dto.PermissionCheckReq;
 import org.dromara.permission.domain.dto.RolePermissionAddReq;
@@ -238,6 +241,63 @@ class ControllerValidationTest {
         req.setTenantId(1L);
 
         Set<ConstraintViolation<ConflictDetectReq>> violations = validator.validate(req);
+        assertTrue(violations.isEmpty());
+    }
+
+    // ── Condition requests ───────────────────────────────────────────────
+
+    @Test
+    @DisplayName("ConditionListReq: missing tenantId → violation")
+    void conditionListReq_missingTenantId_hasViolation() {
+        ConditionListReq req = new ConditionListReq();
+        req.setCode("WORKDAY_ONLY");
+
+        Set<ConstraintViolation<ConditionListReq>> violations = validator.validate(req);
+        assertFalse(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ConditionSaveReq: blank code → violation")
+    void conditionSaveReq_blankCode_hasViolation() {
+        ConditionSaveReq req = new ConditionSaveReq();
+        req.setTenantId(1L);
+        req.setCode("");
+        req.setName("Workday");
+
+        Set<ConstraintViolation<ConditionSaveReq>> violations = validator.validate(req);
+        assertFalse(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ConditionSaveReq: valid payload → no violation")
+    void conditionSaveReq_valid_noViolation() {
+        ConditionSaveReq req = new ConditionSaveReq();
+        req.setTenantId(1L);
+        req.setCode("WORKDAY_ONLY");
+        req.setName("Workday");
+
+        Set<ConstraintViolation<ConditionSaveReq>> violations = validator.validate(req);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ConditionUpdateReq: missing tenantId → violation")
+    void conditionUpdateReq_missingTenantId_hasViolation() {
+        ConditionUpdateReq req = new ConditionUpdateReq();
+        req.setEnabled(Boolean.FALSE);
+
+        Set<ConstraintViolation<ConditionUpdateReq>> violations = validator.validate(req);
+        assertFalse(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ConditionUpdateReq: partial payload → no violation")
+    void conditionUpdateReq_partialPayload_noViolation() {
+        ConditionUpdateReq req = new ConditionUpdateReq();
+        req.setTenantId(1L);
+        req.setEnabled(Boolean.FALSE);
+
+        Set<ConstraintViolation<ConditionUpdateReq>> violations = validator.validate(req);
         assertTrue(violations.isEmpty());
     }
 }

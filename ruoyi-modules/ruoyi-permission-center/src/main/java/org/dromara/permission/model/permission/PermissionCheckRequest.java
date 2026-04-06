@@ -19,4 +19,5 @@ public class PermissionCheckRequest {
     private InheritMode inheritMode = InheritMode.NONE;
     private Boolean checkDependency = Boolean.FALSE;
     private Map<String, Object> context;
+    private Map<String, Object> trustedContext;
 }
