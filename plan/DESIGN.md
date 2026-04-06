@@ -189,8 +189,8 @@ permission_version --> identity-service / gateway
 ### 5.4 资源依赖（resource_dependency）
 
 - **写入**：由业务系统在注册核心资源时自动维护。例如注册"报表"资源时，同时声明它依赖"数据集"资源。
-- **写入校验**：INSERT 时检查新依赖是否形成环（防环校验在写入时完成，不在读取时限深度）。
-- **查询**：权限中台提供依赖查询接口，但不将依赖展开内建到标准鉴权流程中。调用方按需调用"检查依赖链完整性"接口。
+- **写入校验**：INSERT 时校验主体资源、依赖资源、源操作、依赖操作的逻辑关联与租户归属；同时检查新依赖是否形成环（防环校验在写入时完成，不在读取时限深度）。
+- **查询**：权限中台提供依赖查询接口与依赖图接口，但不将依赖展开内建到标准鉴权流程中。调用方按需调用"检查依赖链完整性"接口；依赖检查与告警口径统一基于**当前有效权限**（已过条件评估、冲突过滤和操作继承展开）。
 
 ### 5.5 权限冲突规则（permission_conflict_rule）
 
@@ -248,7 +248,9 @@ permission_version --> identity-service / gateway
 | 角色权限 | GET/POST/DELETE /api/perm/roles/{roleId}/permissions | 列表/批量添加/回收 (resource_id, operation_id)；可带 can_manage、condition_id。 |
 | 域配置 | GET/PUT /api/perm/domains/{domainId}/scope, /relation, /binding | 域范围、域关系、域引用。 |
 | 权限条件 | GET/POST/PUT /api/perm/conditions | 条件 CRUD；PUT 含审核与启停；删除沿用兼容入口 `POST /api/perm/conditions/remove`。 |
-| 资源依赖 | GET/POST/DELETE /api/perm/resource-dependencies | 列表/新增/删除；写入时校验防环。 |
+| 资源依赖 | GET/POST/DELETE /api/perm/resource-dependencies | 列表/新增/删除；写入时校验逻辑关联与防环。 |
+| 依赖图 | GET/POST /api/perm/resource-dependencies/graph | 返回指定资源关联的依赖图边集合；通过 `graphMode=AROUND/UPSTREAM/DOWNSTREAM` 控制围绕关系团或方向化依赖链。 |
+| 依赖检查 | POST /api/perm/resource-dependencies/check | 返回依赖缺口与依赖路径；支持按主体精确检查，或按主体+资源/操作筛选扫描；口径基于当前有效权限。 |
 | 冲突规则 | GET/POST/DELETE /api/perm/conflict-rules | 列表/新增/删除。 |
 | 冲突检测 | POST /api/perm/conflict-detection | 返回违规用户/资源/操作列表。 |
 | 变更记录 | POST /api/perm/change-logs | 支持按 user_id、role_id、biz_domain_id、时间、entity_type、request_id 过滤。 |

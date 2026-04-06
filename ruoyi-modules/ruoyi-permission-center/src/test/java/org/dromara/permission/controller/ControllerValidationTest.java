@@ -7,8 +7,10 @@ import org.dromara.permission.domain.dto.ConflictDetectReq;
 import org.dromara.permission.domain.dto.ConditionListReq;
 import org.dromara.permission.domain.dto.ConditionSaveReq;
 import org.dromara.permission.domain.dto.ConditionUpdateReq;
+import org.dromara.permission.domain.dto.DependencyCheckReq;
 import org.dromara.permission.domain.dto.IdsReq;
 import org.dromara.permission.domain.dto.PermissionCheckReq;
+import org.dromara.permission.domain.dto.ResourceDependencySaveReq;
 import org.dromara.permission.domain.dto.RolePermissionAddReq;
 import org.dromara.permission.domain.dto.SyncUsersReq;
 import org.dromara.permission.domain.dto.UserRoleAssignReq;
@@ -242,6 +244,55 @@ class ControllerValidationTest {
 
         Set<ConstraintViolation<ConflictDetectReq>> violations = validator.validate(req);
         assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ConflictDetectReq: pageNum less than 1 → violation")
+    void detectReq_invalidPageNum_hasViolation() {
+        ConflictDetectReq req = new ConflictDetectReq();
+        req.setTenantId(1L);
+        req.setPageNum(0);
+
+        Set<ConstraintViolation<ConflictDetectReq>> violations = validator.validate(req);
+        assertFalse(violations.isEmpty());
+    }
+
+    // ── DependencyCheckReq / ResourceDependencySaveReq ───────────────────
+
+    @Test
+    @DisplayName("DependencyCheckReq: subject-only payload → no violation")
+    void dependencyCheckReq_subjectOnly_noViolation() {
+        DependencyCheckReq req = new DependencyCheckReq();
+        req.setTenantId(1L);
+        req.setAbstractUserId(2L);
+
+        Set<ConstraintViolation<DependencyCheckReq>> violations = validator.validate(req);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("DependencyCheckReq: valid payload → no violation")
+    void dependencyCheckReq_valid_noViolation() {
+        DependencyCheckReq req = new DependencyCheckReq();
+        req.setTenantId(1L);
+        req.setAbstractUserId(2L);
+        req.setResourceEntityId(3L);
+        req.setOperationPermissionId(4L);
+
+        Set<ConstraintViolation<DependencyCheckReq>> violations = validator.validate(req);
+        assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("ResourceDependencySaveReq: missing requiredOperationPermissionId → violation")
+    void resourceDependencySaveReq_missingRequiredOperation_hasViolation() {
+        ResourceDependencySaveReq req = new ResourceDependencySaveReq();
+        req.setTenantId(1L);
+        req.setResourceEntityId(2L);
+        req.setDependsOnResourceEntityId(3L);
+
+        Set<ConstraintViolation<ResourceDependencySaveReq>> violations = validator.validate(req);
+        assertFalse(violations.isEmpty());
     }
 
     // ── Condition requests ───────────────────────────────────────────────

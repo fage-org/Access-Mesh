@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.dromara.common.mybatis.core.mapper.BaseMapperPlus;
 import org.dromara.permission.domain.PcPermissionConflictRule;
+import org.dromara.permission.domain.vo.ConflictViolationVo;
 
 import java.util.List;
 
@@ -17,4 +18,14 @@ public interface PcPermissionConflictRuleMapper extends BaseMapperPlus<PcPermiss
 
     List<PcPermissionConflictRule> selectByTenantAndResourceType(@Param("tenantId") Long tenantId,
                                                                  @Param("resourceTypeValue") Integer resourceTypeValue);
+
+    long countPagedConflictViolations(@Param("tenantId") Long tenantId,
+                                      @Param("bizDomainId") Long bizDomainId,
+                                      @Param("resourceEntityId") Long resourceEntityId);
+
+    List<ConflictViolationVo> selectPagedConflictViolations(@Param("tenantId") Long tenantId,
+                                                            @Param("bizDomainId") Long bizDomainId,
+                                                            @Param("resourceEntityId") Long resourceEntityId,
+                                                            @Param("offset") long offset,
+                                                            @Param("limit") long limit);
 }

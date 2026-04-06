@@ -4,6 +4,7 @@ import org.dromara.permission.domain.dto.ConflictDetectReq;
 import org.dromara.permission.domain.dto.ConflictRuleListReq;
 import org.dromara.permission.domain.dto.ConflictRuleSaveReq;
 import org.dromara.permission.domain.dto.IdsReq;
+import org.dromara.permission.domain.vo.ConflictDetectionPageVo;
 import org.dromara.permission.domain.vo.ConflictRuleVo;
 import org.dromara.permission.domain.vo.ConflictViolationVo;
 
@@ -21,4 +22,6 @@ public interface ConflictRuleService {
     void remove(IdsReq req);
 
     List<ConflictViolationVo> detect(ConflictDetectReq req);
+
+    ConflictDetectionPageVo detectPage(ConflictDetectReq req);
 }

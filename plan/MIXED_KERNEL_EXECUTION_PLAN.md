@@ -557,6 +557,42 @@ Phase 7 验收补记：
 - 管理员可以在问题进入线上前主动发现冲突和依赖断裂。
 - 资源依赖图可查、可理解、可排障。
 
+Phase 8 验收补记：
+
+- 输入依赖：
+  - Phase 2 的 `permission_conflict_rule` / `resource_dependency` / `permission_change_log` / `permission_version` 仓储能力
+  - Phase 3 的 `PermissionService`、`ChangeLogService`、`PermissionVersionService`
+  - Phase 4 的 `ResourceTypeHandler`、`DefaultConflictDetector`、`DefaultDependencyChecker`
+  - Phase 7 的条件评估链路，确保依赖检查口径统一基于当前有效权限
+- 输出接口：
+  - `GET/POST/DELETE /api/perm/conflict-rules`
+  - 兼容入口 `POST /api/perm/conflict-rules/detect`
+  - `POST /api/perm/conflict-detection`
+  - `GET/POST/DELETE /api/perm/resource-dependencies`
+  - `GET/POST /api/perm/resource-dependencies/graph`
+  - `POST /api/perm/resource-dependencies/check`
+- 失败模式：
+  - 冲突规则同操作、自循环依赖、依赖检查缺少主体等非法请求统一返回 `PERM-101`
+  - 资源不存在、操作不存在、资源类型与操作类型不匹配分别沿用 `PERM-102` / `PERM-103` / `PERM-104`
+  - 兼容冲突检测入口 `/api/perm/conflict-rules/detect` 返回全量列表；无命中时返回空列表，不再静默截断默认分页
+  - 依赖检查返回 `satisfied=false` + `gaps` 表示断裂，不在接口层抛出新的 Phase 0 之外错误码
+- 回滚方式：
+  - 冲突规则与资源依赖写接口统一使用 `@Transactional(rollbackFor = Exception.class)`
+  - 治理写操作同步写入 `permission_change_log`，版本刷新事件继续通过 after-commit 派发，事务回滚时不触发下游刷新
+  - 删除继续沿用软删，不新增平行事实记录
+- 兼容方式：
+  - 保留冻结契约路径 `GET/POST/DELETE /api/perm/conflict-rules`、`GET/POST/DELETE /api/perm/resource-dependencies`
+  - `IdsReq`、`ConflictRuleSaveReq`、`ResourceDependencySaveReq` 统一接受 `requestId` / `changeSource` / `changeReason`
+  - 分页扫描推荐走 `/api/perm/conflict-detection`，旧入口 `/api/perm/conflict-rules/detect` 保持全量返回语义
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=ConflictRuleServiceImplTest,ResourceDependencyServiceImplTest,PermissionBridgeSupportTest,ConflictDetectionControllerTest,ResourceDependencyControllerTest,AsyncPermissionGovernanceEventPublisherTest,PcPermissionConflictRuleMapperSqlTest"`
+  - 模块全量：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev`
+  - 关键新增验证：冲突规则按 `biz_domain_id` 生效；嵌套依赖检查纳入冲突过滤；长依赖链不再因读取深度阈值误报；治理写接口补齐审计与版本联动；`/detect` 兼容入口保持全量列表语义
+- 风险与未决问题列表：
+  - `/api/perm/conflict-rules/detect` 为兼容保留全量返回，结果集过大时仍有响应体膨胀风险；管理端默认应优先使用分页接口
+  - 治理事件当前仅落为应用内 Spring Event；真正的通知下游、告警平台或工单系统集成仍待 Phase 12/13 衔接
+  - 依赖图当前返回边集合与方向模式，前端可视化排障体验仍需管理端页面配合完善
+
 ---
 
 ### Phase 9: 接口快照与版本系统

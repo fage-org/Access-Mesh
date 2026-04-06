@@ -25,14 +25,37 @@ public class ConflictRuleController {
 
     private final ConflictRuleService conflictRuleService;
 
-    @PostMapping("/list")
-    public R<List<ConflictRuleVo>> list(@RequestBody ConflictRuleListReq req) {
+    @GetMapping
+    public R<List<ConflictRuleVo>> listByContract(@RequestParam("tenantId") Long tenantId,
+                                                  @RequestParam(value = "bizDomainId", required = false) Long bizDomainId,
+                                                  @RequestParam(value = "resourceTypeValue", required = false) Integer resourceTypeValue) {
+        ConflictRuleListReq req = new ConflictRuleListReq();
+        req.setTenantId(tenantId);
+        req.setBizDomainId(bizDomainId);
+        req.setResourceTypeValue(resourceTypeValue);
         return R.ok(conflictRuleService.list(req));
+    }
+
+    @PostMapping("/list")
+    public R<List<ConflictRuleVo>> list(@Validated @RequestBody ConflictRuleListReq req) {
+        return R.ok(conflictRuleService.list(req));
+    }
+
+    @PostMapping
+    public R<Void> saveByContract(@Validated @RequestBody ConflictRuleSaveReq req) {
+        conflictRuleService.save(req);
+        return R.ok();
     }
 
     @PostMapping("/save")
     public R<Void> save(@Validated @RequestBody ConflictRuleSaveReq req) {
         conflictRuleService.save(req);
+        return R.ok();
+    }
+
+    @DeleteMapping
+    public R<Void> removeByContract(@Validated @RequestBody IdsReq req) {
+        conflictRuleService.remove(req);
         return R.ok();
     }
 

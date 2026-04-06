@@ -4,14 +4,22 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 冲突规则列表请求
+ * 依赖检查请求
  */
 @Data
-public class ConflictRuleListReq {
+public class DependencyCheckReq {
     @NotNull(message = "tenantId不能为空")
     private Long tenantId;
 
+    private Long abstractUserId;
+
+    private Long abstractRoleId;
+
     private Long bizDomainId;
 
-    private Integer resourceTypeValue;
+    private Long resourceEntityId;
+
+    private Long operationPermissionId;
+
+    private String requestId;
 }

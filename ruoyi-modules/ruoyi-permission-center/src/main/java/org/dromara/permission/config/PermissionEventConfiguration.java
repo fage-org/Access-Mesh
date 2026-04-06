@@ -21,4 +21,11 @@ public class PermissionEventConfiguration {
         executor.setConcurrencyLimit(4);
         return executor;
     }
+
+    @Bean("permissionGovernanceEventExecutor")
+    public TaskExecutor permissionGovernanceEventExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("permission-governance-");
+        executor.setConcurrencyLimit(4);
+        return executor;
+    }
 }

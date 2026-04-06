@@ -15,6 +15,12 @@ public class IdsReq {
     @NotNull(message = "租户ID不能为空")
     private Long tenantId;
 
+    private String requestId;
+
+    private String changeSource;
+
+    private String changeReason;
+
     @NotEmpty(message = "ids不能为空")
     @Size(max = 100, message = "单次删除不得超过100条")
     private List<Long> ids;

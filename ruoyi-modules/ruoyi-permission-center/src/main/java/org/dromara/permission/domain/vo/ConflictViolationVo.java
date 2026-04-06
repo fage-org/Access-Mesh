@@ -7,9 +7,13 @@ import lombok.Data;
  */
 @Data
 public class ConflictViolationVo {
+    private Long conflictRuleId;
     private Long abstractUserId;
     private Long abstractRoleId;
+    private Long bizDomainId;
     private Long resourceEntityId;
-    private Long operationPermissionId;
+    private Integer resourceTypeValue;
+    private Long firstOperationPermissionId;
+    private Long secondOperationPermissionId;
     private String description;
 }

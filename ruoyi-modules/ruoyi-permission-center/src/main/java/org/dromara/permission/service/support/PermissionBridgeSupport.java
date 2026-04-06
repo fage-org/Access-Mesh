@@ -19,6 +19,7 @@ import org.dromara.permission.mapper.PcRoleResourcePermissionMapper;
 import org.dromara.permission.model.permission.ConflictDetail;
 import org.dromara.permission.model.permission.DependencyCheckResult;
 import org.dromara.permission.model.permission.DependencyGap;
+import org.dromara.permission.model.permission.DependencyPathNode;
 import org.dromara.permission.model.permission.GrantPermissionRequest;
 import org.dromara.permission.model.permission.InheritMode;
 import org.dromara.permission.model.permission.MatchedPermission;
@@ -46,8 +47,6 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class PermissionBridgeSupport {
-
-    private static final int DEPTH_LIMIT = 5;
 
     private final OperationInheritanceService operationInheritanceService;
     private final ResourceApiMappingService resourceApiMappingService;
@@ -163,6 +162,16 @@ public class PermissionBridgeSupport {
             .stream().collect(Collectors.toMap(PcOperationPermission::getId, operation -> operation));
     }
 
+    public Map<Long, PcOperationPermission> loadAllOperations(Long tenantId) {
+        if (tenantId == null) {
+            return Collections.emptyMap();
+        }
+        return operationPermissionMapper.selectList(new LambdaQueryWrapper<PcOperationPermission>()
+                .eq(PcOperationPermission::getTenantId, tenantId)
+                .eq(PcOperationPermission::getDeleteFlag, PermissionConstants.NOT_DELETED))
+            .stream().collect(Collectors.toMap(PcOperationPermission::getId, operation -> operation));
+    }
+
     public Map<Long, PcResourceEntity> loadResourcesByIds(Set<Long> ids, Long tenantId) {
         if (ids == null || ids.isEmpty()) {
             return new HashMap<>();
@@ -228,6 +237,9 @@ public class PermissionBridgeSupport {
         Set<Long> matchedOpIds = matchedPermissions.stream().map(MatchedPermission::getOperationId).collect(Collectors.toSet());
         List<ConflictDetail> details = new ArrayList<>();
         for (PcPermissionConflictRule rule : rules) {
+            if (!ruleAppliesToResource(rule, resource)) {
+                continue;
+            }
             if (matchedOpIds.contains(rule.getFirstOperationPermissionId()) && matchedOpIds.contains(rule.getSecondOperationPermissionId())) {
                 ConflictDetail detail = new ConflictDetail();
                 detail.setConflictRuleId(rule.getId());
@@ -273,8 +285,72 @@ public class PermissionBridgeSupport {
             .collect(Collectors.toSet());
     }
 
+    public List<MatchedPermission> resolveCurrentEffectivePermissions(PermissionContext ctx, Collection<Long> roleIds,
+                                                                      Set<Long> resourceIds, Long operationIdFilter) {
+        List<MatchedPermission> grants = loadMatchedPermissions(ctx.getTenantId(), roleIds, resourceIds);
+        if (grants.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, PcResourceEntity> resources = loadResourcesByIds(grants.stream()
+            .map(MatchedPermission::getResourceId)
+            .collect(Collectors.toSet()), ctx.getTenantId());
+        Map<Long, PcOperationPermission> grantedOperations = loadOperationsByIds(grants.stream()
+            .map(MatchedPermission::getOperationId)
+            .collect(Collectors.toSet()), ctx.getTenantId());
+        Map<Long, PcPermissionCondition> conditions = loadConditionsByIds(grants.stream()
+            .map(MatchedPermission::getConditionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
+        attachPermissionMetadata(grants, resources, grantedOperations, conditions);
+        ctx.setResources(mergeContextMap(ctx.getResources(), resources));
+        ctx.setOperations(mergeContextMap(ctx.getOperations(), grantedOperations));
+        ctx.setConditions(mergeContextMap(ctx.getConditions(), conditions));
+
+        List<MatchedPermission> effectiveGrants = grants.stream()
+            .filter(permission -> isConditionSatisfied(permission, ctx))
+            .collect(Collectors.toList());
+        if (effectiveGrants.isEmpty()) {
+            return List.of();
+        }
+        List<ConflictDetail> conflicts = detectConflictsForSnapshot(ctx.getTenantId(), effectiveGrants, resources);
+        effectiveGrants = removeConflicted(effectiveGrants, conflicts);
+        if (effectiveGrants.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, PcOperationPermission> allOperations = loadAllOperations(ctx.getTenantId());
+        List<MatchedPermission> effectivePermissions = new ArrayList<>();
+        for (MatchedPermission permission : effectiveGrants) {
+            PcOperationPermission grantedOperation = grantedOperations.get(permission.getOperationId());
+            PcResourceEntity resource = resources.get(permission.getResourceId());
+            if (grantedOperation == null || resource == null || grantedOperation.getBinaryBit() == null) {
+                continue;
+            }
+            long effectiveMask = grantedOperation.getBinaryBit()
+                | (grantedOperation.getInheritMask() == null ? 0L : grantedOperation.getInheritMask());
+            for (PcOperationPermission candidate : allOperations.values()) {
+                if (!candidateAppliesToResource(candidate, resource)) {
+                    continue;
+                }
+                if (candidate.getBinaryBit() == null || (effectiveMask & candidate.getBinaryBit()) != candidate.getBinaryBit()) {
+                    continue;
+                }
+                if (operationIdFilter != null && !Objects.equals(candidate.getId(), operationIdFilter)) {
+                    continue;
+                }
+                MatchedPermission effectivePermission = copyPermission(permission);
+                effectivePermission.setOperationId(candidate.getId());
+                effectivePermission.setOperationCode(candidate.getCode());
+                effectivePermissions.add(effectivePermission);
+            }
+        }
+        return effectivePermissions;
+    }
+
     public DependencyCheckResult checkDependencies(PermissionContext ctx, Long resourceEntityId, Long operationPermissionId, List<Long> roleIds) {
-        return checkDependencies(ctx, resourceEntityId, operationPermissionId, roleIds, new HashSet<>(), 0);
+        List<DependencyPathNode> trail = new ArrayList<>();
+        trail.add(new DependencyPathNode(resourceEntityId, operationPermissionId));
+        return checkDependencies(ctx, resourceEntityId, operationPermissionId, roleIds, new HashSet<>(), trail);
     }
 
     public List<PcResourceApiMapping> loadApiMappings(Long tenantId, Collection<Long> resourceIds) {
@@ -341,10 +417,8 @@ public class PermissionBridgeSupport {
     }
 
     private DependencyCheckResult checkDependencies(PermissionContext ctx, Long resourceEntityId, Long operationPermissionId,
-                                                    List<Long> roleIds, Set<String> visited, int depth) {
-        if (depth >= DEPTH_LIMIT) {
-            return DependencyCheckResult.fail(List.of(new DependencyGap(resourceEntityId, operationPermissionId)));
-        }
+                                                    List<Long> roleIds, Set<String> visited,
+                                                    List<DependencyPathNode> trail) {
         String visitKey = resourceEntityId + ":" + operationPermissionId;
         if (!visited.add(visitKey)) {
             return DependencyCheckResult.ok();
@@ -361,6 +435,7 @@ public class PermissionBridgeSupport {
         List<DependencyGap> gaps = new ArrayList<>();
         for (PcResourceDependency dependency : dependencies) {
             PcOperationPermission requiredOperation = loadOperation(ctx.getTenantId(), dependency.getRequiredOperationPermissionId());
+            PcResourceEntity dependencyResource = loadResource(ctx.getTenantId(), dependency.getDependsOnResourceEntityId());
             List<MatchedPermission> grants = loadMatchedPermissions(ctx.getTenantId(), roleIds,
                 Collections.singleton(dependency.getDependsOnResourceEntityId()));
             Map<Long, PcOperationPermission> operations = loadOperationsByIds(
@@ -380,12 +455,19 @@ public class PermissionBridgeSupport {
                 .peek(permission -> attachPermissionMetadata(List.of(permission), resources, operations, conditions))
                 .filter(permission -> isConditionSatisfied(permission, ctx))
                 .collect(Collectors.toList());
+            if (!matched.isEmpty()) {
+                List<ConflictDetail> conflicts = detectConflicts(ctx.getTenantId(), dependencyResource, matched);
+                matched = removeConflicted(matched, conflicts);
+            }
+            List<DependencyPathNode> nextTrail = appendTrail(trail,
+                dependency.getDependsOnResourceEntityId(), dependency.getRequiredOperationPermissionId());
             if (matched.isEmpty()) {
-                gaps.add(new DependencyGap(dependency.getDependsOnResourceEntityId(), dependency.getRequiredOperationPermissionId()));
+                gaps.add(new DependencyGap(dependency.getDependsOnResourceEntityId(),
+                    dependency.getRequiredOperationPermissionId(), nextTrail));
                 continue;
             }
             DependencyCheckResult nested = checkDependencies(ctx, dependency.getDependsOnResourceEntityId(),
-                dependency.getRequiredOperationPermissionId(), roleIds, visited, depth + 1);
+                dependency.getRequiredOperationPermissionId(), roleIds, visited, nextTrail);
             if (!nested.isSatisfied()) {
                 gaps.addAll(nested.getGaps());
             }
@@ -408,6 +490,15 @@ public class PermissionBridgeSupport {
         return evaluator != null && evaluator.evaluate(permission, ctx.scopedFor(grantedResource, grantedOperation));
     }
 
+    private boolean candidateAppliesToResource(PcOperationPermission candidate, PcResourceEntity resource) {
+        return candidate.getResourceType() == null || Objects.equals(candidate.getResourceType(), resource.getResourceType());
+    }
+
+    private boolean ruleAppliesToResource(PcPermissionConflictRule rule, PcResourceEntity resource) {
+        return (rule.getResourceTypeValue() == null || Objects.equals(rule.getResourceTypeValue(), resource.getResourceType()))
+            && (rule.getBizDomainId() == null || Objects.equals(rule.getBizDomainId(), resource.getBizDomainId()));
+    }
+
     private <K, V> Map<K, V> mergeContextMap(Map<K, V> existing, Map<K, V> additions) {
         Map<K, V> merged = new HashMap<>();
         if (existing != null) {
@@ -417,5 +508,37 @@ public class PermissionBridgeSupport {
             merged.putAll(additions);
         }
         return merged;
+    }
+
+    private MatchedPermission copyPermission(MatchedPermission source) {
+        MatchedPermission permission = new MatchedPermission();
+        permission.setPermissionId(source.getPermissionId());
+        permission.setRoleId(source.getRoleId());
+        permission.setResourceId(source.getResourceId());
+        permission.setResourceType(source.getResourceType());
+        permission.setResourceCode(source.getResourceCode());
+        permission.setOperationId(source.getOperationId());
+        permission.setOperationCode(source.getOperationCode());
+        permission.setConditionId(source.getConditionId());
+        permission.setCondition(source.getCondition());
+        permission.setCanManage(source.getCanManage());
+        return permission;
+    }
+
+    private List<DependencyPathNode> appendTrail(List<DependencyPathNode> trail, Long resourceEntityId, Long operationPermissionId) {
+        List<DependencyPathNode> nextTrail = copyTrail(trail);
+        nextTrail.add(new DependencyPathNode(resourceEntityId, operationPermissionId));
+        return nextTrail;
+    }
+
+    private List<DependencyPathNode> copyTrail(List<DependencyPathNode> trail) {
+        if (trail == null || trail.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<DependencyPathNode> copy = new ArrayList<>(trail.size());
+        for (DependencyPathNode node : trail) {
+            copy.add(new DependencyPathNode(node.getResourceEntityId(), node.getOperationPermissionId()));
+        }
+        return copy;
     }
 }

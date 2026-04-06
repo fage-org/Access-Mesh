@@ -19,6 +19,12 @@ import org.dromara.permission.mapper.PcResourceDependencyMapper;
 import org.dromara.permission.mapper.PcResourceEntityMapper;
 import org.dromara.permission.model.permission.PermissionErrorCode;
 import org.dromara.permission.model.permission.PermissionServiceException;
+import org.dromara.permission.service.RoleResolverService;
+import org.dromara.permission.handler.ResourceTypeHandlerRegistry;
+import org.dromara.permission.event.PermissionGovernanceEventPublisher;
+import org.dromara.permission.service.support.PermissionBridgeSupport;
+import org.dromara.permission.domain.PcOperationPermission;
+import org.dromara.permission.domain.PcResourceEntity;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +59,14 @@ class Phase2TenantIsolationTest {
     private PcPermissionConditionMapper permissionConditionMapper;
     @Mock
     private PcResourceDependencyMapper resourceDependencyMapper;
+    @Mock
+    private RoleResolverService roleResolverService;
+    @Mock
+    private ResourceTypeHandlerRegistry resourceTypeHandlerRegistry;
+    @Mock
+    private PermissionGovernanceEventPublisher governanceEventPublisher;
+    @Mock
+    private PermissionBridgeSupport permissionBridgeSupport;
 
     @InjectMocks
     private DomainRelationConfigServiceImpl domainRelationConfigService;
@@ -137,6 +151,9 @@ class Phase2TenantIsolationTest {
     @Test
     void resourceDependencyUpdate_mismatchedTenant_skipsUpdate() {
         when(resourceDependencyMapper.selectOne(any())).thenReturn(null);
+        when(permissionBridgeSupport.loadResource(2L, 10L)).thenReturn(new PcResourceEntity());
+        when(permissionBridgeSupport.loadResource(2L, 11L)).thenReturn(new PcResourceEntity());
+        when(permissionBridgeSupport.loadOperation(2L, 12L)).thenReturn(new PcOperationPermission());
 
         ResourceDependencySaveReq req = new ResourceDependencySaveReq();
         req.setId(1L);
