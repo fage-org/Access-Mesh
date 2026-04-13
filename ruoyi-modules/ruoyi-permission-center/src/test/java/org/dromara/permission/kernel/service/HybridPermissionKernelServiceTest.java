@@ -32,6 +32,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +57,8 @@ class HybridPermissionKernelServiceTest {
             new InMemoryPermissionKernelService(),
             permissionVersionService,
             interfaceRuleQueryService,
-            dataScopeQueryService
+            dataScopeQueryService,
+            new InterfaceSnapshotCache()
         );
     }
 
@@ -214,5 +217,94 @@ class HybridPermissionKernelServiceTest {
         assertEquals(1, result.size());
         assertEquals(DataScopeType.SELF, result.get(0).getScopeType());
         assertEquals(List.of("10001"), result.get(0).getSubjectIds());
+    }
+
+    @Test
+    void queryInterfaceSnapshot_usesCacheOnSecondCall() {
+        PcPermissionVersion current = new PcPermissionVersion();
+        current.setTenantId(1L);
+        current.setVersionNo(20L);
+        current.setUpdatedAt(LocalDateTime.now());
+        when(permissionVersionService.queryCurrentVersion(1L)).thenReturn(current);
+
+        InterfacePermissionRule rule = new InterfacePermissionRule();
+        rule.setCapabilityCode("ORDER_API:VIEW");
+        rule.setServiceCode("order-service");
+        rule.setHttpMethod("GET");
+        rule.setPathPattern("/api/orders/**");
+        when(interfaceRuleQueryService.listRules(1L, 10001L)).thenReturn(List.of(rule));
+
+        PrincipalContext principalContext = new PrincipalContext();
+        principalContext.setTenantId("1");
+        principalContext.setSubjectId("10001");
+        principalContext.setSubjectType(SubjectType.USER);
+
+        InterfacePermissionSnapshotRequest request = new InterfacePermissionSnapshotRequest();
+        request.setPrincipalContext(principalContext);
+
+        // 第一次调用，缓存未命中
+        InterfacePermissionSnapshot first = service.queryInterfaceSnapshot(request);
+        assertEquals("1-v20", first.getPermissionVersion());
+        assertEquals(1, first.getRules().size());
+
+        // 第二次调用，缓存命中
+        InterfacePermissionSnapshot second = service.queryInterfaceSnapshot(request);
+        assertEquals("1-v20", second.getPermissionVersion());
+        assertEquals(1, second.getRules().size());
+
+        // 规则查询只调用一次（第二次走缓存）
+        verify(interfaceRuleQueryService, times(1)).listRules(1L, 10001L);
+    }
+
+    @Test
+    void queryInterfaceSnapshot_cacheMissOnVersionChange() {
+        PcPermissionVersion version1 = new PcPermissionVersion();
+        version1.setTenantId(1L);
+        version1.setVersionNo(30L);
+        version1.setUpdatedAt(LocalDateTime.now());
+
+        PcPermissionVersion version2 = new PcPermissionVersion();
+        version2.setTenantId(1L);
+        version2.setVersionNo(31L);
+        version2.setUpdatedAt(LocalDateTime.now());
+
+        when(permissionVersionService.queryCurrentVersion(1L)).thenReturn(version1, version2);
+
+        InterfacePermissionRule rule1 = new InterfacePermissionRule();
+        rule1.setCapabilityCode("ORDER_API:VIEW");
+        rule1.setServiceCode("order-service");
+        rule1.setHttpMethod("GET");
+        rule1.setPathPattern("/api/orders/**");
+
+        InterfacePermissionRule rule2 = new InterfacePermissionRule();
+        rule2.setCapabilityCode("ORDER_API:EDIT");
+        rule2.setServiceCode("order-service");
+        rule2.setHttpMethod("POST");
+        rule2.setPathPattern("/api/orders");
+
+        when(interfaceRuleQueryService.listRules(1L, 10001L)).thenReturn(List.of(rule1), List.of(rule2));
+
+        PrincipalContext principalContext = new PrincipalContext();
+        principalContext.setTenantId("1");
+        principalContext.setSubjectId("10001");
+        principalContext.setSubjectType(SubjectType.USER);
+
+        InterfacePermissionSnapshotRequest request = new InterfacePermissionSnapshotRequest();
+        request.setPrincipalContext(principalContext);
+
+        // 第一次调用，版本 30
+        InterfacePermissionSnapshot first = service.queryInterfaceSnapshot(request);
+        assertEquals("1-v30", first.getPermissionVersion());
+        assertEquals(1, first.getRules().size());
+        assertEquals("ORDER_API:VIEW", first.getRules().get(0).getCapabilityCode());
+
+        // 第二次调用，版本变化到 31，缓存失效
+        InterfacePermissionSnapshot second = service.queryInterfaceSnapshot(request);
+        assertEquals("1-v31", second.getPermissionVersion());
+        assertEquals(1, second.getRules().size());
+        assertEquals("ORDER_API:EDIT", second.getRules().get(0).getCapabilityCode());
+
+        // 规则查询调用两次（版本变化导致缓存失效）
+        verify(interfaceRuleQueryService, times(2)).listRules(1L, 10001L);
     }
 }

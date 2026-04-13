@@ -14,12 +14,24 @@ import java.util.Objects;
 /**
  * 网关请求主体上下文解析器
  *
+ * 从请求头和 Sa-Token 扩展信息中解析主体上下文
+ *
  * @author RuoYi-Cloud-Plus
  */
 @Component
 public class PrincipalContextResolver {
 
     private final PermissionAuthzProperties properties;
+
+    /**
+     * Sa-Token 扩展信息键：权限版本
+     */
+    private static final String PERMISSION_VERSION_KEY = "permissionVersion";
+
+    /**
+     * Sa-Token 扩展信息键：抽象用户ID
+     */
+    private static final String ABSTRACT_USER_ID_KEY = "abstractUserId";
 
     public PrincipalContextResolver(PermissionAuthzProperties properties) {
         this.properties = properties;
@@ -31,12 +43,15 @@ public class PrincipalContextResolver {
             request.getHeaders().getFirst(properties.getTenantHeader()),
             extraAsString("tenantId"),
             "000000"));
-        context.setSubjectId(firstNonBlank(safeLoginId(), "anonymous"));
+        context.setSubjectId(firstNonBlank(
+            extraAsString(ABSTRACT_USER_ID_KEY),
+            safeLoginId(),
+            "anonymous"));
         context.setSubjectType(SubjectType.fromCode(
             firstNonBlank(request.getHeaders().getFirst(properties.getSubjectTypeHeader()), "USER")));
         context.setPermissionVersion(firstNonBlank(
             request.getHeaders().getFirst(properties.getPermissionVersionHeader()),
-            extraAsString("permissionVersion"),
+            extraAsString(PERMISSION_VERSION_KEY),
             context.getTenantId() + "-v0"));
         context.setServiceCode(resolveServiceCode(request));
         return context;

@@ -2,16 +2,18 @@ package org.dromara.gateway.authz;
 
 import org.dromara.authcenter.api.model.InterfacePermissionSnapshot;
 import org.dromara.authcenter.api.model.PrincipalContext;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * 权限快照客户端占位实现
  *
- * 真正的远程拉取将在后续阶段接入 permission-center。
+ * 当 HTTP 客户端未启用时使用此实现，返回空快照
  *
  * @author RuoYi-Cloud-Plus
  */
 @Component
+@ConditionalOnProperty(prefix = "gateway.authz", name = "http-client-enabled", havingValue = "false", matchIfMissing = true)
 public class NoopPermissionSnapshotClient implements PermissionSnapshotClient {
 
     @Override

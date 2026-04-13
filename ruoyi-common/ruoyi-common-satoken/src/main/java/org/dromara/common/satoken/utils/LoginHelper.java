@@ -38,6 +38,8 @@ public class LoginHelper {
     public static final String DEPT_NAME_KEY = "deptName";
     public static final String DEPT_CATEGORY_KEY = "deptCategory";
     public static final String CLIENT_KEY = "clientid";
+    public static final String PERMISSION_VERSION_KEY = "permissionVersion";
+    public static final String ABSTRACT_USER_ID_KEY = "abstractUserId";
 
     /**
      * 登录系统 基于 设备类型
@@ -55,6 +57,8 @@ public class LoginHelper {
                 .setExtra(DEPT_KEY, loginUser.getDeptId())
                 .setExtra(DEPT_NAME_KEY, loginUser.getDeptName())
                 .setExtra(DEPT_CATEGORY_KEY, loginUser.getDeptCategory())
+                .setExtra(PERMISSION_VERSION_KEY, loginUser.getPermissionVersion())
+                .setExtra(ABSTRACT_USER_ID_KEY, loginUser.getAbstractUserId())
         );
         StpUtil.getTokenSession().set(LOGIN_USER_KEY, loginUser);
     }
@@ -130,6 +134,20 @@ public class LoginHelper {
      */
     public static String getDeptCategory() {
         return Convert.toStr(getExtra(DEPT_CATEGORY_KEY));
+    }
+
+    /**
+     * 获取权限版本号
+     */
+    public static String getPermissionVersion() {
+        return Convert.toStr(getExtra(PERMISSION_VERSION_KEY));
+    }
+
+    /**
+     * 获取抽象用户ID
+     */
+    public static Long getAbstractUserId() {
+        return Convert.toLong(getExtra(ABSTRACT_USER_ID_KEY));
     }
 
     /**

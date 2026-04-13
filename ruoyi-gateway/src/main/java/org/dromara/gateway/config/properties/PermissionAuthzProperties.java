@@ -6,6 +6,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 网关接口鉴权配置
  *
@@ -35,4 +38,68 @@ public class PermissionAuthzProperties {
     private String permissionVersionHeader = "X-Permission-Version";
 
     private String serviceCodeHeader = "X-Service-Code";
+
+    /**
+     * 是否启用 HTTP 客户端（调用 permission-center）
+     */
+    private boolean httpClientEnabled = false;
+
+    /**
+     * permission-center 服务地址
+     */
+    private String permissionCenterUrl = "http://localhost:9202";
+
+    /**
+     * 缓存最大容量
+     */
+    private int cacheMaxSize = 10000;
+
+    /**
+     * 缓存过期时间（分钟）
+     */
+    private int cacheExpireMinutes = 5;
+
+    /**
+     * 灰度租户列表（仅对这些租户启用鉴权）
+     */
+    private List<String> grayscaleTenants = new ArrayList<>();
+
+    /**
+     * 灰度路由列表（仅对这些路由启用鉴权）
+     */
+    private List<String> grayscaleRoutes = new ArrayList<>();
+
+    /**
+     * 检查是否在灰度范围内
+     *
+     * @param tenantId 租户ID
+     * @param route 路由路径
+     * @return 是否在灰度范围内
+     */
+    public boolean isInGrayscale(String tenantId, String route) {
+        // 如果灰度列表为空，则对所有租户生效
+        if (grayscaleTenants.isEmpty() && grayscaleRoutes.isEmpty()) {
+            return true;
+        }
+
+        // 检查租户灰度
+        boolean tenantMatch = grayscaleTenants.isEmpty() || grayscaleTenants.contains(tenantId);
+
+        // 检查路由灰度
+        boolean routeMatch = grayscaleRoutes.isEmpty() || grayscaleRoutes.stream()
+            .anyMatch(pattern -> matchRoute(pattern, route));
+
+        return tenantMatch && routeMatch;
+    }
+
+    /**
+     * 简单的路由匹配
+     */
+    private boolean matchRoute(String pattern, String route) {
+        if (pattern.endsWith("/**")) {
+            String prefix = pattern.substring(0, pattern.length() - 3);
+            return route.startsWith(prefix);
+        }
+        return pattern.equals(route);
+    }
 }

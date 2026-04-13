@@ -10,6 +10,7 @@ import org.dromara.auth.domain.vo.LoginVo;
 import org.dromara.auth.form.PasswordLoginBody;
 import org.dromara.auth.properties.CaptchaProperties;
 import org.dromara.auth.service.IAuthStrategy;
+import org.dromara.auth.service.LoginEnhancementService;
 import org.dromara.auth.service.SysLoginService;
 import org.dromara.common.core.constant.Constants;
 import org.dromara.common.core.constant.GlobalConstants;
@@ -42,6 +43,8 @@ public class PasswordAuthStrategy implements IAuthStrategy {
 
     private final SysLoginService loginService;
 
+    private final LoginEnhancementService loginEnhancementService;
+
     @DubboReference
     private RemoteUserService remoteUserService;
 
@@ -66,6 +69,10 @@ public class PasswordAuthStrategy implements IAuthStrategy {
         });
         loginUser.setClientKey(client.getClientKey());
         loginUser.setDeviceType(client.getDeviceType());
+
+        // 增强登录用户信息：查询权限版本和抽象用户ID
+        loginEnhancementService.enhance(loginUser);
+
         SaLoginParameter model = new SaLoginParameter();
         model.setDeviceType(client.getDeviceType());
         // 自定义分配 不同用户体系 不同 token 授权时间 不设置默认走全局 yml 配置

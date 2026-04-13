@@ -16,6 +16,21 @@ public final class PermissionConstants {
 
     public static final Boolean CONDITION_ENABLED = Boolean.TRUE;
 
+    /**
+     * 类型定义 - 用户类型
+     */
+    public static final String TYPE_KEY_USER_TYPE = "user_type";
+
+    /**
+     * 类型定义 - 角色类型
+     */
+    public static final String TYPE_KEY_ROLE_TYPE = "role_type";
+
+    /**
+     * 类型定义 - 资源类型
+     */
+    public static final String TYPE_KEY_RESOURCE_TYPE = "resource_type";
+
     private PermissionConstants() {
     }
 }

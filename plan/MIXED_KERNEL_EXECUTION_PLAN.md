@@ -642,6 +642,38 @@ Phase 8 验收补记：
 - 同一用户在相同版本下重复拉取快照结果一致。
 - 任意授权变化都会驱动快照版本变化。
 
+Phase 9 验收补记：
+
+- 输入依赖：
+  - Phase 1 的 `permission_version` 表结构与初始化脚本
+  - Phase 2 的 `resource_api_mapping` / `role_resource_permission` / `user_role` 仓储能力
+  - Phase 3 的 `PermissionService`、`PermissionVersionService`
+  - Phase 4 的 `ResourceTypeHandler` 与 `SnapshotAssembler`
+  - Phase 8 的冲突规则表 `permission_conflict_rule` 与冲突检测逻辑
+- 输出接口：
+  - `POST /api/perm/policy/interface-snapshot`
+  - `POST /api/perm/decision/interface`
+  - `POST /api/perm/version/query`
+- 失败模式：
+  - `tenantId` 或 `abstractUserId` 为空时回退到内存权限骨架
+  - 版本查询失败时返回默认版本信息
+  - 快照组装失败时返回空快照，记录错误日志
+- 冲突过滤：
+  - SQL 层 NOT EXISTS 子查询排除命中冲突规则的授权项
+  - 冲突规则匹配条件：同一租户、同一角色、同一资源、两个互斥操作同时存在
+- 缓存机制：
+  - Caffeine 本地缓存，key = `(tenantId, abstractUserId, permissionVersion)`
+  - 写入后 5 分钟过期，最大容量 10000 条
+  - 版本变化后自动失效（新版本创建新缓存条目）
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=HybridPermissionKernelServiceTest,DatabaseInterfacePermissionRuleQueryServiceTest,PermissionKernelSnapshotMapperSqlTest"`
+  - 模块全量：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev`
+  - 关键新增验证：接口快照仅包含无条件授权；冲突授权被排除；缓存命中时不重复查询规则；版本变化后缓存失效
+- 风险与未决问题列表：
+  - 快照 SQL 复杂度高，高并发下可能有性能压力；通过缓存减少查询频率，后续可考虑异步预加载
+  - 冲突规则过多时 NOT EXISTS 子查询性能下降；建议控制冲突规则数量，按资源类型/业务域精确匹配
+  - 缓存容量限制 10000 条，热点用户可能被驱逐；可根据实际调整
+
 ---
 
 ### Phase 10: identity-service 对接
@@ -687,6 +719,33 @@ Phase 8 验收补记：
 
 - 所有新签发令牌都带有正确的 `permissionVersion`。
 - `subjectId` 与 `abstract_user_id` 的对应关系稳定、可追踪。
+
+Phase 10 验收补记：
+
+- 输入依赖：
+  - Phase 1 的 `abstract_user` 表结构与 `type_definition` 用户类型定义
+  - Phase 9 的 `/api/perm/version/query` 版本查询接口
+  - Phase 9 的 `/api/perm/subject/mapping` 主体映射接口
+- 输出接口：
+  - `POST /api/perm/subject/mapping` - 查找或创建主体映射
+  - `POST /api/perm/subject/version` - 查询权限版本
+  - `POST /api/identity/delegation/issue` - 签发委托上下文
+  - `POST /api/identity/delegation/revoke` - 撤销委托上下文
+- 失败模式：
+  - permission-center 不可用时回退到默认版本 `{tenantId}-v0`
+  - 主体映射失败时仅查询版本，不设置 `abstractUserId`
+  - 用户类型不存在时使用默认值 `1`
+  - 委托ID无效时忽略委托上下文，使用原始主体类型
+- 令牌扩展：
+  - `LoginUser` 新增 `permissionVersion` 和 `abstractUserId` 字段
+  - `LoginHelper` 新增 `getPermissionVersion()` 和 `getAbstractUserId()` 方法
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=SubjectMappingServiceImplTest,HybridPermissionKernelServiceTest"`
+  - 关键新增验证：登录时自动查询权限版本；登录时自动创建或查找主体映射；权限版本写入令牌扩展信息；委托授权流程可用
+- 风险与未决问题列表：
+  - HTTP 调用 permission-center 增加登录延迟；后续可考虑使用 Dubbo 替代 RestTemplate
+  - 主体映射无缓存，高频登录时重复查询；后续可添加本地缓存
+  - 委托存储在内存，重启后丢失；后续可持久化到 Redis
 
 ---
 
@@ -737,6 +796,34 @@ Phase 8 验收补记：
 
 - 网关在不查数据库的前提下完成接口级放行/拒绝判断。
 - 版本变化后缓存可自动刷新，不依赖手工操作。
+
+Phase 11 验收补记：
+
+- 输入依赖：
+  - Phase 9 的 `/api/perm/policy/interface-snapshot` 和 `/api/perm/version/query` 接口
+  - Phase 10 的令牌扩展信息（`permissionVersion`、`abstractUserId`）
+  - Spring Cloud Gateway 基础设施
+- 输出接口：
+  - `HttpPermissionSnapshotClient` - HTTP 权限快照客户端
+  - `PermissionSnapshotCache` - 本地快照缓存
+  - `GatewayPermissionAuthorizer` - 网关鉴权入口
+  - `PrincipalContextResolver` - 主体上下文解析器
+  - `PermissionRuleMatcher` - 规则匹配器
+- 失败模式：
+  - permission-center 不可用时返回空快照，根据 `fail-open` 决定是否放行
+  - 缓存未命中时从 permission-center 加载
+  - 版本变化后新版本创建新缓存条目
+- 灰度策略：
+  - `gateway.authz.enabled` 控制总开关，默认关闭
+  - `gateway.authz.grayscale-tenants` 控制租户级灰度
+  - `gateway.authz.grayscale-routes` 控制路由级灰度
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-gateway -am test -DskipTests=false -Pdev "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=PermissionSnapshotCacheTest,PermissionAuthzPropertiesTest,PermissionRuleMatcherTest"`
+  - Tests run: 14, Failures: 0, Errors: 0, Skipped: 0
+- 风险与未决问题列表：
+  - HTTP 调用延迟增加所有请求鉴权延迟；通过本地缓存减少调用频率
+  - 缓存容量限制可能导致热点用户被驱逐；可根据实际调整 `cache-max-size`
+  - 灰度配置复杂可能导致配置错误；需提供配置校验和监控
 
 ---
 
@@ -790,6 +877,35 @@ Phase 8 验收补记：
 验收标准：
 
 - 管理员无需直连数据库即可完成首期全部权限配置、审核与排障。
+
+Phase 12 验收补记：
+
+- 输入依赖：
+  - Phase 0-11 所有后端接口已就绪
+  - 17 张事实表与仓储层
+  - PermissionService 统一内核
+- 输出接口：
+  - 用户管理：`/api/perm/users`、`/api/perm/users/{userId}/roles`
+  - 角色管理：`/api/perm/roles`、`/api/perm/roles/{roleId}/permissions`
+  - 资源管理：`/api/perm/resources`
+  - 操作权限：`/api/perm/operations`
+  - 业务域：`/api/perm/domains`
+  - 域配置：`/api/perm/domain-scope`、`/api/perm/domain-relation`、`/api/perm/domain-binding`
+  - 条件管理：`/api/perm/conditions`
+  - 冲突治理：`/api/perm/conflict-rules`、`/api/perm/conflict-detection`
+  - 依赖管理：`/api/perm/resource-dependencies`
+  - 审计查询：`/api/perm/change-logs`
+  - 类型定义：`/api/perm/type-definitions`
+  - 权限服务：`/api/perm/service`
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev`
+  - Tests run: 293, Failures: 0, Errors: 0, Skipped: 2
+- 后端接口状态：已完成，前端页面开发待独立项目实施
+- 风险与未决问题列表：
+  - 前端项目需独立克隆和配置
+  - 树形数据量大时前端需实现懒加载
+  - 依赖图可视化建议使用 G6 或 D3.js
+  - 条件表达式编辑建议使用 Monaco Editor
 
 ---
 

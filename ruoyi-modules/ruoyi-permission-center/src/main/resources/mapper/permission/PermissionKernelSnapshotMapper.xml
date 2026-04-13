@@ -51,6 +51,25 @@
           AND ur.delete_flag = 0
           AND (ur.valid_from IS NULL OR ur.valid_from &lt;= CURRENT_TIMESTAMP)
           AND (ur.valid_to IS NULL OR ur.valid_to &gt;= CURRENT_TIMESTAMP)
+          AND NOT EXISTS (
+              SELECT 1
+              FROM permission_conflict_rule cr
+              INNER JOIN role_resource_permission rrp_other
+                  ON rrp_other.tenant_id = ur.tenant_id
+                 AND rrp_other.abstract_role_id = ur.abstract_role_id
+                 AND rrp_other.resource_entity_id = rrp.resource_entity_id
+                 AND rrp_other.delete_flag = 0
+                 AND rrp_other.condition_id IS NULL
+                 AND (rrp_other.operation_permission_id = cr.first_operation_permission_id
+                      OR rrp_other.operation_permission_id = cr.second_operation_permission_id)
+              WHERE cr.tenant_id = ur.tenant_id
+                AND cr.delete_flag = 0
+                AND (cr.resource_type_value IS NULL OR cr.resource_type_value = re.resource_type)
+                AND (cr.biz_domain_id IS NULL OR cr.biz_domain_id = re.biz_domain_id)
+                AND (rrp.operation_permission_id = cr.first_operation_permission_id
+                     OR rrp.operation_permission_id = cr.second_operation_permission_id)
+                AND rrp_other.operation_permission_id &lt;&gt; rrp.operation_permission_id
+          )
         ORDER BY ram.match_order ASC, ram.id ASC, re.code ASC, op.code ASC
     </select>
 
@@ -85,5 +104,24 @@
           AND op.code = #{operationCode}
           AND (ur.valid_from IS NULL OR ur.valid_from &lt;= CURRENT_TIMESTAMP)
           AND (ur.valid_to IS NULL OR ur.valid_to &gt;= CURRENT_TIMESTAMP)
+          AND NOT EXISTS (
+              SELECT 1
+              FROM permission_conflict_rule cr
+              INNER JOIN role_resource_permission rrp_other
+                  ON rrp_other.tenant_id = ur.tenant_id
+                 AND rrp_other.abstract_role_id = ur.abstract_role_id
+                 AND rrp_other.resource_entity_id = rrp.resource_entity_id
+                 AND rrp_other.delete_flag = 0
+                 AND rrp_other.condition_id IS NULL
+                 AND (rrp_other.operation_permission_id = cr.first_operation_permission_id
+                      OR rrp_other.operation_permission_id = cr.second_operation_permission_id)
+              WHERE cr.tenant_id = ur.tenant_id
+                AND cr.delete_flag = 0
+                AND (cr.resource_type_value IS NULL OR cr.resource_type_value = re.resource_type)
+                AND (cr.biz_domain_id IS NULL OR cr.biz_domain_id = re.biz_domain_id)
+                AND (rrp.operation_permission_id = cr.first_operation_permission_id
+                     OR rrp.operation_permission_id = cr.second_operation_permission_id)
+                AND rrp_other.operation_permission_id &lt;&gt; rrp.operation_permission_id
+          )
     </select>
 </mapper>

@@ -1,6 +1,7 @@
 package org.dromara.permission.kernel.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.dromara.authcenter.api.model.CustomScopeDescriptor;
 import org.dromara.authcenter.api.model.DataScopeDescriptor;
 import org.dromara.authcenter.api.model.InterfaceDecisionResult;
@@ -14,6 +15,7 @@ import org.dromara.authcenter.api.request.InterfacePermissionSnapshotRequest;
 import org.dromara.authcenter.api.request.PermissionVersionQueryRequest;
 import org.dromara.permission.domain.PcPermissionVersion;
 import org.dromara.permission.kernel.service.InterfacePermissionRuleQueryService;
+import org.dromara.permission.kernel.service.InterfaceSnapshotCache;
 import org.dromara.permission.kernel.service.PermissionKernelService;
 import org.dromara.permission.service.PermissionVersionService;
 import org.springframework.context.annotation.Primary;
@@ -30,9 +32,11 @@ import java.util.Optional;
  * 混合内核权限服务
  *
  * 当前阶段保留既有内存权限骨架，同时把版本查询切到持久化权限版本表。
+ * 支持快照缓存，以版本号为主要失效依据。
  *
  * @author RuoYi-Cloud-Plus
  */
+@Slf4j
 @Primary
 @Service
 @RequiredArgsConstructor
@@ -43,6 +47,7 @@ public class HybridPermissionKernelService implements PermissionKernelService {
     private final PermissionVersionService permissionVersionService;
     private final InterfacePermissionRuleQueryService interfaceRuleQueryService;
     private final DatabaseDataScopeQueryService dataScopeQueryService;
+    private final InterfaceSnapshotCache snapshotCache;
 
     @Override
     public PermissionVersionInfo registerCatalog(CatalogRegistrationRequest request) {
@@ -63,13 +68,28 @@ public class HybridPermissionKernelService implements PermissionKernelService {
             return delegate.queryInterfaceSnapshot(request);
         }
 
+        // 先查询当前版本
         PcPermissionVersion current = permissionVersionService.queryCurrentVersion(tenantId);
+        String versionToken = buildVersionToken(current);
+
+        // 尝试从缓存获取
+        InterfacePermissionSnapshot cached = snapshotCache.get(tenantId, abstractUserId, versionToken);
+        if (cached != null) {
+            log.debug("Snapshot cache hit for tenant={}, user={}, version={}", tenantId, abstractUserId, versionToken);
+            return cached;
+        }
+
+        // 缓存未命中，组装快照
+        log.debug("Snapshot cache miss for tenant={}, user={}, version={}", tenantId, abstractUserId, versionToken);
         InterfacePermissionSnapshot snapshot = new InterfacePermissionSnapshot();
         snapshot.setTenantId(request.getPrincipalContext().getTenantId());
         snapshot.setSubjectKey(request.getPrincipalContext().getSubjectKey());
-        snapshot.setPermissionVersion(buildVersionToken(current));
+        snapshot.setPermissionVersion(versionToken);
         snapshot.setGeneratedAtEpochMilli(toEpochMilli(current));
         snapshot.setRules(interfaceRuleQueryService.listRules(tenantId, abstractUserId));
+
+        // 缓存快照
+        snapshotCache.put(tenantId, abstractUserId, versionToken, snapshot);
         return snapshot;
     }
 

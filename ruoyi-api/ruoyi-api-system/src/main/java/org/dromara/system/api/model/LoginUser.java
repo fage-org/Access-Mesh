@@ -136,6 +136,18 @@ public class LoginUser implements Serializable {
     private String deviceType;
 
     /**
+     * 权限版本号
+     * 用于 gateway 刷新本地接口快照缓存
+     */
+    private String permissionVersion;
+
+    /**
+     * 抽象用户ID
+     * 与 permission-center 的 abstract_user 表对应
+     */
+    private Long abstractUserId;
+
+    /**
      * 获取登录id
      */
     public String getLoginId() {
