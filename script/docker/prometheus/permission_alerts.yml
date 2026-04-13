@@ -1,0 +1,212 @@
+# 权限中心告警规则
+#
+# 使用方法：
+# 1. 将此文件放置在 prometheus 配置目录
+# 2. 在 prometheus.yml 中添加 rule_files 引用
+# 3. 重启 prometheus 或发送 SIGHUP 信号重新加载配置
+
+groups:
+  - name: permission_alerts
+    rules:
+      # ==================== 快照告警 ====================
+
+      - alert: PermissionSnapshotHighFailureRate
+        expr: |
+          (
+            sum(rate(permission_snapshot_requests_total{status="failure"}[5m]))
+            /
+            sum(rate(permission_snapshot_requests_total[5m]))
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限快照失败率过高"
+          description: "权限快照请求失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      - alert: PermissionSnapshotHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(permission_snapshot_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限快照延迟过高"
+          description: "权限快照 P95 延迟超过 1 秒，当前值: {{ $value | humanizeDuration }}"
+
+      - alert: PermissionCacheHitRateLow
+        expr: |
+          (
+            sum(rate(permission_snapshot_cache_hits[5m]))
+            /
+            (sum(rate(permission_snapshot_cache_hits[5m])) + sum(rate(permission_snapshot_cache_misses[5m])))
+          ) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限缓存命中率过低"
+          description: "权限快照缓存命中率低于 50%，当前值: {{ $value | humanizePercentage }}"
+
+      # ==================== 鉴权告警 ====================
+
+      - alert: PermissionCheckHighDenialRate
+        expr: |
+          (
+            sum(rate(permission_check_denials_total[5m]))
+            /
+            sum(rate(permission_check_requests_total[5m]))
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限鉴权拒绝率过高"
+          description: "权限鉴权拒绝率超过 30%，当前值: {{ $value | humanizePercentage }}"
+
+      - alert: PermissionCheckHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(permission_check_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限鉴权延迟过高"
+          description: "权限鉴权 P95 延迟超过 500ms，当前值: {{ $value | humanizeDuration }}"
+
+      # ==================== 版本告警 ====================
+
+      - alert: PermissionVersionQueryHighFailureRate
+        expr: |
+          (
+            sum(rate(permission_version_failures_total[5m]))
+            /
+            sum(rate(permission_version_requests_total[5m]))
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限版本查询失败率过高"
+          description: "权限版本查询失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      - alert: PermissionVersionChangeFrequent
+        expr: |
+          sum(rate(permission_version_changes_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: info
+          service: permission-center
+        annotations:
+          summary: "权限版本变更频繁"
+          description: "权限版本变更频率超过 10 次/分钟，当前值: {{ $value | humanize }}"
+
+      # ==================== 条件告警 ====================
+
+      - alert: PermissionConditionEvaluationErrors
+        expr: |
+          sum(rate(permission_condition_errors_total[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限条件求值异常频繁"
+          description: "权限条件求值异常频率超过 10 次/分钟，当前值: {{ $value | humanize }}"
+
+      - alert: PermissionConditionHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(permission_condition_duration_seconds_bucket[5m])) by (le)) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限条件求值延迟过高"
+          description: "权限条件求值 P95 延迟超过 100ms，当前值: {{ $value | humanizeDuration }}"
+
+      # ==================== 冲突告警 ====================
+
+      - alert: PermissionConflictHits
+        expr: |
+          sum(rate(permission_conflict_hits_total[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限冲突命中频繁"
+          description: "权限冲突命中频率超过 5 次/分钟，当前值: {{ $value | humanize }}"
+
+      # ==================== 依赖告警 ====================
+
+      - alert: PermissionDependencyCheckFailures
+        expr: |
+          sum(rate(permission_dependency_failures_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: permission-center
+        annotations:
+          summary: "权限依赖检查失败频繁"
+          description: "权限依赖检查失败频率超过 10 次/分钟，当前值: {{ $value | humanize }}"
+
+      # ==================== 审计告警 ====================
+
+      - alert: PermissionAuditWriteFailures
+        expr: |
+          sum(rate(permission_audit_failures_total[5m])) > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: permission-center
+        annotations:
+          summary: "权限审计写入失败"
+          description: "权限审计写入失败频率超过 1 次/分钟，当前值: {{ $value | humanize }}"
+
+  # ==================== Gateway 告警 ====================
+
+  - name: gateway_permission_alerts
+    rules:
+      - alert: GatewayPermissionDenialSpike
+        expr: |
+          sum(rate(gateway_permission_denials[5m])) > 100
+        for: 2m
+        labels:
+          severity: warning
+          service: gateway
+        annotations:
+          summary: "Gateway 权限拒绝激增"
+          description: "Gateway 权限拒绝频率超过 100 次/分钟，当前值: {{ $value | humanize }}"
+
+      - alert: GatewayPermissionHttpFailures
+        expr: |
+          sum(rate(gateway_permission_http_failures[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: gateway
+        annotations:
+          summary: "Gateway 权限 HTTP 调用失败频繁"
+          description: "Gateway 权限 HTTP 调用失败频率超过 10 次/分钟，当前值: {{ $value | humanize }}"
+
+      - alert: GatewayPermissionCacheHitRateLow
+        expr: |
+          (
+            sum(rate(gateway_permission_cache_hits[5m]))
+            /
+            (sum(rate(gateway_permission_cache_hits[5m])) + sum(rate(gateway_permission_cache_misses[5m])))
+          ) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: gateway
+        annotations:
+          summary: "Gateway 权限缓存命中率过低"
+          description: "Gateway 权限缓存命中率低于 50%，当前值: {{ $value | humanizePercentage }}"

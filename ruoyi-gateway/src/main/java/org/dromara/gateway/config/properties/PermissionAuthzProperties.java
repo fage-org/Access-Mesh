@@ -70,6 +70,36 @@ public class PermissionAuthzProperties {
     private List<String> grayscaleRoutes = new ArrayList<>();
 
     /**
+     * 灰度用户列表（仅对这些用户启用鉴权）
+     */
+    private List<String> grayscaleUsers = new ArrayList<>();
+
+    /**
+     * 灰度比例（0-100，按请求比例灰度）
+     */
+    private int grayscalePercentage = 0;
+
+    /**
+     * 是否启用精确鉴权（调用 permission-center 进行精确鉴权）
+     */
+    private boolean preciseCheckEnabled = false;
+
+    /**
+     * 回滚版本（用于紧急回滚，设置为旧版本号则使用旧版本快照）
+     */
+    private String rollbackVersion = null;
+
+    /**
+     * 排除的租户列表（不进行权限检查）
+     */
+    private List<String> excludedTenants = new ArrayList<>();
+
+    /**
+     * 排除的路由列表（不进行权限检查）
+     */
+    private List<String> excludedRoutes = new ArrayList<>();
+
+    /**
      * 检查是否在灰度范围内
      *
      * @param tenantId 租户ID
@@ -101,5 +131,38 @@ public class PermissionAuthzProperties {
             return route.startsWith(prefix);
         }
         return pattern.equals(route);
+    }
+
+    /**
+     * 检查是否被排除
+     *
+     * @param tenantId 租户ID
+     * @param route    路由路径
+     * @return 是否被排除
+     */
+    public boolean isExcluded(String tenantId, String route) {
+        // 检查租户排除
+        if (excludedTenants.contains(tenantId)) {
+            return true;
+        }
+        // 检查路由排除
+        return excludedRoutes.stream().anyMatch(pattern -> matchRoute(pattern, route));
+    }
+
+    /**
+     * 检查是否需要进行权限检查
+     *
+     * @param tenantId 租户ID
+     * @param route    路由路径
+     * @return 是否需要进行权限检查
+     */
+    public boolean shouldCheck(String tenantId, String route) {
+        if (!enabled) {
+            return false;
+        }
+        if (isExcluded(tenantId, route)) {
+            return false;
+        }
+        return isInGrayscale(tenantId, route);
     }
 }

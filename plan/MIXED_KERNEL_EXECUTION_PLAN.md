@@ -956,6 +956,26 @@ Phase 12 验收补记：
 - 线上故障可快速定位到身份、版本、快照、条件、冲突或依赖中的具体环节。
 - 新能力可灰度接入和回滚，不影响核心业务链路。
 
+Phase 13 验收补记：
+
+- 输入依赖：
+  - ruoyi-common-prometheus 模块（Micrometer + Prometheus）
+  - Spring Cloud Bus（RabbitMQ）
+  - Actuator 端点配置
+- 输出接口：
+  - 指标体系：`permission.check.*`、`permission.snapshot.*`、`permission.version.*` 等
+  - 日志体系：`PERMISSION_AUDIT` Logger，输出 JSON 格式结构化日志
+  - 告警规则：`permission_alerts.yml`，包含 12 条告警规则
+  - 灰度开关：Gateway、Auth、Permission-center 三层开关配置
+  - MQ 通知：`PermissionVersionChangedEvent` 跨服务传播
+- 验收记录：
+  - 定向回归：`mvn -pl ruoyi-modules/ruoyi-permission-center -am test -DskipTests=false -Pdev "-Dtest=PermissionMetricsCollectorTest"`
+  - Tests run: 10, Failures: 0, Errors: 0
+- 风险与未决问题列表：
+  - 指标采集可能影响性能，需关注高并发场景
+  - 日志量可能过大，需配置合理的滚动策略
+  - MQ 消息丢失可能导致缓存不一致，需实现确认机制
+
 ---
 
 ## 4. 阶段间依赖关系
