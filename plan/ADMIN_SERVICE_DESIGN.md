@@ -1,6 +1,6 @@
 # 管理服务 (admin-service) - 详细设计文档
 
-本文档定义管理服务的所有模块、接口清单及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）、`GATEWAY_DESIGN.md`（网关）和 `DESIGN_v2.md`（权限中心）配套使用。
+本文档定义管理服务的所有模块、接口清单及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）、`GATEWAY_DESIGN.md`（网关）和 `DESIGN.md`（权限中心）配套使用。
 
 ---
 

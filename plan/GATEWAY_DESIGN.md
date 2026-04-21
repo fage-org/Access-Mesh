@@ -1,6 +1,6 @@
 # Gateway 网关服务 - 详细设计文档
 
-本文档定义 Gateway 服务的所有模块、配置结构、过滤器链及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）和 `DESIGN_v2.md`（权限中心）配套使用。
+本文档定义 Gateway 服务的所有模块、配置结构、过滤器链及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）和 `DESIGN.md`（权限中心）配套使用。
 
 ---
 

@@ -26,10 +26,31 @@
 18. [权限版本与快照](#18-权限版本与快照)
 19. [变更记录查询](#19-变更记录查询)
 20. [用户权限视图](#20-用户权限视图)
+21. [系统配置管理](#21-系统配置管理)
 
 ---
 
 ## 通用约定
+
+### 项目规范
+
+- **所有接口统一使用 POST 方法。**
+- **所有参数通过 JSON 请求体传递，不通过 URL 路径或 Query 参数传递。**
+- Content-Type 统一为 `application/json`。
+
+### 接口路径命名规则
+
+标准 CRUD 操作使用统一后缀：
+
+| 后缀      | 含义           |
+| --------- | -------------- |
+| `/list`   | 分页/列表查询  |
+| `/detail` | 详情查询       |
+| `/create` | 创建           |
+| `/update` | 更新           |
+| `/remove` | 删除（软删除） |
+
+特殊操作使用动作语义后缀（如 `/move`、`/sync`、`/check`）。
 
 ### 请求头
 
@@ -50,6 +71,8 @@
 ```
 
 ### 分页请求参数
+
+所有分页接口的请求体中包含以下字段：
 
 | 参数     | 类型 | 必填 | 说明                        |
 | -------- | ---- | ---- | --------------------------- |
@@ -74,7 +97,7 @@
 
 - 所有删除为软删除（`delete_flag = 本行id`，`deleted_at = now()`）。
 - 所有查询默认过滤已删除记录。
-- 删除接口统一使用 `POST /api/perm/{resource}/remove`，请求体为 ID 列表。
+- 删除接口请求体统一为 `{ "ids": [1, 2, 3] }`。
 
 ---
 
@@ -95,12 +118,12 @@
 #### 1.3.1 查询类型列表
 
 ```
-GET /api/perm/types
+POST /api/perm/types/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数        | 类型   | 必填 | 说明                                           |
+| 字段        | 类型   | 必填 | 说明                                           |
 | ----------- | ------ | ---- | ---------------------------------------------- |
 | typeKey     | string | 否   | 类型键，如 user_type、role_type、resource_type |
 | bizDomainId | long   | 否   | 业务域ID，NULL 查全局                          |
@@ -126,7 +149,7 @@ GET /api/perm/types
 #### 1.3.2 创建类型
 
 ```
-POST /api/perm/types
+POST /api/perm/types/create
 ```
 
 **请求体**
@@ -152,8 +175,18 @@ POST /api/perm/types
 #### 1.3.3 更新类型
 
 ```
-PUT /api/perm/types/{id}
+POST /api/perm/types/update
 ```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明          |
+| ----------- | ------ | ---- | ------------- |
+| id          | long   | 是   | 类型ID        |
+| name        | string | 否   | 显示名称      |
+| description | string | 否   | 描述          |
+| sortOrder   | int    | 否   | 排序          |
+| extra       | object | 否   | 扩展配置 JSON |
 
 **业务规则**
 
@@ -197,12 +230,12 @@ POST /api/perm/types/remove
 #### 2.3.1 查询域列表
 
 ```
-GET /api/perm/domains
+POST /api/perm/domains/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数    | 类型   | 必填 | 说明                     |
+| 字段    | 类型   | 必填 | 说明                     |
 | ------- | ------ | ---- | ------------------------ |
 | keyword | string | 否   | 按 code 或 name 模糊搜索 |
 
@@ -223,7 +256,7 @@ GET /api/perm/domains
 #### 2.3.2 创建域
 
 ```
-POST /api/perm/domains
+POST /api/perm/domains/create
 ```
 
 **请求体**
@@ -242,8 +275,16 @@ POST /api/perm/domains
 #### 2.3.3 更新域
 
 ```
-PUT /api/perm/domains/{id}
+POST /api/perm/domains/update
 ```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明   |
+| ----------- | ------ | ---- | ------ |
+| id          | long   | 是   | 域ID   |
+| name        | string | 否   | 域名称 |
+| description | string | 否   | 描述   |
 
 **业务规则**
 
@@ -254,6 +295,12 @@ PUT /api/perm/domains/{id}
 
 ```
 POST /api/perm/domains/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [1, 2] }
 ```
 
 **业务规则**
@@ -279,12 +326,12 @@ POST /api/perm/domains/remove
 #### 3.3.1 查询用户列表（分页）
 
 ```
-GET /api/perm/users
+POST /api/perm/users/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数     | 类型   | 必填 | 说明                            |
+| 字段     | 类型   | 必填 | 说明                            |
 | -------- | ------ | ---- | ------------------------------- |
 | userType | int    | 否   | 用户类型枚举值                  |
 | keyword  | string | 否   | 按 name 或 external_id 模糊搜索 |
@@ -294,8 +341,14 @@ GET /api/perm/users
 #### 3.3.2 查询用户详情
 
 ```
-GET /api/perm/users/{id}
+POST /api/perm/users/detail
 ```
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明   |
+| ---- | ---- | ---- | ------ |
+| id   | long | 是   | 用户ID |
 
 **响应 data**
 
@@ -306,6 +359,7 @@ GET /api/perm/users/{id}
   "userTypeName": "人员",
   "externalId": "emp_001",
   "name": "张三",
+  "enabled": true,
   "extra": {},
   "createdAt": "2026-01-01T00:00:00Z"
 }
@@ -314,27 +368,29 @@ GET /api/perm/users/{id}
 #### 3.3.3 创建用户
 
 ```
-POST /api/perm/users
+POST /api/perm/users/create
 ```
 
 **请求体**
 
-| 字段       | 类型   | 必填 | 说明                 |
-| ---------- | ------ | ---- | -------------------- |
-| userType   | int    | 是   | 用户类型枚举值       |
-| externalId | string | 是   | 外部业务系统唯一标识 |
-| name       | string | 否   | 显示名               |
-| extra      | object | 否   | 扩展属性             |
+| 字段       | 类型    | 必填 | 说明                                    |
+| ---------- | ------- | ---- | --------------------------------------- |
+| userType   | int     | 是   | 用户类型枚举值                          |
+| externalId | string  | 是   | 外部业务系统唯一标识                    |
+| name       | string  | 否   | 显示名                                  |
+| enabled    | boolean | 否   | 是否启用，默认 true。false 时鉴权不通过 |
+| extra      | object  | 否   | 扩展属性                                |
 
 **业务规则**
 
 - `(tenant_id, user_type, external_id)` 唯一。
 - `userType` 必须在 type_definition 中存在（type_key='user_type'）。
+- 创建时自动创建个人角色 `PERSONAL_{externalId}`（role_type=PERSONAL），加入默认分组并写入 user_role。
 
 #### 3.3.4 批量创建/同步用户
 
 ```
-POST /api/perm/users/batch
+POST /api/perm/users/batch-sync
 ```
 
 **请求体**
@@ -353,16 +409,32 @@ POST /api/perm/users/batch
 - 按 `(user_type, external_id)` 匹配：已存在则更新 name/extra，不存在则创建。
 - 返回创建数和更新数。
 
+**响应 data**
+
+```json
+{ "created": 1, "updated": 1 }
+```
+
 #### 3.3.5 更新用户
 
 ```
-PUT /api/perm/users/{id}
+POST /api/perm/users/update
 ```
+
+**请求体**
+
+| 字段    | 类型    | 必填 | 说明                         |
+| ------- | ------- | ---- | ---------------------------- |
+| id      | long    | 是   | 用户ID                       |
+| name    | string  | 否   | 显示名                       |
+| enabled | boolean | 否   | 是否启用。false 时鉴权不通过 |
+| extra   | object  | 否   | 扩展属性                     |
 
 **业务规则**
 
 - `userType` 和 `externalId` 不可修改。
-- 可修改 `name`、`extra`。
+- 可修改 `name`、`enabled`、`extra`。
+- `enabled` 设为 false 后，该用户所有鉴权请求直接拒绝。
 
 #### 3.3.6 删除用户
 
@@ -370,10 +442,17 @@ PUT /api/perm/users/{id}
 POST /api/perm/users/remove
 ```
 
+**请求体**
+
+```json
+{ "ids": [1, 2] }
+```
+
 **业务规则**
 
 - 级联软删 `user_role` 中该用户的所有关联。
-- 写入 permission_change_log。
+- 级联软删个人角色的 `role_resource_permission`。
+- 写入 operation_log + permission_change_log。
 - 失效该用户的缓存。
 
 ---
@@ -395,12 +474,12 @@ POST /api/perm/users/remove
 #### 4.3.1 查询分组树
 
 ```
-GET /api/perm/groups/tree
+POST /api/perm/groups/tree
 ```
 
-**请求参数**
+**请求体**
 
-| 参数         | 类型    | 必填 | 说明                               |
+| 字段         | 类型    | 必填 | 说明                               |
 | ------------ | ------- | ---- | ---------------------------------- |
 | bizDomainId  | long    | 否   | 业务域ID，NULL 查全局              |
 | includeRoles | boolean | 否   | 是否在树节点中包含角色，默认 false |
@@ -438,21 +517,28 @@ GET /api/perm/groups/tree
 #### 4.3.2 查询分组详情
 
 ```
-GET /api/perm/groups/{id}
+POST /api/perm/groups/detail
 ```
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明   |
+| ---- | ---- | ---- | ------ |
+| id   | long | 是   | 分组ID |
 
 **响应 data**：分组基础信息 + 直接子分组列表 + 直接角色列表 + 关联用户数。
 
 #### 4.3.3 查询分组角色（含子分组展开）
 
 ```
-GET /api/perm/groups/{id}/roles
+POST /api/perm/groups/roles/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数            | 类型    | 必填 | 说明                          |
+| 字段            | 类型    | 必填 | 说明                          |
 | --------------- | ------- | ---- | ----------------------------- |
+| groupId         | long    | 是   | 分组ID                        |
 | includeChildren | boolean | 否   | 是否展开子分组角色，默认 true |
 | pageNum         | int     | 否   | 页码                          |
 | pageSize        | int     | 否   | 每页条数                      |
@@ -490,15 +576,23 @@ GET /api/perm/groups/{id}/roles
 #### 4.3.4 查询分组关联用户
 
 ```
-GET /api/perm/groups/{id}/users
+POST /api/perm/groups/users/list
 ```
+
+**请求体**
+
+| 字段     | 类型 | 必填 | 说明     |
+| -------- | ---- | ---- | -------- |
+| groupId  | long | 是   | 分组ID   |
+| pageNum  | int  | 否   | 页码     |
+| pageSize | int  | 否   | 每页条数 |
 
 **响应 data**：关联到该分组的用户列表（不含子分组的用户）。
 
 #### 4.3.5 创建分组
 
 ```
-POST /api/perm/groups
+POST /api/perm/groups/create
 ```
 
 **请求体**
@@ -521,8 +615,18 @@ POST /api/perm/groups
 #### 4.3.6 更新分组
 
 ```
-PUT /api/perm/groups/{id}
+POST /api/perm/groups/update
 ```
+
+**请求体**
+
+| 字段      | 类型   | 必填 | 说明     |
+| --------- | ------ | ---- | -------- |
+| id        | long   | 是   | 分组ID   |
+| name      | string | 否   | 分组名称 |
+| code      | string | 否   | 分组编码 |
+| sortOrder | int    | 否   | 排序     |
+| extra     | object | 否   | 扩展属性 |
 
 **业务规则**
 
@@ -533,14 +637,15 @@ PUT /api/perm/groups/{id}
 #### 4.3.7 移动分组
 
 ```
-PUT /api/perm/groups/{id}/move
+POST /api/perm/groups/move
 ```
 
 **请求体**
 
-```json
-{ "targetParentId": 5 }
-```
+| 字段           | 类型 | 必填 | 说明                        |
+| -------------- | ---- | ---- | --------------------------- |
+| id             | long | 是   | 分组ID                      |
+| targetParentId | long | 否   | 目标父分组ID，NULL 移到根级 |
 
 **业务规则**
 
@@ -591,12 +696,12 @@ POST /api/perm/groups/remove
 #### 5.3.1 查询角色列表（分页）
 
 ```
-GET /api/perm/roles
+POST /api/perm/roles/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数        | 类型   | 必填 | 说明                           |
+| 字段        | 类型   | 必填 | 说明                           |
 | ----------- | ------ | ---- | ------------------------------ |
 | bizDomainId | long   | 否   | 业务域ID                       |
 | roleType    | int    | 否   | 角色类型枚举值                 |
@@ -608,8 +713,14 @@ GET /api/perm/roles
 #### 5.3.2 查询角色详情
 
 ```
-GET /api/perm/roles/{id}
+POST /api/perm/roles/detail
 ```
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明   |
+| ---- | ---- | ---- | ------ |
+| id   | long | 是   | 角色ID |
 
 **响应 data**
 
@@ -621,6 +732,7 @@ GET /api/perm/roles/{id}
   "name": "前端开发",
   "bizDomainId": null,
   "externalId": "role_frontend",
+  "status": 1,
   "sortOrder": 1,
   "extra": {},
   "groups": [
@@ -634,20 +746,21 @@ GET /api/perm/roles/{id}
 #### 5.3.3 创建角色
 
 ```
-POST /api/perm/roles
+POST /api/perm/roles/create
 ```
 
 **请求体**
 
-| 字段        | 类型   | 必填 | 说明                  |
-| ----------- | ------ | ---- | --------------------- |
-| roleType    | int    | 是   | 角色类型枚举值        |
-| name        | string | 是   | 角色名称              |
-| bizDomainId | long   | 否   | 业务域ID，NULL 为全局 |
-| externalId  | string | 否   | 外部标识              |
-| groupIds    | long[] | 否   | 初始关联的分组ID列表  |
-| sortOrder   | int    | 否   | 排序                  |
-| extra       | object | 否   | 扩展属性              |
+| 字段        | 类型   | 必填 | 说明                        |
+| ----------- | ------ | ---- | --------------------------- |
+| roleType    | int    | 是   | 角色类型枚举值              |
+| name        | string | 是   | 角色名称                    |
+| bizDomainId | long   | 否   | 业务域ID，NULL 为全局       |
+| externalId  | string | 否   | 外部标识                    |
+| groupIds    | long[] | 否   | 初始关联的分组ID列表        |
+| status      | int    | 否   | 状态：0=停用 1=启用，默认 1 |
+| sortOrder   | int    | 否   | 排序                        |
+| extra       | object | 否   | 扩展属性                    |
 
 **业务规则**
 
@@ -659,18 +772,38 @@ POST /api/perm/roles
 #### 5.3.4 更新角色
 
 ```
-PUT /api/perm/roles/{id}
+POST /api/perm/roles/update
 ```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明                |
+| ----------- | ------ | ---- | ------------------- |
+| id          | long   | 是   | 角色ID              |
+| name        | string | 否   | 角色名称            |
+| bizDomainId | long   | 否   | 业务域ID            |
+| externalId  | string | 否   | 外部标识            |
+| status      | int    | 否   | 状态：0=停用 1=启用 |
+| sortOrder   | int    | 否   | 排序                |
+| extra       | object | 否   | 扩展属性            |
 
 **业务规则**
 
 - `roleType` 不可修改。
-- 可修改 `name`、`externalId`、`bizDomainId`、`sortOrder`、`extra`。
+- 可修改 `name`、`externalId`、`bizDomainId`、`status`、`sortOrder`、`extra`。
+- `status` 设为 0 后，该角色不参与鉴权。
+- 角色名唯一性根据 `system_config.ROLE_NAME_UNIQUE_MODE` 配置检查。
 
 #### 5.3.5 删除角色
 
 ```
 POST /api/perm/roles/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [10, 11] }
 ```
 
 **业务规则**
@@ -695,14 +828,15 @@ POST /api/perm/roles/remove
 #### 6.2.1 为分组添加角色
 
 ```
-POST /api/perm/groups/{groupId}/roles
+POST /api/perm/group-roles/add
 ```
 
 **请求体**
 
-```json
-{ "roleIds": [10, 11, 12] }
-```
+| 字段    | 类型   | 必填 | 说明       |
+| ------- | ------ | ---- | ---------- |
+| groupId | long   | 是   | 分组ID     |
+| roleIds | long[] | 是   | 角色ID列表 |
 
 **业务规则**
 
@@ -715,14 +849,15 @@ POST /api/perm/groups/{groupId}/roles
 #### 6.2.2 从分组移除角色
 
 ```
-POST /api/perm/groups/{groupId}/roles/remove
+POST /api/perm/group-roles/remove
 ```
 
 **请求体**
 
-```json
-{ "roleIds": [10, 11] }
-```
+| 字段    | 类型   | 必填 | 说明       |
+| ------- | ------ | ---- | ---------- |
+| groupId | long   | 是   | 分组ID     |
+| roleIds | long[] | 是   | 角色ID列表 |
 
 **业务规则**
 
@@ -734,8 +869,14 @@ POST /api/perm/groups/{groupId}/roles/remove
 #### 6.2.3 查询角色所属分组
 
 ```
-GET /api/perm/roles/{roleId}/groups
+POST /api/perm/group-roles/by-role
 ```
+
+**请求体**
+
+| 字段   | 类型 | 必填 | 说明   |
+| ------ | ---- | ---- | ------ |
+| roleId | long | 是   | 角色ID |
 
 **响应 data**
 
@@ -764,12 +905,12 @@ GET /api/perm/roles/{roleId}/groups
 #### 7.3.1 查询操作列表
 
 ```
-GET /api/perm/operations
+POST /api/perm/operations/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数          | 类型    | 必填 | 说明                                              |
+| 字段          | 类型    | 必填 | 说明                                              |
 | ------------- | ------- | ---- | ------------------------------------------------- |
 | resourceType  | int     | 否   | 资源类型枚举值，查该类型适用的操作                |
 | includeGlobal | boolean | 否   | 是否包含全局操作（resource_type=NULL），默认 true |
@@ -802,7 +943,7 @@ GET /api/perm/operations
 #### 7.3.2 创建操作
 
 ```
-POST /api/perm/operations
+POST /api/perm/operations/create
 ```
 
 **请求体**
@@ -824,8 +965,16 @@ POST /api/perm/operations
 #### 7.3.3 更新操作
 
 ```
-PUT /api/perm/operations/{id}
+POST /api/perm/operations/update
 ```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明       |
+| ----------- | ------ | ---- | ---------- |
+| id          | long   | 是   | 操作ID     |
+| name        | string | 否   | 显示名     |
+| inheritMask | long   | 否   | 继承位掩码 |
 
 **业务规则**
 
@@ -837,6 +986,12 @@ PUT /api/perm/operations/{id}
 
 ```
 POST /api/perm/operations/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [1, 2] }
 ```
 
 **业务规则**
@@ -863,12 +1018,12 @@ POST /api/perm/operations/remove
 #### 8.3.1 查询资源树
 
 ```
-GET /api/perm/resources/tree
+POST /api/perm/resources/tree
 ```
 
-**请求参数**
+**请求体**
 
-| 参数         | 类型 | 必填 | 说明           |
+| 字段         | 类型 | 必填 | 说明           |
 | ------------ | ---- | ---- | -------------- |
 | bizDomainId  | long | 否   | 业务域ID       |
 | resourceType | int  | 否   | 资源类型枚举值 |
@@ -876,12 +1031,12 @@ GET /api/perm/resources/tree
 #### 8.3.2 查询资源列表（分页，平铺）
 
 ```
-GET /api/perm/resources
+POST /api/perm/resources/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数         | 类型   | 必填 | 说明                     |
+| 字段         | 类型   | 必填 | 说明                     |
 | ------------ | ------ | ---- | ------------------------ |
 | bizDomainId  | long   | 否   | 业务域ID                 |
 | resourceType | int    | 否   | 资源类型枚举值           |
@@ -893,8 +1048,14 @@ GET /api/perm/resources
 #### 8.3.3 查询资源详情
 
 ```
-GET /api/perm/resources/{id}
+POST /api/perm/resources/detail
 ```
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明   |
+| ---- | ---- | ---- | ------ |
+| id   | long | 是   | 资源ID |
 
 **响应 data**
 
@@ -917,24 +1078,27 @@ GET /api/perm/resources/{id}
 #### 8.3.4 创建资源
 
 ```
-POST /api/perm/resources
+POST /api/perm/resources/create
 ```
 
 **请求体**
 
-| 字段         | 类型   | 必填 | 说明           |
-| ------------ | ------ | ---- | -------------- |
-| code         | string | 是   | 资源编码       |
-| name         | string | 是   | 名称           |
-| resourceType | int    | 否   | 资源类型枚举值 |
-| bizDomainId  | long   | 否   | 业务域ID       |
-| parentId     | long   | 否   | 父资源ID       |
-| sortOrder    | int    | 否   | 排序           |
-| extra        | object | 否   | 扩展属性       |
+| 字段         | 类型   | 必填 | 说明                          |
+| ------------ | ------ | ---- | ----------------------------- |
+| code         | string | 是   | 资源编码                      |
+| name         | string | 是   | 名称                          |
+| resourceType | int    | 是   | 资源类型枚举值                |
+| codeType     | string | 否   | 编码类型，默认 "default"      |
+| bizDomainId  | long   | 否   | 业务域ID                      |
+| parentId     | long   | 否   | 父资源ID                      |
+| status       | int    | 否   | 状态：0=停用 1=启用，默认 1   |
+| sortOrder    | int    | 否   | 排序                          |
+| extra        | object | 否   | 扩展属性（如菜单图标/路由等） |
 
 **业务规则**
 
-- `code` 按域唯一：`(tenant_id, biz_domain_id, code)`。
+- `(tenant_id, resource_type, biz_domain_id, code, code_type)` 唯一（biz_domain_id 可 NULL）。
+- `resourceType` 必填，引用 type_definition 中的 resource_type。
 - `parentId` 若非空须存在且未删。
 - 树深度校验：若 `resource_type` 在 type_definition.extra 中配置了 `max_depth`，则校验当前深度不超过限制。
 - 自动计算 `path`。
@@ -942,7 +1106,7 @@ POST /api/perm/resources
 #### 8.3.5 批量创建资源
 
 ```
-POST /api/perm/resources/batch
+POST /api/perm/resources/batch-create
 ```
 
 **请求体**
@@ -969,26 +1133,38 @@ POST /api/perm/resources/batch
 #### 8.3.6 更新资源
 
 ```
-PUT /api/perm/resources/{id}
+POST /api/perm/resources/update
 ```
+
+**请求体**
+
+| 字段         | 类型   | 必填 | 说明                |
+| ------------ | ------ | ---- | ------------------- |
+| id           | long   | 是   | 资源ID              |
+| name         | string | 否   | 名称                |
+| resourceType | int    | 否   | 资源类型枚举值      |
+| status       | int    | 否   | 状态：0=停用 1=启用 |
+| sortOrder    | int    | 否   | 排序                |
+| extra        | object | 否   | 扩展属性            |
 
 **业务规则**
 
-- `code` 不可修改。
-- 可修改 `name`、`resourceType`、`sortOrder`、`extra`。
+- `code` 和 `codeType` 不可修改。
+- 可修改 `name`、`resourceType`、`status`、`sortOrder`、`extra`。
 - `parentId` 修改通过专用"移动资源"接口。
 
 #### 8.3.7 移动资源
 
 ```
-PUT /api/perm/resources/{id}/move
+POST /api/perm/resources/move
 ```
 
 **请求体**
 
-```json
-{ "targetParentId": 5 }
-```
+| 字段           | 类型 | 必填 | 说明                        |
+| -------------- | ---- | ---- | --------------------------- |
+| id             | long | 是   | 资源ID                      |
+| targetParentId | long | 否   | 目标父资源ID，NULL 移到根级 |
 
 **业务规则**
 
@@ -999,6 +1175,12 @@ PUT /api/perm/resources/{id}/move
 
 ```
 POST /api/perm/resources/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [1, 2] }
 ```
 
 **业务规则**
@@ -1027,24 +1209,31 @@ POST /api/perm/resources/remove
 #### 9.3.1 查询服务列表
 
 ```
-GET /api/perm/services
-```
-
-#### 9.3.2 创建/更新服务
-
-```
-POST /api/perm/services
+POST /api/perm/services/list
 ```
 
 **请求体**
 
-| 字段        | 类型   | 必填 | 说明                 |
-| ----------- | ------ | ---- | -------------------- |
-| serviceCode | string | 是   | 服务编码，租户内唯一 |
-| name        | string | 是   | 服务名称             |
-| basePath    | string | 否   | 基础路径前缀         |
-| description | string | 否   | 描述                 |
-| extra       | object | 否   | 扩展配置             |
+| 字段    | 类型   | 必填 | 说明                            |
+| ------- | ------ | ---- | ------------------------------- |
+| keyword | string | 否   | 按 serviceCode 或 name 模糊搜索 |
+
+#### 9.3.2 创建/更新服务
+
+```
+POST /api/perm/services/save
+```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明                        |
+| ----------- | ------ | ---- | --------------------------- |
+| serviceCode | string | 是   | 服务编码，租户内唯一        |
+| name        | string | 是   | 服务名称                    |
+| basePath    | string | 否   | 基础路径前缀                |
+| status      | int    | 否   | 状态：0=停用 1=启用，默认 1 |
+| description | string | 否   | 描述                        |
+| extra       | object | 否   | 扩展配置                    |
 
 **业务规则**
 
@@ -1053,13 +1242,20 @@ POST /api/perm/services
 #### 9.3.3 服务接口全量同步
 
 ```
-POST /api/perm/services/{serviceCode}/sync
+POST /api/perm/services/sync
 ```
 
 **请求体**
 
+| 字段        | 类型   | 必填 | 说明         |
+| ----------- | ------ | ---- | ------------ |
+| serviceCode | string | 是   | 服务编码     |
+| bizDomainId | long   | 否   | 业务域ID     |
+| groups      | array  | 是   | 接口分组列表 |
+
 ```json
 {
+  "serviceCode": "user-service",
   "bizDomainId": null,
   "groups": [
     {
@@ -1077,12 +1273,6 @@ POST /api/perm/services/{serviceCode}/sync
           "path": "/api/v1/users",
           "name": "创建用户",
           "description": "创建新用户"
-        },
-        {
-          "method": "GET",
-          "path": "/api/v1/users/{id}",
-          "name": "查询用户详情",
-          "description": "按ID查询用户"
         }
       ]
     }
@@ -1117,20 +1307,24 @@ POST /api/perm/services/{serviceCode}/sync
 #### 9.3.4 查询服务的接口资源
 
 ```
-GET /api/perm/services/{serviceCode}/apis
+POST /api/perm/services/apis
 ```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明     |
+| ----------- | ------ | ---- | -------- |
+| serviceCode | string | 是   | 服务编码 |
 
 **响应 data**：该服务下的接口资源树（分组→接口）。
 
-#### 9.3.5 手动管理接口映射
+#### 9.3.5 手动创建接口映射
 
 ```
-POST /api/perm/api-mappings
-PUT /api/perm/api-mappings/{id}
-POST /api/perm/api-mappings/remove
+POST /api/perm/api-mappings/create
 ```
 
-**请求体（创建）**
+**请求体**
 
 | 字段             | 类型    | 必填 | 说明                 |
 | ---------------- | ------- | ---- | -------------------- |
@@ -1141,73 +1335,145 @@ POST /api/perm/api-mappings/remove
 | matchOrder       | int     | 否   | 匹配优先级，默认 0   |
 | enabled          | boolean | 否   | 是否启用，默认 true  |
 
+#### 9.3.6 更新接口映射
+
+```
+POST /api/perm/api-mappings/update
+```
+
+**请求体**
+
+| 字段        | 类型    | 必填 | 说明       |
+| ----------- | ------- | ---- | ---------- |
+| id          | long    | 是   | 映射记录ID |
+| httpMethod  | string  | 否   | HTTP 方法  |
+| pathPattern | string  | 否   | 路径模式   |
+| matchOrder  | int     | 否   | 匹配优先级 |
+| enabled     | boolean | 否   | 是否启用   |
+
+#### 9.3.7 删除接口映射
+
+```
+POST /api/perm/api-mappings/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [1, 2] }
+```
+
 ---
 
 ## 10. 权限条件管理
 
 ### 10.1 功能描述
 
-管理权限生效条件。条件可绑定到 `role_resource_permission`，运行时动态判定权限是否生效。
+管理权限生效条件（可复用实体）。条件可绑定到 `role_resource_permission`，运行时动态判定权限是否生效。条件规则采用结构化 JSONB 存储，支持组合逻辑。
 
 ### 10.2 适用场景
 
-- 仅工作日生效的权限（PRESET: `WORKDAY_ONLY`）。
-- 仅内网IP可访问（PRESET: `INTERNAL_IP`）。
-- 自定义表达式条件（CUSTOM: SpEL/OGNL 表达式）。
+- 仅在指定日期范围内生效的权限（DATE_RANGE）。
+- 仅在指定时间段内生效的权限（TIME_RANGE）。
+- 仅内网 IP 可访问（IP_WHITELIST / IP_BLACKLIST）。
+- 多条件组合（AND/OR 逻辑）。
 
 ### 10.3 接口列表
 
 #### 10.3.1 查询条件列表
 
 ```
-GET /api/perm/conditions
-```
-
-**请求参数**
-
-| 参数            | 类型    | 必填 | 说明                 |
-| --------------- | ------- | ---- | -------------------- |
-| conditionSource | string  | 否   | PRESET / CUSTOM      |
-| enabled         | boolean | 否   | 启用状态             |
-| keyword         | string  | 否   | 按 code 或 name 搜索 |
-
-#### 10.3.2 创建条件
-
-```
-POST /api/perm/conditions
+POST /api/perm/conditions/list
 ```
 
 **请求体**
 
-| 字段            | 类型    | 必填 | 说明                                                  |
-| --------------- | ------- | ---- | ----------------------------------------------------- |
-| code            | string  | 是   | 条件编码，租户内唯一                                  |
-| name            | string  | 是   | 名称                                                  |
-| conditionSource | string  | 是   | PRESET / CUSTOM                                       |
-| expression      | string  | 是   | 表达式（PRESET 为 handler 编码，CUSTOM 为表达式文本） |
-| enabled         | boolean | 否   | 是否启用，默认 true                                   |
-| description     | string  | 否   | 说明                                                  |
+| 字段    | 类型   | 必填 | 说明                 |
+| ------- | ------ | ---- | -------------------- |
+| keyword | string | 否   | 按 code 或 name 搜索 |
+
+#### 10.3.2 创建条件
+
+```
+POST /api/perm/conditions/create
+```
+
+**请求体**
+
+| 字段           | 类型   | 必填 | 说明                           |
+| -------------- | ------ | ---- | ------------------------------ |
+| code           | string | 是   | 条件编码，租户内唯一           |
+| name           | string | 是   | 名称                           |
+| conditionRules | object | 是   | 结构化规则（见下方 JSON 示例） |
+| description    | string | 否   | 说明                           |
+
+**conditionRules 结构**
+
+```json
+{
+  "logic": "AND",
+  "items": [
+    {
+      "type": "DATE_RANGE",
+      "params": { "startDate": "2026-01-01", "endDate": "2026-12-31" }
+    },
+    {
+      "type": "TIME_RANGE",
+      "params": { "startTime": "09:00", "endTime": "18:00" }
+    },
+    {
+      "type": "IP_WHITELIST",
+      "params": { "cidrs": ["10.0.0.0/8", "192.168.0.0/16"] }
+    }
+  ]
+}
+```
+
+**预置条件类型**
+
+| type         | 说明      | params 参数                     |
+| ------------ | --------- | ------------------------------- |
+| DATE_RANGE   | 日期范围  | startDate, endDate (yyyy-MM-dd) |
+| TIME_RANGE   | 时间段    | startTime, endTime (HH:mm)      |
+| IP_WHITELIST | IP 白名单 | cidrs (CIDR 数组)               |
+| IP_BLACKLIST | IP 黑名单 | cidrs (CIDR 数组)               |
 
 **业务规则**
 
 - `code` 在租户内唯一。
-- 创建即可用（无审核流），通过 `enabled` 控制启停。
+- `conditionRules.logic` 支持 AND / OR。
+- 条件是可复用实体，可被多个 role_resource_permission 引用。
 
 #### 10.3.3 更新条件
 
 ```
-PUT /api/perm/conditions/{id}
+POST /api/perm/conditions/update
 ```
+
+**请求体**
+
+| 字段           | 类型   | 必填 | 说明       |
+| -------------- | ------ | ---- | ---------- |
+| id             | long   | 是   | 条件ID     |
+| name           | string | 否   | 名称       |
+| conditionRules | object | 否   | 结构化规则 |
+| description    | string | 否   | 说明       |
 
 **业务规则**
 
 - `code` 不可修改。
-- 修改 `enabled` 为 false 时，不影响已引用该条件的 role_resource_permission 记录，但鉴权时该条件视为不满足。
+- 修改后立即影响所有引用该条件的权限配置。
 
 #### 10.3.4 删除条件
 
 ```
 POST /api/perm/conditions/remove
+```
+
+**请求体**
+
+```json
+{ "ids": [1, 2] }
 ```
 
 **业务规则**
@@ -1233,13 +1499,14 @@ POST /api/perm/conditions/remove
 #### 11.3.1 查询用户关联列表
 
 ```
-GET /api/perm/users/{userId}/assignments
+POST /api/perm/user-assignments/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数       | 类型   | 必填 | 说明         |
+| 字段       | 类型   | 必填 | 说明         |
 | ---------- | ------ | ---- | ------------ |
+| userId     | long   | 是   | 用户ID       |
 | targetType | string | 否   | ROLE / GROUP |
 
 **响应 data**
@@ -1270,13 +1537,14 @@ GET /api/perm/users/{userId}/assignments
 #### 11.3.2 批量分配关联
 
 ```
-POST /api/perm/users/{userId}/assignments
+POST /api/perm/user-assignments/assign
 ```
 
 **请求体**
 
 ```json
 {
+  "userId": 1,
   "assignments": [
     {
       "targetType": "ROLE",
@@ -1307,13 +1575,16 @@ POST /api/perm/users/{userId}/assignments
 #### 11.3.3 批量回收关联
 
 ```
-POST /api/perm/users/{userId}/assignments/remove
+POST /api/perm/user-assignments/revoke
 ```
 
 **请求体**
 
 ```json
-{ "ids": [1, 2] }
+{
+  "userId": 1,
+  "ids": [1, 2]
+}
 ```
 
 **业务规则**
@@ -1325,7 +1596,7 @@ POST /api/perm/users/{userId}/assignments/remove
 #### 11.3.4 批量用户分配（按角色/分组视角）
 
 ```
-POST /api/perm/assignments/batch
+POST /api/perm/user-assignments/batch-assign
 ```
 
 **请求体**
@@ -1365,13 +1636,14 @@ POST /api/perm/assignments/batch
 #### 12.3.1 查询角色的权限列表
 
 ```
-GET /api/perm/roles/{roleId}/permissions
+POST /api/perm/role-permissions/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数            | 类型    | 必填 | 说明                                              |
+| 字段            | 类型    | 必填 | 说明                                              |
 | --------------- | ------- | ---- | ------------------------------------------------- |
+| roleId          | long    | 是   | 角色ID                                            |
 | resourceType    | int     | 否   | 按资源类型过滤                                    |
 | bizDomainId     | long    | 否   | 按业务域过滤                                      |
 | includeChildren | boolean | 否   | 是否包含子权限（depend_on 不为 NULL），默认 false |
@@ -1401,31 +1673,36 @@ GET /api/perm/roles/{roleId}/permissions
 #### 12.3.2 批量配置角色权限
 
 ```
-POST /api/perm/roles/{roleId}/permissions
+POST /api/perm/role-permissions/grant
 ```
 
 **请求体**
 
 ```json
 {
-  "permissions": [
+  "roleId": 10,
+  "add": [
     {
       "resourceEntityId": 1,
       "operationPermissionId": 1,
       "canManage": false,
       "conditionId": null
-    },
+    }
+  ],
+  "update": [
     {
-      "resourceEntityId": 1,
-      "operationPermissionId": 2,
+      "id": 100,
       "canManage": true,
       "conditionId": 5
     }
-  ]
+  ],
+  "delete": [101, 102]
 }
 ```
 
 **业务规则**
+
+- 三段式操作：`add`（新增）、`update`（修改现有）、`delete`（删除）在同一事务中执行。
 
 - 校验角色、资源、操作存在且未删。
 - 校验操作与资源类型匹配：`operation_permission.resource_type` 为 NULL 或等于 `resource_entity.resource_type`。
@@ -1439,13 +1716,16 @@ POST /api/perm/roles/{roleId}/permissions
 #### 12.3.3 批量回收角色权限
 
 ```
-POST /api/perm/roles/{roleId}/permissions/remove
+POST /api/perm/role-permissions/revoke
 ```
 
 **请求体**
 
 ```json
-{ "ids": [100, 101] }
+{
+  "roleId": 10,
+  "ids": [100, 101]
+}
 ```
 
 **业务规则**
@@ -1473,8 +1753,14 @@ POST /api/perm/roles/{roleId}/permissions/remove
 #### 13.3.1 查询主权限的子权限
 
 ```
-GET /api/perm/permissions/{permId}/children
+POST /api/perm/sub-permissions/list
 ```
+
+**请求体**
+
+| 字段         | 类型 | 必填 | 说明     |
+| ------------ | ---- | ---- | -------- |
+| permissionId | long | 是   | 主权限ID |
 
 **响应 data**
 
@@ -1497,13 +1783,14 @@ GET /api/perm/permissions/{permId}/children
 #### 13.3.2 为主权限添加子权限
 
 ```
-POST /api/perm/permissions/{permId}/children
+POST /api/perm/sub-permissions/add
 ```
 
 **请求体**
 
 ```json
 {
+  "permissionId": 200,
   "children": [
     {
       "resourceEntityId": 50,
@@ -1515,16 +1802,16 @@ POST /api/perm/permissions/{permId}/children
 
 **业务规则**
 
-- `permId` 必须存在且 `depend_on IS NULL`（只能给主权限添加子权限）。
+- `permissionId` 必须存在且 `depend_on IS NULL`（只能给主权限添加子权限）。
 - 子权限的 `abstract_role_id` 继承自父权限。
-- 子权限的 `depend_on = permId`。
+- 子权限的 `depend_on = permissionId`。
 - `resource_type` 冗余字段自动填充。
 - 写入 permission_change_log。
 
 #### 13.3.3 删除子权限
 
 ```
-POST /api/perm/permissions/children/remove
+POST /api/perm/sub-permissions/remove
 ```
 
 **请求体**
@@ -1544,27 +1831,29 @@ POST /api/perm/permissions/children/remove
 
 ### 14.1 功能描述
 
-管理域下的范围(SCOPE)、关系(RELATION)、绑定(BINDING)配置。三种配置统一存储在 `domain_config` 表。
+管理域下的范围(SCOPE)、关系(RELATION)、绑定(BINDING)、子权限定义(SUB_PERM)配置。四种配置统一存储在 `domain_config` 表。
 
 ### 14.2 适用场景
 
 - 配置域下允许使用的角色类型、资源类型、操作。
 - 配置域内角色类型与资源类型的可关联关系。
 - 将全局角色/资源/操作绑定到特定域。
+- 定义域下哪些资源类型可作为子权限的数据范围。
 
 ### 14.3 接口列表
 
 #### 14.3.1 查询域配置
 
 ```
-GET /api/perm/domains/{domainId}/config
+POST /api/perm/domain-configs/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数       | 类型   | 必填 | 说明                       |
-| ---------- | ------ | ---- | -------------------------- |
-| configType | string | 否   | SCOPE / RELATION / BINDING |
+| 字段       | 类型   | 必填 | 说明                                  |
+| ---------- | ------ | ---- | ------------------------------------- |
+| domainId   | long   | 是   | 域ID                                  |
+| configType | string | 否   | SCOPE / RELATION / BINDING / SUB_PERM |
 
 **响应 data**
 
@@ -1595,21 +1884,23 @@ GET /api/perm/domains/{domainId}/config
 #### 14.3.2 添加域配置
 
 ```
-POST /api/perm/domains/{domainId}/config
+POST /api/perm/domain-configs/create
 ```
 
 **请求体**
 
-| 字段       | 类型   | 必填 | 说明                       |
-| ---------- | ------ | ---- | -------------------------- |
-| configType | string | 是   | SCOPE / RELATION / BINDING |
-| extra      | object | 是   | 配置内容 JSON              |
+| 字段       | 类型   | 必填 | 说明                                  |
+| ---------- | ------ | ---- | ------------------------------------- |
+| domainId   | long   | 是   | 域ID                                  |
+| configType | string | 是   | SCOPE / RELATION / BINDING / SUB_PERM |
+| extra      | object | 是   | 配置内容 JSON                         |
 
 **extra 格式说明**
 
 - **SCOPE**: `{"scope_type": "ROLE_TYPE|RESOURCE_TYPE|OPERATION", "scope_ref_id": <type_value 或 operation_id>}`
 - **RELATION**: `{"relation_type": "ROLE_RESOURCE", "left_ref_id": <role_type_value>, "right_ref_id": <resource_type_value>}`
 - **BINDING**: `{"bound_type": "ROLE|RESOURCE|OPERATION", "bound_entity_id": <实体ID>}`
+- **SUB_PERM**: `{"sub_resource_type": <resource_type_value>, "description": "子权限数据范围说明"}`
 
 **业务规则**
 
@@ -1620,13 +1911,16 @@ POST /api/perm/domains/{domainId}/config
 #### 14.3.3 删除域配置
 
 ```
-POST /api/perm/domains/{domainId}/config/remove
+POST /api/perm/domain-configs/remove
 ```
 
 **请求体**
 
 ```json
-{ "ids": [1, 2] }
+{
+  "domainId": 1,
+  "ids": [1, 2]
+}
 ```
 
 ---
@@ -1635,24 +1929,25 @@ POST /api/perm/domains/{domainId}/config/remove
 
 ### 15.1 功能描述
 
-管理资源间的声明式依赖关系。由业务系统注册资源时自动维护，权限中心提供存储、查询和依赖完整性检查。
+管理资源间的声明式依赖关系。由业务系统注册资源时自动维护，权限中心提供存储、查询和依赖完整性检查。依赖关系使用位运算表达操作级粒度。
 
 ### 15.2 适用场景
 
 - 报表资源依赖数据集资源：查看报表需要数据集的 DATA_READ 权限。
 - 权限配置时提示"缺少依赖权限"。
+- 支持 auto_grant 自动补齐依赖权限。
 
 ### 15.3 接口列表
 
 #### 15.3.1 查询资源依赖列表
 
 ```
-GET /api/perm/resource-dependencies
+POST /api/perm/resource-dependencies/list
 ```
 
-**请求参数**
+**请求体**
 
-| 参数                      | 类型 | 必填 | 说明       |
+| 字段                      | 类型 | 必填 | 说明       |
 | ------------------------- | ---- | ---- | ---------- |
 | resourceEntityId          | long | 否   | 主体资源ID |
 | dependsOnResourceEntityId | long | 否   | 依赖资源ID |
@@ -1660,23 +1955,25 @@ GET /api/perm/resource-dependencies
 #### 15.3.2 添加资源依赖
 
 ```
-POST /api/perm/resource-dependencies
+POST /api/perm/resource-dependencies/create
 ```
 
 **请求体**
 
-| 字段                          | 类型 | 必填 | 说明                                          |
-| ----------------------------- | ---- | ---- | --------------------------------------------- |
-| resourceEntityId              | long | 是   | 主体资源ID                                    |
-| dependsOnResourceEntityId     | long | 是   | 依赖资源ID                                    |
-| sourceOperationPermissionId   | long | 否   | 仅当对主体资源做该操作时应用，NULL 为任意操作 |
-| requiredOperationPermissionId | long | 是   | 对依赖资源所需的操作ID                        |
+| 字段                      | 类型    | 必填 | 说明                                              |
+| ------------------------- | ------- | ---- | ------------------------------------------------- |
+| resourceEntityId          | long    | 是   | 主体资源ID                                        |
+| dependsOnResourceEntityId | long    | 是   | 依赖资源ID                                        |
+| sourceOperationBits       | bigint  | 否   | 触发条件：对主体资源的操作位掩码，NULL 为任意操作 |
+| requiredOperationBits     | bigint  | 是   | 对依赖资源所需的操作位掩码                        |
+| autoGrant                 | boolean | 否   | 是否自动补齐依赖权限，默认 false                  |
 
 **业务规则**
 
 - 主体资源和依赖资源须存在且未删。
 - 写入时防环校验（检查新依赖是否形成循环）。
-- `(tenant_id, resource_entity_id, depends_on_resource_entity_id, COALESCE(source_operation_permission_id, 0))` 唯一。
+- `(tenant_id, resource_entity_id, depends_on_resource_entity_id)` 唯一。
+- `autoGrant=true` 时，授权主体资源对应操作时自动补齐依赖资源的 `requiredOperationBits` 权限。
 
 #### 15.3.3 删除资源依赖
 
@@ -1684,7 +1981,40 @@ POST /api/perm/resource-dependencies
 POST /api/perm/resource-dependencies/remove
 ```
 
-#### 15.3.4 查询依赖图
+**请求体**
+
+```json
+{ "ids": [1, 2] }
+```
+
+#### 15.3.4 批量同步依赖
+
+```
+POST /api/perm/resource-dependencies/batch-sync
+```
+
+**请求体**
+
+```json
+{
+  "resourceEntityId": 1,
+  "dependencies": [
+    {
+      "dependsOnResourceEntityId": 50,
+      "sourceOperationBits": 4,
+      "requiredOperationBits": 2,
+      "autoGrant": true
+    }
+  ]
+}
+```
+
+**业务规则**
+
+- 按 `resourceEntityId` 全量替换：传入列表即为该资源的完整依赖集。
+- 不在列表中的已有依赖自动删除。
+
+#### 15.3.5 查询依赖图
 
 ```
 POST /api/perm/resource-dependencies/graph
@@ -1697,9 +2027,9 @@ POST /api/perm/resource-dependencies/graph
 | resourceEntityId | long   | 是   | 起点资源ID                                                |
 | graphMode        | string | 否   | AROUND(围绕)/UPSTREAM(上游)/DOWNSTREAM(下游)，默认 AROUND |
 
-**响应 data**：边集合（source → target + operation）。
+**响应 data**：边集合（source → target + operationBits）。
 
-#### 15.3.5 检查依赖完整性
+#### 15.3.6 检查依赖完整性
 
 ```
 POST /api/perm/resource-dependencies/check
@@ -1737,40 +2067,57 @@ POST /api/perm/resource-dependencies/check
 
 ### 16.1 功能描述
 
-管理同资源下操作的互斥规则。查询/快照组装时检测冲突，冲突权限失效。
+管理两种类型的冲突规则：
+
+- **ROLE_MUTEX（角色互斥）**：同一用户不能同时拥有两个互斥角色，写入时检查并拒绝。
+- **PERM_MUTEX（权限互斥）**：同资源下操作的互斥规则，查询时实时计算冲突并使权限失效，异步通知管理员。
 
 ### 16.2 适用场景
 
-- 同一用户对同一资源不能同时拥有"审批"和"提交"操作。
-- 运行时冲突检测与异步通知管理员修正。
+- 同一用户不能同时拥有"管理员"和"审计员"角色（ROLE_MUTEX）。
+- 同一用户对同一资源不能同时拥有"审批"和"提交"操作（PERM_MUTEX）。
+- ROLE_MUTEX 在分配角色时实时拦截。
+- PERM_MUTEX 在鉴权查询时实时计算 + TTL 缓存 + version 失效。
 
 ### 16.3 接口列表
 
 #### 16.3.1 查询冲突规则列表
 
 ```
-GET /api/perm/conflict-rules
-```
-
-#### 16.3.2 添加冲突规则
-
-```
-POST /api/perm/conflict-rules
+POST /api/perm/conflict-rules/list
 ```
 
 **请求体**
 
-| 字段                        | 类型 | 必填 | 说明                            |
-| --------------------------- | ---- | ---- | ------------------------------- |
-| firstOperationPermissionId  | long | 是   | 互斥操作一                      |
-| secondOperationPermissionId | long | 是   | 互斥操作二                      |
-| bizDomainId                 | long | 否   | 业务域ID，NULL 为全局           |
-| resourceTypeValue           | int  | 否   | 仅指定资源类型生效，NULL 为所有 |
+| 字段        | 类型 | 必填 | 说明         |
+| ----------- | ---- | ---- | ------------ |
+| bizDomainId | long | 否   | 按业务域过滤 |
+
+#### 16.3.2 添加冲突规则
+
+```
+POST /api/perm/conflict-rules/create
+```
+
+**请求体**
+
+| 字段                        | 类型   | 必填 | 说明                                     |
+| --------------------------- | ------ | ---- | ---------------------------------------- |
+| conflictType                | string | 是   | ROLE_MUTEX / PERM_MUTEX                  |
+| firstOperationPermissionId  | long   | 条件 | PERM_MUTEX 时必填，互斥操作一            |
+| secondOperationPermissionId | long   | 条件 | PERM_MUTEX 时必填，互斥操作二            |
+| firstRoleId                 | long   | 条件 | ROLE_MUTEX 时必填，互斥角色一            |
+| secondRoleId                | long   | 条件 | ROLE_MUTEX 时必填，互斥角色二            |
+| bizDomainId                 | long   | 否   | 业务域ID，NULL 为全局                    |
+| resourceTypeValue           | int    | 否   | PERM_MUTEX 时可指定资源类型，NULL 为所有 |
 
 **业务规则**
 
-- 存库时自动排序：`first_id < second_id`。
-- `(tenant_id, biz_domain_id, first_id, second_id)` 唯一。
+- PERM_MUTEX 时存库自动排序：`first_id < second_id`。
+- ROLE_MUTEX 时存库自动排序：`first_role_id < second_role_id`。
+- PERM_MUTEX: `(tenant_id, biz_domain_id, first_operation_id, second_operation_id)` 唯一。
+- ROLE_MUTEX: `(tenant_id, first_role_id, second_role_id)` 唯一。
+- ROLE_MUTEX 写入时检查：若已有用户同时拥有两角色，拒绝创建并返回冲突用户列表。
 
 #### 16.3.3 删除冲突规则
 
@@ -1778,10 +2125,16 @@ POST /api/perm/conflict-rules
 POST /api/perm/conflict-rules/remove
 ```
 
+**请求体**
+
+```json
+{ "ids": [1, 2] }
+```
+
 #### 16.3.4 冲突检测
 
 ```
-POST /api/perm/conflict-detection
+POST /api/perm/conflict-rules/detect
 ```
 
 **请求体**
@@ -1816,14 +2169,22 @@ POST /api/perm/conflict-detection
 
 ### 17.1 功能描述
 
-核心鉴权接口，判断用户对资源的操作是否被授权。
+核心鉴权接口，支持三种鉴权模式：
+
+1. **Gateway 拦截**：网关层统一拦截，通过接口快照 + 本地缓存高性能判定。
+2. **服务单次检查**：业务服务内部调用，单资源单操作判定。
+3. **服务批量检查**：业务服务内部调用，批量判定多个资源/操作组合。
+
+缓存策略：L1 本地缓存（30s-1min TTL） + L2 Redis 缓存（1-5min TTL），version 变更时失效。
+
+**未注册接口默认拒绝（白名单模式）**：未在 `resource_api_mapping` 中注册的接口默认 deny。
 
 ### 17.2 接口列表
 
 #### 17.2.1 权限检查
 
 ```
-POST /api/perm/check
+POST /api/perm/auth/check
 ```
 
 **请求体**
@@ -1851,17 +2212,20 @@ POST /api/perm/check
 
 当 `allowed=false` 时，`reason` 可能的值：
 
-| reason            | 说明                 |
-| ----------------- | -------------------- |
-| NO_ROLE           | 用户无有效角色       |
-| NO_PERMISSION     | 角色无该资源操作授权 |
-| CONDITION_NOT_MET | 条件不满足           |
-| CONFLICT_DETECTED | 冲突规则导致权限失效 |
+| reason             | 说明                   |
+| ------------------ | ---------------------- |
+| USER_DISABLED      | 用户已停用             |
+| ROLE_DISABLED      | 角色已停用             |
+| NO_ROLE            | 用户无有效角色         |
+| NO_PERMISSION      | 角色无该资源操作授权   |
+| CONDITION_NOT_MET  | 条件不满足             |
+| CONFLICT_DETECTED  | 冲突规则导致权限失效   |
+| API_NOT_REGISTERED | 接口未注册（白名单外） |
 
 #### 17.2.2 批量权限检查
 
 ```
-POST /api/perm/check/batch
+POST /api/perm/auth/check-batch
 ```
 
 **请求体**
@@ -1896,7 +2260,7 @@ POST /api/perm/check/batch
 #### 17.2.3 接口级判定
 
 ```
-POST /api/perm/decision/interface
+POST /api/perm/auth/check-interface
 ```
 
 **请求体**
@@ -1930,21 +2294,28 @@ POST /api/perm/decision/interface
 
 ### 18.1 功能描述
 
-权限版本管理和接口快照服务，供 gateway 运行时鉴权使用。
+权限版本管理（角色级粒度）和接口快照服务，供 gateway 运行时鉴权使用。版本号在权限变更时自增，仅用于缓存失效，不保存历史快照。
 
 ### 18.2 接口列表
 
 #### 18.2.1 查询当前版本
 
 ```
-POST /api/perm/version/query
+POST /api/perm/version/current
 ```
+
+**请求体**
+
+| 字段           | 类型 | 必填 | 说明                            |
+| -------------- | ---- | ---- | ------------------------------- |
+| abstractRoleId | long | 否   | 指定角色ID，NULL 返回租户级版本 |
 
 **响应 data**
 
 ```json
 {
   "tenantId": 1,
+  "abstractRoleId": 10,
   "versionNo": 42,
   "triggerEntityType": "role_resource_permission",
   "triggeredAt": "2026-04-18T10:00:00Z"
@@ -1996,29 +2367,32 @@ POST /api/perm/policy/interface-snapshot
 
 ### 19.1 功能描述
 
-查询权限变更记录，支持多维度过滤。
+双日志体系：
+
+- **operation_log（操作日志）**：轻量级，记录所有管理操作（谁在什么时候做了什么）。
+- **permission_change_log（权限变更日志）**：详细记录权限相关变更的 before/after/diff，支持审计和回溯。
+
+两种日志永久保留，查询支持按时间/操作者/目标类型/动作类型多维度过滤。
 
 ### 19.2 接口列表
 
-#### 19.2.1 查询变更记录
+#### 19.2.1 查询操作日志
 
 ```
-POST /api/perm/change-logs
+POST /api/perm/operation-logs/list
 ```
 
 **请求体**
 
-| 字段           | 类型     | 必填 | 说明           |
-| -------------- | -------- | ---- | -------------- |
-| abstractUserId | long     | 否   | 按影响用户过滤 |
-| abstractRoleId | long     | 否   | 按影响角色过滤 |
-| bizDomainId    | long     | 否   | 按业务域过滤   |
-| entityType     | string   | 否   | 变更实体类型   |
-| requestId      | string   | 否   | 请求追踪ID     |
-| startTime      | datetime | 否   | 开始时间       |
-| endTime        | datetime | 否   | 结束时间       |
-| pageNum        | int      | 否   | 页码           |
-| pageSize       | int      | 否   | 每页条数       |
+| 字段       | 类型     | 必填 | 说明                                                       |
+| ---------- | -------- | ---- | ---------------------------------------------------------- |
+| actionType | string   | 否   | 动作类型（CREATE/UPDATE/DELETE/GRANT/REVOKE/SYNC 等）      |
+| targetType | string   | 否   | 目标类型（USER/ROLE/GROUP/RESOURCE/PERMISSION/SERVICE 等） |
+| operatorId | long     | 否   | 操作者ID                                                   |
+| startTime  | datetime | 否   | 开始时间                                                   |
+| endTime    | datetime | 否   | 结束时间                                                   |
+| pageNum    | int      | 否   | 页码                                                       |
+| pageSize   | int      | 否   | 每页条数                                                   |
 
 **响应 data**
 
@@ -2027,14 +2401,56 @@ POST /api/perm/change-logs
   "rows": [
     {
       "id": 1,
-      "entityType": "role_resource_permission",
-      "entityId": 100,
-      "operation": "INSERT",
-      "oldSnapshot": null,
-      "newSnapshot": { "roleId": 10, "resourceId": 1, "operationId": 1 },
+      "actionType": "CREATE",
+      "targetType": "ROLE",
+      "targetId": 10,
+      "targetName": "前端开发",
+      "summary": "创建角色: 前端开发",
+      "operatorId": 99,
+      "requestId": "req-001",
+      "createdAt": "2026-04-18T10:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+#### 19.2.2 查询权限变更记录
+
+```
+POST /api/perm/change-logs/list
+```
+
+**请求体**
+
+| 字段           | 类型     | 必填 | 说明                                                |
+| -------------- | -------- | ---- | --------------------------------------------------- |
+| actionType     | string   | 否   | 动作类型（GRANT/REVOKE/CASCADE_DELETE 等）          |
+| targetType     | string   | 否   | 目标类型（ROLE_PERMISSION/USER_ROLE/GROUP_ROLE 等） |
+| abstractUserId | long     | 否   | 按影响用户过滤                                      |
+| abstractRoleId | long     | 否   | 按影响角色过滤                                      |
+| bizDomainId    | long     | 否   | 按业务域过滤                                        |
+| requestId      | string   | 否   | 请求追踪ID                                          |
+| startTime      | datetime | 否   | 开始时间                                            |
+| endTime        | datetime | 否   | 结束时间                                            |
+| pageNum        | int      | 否   | 页码                                                |
+| pageSize       | int      | 否   | 每页条数                                            |
+
+**响应 data**
+
+```json
+{
+  "rows": [
+    {
+      "id": 1,
+      "actionType": "GRANT",
+      "targetType": "ROLE_PERMISSION",
+      "targetId": 100,
+      "beforeSnapshot": null,
+      "afterSnapshot": { "roleId": 10, "resourceId": 1, "operationBits": 3 },
+      "diff": { "added": { "operationBits": 3 } },
       "affectedUserIds": [1, 2, 3],
       "affectedRoleIds": [10],
-      "changeReason": "初始配置",
       "changeSource": "ADMIN",
       "requestId": "req-001",
       "createdBy": 99,
@@ -2051,20 +2467,26 @@ POST /api/perm/change-logs
 
 ### 20.1 功能描述
 
-为用户提供"我的权限"视图，支持简洁视图和来源明细视图。
+为用户提供"我的权限"视图，支持完整视图（角色+资源+操作+来源）。核心特性：
+
+- **来源追溯**：展示权限继承链（直接/分组/个人角色）。
+- **实时计算**：基于当前数据实时聚合，不使用快照。
+- **多维度查询**：按用户、按资源、按角色三个维度。
+- **近期变更**：结合 permission_change_log 展示用户权限的近期变化。
 
 ### 20.2 接口列表
 
 #### 20.2.1 查询用户有效角色
 
 ```
-GET /api/perm/users/{userId}/effective-roles
+POST /api/perm/user-view/effective-roles
 ```
 
-**请求参数**
+**请求体**
 
-| 参数          | 类型    | 必填 | 说明                         |
+| 字段          | 类型    | 必填 | 说明                         |
 | ------------- | ------- | ---- | ---------------------------- |
+| userId        | long    | 是   | 用户ID                       |
 | bizDomainId   | long    | 否   | 按业务域过滤                 |
 | includeSource | boolean | 否   | 是否包含来源信息，默认 false |
 
@@ -2099,13 +2521,14 @@ GET /api/perm/users/{userId}/effective-roles
 #### 20.2.2 查询用户有效权限（资源-操作列表）
 
 ```
-GET /api/perm/users/{userId}/effective-permissions
+POST /api/perm/user-view/effective-permissions
 ```
 
-**请求参数**
+**请求体**
 
-| 参数             | 类型    | 必填 | 说明                                   |
+| 字段             | 类型    | 必填 | 说明                                   |
 | ---------------- | ------- | ---- | -------------------------------------- |
+| userId           | long    | 是   | 用户ID                                 |
 | bizDomainId      | long    | 否   | 按业务域过滤                           |
 | resourceType     | int     | 否   | 按资源类型过滤                         |
 | includeDataScope | boolean | 否   | 是否包含数据权限（子权限），默认 false |
@@ -2143,21 +2566,232 @@ GET /api/perm/users/{userId}/effective-permissions
 #### 20.2.3 查询用户资源树（带权限标记）
 
 ```
-GET /api/perm/users/{userId}/resource-tree
+POST /api/perm/user-view/resource-tree
 ```
 
-**请求参数**
+**请求体**
 
-| 参数         | 类型 | 必填 | 说明     |
+| 字段         | 类型 | 必填 | 说明     |
 | ------------ | ---- | ---- | -------- |
+| userId       | long | 是   | 用户ID   |
 | bizDomainId  | long | 否   | 业务域ID |
 | resourceType | int  | 否   | 资源类型 |
 
 **响应 data**：资源树结构，每个节点附带用户拥有的操作列表。
 
+#### 20.2.4 按资源维度查询权限用户
+
+```
+POST /api/perm/user-view/resource-users
+```
+
+**请求体**
+
+| 字段                  | 类型 | 必填 | 说明     |
+| --------------------- | ---- | ---- | -------- |
+| resourceEntityId      | long | 是   | 资源ID   |
+| operationPermissionId | long | 否   | 操作ID   |
+| bizDomainId           | long | 否   | 业务域ID |
+
+**响应 data**：拥有该资源权限的用户列表（含来源角色信息）。
+
+#### 20.2.5 按角色维度查询权限
+
+```
+POST /api/perm/user-view/role-permissions
+```
+
+**请求体**
+
+| 字段         | 类型 | 必填 | 说明     |
+| ------------ | ---- | ---- | -------- |
+| roleId       | long | 是   | 角色ID   |
+| resourceType | int  | 否   | 资源类型 |
+| bizDomainId  | long | 否   | 业务域ID |
+
+**响应 data**：该角色拥有的所有资源+操作列表。
+
+#### 20.2.6 查询用户近期权限变更
+
+```
+POST /api/perm/user-view/recent-changes
+```
+
+**请求体**
+
+| 字段     | 类型 | 必填 | 说明             |
+| -------- | ---- | ---- | ---------------- |
+| userId   | long | 是   | 用户ID           |
+| days     | int  | 否   | 最近天数，默认 7 |
+| pageNum  | int  | 否   | 页码             |
+| pageSize | int  | 否   | 每页条数         |
+
+**响应 data**：该用户权限相关的近期变更记录列表（来源 permission_change_log）。
+
 ---
 
-## 附录：枚举值速查
+## 21. 系统配置管理
+
+### 21.1 功能描述
+
+管理租户级系统配置。配置项以 key-value 形式存储在 `system_config` 表，控制权限中心的全局行为。
+
+### 21.2 预置配置项
+
+| configKey             | 说明                 | 默认值        | 可选值                 |
+| --------------------- | -------------------- | ------------- | ---------------------- |
+| ROLE_NAME_UNIQUE_MODE | 角色名唯一性检查模式 | NONE          | NONE / TENANT / DOMAIN |
+| DEFAULT_DENY_REASON   | 默认拒绝原因         | NO_PERMISSION | 自定义字符串           |
+| CACHE_L1_TTL_SECONDS  | L1 本地缓存 TTL      | 30            | 10-300                 |
+| CACHE_L2_TTL_SECONDS  | L2 Redis 缓存 TTL    | 180           | 60-600                 |
+
+### 21.3 接口列表
+
+#### 21.3.1 查询系统配置
+
+```
+POST /api/perm/system-config/list
+```
+
+**请求体**
+
+```json
+{}
+```
+
+**响应 data**
+
+```json
+[
+  {
+    "id": 1,
+    "configKey": "ROLE_NAME_UNIQUE_MODE",
+    "configValue": "NONE",
+    "description": "角色名唯一性检查模式"
+  }
+]
+```
+
+#### 21.3.2 更新系统配置
+
+```
+POST /api/perm/system-config/update
+```
+
+**请求体**
+
+| 字段        | 类型   | 必填 | 说明   |
+| ----------- | ------ | ---- | ------ |
+| configKey   | string | 是   | 配置键 |
+| configValue | string | 是   | 配置值 |
+
+**业务规则**
+
+- configKey 须在预置配置项列表中。
+- 修改后立即生效（触发缓存刷新）。
+- 写入 operation_log。
+
+---
+
+## 附录 A：接口总览
+
+| #   | 模块      | 接口路径                                        | 说明                |
+| --- | --------- | ----------------------------------------------- | ------------------- |
+| 1   | 类型定义  | POST /api/perm/types/list                       | 查询类型列表        |
+| 2   | 类型定义  | POST /api/perm/types/create                     | 创建类型            |
+| 3   | 类型定义  | POST /api/perm/types/update                     | 更新类型            |
+| 4   | 类型定义  | POST /api/perm/types/remove                     | 删除类型            |
+| 5   | 业务域    | POST /api/perm/domains/list                     | 查询域列表          |
+| 6   | 业务域    | POST /api/perm/domains/create                   | 创建域              |
+| 7   | 业务域    | POST /api/perm/domains/update                   | 更新域              |
+| 8   | 业务域    | POST /api/perm/domains/remove                   | 删除域              |
+| 9   | 抽象用户  | POST /api/perm/users/list                       | 查询用户列表        |
+| 10  | 抽象用户  | POST /api/perm/users/detail                     | 查询用户详情        |
+| 11  | 抽象用户  | POST /api/perm/users/create                     | 创建用户            |
+| 12  | 抽象用户  | POST /api/perm/users/batch-sync                 | 批量同步用户        |
+| 13  | 抽象用户  | POST /api/perm/users/update                     | 更新用户            |
+| 14  | 抽象用户  | POST /api/perm/users/remove                     | 删除用户            |
+| 15  | 角色分组  | POST /api/perm/groups/tree                      | 查询分组树          |
+| 16  | 角色分组  | POST /api/perm/groups/detail                    | 查询分组详情        |
+| 17  | 角色分组  | POST /api/perm/groups/roles/list                | 查询分组角色        |
+| 18  | 角色分组  | POST /api/perm/groups/users/list                | 查询分组用户        |
+| 19  | 角色分组  | POST /api/perm/groups/create                    | 创建分组            |
+| 20  | 角色分组  | POST /api/perm/groups/update                    | 更新分组            |
+| 21  | 角色分组  | POST /api/perm/groups/move                      | 移动分组            |
+| 22  | 角色分组  | POST /api/perm/groups/remove                    | 删除分组            |
+| 23  | 抽象角色  | POST /api/perm/roles/list                       | 查询角色列表        |
+| 24  | 抽象角色  | POST /api/perm/roles/detail                     | 查询角色详情        |
+| 25  | 抽象角色  | POST /api/perm/roles/create                     | 创建角色            |
+| 26  | 抽象角色  | POST /api/perm/roles/update                     | 更新角色            |
+| 27  | 抽象角色  | POST /api/perm/roles/remove                     | 删除角色            |
+| 28  | 分组-角色 | POST /api/perm/group-roles/add                  | 为分组添加角色      |
+| 29  | 分组-角色 | POST /api/perm/group-roles/remove               | 从分组移除角色      |
+| 30  | 分组-角色 | POST /api/perm/group-roles/by-role              | 查询角色所属分组    |
+| 31  | 操作权限  | POST /api/perm/operations/list                  | 查询操作列表        |
+| 32  | 操作权限  | POST /api/perm/operations/create                | 创建操作            |
+| 33  | 操作权限  | POST /api/perm/operations/update                | 更新操作            |
+| 34  | 操作权限  | POST /api/perm/operations/remove                | 删除操作            |
+| 35  | 资源实体  | POST /api/perm/resources/tree                   | 查询资源树          |
+| 36  | 资源实体  | POST /api/perm/resources/list                   | 查询资源列表        |
+| 37  | 资源实体  | POST /api/perm/resources/detail                 | 查询资源详情        |
+| 38  | 资源实体  | POST /api/perm/resources/create                 | 创建资源            |
+| 39  | 资源实体  | POST /api/perm/resources/batch-create           | 批量创建资源        |
+| 40  | 资源实体  | POST /api/perm/resources/update                 | 更新资源            |
+| 41  | 资源实体  | POST /api/perm/resources/move                   | 移动资源            |
+| 42  | 资源实体  | POST /api/perm/resources/remove                 | 删除资源            |
+| 43  | 服务注册  | POST /api/perm/services/list                    | 查询服务列表        |
+| 44  | 服务注册  | POST /api/perm/services/save                    | 创建/更新服务       |
+| 45  | 服务注册  | POST /api/perm/services/sync                    | 全量同步接口        |
+| 46  | 服务注册  | POST /api/perm/services/apis                    | 查询服务接口        |
+| 47  | 接口映射  | POST /api/perm/api-mappings/create              | 手动创建映射        |
+| 48  | 接口映射  | POST /api/perm/api-mappings/update              | 更新映射            |
+| 49  | 接口映射  | POST /api/perm/api-mappings/remove              | 删除映射            |
+| 50  | 权限条件  | POST /api/perm/conditions/list                  | 查询条件列表        |
+| 51  | 权限条件  | POST /api/perm/conditions/create                | 创建条件            |
+| 52  | 权限条件  | POST /api/perm/conditions/update                | 更新条件            |
+| 53  | 权限条件  | POST /api/perm/conditions/remove                | 删除条件            |
+| 54  | 用户关联  | POST /api/perm/user-assignments/list            | 查询用户关联        |
+| 55  | 用户关联  | POST /api/perm/user-assignments/assign          | 批量分配            |
+| 56  | 用户关联  | POST /api/perm/user-assignments/revoke          | 批量回收            |
+| 57  | 用户关联  | POST /api/perm/user-assignments/batch-assign    | 按角色/分组批量分配 |
+| 58  | 角色权限  | POST /api/perm/role-permissions/list            | 查询角色权限        |
+| 59  | 角色权限  | POST /api/perm/role-permissions/grant           | 批量授权            |
+| 60  | 角色权限  | POST /api/perm/role-permissions/revoke          | 批量回收            |
+| 61  | 子权限    | POST /api/perm/sub-permissions/list             | 查询子权限          |
+| 62  | 子权限    | POST /api/perm/sub-permissions/add              | 添加子权限          |
+| 63  | 子权限    | POST /api/perm/sub-permissions/remove           | 删除子权限          |
+| 64  | 域配置    | POST /api/perm/domain-configs/list              | 查询域配置          |
+| 65  | 域配置    | POST /api/perm/domain-configs/create            | 添加域配置          |
+| 66  | 域配置    | POST /api/perm/domain-configs/remove            | 删除域配置          |
+| 67  | 资源依赖  | POST /api/perm/resource-dependencies/list       | 查询依赖列表        |
+| 68  | 资源依赖  | POST /api/perm/resource-dependencies/create     | 添加依赖            |
+| 69  | 资源依赖  | POST /api/perm/resource-dependencies/remove     | 删除依赖            |
+| 70  | 资源依赖  | POST /api/perm/resource-dependencies/batch-sync | 批量同步依赖        |
+| 71  | 资源依赖  | POST /api/perm/resource-dependencies/graph      | 查询依赖图          |
+| 72  | 资源依赖  | POST /api/perm/resource-dependencies/check      | 依赖完整性检查      |
+| 73  | 冲突规则  | POST /api/perm/conflict-rules/list              | 查询冲突规则        |
+| 74  | 冲突规则  | POST /api/perm/conflict-rules/create            | 添加冲突规则        |
+| 75  | 冲突规则  | POST /api/perm/conflict-rules/remove            | 删除冲突规则        |
+| 76  | 冲突规则  | POST /api/perm/conflict-rules/detect            | 冲突检测            |
+| 77  | 鉴权      | POST /api/perm/auth/check                       | 权限检查            |
+| 78  | 鉴权      | POST /api/perm/auth/check-batch                 | 批量权限检查        |
+| 79  | 鉴权      | POST /api/perm/auth/check-interface             | 接口级判定          |
+| 80  | 版本快照  | POST /api/perm/version/current                  | 查询当前版本        |
+| 81  | 版本快照  | POST /api/perm/policy/interface-snapshot        | 接口权限快照        |
+| 82  | 操作日志  | POST /api/perm/operation-logs/list              | 查询操作日志        |
+| 83  | 变更记录  | POST /api/perm/change-logs/list                 | 查询权限变更记录    |
+| 84  | 用户视图  | POST /api/perm/user-view/effective-roles        | 用户有效角色        |
+| 85  | 用户视图  | POST /api/perm/user-view/effective-permissions  | 用户有效权限        |
+| 86  | 用户视图  | POST /api/perm/user-view/resource-tree          | 用户资源树          |
+| 87  | 用户视图  | POST /api/perm/user-view/resource-users         | 按资源查权限用户    |
+| 88  | 用户视图  | POST /api/perm/user-view/role-permissions       | 按角色查权限        |
+| 89  | 用户视图  | POST /api/perm/user-view/recent-changes         | 用户近期变更        |
+| 90  | 系统配置  | POST /api/perm/system-config/list               | 查询系统配置        |
+| 91  | 系统配置  | POST /api/perm/system-config/update             | 更新系统配置        |
+
+---
+
+## 附录 B：枚举值速查
 
 ### target_type（user_role）
 
@@ -2173,13 +2807,23 @@ GET /api/perm/users/{userId}/resource-tree
 | SCOPE    | 域范围（允许的角色类型/资源类型/操作） |
 | RELATION | 域关系（角色类型-资源类型可关联关系）  |
 | BINDING  | 域绑定（全局实体绑定到域）             |
+| SUB_PERM | 子权限定义（域下数据权限范围）         |
 
-### condition_source（permission_condition）
+### conflict_type（permission_conflict_rule）
 
-| 值     | 说明                     |
-| ------ | ------------------------ |
-| PRESET | 系统预设（handler 编码） |
-| CUSTOM | 自定义（表达式文本）     |
+| 值         | 说明                              |
+| ---------- | --------------------------------- |
+| ROLE_MUTEX | 角色互斥（写入时拒绝）            |
+| PERM_MUTEX | 权限互斥（查询时失效 + 异步通知） |
+
+### condition_rule_type（permission_condition.condition_rules）
+
+| 值           | 说明      | params 参数                     |
+| ------------ | --------- | ------------------------------- |
+| DATE_RANGE   | 日期范围  | startDate, endDate (yyyy-MM-dd) |
+| TIME_RANGE   | 时间段    | startTime, endTime (HH:mm)      |
+| IP_WHITELIST | IP 白名单 | cidrs (CIDR 数组)               |
+| IP_BLACKLIST | IP 黑名单 | cidrs (CIDR 数组)               |
 
 ### change_source（permission_change_log）
 
@@ -2201,9 +2845,37 @@ GET /api/perm/users/{userId}/resource-tree
 
 ### permission check reason
 
-| 值                | 说明                 |
-| ----------------- | -------------------- |
-| NO_ROLE           | 用户无有效角色       |
-| NO_PERMISSION     | 角色无该资源操作授权 |
-| CONDITION_NOT_MET | 条件不满足           |
-| CONFLICT_DETECTED | 冲突规则导致权限失效 |
+| 值                 | 说明                   |
+| ------------------ | ---------------------- |
+| USER_DISABLED      | 用户已停用             |
+| ROLE_DISABLED      | 角色已停用             |
+| NO_ROLE            | 用户无有效角色         |
+| NO_PERMISSION      | 角色无该资源操作授权   |
+| CONDITION_NOT_MET  | 条件不满足             |
+| CONFLICT_DETECTED  | 冲突规则导致权限失效   |
+| API_NOT_REGISTERED | 接口未注册（白名单外） |
+
+### action_type（operation_log / permission_change_log）
+
+| 值             | 说明     |
+| -------------- | -------- |
+| CREATE         | 创建     |
+| UPDATE         | 更新     |
+| DELETE         | 删除     |
+| GRANT          | 授权     |
+| REVOKE         | 回收     |
+| SYNC           | 同步     |
+| CASCADE_DELETE | 级联删除 |
+
+### target_type（operation_log）
+
+| 值         | 说明     |
+| ---------- | -------- |
+| USER       | 用户     |
+| ROLE       | 角色     |
+| GROUP      | 分组     |
+| RESOURCE   | 资源     |
+| PERMISSION | 权限配置 |
+| SERVICE    | 服务     |
+| CONDITION  | 条件     |
+| CONFIG     | 配置     |
