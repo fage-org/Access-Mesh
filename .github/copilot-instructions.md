@@ -55,13 +55,13 @@ R.fail(errorCode, msg)
 
 ## 错误码分段
 
-| 范围          | 模块               |
-| ------------- | ------------------ |
-| `0`           | 成功               |
-| `10001–19999` | admin-service      |
-| `20001–29999` | permission-center  |
-| `30001–39999` | example-service    |
-| `90001–99999` | 全局系统错误       |
+| 范围          | 模块              |
+| ------------- | ----------------- |
+| `0`           | 成功              |
+| `10001–19999` | admin-service     |
+| `20001–29999` | permission-center |
+| `30001–39999` | example-service   |
+| `90001–99999` | 全局系统错误      |
 
 ---
 
@@ -94,13 +94,13 @@ Mapper                                           ← 只做数据读写，无业
 
 ## 对象命名规范
 
-| 类型         | 命名规则      | 示例                    |
-| ------------ | ------------- | ----------------------- |
-| 请求入参     | `XxxReq`      | `CreateUserReq`         |
-| 响应出参     | `XxxResp`     | `UserDetailResp`        |
-| 视图对象     | `XxxVO`       | `UserRoleVO`            |
-| 数据库实体   | `Xxx`（无后缀）| `User`, `AbstractRole` |
-| Feign DTO    | `XxxDTO`      | `PermissionCheckDTO`    |
+| 类型       | 命名规则        | 示例                   |
+| ---------- | --------------- | ---------------------- |
+| 请求入参   | `XxxReq`        | `CreateUserReq`        |
+| 响应出参   | `XxxResp`       | `UserDetailResp`       |
+| 视图对象   | `XxxVO`         | `UserRoleVO`           |
+| 数据库实体 | `Xxx`（无后缀） | `User`, `AbstractRole` |
+| Feign DTO  | `XxxDTO`        | `PermissionCheckDTO`   |
 
 - **Entity 禁止出现在 Controller 入参/出参**。
 - 工具类命名：`XxxUtil`（去掉末尾 s），工具类必须为静态无状态。
@@ -216,6 +216,7 @@ if (userDomainService.existsByUsername(req.username(), tenantId)) {
 ```
 
 示例：`perm:role:detail:1234`、`admin:user:detail:10086`
+
 - 全小写，`:` 分隔。
 - 禁止直接将用户输入拼入 Key。
 

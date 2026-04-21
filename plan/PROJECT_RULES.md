@@ -43,25 +43,25 @@
 }
 ```
 
-| 字段      | 类型      | 说明                                                         |
-| --------- | --------- | ------------------------------------------------------------ |
-| `success` | `boolean` | `true` 表示业务成功，`false` 表示失败                        |
-| `code`    | `int`     | 0 = 成功；非零为错误码，见 §1.2                              |
-| `msg`     | `String`  | 面向前端展示的提示文本，不得包含堆栈信息                     |
-| `data`    | `Object`  | 业务数据；失败时为 `null`                                    |
+| 字段      | 类型      | 说明                                                          |
+| --------- | --------- | ------------------------------------------------------------- |
+| `success` | `boolean` | `true` 表示业务成功，`false` 表示失败                         |
+| `code`    | `int`     | 0 = 成功；非零为错误码，见 §1.2                               |
+| `msg`     | `String`  | 面向前端展示的提示文本，不得包含堆栈信息                      |
+| `data`    | `Object`  | 业务数据；失败时为 `null`                                     |
 | `traceId` | `String`  | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
 
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
 ### 1.2 业务错误码规范
 
-| 范围            | 归属模块         | 说明                         |
-| --------------- | ---------------- | ---------------------------- |
-| `0`             | 全局             | 成功                         |
-| `10001–19999`   | admin-service    | 管理服务业务错误             |
-| `20001–29999`   | permission-center | 权限中心业务错误            |
-| `30001–39999`   | example-service  | 演示服务业务错误             |
-| `90001–99999`   | 全局系统错误     | 参数校验失败、系统异常等公共错误 |
+| 范围          | 归属模块          | 说明                             |
+| ------------- | ----------------- | -------------------------------- |
+| `0`           | 全局              | 成功                             |
+| `10001–19999` | admin-service     | 管理服务业务错误                 |
+| `20001–29999` | permission-center | 权限中心业务错误                 |
+| `30001–39999` | example-service   | 演示服务业务错误                 |
+| `90001–99999` | 全局系统错误      | 参数校验失败、系统异常等公共错误 |
 
 - `9xxxx` 段系统公共错误由 `common` 模块统一定义枚举，各业务模块**不得重复定义**。
 - 每个模块维护一个 `XxxErrorCode` 枚举类，字段格式：`CODE(int code, String msg)`。
@@ -78,11 +78,11 @@
 }
 ```
 
-| 字段   | 类型     | 说明                                         |
-| ------ | -------- | -------------------------------------------- |
-| `page` | `int`    | 当前页码，从 1 开始                          |
-| `size` | `int`    | 每页条数，默认 20，最大不超过 100            |
-| `sort` | `String` | 排序字段和方向，格式 `field,asc|desc`，可空 |
+| 字段   | 类型     | 说明                              |
+| ------ | -------- | --------------------------------- | ----------- |
+| `page` | `int`    | 当前页码，从 1 开始               |
+| `size` | `int`    | 每页条数，默认 20，最大不超过 100 |
+| `sort` | `String` | 排序字段和方向，格式 `field,asc   | desc`，可空 |
 
 ### 1.4 分页响应结构
 
@@ -113,6 +113,7 @@
 ### 2.1 HTTP 方法
 
 **所有对外接口统一使用 `POST` 方法 + JSON 请求体**，不使用 GET/PUT/DELETE/PATCH。原因：
+
 - 与 permission-center 内部规范保持一致。
 - 规避 URL 长度限制（复杂查询条件无需放 QueryString）。
 - 统一鉴权拦截逻辑，减少网关路由配置复杂度。
@@ -125,16 +126,17 @@
 
 示例：
 
-| 路径                          | 说明         |
-| ----------------------------- | ------------ |
-| `/v1/user/create`             | 创建用户     |
-| `/v1/user/update`             | 更新用户     |
-| `/v1/user/delete`             | 删除用户     |
-| `/v1/user/get`                | 查询单条     |
-| `/v1/user/page`               | 分页查询     |
-| `/v1/user/list`               | 不分页列表   |
+| 路径              | 说明       |
+| ----------------- | ---------- |
+| `/v1/user/create` | 创建用户   |
+| `/v1/user/update` | 更新用户   |
+| `/v1/user/delete` | 删除用户   |
+| `/v1/user/get`    | 查询单条   |
+| `/v1/user/page`   | 分页查询   |
+| `/v1/user/list`   | 不分页列表 |
 
 规则：
+
 - 路径全部**小写 + 短横线**分隔多词（`/role-group/`）。
 - 版本号固定在路径第一段（`/v1/`），不使用 Header 版本。
 - `action` 语义化动词：`create / update / delete / get / page / list / enable / disable / batch-delete`。
@@ -178,13 +180,13 @@ RuntimeException
 
 ### 3.3 全局 ExceptionHandler 处理顺序
 
-| 异常类型                            | HTTP 状态码 | success | code        | 日志级别 | 堆栈 |
-| ----------------------------------- | ----------- | ------- | ----------- | -------- | ---- |
-| `BizException`                      | 200         | false   | 业务错误码  | WARN     | 否   |
-| `MethodArgumentNotValidException`   | 200         | false   | `90001`     | WARN     | 否   |
-| `ConstraintViolationException`      | 200         | false   | `90001`     | WARN     | 否   |
-| `SystemException`                   | 200         | false   | 系统错误码  | ERROR    | 是   |
-| `Exception`（兜底）                 | 200         | false   | `99999`     | ERROR    | 是   |
+| 异常类型                          | HTTP 状态码 | success | code       | 日志级别 | 堆栈 |
+| --------------------------------- | ----------- | ------- | ---------- | -------- | ---- |
+| `BizException`                    | 200         | false   | 业务错误码 | WARN     | 否   |
+| `MethodArgumentNotValidException` | 200         | false   | `90001`    | WARN     | 否   |
+| `ConstraintViolationException`    | 200         | false   | `90001`    | WARN     | 否   |
+| `SystemException`                 | 200         | false   | 系统错误码 | ERROR    | 是   |
+| `Exception`（兜底）               | 200         | false   | `99999`    | ERROR    | 是   |
 
 > HTTP 状态码统一返回 200，由 `success` + `code` 区分业务成功与失败，降低前端复杂度。
 
@@ -227,12 +229,12 @@ RuntimeException
 
 以下字段必须通过 MDC 注入，在整个请求生命周期内可用：
 
-| MDC Key       | 来源                           |
-| ------------- | ------------------------------ |
-| `traceId`     | Micrometer Tracing 自动注入    |
+| MDC Key       | 来源                                                            |
+| ------------- | --------------------------------------------------------------- |
+| `traceId`     | Micrometer Tracing 自动注入                                     |
 | `userId`      | 网关解析 Token 后写入请求 Header，服务层从 SecurityContext 读取 |
-| `tenantId`    | 同上                           |
-| `serviceCode` | 服务启动时从配置文件读取        |
+| `tenantId`    | 同上                                                            |
+| `serviceCode` | 服务启动时从配置文件读取                                        |
 
 - 使用 Filter（WebMVC）在请求入口设置 MDC，请求结束后**必须 clear**（防 ThreadPool 污染）。
 - Feign 调用时需通过 `RequestInterceptor` 将 MDC 字段透传到下游 Header。
@@ -254,6 +256,7 @@ RuntimeException
 ### 4.5 敏感信息脱敏
 
 以下信息**禁止**出现在日志中：
+
 - 密码、密钥、Token、证书
 - 手机号、身份证（如必须记录，脱敏后输出：`138****8888`）
 - 完整 SQL（MyBatis-Flex 慢 SQL 日志脱敏处理参数值）
@@ -283,23 +286,23 @@ ERROR 级别单独写入 error.log，保留 180 天
 
 ### 5.2 禁止引入的依赖
 
-| 依赖          | 禁止原因                                                                       | 替代方案                                     |
-| ------------- | ------------------------------------------------------------------------------ | -------------------------------------------- |
-| `Lombok`      | Java 21 Record + `@Getter`/`@Builder` 可覆盖，避免 APT 编译问题               | Java 21 Record（不可变 DTO）；手写 getter/setter（实体类） |
-| `Hutool`      | 依赖庞大（全量引入）、部分工具类实现有安全问题，与项目其他工具库功能重复      | Apache Commons / Guava / Jackson             |
-| `FastJSON`    | 历史上存在多次高危 RCE 漏洞                                                   | Jackson（全局统一）                          |
-| `fastjson2`   | 同上，尽管已重写，但团队统一用 Jackson，避免多库并存混乱                       | Jackson                                      |
+| 依赖        | 禁止原因                                                                 | 替代方案                                                   |
+| ----------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `Lombok`    | Java 21 Record + `@Getter`/`@Builder` 可覆盖，避免 APT 编译问题          | Java 21 Record（不可变 DTO）；手写 getter/setter（实体类） |
+| `Hutool`    | 依赖庞大（全量引入）、部分工具类实现有安全问题，与项目其他工具库功能重复 | Apache Commons / Guava / Jackson                           |
+| `FastJSON`  | 历史上存在多次高危 RCE 漏洞                                              | Jackson（全局统一）                                        |
+| `fastjson2` | 同上，尽管已重写，但团队统一用 Jackson，避免多库并存混乱                 | Jackson                                                    |
 
 ### 5.3 推荐工具库
 
-| 用途          | 推荐库                              |
-| ------------- | ----------------------------------- |
-| JSON 序列化   | `jackson-databind`（Spring Boot 内置） |
-| 字符串处理    | `commons-lang3`                     |
-| 集合处理      | `guava`                             |
-| HTTP 客户端   | `OpenFeign`（内部）/ `Spring WebClient`（外部） |
-| Bean 映射     | `MapStruct`                         |
-| ORM           | `MyBatis-Flex`                      |
+| 用途        | 推荐库                                          |
+| ----------- | ----------------------------------------------- |
+| JSON 序列化 | `jackson-databind`（Spring Boot 内置）          |
+| 字符串处理  | `commons-lang3`                                 |
+| 集合处理    | `guava`                                         |
+| HTTP 客户端 | `OpenFeign`（内部）/ `Spring WebClient`（外部） |
+| Bean 映射   | `MapStruct`                                     |
+| ORM         | `MyBatis-Flex`                                  |
 
 ### 5.4 依赖作用域规范
 
@@ -347,19 +350,20 @@ XxxVO                 ← 特殊场景的视图对象（如聚合多表的展示
 ```
 
 规则：
+
 - **Entity 禁止出现在 Controller 入参/出参中**（防止字段过度暴露）。
 - Service 层向 Controller 层返回 `XxxResp` 对象，不直接返回 Entity。
 - Service 内部调用可传递 Entity，但跨服务 Feign 接口必须使用 DTO。
 
 ### 7.2 命名规范
 
-| 类型                 | 命名规则          | 示例                      |
-| -------------------- | ----------------- | ------------------------- |
-| 请求 DTO（入参）     | `XxxReq`          | `CreateUserReq`, `UserPageReq` |
-| 响应 DTO（出参）     | `XxxResp`         | `UserDetailResp`, `UserPageItemResp` |
-| 视图对象（聚合展示） | `XxxVO`           | `UserRoleVO`              |
-| 数据库实体           | `Xxx`（无后缀）   | `User`, `AbstractRole`    |
-| Feign 接口响应       | `XxxDTO`          | `PermissionCheckDTO`      |
+| 类型                 | 命名规则        | 示例                                 |
+| -------------------- | --------------- | ------------------------------------ |
+| 请求 DTO（入参）     | `XxxReq`        | `CreateUserReq`, `UserPageReq`       |
+| 响应 DTO（出参）     | `XxxResp`       | `UserDetailResp`, `UserPageItemResp` |
+| 视图对象（聚合展示） | `XxxVO`         | `UserRoleVO`                         |
+| 数据库实体           | `Xxx`（无后缀） | `User`, `AbstractRole`               |
+| Feign 接口响应       | `XxxDTO`        | `PermissionCheckDTO`                 |
 
 ### 7.3 实体类规范
 
@@ -459,12 +463,12 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 ### 9.3 禁止在事务内的操作
 
-| 操作                           | 原因                                       |
-| ------------------------------ | ------------------------------------------ |
-| 发起 Feign HTTP 调用           | 远程调用超时会导致本地事务长时间持有锁     |
-| 发送 MQ 消息                   | 消息发送成功但事务回滚会导致数据不一致     |
-| 调用外部第三方 API             | 同上                                       |
-| 大批量数据查询（超过 1000 条） | 长事务占用连接池                           |
+| 操作                           | 原因                                   |
+| ------------------------------ | -------------------------------------- |
+| 发起 Feign HTTP 调用           | 远程调用超时会导致本地事务长时间持有锁 |
+| 发送 MQ 消息                   | 消息发送成功但事务回滚会导致数据不一致 |
+| 调用外部第三方 API             | 同上                                   |
+| 大批量数据查询（超过 1000 条） | 长事务占用连接池                       |
 
 > **跨服务数据操作**禁止使用本地事务，必须通过 TCC / Saga / 消息最终一致性实现分布式事务。
 
@@ -533,25 +537,26 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 示例：
 
-| Key                                          | 说明                 |
-| -------------------------------------------- | -------------------- |
-| `perm:role:detail:1234`                      | 权限中心角色详情     |
-| `admin:user:detail:10086`                    | 管理服务用户详情     |
-| `perm:permission_version:roleId:5678`        | 权限版本（角色维度） |
+| Key                                   | 说明                 |
+| ------------------------------------- | -------------------- |
+| `perm:role:detail:1234`               | 权限中心角色详情     |
+| `admin:user:detail:10086`             | 管理服务用户详情     |
+| `perm:permission_version:roleId:5678` | 权限版本（角色维度） |
 
 规则：
+
 - 全部小写，段之间用 `:` 分隔。
 - Key 必须包含**租户维度**时，加在最前：`{tenantId}:{serviceCode}:...`。
 - 禁止在 Key 中拼接用户输入的原始字符串（防止 Key 冲突/注入）。
 
 ### 12.3 缓存 TTL 规范
 
-| 数据类型          | L1 TTL    | L2 TTL   |
-| ----------------- | --------- | -------- |
-| 权限快照          | 60 秒     | 5 分钟   |
-| 用户信息          | 30 秒     | 10 分钟  |
-| 字典/枚举配置     | 10 分钟   | 1 小时   |
-| Token 会话        | 无（不走 L1） | 由 Sa-Token 管理 |
+| 数据类型      | L1 TTL        | L2 TTL           |
+| ------------- | ------------- | ---------------- |
+| 权限快照      | 60 秒         | 5 分钟           |
+| 用户信息      | 30 秒         | 10 分钟          |
+| 字典/枚举配置 | 10 分钟       | 1 小时           |
+| Token 会话    | 无（不走 L1） | 由 Sa-Token 管理 |
 
 ### 12.4 缓存使用禁止项
 
@@ -565,13 +570,13 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 ### 13.1 命名规范
 
-| 对象   | 规范                                | 示例                      |
-| ------ | ----------------------------------- | ------------------------- |
-| 表名   | 小写 + 下划线，名词单数             | `abstract_user`、`biz_domain` |
-| 字段名 | 小写 + 下划线                       | `created_at`、`delete_flag` |
-| 索引名 | `idx_{table}_{col1}_{col2}`         | `idx_user_tenant_id`      |
-| 唯一索引 | `uniq_{table}_{col1}_{col2}`      | `uniq_user_name_tenant`   |
-| 外键（逻辑） | 使用 `_id` 后缀，不建物理外键  | `role_id`、`tenant_id`    |
+| 对象         | 规范                          | 示例                          |
+| ------------ | ----------------------------- | ----------------------------- |
+| 表名         | 小写 + 下划线，名词单数       | `abstract_user`、`biz_domain` |
+| 字段名       | 小写 + 下划线                 | `created_at`、`delete_flag`   |
+| 索引名       | `idx_{table}_{col1}_{col2}`   | `idx_user_tenant_id`          |
+| 唯一索引     | `uniq_{table}_{col1}_{col2}`  | `uniq_user_name_tenant`       |
+| 外键（逻辑） | 使用 `_id` 后缀，不建物理外键 | `role_id`、`tenant_id`        |
 
 ### 13.2 必须字段
 
@@ -617,22 +622,22 @@ feign:
   client:
     config:
       default:
-        connectTimeout: 3000    # 连接超时 3s
-        readTimeout: 5000       # 读取超时 5s
+        connectTimeout: 3000 # 连接超时 3s
+        readTimeout: 5000 # 读取超时 5s
       permission-center:
-        readTimeout: 10000      # 鉴权接口可适当放宽
+        readTimeout: 10000 # 鉴权接口可适当放宽
 ```
 
 ### 14.2 Header 透传
 
 所有 Feign 调用必须通过 `RequestInterceptor` 透传以下 Header：
 
-| Header           | 说明                           |
-| ---------------- | ------------------------------ |
-| `Authorization`  | Bearer Token（用户身份透传）   |
-| `X-Trace-Id`     | 链路追踪 ID                    |
-| `X-Tenant-Id`    | 租户 ID                        |
-| `X-Service-Code` | 调用方服务标识                 |
+| Header           | 说明                         |
+| ---------------- | ---------------------------- |
+| `Authorization`  | Bearer Token（用户身份透传） |
+| `X-Trace-Id`     | 链路追踪 ID                  |
+| `X-Tenant-Id`    | 租户 ID                      |
+| `X-Service-Code` | 调用方服务标识               |
 
 ### 14.3 降级与重试
 
@@ -666,15 +671,15 @@ feign:
 }
 ```
 
-| 字段            | 说明                                                   |
-| --------------- | ------------------------------------------------------ |
-| `eventId`       | 全局唯一 UUID，用于消费幂等去重                        |
-| `eventType`     | 事件类型，全大写下划线（`USER_CREATED`）               |
-| `version`       | 消息格式版本，向前兼容时递增 minor                     |
-| `timestamp`     | 事件发生时间，ISO-8601 UTC                             |
-| `tenantId`      | 租户 ID                                                |
-| `sourceService` | 来源服务标识                                           |
-| `payload`       | 业务数据，根据 `eventType` 不同而不同                  |
+| 字段            | 说明                                     |
+| --------------- | ---------------------------------------- |
+| `eventId`       | 全局唯一 UUID，用于消费幂等去重          |
+| `eventType`     | 事件类型，全大写下划线（`USER_CREATED`） |
+| `version`       | 消息格式版本，向前兼容时递增 minor       |
+| `timestamp`     | 事件发生时间，ISO-8601 UTC               |
+| `tenantId`      | 租户 ID                                  |
+| `sourceService` | 来源服务标识                             |
+| `payload`       | 业务数据，根据 `eventType` 不同而不同    |
 
 ### 15.2 幂等设计
 
@@ -699,14 +704,14 @@ feign:
 
 ### 16.1 分支命名策略
 
-| 分支类型     | 命名格式                        | 示例                           |
-| ------------ | ------------------------------- | ------------------------------ |
-| 主干分支     | `main`                          | `main`                         |
-| 开发分支     | `develop`                       | `develop`                      |
-| 功能分支     | `feature/{模块}-{功能描述}`     | `feature/perm-role-group`      |
-| 修复分支     | `fix/{模块}-{问题描述}`         | `fix/admin-login-token-expire` |
-| 发布分支     | `release/{版本号}`              | `release/1.2.0`                |
-| 热修复分支   | `hotfix/{版本号}-{描述}`        | `hotfix/1.1.1-sql-injection`   |
+| 分支类型   | 命名格式                    | 示例                           |
+| ---------- | --------------------------- | ------------------------------ |
+| 主干分支   | `main`                      | `main`                         |
+| 开发分支   | `develop`                   | `develop`                      |
+| 功能分支   | `feature/{模块}-{功能描述}` | `feature/perm-role-group`      |
+| 修复分支   | `fix/{模块}-{问题描述}`     | `fix/admin-login-token-expire` |
+| 发布分支   | `release/{版本号}`          | `release/1.2.0`                |
+| 热修复分支 | `hotfix/{版本号}-{描述}`    | `hotfix/1.1.1-sql-injection`   |
 
 ### 16.2 Commit Message 格式
 
@@ -722,17 +727,17 @@ feign:
 
 **type 枚举：**
 
-| type       | 说明                             |
-| ---------- | -------------------------------- |
-| `feat`     | 新功能                           |
-| `fix`      | Bug 修复                         |
-| `refactor` | 重构（不影响功能）               |
-| `perf`     | 性能优化                         |
-| `test`     | 添加或修改测试                   |
-| `docs`     | 文档变更                         |
-| `chore`    | 构建工具、依赖升级等杂项         |
-| `ci`       | CI/CD 配置变更                   |
-| `revert`   | 回滚提交                         |
+| type       | 说明                     |
+| ---------- | ------------------------ |
+| `feat`     | 新功能                   |
+| `fix`      | Bug 修复                 |
+| `refactor` | 重构（不影响功能）       |
+| `perf`     | 性能优化                 |
+| `test`     | 添加或修改测试           |
+| `docs`     | 文档变更                 |
+| `chore`    | 构建工具、依赖升级等杂项 |
+| `ci`       | CI/CD 配置变更           |
+| `revert`   | 回滚提交                 |
 
 **示例：**
 
