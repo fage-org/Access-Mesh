@@ -1,0 +1,34 @@
+server:
+  port: 9300
+
+spring:
+  application:
+    name: example-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/example_db?useSSL=false&serverTimezone=Asia/Shanghai
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      database: 2
+
+mybatis-flex:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: cn.ac.fage.accessmesh.example.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  config: classpath:log4j2-spring.xml

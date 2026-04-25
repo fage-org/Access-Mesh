@@ -1,4 +1,4 @@
-# RuoYi-Cloud-Plus
+# AccessMesh
 
 > 项目上下文入口见 [AGENTS.md](./AGENTS.md)，包含完整的架构概览、技术栈、编码规范和常用命令。
 >

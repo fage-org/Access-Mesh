@@ -1,8 +1,8 @@
-# AGENTS.md — RuoYi-Cloud-Plus 项目上下文
+# AGENTS.md — AccessMesh 项目上下文
 
 ## 项目概述
 
-**RuoYi-Cloud-Plus** 是一个基于 Spring Cloud 微服务架构的通用权限中心，支持 SaaS 多租户模式。
+**AccessMesh** 是一个基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
 - **当前阶段**：设计完成，待编码实现
 - **当前分支**：`feat-permission-center`

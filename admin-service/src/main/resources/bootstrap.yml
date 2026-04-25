@@ -1,0 +1,44 @@
+server:
+  port: 9100
+
+spring:
+  application:
+    name: admin-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/admin_db?useSSL=false&serverTimezone=Asia/Shanghai
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      database: 1
+
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: jwt
+  is-log: false
+  jwt-secret-key: admin-service-jwt-secret-key-placeholder-change-in-prod
+
+mybatis-flex:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: cn.ac.fage.accessmesh.admin.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  config: classpath:log4j2-spring.xml

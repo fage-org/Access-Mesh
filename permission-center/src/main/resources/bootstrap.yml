@@ -1,0 +1,34 @@
+server:
+  port: 9200
+
+spring:
+  application:
+    name: permission-center
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/perm_db?useSSL=false&serverTimezone=Asia/Shanghai
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password:
+      database: 0
+
+mybatis-flex:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: cn.ac.fage.accessmesh.permission.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  config: classpath:log4j2-spring.xml

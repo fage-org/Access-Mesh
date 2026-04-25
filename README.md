@@ -1,6 +1,6 @@
-# RuoYi-Cloud-Plus
+# AccessMesh
 
-基于 Spring Cloud 微服务架构的通用权限中心，支持 SaaS 多租户模式。
+基于 Spring Cloud 微服务架构的通用访问控制平台。
 
 ## 特性
 
