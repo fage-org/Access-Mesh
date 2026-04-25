@@ -22,7 +22,7 @@
 ### 1.1 包结构
 
 ```
-com.example.permission
+cn.ac.fage.accessmesh.permission
 ├── controller
 │   ├── AuthController
 │   ├── PermissionGrantController

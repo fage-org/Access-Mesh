@@ -217,7 +217,7 @@ RuntimeException
 {
   "timestamp": "2026-04-21T10:00:00.123Z",
   "level": "INFO",
-  "logger": "com.example.UserService",
+  "logger": "cn.ac.fage.accessmesh.admin.UserService",
   "thread": "http-nio-9100-exec-1",
   "traceId": "a3f2b1c0d4e5...",
   "userId": "10086",
@@ -427,7 +427,7 @@ Mapper（数据访问层）
 ### 8.3 包结构规范
 
 ```
-com.example.{service}
+cn.ac.fage.accessmesh.{service}
 ├── controller          # 接入层
 ├── service
 │   ├── impl            # 调度层 Service 实现
