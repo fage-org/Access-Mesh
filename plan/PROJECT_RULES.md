@@ -35,21 +35,21 @@
 
 ```json
 {
-  "success": true,
-  "code": 0,
-  "msg": "操作成功",
+  "code": 200,
+  "message": "操作成功",
   "data": {},
+  "requestId": "uuid-xxx",
   "traceId": "a3f2b1c0d4e5..."
 }
 ```
 
-| 字段      | 类型      | 说明                                                          |
-| --------- | --------- | ------------------------------------------------------------- |
-| `success` | `boolean` | `true` 表示业务成功，`false` 表示失败                         |
-| `code`    | `int`     | 0 = 成功；非零为错误码，见 §1.2                               |
-| `msg`     | `String`  | 面向前端展示的提示文本，不得包含堆栈信息                      |
-| `data`    | `Object`  | 业务数据；失败时为 `null`                                     |
-| `traceId` | `String`  | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
+| 字段        | 类型      | 说明                                                          |
+| ----------- | --------- | ------------------------------------------------------------- |
+| `code`      | `int`     | 200 = 成功；非零为错误码，见 §1.2                              |
+| `message`   | `String`  | 面向前端展示的提示文本，不得包含堆栈信息                      |
+| `data`      | `Object`  | 业务数据；失败时为 `null`                                     |
+| `requestId` | `String`  | 请求追踪 ID，由 Gateway 生成                                   |
+| `traceId`   | `String`  | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
 
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
@@ -57,7 +57,7 @@
 
 | 范围          | 归属模块          | 说明                             |
 | ------------- | ----------------- | -------------------------------- |
-| `0`           | 全局              | 成功                             |
+| `200`         | 全局              | 成功                             |
 | `10001–19999` | admin-service     | 管理服务业务错误                 |
 | `20001–29999` | permission-center | 权限中心业务错误                 |
 | `30001–39999` | example-service   | 演示服务业务错误                 |
@@ -72,14 +72,14 @@
 
 ```json
 {
-  "page": 1,
-  "size": 20,
+  "pageNum": 1,
+  "pageSize": 20,
   "sort": "createdAt,desc"
 }
 ```
 
-| 字段   | 类型     | 说明                              |
-| ------ | -------- | --------------------------------- | ----------- |
+| 字段     | 类型     | 说明                              |
+| -------- | -------- | --------------------------------- | ----------- |
 | `page` | `int`    | 当前页码，从 1 开始               |
 | `size` | `int`    | 每页条数，默认 20，最大不超过 100 |
 | `sort` | `String` | 排序字段和方向，格式 `field,asc   | desc`，可空 |
@@ -88,9 +88,9 @@
 
 ```json
 {
-  "success": true,
-  "code": 0,
-  "msg": "ok",
+  "code": 200,
+  "message": "ok",
+  "requestId": "...",
   "traceId": "...",
   "data": {
     "items": [],
@@ -128,17 +128,17 @@
 
 | 路径              | 说明       |
 | ----------------- | ---------- |
-| `/v1/user/create` | 创建用户   |
-| `/v1/user/update` | 更新用户   |
-| `/v1/user/delete` | 删除用户   |
-| `/v1/user/get`    | 查询单条   |
-| `/v1/user/page`   | 分页查询   |
-| `/v1/user/list`   | 不分页列表 |
+| `/api/user/create` | 创建用户   |
+| `/api/user/update` | 更新用户   |
+| `/api/user/delete` | 删除用户   |
+| `/api/user/get`    | 查询单条   |
+| `/api/user/page`   | 分页查询   |
+| `/api/user/list`   | 不分页列表 |
 
 规则：
 
 - 路径全部**小写 + 短横线**分隔多词（`/role-group/`）。
-- 版本号固定在路径第一段（`/v1/`），不使用 Header 版本。
+- 路径格式为 `/api/{module}/{resource}/{action}`，第一段为模块标识，不使用版本号。
 - `action` 语义化动词：`create / update / delete / get / page / list / enable / disable / batch-delete`。
 - **禁止** RESTful 风格路径参数（如 `/user/{id}`），ID 统一放 JSON Body。
 
@@ -180,15 +180,18 @@ RuntimeException
 
 ### 3.3 全局 ExceptionHandler 处理顺序
 
-| 异常类型                          | HTTP 状态码 | success | code       | 日志级别 | 堆栈 |
-| --------------------------------- | ----------- | ------- | ---------- | -------- | ---- |
-| `BizException`                    | 200         | false   | 业务错误码 | WARN     | 否   |
-| `MethodArgumentNotValidException` | 200         | false   | `90001`    | WARN     | 否   |
-| `ConstraintViolationException`    | 200         | false   | `90001`    | WARN     | 否   |
-| `SystemException`                 | 200         | false   | 系统错误码 | ERROR    | 是   |
-| `Exception`（兜底）               | 200         | false   | `99999`    | ERROR    | 是   |
+| 异常类型                          | HTTP 状态码 | code       | 日志级别 | 堆栈 |
+| --------------------------------- | ----------- | ---------- | -------- | ---- |
+| `BizException`                    | 200         | 业务错误码 | WARN     | 否   |
+| `MethodArgumentNotValidException` | 200         | `90001`    | WARN     | 否   |
+| `ConstraintViolationException`    | 200         | `90001`    | WARN     | 否   |
+| `SystemException`                 | 200         | 系统错误码 | ERROR    | 是   |
+| `Exception`（兜底）               | 200         | `99999`    | ERROR    | 是   |
 
 > HTTP 状态码统一返回 200，由 `success` + `code` 区分业务成功与失败，降低前端复杂度。
+>
+> **例外**：Gateway 对外响应使用真实 HTTP 状态码（401 未认证、403 鉴权拒绝、502 上游异常、503 服务不可用等），
+> 前端需根据 HTTP 状态码做差异化处理。内部服务间调用（OpenFeign）仍遵循统一 200 约定。
 
 ### 3.4 注意事项
 
@@ -554,7 +557,7 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 | 数据类型      | L1 TTL        | L2 TTL           |
 | ------------- | ------------- | ---------------- |
 | 权限快照      | 60 秒         | 5 分钟           |
-| 用户信息      | 30 秒         | 10 分钟          |
+| 用户信息      | 60 秒         | 5 分钟           |
 | 字典/枚举配置 | 10 分钟       | 1 小时           |
 | Token 会话    | 无（不走 L1） | 由 Sa-Token 管理 |
 
@@ -655,6 +658,10 @@ feign:
 
 ## 15. MQ 消息规范
 
+> **注意**：当前服务间数据同步（用户同步、菜单同步、权限变更通知等）均采用 **API 调用**方式，不使用 RocketMQ。
+> 本章 MQ 规范作为基础设施标准保留，供将来异步事件（如审计日志收集、跨系统通知等）场景参考。
+> 详见 `plan/problem/UNRESOLVED_ISSUES.md》 问题 10` 的决策记录。
+
 ### 15.1 消息格式
 
 所有 RocketMQ 消息体统一为 JSON 格式，包含以下字段：
@@ -742,9 +749,9 @@ feign:
 **示例：**
 
 ```
-feat(permission-center): 新增角色分组批量删除接口
+feat(permission-center): 新增分组角色批量删除接口
 
-- 支持批量删除，关联子分组递归清理
+- 支持批量删除，子角色递归清理
 - 增加引用检查，有角色关联时拒绝删除
 
 Closes #123

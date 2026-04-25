@@ -171,7 +171,7 @@ sa-token:
   token-name: Authorization
   token-prefix: Bearer
   timeout: 7200 # token 有效期 2 小时
-  active-timeout: 1800 # 临时有效期 30 分钟（无操作自动过期）
+  active-timeout: 1800 # 活跃超时 30 分钟（每次访问自动刷新有效期）
   is-concurrent: true # 允许同一账号并发登录
   is-share: false # 不共享 token
   is-read-header: true # 从 Header 读取
@@ -189,129 +189,80 @@ sa-token:
 
 #### 2.2.5 PermissionFilter
 
-| 属性  | 值                                                 |
-| ----- | -------------------------------------------------- |
-| Order | -60                                                |
-| 类型  | GlobalFilter                                       |
-| 职责  | 对接权限中心接口权限快照，判定当前请求是否有权访问 |
+| 属性  | 值                                                             |
+| ----- | -------------------------------------------------------------- |
+| Order | -60                                                            |
+| 类型  | GlobalFilter                                                   |
+| 职责  | 回调权限中心进行接口级鉴权判定，带 L1 本地缓存兜底             |
 
-**流程**（与权限中心 §6.5 和 perm-gateway-spring-boot-starter 对齐）：
+**鉴权模式**：采用 **逐请求回调模式**。每次鉴权请求（L1 缓存未命中时）回调权限中心的 `check-interface` 接口获取判定结果。
+
+> 备选方案"接口权限快照"（拉取全量权限）详见 PERMISSION_CENTER_IMPL_DESIGN.md §3.3，当前未启用。
+> 快照模式适用于需要降低鉴权延迟的大型系统，启用时需同步修改 Gateway 路由逻辑。
+
+**流程**：
 
 ```
 读取 skipAuth 标记 → true → 直接放行
     │
     ├─ 从 Exchange 取 tenantId, userId
     │
-    ├─ 从 Redis 实时查询用户角色列表
-    │   Key: perm:user:roles:{tenantId}:{userId}
-    │   Value: Set<String> (roleId 集合)
-    │   （由权限中心维护：角色分配/取消时实时更新）
+    ├─ 解析目标服务：从路由信息中提取 serviceCode + httpMethod + path
     │
-    ├─ 解析目标服务：从路由信息中提取 serviceCode
+    ├─ 构建 L1 缓存 Key：(tenantId, userId, serviceCode, httpMethod, path)
     │
-    ├─ 构建匹配 Key：serviceCode + httpMethod + path
+    ├─ 查 L1 本地缓存（Caffeine）
+    │   ├─ 命中且未过期 → 直接返回 allowed/denied
+    │   └─ 未命中或已过期 → 回调权限中心
     │
-    ├─ 查 L1 本地缓存（按服务维度缓存的快照）
-    │   ├─ 命中 → 匹配接口规则
-    │   └─ 未命中 → 查 L2 Redis 缓存
-    │       ├─ 命中 → 写入 L1 → 匹配接口规则
-    │       └─ 未命中 → 返回 503（快照数据由 SnapshotRefreshScheduler 定时维护）
-    │
-    └─ 匹配当前请求
-        ├─ 在快照 rules 中按 httpMethod + path 匹配 InterfaceRule
-        │   ├─ pathPattern 支持 Ant 风格：/api/users/**, /api/users/{id}
-        │   └─ 未命中 → 返回 403（白名单模式：未注册接口默认拒绝）
-        │
-        ├─ 遍历用户角色列表，在 InterfaceRule.roleRules 中查找匹配的角色
-        │   └─ 无匹配角色 → 返回 403
-        │
-        └─ 检查匹配角色的条件（conditions）
-            ├─ 无条件 → 放行
-            ├─ 简单条件（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）
-            │   → ConditionEvaluator 本地评估
-            └─ 复杂条件（CUSTOM 等）
-                → 回调权限中心 POST /api/perm/auth/interface-decision
+    └─ 回调权限中心
+        POST /api/perm/auth/check-interface
+        入参：{ tenantId, userId, serviceCode, httpMethod, path, context }
+          context: { "ip": "192.168.1.1", "timestamp": "2026-04-25T14:00:00Z" }
+        ├─ 返回 allowed → 写入 L1 缓存 → 放行
+        └─ 返回 denied → 可选缓存 deny 结果 → 返回 403
 ```
 
-**缓存结构**（按服务维度，非按用户维度）：
+**L1 缓存结构**：
 
 ```
 L1 (Caffeine):
-  Key:   "perm:snapshot:{serviceCode}"
-  Value: PermissionSnapshot {
-           serviceCode: String,
-           version: Long,
-           generatedAt: Instant,
-           rules: Map<String(method:path), InterfaceRule>
-         }
+  Key:   "perm:check:{tenantId}:{userId}:{serviceCode}:{httpMethod}:{path}"
+  Value: { allowed: boolean, reason?: string }
   TTL:   30 秒（可配置）
-  最大条目: 100（服务数量级别）
+  最大条目: 50000（活跃用户 × 接口组合级别）
 
-L2 (Redis):
-  Key:   "gateway:perm:snapshot:{serviceCode}"
-  Value: JSON 序列化的 PermissionSnapshot
-  TTL:   5 分钟（可配置）
+权限中心不可用时的降级策略：
+  - 有 L1 缓存未过期 → 使用缓存数据正常鉴权放行
+  - 无缓存且权限中心不可达 → 拒绝请求，返回 503
+    {"code": 503, "message": "鉴权服务暂时不可用"}
+  - 即 fail-close + cache fallback 模式：安全优先
+  - 降级期间日志记录 WARN 级别告警，便于运维监控
 ```
 
-**InterfaceRule 结构**：
+**权限中心内部鉴权逻辑**（由权限中心实现，Gateway 仅调用）：
 
-```json
-{
-  "httpMethod": "GET",
-  "pathPattern": "/api/example/reports",
-  "roleRules": {
-    "role_123": {
-      "roleId": "role_123",
-      "roleCode": "data_analyst",
-      "operations": ["READ", "EXPORT"],
-      "conditions": []
-    },
-    "role_456": {
-      "roleId": "role_456",
-      "roleCode": "admin",
-      "operations": ["READ", "UPDATE", "DELETE"],
-      "conditions": [
-        {
-          "conditionId": "cond_789",
-          "logic": "AND",
-          "items": [
-            {
-              "type": "DATE_RANGE",
-              "params": { "start": "2025-01-01", "end": "2025-12-31" }
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
 ```
-
-**快照更新机制**（SnapshotRefreshScheduler）：
-
-- 每 30s 轮询 `POST /api/perm/permission-version/query` 获取各服务版本号
-- 版本号变更的服务 → 调用 `POST /api/perm/auth/interface-snapshot?service_code=xxx` 拉取全量快照
-- 更新 L1 Caffeine + 写入 L2 Redis
-
-**启动预热**：
-
-1. 优先从 Redis L2 加载各服务快照（毫秒级恢复）
-2. L2 有数据 → 立即可用，同时异步拉取全量刷新
-3. L2 无数据 → 同步阻塞拉取权限中心快照
-4. 拉取失败 + L2 无数据 → 所有非白名单请求返回 503（fail-close）
-
-**未注册接口处理**：
-
-- 若请求路径在权限快照 rules 中无匹配 → 返回 403
-- 这是白名单模式：只有注册且授权的接口才允许访问
-
-**权限中心不可用时的降级策略**：
-
-- **有本地缓存（L1/L2 未过期）**→ 使用缓存数据正常鉴权放行
-- **无缓存且权限中心不可达** → 拒绝请求，返回 503 `{"code": 503, "message": "鉴权服务暂时不可用"}`
-- 即 **fail-close + cache fallback** 模式：安全优先，缓存兜底
-- 降级期间日志记录 WARN 级别告警，便于运维监控
-- 建议 L2 Redis TTL 适当放宽（如 5~10 分钟），为权限中心恢复争取时间窗口
+权限中心 POST /api/perm/auth/check-interface 收到请求
+    │
+    ├─ 读 Redis: perm:user:roles:{tenantId}:{userId}
+    │   → 得到用户有效 roleId 集合 Set<String>
+    │
+    ├─ 对每个 roleId，读 Redis: perm:role:perms:{tenantId}:{roleId}
+    │   → 得到该角色的权限信息（包含接口权限 api_perms 和资源权限）
+    │
+    ├─ 合并所有角色的权限 → 得到用户的全部权限集合
+    │
+    ├─ 匹配当前请求的 serviceCode + httpMethod + path
+    │   ├─ 在 api_perms 中按 pathPattern 匹配（Ant 风格）
+    │   │   └─ 未匹配 → 返回 denied (reason=API_NOT_REGISTERED 或 NO_PERMISSION)
+    │   │
+    │   └─ 匹配成功 → 返回 allowed
+    │
+    └─ 若规则含复杂条件（condition_id != null）
+        → 权限中心内部 ConditionEvaluator 评估
+        → 复杂条件（CUSTOM 等）调用自定义逻辑
+```
 
 #### 2.2.6 HeaderEnrichFilter
 
@@ -475,11 +426,8 @@ gateway:
   # 缓存配置
   cache:
     l1:
-      max-size: 100 # L1 最大缓存条目（服务数量级别）
+      max-size: 50000 # L1 最大缓存条目（活跃用户 × 接口组合级别）
       ttl-seconds: 30 # L1 TTL（秒）
-    l2:
-      ttl-minutes: 5 # L2 Redis TTL（分钟）
-      key-prefix: "gateway:perm:"
 
   # 请求头配置
   header:
@@ -499,10 +447,7 @@ gateway:
   # 权限中心对接
   permission:
     service-url: lb://permission-center
-    snapshot-path: /api/perm/auth/interface-snapshot
-    version-path: /api/perm/permission-version/query
-    decision-path: /api/perm/auth/interface-decision
-    poll-interval: 30s # 版本轮询间隔
+    check-interface-path: /api/perm/auth/check-interface
     unregistered-policy: DENY # 未注册接口策略：DENY / ALLOW
 ```
 
@@ -546,22 +491,29 @@ sa-token:
 
 ### 6.1 调用的权限中心接口
 
-| 接口                                           | 用途                       | 调用时机                              |
-| ---------------------------------------------- | -------------------------- | ------------------------------------- |
-| POST /api/perm/permission-version/query        | 查询各服务权限版本号       | 每 30s 定时轮询                       |
-| POST /api/perm/auth/interface-snapshot         | 获取指定服务的接口权限快照 | 版本号变更时拉取全量 / 启动预热时拉取 |
-| POST /api/perm/auth/interface-decision         | 带条件的接口鉴权判定       | 快照规则含复杂条件（CUSTOM）时回调    |
-| Redis Key: perm:user:roles:{tenantId}:{userId} | 用户当前角色列表           | 每次请求实时读取                      |
+| 接口                                           | 用途                       | 调用时机                                        |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------- |
+| POST /api/perm/auth/check-interface            | 接口级鉴权判定             | 每次鉴权请求（L1 缓存未命中时回调）             |
+| Redis Key: perm:user:roles:{tenantId}:{userId} | 用户当前角色列表           | 权限中心内部鉴权时读取（分配/取消角色时更新）   |
+| Redis Key: perm:role:perms:{tenantId}:{roleId} | 角色权限信息               | 权限中心内部鉴权时读取（角色权限变更时更新）    |
 
-> **用户角色来源**：权限中心在用户-角色关联变更时（分配/取消角色），实时更新 Redis Key `perm:user:roles:{tenantId}:{userId}`（类型 SET，内容为 roleId 集合）。Gateway 每次鉴权请求直接从 Redis 读取，无需调用权限中心 API，保证实时性且延迟极低。
+> **Gateway 不直接读 Redis**。用户角色和角色权限的 Redis 缓存由权限中心维护。Gateway 仅通过 HTTP 调用权限中心的鉴权接口，权限中心内部读取 Redis 两份数据完成鉴权计算。
 
-### 6.2 版本查询详情
+### 6.2 接口级鉴权回调详情
 
-**请求**（POST /api/perm/permission-version/query）：
+**请求**（POST /api/perm/auth/check-interface）：
 
 ```json
 {
-  "service_codes": ["admin-service", "example-service"]
+  "tenantId": 1,
+  "userId": 100,
+  "serviceCode": "admin-service",
+  "httpMethod": "GET",
+  "path": "/api/admin/users/list",
+  "context": {
+    "ip": "192.168.1.1",
+    "timestamp": "2026-04-25T14:00:00Z"
+  }
 }
 ```
 
@@ -571,83 +523,22 @@ sa-token:
 {
   "code": 200,
   "data": {
-    "versions": {
-      "admin-service": 42,
-      "example-service": 18
-    }
+    "allowed": true,
+    "matchedRoleId": 10,
+    "matchedOperationCode": "READ"
   }
 }
 ```
 
-### 6.3 接口快照调用详情
+当 `allowed=false` 时，`reason` 可能的值：
 
-**请求**（POST /api/perm/auth/interface-snapshot）：
-
-```json
-{
-  "service_code": "admin-service"
-}
-```
-
-**响应**（权限中心返回按服务维度的完整快照）：
-
-```json
-{
-  "code": 200,
-  "data": {
-    "serviceCode": "admin-service",
-    "version": 42,
-    "generatedAt": "2025-01-15T10:30:00Z",
-    "rules": {
-      "POST:/api/admin/users/list": {
-        "httpMethod": "POST",
-        "pathPattern": "/api/admin/users/list",
-        "roleRules": {
-          "role_1": {
-            "roleId": "role_1",
-            "roleCode": "admin",
-            "operations": ["READ"],
-            "conditions": []
-          },
-          "role_2": {
-            "roleId": "role_2",
-            "roleCode": "user_manager",
-            "operations": ["READ"],
-            "conditions": [
-              {
-                "conditionId": "cond_1",
-                "logic": "AND",
-                "items": [
-                  { "type": "IP_WHITELIST", "params": { "ips": "10.0.0.0/8" } }
-                ]
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-### 6.4 快照更新流程
-
-```
-SnapshotRefreshScheduler（每 30s）
-  │
-  ├─ POST /api/perm/permission-version/query → 获取各服务版本号
-  │
-  ├─ 对比本地缓存中各服务快照的 version 字段
-  │   └─ 版本号相同 → 跳过
-  │   └─ 版本号不同 → 拉取快照
-  │
-  ├─ POST /api/perm/auth/interface-snapshot?service_code=xxx
-  │   → 拉取全量快照
-  │
-  ├─ 更新 L1 Caffeine（整体替换）
-  │
-  └─ 写入 L2 Redis（key: gateway:perm:snapshot:{serviceCode}）
-```
+| reason             | 说明                 |
+| ------------------ | -------------------- |
+| USER_DISABLED      | 用户已停用           |
+| ROLE_DISABLED      | 角色已停用           |
+| NO_ROLE            | 用户无有效角色       |
+| NO_PERMISSION      | 角色无该接口访问权限 |
+| API_NOT_REGISTERED | 接口未注册           |
 
 ---
 
@@ -716,17 +607,12 @@ gateway/
 │   │   ├── PermissionFilter.java            # 接口鉴权（调用 perm-gateway-starter）
 │   │   └── HeaderEnrichFilter.java          # 请求头注入
 │   ├── service/
-│   │   ├── PermissionCacheService.java      # L1+L2 缓存管理
-│   │   ├── PermissionSnapshotClient.java    # 权限中心接口调用
-│   │   ├── SnapshotRefreshScheduler.java    # 定时轮询版本号 + 快照更新
-│   │   └── ConditionEvaluator.java          # 条件权限本地评估器
+│   │   └── PermissionClient.java              # 权限中心 HTTP 客户端封装
 │   ├── handler/
 │   │   └── GlobalExceptionHandler.java      # 全局异常处理
 │   └── model/
-│       ├── PermissionSnapshot.java          # 权限快照模型（按服务维度）
-│       ├── InterfaceRule.java               # 接口规则模型（含 roleRules）
-│       ├── RoleRuleDetail.java              # 角色规则详情（operations + conditions）
-│       ├── ConditionRule.java               # 条件规则模型
+│       ├── AuthCheckRequest.java            # 鉴权请求模型
+│       ├── AuthCheckResponse.java           # 鉴权响应模型
 │       └── GatewayResponse.java             # 统一响应模型
 ├── src/main/resources/
 │   ├── bootstrap.yml

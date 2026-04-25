@@ -1,5 +1,5 @@
 -- =============================================================================
--- 通用权限中心 - PostgreSQL 表结构（20 张表）
+-- 通用权限中心 - PostgreSQL 表结构（18 张表）
 -- 无外键，逻辑关联由应用保证
 -- 执行顺序按依赖关系，建议按序号依次执行
 -- =============================================================================
@@ -96,7 +96,7 @@ CREATE TABLE abstract_user (
 CREATE UNIQUE INDEX uk_abstract_user ON abstract_user (tenant_id, user_type, external_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_user_tenant ON abstract_user (tenant_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持 API + MQ 双通道同步（幂等）';
+COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持外部系统 API 同步（幂等）';
 COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)/SERVICE(2)，来自 type_definition';
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
@@ -104,42 +104,18 @@ COMMENT ON COLUMN abstract_user.enabled IS '是否启用：false 时鉴权不通
 COMMENT ON COLUMN abstract_user.extra IS '扩展属性(JSON)';
 COMMENT ON COLUMN abstract_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id。删除级联：user_role + 个人角色的 role_resource_permission + 失效缓存';
 
--- -----------------------------------------------------------------------------
--- 4. 角色分组表（树形，biz_domain_id 可空表示全局分组）
---    分组可嵌套，不能配置权限，但可关联用户（默认分组除外）
--- -----------------------------------------------------------------------------
-CREATE TABLE role_group (
-    id            BIGSERIAL PRIMARY KEY,
-    tenant_id     BIGINT NOT NULL,
-    biz_domain_id BIGINT,
-    parent_id     BIGINT,
-    code          VARCHAR(128),
-    name          VARCHAR(256) NOT NULL,
-    path          VARCHAR(1024),
-    is_default    BOOLEAN NOT NULL DEFAULT false,
-    sort_order    INT DEFAULT 0,
-    extra         JSONB DEFAULT '{}',
-    created_by    BIGINT,
-    updated_by    BIGINT,
-    deleted_by    BIGINT,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at    TIMESTAMPTZ,
-    delete_flag   BIGINT NOT NULL DEFAULT 0
-);
-
-CREATE INDEX idx_role_group_tenant_domain ON role_group (tenant_id, biz_domain_id) WHERE delete_flag = 0;
-CREATE INDEX idx_role_group_parent ON role_group (parent_id) WHERE delete_flag = 0;
-CREATE INDEX idx_role_group_path ON role_group (path) WHERE delete_flag = 0 AND path IS NOT NULL;
-
-COMMENT ON TABLE role_group IS '角色分组，树形；is_default=true 为默认分组（每租户一个，不可删除/不关联用户/不展示，角色自动加入且不可移除）';
-COMMENT ON COLUMN role_group.biz_domain_id IS '所属业务域ID，NULL 表示全局分组';
-COMMENT ON COLUMN role_group.parent_id IS '父分组ID，NULL 为根分组';
-COMMENT ON COLUMN role_group.path IS '树路径，如 /1/2/3，用于递归子分组查询';
-COMMENT ON COLUMN role_group.is_default IS '是否默认分组';
+-- 角色分组已合并至 abstract_role 树形结构，独立 role_group / role_group_role 表已移除
+-- abstract_role 新增 parent_id 字段支持树形；role_type 新增 GROUP_ROLE 和 BASIC_ROLE
+-- user_role 新增 relation_id 字段用于 POSITION 绑定组织等场景
 
 -- -----------------------------------------------------------------------------
--- 5. 抽象角色表（平铺，无 parent_id，通过 role_group_role 关联分组）
+-- 4. 抽象角色表（树形结构，通过 parent_id 支持层级）
+--    角色类型说明：
+--      ORG(1) 组织：树形，同步自 sys_org
+--      POSITION(2) 职位：平铺（不可有子级），分配给用户时 user_role.relation_id 记录所属组织
+--      PERSONAL(3) 个人：平铺，每用户1个，独立
+--      GROUP_ROLE(5) 分组角色：树形，不直接配置权限，通过 extra.basicRoleIds 额外关联基本角色
+--      BASIC_ROLE(6) 基本角色：平铺（不可有子级），承载实际权限配置
 --    角色名唯一性可配置（租户级 system_config）
 --    个人角色 PERSONAL_{external_id} 不在管理界面展示，每用户最多1个
 -- -----------------------------------------------------------------------------
@@ -147,6 +123,7 @@ CREATE TABLE abstract_role (
     id            BIGSERIAL PRIMARY KEY,
     tenant_id     BIGINT NOT NULL,
     biz_domain_id BIGINT,
+    parent_id     BIGINT,
     role_type     INT NOT NULL,
     external_id   VARCHAR(256),
     name          VARCHAR(256) NOT NULL,
@@ -164,40 +141,21 @@ CREATE TABLE abstract_role (
 
 CREATE INDEX idx_abstract_role_tenant_domain ON abstract_role (tenant_id, biz_domain_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_role_tenant_type ON abstract_role (tenant_id, role_type) WHERE delete_flag = 0;
+CREATE INDEX idx_abstract_role_parent ON abstract_role (parent_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE abstract_role IS '抽象角色，平铺结构；biz_domain_id NULL=全局角色；角色类型仅作标记。删除级联：role_group_role + user_role + role_resource_permission';
+COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。删除级联：user_role + role_resource_permission';
 COMMENT ON COLUMN abstract_role.biz_domain_id IS '所属业务域ID，NULL 表示全局角色';
-COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/ROLE(4)传统，来自 type_definition，仅作标记';
+COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；BASIC_ROLE 和 PERSONAL 不允许有子级（应用层约束）';
+COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/GROUP_ROLE(5)分组角色/BASIC_ROLE(6)基本角色，来自 type_definition';
 COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识';
 COMMENT ON COLUMN abstract_role.name IS '名称';
 COMMENT ON COLUMN abstract_role.status IS '状态：0=停用 1=启用，预留扩展空间';
 COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
--- -----------------------------------------------------------------------------
--- 6. 分组-角色关联表（多对多）
--- -----------------------------------------------------------------------------
-CREATE TABLE role_group_role (
-    id               BIGSERIAL PRIMARY KEY,
-    tenant_id        BIGINT NOT NULL,
-    role_group_id    BIGINT NOT NULL,
-    abstract_role_id BIGINT NOT NULL,
-    created_by       BIGINT,
-    updated_by       BIGINT,
-    deleted_by       BIGINT,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at       TIMESTAMPTZ,
-    delete_flag      BIGINT NOT NULL DEFAULT 0
-);
-
-CREATE UNIQUE INDEX uk_role_group_role ON role_group_role (tenant_id, role_group_id, abstract_role_id) WHERE delete_flag = 0;
-CREATE INDEX idx_role_group_role_group ON role_group_role (role_group_id) WHERE delete_flag = 0;
-CREATE INDEX idx_role_group_role_role ON role_group_role (abstract_role_id) WHERE delete_flag = 0;
-
-COMMENT ON TABLE role_group_role IS '分组与角色的多对多关联；创建角色时自动加入默认分组';
+-- 分组-角色关联表已移除，分组角色通过 abstract_role.parent_id 和 extra.basicRoleIds 管理
 
 -- -----------------------------------------------------------------------------
--- 7. 操作权限表（绑定资源类型，binary_bit + inherit_mask 用 BIGINT）
+-- 5. 操作权限表（绑定资源类型，binary_bit + inherit_mask 用 BIGINT）
 --    创建 resource_type 时自动预置 CRUD 四个操作：
 --    CREATE(bit=1,mask=0) READ(bit=2,mask=0) UPDATE(bit=4,mask=2继承READ) DELETE(bit=8,mask=2继承READ)
 --    每个 resource_type 最多 63 个操作（BIGINT 63 位）
@@ -230,7 +188,7 @@ COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGIN
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 
 -- -----------------------------------------------------------------------------
--- 8. 权限资源实体表（树形，支持多编码类型 code_type）
+-- 6. 权限资源实体表（树形，支持多编码类型 code_type）
 --    数据权限也是一种资源实体（resource_type=DATA）
 --    同一资源可有多行不同 code_type，默认 "default"
 -- -----------------------------------------------------------------------------
@@ -275,7 +233,7 @@ COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
 
 -- -----------------------------------------------------------------------------
--- 9. 接口资源映射表
+-- 7. 接口资源映射表
 -- -----------------------------------------------------------------------------
 CREATE TABLE resource_api_mapping (
     id                 BIGSERIAL PRIMARY KEY,
@@ -307,7 +265,7 @@ COMMENT ON COLUMN resource_api_mapping.http_method IS 'HTTP 方法，如 GET/POS
 COMMENT ON COLUMN resource_api_mapping.path_pattern IS '接口路径模式（完整路径含前缀）';
 
 -- -----------------------------------------------------------------------------
--- 10. 接入服务配置表（全量同步，支持手动增删改接口映射）
+-- 8. 接入服务配置表（全量同步，支持手动增删改接口映射）
 -- -----------------------------------------------------------------------------
 CREATE TABLE service_config (
     id           BIGSERIAL PRIMARY KEY,
@@ -335,7 +293,7 @@ COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
 COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权';
 
 -- -----------------------------------------------------------------------------
--- 11. 权限生效条件表（JSONB 规则字段，一行=一个完整条件定义）
+-- 9. 权限条件表（JSONB 规则字段，一行=一个完整条件定义）
 --     条件独立实体，多个 role_resource_permission 可引用同一 condition_id 复用
 --     预置条件类型：DATE_RANGE, TIME_RANGE, IP_WHITELIST, IP_BLACKLIST
 -- -----------------------------------------------------------------------------
@@ -345,7 +303,7 @@ CREATE TABLE permission_condition (
     code            VARCHAR(64) NOT NULL,
     name            VARCHAR(128) NOT NULL,
     condition_rules JSONB NOT NULL DEFAULT '{}',
-    enabled         INT NOT NULL DEFAULT 1,
+    enabled         BOOLEAN NOT NULL DEFAULT true,
     description     VARCHAR(512),
     created_by      BIGINT,
     updated_by      BIGINT,
@@ -362,17 +320,18 @@ COMMENT ON TABLE permission_condition IS '权限生效条件；condition_rules �
 COMMENT ON COLUMN permission_condition.code IS '条件编码';
 COMMENT ON COLUMN permission_condition.name IS '名称';
 COMMENT ON COLUMN permission_condition.condition_rules IS '条件规则(JSON)，如 {"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2025-01-01","end":"2025-12-31"}},{"type":"TIME_RANGE","params":{"start":"09:00","end":"18:00"}},{"type":"IP_WHITELIST","params":{"cidrs":["192.168.1.0/24"]}}]}。预置类型：DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST';
-COMMENT ON COLUMN permission_condition.enabled IS '启停开关：0=停用 1=启用';
+COMMENT ON COLUMN permission_condition.enabled IS '是否启用';
 
 -- -----------------------------------------------------------------------------
--- 12. 用户关联表（统一关联角色或分组，target_type 区分）
+-- 9. 用户关联表（统一关联角色，target_type 标记角色类型）
 -- -----------------------------------------------------------------------------
 CREATE TABLE user_role (
     id               BIGSERIAL PRIMARY KEY,
     tenant_id        BIGINT NOT NULL,
     abstract_user_id BIGINT NOT NULL,
-    target_type      VARCHAR(16) NOT NULL,
+    target_type      VARCHAR(32) NOT NULL,
     target_id        BIGINT NOT NULL,
+    relation_id      BIGINT,
     valid_from       TIMESTAMPTZ,
     valid_to         TIMESTAMPTZ,
     created_by       BIGINT,
@@ -384,18 +343,19 @@ CREATE TABLE user_role (
     delete_flag      BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_user_role ON user_role (tenant_id, abstract_user_id, target_type, target_id) WHERE delete_flag = 0;
-CREATE INDEX idx_user_role_user ON user_role (abstract_user_id) WHERE delete_flag = 0;
-CREATE INDEX idx_user_role_target ON user_role (target_type, target_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_user_role ON user_role (tenant_id, abstract_user_id, target_type, target_id, COALESCE(relation_id, 0)) WHERE delete_flag = 0;
+CREATE INDEX idx_user_role_user ON user_role (tenant_id, abstract_user_id) WHERE delete_flag = 0;
+CREATE INDEX idx_user_role_target ON user_role (tenant_id, target_type, target_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE user_role IS '用户关联表：target_type=ROLE 指向 abstract_role，target_type=GROUP 指向 role_group';
-COMMENT ON COLUMN user_role.target_type IS '关联目标类型：ROLE=角色 / GROUP=分组';
-COMMENT ON COLUMN user_role.target_id IS '关联目标ID';
+COMMENT ON TABLE user_role IS '用户关联表：target=abstract_role.id；POSITION 类型时 relation_id 记录所属组织，决定数据权限范围';
+COMMENT ON COLUMN user_role.target_type IS '关联角色类型：ROLE=常规角色/ORG=组织/POSITION=职位/PERSONAL=个人/GROUP_ROLE=分组角色，与 abstract_role.role_type 对应';
+COMMENT ON COLUMN user_role.target_id IS '关联角色ID（abstract_role.id）';
+COMMENT ON COLUMN user_role.relation_id IS '关联ID，POSITION 类型时记录所属组织 ID（决定数据权限范围），其他类型时为 NULL';
 COMMENT ON COLUMN user_role.valid_from IS '生效开始时间，NULL 不限制';
 COMMENT ON COLUMN user_role.valid_to IS '生效结束时间，NULL 不限制';
 
 -- -----------------------------------------------------------------------------
--- 13. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
+-- 11. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
 --     批量授权接口格式 {add:[], update:[], delete:[]}
 --     只存勾选节点，查询接口支持展开父级/展开子级
 -- -----------------------------------------------------------------------------
@@ -409,6 +369,8 @@ CREATE TABLE role_resource_permission (
     depend_on               BIGINT,
     can_manage              BOOLEAN NOT NULL DEFAULT false,
     condition_id            BIGINT,
+    grant_source            VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
+    grant_dep_id            BIGINT,
     created_by              BIGINT,
     updated_by              BIGINT,
     deleted_by              BIGINT,
@@ -418,7 +380,7 @@ CREATE TABLE role_resource_permission (
     delete_flag             BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_role_resource_permission ON role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, operation_permission_id, COALESCE(depend_on, 0)) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_role_resource_permission ON role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, operation_permission_id, COALESCE(depend_on, 0), COALESCE(grant_source, 'MANUAL'), COALESCE(condition_id, 0)) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_role ON role_resource_permission (abstract_role_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_resource ON role_resource_permission (resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_depend ON role_resource_permission (depend_on) WHERE delete_flag = 0 AND depend_on IS NOT NULL;
@@ -429,9 +391,11 @@ COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型（冗�
 COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自引用），NULL=主权限，非NULL=子权限。单层依赖。删除父权限时级联软删子权限';
 COMMENT ON COLUMN role_resource_permission.can_manage IS '是否可管理(给他人授权)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
+COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全';
+COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';
 
 -- -----------------------------------------------------------------------------
--- 14. 域配置表（三合一 + 子权限配置：SCOPE / RELATION / BINDING / SUB_PERM）
+-- 12. 域配置表（三合一 + 子权限配置：SCOPE / RELATION / BINDING / SUB_PERM）
 --     每个域独立配置，无继承，变更即时生效（缓存失效）
 -- -----------------------------------------------------------------------------
 CREATE TABLE domain_config (
@@ -456,7 +420,7 @@ COMMENT ON COLUMN domain_config.config_type IS 'SCOPE / RELATION / BINDING / SUB
 COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}';
 
 -- -----------------------------------------------------------------------------
--- 15. 资源依赖表（操作位级别触发，支持自动补全）
+-- 13. 资源依赖表（操作位级别触发，支持自动补全）
 --     由外部系统通过接口维护，权限中心负责存储和查询
 -- -----------------------------------------------------------------------------
 CREATE TABLE resource_dependency (
@@ -488,7 +452,7 @@ COMMENT ON COLUMN resource_dependency.required_operation_bits IS '依赖资源�
 COMMENT ON COLUMN resource_dependency.auto_grant IS '授权源资源时是否自动授予依赖资源权限';
 
 -- -----------------------------------------------------------------------------
--- 16. 权限冲突规则表（角色互斥 + 权限互斥）
+-- 14. 权限冲突规则表（角色互斥 + 权限互斥）
 --     角色互斥：写入时检查，违反直接拒绝
 --     权限互斥：查询时检查，冲突权限失效 + 异步通知
 --     性能方案：查询时实时计算 + TTL 缓存（版本变更失效）
@@ -531,7 +495,7 @@ COMMENT ON COLUMN permission_conflict_rule.first_abstract_role_id IS '互斥角�
 COMMENT ON COLUMN permission_conflict_rule.second_abstract_role_id IS '互斥角色二（ROLE_MUTEX 时使用）';
 
 -- -----------------------------------------------------------------------------
--- 17. 权限版本表（角色级粒度，每个角色单独版本号）
+-- 15. 权限版本表（角色级粒度，每个角色单独版本号）
 --     权限变更时自动递增，仅用于缓存失效，不存快照
 -- -----------------------------------------------------------------------------
 CREATE TABLE permission_version (
@@ -556,7 +520,7 @@ COMMENT ON COLUMN permission_version.trigger_entity_type IS '触发变更的实�
 COMMENT ON COLUMN permission_version.trigger_entity_id IS '触发变更的实体ID';
 
 -- -----------------------------------------------------------------------------
--- 18. 权限变更记录表（详细权限变更 diff，方便排查权限问题）
+-- 16. 权限变更记录表（详细权限变更 diff，方便排查权限问题）
 -- -----------------------------------------------------------------------------
 CREATE TABLE permission_change_log (
     id                         BIGSERIAL PRIMARY KEY,
@@ -584,16 +548,16 @@ CREATE INDEX idx_change_log_entity ON permission_change_log (tenant_id, entity_t
 CREATE INDEX idx_change_log_request_id ON permission_change_log (request_id) WHERE request_id IS NOT NULL;
 
 COMMENT ON TABLE permission_change_log IS '权限变更记录：详细记录权限相关变更的 before/after/diff，方便排查用户因配置问题导致权限失效';
-COMMENT ON COLUMN permission_change_log.entity_type IS '变更实体类型：user_role/role_resource_permission/role_group/role_group_role 等';
+COMMENT ON COLUMN permission_change_log.entity_type IS '变更实体类型：user_role/role_resource_permission/abstract_user/abstract_role 等';
 COMMENT ON COLUMN permission_change_log.operation IS '操作：INSERT/UPDATE/DELETE';
 COMMENT ON COLUMN permission_change_log.old_snapshot IS '变更前快照(JSON)';
 COMMENT ON COLUMN permission_change_log.new_snapshot IS '变更后快照(JSON)';
 COMMENT ON COLUMN permission_change_log.diff_snapshot IS '变更差异(JSON)，前后快照对比';
-COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/MQ_SYNC/API/SYSTEM';
+COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/SYNC/API/SYSTEM';
 COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
 
 -- -----------------------------------------------------------------------------
--- 19. 系统配置表（租户级配置，如角色名唯一性等）
+-- 17. 系统配置表（租户级配置，如角色名唯一性等）
 -- -----------------------------------------------------------------------------
 CREATE TABLE system_config (
     id           BIGSERIAL PRIMARY KEY,
@@ -617,7 +581,7 @@ COMMENT ON COLUMN system_config.config_key IS '配置键，如 ROLE_NAME_UNIQUE_
 COMMENT ON COLUMN system_config.config_value IS '配置值(JSON)，如 {"mode":"DOMAIN_UNIQUE"} 或 {"mode":"NO_RESTRICT"}';
 
 -- -----------------------------------------------------------------------------
--- 20. 操作日志表（轻量全量记录所有写操作）
+-- 18. 操作日志表（轻量全量记录所有写操作）
 -- -----------------------------------------------------------------------------
 CREATE TABLE operation_log (
     id             BIGSERIAL PRIMARY KEY,

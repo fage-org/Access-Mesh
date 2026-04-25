@@ -1,0 +1,39 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# Build
+*.class
+*.log
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & Secrets
+*.env
+*.env.local
+*.env.production
+application-local.yml
+application-prod.yml
+credentials.properties
+
+# Node (frontend)
+node_modules/
+dist/
+.nuxt/
+
+# OpenCode / Claude Code
+.claude/worktrees/

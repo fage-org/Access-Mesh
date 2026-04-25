@@ -21,7 +21,7 @@
 ## 接口规范
 
 - 所有接口统一使用 **`POST` + JSON Body**，禁止 GET/PUT/DELETE/PATCH。
-- 路径格式：`/v1/{resource}/{action}`，全小写，多词用短横线。
+- 路径格式：`/api/{module}/{resource}/{action}`，全小写，多词用短横线。不使用版本号前缀。
 - 禁止 RESTful 路径参数（`/user/{id}`），ID 统一放 JSON Body。
 
 ---
@@ -34,21 +34,23 @@
 // 成功
 R.ok(data)
 // 失败
-R.fail(errorCode, msg)
+R.fail(errorCode, message)
 ```
 
 ```json
 {
-  "success": true,
-  "code": 0,
-  "msg": "操作成功",
+  "code": 200,
+  "message": "操作成功",
   "data": {},
-  "traceId": "..."
+  "requestId": "uuid-xxx",
+  "traceId": "a3f2b1c0d4e5..."
 }
 ```
 
-- `code=0` 表示成功，非零为错误码。
-- HTTP 状态码统一返回 `200`。
+- `code=200` 表示成功，非 200 为错误码。
+- HTTP 状态码统一返回 `200`（业务错误通过 code 区分，Gateway 对外使用真实 HTTP 状态码）。
+- `message` 面向前端展示，不得包含堆栈信息。
+- `requestId` 由 Gateway 生成，`traceId` 由 Micrometer Tracing 生成。
 - 分页响应：`data = { items: [], pagination: { total, page, size, totalPages } }`。
 
 ---
@@ -57,7 +59,7 @@ R.fail(errorCode, msg)
 
 | 范围          | 模块              |
 | ------------- | ----------------- |
-| `0`           | 成功              |
+| `200`         | 成功              |
 | `10001–19999` | admin-service     |
 | `20001–29999` | permission-center |
 | `30001–39999` | example-service   |

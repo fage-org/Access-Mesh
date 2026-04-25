@@ -657,7 +657,7 @@ public class DataScopeProvider {
 
 ### 4.3 perm-gateway-spring-boot-starter
 
-**职责**：网关鉴权插件，封装接口权限快照管理、L1+L2 缓存、条件评估等逻辑。已在 Gateway 设计中引用。
+**职责**：网关鉴权插件，封装权限中心回调鉴权、L1 缓存、条件评估等逻辑。采用**逐请求回调模式**（与 GATEWAY_DESIGN.md §2.2.5 一致），Gateway 不直接读 Redis，不拉取全量快照。
 
 #### 4.3.1 自动配置
 
@@ -665,143 +665,71 @@ public class DataScopeProvider {
 perm:
   gateway:
     enabled: true
-    snapshot:
-      poll-interval: 30s # 版本轮询间隔
-      version-url: lb://permission-center # 权限中心地址
+    permission-center-url: lb://permission-center
+    check-interface-path: /api/perm/auth/check-interface
     cache:
-      l1-max-size: 100 # Caffeine L1 最大条目（服务数量级别）
-      l1-ttl: 30s # Caffeine L1 过期时间
-      l2-ttl: 5m # Redis L2 过期时间
-      l2-key-prefix: "gateway:perm:" # Redis key 前缀
+      l1-max-size: 50000  # Caffeine L1 最大条目（活跃用户 × 接口组合）
+      l1-ttl-seconds: 30  # Caffeine L1 TTL
     unregistered-policy: DENY # 未注册接口策略：DENY / ALLOW（仅开发环境）
 ```
 
 #### 4.3.2 组件清单
 
-| 组件                         | 说明                                                   |
-| ---------------------------- | ------------------------------------------------------ |
-| **PermissionFilter**         | GlobalFilter（order=-60），从快照判定接口权限          |
-| **PermissionCacheService**   | L1 Caffeine + L2 Redis 二级缓存管理                    |
-| **PermissionSnapshotClient** | 权限中心 Feign/WebClient 接口：拉取快照、查询版本      |
-| **SnapshotRefreshScheduler** | 定时任务：每 30s 轮询版本号，变更时拉取全量快照        |
-| **ConditionEvaluator**       | 条件权限评估器：本地评估简单条件，复杂条件回调权限中心 |
-| **GatewayPermProperties**    | 配置属性类                                             |
+| 组件                       | 说明                                                         |
+| -------------------------- | ------------------------------------------------------------ |
+| **PermissionFilter**       | Gateway GlobalFilter（order=-60），回调权限中心判定接口权限  |
+| **PermissionCacheService** | L1 Caffeine 本地缓存管理（key: `perm:check:{tenantId}:{userId}:{serviceCode}:{method}:{path}`，TTL=30s） |
+| **ConditionEvaluator**     | 条件评估器（备选），用于 Gateway 侧本地评估简单条件；当前由权限中心统一评估 |
+| **GatewayPermProperties**  | 配置属性类                                                   |
 
-#### 4.3.3 权限快照数据结构
+> **注意**：Gateway 不直连 Redis。条件评估由权限中心在 `check-interface` 内部完成（读取 Redis 两份数据 + 条件判断），Gateway 只接收 `allowed/denied` 结果。
 
-**按服务拆分**：每个 service_code 一个独立快照，减小单次传输量。
-
-```typescript
-// 快照顶层结构
-interface PermissionSnapshot {
-  serviceCode: string; // 服务标识
-  version: number; // 版本号
-  generatedAt: string; // 快照生成时间
-  rules: Map<string, InterfaceRule>; // key = "GET:/api/example/reports"
-}
-
-// 接口规则
-interface InterfaceRule {
-  httpMethod: string;
-  pathPattern: string;
-  // 按角色分组的权限规则
-  roleRules: Map<string, RoleRuleDetail>; // key = roleId
-}
-
-// 角色维度的规则详情
-interface RoleRuleDetail {
-  roleId: string;
-  roleCode: string;
-  operations: string[]; // 允许的操作码 ["READ", "EXPORT"]
-  conditions: ConditionRule[]; // 附加条件（可为空）
-}
-
-// 条件规则
-interface ConditionRule {
-  conditionId: string;
-  logic: "AND" | "OR";
-  items: ConditionItem[];
-}
-
-interface ConditionItem {
-  type:
-    | "DATE_RANGE"
-    | "TIME_RANGE"
-    | "IP_WHITELIST"
-    | "IP_BLACKLIST"
-    | "CUSTOM";
-  params: Map<string, string>; // 如 { "start": "2025-01-01", "end": "2025-12-31" }
-}
-```
-
-#### 4.3.4 快照更新机制
-
-**定时轮询**（每 30s）：
-
-```
-SnapshotRefreshScheduler
-  │
-  ├─ 1. POST /api/perm/permission-version/query → 获取各服务版本号
-  │
-  ├─ 2. 比对本地版本号，版本不一致的服务 →
-  │     POST /api/perm/auth/interface-snapshot?service_code=xxx → 拉取全量快照
-  │
-  ├─ 3. 更新 L1 Caffeine 缓存（整体替换）
-  │
-  └─ 4. 写入 L2 Redis 缓存（key: gateway:perm:snapshot:{serviceCode}）
-```
-
-**启动预热**：
-
-1. 优先从 Redis L2 加载快照（快速恢复，毫秒级）
-2. L2 有数据则立即可用，同时异步触发全量拉取刷新
-3. L2 无数据则同步拉取权限中心快照，阻塞直到就绪
-4. 拉取失败 + L2 无数据 = 所有非白名单请求返回 503（fail-close）
-
-#### 4.3.5 鉴权流程
+#### 4.3.3 鉴权流程（逐请求回调）
 
 ```
 请求到达 PermissionFilter
   │
-  ├─ 1. 从 Exchange 获取 method + path + tenantId + userId
+  ├─ 跳过鉴权标记？→ skipAuth=true → 直接放行
   │
-  ├─ 2. 从 Redis 实时查询用户角色列表
-  │     Key: perm:user:roles:{tenantId}:{userId} (SET 类型)
+  ├─ 1. 从 Exchange 获取 tenantId, userId, serviceCode, httpMethod, path
   │
-  ├─ 3. 在快照中查找匹配的 InterfaceRule（method:path）
-  │     ├─ 未命中 → DENY（白名单模式，unregistered-policy=DENY）
-  │     └─ 命中 → 继续
+  ├─ 2. 构建 L1 缓存 Key → 查 Caffeine 本地缓存
+  │     ├─ 命中 → 直接返回 allowed/denied
+  │     └─ 未命中 → 回调权限中心
   │
-  ├─ 4. 遍历用户角色，查找 roleRules 中是否存在匹配的角色
-  │     ├─ 无匹配角色 → DENY（无权限）
-  │     └─ 有匹配角色 → 获取 RoleRuleDetail
+  ├─ 3. POST /api/perm/auth/check-interface
+  │     入参：{ tenantId, userId, serviceCode, httpMethod, path, context }
+  │       context: { "ip": "...", "timestamp": "..." }
   │
-  ├─ 5. 检查条件（conditions）
-  │     ├─ 无条件 → ALLOW
-  │     ├─ 简单条件（DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST）
-  │     │   → ConditionEvaluator 本地评估
-  │     └─ 复杂条件（CUSTOM 或未识别类型）
-  │         → 回调权限中心 POST /api/perm/auth/interface-decision
+  ├─ 4. 权限中心内部处理（Gateway 无感知）：
+  │     a. 读 Redis perm:user:roles:{tenantId}:{userId} → 用户有效角色
+  │     b. 对每个角色读 Redis perm:role:perms:{tenantId}:{roleId} → 角色权限
+  │     c. 匹配 serviceCode + httpMethod + pathPattern
+  │     d. hasCondition=true 的条目 → 使用 context 评估条件
+  │     e. 返回 { allowed, denyReason }
   │
-  └─ 6. 返回 ALLOW / DENY
+  ├─ 5. 写入 L1 缓存（TTL 30s）
+  │
+  └─ 6. allowed → 放行 / denied → 返回 403
 ```
 
-#### 4.3.6 条件权限评估
+**降级策略**（fail-close + cache fallback）：
 
-**ConditionEvaluator 本地评估的条件类型**：
+- 权限中心不可达 + L1 缓存有数据 → 使用缓存正常放行
+- 权限中心不可达 + L1 缓存无数据 → 返回 503（`鉴权服务暂时不可用`）
 
-| 类型         | 评估逻辑                        |
-| ------------ | ------------------------------- |
-| DATE_RANGE   | 当前日期是否在 start~end 范围内 |
-| TIME_RANGE   | 当前时间是否在 start~end 范围内 |
-| IP_WHITELIST | 请求 IP 是否在白名单列表中      |
-| IP_BLACKLIST | 请求 IP 是否不在黑名单列表中    |
+#### 4.3.4 条件权限评估
 
-其他条件类型（CUSTOM 或未来扩展的类型）→ 回退调用 `POST /api/perm/auth/interface-decision`，由权限中心完整评估。
+条件评估逻辑在**权限中心**内部完成（`POST /api/perm/auth/check-interface`），Gateway 只接收最终 `allowed/denied` 结果。
 
-#### 4.3.7 序列化
+| 类型         | 评估逻辑                        | 执行位置     |
+| ------------ | ------------------------------- | ------------ |
+| DATE_RANGE   | 当前日期是否在 start~end 范围内 | 权限中心     |
+| TIME_RANGE   | 当前时间是否在 start~end 范围内 | 权限中心     |
+| IP_WHITELIST | 请求 IP 是否在白名单列表中      | 权限中心     |
+| IP_BLACKLIST | 请求 IP 是否不在黑名单列表中    | 权限中心     |
 
-快照在 Redis L2 中以 **JSON** 格式存储（Jackson 序列化），便于调试和运维排查。
+> 条件评估所需上下文（如 clientIp、timestamp）由 Gateway 通过 `check-interface` 请求的 `context` 字段传入权限中心。
 
 ---
 

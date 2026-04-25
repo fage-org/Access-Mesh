@@ -73,9 +73,8 @@
 | gateway           | permission-center | OpenFeign   | 拉取服务接口权限快照（按 service_code 维度）、权限版本轮询、条件鉴权回调 |
 | gateway           | example-service   | HTTP (转发) | 演示服务接口转发                                                         |
 | admin-service     | permission-center | OpenFeign   | 用户同步、角色查询/复用、菜单资源同步、鉴权查询                          |
-| admin-service     | permission-center | RocketMQ    | 用户创建/更新/删除事件异步同步                                           |
 | example-service   | permission-center | OpenFeign   | 鉴权查询、权限数据查询                                                   |
-| permission-center | admin-service     | RocketMQ    | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                       |
+| permission-center | admin-service     | OpenFeign   | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                       |
 
 ---
 
@@ -100,7 +99,7 @@
 | 5   | 请求头增强       | 注入标准请求头（tenant_id, user_id, request_id），清洗外部伪造头             |
 | 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                      |
 
-### 2.3 鉴权流程（与权限中心 §6.5 和 perm-gateway-starter 对齐）
+### 2.3 鉴权流程（与权限中心 §6.5 对齐）
 
 ```
 请求到达 Gateway
@@ -109,33 +108,28 @@
     │
     ├─ 解析 Token → 失败 → 返回 401
     │
-    ├─ 提取 tenant_id, user_id
+    ├─ 提取 tenant_id, user_id, serviceCode
     │
-    ├─ 从 Redis 实时查询用户角色列表 (Key: perm:user:roles:{tenantId}:{userId})
+    ├─ 查 L1 Caffeine 缓存（tenantId + userId + serviceCode + method + path）
+    │   ├─ 命中 → 直接放行/拒绝
+    │   └─ 未命中 → 回调权限中心
     │
-    ├─ 从路由元数据提取 serviceCode
-    │
-    ├─ 查 L1 Caffeine 快照（按 serviceCode）
-    │   ├─ 命中 → 匹配接口 + 角色规则
-    │   └─ 未命中 → 查 L2 Redis → 命中则写入 L1 并匹配
-    │       └─ L2 未命中 → 返回 503（快照由 SnapshotRefreshScheduler 30s 定时维护）
-    │
-    └─ 匹配当前请求
-        ├─ 按 httpMethod + path 在快照 rules 中查找 InterfaceRule
-        │   └─ 未命中 → 返回 403（白名单模式：未注册接口默认拒绝）
-        ├─ 遍历用户角色列表，在 InterfaceRule.roleRules 中查找匹配的角色
-        │   └─ 无匹配角色 → 返回 403
-        └─ 检查条件：无条件→放行；简单条件→本地评估；复杂条件→回调权限中心
+    └─ POST /api/perm/auth/check-interface（权限中心内部处理）
+        │   ├─ 权限中心读 Redis 两份数据（用户角色 + 角色权限）
+        │   ├─ 匹配接口权限 + 条件评估（hasCondition=true 的条目）
+        │   └─ 返回 allowed/denied + 拒绝原因
+        │
+        └─ 写入 L1 缓存 → 放行或返回 403
 ```
 
 ### 2.4 缓存策略
 
-| 层级 | 存储     | Key                                   | TTL  | 失效方式                    |
-| ---- | -------- | ------------------------------------- | ---- | --------------------------- |
-| L1   | Caffeine | `perm:snapshot:{serviceCode}`         | 30s  | TTL 过期 + 版本轮询强制刷新 |
-| L2   | Redis    | `gateway:perm:snapshot:{serviceCode}` | 5min | TTL 过期 + 版本轮询强制刷新 |
+| 层级 | 存储     | Key 模式                                      | TTL  | 失效方式     |
+| ---- | -------- | --------------------------------------------- | ---- | ------------ |
+| L1   | Caffeine | `perm:auth:{tenantId}:{userId}:{path}`        | 30s  | TTL 过期     |
+| L2   | 无       | —                                             | —    | Gateway 不直连 Redis |
 
-> 快照按服务维度缓存，所有用户共享。SnapshotRefreshScheduler 每 30s 轮询权限中心版本号，版本变更时拉取全量快照并更新 L1+L2。
+> Gateway 不直接读 Redis，鉴权缓存命中走 L1，未命中回调权限中心 HTTP 接口。权限中心内部使用 Redis 两份数据（用户角色 + 角色权限）完成判定。
 
 ### 2.5 Sa-Token 集成要点
 
@@ -187,7 +181,7 @@
 与权限中心的 `abstract_user` 关系：
 
 - `admin-service.sys_user` 是**事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）
-- 用户创建/更新/删除时，通过 **API + RocketMQ 双通道**同步到权限中心的 `abstract_user`
+- 用户创建/更新/删除时，通过 **API 同步**到权限中心的 `abstract_user`
 - `sys_user.id` 对应权限中心的 `abstract_user.external_id`
 - 同步字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
 
@@ -262,12 +256,11 @@
 ```
 admin-service                        permission-center
     │                                       │
-    ├─ 创建用户 sys_user ──API/MQ──────────▶ 创建 abstract_user
+    ├─ 创建用户 sys_user ──API─────────────▶ 创建 abstract_user
     │                                       │ + 自动创建个人角色
-    │                                       │ + 加入默认分组
-    ├─ 更新用户状态 ───────API/MQ──────────▶ 更新 abstract_user.enabled
+    ├─ 更新用户状态 ───────API─────────────▶ 更新 abstract_user.enabled
     │                                       │
-    └─ 删除用户 ───────────API/MQ──────────▶ 软删 abstract_user
+    └─ 删除用户 ───────────API─────────────▶ 软删 abstract_user
                                             │ + 级联清理关联
 ```
 
@@ -289,7 +282,7 @@ admin-service                        permission-center
 
 - 管理服务的组织节点(sys_org) **同步为权限中心的 `abstract_role`（role_type=ORG）**
 - 每个组织节点对应一个 ORG 类型角色，用户关联到组织时 → 在权限中心写入 user_role(ROLE)
-- 组织树的层级关系通过 role_group 分组来体现（可选）
+- 组织树的层级关系通过 `abstract_role.parent_id` 树形结构体现
 - 这样用户通过所在组织自动获得该组织角色上配置的权限
 
 ---
@@ -333,17 +326,36 @@ perm-sdk/
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
 | perm-client-spring-boot-starter  | 权限中心客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式） |
-| perm-gateway-spring-boot-starter | 网关插件：服务维度权限快照管理（30s 版本轮询）、L1+L2 缓存、ConditionEvaluator 条件评估（简单本地/复杂回调）               |
+| perm-gateway-spring-boot-starter | 网关插件：接口权限缓存（L1 Caffeine）、回调权限中心鉴权、ConditionEvaluator 条件评估           |
 | perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存             |
+
+### 4.5 核心 API 清单
+
+#### 4.5.1 perm-client-spring-boot-starter
+
+| 组件 | 说明 |
+|------|------|
+| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到权限中心 |
+| `PermissionClient` | 业务服务查询用户权限视图的客户端。主要方法：`hasPermission(resourceId, operationId)`、`getMenuTree()` |
+| `DataPermissionInterceptor` | MyBatis 拦截器，自动在 SQL 中注入数据权限过滤条件 |
+
+#### 4.5.2 perm-gateway-spring-boot-starter
+
+| 组件 | 说明 |
+|------|------|
+| `PermissionFilter` | Gateway GlobalFilter，Order=-60，每次请求回调权限中心鉴权 |
+| `ConditionEvaluator` | 评估条件规则（时间范围、IP白名单等），返回匹配结果 |
 
 ---
 
-## 5. 服务间事件（RocketMQ Topic 规划）
+~~## 5. 服务间事件（RocketMQ Topic 规划）~~
 
-| Topic                    | 生产者            | 消费者                          | 消息内容                     |
-| ------------------------ | ----------------- | ------------------------------- | ---------------------------- |
-| USER_SYNC                | admin-service     | permission-center               | 用户创建/更新/删除事件       |
-| PERMISSION_CHANGE_NOTIFY | permission-center | admin-service / example-service | 权限变更通知（角色、资源等） |
+> 已移除。服务间同步改为仅 API 调用，不再使用 RocketMQ 传递用户同步和权限变更通知。
+
+~~| Topic                    | 生产者            | 消费者                          | 消息内容                     |~~
+~~| ------------------------ | ----------------- | ------------------------------- | ---------------------------- |~~
+~~| USER_SYNC                | admin-service     | permission-center               | 用户创建/更新/删除事件       |~~
+~~| PERMISSION_CHANGE_NOTIFY | permission-center | admin-service / example-service | 权限变更通知（角色、资源等） |~~
 
 ---
 
@@ -369,3 +381,4 @@ perm-sdk/
 - **所有接口 POST + JSON Body**
 - **通用响应结构**：`{ "code": 200, "message": "success", "data": {} }`
 - **分页规范**：与权限中心一致的 `pageNum/pageSize/rows/total`
+- **禁止使用 Lombok**：使用 Java 21 Record 替代 Lombok 的 @Data/@Value/@Builder 等，保持代码清晰可控

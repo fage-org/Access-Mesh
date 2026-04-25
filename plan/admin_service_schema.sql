@@ -1,12 +1,12 @@
 -- =============================================================================
--- 管理服务 (admin-service) - PostgreSQL 表结构（17 张表）
+-- 管理服务 (admin-service) - PostgreSQL 表结构（18 张表）
 -- 无外键，逻辑关联由应用保证
 -- =============================================================================
 -- 软删约定（与权限中心一致）：
 --   delete_flag BIGINT：0 = 未删除，删除时填本行 id（确保唯一约束不冲突）
 --   deleted_at TIMESTAMPTZ：纯审计字段，记录删除时间，不参与索引条件
 --   所有唯一索引和业务查询统一使用 WHERE delete_flag = 0
--- 例外：sys_login_log、sys_audit_log、sys_sync_retry、sys_job_log 不做软删除
+-- 例外：sys_login_log、sys_audit_log、sys_job_log 不做软删除
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -117,30 +117,6 @@ COMMENT ON COLUMN sys_user.user_type IS '用户类型（对应权限中心 user_
 COMMENT ON COLUMN sys_user.perm_user_id IS '权限中心 abstract_user.id（同步后回填）';
 COMMENT ON COLUMN sys_user.force_reset_pwd IS '是否需要强制修改密码（首次登录/管理员重置后）';
 COMMENT ON COLUMN sys_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
-
--- -----------------------------------------------------------------------------
--- 4. sys_sync_retry - 同步重试队列（不做软删除）
--- -----------------------------------------------------------------------------
-CREATE TABLE sys_sync_retry (
-    id            BIGSERIAL PRIMARY KEY,
-    tenant_id     BIGINT NOT NULL,
-    action        VARCHAR(64) NOT NULL,
-    payload       JSONB NOT NULL,
-    retry_count   INT NOT NULL DEFAULT 0,
-    max_retries   INT NOT NULL DEFAULT 3,
-    next_retry_at TIMESTAMPTZ,
-    status        SMALLINT NOT NULL DEFAULT 0,
-    fail_reason   TEXT,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_sync_retry_status ON sys_sync_retry (status, next_retry_at) WHERE status = 0;
-
-COMMENT ON TABLE sys_sync_retry IS '同步重试队列，API/MQ 均失败时写入，定时任务扫描重试';
-COMMENT ON COLUMN sys_sync_retry.action IS '同步动作：USER_CREATE/USER_UPDATE/USER_DELETE/ORG_CREATE/ORG_UPDATE 等';
-COMMENT ON COLUMN sys_sync_retry.payload IS '同步数据（JSON 序列化的请求体）';
-COMMENT ON COLUMN sys_sync_retry.status IS '状态：0=待重试，1=成功，2=失败（超过最大重试次数）';
 
 -- -----------------------------------------------------------------------------
 -- 5. sys_org - 统一组织表（部门/岗位/团队同表，org_type 仅标签）
@@ -537,6 +513,48 @@ COMMENT ON COLUMN sys_config.config_key IS '配置键';
 COMMENT ON COLUMN sys_config.config_value IS '配置值（JSON）';
 COMMENT ON COLUMN sys_config.is_system IS '是否系统内置（不可删除）';
 COMMENT ON COLUMN sys_config.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
+
+-- -----------------------------------------------------------------------------
+-- 18. sys_sync_retry - 同步重试队列（本地消息表）
+-- -----------------------------------------------------------------------------
+CREATE TABLE sys_sync_retry (
+    id              BIGSERIAL PRIMARY KEY,
+    tenant_id       BIGINT NOT NULL,
+    message_key     VARCHAR(128) NOT NULL,
+    target_service  VARCHAR(64) NOT NULL,
+    entity_type     VARCHAR(64) NOT NULL,
+    external_id     VARCHAR(256) NOT NULL,
+    operation_type  VARCHAR(32) NOT NULL,
+    payload         JSONB NOT NULL DEFAULT '{}',
+    retry_count     INT NOT NULL DEFAULT 0,
+    max_retries     INT NOT NULL DEFAULT 3,
+    next_retry_at   TIMESTAMPTZ,
+    last_error      VARCHAR(1024),
+    status          VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    created_by      BIGINT,
+    updated_by      BIGINT,
+    deleted_by      BIGINT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at      TIMESTAMPTZ,
+    delete_flag     BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_sync_retry_status ON sys_sync_retry (status, next_retry_at) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_retry_message_key ON sys_sync_retry (message_key) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_retry_external_id ON sys_sync_retry (entity_type, external_id) WHERE delete_flag = 0;
+
+COMMENT ON TABLE sys_sync_retry IS '同步重试队列（本地消息表），保障与权限中心数据一致性';
+COMMENT ON COLUMN sys_sync_retry.message_key IS '消息唯一标识，防重复投递';
+COMMENT ON COLUMN sys_sync_retry.target_service IS '目标服务（如 permission-center）';
+COMMENT ON COLUMN sys_sync_retry.entity_type IS '实体类型（user/org/menu/role）';
+COMMENT ON COLUMN sys_sync_retry.external_id IS '外部系统实体ID（如 sys_user.id）';
+COMMENT ON COLUMN sys_sync_retry.operation_type IS '操作类型（create/update/delete）';
+COMMENT ON COLUMN sys_sync_retry.payload IS '同步请求参数快照';
+COMMENT ON COLUMN sys_sync_retry.retry_count IS '已重试次数';
+COMMENT ON COLUMN sys_sync_retry.next_retry_at IS '下次重试时间（退避策略计算）';
+COMMENT ON COLUMN sys_sync_retry.last_error IS '最后一次失败原因';
+COMMENT ON COLUMN sys_sync_retry.status IS '状态：PENDING/RETRYING/SUCCESS/FAILED/MAX_RETRIES_EXCEEDED';
 
 -- 预置配置项
 INSERT INTO sys_config (tenant_id, config_key, config_value, config_name, is_system, created_by, created_at, updated_at)

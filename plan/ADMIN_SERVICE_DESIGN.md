@@ -24,7 +24,7 @@
 
 与权限中心一致：
 
-- **所有接口 POST + JSON Body**（除 OAuth2 标准端点外）
+- **所有接口 POST + JSON Body**（除 OAuth2 标准端点和文件上传/下载接口外）
 - **多租户**：所有表带 `tenant_id`
 - **软删除**：`delete_flag`（0=未删除，删除时填本行 id）
 - **审计字段**：`created_by`、`updated_by`、`deleted_by`、`created_at`、`updated_at`、`deleted_at`
@@ -579,7 +579,7 @@ POST /api/admin/login-logs/list
 
 ### 2.3 与权限中心同步
 
-用户创建/更新/删除时，通过 API + RocketMQ 双通道同步：
+用户创建/更新/删除时，通过 API 同步到权限中心：
 
 | admin-service 事件 | 同步内容                                                                                         |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
@@ -590,29 +590,14 @@ POST /api/admin/login-logs/list
 
 **同步策略**：
 
-- **主路径 API 同步**：用户写操作时同步调用权限中心（OpenFeign），失败则记录到重试队列
-- **备路径 MQ 异步**：同时发送 RocketMQ 消息（USER_SYNC topic），权限中心消费端幂等处理
-- **持久化重试队列**：API 和 MQ 均失败时，写入 `sys_sync_retry` 表（action/payload/retry_count/next_retry_at），定时任务每分钟扫描重试，最多 3 次，超限后标记为 FAILED 告警
-- **幂等保证**：权限中心按 `(tenant_id, user_type, external_id)` 去重
-- **手动重试**：提供管理接口查看/重试失败记录
-
-#### 2.3.1 sys_sync_retry（同步重试队列）
-
-| 字段          | 类型        | 说明                                            |
-| ------------- | ----------- | ----------------------------------------------- |
-| id            | BIGSERIAL   | 主键                                            |
-| tenant_id     | BIGINT      | 租户ID                                          |
-| action        | VARCHAR(64) | 同步动作（USER_CREATE/USER_UPDATE/USER_DELETE） |
-| payload       | JSONB       | 同步数据（JSON 序列化的请求体）                 |
-| retry_count   | INT         | 已重试次数，默认 0                              |
-| max_retries   | INT         | 最大重试次数，默认 3                            |
-| next_retry_at | TIMESTAMPTZ | 下次重试时间                                    |
-| status        | SMALLINT    | 状态（0=待重试/1=成功/2=失败）                  |
-| fail_reason   | TEXT        | 失败原因                                        |
-| created_at    | TIMESTAMPTZ | 创建时间                                        |
-| updated_at    | TIMESTAMPTZ | 更新时间                                        |
-
-> sys_sync_retry 不做软删除，成功记录可定期清理。
+- **本地消息表**：用户写操作时，在同一事务中写入 `sys_sync_retry` 消息记录（`status=PENDING`），保证本地数据与消息记录强一致
+- **同步调用**：事务提交后，异步调用权限中心同步 API（OpenFeign）
+  - 调用成功 → 更新消息记录 `status=SUCCESS`
+  - 调用失败 → 记录 `last_error`，`retry_count+1`，按退避策略计算 `next_retry_at`，`status=RETRYING`
+- **补偿任务**：定时任务扫描 `status=RETRYING` 且 `next_retry_at <= now()` 的记录，重试同步
+  - 最大重试次数 `max_retries=3`，超过后标记 `status=MAX_RETRIES_EXCEEDED`
+- **手动重试**：提供管理接口查看失败记录并手动触发重试
+- **幂等保证**：权限中心按 `message_key` 去重，`version` 防乱序
 
 ### 2.4 接口列表
 
@@ -876,7 +861,7 @@ POST /api/admin/users/change-status
 | 更新组织名称       | → 更新 abstract_role.name                                               |
 | 启停组织           | → 更新 abstract_role.status                                             |
 | 删除组织           | → 删除 abstract_role                                                    |
-| 用户加入组织       | → 权限中心 user_role(ROLE, perm_role_id) 写入                           |
+| 用户加入组织       | → 权限中心 user_role(ORG, perm_role_id) 写入                            |
 | 用户移出组织       | → 权限中心 user_role 移除                                               |
 
 ### 3.4 接口列表
@@ -1051,7 +1036,7 @@ POST /api/admin/orgs/users/update
 
 - 新增关联时，校验该树的 single_assoc 配置：若为 true 且用户已关联该树其他节点 → 拒绝（需先移除旧关联）
 - 职位树（tree_type=POSITION）不受单关联限制
-- 新增关联时，同步到权限中心写入 user_role(ROLE, perm_role_id)
+- 新增关联时，同步到权限中心写入 user_role(ORG, perm_role_id)
 - 移除关联时，同步到权限中心删除 user_role
 
 ---
@@ -1101,10 +1086,13 @@ POST /api/admin/orgs/users/update
 
 **同步细节**：
 
-- menu_type=DIR 不同步（纯 UI 目录，无权限意义）
+- menu_type=DIR **不直接同步**为独立资源（纯 UI 目录，无权限意义）
+  - 但当 DIR 的子 MENU/BUTTON 同步时，若父节点是 DIR，需在权限中心创建一个**占位资源实体**
+  - 占位资源 `resource_type=MENU`，`name` 为 DIR 的原始名称，用于维持资源树父子关系链
 - menu_type=MENU → resource_type=MENU
 - menu_type=BUTTON → resource_type=BUTTON
 - 树形父子关系也同步到权限中心（resource_entity.parent_id）
+- 占位资源的 `extra` 标记 `{"placeholder": true, "source": "dir"}`，不参与实际鉴权
 
 ### 4.4 接口列表
 
@@ -1664,8 +1652,8 @@ POST /api/admin/roles/users/update
 
 | #   | 模块     | 接口数 | 数据库表                                   |
 | --- | -------- | ------ | ------------------------------------------ |
-| 1   | 认证     | 13     | sys_oauth2_client, sys_login_log           |
-| 2   | 用户管理 | 8      | sys_user, sys_sync_retry                   |
+| 1   | 认证     | 14     | sys_oauth2_client, sys_login_log           |
+| 2   | 用户管理 | 7      | sys_user（去除原 sys_sync_retry）                |
 | 3   | 组织管理 | 8      | sys_org, sys_org_tree_config, sys_user_org |
 | 4   | 菜单管理 | 6      | sys_menu                                   |
 | 5   | 角色管理 | 7      | -（复用权限中心）                          |
