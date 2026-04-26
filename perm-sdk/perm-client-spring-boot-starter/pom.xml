@@ -16,6 +16,11 @@
     <dependencies>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-common</artifactId>
             <version>${project.version}</version>
         </dependency>
