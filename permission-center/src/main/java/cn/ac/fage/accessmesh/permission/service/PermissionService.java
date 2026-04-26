@@ -2,18 +2,28 @@ package cn.ac.fage.accessmesh.permission.service;
 
 import cn.ac.fage.accessmesh.perm.common.model.PermCheckReq;
 import cn.ac.fage.accessmesh.perm.common.model.PermCheckResp;
+import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 
-import java.util.List;
-
+/**
+ * Core permission check service — internal SDK contract.
+ */
 public interface PermissionService {
 
+    /**
+     * Internal SDK permission check (used by gateway callback).
+     */
     PermCheckResp checkPermission(PermCheckReq req);
 
-    Long createRole(String roleName, Long orgId, Long tenantId);
+    /**
+     * Detailed auth check with full chain (user status → role resolution → conflict filter → auth match → condition eval).
+     */
+    AuthCheckResp check(AuthCheckReq req);
 
-    void grantMenuToRole(Long roleId, Long menuId);
-
-    void revokeMenuFromRole(Long roleId, Long menuId);
-
-    List<String> getUserPermissions(Long userId);
+    /**
+     * Batch auth check for multiple resource+operation combinations.
+     */
+    BatchAuthCheckResp batchCheck(BatchAuthCheckReq req);
 }
