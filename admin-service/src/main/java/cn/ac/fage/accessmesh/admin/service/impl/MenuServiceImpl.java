@@ -23,9 +23,12 @@ import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
 public class MenuServiceImpl implements MenuService {
 
     private final SysMenuMapper menuMapper;
+    private final cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService;
 
-    public MenuServiceImpl(SysMenuMapper menuMapper) {
+    public MenuServiceImpl(SysMenuMapper menuMapper,
+                           cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService) {
         this.menuMapper = menuMapper;
+        this.roleProxyService = roleProxyService;
     }
 
     @Override
@@ -148,7 +151,8 @@ public class MenuServiceImpl implements MenuService {
 
     @Override
     public List<String> getUserPermissions(Long userId) {
-        return List.of();
+        cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
+        return info.permissions() != null ? info.permissions() : List.of();
     }
 
     private int calculateDepth(Long parentId) {

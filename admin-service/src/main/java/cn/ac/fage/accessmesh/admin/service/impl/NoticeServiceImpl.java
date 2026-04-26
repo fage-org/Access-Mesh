@@ -149,4 +149,46 @@ public class NoticeServiceImpl implements NoticeService {
             userNoticeMapper.insert(userNotice);
         }
     }
+
+    @Override
+    public List<UserNoticeItem> listMyNotices(Long userId) {
+        // Query all notices joined with user's read status
+        String sql = """
+            SELECT n.id AS notice_id, n.title, n.content, n.notice_type, n.created_at,
+                   COALESCE(un.is_read, false) AS is_read, un.read_at
+            FROM sys_notice n
+            LEFT JOIN sys_user_notice un ON un.notice_id = n.id AND un.user_id = ?
+            WHERE n.delete_flag = 0 AND n.status = 1
+            ORDER BY n.created_at DESC
+            """.stripIndent();
+        // Fallback: use two separate queries since MyBatis-Flex doesn't support raw SQL easily
+        List<SysNotice> notices = noticeMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_NOTICE.DELETE_FLAG.eq(0))
+                .and(SYS_NOTICE.STATUS.eq(1))
+                .orderBy(SYS_NOTICE.CREATED_AT.desc())
+        );
+
+        List<Long> noticeIds = notices.stream().map(SysNotice::getId).toList();
+        List<SysUserNotice> userNotices = noticeIds.isEmpty() ? List.of() :
+            userNoticeMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(SYS_USER_NOTICE.USER_ID.eq(userId))
+                    .and(SYS_USER_NOTICE.NOTICE_ID.in(noticeIds))
+            );
+
+        var readMap = userNotices.stream()
+            .collect(java.util.stream.Collectors.toMap(SysUserNotice::getNoticeId, un -> un));
+
+        return notices.stream().map(n -> {
+            SysUserNotice un = readMap.get(n.getId());
+            return new UserNoticeItem(
+                n.getId(), n.getTitle(), n.getContent(),
+                n.getNoticeType() != null ? n.getNoticeType() : null,
+                n.getCreatedAt(),
+                un != null ? un.getIsRead() : false,
+                un != null ? un.getReadAt() : null
+            );
+        }).toList();
+    }
 }

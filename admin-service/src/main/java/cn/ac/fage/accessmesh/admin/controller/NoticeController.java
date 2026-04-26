@@ -65,4 +65,9 @@ public class NoticeController {
         noticeService.markNoticeAsRead(req.id(), StpUtil.getLoginIdAsLong());
         return PermResult.success();
     }
+
+    @PostMapping("/my-notices")
+    public PermResult<java.util.List<NoticeService.UserNoticeItem>> listMyNotices() {
+        return PermResult.success(noticeService.listMyNotices(StpUtil.getLoginIdAsLong()));
+    }
 }

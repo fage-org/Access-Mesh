@@ -1,9 +1,12 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysSyncRetry;
 import cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysSyncRetryMapper;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
+import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,6 +123,19 @@ public class SyncRetryServiceImpl implements SyncRetryService {
             record.setDeletedAt(LocalDateTime.now());
             syncRetryMapper.update(record);
         }
+    }
+
+    @Override
+    public PaginatedResult<SysSyncRetry> page(PageReq pageReq) {
+        Page<SysSyncRetry> page = syncRetryMapper.paginate(
+            Page.of(pageReq.getPageNum(), pageReq.getPageSize()),
+            QueryWrapper.create()
+                .where(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                .orderBy(SYS_SYNC_RETRY.CREATED_AT.desc())
+        );
+        long totalPages = (page.getTotalRow() + pageReq.getPageSize() - 1) / pageReq.getPageSize();
+        return new PaginatedResult<>(page.getRecords(),
+            new PaginatedResult.PaginationMeta(page.getTotalRow(), pageReq.getPageNum(), pageReq.getPageSize(), (int) totalPages));
     }
 
     /**

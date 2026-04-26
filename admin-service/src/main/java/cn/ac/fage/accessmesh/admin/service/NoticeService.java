@@ -22,4 +22,13 @@ public interface NoticeService {
     void publishNotice(Long id);
 
     void markNoticeAsRead(Long noticeId, Long userId);
+
+    /**
+     * List notices for current user with read status.
+     */
+    java.util.List<UserNoticeItem> listMyNotices(Long userId);
+
+    record UserNoticeItem(Long noticeId, String title, String content, String noticeType,
+                          java.time.LocalDateTime createdAt, Boolean isRead,
+                          java.time.LocalDateTime readAt) {}
 }
