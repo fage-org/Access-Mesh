@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.MenuResp;
@@ -9,7 +10,14 @@ import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper;
 import cn.ac.fage.accessmesh.admin.service.MenuService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdWithTenantReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,12 +30,18 @@ import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
 @Service
 public class MenuServiceImpl implements MenuService {
 
+    private static final Logger log = LoggerFactory.getLogger(MenuServiceImpl.class);
+    private static final int RESOURCE_TYPE_MENU = 1;
+
     private final SysMenuMapper menuMapper;
+    private final PermissionFeignClient permissionFeignClient;
     private final cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService;
 
     public MenuServiceImpl(SysMenuMapper menuMapper,
+                           PermissionFeignClient permissionFeignClient,
                            cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService) {
         this.menuMapper = menuMapper;
+        this.permissionFeignClient = permissionFeignClient;
         this.roleProxyService = roleProxyService;
     }
 
@@ -52,7 +66,16 @@ public class MenuServiceImpl implements MenuService {
                 AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
         }
 
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // Sync to permission-center as a MENU resource
+        Long permResourceId = null;
+        if (req.perms() != null && !req.perms().isBlank()) {
+            permResourceId = syncResourceToPermissionCenter(tenantId, null, req.parentId(), req.perms(), req.menuName(), null);
+        }
+
         SysMenu menu = new SysMenu();
+        menu.setTenantId(tenantId);
         menu.setParentId(req.parentId() != null ? req.parentId() : 0L);
         menu.setMenuType(String.valueOf(req.menuType()));
         menu.setName(req.menuName());
@@ -63,6 +86,7 @@ public class MenuServiceImpl implements MenuService {
         menu.setSortOrder(req.sort());
         menu.setVisible(req.visible() != null && req.visible() == 1);
         menu.setStatus(req.status() != null ? req.status() : 1);
+        menu.setPermResourceId(permResourceId);
         menu.setCreatedAt(LocalDateTime.now());
         menu.setUpdatedAt(LocalDateTime.now());
         menu.setDeleteFlag(0L);
@@ -96,6 +120,13 @@ public class MenuServiceImpl implements MenuService {
                     AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
             }
         }
+
+        // Sync to permission-center
+        if (req.perms() != null && !req.perms().isBlank()
+            && (!req.perms().equals(menu.getPermCode()) || !req.menuName().equals(menu.getName()))) {
+            updateResourceInPermissionCenter(menu, req.menuName(), req.perms());
+        }
+
         menu.setMenuType(req.menuType() != null ? String.valueOf(req.menuType()) : menu.getMenuType());
         menu.setName(req.menuName());
         menu.setParentId(req.parentId() != null ? req.parentId() : menu.getParentId());
@@ -125,6 +156,12 @@ public class MenuServiceImpl implements MenuService {
         if (childCount > 0) {
             throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(), AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
+
+        // Delete from permission-center
+        if (menu.getPermResourceId() != null) {
+            deleteResourceFromPermissionCenter(menu.getTenantId(), menu.getPermResourceId());
+        }
+
         menu.setDeleteFlag(1L);
         menu.setDeletedAt(LocalDateTime.now());
         menuMapper.update(menu);
@@ -152,8 +189,48 @@ public class MenuServiceImpl implements MenuService {
     @Override
     public List<String> getUserPermissions(Long userId) {
         cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
-        return info.permissions() != null ? info.permissions() : List.of();
+        return info != null ? info.permissions() : List.of();
     }
+
+    // ========== Permission Center Sync ==========
+
+    private Long syncResourceToPermissionCenter(Long tenantId, Long resourceId, Long parentId, String code, String name, String path) {
+        ResourceCreateReq req = new ResourceCreateReq(
+            tenantId, null,
+            parentId != null && parentId > 0 ? parentId : 0L,
+            RESOURCE_TYPE_MENU, code, null, name, path, 1, 0, null
+        );
+        PermResult<Long> result = permissionFeignClient.createResource(req);
+        if (result == null || result.data() == null) {
+            log.warn("Failed to sync resource to permission-center: code={}, name={}", code, name);
+            return null;
+        }
+        return result.data();
+    }
+
+    private void updateResourceInPermissionCenter(SysMenu menu, String name, String code) {
+        if (menu.getPermResourceId() == null) {
+            return;
+        }
+        ResourceUpdateReq req = new ResourceUpdateReq(
+            menu.getPermResourceId(), menu.getTenantId(),
+            code, name, menu.getPath(), menu.getStatus(), menu.getSortOrder(), menu.getExtra()
+        );
+        PermResult<Long> result = permissionFeignClient.updateResource(req);
+        if (result == null) {
+            log.warn("Failed to update resource in permission-center: resourceId={}", menu.getPermResourceId());
+        }
+    }
+
+    private void deleteResourceFromPermissionCenter(Long tenantId, Long permResourceId) {
+        IdWithTenantReq req = new IdWithTenantReq(tenantId, permResourceId);
+        PermResult<Void> result = permissionFeignClient.deleteResource(req);
+        if (result == null) {
+            log.warn("Failed to delete resource from permission-center: resourceId={}", permResourceId);
+        }
+    }
+
+    // ========== Helpers ==========
 
     private int calculateDepth(Long parentId) {
         if (parentId == null || parentId == 0L) return 1;
