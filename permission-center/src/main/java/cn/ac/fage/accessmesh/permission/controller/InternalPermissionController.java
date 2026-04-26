@@ -5,8 +5,10 @@ import cn.ac.fage.accessmesh.perm.common.model.PermCheckReq;
 import cn.ac.fage.accessmesh.perm.common.model.PermCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,5 +48,14 @@ public class InternalPermissionController {
     @PostMapping("/auth/batch-check")
     public PermResult<BatchAuthCheckResp> batchCheck(@RequestBody BatchAuthCheckReq req) {
         return PermResult.success(permissionService.batchCheck(req));
+    }
+
+    /**
+     * Gateway callback: check by serviceCode + httpMethod + path.
+     * Resolves API mapping → resource entity → operation permission → full auth chain.
+     */
+    @PostMapping("/auth/check-interface")
+    public PermResult<CheckInterfaceResp> checkInterface(@RequestBody CheckInterfaceReq req) {
+        return PermResult.success(permissionService.checkInterface(req));
     }
 }

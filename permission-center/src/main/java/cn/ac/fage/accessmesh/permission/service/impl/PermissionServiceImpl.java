@@ -4,15 +4,19 @@ import cn.ac.fage.accessmesh.perm.common.model.PermCheckReq;
 import cn.ac.fage.accessmesh.perm.common.model.PermCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult;
+import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
@@ -29,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
 
 @Service
 public class PermissionServiceImpl implements PermissionService {
@@ -37,6 +42,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
+    private final ResourceApiMappingMapper apiMappingMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final UserRoleDomainService userRoleDomainService;
@@ -46,6 +52,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     public PermissionServiceImpl(AbstractUserMapper abstractUserMapper,
                                  ResourceEntityMapper resourceEntityMapper,
+                                 ResourceApiMappingMapper apiMappingMapper,
                                  OperationPermissionMapper operationPermissionMapper,
                                  RoleResourcePermissionMapper rolePermMapper,
                                  UserRoleDomainService userRoleDomainService,
@@ -54,6 +61,7 @@ public class PermissionServiceImpl implements PermissionService {
                                  RolePermissionDomainService rolePermissionDomainService) {
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
+        this.apiMappingMapper = apiMappingMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.rolePermMapper = rolePermMapper;
         this.userRoleDomainService = userRoleDomainService;
@@ -161,6 +169,124 @@ public class PermissionServiceImpl implements PermissionService {
             ));
         }
         return new BatchAuthCheckResp(req.tenantId(), req.abstractUserId(), results);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CheckInterfaceResp checkInterface(CheckInterfaceReq req) {
+        // Step 1: Find API mappings matching serviceCode + httpMethod + path
+        List<ResourceApiMapping> mappings = apiMappingMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
+                .and(RESOURCE_API_MAPPING.HTTP_METHOD.eq(req.httpMethod()))
+                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                .and(RESOURCE_API_MAPPING.ENABLED.eq(true))
+        );
+
+        if (mappings.isEmpty()) {
+            return CheckInterfaceResp.deny("NO_API_MAPPING");
+        }
+
+        // Find matching mapping by path pattern (exact match first, then Ant-style)
+        ResourceApiMapping matchedMapping = null;
+        for (ResourceApiMapping mapping : mappings) {
+            if (pathMatches(mapping.getPathPattern(), req.path())) {
+                matchedMapping = mapping;
+                break;
+            }
+        }
+        if (matchedMapping == null) {
+            return CheckInterfaceResp.deny("NO_API_MAPPING");
+        }
+
+        // Step 2: Get the associated resource entity and its operations
+        ResourceEntity resource = resourceEntityMapper.selectOneById(matchedMapping.getResourceEntityId());
+        if (resource == null || resource.getDeleteFlag() != 0L) {
+            return CheckInterfaceResp.deny("RESOURCE_NOT_FOUND");
+        }
+
+        // Step 3: Resolve user's effective roles
+        AbstractUser user = abstractUserMapper.selectOneById(req.userId());
+        if (user == null || user.getDeleteFlag() != 0L) {
+            return CheckInterfaceResp.deny("USER_NOT_FOUND");
+        }
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            return CheckInterfaceResp.deny("USER_DISABLED");
+        }
+
+        Set<Long> effectiveRoleIds = userRoleDomainService
+            .resolveEffectiveRoles(req.tenantId(), req.userId(), null);
+        if (effectiveRoleIds.isEmpty()) {
+            return CheckInterfaceResp.deny("NO_ROLE");
+        }
+
+        Set<Long> validRoleIds = permissionConflictDomainService
+            .filterRoleMutex(req.tenantId(), effectiveRoleIds);
+        if (validRoleIds.isEmpty()) {
+            return CheckInterfaceResp.deny("NO_ROLE");
+        }
+
+        // Step 4: Check if any role has permission on this resource
+        // We need to check ALL operations associated with this resource type
+        List<OperationPermission> allOps = operationPermissionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.eq(resource.getResourceType()))
+                .and(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        Map<String, Object> context = new HashMap<>();
+        if (req.clientIp() != null) {
+            context.put("clientIp", req.clientIp());
+        }
+
+        // Check if any role has any matching permission for this resource
+        for (OperationPermission op : allOps) {
+            List<RolePermSnapshot.RolePermEntry> entries = queryMatchedEntries(
+                req.tenantId(), validRoleIds, matchedMapping.getResourceEntityId(),
+                op.getId(), null);
+
+            if (!entries.isEmpty()) {
+                List<RolePermSnapshot.RolePermEntry> passedEntries = permissionConditionDomainService
+                    .evaluate(req.tenantId(), entries, context);
+                if (!passedEntries.isEmpty()) {
+                    List<RolePermSnapshot.RolePermEntry> finalEntries = permissionConflictDomainService
+                        .filterPermMutex(req.tenantId(), passedEntries);
+                    if (!finalEntries.isEmpty()) {
+                        Long matchedRoleId = finalEntries.get(0).resourceEntityId();
+                        return CheckInterfaceResp.allow(matchedRoleId, op.getCode());
+                    }
+                }
+            }
+        }
+
+        return CheckInterfaceResp.deny("NO_PERMISSION");
+    }
+
+    /**
+     * Simple path matching: supports exact match and Ant-style {param} patterns.
+     */
+    private boolean pathMatches(String pattern, String path) {
+        if (pattern.equals(path)) return true;
+
+        // Handle Ant-style patterns like /api/users/{id}
+        if (pattern.contains("{")) {
+            String[] patternParts = pattern.split("/");
+            String[] pathParts = path.split("/");
+            if (patternParts.length != pathParts.length) return false;
+            for (int i = 0; i < patternParts.length; i++) {
+                if (patternParts[i].startsWith("{") && patternParts[i].endsWith("}")) continue;
+                if (!patternParts[i].equals(pathParts[i])) return false;
+            }
+            return true;
+        }
+
+        // Handle wildcard *
+        if (pattern.contains("*")) {
+            String regex = pattern.replace(".", "\\.").replace("**", ".*").replace("*", "[^/]*");
+            return path.matches(regex);
+        }
+
+        return false;
     }
 
     private List<RolePermSnapshot.RolePermEntry> queryMatchedEntries(Long tenantId, Set<Long> roleIds,
