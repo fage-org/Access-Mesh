@@ -8,7 +8,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
+import java.net.InetAddress;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,8 +84,15 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     private boolean evaluateDateRange(JsonNode params) {
-        // Simplified: always true if params exist
-        return params.has("start") && params.has("end");
+        if (!params.has("start") || !params.has("end")) return false;
+        try {
+            LocalDate now = LocalDate.now();
+            LocalDate start = LocalDate.parse(params.get("start").asText());
+            LocalDate end = LocalDate.parse(params.get("end").asText());
+            return !now.isBefore(start) && !now.isAfter(end);
+        } catch (DateTimeParseException e) {
+            return false;
+        }
     }
 
     private boolean evaluateTimeRange(JsonNode params) {
@@ -103,11 +113,46 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         JsonNode cidrs = params.get("cidrs");
         if (cidrs == null || !cidrs.isArray()) return false;
         for (JsonNode cidr : cidrs) {
-            // Simplified: exact match for now, CIDR matching would require ip calculation
-            if (cidr.asText().startsWith(clientIp.substring(0, Math.min(clientIp.lastIndexOf('.'), cidr.asText().length())))) {
+            if (ipMatchesCidr(clientIp, cidr.asText())) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean ipMatchesCidr(String ip, String cidr) {
+        try {
+            if (!cidr.contains("/")) {
+                // Plain IP — exact match
+                return cidr.equals(ip);
+            }
+            String[] parts = cidr.split("/");
+            String networkIp = parts[0];
+            int prefixLength = Integer.parseInt(parts[1]);
+
+            InetAddress clientAddr = InetAddress.getByName(ip);
+            InetAddress networkAddr = InetAddress.getByName(networkIp);
+
+            byte[] clientBytes = clientAddr.getAddress();
+            byte[] networkBytes = networkAddr.getAddress();
+
+            // Only compare same-family addresses (both IPv4 or both IPv6)
+            if (clientBytes.length != networkBytes.length) return false;
+
+            int totalBits = clientBytes.length * 8;
+            if (prefixLength > totalBits) return false;
+
+            // Compare bit-by-bit up to prefix length
+            for (int i = 0; i < prefixLength; i++) {
+                int byteIndex = i / 8;
+                int bitIndex = 7 - (i % 8);
+                int clientBit = (clientBytes[byteIndex] >> bitIndex) & 1;
+                int networkBit = (networkBytes[byteIndex] >> bitIndex) & 1;
+                if (clientBit != networkBit) return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
