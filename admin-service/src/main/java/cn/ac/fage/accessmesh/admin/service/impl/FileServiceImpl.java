@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.admin.entity.SysFile;
 import cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef;
@@ -108,7 +108,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public PaginatedResult<FileResp> pageFiles(PageReq pageReq, String bizType) {
+    public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         QueryWrapper qw = QueryWrapper.create()
             .where(SYS_FILE.DELETE_FLAG.eq(0));
         if (bizType != null) qw.and(SYS_FILE.BUCKET_NAME.eq(bizType));

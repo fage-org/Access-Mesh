@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
@@ -139,7 +140,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public PaginatedResult<SysJobLog> pageJobLogs(PageReq pageReq, Long jobId) {
+    public PaginatedResult<SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         QueryWrapper qw = QueryWrapper.create().orderBy(SYS_JOB_LOG.CREATED_AT.desc());
         if (jobId != null) {
             qw.where(SYS_JOB_LOG.JOB_ID.eq(jobId));

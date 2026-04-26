@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
+import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
@@ -74,9 +75,8 @@ public class JobController {
 
     @PostMapping("/log/page")
     public PermResult<PaginatedResult<SysJobLog>> pageJobLogs(
-            @Valid @RequestBody PageReq req,
-            @RequestParam(required = false) Long jobId) {
-        return PermResult.success(jobService.pageJobLogs(req, jobId));
+            @Valid @RequestBody JobLogPageReq req) {
+        return PermResult.success(jobService.pageJobLogs(req, req.jobId()));
     }
 
     public record ToggleJobReq(Long id, Integer status) {}

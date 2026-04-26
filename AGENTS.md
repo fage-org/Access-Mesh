@@ -38,6 +38,7 @@ Gateway (8080) ──→ admin-service (9100)      — 用户/组织/菜单/认�
 **所有规范见 `plan/PROJECT_RULES.md`**，核心要点：
 
 - 所有接口 **POST + JSON Body**，禁止 GET/PUT/DELETE，禁止 RESTful 路径参数
+- **禁止 `@RequestParam`**（文件上传除外），所有参数通过 `@RequestBody` + Request DTO
 - 路径格式：`/api/{module}/{resource}/{action}`
 - 统一响应体：`{ "code": 200, "message": "success", "data": {}, "requestId": "...", "traceId": "..." }`
 - 错误码分段：10001-19999(admin) / 20001-29999(perm) / 30001-39999(example) / 90001-99999(全局)

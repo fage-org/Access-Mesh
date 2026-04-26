@@ -1,8 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
-import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
-import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
+import cn.ac.fage.accessmesh.permission.dto.req.*;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
@@ -37,16 +36,16 @@ public class UserManageController {
      * Get user by ID.
      */
     @PostMapping("/get")
-    public PermResult<UserResp> getUser(@RequestParam Long tenantId, @RequestParam Long userId) {
-        return PermResult.success(userManageService.getUser(tenantId, userId));
+    public PermResult<UserResp> getUser(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(userManageService.getUser(req.tenantId(), req.id()));
     }
 
     /**
      * Delete user (soft).
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteUser(@RequestParam Long tenantId, @RequestParam Long userId) {
-        userManageService.deleteUser(tenantId, userId);
+    public PermResult<Void> deleteUser(@Valid @RequestBody IdWithTenantReq req) {
+        userManageService.deleteUser(req.tenantId(), req.id());
         return PermResult.success();
     }
 
@@ -54,10 +53,8 @@ public class UserManageController {
      * Enable/disable user.
      */
     @PostMapping("/set-enabled")
-    public PermResult<Void> setUserEnabled(@RequestParam Long tenantId,
-                                            @RequestParam Long userId,
-                                            @RequestParam boolean enabled) {
-        userManageService.setUserEnabled(tenantId, userId, enabled);
+    public PermResult<Void> setUserEnabled(@Valid @RequestBody UserSetEnabledReq req) {
+        userManageService.setUserEnabled(req.tenantId(), req.userId(), req.enabled());
         return PermResult.success();
     }
 
@@ -74,10 +71,8 @@ public class UserManageController {
      * Revoke role from user.
      */
     @PostMapping("/revoke-role")
-    public PermResult<Void> revokeRole(@RequestParam Long tenantId,
-                                        @RequestParam Long userId,
-                                        @RequestParam Long userRoleId) {
-        userManageService.revokeRole(tenantId, userId, userRoleId);
+    public PermResult<Void> revokeRole(@Valid @RequestBody UserRevokeRoleReq req) {
+        userManageService.revokeRole(req.tenantId(), req.userId(), req.userRoleId());
         return PermResult.success();
     }
 
@@ -85,17 +80,16 @@ public class UserManageController {
      * Get user's roles.
      */
     @PostMapping("/roles")
-    public PermResult<UserRolesResp> getUserRoles(@RequestParam Long tenantId, @RequestParam Long userId) {
-        return PermResult.success(userManageService.getUserRoles(tenantId, userId));
+    public PermResult<UserRolesResp> getUserRoles(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(userManageService.getUserRoles(req.tenantId(), req.id()));
     }
 
     /**
      * List users (simple pagination).
      */
     @PostMapping("/list")
-    public PermResult<List<UserResp>> listUsers(@RequestParam Long tenantId,
-                                                 @RequestParam(defaultValue = "0") int offset,
-                                                 @RequestParam(defaultValue = "20") int limit) {
-        return PermResult.success(userManageService.listUsers(tenantId, offset, limit));
+    public PermResult<List<UserResp>> listUsers(@Valid @RequestBody UserListReq req) {
+        return PermResult.success(userManageService.listUsers(
+                req.tenantId(), req.offset() != null ? req.offset() : 0, req.limit() != null ? req.limit() : 20));
     }
 }

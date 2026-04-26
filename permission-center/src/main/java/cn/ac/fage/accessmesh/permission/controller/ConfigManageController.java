@@ -1,13 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
-import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
-import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
-import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
-import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.*;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import jakarta.validation.Valid;
@@ -37,19 +31,18 @@ public class ConfigManageController {
     }
 
     @PostMapping("/type/get")
-    public PermResult<TypeDefinitionResp> getType(@RequestParam Long tenantId, @RequestParam Long typeId) {
-        return PermResult.success(configManageService.getType(tenantId, typeId));
+    public PermResult<TypeDefinitionResp> getType(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(configManageService.getType(req.tenantId(), req.id()));
     }
 
     @PostMapping("/type/list")
-    public PermResult<List<TypeDefinitionResp>> listTypes(@RequestParam Long tenantId,
-                                                           @RequestParam(required = false) Long bizDomainId) {
-        return PermResult.success(configManageService.listTypes(tenantId, bizDomainId));
+    public PermResult<List<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
+        return PermResult.success(configManageService.listTypes(req.tenantId(), req.bizDomainId()));
     }
 
     @PostMapping("/type/delete")
-    public PermResult<Void> deleteType(@RequestParam Long tenantId, @RequestParam Long typeId) {
-        configManageService.deleteType(tenantId, typeId, null);
+    public PermResult<Void> deleteType(@Valid @RequestBody IdWithTenantReq req) {
+        configManageService.deleteType(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
@@ -66,18 +59,18 @@ public class ConfigManageController {
     }
 
     @PostMapping("/biz-domain/get")
-    public PermResult<BizDomainResp> getBizDomain(@RequestParam Long tenantId, @RequestParam Long domainId) {
-        return PermResult.success(configManageService.getBizDomain(tenantId, domainId));
+    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(configManageService.getBizDomain(req.tenantId(), req.id()));
     }
 
     @PostMapping("/biz-domain/list")
-    public PermResult<List<BizDomainResp>> listBizDomains(@RequestParam Long tenantId) {
-        return PermResult.success(configManageService.listBizDomains(tenantId));
+    public PermResult<List<BizDomainResp>> listBizDomains(@Valid @RequestBody TenantIdReq req) {
+        return PermResult.success(configManageService.listBizDomains(req.tenantId()));
     }
 
     @PostMapping("/biz-domain/delete")
-    public PermResult<Void> deleteBizDomain(@RequestParam Long tenantId, @RequestParam Long domainId) {
-        configManageService.deleteBizDomain(tenantId, domainId, null);
+    public PermResult<Void> deleteBizDomain(@Valid @RequestBody IdWithTenantReq req) {
+        configManageService.deleteBizDomain(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
@@ -95,16 +88,13 @@ public class ConfigManageController {
     }
 
     @PostMapping("/domain-config/get")
-    public PermResult<DomainConfigResp> getDomainConfig(@RequestParam Long tenantId,
-                                                         @RequestParam Long bizDomainId,
-                                                         @RequestParam String configType) {
-        return PermResult.success(configManageService.getDomainConfig(tenantId, bizDomainId, configType));
+    public PermResult<DomainConfigResp> getDomainConfig(@Valid @RequestBody DomainConfigGetReq req) {
+        return PermResult.success(configManageService.getDomainConfig(req.tenantId(), req.bizDomainId(), req.configType()));
     }
 
     @PostMapping("/domain-config/list")
-    public PermResult<List<DomainConfigResp>> listDomainConfigs(@RequestParam Long tenantId,
-                                                                 @RequestParam(required = false) Long bizDomainId) {
-        return PermResult.success(configManageService.listDomainConfigs(tenantId, bizDomainId));
+    public PermResult<List<DomainConfigResp>> listDomainConfigs(@Valid @RequestBody DomainConfigListReq req) {
+        return PermResult.success(configManageService.listDomainConfigs(req.tenantId(), req.bizDomainId()));
     }
 
     // ===== ServiceConfig =====
@@ -115,19 +105,18 @@ public class ConfigManageController {
     }
 
     @PostMapping("/service/get")
-    public PermResult<ServiceConfigResp> getServiceConfig(@RequestParam Long tenantId,
-                                                           @RequestParam String serviceCode) {
-        return PermResult.success(configManageService.getServiceConfig(tenantId, serviceCode));
+    public PermResult<ServiceConfigResp> getServiceConfig(@Valid @RequestBody ServiceConfigGetReq req) {
+        return PermResult.success(configManageService.getServiceConfig(req.tenantId(), req.serviceCode()));
     }
 
     @PostMapping("/service/list")
-    public PermResult<List<ServiceConfigResp>> listServiceConfigs(@RequestParam Long tenantId) {
-        return PermResult.success(configManageService.listServiceConfigs(tenantId));
+    public PermResult<List<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody TenantIdReq req) {
+        return PermResult.success(configManageService.listServiceConfigs(req.tenantId()));
     }
 
     @PostMapping("/service/delete")
-    public PermResult<Void> deleteServiceConfig(@RequestParam Long tenantId, @RequestParam String serviceCode) {
-        configManageService.deleteServiceConfig(tenantId, serviceCode, null);
+    public PermResult<Void> deleteServiceConfig(@Valid @RequestBody ServiceConfigDeleteReq req) {
+        configManageService.deleteServiceConfig(req.tenantId(), req.serviceCode(), null);
         return PermResult.success();
     }
 
@@ -145,13 +134,12 @@ public class ConfigManageController {
     }
 
     @PostMapping("/system/get")
-    public PermResult<SystemConfigResp> getSystemConfig(@RequestParam Long tenantId,
-                                                         @RequestParam String configKey) {
-        return PermResult.success(configManageService.getSystemConfig(tenantId, configKey));
+    public PermResult<SystemConfigResp> getSystemConfig(@Valid @RequestBody SystemConfigGetReq req) {
+        return PermResult.success(configManageService.getSystemConfig(req.tenantId(), req.configKey()));
     }
 
     @PostMapping("/system/list")
-    public PermResult<List<SystemConfigResp>> listSystemConfigs(@RequestParam Long tenantId) {
-        return PermResult.success(configManageService.listSystemConfigs(tenantId));
+    public PermResult<List<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody TenantIdReq req) {
+        return PermResult.success(configManageService.listSystemConfigs(req.tenantId()));
     }
 }

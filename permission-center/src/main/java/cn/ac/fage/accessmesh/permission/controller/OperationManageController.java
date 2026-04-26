@@ -1,8 +1,13 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
+import cn.ac.fage.accessmesh.permission.dto.req.OperationCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.OperationListReq;
+import cn.ac.fage.accessmesh.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,53 +30,42 @@ public class OperationManageController {
      * Create an operation permission.
      */
     @PostMapping("/create")
-    public PermResult<OperationPermissionResp> createOperation(
-            @RequestParam Long tenantId,
-            @RequestParam Integer resourceType,
-            @RequestParam String code,
-            @RequestParam String name,
-            @RequestParam Long binaryBit,
-            @RequestParam(required = false, defaultValue = "0") Long inheritMask) {
-        return PermResult.success(operationManageService.createOperation(tenantId, resourceType, code, name, binaryBit, inheritMask, null));
+    public PermResult<OperationPermissionResp> createOperation(@Valid @RequestBody OperationCreateReq req) {
+        return PermResult.success(operationManageService.createOperation(
+                req.tenantId(), req.resourceType(), req.code(), req.name(), req.binaryBit(), req.inheritMask(), null));
     }
 
     /**
      * Get operation by ID.
      */
     @PostMapping("/get")
-    public PermResult<OperationPermissionResp> getOperation(@RequestParam Long tenantId, @RequestParam Long operationId) {
-        return PermResult.success(operationManageService.getOperation(tenantId, operationId));
+    public PermResult<OperationPermissionResp> getOperation(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(operationManageService.getOperation(req.tenantId(), req.id()));
     }
 
     /**
      * List operations (optionally filtered by resourceType).
      */
     @PostMapping("/list")
-    public PermResult<List<OperationPermissionResp>> listOperations(
-            @RequestParam Long tenantId,
-            @RequestParam(required = false) Integer resourceType) {
-        return PermResult.success(operationManageService.listOperations(tenantId, resourceType));
+    public PermResult<List<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
+        return PermResult.success(operationManageService.listOperations(req.tenantId(), req.resourceType()));
     }
 
     /**
      * Update operation.
      */
     @PostMapping("/update")
-    public PermResult<OperationPermissionResp> updateOperation(
-            @RequestParam Long tenantId,
-            @RequestParam Long operationId,
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) Long binaryBit,
-            @RequestParam(required = false) Long inheritMask) {
-        return PermResult.success(operationManageService.updateOperation(tenantId, operationId, name, binaryBit, inheritMask, null));
+    public PermResult<OperationPermissionResp> updateOperation(@Valid @RequestBody OperationUpdateReq req) {
+        return PermResult.success(operationManageService.updateOperation(
+                req.tenantId(), req.operationId(), req.name(), req.binaryBit(), req.inheritMask(), null));
     }
 
     /**
      * Delete operation (soft).
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteOperation(@RequestParam Long tenantId, @RequestParam Long operationId) {
-        operationManageService.deleteOperation(tenantId, operationId, null);
+    public PermResult<Void> deleteOperation(@Valid @RequestBody IdWithTenantReq req) {
+        operationManageService.deleteOperation(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 }

@@ -1,7 +1,8 @@
 package cn.ac.fage.accessmesh.admin.service;
 
+import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import org.springframework.web.multipart.MultipartFile;
@@ -14,7 +15,7 @@ public interface FileService {
 
     FileResp getFile(Long id);
 
-    PaginatedResult<FileResp> pageFiles(PageReq pageReq, String bizType);
+    PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType);
 
     byte[] downloadFile(Long id, jakarta.servlet.http.HttpServletResponse response);
 }

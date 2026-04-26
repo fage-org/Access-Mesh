@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -22,5 +23,5 @@ public interface JobService {
 
     PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup);
 
-    PaginatedResult<cn.ac.fage.accessmesh.admin.entity.SysJobLog> pageJobLogs(PageReq pageReq, Long jobId);
+    PaginatedResult<cn.ac.fage.accessmesh.admin.entity.SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId);
 }

@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -43,9 +44,8 @@ public class FileController {
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<FileResp>> pageFiles(@Valid @RequestBody PageReq pageReq,
-                                                             @RequestParam(required = false) String bizType) {
-        return PermResult.success(fileService.pageFiles(pageReq, bizType));
+    public PermResult<PaginatedResult<FileResp>> pageFiles(@Valid @RequestBody FilePageReq pageReq) {
+        return PermResult.success(fileService.pageFiles(pageReq, pageReq.bizType()));
     }
 
     @PostMapping("/download")

@@ -1,9 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
-import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleReq;
-import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.*;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
 import jakarta.validation.Valid;
@@ -34,26 +32,24 @@ public class AdvancedFeatureController {
     }
 
     @PostMapping("/condition/get")
-    public PermResult<ConditionResp> getCondition(@RequestParam Long tenantId, @RequestParam Long conditionId) {
-        return PermResult.success(advancedFeatureService.getCondition(tenantId, conditionId));
+    public PermResult<ConditionResp> getCondition(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(advancedFeatureService.getCondition(req.tenantId(), req.id()));
     }
 
     @PostMapping("/condition/list")
-    public PermResult<List<ConditionResp>> listConditions(@RequestParam Long tenantId) {
-        return PermResult.success(advancedFeatureService.listConditions(tenantId));
+    public PermResult<List<ConditionResp>> listConditions(@Valid @RequestBody TenantIdReq req) {
+        return PermResult.success(advancedFeatureService.listConditions(req.tenantId()));
     }
 
     @PostMapping("/condition/delete")
-    public PermResult<Void> deleteCondition(@RequestParam Long tenantId, @RequestParam Long conditionId) {
-        advancedFeatureService.deleteCondition(tenantId, conditionId, null);
+    public PermResult<Void> deleteCondition(@Valid @RequestBody IdWithTenantReq req) {
+        advancedFeatureService.deleteCondition(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
     @PostMapping("/condition/set-enabled")
-    public PermResult<Void> setConditionEnabled(@RequestParam Long tenantId,
-                                                  @RequestParam Long conditionId,
-                                                  @RequestParam boolean enabled) {
-        advancedFeatureService.setConditionEnabled(tenantId, conditionId, enabled, null);
+    public PermResult<Void> setConditionEnabled(@Valid @RequestBody ConditionSetEnabledReq req) {
+        advancedFeatureService.setConditionEnabled(req.tenantId(), req.conditionId(), req.enabled(), null);
         return PermResult.success();
     }
 
@@ -65,41 +61,39 @@ public class AdvancedFeatureController {
     }
 
     @PostMapping("/conflict-rule/get")
-    public PermResult<ConflictRuleResp> getConflictRule(@RequestParam Long tenantId, @RequestParam Long ruleId) {
-        return PermResult.success(advancedFeatureService.getConflictRule(tenantId, ruleId));
+    public PermResult<ConflictRuleResp> getConflictRule(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(advancedFeatureService.getConflictRule(req.tenantId(), req.id()));
     }
 
     @PostMapping("/conflict-rule/list")
-    public PermResult<List<ConflictRuleResp>> listConflictRules(@RequestParam Long tenantId) {
-        return PermResult.success(advancedFeatureService.listConflictRules(tenantId));
+    public PermResult<List<ConflictRuleResp>> listConflictRules(@Valid @RequestBody TenantIdReq req) {
+        return PermResult.success(advancedFeatureService.listConflictRules(req.tenantId()));
     }
 
     @PostMapping("/conflict-rule/delete")
-    public PermResult<Void> deleteConflictRule(@RequestParam Long tenantId, @RequestParam Long ruleId) {
-        advancedFeatureService.deleteConflictRule(tenantId, ruleId, null);
+    public PermResult<Void> deleteConflictRule(@Valid @RequestBody IdWithTenantReq req) {
+        advancedFeatureService.deleteConflictRule(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
     // ===== PermissionChangeLog =====
 
     @PostMapping("/change-log/list")
-    public PermResult<List<ChangeLogResp>> listChangeLogs(@RequestParam Long tenantId,
-                                                            @RequestParam(required = false) String entityType,
-                                                            @RequestParam(required = false) Long entityId,
-                                                            @RequestParam(defaultValue = "0") int offset,
-                                                            @RequestParam(defaultValue = "20") int limit) {
-        return PermResult.success(advancedFeatureService.listChangeLogs(tenantId, entityType, entityId, offset, limit));
+    public PermResult<List<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
+        return PermResult.success(advancedFeatureService.listChangeLogs(
+                req.tenantId(), req.entityType(), req.entityId(),
+                req.pageNum() != null ? req.pageNum() : 0,
+                req.pageSize() != null ? req.pageSize() : 20));
     }
 
     // ===== OperationLog =====
 
     @PostMapping("/operation-log/list")
-    public PermResult<List<OperationLogResp>> listOperationLogs(@RequestParam Long tenantId,
-                                                                  @RequestParam(required = false) String module,
-                                                                  @RequestParam(required = false) String action,
-                                                                  @RequestParam(defaultValue = "0") int offset,
-                                                                  @RequestParam(defaultValue = "20") int limit) {
-        return PermResult.success(advancedFeatureService.listOperationLogs(tenantId, module, action, offset, limit));
+    public PermResult<List<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
+        return PermResult.success(advancedFeatureService.listOperationLogs(
+                req.tenantId(), req.module(), req.action(),
+                req.pageNum() != null ? req.pageNum() : 0,
+                req.pageSize() != null ? req.pageSize() : 20));
     }
 
     // ===== ResourceDependency =====
@@ -110,43 +104,38 @@ public class AdvancedFeatureController {
     }
 
     @PostMapping("/dependency/list")
-    public PermResult<List<ResourceDependencyResp>> listDependencies(@RequestParam Long tenantId,
-                                                                      @RequestParam(required = false) Long resourceEntityId) {
-        return PermResult.success(advancedFeatureService.listDependencies(tenantId, resourceEntityId));
+    public PermResult<List<ResourceDependencyResp>> listDependencies(@Valid @RequestBody DependencyListReq req) {
+        return PermResult.success(advancedFeatureService.listDependencies(req.tenantId(), req.resourceEntityId()));
     }
 
     @PostMapping("/dependency/delete")
-    public PermResult<Void> deleteDependency(@RequestParam Long tenantId, @RequestParam Long dependencyId) {
-        advancedFeatureService.deleteDependency(tenantId, dependencyId, null);
+    public PermResult<Void> deleteDependency(@Valid @RequestBody IdWithTenantReq req) {
+        advancedFeatureService.deleteDependency(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
     @PostMapping("/dependency/batch-sync")
-    public PermResult<Void> batchSyncDependencies(@RequestParam Long tenantId, @RequestParam Long roleId) {
-        advancedFeatureService.batchSyncDependencies(tenantId, roleId, null);
+    public PermResult<Void> batchSyncDependencies(@Valid @RequestBody DependencyBatchSyncReq req) {
+        advancedFeatureService.batchSyncDependencies(req.tenantId(), req.roleId(), null);
         return PermResult.success();
     }
 
     // ===== GroupRole extra-roles =====
 
     @PostMapping("/group-role/extra/add")
-    public PermResult<Void> addGroupRoleExtraRole(@RequestParam Long tenantId,
-                                                    @RequestParam Long groupId,
-                                                    @RequestParam Long basicRoleId) {
-        advancedFeatureService.addGroupRoleExtraRole(tenantId, groupId, basicRoleId, null);
+    public PermResult<Void> addGroupRoleExtraRole(@Valid @RequestBody GroupRoleExtraRoleReq req) {
+        advancedFeatureService.addGroupRoleExtraRole(req.tenantId(), req.groupId(), req.basicRoleId(), null);
         return PermResult.success();
     }
 
     @PostMapping("/group-role/extra/remove")
-    public PermResult<Void> removeGroupRoleExtraRole(@RequestParam Long tenantId,
-                                                       @RequestParam Long groupId,
-                                                       @RequestParam Long basicRoleId) {
-        advancedFeatureService.removeGroupRoleExtraRole(tenantId, groupId, basicRoleId, null);
+    public PermResult<Void> removeGroupRoleExtraRole(@Valid @RequestBody GroupRoleExtraRoleReq req) {
+        advancedFeatureService.removeGroupRoleExtraRole(req.tenantId(), req.groupId(), req.basicRoleId(), null);
         return PermResult.success();
     }
 
     @PostMapping("/group-role/extra/list")
-    public PermResult<Set<Long>> listGroupRoleExtraRoles(@RequestParam Long tenantId, @RequestParam Long groupId) {
-        return PermResult.success(advancedFeatureService.listGroupRoleExtraRoles(tenantId, groupId));
+    public PermResult<Set<Long>> listGroupRoleExtraRoles(@Valid @RequestBody GroupRoleExtraRoleReq req) {
+        return PermResult.success(advancedFeatureService.listGroupRoleExtraRoles(req.tenantId(), req.groupId()));
     }
 }

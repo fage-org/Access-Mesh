@@ -118,6 +118,20 @@
 - 规避 URL 长度限制（复杂查询条件无需放 QueryString）。
 - 统一鉴权拦截逻辑，减少网关路由配置复杂度。
 
+**强制要求：**
+
+- Controller 层**禁止**使用 `@RequestParam` 接收请求参数（文件上传 `MultipartFile` 场景除外）。
+- 所有请求参数必须通过 `@RequestBody` + Request DTO（Java Record）接收，包括单个 ID、查询条件、分页参数等。
+- **禁止**使用 `@GetMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`，统一使用 `@PostMapping`。
+- ID、tenantId 等参数**禁止**放在路径中（如 `/user/{id}`），必须放在 JSON Body 内。
+
+**例外场景（允许 `@RequestParam`）：**
+
+| 场景 | 原因 |
+|------|------|
+| 文件上传（`MultipartFile`） | 必须使用 `multipart/form-data` |
+| 文件下载（二进制流响应） | 响应不是 JSON |
+
 ### 2.2 路径命名规范
 
 ```

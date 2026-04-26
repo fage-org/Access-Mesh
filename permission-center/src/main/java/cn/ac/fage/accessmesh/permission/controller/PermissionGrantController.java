@@ -1,11 +1,11 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * Permission grant/revoke management API.
@@ -34,10 +34,8 @@ public class PermissionGrantController {
      * Batch revoke permissions from a role.
      */
     @PostMapping("/batch-revoke")
-    public PermResult<Void> batchRevoke(@RequestParam Long tenantId,
-                                         @RequestParam Long roleId,
-                                         @RequestBody List<Long> permissionIds) {
-        permissionGrantService.batchRevoke(tenantId, roleId, permissionIds);
+    public PermResult<Void> batchRevoke(@Valid @RequestBody BatchRevokeReq req) {
+        permissionGrantService.batchRevoke(req.tenantId(), req.roleId(), req.permissionIds());
         return PermResult.success();
     }
 }

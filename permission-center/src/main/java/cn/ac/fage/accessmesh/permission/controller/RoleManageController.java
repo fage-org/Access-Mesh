@@ -1,7 +1,12 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ListWithTenantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.RoleListReq;
+import cn.ac.fage.accessmesh.permission.dto.req.RoleStatusReq;
+import cn.ac.fage.accessmesh.permission.dto.req.RoleUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp;
 import cn.ac.fage.accessmesh.permission.service.RoleManageService;
@@ -36,28 +41,25 @@ public class RoleManageController {
      * Get role by ID.
      */
     @PostMapping("/get")
-    public PermResult<RoleResp> getRole(@RequestParam Long tenantId, @RequestParam Long roleId) {
-        return PermResult.success(roleManageService.getRole(tenantId, roleId));
+    public PermResult<RoleResp> getRole(@Valid @RequestBody IdWithTenantReq req) {
+        return PermResult.success(roleManageService.getRole(req.tenantId(), req.id()));
     }
 
     /**
      * Update role basic info.
      */
     @PostMapping("/update")
-    public PermResult<RoleResp> updateRole(@RequestParam Long tenantId,
-                                            @RequestParam Long roleId,
-                                            @RequestParam(required = false) String name,
-                                            @RequestParam(required = false) Integer sortOrder,
-                                            @RequestParam(required = false) String extra) {
-        return PermResult.success(roleManageService.updateRole(tenantId, roleId, name, sortOrder, extra, null));
+    public PermResult<RoleResp> updateRole(@Valid @RequestBody RoleUpdateReq req) {
+        return PermResult.success(roleManageService.updateRole(
+                req.tenantId(), req.roleId(), req.name(), req.sortOrder(), req.extra(), null));
     }
 
     /**
      * Delete role (soft, cascade delete children).
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteRole(@RequestParam Long tenantId, @RequestParam Long roleId) {
-        roleManageService.deleteRole(tenantId, roleId, null);
+    public PermResult<Void> deleteRole(@Valid @RequestBody IdWithTenantReq req) {
+        roleManageService.deleteRole(req.tenantId(), req.id(), null);
         return PermResult.success();
     }
 
@@ -65,10 +67,8 @@ public class RoleManageController {
      * Enable/disable role.
      */
     @PostMapping("/set-status")
-    public PermResult<Void> setRoleStatus(@RequestParam Long tenantId,
-                                           @RequestParam Long roleId,
-                                           @RequestParam int status) {
-        roleManageService.setRoleStatus(tenantId, roleId, status, null);
+    public PermResult<Void> setRoleStatus(@Valid @RequestBody RoleStatusReq req) {
+        roleManageService.setRoleStatus(req.tenantId(), req.roleId(), req.status(), null);
         return PermResult.success();
     }
 
@@ -76,18 +76,15 @@ public class RoleManageController {
      * Get role tree.
      */
     @PostMapping("/tree")
-    public PermResult<List<RoleTreeResp>> getRoleTree(@RequestParam Long tenantId,
-                                                       @RequestParam(required = false) Long bizDomainId) {
-        return PermResult.success(roleManageService.getRoleTree(tenantId, bizDomainId));
+    public PermResult<List<RoleTreeResp>> getRoleTree(@Valid @RequestBody ListWithTenantReq req) {
+        return PermResult.success(roleManageService.getRoleTree(req.tenantId(), req.filterValue() != null ? req.filterValue().longValue() : null));
     }
 
     /**
      * List roles (flat, paginated).
      */
     @PostMapping("/list")
-    public PermResult<List<RoleResp>> listRoles(@RequestParam Long tenantId,
-                                                 @RequestParam(defaultValue = "0") int offset,
-                                                 @RequestParam(defaultValue = "20") int limit) {
-        return PermResult.success(roleManageService.listRoles(tenantId, offset, limit));
+    public PermResult<List<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
+        return PermResult.success(roleManageService.listRoles(req.tenantId(), req.offset() != null ? req.offset() : 0, req.limit() != null ? req.limit() : 20));
     }
 }

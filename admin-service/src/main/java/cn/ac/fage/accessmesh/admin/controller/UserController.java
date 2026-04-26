@@ -64,8 +64,8 @@ public class UserController {
 
     @PostMapping("/reset-password")
     @AuditLog(module = "用户管理", action = "重置密码", targetType = "USER")
-    public PermResult<Void> resetPassword(@RequestParam Long userId, @RequestParam String newPassword) {
-        userService.resetPassword(userId, newPassword);
+    public PermResult<Void> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
+        userService.resetPassword(req.userId(), req.newPassword());
         return PermResult.success();
     }
 
