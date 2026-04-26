@@ -3,12 +3,14 @@ package cn.ac.fage.accessmesh.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Advanced feature APIs — PermissionCondition, PermissionConflictRule, ChangeLog, OperationLog.
@@ -98,5 +100,53 @@ public class AdvancedFeatureController {
                                                                   @RequestParam(defaultValue = "0") int offset,
                                                                   @RequestParam(defaultValue = "20") int limit) {
         return PermResult.success(advancedFeatureService.listOperationLogs(tenantId, module, action, offset, limit));
+    }
+
+    // ===== ResourceDependency =====
+
+    @PostMapping("/dependency/create")
+    public PermResult<ResourceDependencyResp> createDependency(@Valid @RequestBody ResourceDependencyCreateReq req) {
+        return PermResult.success(advancedFeatureService.createDependency(req, null));
+    }
+
+    @PostMapping("/dependency/list")
+    public PermResult<List<ResourceDependencyResp>> listDependencies(@RequestParam Long tenantId,
+                                                                      @RequestParam(required = false) Long resourceEntityId) {
+        return PermResult.success(advancedFeatureService.listDependencies(tenantId, resourceEntityId));
+    }
+
+    @PostMapping("/dependency/delete")
+    public PermResult<Void> deleteDependency(@RequestParam Long tenantId, @RequestParam Long dependencyId) {
+        advancedFeatureService.deleteDependency(tenantId, dependencyId, null);
+        return PermResult.success();
+    }
+
+    @PostMapping("/dependency/batch-sync")
+    public PermResult<Void> batchSyncDependencies(@RequestParam Long tenantId, @RequestParam Long roleId) {
+        advancedFeatureService.batchSyncDependencies(tenantId, roleId, null);
+        return PermResult.success();
+    }
+
+    // ===== GroupRole extra-roles =====
+
+    @PostMapping("/group-role/extra/add")
+    public PermResult<Void> addGroupRoleExtraRole(@RequestParam Long tenantId,
+                                                    @RequestParam Long groupId,
+                                                    @RequestParam Long basicRoleId) {
+        advancedFeatureService.addGroupRoleExtraRole(tenantId, groupId, basicRoleId, null);
+        return PermResult.success();
+    }
+
+    @PostMapping("/group-role/extra/remove")
+    public PermResult<Void> removeGroupRoleExtraRole(@RequestParam Long tenantId,
+                                                       @RequestParam Long groupId,
+                                                       @RequestParam Long basicRoleId) {
+        advancedFeatureService.removeGroupRoleExtraRole(tenantId, groupId, basicRoleId, null);
+        return PermResult.success();
+    }
+
+    @PostMapping("/group-role/extra/list")
+    public PermResult<Set<Long>> listGroupRoleExtraRoles(@RequestParam Long tenantId, @RequestParam Long groupId) {
+        return PermResult.success(advancedFeatureService.listGroupRoleExtraRoles(tenantId, groupId));
     }
 }

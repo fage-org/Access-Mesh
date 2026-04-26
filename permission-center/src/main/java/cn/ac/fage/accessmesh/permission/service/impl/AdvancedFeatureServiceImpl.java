@@ -2,28 +2,31 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
-import cn.ac.fage.accessmesh.permission.entity.OperationLog;
-import cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog;
-import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
-import cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.permission.mapper.OperationLogMapper;
-import cn.ac.fage.accessmesh.permission.mapper.PermissionChangeLogMapper;
-import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
+import cn.ac.fage.accessmesh.permission.entity.*;
+import cn.ac.fage.accessmesh.permission.enums.GrantSource;
+import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 import static cn.ac.fage.accessmesh.permission.entity.table.OperationLogTableDef.OPERATION_LOG;
 import static cn.ac.fage.accessmesh.permission.entity.table.PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG;
 import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef.PERMISSION_CONDITION;
 import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
+import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import static cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef.USER_ROLE;
 
 @Service
 public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
@@ -32,15 +35,36 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final PermissionChangeLogMapper changeLogMapper;
     private final OperationLogMapper operationLogMapper;
+    private final ResourceDependencyMapper dependencyMapper;
+    private final ResourceEntityMapper resourceEntityMapper;
+    private final RoleResourcePermissionMapper rolePermMapper;
+    private final UserRoleMapper userRoleMapper;
+    private final AbstractRoleMapper abstractRoleMapper;
+    private final PermissionVersionDomainService permissionVersionDomainService;
+    private final UserRoleDomainService userRoleDomainService;
 
     public AdvancedFeatureServiceImpl(PermissionConditionMapper conditionMapper,
                                       PermissionConflictRuleMapper conflictRuleMapper,
                                       PermissionChangeLogMapper changeLogMapper,
-                                      OperationLogMapper operationLogMapper) {
+                                      OperationLogMapper operationLogMapper,
+                                      ResourceDependencyMapper dependencyMapper,
+                                      ResourceEntityMapper resourceEntityMapper,
+                                      RoleResourcePermissionMapper rolePermMapper,
+                                      UserRoleMapper userRoleMapper,
+                                      AbstractRoleMapper abstractRoleMapper,
+                                      PermissionVersionDomainService permissionVersionDomainService,
+                                      UserRoleDomainService userRoleDomainService) {
         this.conditionMapper = conditionMapper;
         this.conflictRuleMapper = conflictRuleMapper;
         this.changeLogMapper = changeLogMapper;
         this.operationLogMapper = operationLogMapper;
+        this.dependencyMapper = dependencyMapper;
+        this.resourceEntityMapper = resourceEntityMapper;
+        this.rolePermMapper = rolePermMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.abstractRoleMapper = abstractRoleMapper;
+        this.permissionVersionDomainService = permissionVersionDomainService;
+        this.userRoleDomainService = userRoleDomainService;
     }
 
     // ===== PermissionCondition =====
@@ -199,6 +223,176 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
+    // ===== ResourceDependency =====
+
+    @Override
+    @Transactional
+    public ResourceDependencyResp createDependency(ResourceDependencyCreateReq req, Long operatorId) {
+        ResourceDependency dep = new ResourceDependency();
+        dep.setTenantId(req.tenantId());
+        dep.setResourceEntityId(req.resourceEntityId());
+        dep.setDependsOnResourceEntityId(req.dependsOnResourceEntityId());
+        dep.setSourceOperationBits(req.sourceOperationBits());
+        dep.setRequiredOperationBits(req.requiredOperationBits());
+        dep.setAutoGrant(req.autoGrant() != null ? req.autoGrant() : true);
+        dep.setDescription(req.description());
+        dep.setCreatedBy(operatorId);
+        dep.setCreatedAt(LocalDateTime.now());
+        dep.setUpdatedAt(LocalDateTime.now());
+        dep.setDeleteFlag(0L);
+        dependencyMapper.insert(dep);
+        return toDependencyResp(dep);
+    }
+
+    @Override
+    public List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId) {
+        QueryWrapper qw = QueryWrapper.create()
+            .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+            .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0));
+        if (resourceEntityId != null) {
+            qw.and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(resourceEntityId));
+        }
+        return dependencyMapper.selectListByQuery(qw)
+            .stream().map(this::toDependencyResp).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void deleteDependency(Long tenantId, Long dependencyId, Long operatorId) {
+        ResourceDependency dep = dependencyMapper.selectOneById(dependencyId);
+        if (dep != null && dep.getDeleteFlag() == 0L && dep.getTenantId().equals(tenantId)) {
+            dep.setDeleteFlag(dep.getId());
+            dep.setDeletedAt(LocalDateTime.now());
+            dependencyMapper.update(dep);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void batchSyncDependencies(Long tenantId, Long roleId, Long operatorId) {
+        // Find all resources this role has permissions on
+        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        // For each perm, check if there are dependency rules that should auto-grant
+        for (RoleResourcePermission perm : perms) {
+            // Find rules where this resource triggers a dependency
+            List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(perm.getResourceEntityId()))
+                    .and(RESOURCE_DEPENDENCY.AUTO_GRANT.eq(true))
+                    .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
+            );
+
+            for (ResourceDependency dep : deps) {
+                // Check if already granted
+                Long existing = rolePermMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                        .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                        .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                        .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(dep.getDependsOnResourceEntityId()))
+                        .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
+                        .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.eq(dep.getId()))
+                        .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                ) != null ? 1L : null;
+
+                if (existing == null) {
+                    RoleResourcePermission autoRp = new RoleResourcePermission();
+                    autoRp.setTenantId(tenantId);
+                    autoRp.setAbstractRoleId(roleId);
+                    autoRp.setResourceEntityId(dep.getDependsOnResourceEntityId());
+                    autoRp.setOperationPermissionId(dep.getRequiredOperationBits());
+                    autoRp.setGrantSource(GrantSource.AUTO_DEP.getValue());
+                    autoRp.setGrantDepId(dep.getId());
+                    autoRp.setCanManage(false);
+                    autoRp.setCreatedAt(LocalDateTime.now());
+                    autoRp.setUpdatedAt(LocalDateTime.now());
+                    autoRp.setDeleteFlag(0L);
+                    rolePermMapper.insert(autoRp);
+                }
+            }
+        }
+        permissionVersionDomainService.increment(tenantId, roleId);
+    }
+
+    // ===== GroupRole extra-roles =====
+
+    @Override
+    @Transactional
+    public void addGroupRoleExtraRole(Long tenantId, Long groupId, Long basicRoleId, Long operatorId) {
+        // Validate both roles exist and belong to tenant
+        AbstractRole groupRole = abstractRoleMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_ROLE.ID.eq(groupId))
+                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
+        if (groupRole == null || !groupRole.getRoleType().equals(5)) { // GROUP_ROLE
+            throw new IllegalArgumentException("Not a valid GROUP_ROLE: " + groupId);
+        }
+
+        AbstractRole basicRole = abstractRoleMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_ROLE.ID.eq(basicRoleId))
+                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
+        if (basicRole == null) {
+            throw new IllegalArgumentException("Basic role not found: " + basicRoleId);
+        }
+
+        // Create user_role link: the group role "contains" the basic role
+        UserRole ur = new UserRole();
+        ur.setTenantId(tenantId);
+        ur.setAbstractUserId(null); // Not assigned to a specific user
+        ur.setTargetType("GROUP_ROLE");
+        ur.setTargetId(groupId);
+        ur.setRelationId(basicRoleId);
+        ur.setCreatedAt(LocalDateTime.now());
+        ur.setUpdatedAt(LocalDateTime.now());
+        ur.setDeleteFlag(0L);
+        userRoleMapper.insert(ur);
+
+        // Invalidate caches for all users with this group role
+        userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupId);
+    }
+
+    @Override
+    @Transactional
+    public void removeGroupRoleExtraRole(Long tenantId, Long groupId, Long basicRoleId, Long operatorId) {
+        UserRole ur = userRoleMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(USER_ROLE.TARGET_TYPE.eq("GROUP_ROLE"))
+                .and(USER_ROLE.TARGET_ID.eq(groupId))
+                .and(USER_ROLE.RELATION_ID.eq(basicRoleId))
+                .and(USER_ROLE.DELETE_FLAG.eq(0))
+        );
+        if (ur != null) {
+            ur.setDeleteFlag(ur.getId());
+            ur.setDeletedAt(LocalDateTime.now());
+            userRoleMapper.update(ur);
+            userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupId);
+        }
+    }
+
+    @Override
+    public Set<Long> listGroupRoleExtraRoles(Long tenantId, Long groupId) {
+        return userRoleMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(USER_ROLE.TARGET_TYPE.eq("GROUP_ROLE"))
+                .where(USER_ROLE.TARGET_ID.eq(groupId))
+                .and(USER_ROLE.DELETE_FLAG.eq(0))
+        ).stream()
+            .map(UserRole::getRelationId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
+
     // ===== Converters =====
 
     private ConditionResp toConditionResp(PermissionCondition c) {
@@ -231,6 +425,19 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
             l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
             l.getTargetType(), l.getTargetId(), l.getSummary(), l.getOperatorId(),
             l.getOperatorName(), l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
+        );
+    }
+
+    private ResourceDependencyResp toDependencyResp(ResourceDependency d) {
+        ResourceEntity src = resourceEntityMapper.selectOneById(d.getResourceEntityId());
+        ResourceEntity dep = resourceEntityMapper.selectOneById(d.getDependsOnResourceEntityId());
+        return new ResourceDependencyResp(
+            d.getId(), d.getTenantId(), d.getResourceEntityId(),
+            src != null ? src.getCode() : null,
+            d.getDependsOnResourceEntityId(),
+            dep != null ? dep.getCode() : null,
+            d.getSourceOperationBits(), d.getRequiredOperationBits(),
+            d.getAutoGrant(), d.getDescription(), d.getCreatedAt()
         );
     }
 }
