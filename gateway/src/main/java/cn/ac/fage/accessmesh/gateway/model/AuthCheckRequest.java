@@ -13,6 +13,8 @@ public class AuthCheckRequest {
     private String serviceCode;
     private String httpMethod;
     private String path;
+    /** Flat field matching permission-center CheckInterfaceReq.clientIp */
+    private String clientIp;
     private Context context;
 
     public Long getTenantId() {
@@ -53,6 +55,14 @@ public class AuthCheckRequest {
 
     public void setPath(String path) {
         this.path = path;
+    }
+
+    public String getClientIp() {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp) {
+        this.clientIp = clientIp;
     }
 
     public Context getContext() {

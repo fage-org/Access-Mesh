@@ -4,12 +4,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * Response from permission-center interface check.
+ * Matches PermResult<CheckInterfaceResp> returned by permission-center.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthCheckResponse {
 
     private int code;
-    private AuthData data;
+    private String message;
+    private AuthCheckData data;
 
     public int getCode() {
         return code;
@@ -19,24 +21,32 @@ public class AuthCheckResponse {
         this.code = code;
     }
 
-    public AuthData getData() {
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public AuthCheckData getData() {
         return data;
     }
 
-    public void setData(AuthData data) {
+    public void setData(AuthCheckData data) {
         this.data = data;
     }
 
     public boolean isAllowed() {
-        return data != null && Boolean.TRUE.equals(data.allowed);
+        return data != null && Boolean.TRUE.equals(data.getAllowed());
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class AuthData {
+    public static class AuthCheckData {
         private Boolean allowed;
         private Long matchedRoleId;
         private String matchedOperationCode;
-        private String reason;
+        private String denyReason;
 
         public Boolean getAllowed() {
             return allowed;
@@ -62,12 +72,12 @@ public class AuthCheckResponse {
             this.matchedOperationCode = matchedOperationCode;
         }
 
-        public String getReason() {
-            return reason;
+        public String getDenyReason() {
+            return denyReason;
         }
 
-        public void setReason(String reason) {
-            this.reason = reason;
+        public void setDenyReason(String denyReason) {
+            this.denyReason = denyReason;
         }
     }
 }

@@ -38,8 +38,15 @@ public class PermissionClient {
 
     /**
      * Call permission-center to check interface access.
+     * Sends AuthCheckRequest (with clientIp populated from context)
+     * and parses PermResult<CheckInterfaceResp> response.
      */
     public Mono<AuthCheckResponse> checkInterface(AuthCheckRequest request) {
+        // Flatten clientIp from context if not already set
+        if (request.getClientIp() == null && request.getContext() != null) {
+            request.setClientIp(request.getContext().getIp());
+        }
+
         log.debug("Calling permission-center for interface check: serviceCode={}, path={}",
             request.getServiceCode(), request.getPath());
 
@@ -50,11 +57,12 @@ public class PermissionClient {
             .bodyToMono(AuthCheckResponse.class)
             .doOnSuccess(resp -> {
                 if (resp != null && resp.isAllowed()) {
-                    log.debug("Permission check allowed: matchedRoleId={}",
-                        resp.getData() != null ? resp.getData().getMatchedRoleId() : null);
+                    log.debug("Permission check allowed: matchedRoleId={}, opCode={}",
+                        resp.getData() != null ? resp.getData().getMatchedRoleId() : null,
+                        resp.getData() != null ? resp.getData().getMatchedOperationCode() : null);
                 } else {
                     String reason = resp != null && resp.getData() != null
-                        ? resp.getData().getReason() : "unknown";
+                        ? resp.getData().getDenyReason() : "unknown";
                     log.warn("Permission check denied: reason={}", reason);
                 }
             })

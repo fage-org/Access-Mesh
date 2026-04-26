@@ -116,7 +116,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 } else {
                     permissionCheckCache.put(cacheKey, false);
                     String reason = resp != null && resp.getData() != null
-                        ? resp.getData().getReason() : null;
+                        ? resp.getData().getDenyReason() : null;
                     return writeForbidden(exchange, mapReasonToMessage(reason));
                 }
             })
