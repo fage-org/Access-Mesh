@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceTreeResp.ResourceTreeNode;
@@ -179,6 +180,34 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
     }
 
+    @Override
+    public List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId) {
+        return apiMappingMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resourceId))
+                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+        ).stream().map(this::toApiMappingResp).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req) {
+        ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
+        if (mapping != null && mapping.getDeleteFlag() == 0L
+            && mapping.getResourceEntityId().equals(resourceId)
+            && mapping.getTenantId().equals(tenantId)) {
+            if (req.serviceCode() != null) mapping.setServiceCode(req.serviceCode());
+            if (req.httpMethod() != null) mapping.setHttpMethod(req.httpMethod());
+            if (req.pathPattern() != null) mapping.setPathPattern(req.pathPattern());
+            if (req.matchOrder() != null) mapping.setMatchOrder(req.matchOrder());
+            if (req.enabled() != null) mapping.setEnabled(req.enabled());
+            if (req.extra() != null) mapping.setExtra(req.extra());
+            mapping.setUpdatedAt(LocalDateTime.now());
+            apiMappingMapper.update(mapping);
+        }
+    }
+
     private ResourceTreeNode buildTreeNode(ResourceEntity entity, List<ResourceEntity> allEntities) {
         List<ResourceTreeNode> children = allEntities.stream()
             .filter(r -> entity.getId().equals(r.getParentId()))
@@ -204,6 +233,16 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             entity.getCode(), entity.getCodeType(), entity.getName(),
             entity.getPath(), entity.getStatus(), entity.getSortOrder(),
             entity.getExtra(), entity.getCreatedAt(), entity.getUpdatedAt()
+        );
+    }
+
+    private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping) {
+        return new ApiMappingResp(
+            mapping.getId(), mapping.getTenantId(), mapping.getBizDomainId(),
+            mapping.getResourceEntityId(), mapping.getServiceCode(),
+            mapping.getHttpMethod(), mapping.getPathPattern(),
+            mapping.getMatchOrder(), mapping.getEnabled(),
+            mapping.getExtra(), mapping.getCreatedAt(), mapping.getUpdatedAt()
         );
     }
 }

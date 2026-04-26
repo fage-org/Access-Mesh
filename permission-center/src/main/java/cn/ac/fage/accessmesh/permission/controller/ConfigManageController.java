@@ -2,10 +2,12 @@ package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import jakarta.validation.Valid;
@@ -51,6 +53,11 @@ public class ConfigManageController {
         return PermResult.success();
     }
 
+    @PostMapping("/type/update")
+    public PermResult<TypeDefinitionResp> updateType(@Valid @RequestBody TypeUpdateReq req) {
+        return PermResult.success(configManageService.updateType(req, null));
+    }
+
     // ===== BizDomain =====
 
     @PostMapping("/biz-domain/create")
@@ -72,6 +79,11 @@ public class ConfigManageController {
     public PermResult<Void> deleteBizDomain(@RequestParam Long tenantId, @RequestParam Long domainId) {
         configManageService.deleteBizDomain(tenantId, domainId, null);
         return PermResult.success();
+    }
+
+    @PostMapping("/biz-domain/update")
+    public PermResult<BizDomainResp> updateBizDomain(@Valid @RequestBody BizDomainUpdateReq req) {
+        return PermResult.success(configManageService.updateBizDomain(req, null));
     }
 
     // ===== DomainConfig =====
@@ -117,6 +129,11 @@ public class ConfigManageController {
     public PermResult<Void> deleteServiceConfig(@RequestParam Long tenantId, @RequestParam String serviceCode) {
         configManageService.deleteServiceConfig(tenantId, serviceCode, null);
         return PermResult.success();
+    }
+
+    @PostMapping("/service/update")
+    public PermResult<ServiceConfigResp> updateServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
+        return PermResult.success(configManageService.updateServiceConfig(req, null));
     }
 
     // ===== SystemConfig =====

@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.entity.*;
 import cn.ac.fage.accessmesh.permission.mapper.*;
@@ -104,6 +106,26 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
     }
 
+    @Override
+    @Transactional
+    public TypeDefinitionResp updateType(TypeUpdateReq req, Long operatorId) {
+        TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(TYPE_DEFINITION.ID.eq(req.typeId()))
+                .and(TYPE_DEFINITION.TENANT_ID.eq(req.tenantId()))
+                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        );
+        if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
+        if (req.bizDomainId() != null) type.setBizDomainId(req.bizDomainId());
+        if (req.name() != null) type.setName(req.name());
+        if (req.description() != null) type.setDescription(req.description());
+        if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());
+        if (req.extra() != null) type.setExtra(req.extra());
+        type.setUpdatedAt(LocalDateTime.now());
+        typeDefinitionMapper.update(type);
+        return toTypeResp(type);
+    }
+
     // ===== BizDomain =====
 
     @Override
@@ -151,6 +173,23 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             domain.setDeletedAt(LocalDateTime.now());
             bizDomainMapper.update(domain);
         }
+    }
+
+    @Override
+    @Transactional
+    public BizDomainResp updateBizDomain(BizDomainUpdateReq req, Long operatorId) {
+        BizDomain domain = bizDomainMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(BIZ_DOMAIN.ID.eq(req.domainId()))
+                .and(BIZ_DOMAIN.TENANT_ID.eq(req.tenantId()))
+                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+        );
+        if (domain == null) throw new IllegalArgumentException("BizDomain not found: " + req.domainId());
+        if (req.name() != null) domain.setName(req.name());
+        if (req.description() != null) domain.setDescription(req.description());
+        domain.setUpdatedAt(LocalDateTime.now());
+        bizDomainMapper.update(domain);
+        return toBizDomainResp(domain);
     }
 
     // ===== DomainConfig =====
@@ -262,6 +301,26 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             config.setDeletedAt(LocalDateTime.now());
             serviceConfigMapper.update(config);
         }
+    }
+
+    @Override
+    @Transactional
+    public ServiceConfigResp updateServiceConfig(ServiceConfigReq req, Long operatorId) {
+        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SERVICE_CONFIG.TENANT_ID.eq(req.tenantId()))
+                .where(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
+                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+        );
+        if (config == null) throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
+        if (req.name() != null) config.setName(req.name());
+        if (req.basePath() != null) config.setBasePath(req.basePath());
+        if (req.description() != null) config.setDescription(req.description());
+        if (req.status() != null) config.setStatus(req.status());
+        if (req.extra() != null) config.setExtra(req.extra());
+        config.setUpdatedAt(LocalDateTime.now());
+        serviceConfigMapper.update(config);
+        return toServiceConfigResp(config);
     }
 
     // ===== SystemConfig =====

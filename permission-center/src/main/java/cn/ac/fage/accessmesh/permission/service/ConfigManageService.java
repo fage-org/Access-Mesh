@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service;
 
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 
 import java.util.List;
@@ -18,12 +20,14 @@ public interface ConfigManageService {
     TypeDefinitionResp createType(TypeCreateReq req, Long operatorId);
     TypeDefinitionResp getType(Long tenantId, Long typeId);
     List<TypeDefinitionResp> listTypes(Long tenantId, Long bizDomainId);
+    TypeDefinitionResp updateType(TypeUpdateReq req, Long operatorId);
     void deleteType(Long tenantId, Long typeId, Long operatorId);
 
     // ===== BizDomain =====
     BizDomainResp createBizDomain(BizDomainCreateReq req, Long operatorId);
     BizDomainResp getBizDomain(Long tenantId, Long domainId);
     List<BizDomainResp> listBizDomains(Long tenantId);
+    BizDomainResp updateBizDomain(BizDomainUpdateReq req, Long operatorId);
     void deleteBizDomain(Long tenantId, Long domainId, Long operatorId);
 
     // ===== DomainConfig =====
@@ -35,6 +39,7 @@ public interface ConfigManageService {
     ServiceConfigResp createServiceConfig(ServiceConfigReq req, Long operatorId);
     ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode);
     List<ServiceConfigResp> listServiceConfigs(Long tenantId);
+    ServiceConfigResp updateServiceConfig(ServiceConfigReq req, Long operatorId);
     void deleteServiceConfig(Long tenantId, String serviceCode, Long operatorId);
 
     // ===== SystemConfig =====

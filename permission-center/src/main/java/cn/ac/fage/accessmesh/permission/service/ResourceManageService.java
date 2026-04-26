@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.service;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceTreeResp;
 
@@ -52,4 +53,14 @@ public interface ResourceManageService {
      * Remove an API mapping.
      */
     void removeApiMapping(Long tenantId, Long resourceId, Long mappingId, Long operatorId);
+
+    /**
+     * List API mappings for a resource.
+     */
+    List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId);
+
+    /**
+     * Update an API mapping.
+     */
+    void updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req);
 }

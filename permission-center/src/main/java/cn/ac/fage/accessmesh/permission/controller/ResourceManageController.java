@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceTreeResp;
 import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
@@ -98,6 +99,27 @@ public class ResourceManageController {
                                               @RequestParam Long resourceId,
                                               @RequestParam Long mappingId) {
         resourceManageService.removeApiMapping(tenantId, resourceId, mappingId, null);
+        return PermResult.success();
+    }
+
+    /**
+     * List API mappings for a resource.
+     */
+    @PostMapping("/api-mapping/list")
+    public PermResult<List<ApiMappingResp>> listApiMappings(@RequestParam Long tenantId,
+                                                             @RequestParam Long resourceId) {
+        return PermResult.success(resourceManageService.listApiMappings(tenantId, resourceId));
+    }
+
+    /**
+     * Update API mapping.
+     */
+    @PostMapping("/api-mapping/update")
+    public PermResult<Void> updateApiMapping(@RequestParam Long tenantId,
+                                              @RequestParam Long resourceId,
+                                              @RequestParam Long mappingId,
+                                              @Valid @RequestBody ApiMappingReq req) {
+        resourceManageService.updateApiMapping(tenantId, resourceId, mappingId, req);
         return PermResult.success();
     }
 }
