@@ -1,0 +1,22 @@
+spring:
+  cloud:
+    loadbalancer:
+      retry:
+        enabled: false
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+file:
+  storage:
+    path: ${user.home}/accessmesh-files
+
+cache:
+  caffeine:
+    spec: maximumSize=1000,expireAfterWrite=10m
+
+logging:
+  level:
+    cn.ac.fage.accessmesh: INFO
+    org.springframework.cloud.loadbalancer: WARN
