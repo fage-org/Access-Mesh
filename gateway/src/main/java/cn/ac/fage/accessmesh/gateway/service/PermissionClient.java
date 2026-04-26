@@ -3,19 +3,15 @@ package cn.ac.fage.accessmesh.gateway.service;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.model.AuthCheckRequest;
 import cn.ac.fage.accessmesh.gateway.model.AuthCheckResponse;
-import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-import reactor.netty.http.client.HttpClient;
-
-import java.time.Duration;
 
 /**
  * HTTP client for calling permission-center interface check endpoint.
+ * Uses load-balanced WebClient to support lb:// service URLs.
  */
 @Service
 public class PermissionClient {
@@ -25,14 +21,17 @@ public class PermissionClient {
     private final WebClient webClient;
     private final String checkInterfacePath;
 
-    public PermissionClient(GatewayProperties gatewayProperties) {
-        HttpClient httpClient = HttpClient.create()
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
-            .responseTimeout(Duration.ofSeconds(5));
+    public PermissionClient(WebClient.Builder loadBalancedWebClientBuilder,
+                            GatewayProperties gatewayProperties) {
+        String baseUrl = gatewayProperties.getPermission().getServiceUrl();
+        // Strip lb:// prefix for WebClient — LoadBalancer handles service resolution
+        String resolvedUrl = baseUrl.replace("lb://", "");
+        if (!resolvedUrl.startsWith("http://") && !resolvedUrl.startsWith("https://")) {
+            resolvedUrl = "http://" + resolvedUrl;
+        }
 
-        this.webClient = WebClient.builder()
-            .baseUrl(gatewayProperties.getPermission().getServiceUrl())
-            .clientConnector(new ReactorClientHttpConnector(httpClient))
+        this.webClient = loadBalancedWebClientBuilder
+            .baseUrl(resolvedUrl)
             .build();
         this.checkInterfacePath = gatewayProperties.getPermission().getCheckInterfacePath();
     }

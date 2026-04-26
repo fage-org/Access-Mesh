@@ -1,21 +1,27 @@
 package cn.ac.fage.accessmesh.gateway.config;
 
+import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.tracing.Tracer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.reactive.ServerHttpObservationFilter;
 
 /**
- * Micrometer Tracing configuration.
+ * Micrometer Tracing configuration for WebFlux gateway.
  *
- * traceId is automatically generated and propagated via the
- * micrometer-tracing-bridge-otel dependency. No custom bean needed
- * for basic usage — this class exists as a placeholder for future
- * tracing customization (e.g. custom span tags).
+ * Spring Boot auto-configures the Tracer bean when micrometer-tracing-bridge-otel
+ * is on the classpath. This class adds reactive observation support so that
+ * every request passing through the gateway gets a span automatically.
  */
 @Configuration
 public class TracingConfig {
 
-    // Tracer bean is auto-configured by Spring Boot when
-    // micrometer-tracing-bridge-otel is on the classpath.
-    // Downstream filters inject it to extract traceId for error responses.
+    /**
+     * Enables observation-based tracing for WebFlux routes.
+     * Each request gets a server span with the route ID as operation name.
+     */
+    @Bean
+    public ServerHttpObservationFilter serverHttpObservationFilter(ObservationRegistry observationRegistry) {
+        return new ServerHttpObservationFilter(observationRegistry);
+    }
 }
