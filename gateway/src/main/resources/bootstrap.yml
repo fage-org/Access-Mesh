@@ -15,10 +15,47 @@ spring:
       discovery:
         locator:
           enabled: false
-  cloud:
-    gateway:
+      routes:
+        # 管理服务
+        - id: admin-service
+          uri: lb://admin-service
+          predicates:
+            - Path=/admin/**
+          filters:
+            - StripPrefix=1
+          metadata:
+            serviceCode: admin-service
+
+        # 权限中心
+        - id: permission-center
+          uri: lb://permission-center
+          predicates:
+            - Path=/perm/**
+          filters:
+            - StripPrefix=1
+          metadata:
+            serviceCode: permission-center
+
+        # 演示服务
+        - id: example-service
+          uri: lb://example-service
+          predicates:
+            - Path=/example/**
+          filters:
+            - StripPrefix=1
+          metadata:
+            serviceCode: example-service
+
+        # 认证接口（转发到管理服务）
+        - id: auth-routes
+          uri: lb://admin-service
+          predicates:
+            - Path=/auth/**
+          filters:
+            - StripPrefix=0
+
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Origin
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       globalcors:
         cors-configurations:
           '[/**]':
@@ -26,15 +63,50 @@ spring:
             allowed-methods: "*"
             allowed-headers: "*"
             allow-credentials: true
+            max-age: 3600
 
 sa-token:
   token-name: Authorization
-  timeout: 86400
-  active-timeout: -1
+  token-prefix: Bearer
+  timeout: 7200
+  active-timeout: 1800
   is-concurrent: true
   is-share: false
-  token-style: uuid
+  is-read-header: true
+  is-read-cookie: true
   is-log: false
+
+gateway:
+  whitelist:
+    paths:
+      - /auth/**
+      - /actuator/health
+      - /public/**
+      - /captcha/**
+
+  cache:
+    l1:
+      max-size: 50000
+      ttl-seconds: 30
+
+  header:
+    clean:
+      - X-User-Id
+      - X-Tenant-Id
+      - X-User-Name
+      - X-User-Roles
+      - X-User-Type
+    enrich:
+      request-id: X-Request-Id
+      tenant-id: X-Tenant-Id
+      user-id: X-User-Id
+      user-name: X-User-Name
+      user-type: X-User-Type
+
+  permission:
+    service-url: lb://permission-center
+    check-interface-path: /api/perm/auth/check-interface
+    unregistered-policy: DENY
 
 logging:
   config: classpath:log4j2-spring.xml

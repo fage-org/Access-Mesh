@@ -1,0 +1,206 @@
+package cn.ac.fage.accessmesh.gateway.filter;
+
+import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
+import cn.ac.fage.accessmesh.gateway.model.AuthCheckRequest;
+import cn.ac.fage.accessmesh.gateway.model.AuthCheckResponse;
+import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
+import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
+import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.time.Instant;
+
+/**
+ * Interface-level permission filter.
+ * Calls permission-center to check if the user has access to the target endpoint.
+ * Uses L1 Caffeine cache for performance.
+ * Order: -60
+ */
+@Component
+public class PermissionFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(PermissionFilter.class);
+    private static final String SKIP_AUTH_ATTR = "skipAuth";
+    private static final String USER_ID_ATTR = "userId";
+    private static final String TENANT_ID_ATTR = "tenantId";
+    private static final String CACHE_KEY_PREFIX = "perm:check:";
+
+    private final PermissionClient permissionClient;
+    private final Cache<String, Boolean> permissionCheckCache;
+    private final GatewayProperties gatewayProperties;
+    private final ObjectMapper objectMapper;
+
+    public PermissionFilter(PermissionClient permissionClient,
+                            Cache<String, Boolean> permissionCheckCache,
+                            GatewayProperties gatewayProperties,
+                            ObjectMapper objectMapper) {
+        this.permissionClient = permissionClient;
+        this.permissionCheckCache = permissionCheckCache;
+        this.gatewayProperties = gatewayProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        Boolean skipAuth = exchange.getAttribute(SKIP_AUTH_ATTR);
+        if (Boolean.TRUE.equals(skipAuth)) {
+            return chain.filter(exchange);
+        }
+
+        Object userIdObj = exchange.getAttribute(USER_ID_ATTR);
+        Object tenantIdObj = exchange.getAttribute(TENANT_ID_ATTR);
+        if (userIdObj == null || tenantIdObj == null) {
+            return writeForbidden(exchange, "无接口访问权限");
+        }
+
+        Long userId = toLong(userIdObj);
+        Long tenantId = toLong(tenantIdObj);
+
+        // Extract route metadata
+        Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        if (route == null) {
+            return writeNotFound(exchange);
+        }
+
+        String serviceCode = String.valueOf(route.getMetadata().getOrDefault("serviceCode", route.getId()));
+        String httpMethod = exchange.getRequest().getMethod().name();
+        String path = exchange.getRequest().getURI().getPath();
+
+        // Check L1 cache
+        String cacheKey = buildCacheKey(tenantId, userId, serviceCode, httpMethod, path);
+        Boolean cachedResult = permissionCheckCache.getIfPresent(cacheKey);
+        if (cachedResult != null) {
+            if (cachedResult) {
+                return chain.filter(exchange);
+            } else {
+                return writeForbidden(exchange, "无接口访问权限");
+            }
+        }
+
+        // Build auth check request
+        AuthCheckRequest req = new AuthCheckRequest();
+        req.setTenantId(tenantId);
+        req.setUserId(userId);
+        req.setServiceCode(serviceCode);
+        req.setHttpMethod(httpMethod);
+        req.setPath(path);
+
+        AuthCheckRequest.Context ctx = new AuthCheckRequest.Context();
+        ctx.setIp(getClientIp(exchange));
+        ctx.setTimestamp(Instant.now().toString());
+        req.setContext(ctx);
+
+        // Call permission-center
+        return permissionClient.checkInterface(req)
+            .flatMap(resp -> {
+                if (resp != null && resp.isAllowed()) {
+                    permissionCheckCache.put(cacheKey, true);
+                    return chain.filter(exchange);
+                } else {
+                    permissionCheckCache.put(cacheKey, false);
+                    String reason = resp != null && resp.getData() != null
+                        ? resp.getData().getReason() : null;
+                    return writeForbidden(exchange, mapReasonToMessage(reason));
+                }
+            })
+            .onErrorResume(e -> {
+                // Permission-center unavailable — fail-close
+                log.warn("Permission-center unreachable, denying request: {}", e.getMessage());
+                return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
+            });
+    }
+
+    @Override
+    public int getOrder() {
+        return -60;
+    }
+
+    private String getClientIp(ServerWebExchange exchange) {
+        SocketAddress addr = exchange.getRequest().getRemoteAddress();
+        if (addr instanceof InetSocketAddress inetAddr) {
+            java.net.InetAddress inet = inetAddr.getAddress();
+            if (inet != null) {
+                return inet.getHostAddress();
+            }
+        }
+        return "unknown";
+    }
+
+    private String buildCacheKey(Long tenantId, Long userId, String serviceCode,
+                                  String httpMethod, String path) {
+        return CACHE_KEY_PREFIX + tenantId + ":" + userId + ":"
+            + serviceCode + ":" + httpMethod + ":" + path;
+    }
+
+    private Long toLong(Object obj) {
+        if (obj instanceof Long) return (Long) obj;
+        if (obj instanceof Number) return ((Number) obj).longValue();
+        try {
+            return Long.parseLong(obj.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String mapReasonToMessage(String reason) {
+        if (reason == null) return "无接口访问权限";
+        return switch (reason) {
+            case "USER_DISABLED" -> "用户已停用";
+            case "ROLE_DISABLED" -> "角色已停用";
+            case "NO_ROLE" -> "用户无有效角色";
+            case "NO_PERMISSION" -> "无接口访问权限";
+            case "API_NOT_REGISTERED" -> "接口未注册";
+            default -> "无接口访问权限";
+        };
+    }
+
+    private Mono<Void> writeForbidden(ServerWebExchange exchange, String message) {
+        return writeError(exchange, HttpStatus.FORBIDDEN, 403, message);
+    }
+
+    private Mono<Void> writeNotFound(ServerWebExchange exchange) {
+        return writeError(exchange, HttpStatus.NOT_FOUND, 404, "服务不存在");
+    }
+
+    private Mono<Void> writeServiceUnavailable(ServerWebExchange exchange, String message) {
+        return writeError(exchange, HttpStatus.SERVICE_UNAVAILABLE, 503, message);
+    }
+
+    private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus httpStatus,
+                                   int code, String message) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(httpStatus);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
+        GatewayResponse resp = GatewayResponse.error(code, message);
+        Object requestId = exchange.getAttribute("requestId");
+        if (requestId != null) {
+            resp.setRequestId(requestId.toString());
+        }
+
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(resp);
+            DataBuffer buffer = response.bufferFactory().wrap(bytes);
+            return response.writeWith(Mono.just(buffer));
+        } catch (JsonProcessingException e) {
+            return response.setComplete();
+        }
+    }
+}
