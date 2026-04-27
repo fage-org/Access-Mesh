@@ -24,7 +24,7 @@
 - **资源依赖操作位级别**：`resource_dependency` 使用 `source_operation_bits` 作为触发条件，`required_operation_bits` 指定依赖资源所需操作位，`auto_grant=true` 时授权时自动补全。授权记录标记 `grant_source=AUTO_DEP` + `grant_dep_id`，依赖规则变更时按标记精准清理。
 - **资源继承查询方控制**：资源树的继承展开（子资源/父资源）由查询接口参数控制，不在表结构中定义。
 - **树形角色一体化**：`abstract_role` 通过 `parent_id` 支持树形，去除 `role_group` 和 `role_group_role` 表。角色类型区分层级能力：ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE，其中 ORG/GROUP_ROLE 支持子级，BASIC_ROLE/PERSONAL/POSITION 为平铺。
-- **子权限/数据权限**：通过 `role_resource_permission.depend_on` 自引用实现父子权限关系（单层）。子权限可以是任意权限类型（通过 `domain_config` SUB_PERM 配置）。数据权限是一种 `resource_entity`（`resource_type=DATA`），权限中心只管存储和查询。
+- **子权限/范围权限**：通过 `role_resource_permission.depend_on` 自引用实现父子权限关系（单层）。子权限可以是任意权限类型（通过 `domain_config` SUB_PERM 配置）。数据权限是一种 `resource_entity`（`resource_type=DATA`）。`role_resource_permission.scope_all=true` 显式表示某资源类型下的全量范围权限。
 - **域配置合并**：`domain_config` 一张表统一管理 SCOPE/RELATION/BINDING/SUB_PERM，使用 `config_type + extra(JSONB)` 区分。每个域独立配置，无继承。
 - **资源多编码体系**：`resource_entity` 支持 `code_type` 字段，同一资源可有多行不同编码类型（如 "default"/"en"/"cn"），查询权限时传 `code_type` 参数返回对应编码。
 - **双日志体系**：`operation_log`（轻量全量记录所有写操作）+ `permission_change_log`（详细权限变更 diff），便于审计和排查权限问题。
@@ -45,7 +45,7 @@
 | 服务配置 (service_config)                 | 接入服务注册配置，`status` 控制启停，停用后其接口不参与授权。全量同步策略。                                                                                             |
 | 权限条件 (permission_condition)           | `condition_rules` JSONB 存完整条件定义（条件组），支持 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST。条件可复用。                                                    |
 | 用户关联 (user_role)                      | 用户与角色的统一关联表。`target_id` 指向 `abstract_role.id`，`target_type` 标记角色类型。POSITION 类型时 `relation_id` 记录所属组织，决定数据权限范围。可带 valid_from/valid_to。 |
-| 角色-资源-操作 (role_resource_permission) | 角色对某资源在某操作上的授权。支持子权限(depend_on)、条件(condition_id)、管理权(can_manage)。批量授权格式 {add,update,delete}。                                         |
+| 角色-资源-操作 (role_resource_permission) | 角色对某资源在某操作上的授权。支持子权限(depend_on)、全量范围(scope_all)、条件(condition_id)、管理权(can_manage)。批量授权格式 {add,update,delete}。                                         |
 | 域配置 (domain_config)                    | 统一管理 SCOPE/RELATION/BINDING/SUB_PERM。每个域独立，无继承，变更即时生效。                                                                                            |
 | 资源依赖 (resource_dependency)            | 操作位级别触发，支持自动补全。`auto_grant` 补全时标记 `grant_source` + `grant_dep_id`，规则变更时按标记清理。由外部系统通过接口维护。 |                                                                                                                  |
 | 权限冲突规则 (permission_conflict_rule)   | 角色互斥（ROLE_MUTEX，写入拒绝）+ 权限互斥（PERM_MUTEX，查询失效）。                                                                                                    |
@@ -80,6 +80,7 @@ abstract_user (enabled 启停) --[user_role(target_type=ROLE/ORG/POSITION/PERSON
 
 abstract_role --[role_resource_permission]--> resource_entity + operation_permission
 role_resource_permission.depend_on --> role_resource_permission (子权限，单层)
+role_resource_permission.scope_all=true --> resource_type 下全部范围资源
 role_resource_permission 可带 condition_id --> permission_condition (JSONB 规则)
 
 resource_entity --[resource_api_mapping]--> service_code + http_method + path_pattern
@@ -113,7 +114,7 @@ permission_change_log (权限变更 diff)
 | 8   | service_config           | 接入服务配置               | tenant_id, service_code, base_path, **status**                                      |
 | 9   | permission_condition     | 权限生效条件（JSONB规则）  | tenant_id, code, **condition_rules**, enabled                                       |
 | 10  | user_role                | 用户-角色关联              | tenant_id, abstract_user_id, target_type, target_id, **relation_id**, valid_from/to |
-| 11  | role_resource_permission | 角色-资源-操作（子权限）   | tenant_id, abstract_role_id, resource_entity_id, op_id, depend_on, condition_id, **grant_source**, **grant_dep_id** |
+| 11  | role_resource_permission | 角色-资源-操作（子权限）   | tenant_id, abstract_role_id, resource_entity_id, op_id, depend_on, **scope_all**, condition_id, **grant_source**, **grant_dep_id** |
 | 12  | domain_config            | 域配置（四合一）           | tenant_id, biz_domain_id, config_type(SCOPE/RELATION/BINDING/SUB_PERM), extra       |
 | 13  | resource_dependency      | 资源依赖（操作位级别）     | resource_entity_id, depends_on_id, source_operation_bits, required_bits, auto_grant |
 | 14  | permission_conflict_rule | 冲突规则（角色+权限互斥）  | conflict_type(ROLE_MUTEX/PERM_MUTEX), role_ids/operation_ids                        |

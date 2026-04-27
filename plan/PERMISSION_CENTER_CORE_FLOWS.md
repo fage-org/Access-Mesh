@@ -119,7 +119,7 @@ flowchart LR
 | 3 | `POST /api/perm/role-resource-permission/save` | 主权限授权 | 返回主权限 `id` |
 | 4 | `POST /api/perm/role-resource-permission/add-child` | `parentPermissionId + children[]` | 写入子权限，`depend_on=parentPermissionId` |
 | 5 | `POST /api/perm/role-resource-permission/children` | `permissionId` | 查询主权限下子权限 |
-| 6 | `POST /api/perm/auth/check` | `includeDataScope=true` 或业务约定返回数据范围 | 鉴权返回 `dataScopes` |
+| 6 | `POST /api/perm/auth/query-scopes` | 主资源业务键、主操作、范围资源类型和范围操作 | 运行时查询范围权限 |
 
 关键逻辑：
 
@@ -128,6 +128,8 @@ flowchart LR
 - 子权限只支持一层，不允许子权限继续挂子权限。
 - 删除主权限时级联软删子权限。
 - 权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段。
+- `auth/check` 适合只判断主权限是否允许；业务需要拿范围权限集合时，使用 `auth/query-scopes`。
+- `scopeAll=true` 表示该授权覆盖某个资源类型下全部范围资源，不需要创建 `data:all` 这类特殊资源。
 
 ## 8. 场景六：Gateway 接口级鉴权
 
@@ -155,21 +157,73 @@ flowchart LR
 | `CONDITION_NOT_MET` | 条件不满足 |
 | `CONFLICT_DETECTED` | 权限互斥导致失效 |
 
-## 9. 场景七：业务服务 SDK 资源级鉴权
+## 9. 场景七：业务服务 SDK 鉴权与权限查询
 
-目标：业务服务在代码内部判断某用户是否拥有某资源操作权限。
+目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`。
 
-| 步骤 | 接口 | 关键入参 | 结果 |
+| 能力 | 接口 | 典型场景 | 结果 |
 |------|------|----------|------|
-| 1 | `POST /api/perm/auth/check` | `subjectType + subjectExternalId + resourceType + resourceCode + operationCode` | 单次判定 |
-| 2 | `POST /api/perm/auth/batch-check` | 同一主体的多个资源操作检查项 | 批量判定 |
-| 3 | `POST /api/perm/permission-view/effective-permissions` | 排查或展示权限 | 查看有效权限 |
+| 布尔鉴权 | `POST /api/perm/auth/check` | 打开报表前判断是否有 `VIEW` 权限 | `allowed/reason` |
+| 批量鉴权 | `POST /api/perm/auth/batch-check` | 列表页按钮批量置灰 | 每个检查项的 `allowed/reason` |
+| 可操作资源查询 | `POST /api/perm/auth/query-resources` | admin-service 查询可管理组织、角色、菜单 | 资源业务键集合和命中操作 |
+| 范围权限查询 | `POST /api/perm/auth/query-scopes` | example-service 查询报表可读、可编辑的城市、部门、门店等范围 | 范围权限集合 |
+
+### 9.1 admin-service 查询可管理对象
+
+admin-service 需要先把可被权限控制的组织、角色、菜单同步或创建为权限中心资源。
+
+| 查询目标 | 资源建模 | 运行时查询 |
+|----------|----------|------------|
+| 用户能管理哪些组织 | `resourceType=ORG`、`resourceCode=org:{orgId}` | `query-resources` 传 `resourceTypes=[ORG]`、`operationCodes=["MANAGE"]` |
+| 用户能管理哪些角色 | `resourceType=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypes=[ROLE]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
+| 用户能看到哪些菜单 | `resourceType=MENU`、`resourceCode=menu:{menuCode}` | `query-resources` 传 `resourceTypes=[MENU]`、`operationCodes=["VIEW"]`、`treeMode=true` |
+
+调用链路：
+
+1. admin-service 从登录态取 `subjectType + subjectExternalId` 和 `X-Tenant-Id`。
+2. admin-service 调用 `POST /api/perm/auth/query-resources`，传资源类型、操作码、业务域和上下文。
+3. permission-center 解析用户有效角色、角色继承、资源继承、条件、冲突规则。
+4. permission-center 返回命中的 `resourceCode`、`operations`、`matchedRoleIds`、`matchedPermissionIds`。
+5. admin-service 用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
 
 关键逻辑：
 
-- SDK 不应直接拼内部数据库 ID。
-- `context` 可携带 IP、时间、部门、设备等条件评估参数。
-- 如果业务需要数据范围，优先调用带数据范围返回的鉴权或权限视图接口。
+- 权限中心不直接查询 admin-service 的业务表，只返回权限事实。
+- 如果角色本身也是被管理对象，就必须把角色建模成 `resource_entity`；`abstract_role` 只表示授权主体，不等同于“可被管理的角色资源”。
+- 菜单树展示可以用 `treeMode=true` 返回权限中心资源树，但最终排序、隐藏字段、路由元信息仍由 admin-service 控制。
+
+### 9.2 example-service 查询报表范围权限
+
+example-service 需要把报表建模为主资源，把城市、部门、门店、数据集等建模为范围资源。直接范围权限和依赖当前报表主权限的子权限会在运行时取并集。
+
+| 步骤 | 动作 | 说明 |
+|------|------|------|
+| 1 | 同步报表资源 | 例如 `resourceType=REPORT`、`resourceCode=report:sales` |
+| 2 | 同步范围资源 | 例如 `resourceType=DATA`、`resourceCode=data:dept:A` |
+| 3 | 配置直接范围权限 | 例如 A 部门主管角色拥有 `data:dept:A + DATA_READ` |
+| 4 | 配置报表主权限 | 推荐示例为 `report:sales + DATA_READ`、`report:sales + DATA_EDIT` |
+| 5 | 配置子权限 | 在销售报表主权限下额外挂 `data:dept:B + DATA_READ` |
+| 6 | 运行时查询 | 调用 `POST /api/perm/auth/query-scopes`，可同时传 `DATA_READ` 和 `DATA_EDIT` |
+| 7 | 业务过滤 | example-service 把返回的 `resourceCode` 或 `scopeAll=true` 转换为本服务报表查询条件 |
+
+运行时规则：
+
+- permission-center 先判断用户是否拥有主资源操作，例如 `report:sales + DATA_READ` 或 `report:sales + DATA_EDIT`。
+- 主权限不通过时，`allowed=false` 且 `items=[]`。
+- 直接范围权限 `DIRECT` 与当前主权限下的子权限 `DEPENDENT` 按并集返回。
+- 多个主操作和多个范围操作可以一次查询；范围操作必须被一个已通过的主操作激活。
+- 主资源上的 `DATA_READ/DATA_EDIT` 是推荐范例，用于 example-service 表达报表承载数据的读写；其他业务系统可以定义自己的主操作和范围操作映射。
+- 子权限也要参与条件计算和冲突处理，未满足条件的子权限不进入结果。
+- `items=[]` 默认表示无显式范围权限，不表示全量范围。
+- 全量范围必须通过 `scopeAll=true` 显式表达，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围。
+- 权限中心不生成 SQL；example-service 自行把 `data:city:shanghai`、`data:dept:finance` 等资源键映射为查询条件。
+
+### 9.3 运行时查询边界
+
+- `auth/check` 和 `auth/batch-check` 解决“能不能做”。
+- `auth/query-resources` 解决“能操作哪些资源对象”。
+- `auth/query-scopes` 解决“允许访问主资源后，能操作哪些范围资源”。
+- `permission-view/*` 解决“为什么有/没有权限”，用于管理端解释、排查和审计，不作为业务服务高频运行时依赖。
 
 ## 10. 场景八：接口变更后的全量同步和权限影响
 
@@ -257,9 +311,9 @@ flowchart LR
 | 接口规范统一 | 全部接口走 `/api/perm/*`，无 RESTful Path 参数，无 body `tenantId` |
 | SaaS 多租户 | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤 |
 | Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定 |
-| SDK 可接入 | `auth/check` 和 `auth/batch-check` 不要求内部数据库 ID |
+| SDK 可接入 | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求内部数据库 ID |
 | 管理端可解释 | 权限视图、操作日志、变更日志能解释授权来源和变更历史 |
-| 数据权限可表达 | `depend_on` 子权限能表达主权限下的数据范围 |
+| 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
 | 接口同步简单 | 首期只有 FULL 同步，接入服务不需要维护增量事件 |
 | 缓存一致性 | 权限变更、依赖变更、角色关系变更都能触发版本递增和缓存失效 |
 
@@ -269,5 +323,7 @@ flowchart LR
 - `operationCode` 在解析时必须结合 `resourceType`，避免不同资源类型下同名操作产生歧义。
 - `resourceCode` 必须结合 `resourceType + codeType + domainCode` 解析，避免跨域或多编码歧义。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
+- `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。
+- `role_resource_permission.scope_all` 必须显式参与查询结果，不能用空结果或特殊资源编码隐式表示全量范围。
 - 所有 Request DTO 必须移除 `tenantId`。
 - 所有列表响应必须包装成 `data.items`，不能直接返回数组。

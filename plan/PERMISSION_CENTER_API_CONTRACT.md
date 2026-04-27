@@ -16,7 +16,7 @@
 | 分层 | 路径前缀 | 调用方 | 特点 |
 |------|----------|--------|------|
 | 管理配置 API | `/api/perm/*` | 管理端、admin-service、接入系统后台 | 资源、角色、授权、条件、域配置、日志 |
-| 运行时鉴权 API | `/api/perm/auth/*` | Gateway、业务服务 SDK | 高 QPS、可缓存、强稳定 |
+| 运行时鉴权/权限查询 API | `/api/perm/auth/*` | Gateway、业务服务 SDK | 高 QPS、可缓存、强稳定 |
 | 服务接入 API | `/api/perm/service-config/*` | 接入服务、SDK Starter、管理端 | 服务注册、接口同步、接口资源树 |
 
 > 不再定义 `/internal/perm/*` 主契约；本项目未上线，后续实现直接以 `/api/perm/*` 为准。
@@ -111,6 +111,7 @@
 | `grant` | 权限授权，偏业务语义 |
 | `sync` | 外部系统全量同步 |
 | `check` | 判定 |
+| `query` | 运行时权限事实查询，返回可访问资源或范围权限集合 |
 | `detect` | 检测但不落库 |
 
 ## 5. API 清单
@@ -224,12 +225,14 @@
 | `POST /api/perm/conflict-rule/remove` | 删除冲突规则，支持批量 |
 | `POST /api/perm/conflict-rule/detect` | 冲突检测 |
 
-### 5.7 运行时鉴权
+### 5.7 运行时鉴权与权限查询
 
 | 接口 | 说明 |
 |------|------|
 | `POST /api/perm/auth/check` | 单次资源权限判定 |
 | `POST /api/perm/auth/batch-check` | 批量资源权限判定 |
+| `POST /api/perm/auth/query-resources` | 查询主体在指定资源类型和操作下可访问或可管理的资源集合 |
+| `POST /api/perm/auth/query-scopes` | 查询主体在某个主资源上下文内可用的范围资源权限集合 |
 | `POST /api/perm/auth/check-interface` | Gateway 接口级判定 |
 | `POST /api/perm/auth/interface-snapshot` | Gateway 接口权限快照，可选优化接口 |
 | `POST /api/perm/permission-version/query` | 查询权限版本 |
@@ -265,7 +268,6 @@
   "domainCode": "admin",
   "codeType": "default",
   "inheritMode": "NONE",
-  "includeDataScope": false,
   "context": {
     "clientIp": "127.0.0.1",
     "timestamp": "2026-04-26T18:00:00"
@@ -281,8 +283,7 @@
   "reason": null,
   "matchedRoleIds": [10],
   "matchedPermissionIds": [100],
-  "conditionEvaluated": false,
-  "dataScopes": []
+  "conditionEvaluated": false
 }
 ```
 
@@ -374,6 +375,7 @@
       "resourceCode": "sys:user",
       "codeType": "default",
       "operationCode": "VIEW",
+      "scopeAll": false,
       "canManage": false,
       "conditionCode": null
     }
@@ -394,13 +396,14 @@
 - `add/update/remove` 在同一事务中完成。
 - 角色使用 `roleType + roleExternalId` 定位。
 - 授权项使用 `resourceType + resourceCode + codeType + operationCode` 定位资源与操作。
+- 当授权项 `scopeAll=true` 时，使用 `resourceType + operationCode` 表达该资源类型的全量范围权限，不传 `resourceCode/codeType`。
 - 操作必须与资源类型兼容。
 - 写入 `operation_log` 和 `permission_change_log`，递增 `permission_version`。
 - 资源依赖自动补全产生的授权必须标记 `grantSource=AUTO_DEP`。
 
-### 6.5 子权限/数据权限
+### 6.5 子权限/范围权限
 
-子权限通过 `role_resource_permission.depend_on` 表达。`depend_on` 指向一条主权限记录的 `id`，表示当前授权依赖该主权限存在。典型场景是：角色拥有"销售报表 VIEW"主权限，同时该主权限下挂"上海数据 DATA_READ"和"杭州数据 DATA_READ"作为数据范围。
+子权限通过 `role_resource_permission.depend_on` 表达。`depend_on` 指向一条主权限记录的 `id`，表示当前授权依赖该主权限存在。典型场景是：角色拥有"销售报表 DATA_READ"主权限，同时该主权限下挂"上海数据 DATA_READ"和"杭州数据 DATA_READ"作为范围权限。
 
 第一步，创建或保存主权限。
 
@@ -415,7 +418,8 @@
       "resourceType": 1,
       "resourceCode": "report:sales",
       "codeType": "default",
-      "operationCode": "VIEW",
+      "operationCode": "DATA_READ",
+      "scopeAll": false,
       "canManage": false,
       "conditionCode": null
     }
@@ -434,7 +438,8 @@
       "id": 200,
       "resourceType": 1,
       "resourceCode": "report:sales",
-      "operationCode": "VIEW",
+      "operationCode": "DATA_READ",
+      "scopeAll": false,
       "dependOn": null
     }
   ]
@@ -454,6 +459,7 @@
       "resourceCode": "data:city:shanghai",
       "codeType": "default",
       "operationCode": "DATA_READ",
+      "scopeAll": false,
       "conditionCode": null
     },
     {
@@ -461,6 +467,7 @@
       "resourceCode": "data:city:hangzhou",
       "codeType": "default",
       "operationCode": "DATA_READ",
+      "scopeAll": false,
       "conditionCode": null
     }
   ]
@@ -477,6 +484,7 @@
       "resourceType": 4,
       "resourceCode": "data:city:shanghai",
       "operationCode": "DATA_READ",
+      "scopeAll": false,
       "dependOn": 200
     },
     {
@@ -484,6 +492,7 @@
       "resourceType": 4,
       "resourceCode": "data:city:hangzhou",
       "operationCode": "DATA_READ",
+      "scopeAll": false,
       "dependOn": 200
     }
   ]
@@ -511,29 +520,24 @@
       "resourceCode": "data:city:shanghai",
       "resourceName": "上海数据",
       "operationCode": "DATA_READ",
+      "scopeAll": false,
       "dependOn": 200
     }
   ]
 }
 ```
 
-鉴权主权限时，若 `includeDataScope=true` 或接口定义要求返回数据范围，子权限会作为 `dataScopes` 返回。
+运行时不要通过 `auth/check` 承载范围集合。`auth/check` 只做主权限布尔判定；业务需要范围权限集合时，调用 `POST /api/perm/auth/query-scopes`，由该接口合并直接范围权限和依赖当前主权限的子权限。
+
+全量范围授权项示例，可出现在 `role-resource-permission/save.add` 或 `role-resource-permission/add-child.children` 中：
 
 ```json
 {
-  "allowed": true,
-  "reason": null,
-  "matchedRoleIds": [10],
-  "matchedPermissionIds": [200],
-  "conditionEvaluated": false,
-  "dataScopes": [
-    {
-      "resourceType": 4,
-      "resourceCode": "data:city:shanghai",
-      "resourceName": "上海数据",
-      "operationCode": "DATA_READ"
-    }
-  ]
+  "resourceType": 4,
+  "operationCode": "DATA_EDIT",
+  "scopeAll": true,
+  "canManage": false,
+  "conditionCode": null
 }
 ```
 
@@ -543,9 +547,168 @@
 - 子权限继承父权限的 `abstract_role_id`，调用方不需要再次传角色。
 - 子权限的 `depend_on = parentPermissionId`，只支持一层，不允许子权限继续挂子权限。
 - 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。
+- `scopeAll=true` 表示该授权覆盖 `resourceType` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应通过 `scopeAll=true` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 删除子权限只能通过 `remove-child` 或主权限级联删除完成。
 - 子权限写入、删除都必须记录 `permission_change_log`，并递增父角色的 `permission_version`。
+
+### 6.6 通用资源权限查询
+
+`POST /api/perm/auth/query-resources`
+
+用于业务服务查询某个主体在指定资源类型和操作下的有效权限集合。典型场景包括 admin-service 查询用户能管理哪些组织、哪些角色、哪些菜单。前提是这些业务对象已经作为 `resource_entity` 同步或创建到权限中心。
+
+请求：
+
+```json
+{
+  "subjectType": 1,
+  "subjectExternalId": "u-10001",
+  "domainCode": "admin",
+  "resourceTypes": [10],
+  "operationCodes": ["MANAGE"],
+  "codeType": "default",
+  "includeInherited": true,
+  "includeChildren": false,
+  "treeMode": false,
+  "context": {
+    "clientIp": "127.0.0.1",
+    "timestamp": "2026-04-26T18:00:00"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "resourceType": 10,
+      "resourceCode": "org:100",
+      "resourceName": "研发中心",
+      "codeType": "default",
+      "operations": ["MANAGE"],
+      "canManage": true,
+      "matchedRoleIds": [10, 11],
+      "matchedPermissionIds": [301, 315],
+      "grantSources": ["MANUAL"]
+    }
+  ],
+  "permissionVersion": "u-10001:42",
+  "cacheTtlSeconds": 60
+}
+```
+
+admin-service 查询示例：
+
+| 查询目标 | 建模方式 | 查询参数 |
+|----------|----------|----------|
+| 可管理组织 | 组织同步为资源，例如 `resourceType=ORG`、`resourceCode=org:{orgId}` | `resourceTypes=[ORG]`、`operationCodes=["MANAGE"]` |
+| 可管理角色 | 角色同步为资源，例如 `resourceType=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypes=[ROLE]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
+| 可见菜单 | 菜单同步为资源，例如 `resourceType=MENU`、`resourceCode=menu:{menuCode}` | `resourceTypes=[MENU]`、`operationCodes=["VIEW"]`、`treeMode=true` |
+
+规则：
+
+- 查询接口只返回权限事实和资源业务键，不查询 admin-service 的组织、角色、菜单业务表。
+- 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
+- 多个角色命中同一资源时，按 `resourceType + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
+- 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
+- `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。
+- 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
+
+### 6.7 范围权限运行时查询
+
+`POST /api/perm/auth/query-scopes`
+
+用于业务服务查询某个主资源上下文内的有效范围权限。典型场景是 example-service 查询用户能查看或编辑销售报表中的哪些部门、城市、门店、数据集。范围权限由两类权限取并集：直接范围权限 `DIRECT` 和依赖当前主权限的子权限 `DEPENDENT`。
+
+请求：
+
+```json
+{
+  "subjectType": 1,
+  "subjectExternalId": "u-10001",
+  "domainCode": "example",
+  "parentResourceType": 1,
+  "parentResourceCode": "report:sales",
+  "parentCodeType": "default",
+  "parentOperationCodes": ["DATA_READ", "DATA_EDIT"],
+  "scopeResourceTypes": [4],
+  "scopeOperationCodes": ["DATA_READ", "DATA_EDIT"],
+  "scopeCodeType": "default",
+  "context": {
+    "clientIp": "127.0.0.1",
+    "timestamp": "2026-04-26T18:00:00"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "allowed": true,
+  "reason": null,
+  "matchedParentOperations": ["DATA_READ", "DATA_EDIT"],
+  "parentPermissionIds": [200, 260],
+  "items": [
+    {
+      "resourceType": 4,
+      "resourceCode": "data:dept:A",
+      "resourceName": "A部门数据",
+      "codeType": "default",
+      "scopeAll": false,
+      "operations": ["DATA_READ", "DATA_EDIT"],
+      "sources": ["DIRECT"],
+      "matchedRoleIds": [10],
+      "matchedPermissionIds": [301, 302],
+      "dependOnPermissionIds": []
+    },
+    {
+      "resourceType": 4,
+      "resourceCode": "data:dept:B",
+      "resourceName": "B部门数据",
+      "codeType": "default",
+      "scopeAll": false,
+      "operations": ["DATA_READ"],
+      "sources": ["DEPENDENT"],
+      "matchedRoleIds": [12],
+      "matchedPermissionIds": [401],
+      "dependOnPermissionIds": [200]
+    },
+    {
+      "resourceType": 4,
+      "resourceCode": null,
+      "resourceName": null,
+      "codeType": null,
+      "scopeAll": true,
+      "operations": ["DATA_EDIT"],
+      "sources": ["DIRECT"],
+      "matchedRoleIds": [15],
+      "matchedPermissionIds": [501],
+      "dependOnPermissionIds": []
+    }
+  ],
+  "mergeMode": "UNION",
+  "permissionVersion": "u-10001:42",
+  "cacheTtlSeconds": 60
+}
+```
+
+规则：
+
+- 权限中心先按 `parentResourceType + parentResourceCode + parentCodeType + parentOperationCodes[]` 执行主权限判定。
+- 主权限全部不通过时，返回 `allowed=false`、`items=[]`，不继续返回范围权限。
+- `DIRECT` 范围权限来自当前主体有效角色下 `depend_on IS NULL` 的范围资源授权。
+- `DEPENDENT` 范围权限来自 `depend_on IN parentPermissionIds` 的子权限授权，只在当前主资源上下文内生效。
+- 有效范围权限计算公式为 `effectiveScopes = DIRECT ∪ DEPENDENT`。
+- 多操作查询按范围资源聚合，按 `scopeAll + resourceType + resourceCode + codeType` 去重，并合并 `operations/sources/matchedPermissionIds`。
+- 范围操作必须被至少一个已通过的主操作激活。推荐在 example-service 中使用同名业务数据动作，例如 `report:sales + DATA_READ -> dept + DATA_READ`、`report:sales + DATA_EDIT -> dept + DATA_EDIT`；这只是推荐范例，不作为所有接入系统的强制标准。
+- 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
+- `scopeAll=true` 表示该 `resourceType` 下全量范围权限，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围；实现不应展开返回全部部门明细。
+- `items=[]` 不表示全量范围，只表示没有显式范围权限；全量必须通过 `scopeAll=true` 明确表达。
+- 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行把 `resourceCode` 或 `scopeAll=true` 映射为查询条件。
 
 ## 7. 错误原因建议
 
@@ -573,6 +736,8 @@
 - 当同一路径映射存在于多个租户时，接口级鉴权应只在 `X-Tenant-Id` 对应租户内匹配。
 - 当 SDK 调用权限中心时，Feign 返回类型应与服务端 Controller 响应 DTO 完全一致。
 - 当调用任意接口时，请求体不得包含 `tenantId`；租户统一从 `X-Tenant-Id` 读取。
+- 当 admin-service 查询用户能管理哪些组织、角色、菜单时，应通过 `POST /api/perm/auth/query-resources` 返回资源业务键集合。
+- 当 example-service 查询报表范围权限时，应通过 `POST /api/perm/auth/query-scopes` 返回同一主资源下的直接范围权限和子权限并集。
 
 ## 9. 实施建议
 
@@ -581,6 +746,7 @@
 3. SDK Feign 改为依赖稳定契约 DTO，返回类型与服务端保持一致。
 4. 所有 Request DTO 移除 `tenantId` 字段，服务端从 Header/SecurityContext 获取租户和操作者。
 5. 首期 `service-config/sync` 仅实现 FULL 全量同步。
+6. `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的角色解析、条件评估、冲突处理、租户过滤和缓存失效逻辑。
 
 ## 10. 已确认决策
 
@@ -589,3 +755,6 @@
 3. **授权入口**：三段式角色授权保留，接口命名为 `POST /api/perm/role-resource-permission/save`。
 4. **接口同步**：首期仅支持 FULL 全量同步。
 5. **兼容策略**：项目未上线，不考虑旧接口兼容，直接按新契约实现。
+6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。
+7. **范围权限**：`query-scopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限`，并支持 `parentOperationCodes[]` 与 `scopeOperationCodes[]` 多操作查询。
+8. **全量范围**：`role_resource_permission` 增加 `scope_all` 字段，`scopeAll=true` 显式表示某资源类型下的全量范围权限；空 `items=[]` 不表示全量。

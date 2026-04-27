@@ -358,15 +358,17 @@ COMMENT ON COLUMN user_role.valid_to IS '生效结束时间，NULL 不限制';
 -- 11. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
 --     批量授权接口格式 {add:[], update:[], delete:[]}
 --     只存勾选节点，查询接口支持展开父级/展开子级
+--     scope_all=true 表示该操作覆盖 resource_type 下全部范围资源，此时 resource_entity_id 为空
 -- -----------------------------------------------------------------------------
 CREATE TABLE role_resource_permission (
     id                      BIGSERIAL PRIMARY KEY,
     tenant_id               BIGINT NOT NULL,
     abstract_role_id        BIGINT NOT NULL,
-    resource_entity_id      BIGINT NOT NULL,
+    resource_entity_id      BIGINT,
     operation_permission_id BIGINT NOT NULL,
-    resource_type           INT,
+    resource_type           INT NOT NULL,
     depend_on               BIGINT,
+    scope_all               BOOLEAN NOT NULL DEFAULT false,
     can_manage              BOOLEAN NOT NULL DEFAULT false,
     condition_id            BIGINT,
     grant_source            VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
@@ -377,18 +379,26 @@ CREATE TABLE role_resource_permission (
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at              TIMESTAMPTZ,
-    delete_flag             BIGINT NOT NULL DEFAULT 0
+    delete_flag             BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_role_resource_permission_scope_all CHECK (
+        (scope_all = false AND resource_entity_id IS NOT NULL)
+        OR
+        (scope_all = true AND resource_entity_id IS NULL)
+    )
 );
 
-CREATE UNIQUE INDEX uk_role_resource_permission ON role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, operation_permission_id, COALESCE(depend_on, 0), COALESCE(grant_source, 'MANUAL'), COALESCE(condition_id, 0)) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_role_resource_permission ON role_resource_permission (tenant_id, abstract_role_id, COALESCE(resource_entity_id, 0), resource_type, operation_permission_id, COALESCE(depend_on, 0), scope_all, COALESCE(grant_source, 'MANUAL'), COALESCE(condition_id, 0)) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_role ON role_resource_permission (abstract_role_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_resource ON role_resource_permission (resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_depend ON role_resource_permission (depend_on) WHERE delete_flag = 0 AND depend_on IS NOT NULL;
 CREATE INDEX idx_role_resource_permission_type ON role_resource_permission (tenant_id, resource_type) WHERE delete_flag = 0;
+CREATE INDEX idx_role_resource_permission_scope_all ON role_resource_permission (tenant_id, resource_type, operation_permission_id) WHERE delete_flag = 0 AND scope_all = true;
 
-COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作的授权；depend_on 实现子权限（单层）；相同角色+资源重复授权时后写覆盖操作位';
-COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型（冗余字段，从 resource_entity 自动填充）';
+COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作的授权；depend_on 实现子权限（单层）；scope_all=true 表示某资源类型全量范围授权';
+COMMENT ON COLUMN role_resource_permission.resource_entity_id IS '资源实体ID；scope_all=false 时必填，scope_all=true 时为空';
+COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型；普通授权时从 resource_entity 自动填充，scope_all=true 时用于标识全量范围资源类型';
 COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自引用），NULL=主权限，非NULL=子权限。单层依赖。删除父权限时级联软删子权限';
+COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resource_type 下全部范围资源；true 时 resource_entity_id 必须为空';
 COMMENT ON COLUMN role_resource_permission.can_manage IS '是否可管理(给他人授权)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
 COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全';
