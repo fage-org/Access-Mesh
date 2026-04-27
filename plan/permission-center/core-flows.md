@@ -1,6 +1,6 @@
 # Permission Center 核心流程链路
 
-> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 `plan/PERMISSION_CENTER_API_CONTRACT.md` 为准。
+> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 `api-contract.md` 为准。
 
 ## 1. 全局约定
 

@@ -1,3 +1,9 @@
+# Archived / 非权威来源
+
+本文档是 2026-04-28 文档重整前的旧版 example-service 详细设计，仅用于历史追溯。当前服务设计入口为 `plan/services/example-service.md`。
+
+---
+
 # Example 演示服务 - 详细设计文档
 
 本文档定义 example-service 的模块、演示场景、SDK 设计及接口清单。作为第三方业务系统对接权限中心的**参考实现**。
@@ -657,7 +663,7 @@ public class DataScopeProvider {
 
 ### 4.3 perm-gateway-spring-boot-starter
 
-**职责**：网关鉴权插件，封装权限中心回调鉴权、L1 缓存、条件评估等逻辑。采用**逐请求回调模式**（与 GATEWAY_DESIGN.md §2.2.5 一致），Gateway 不直接读 Redis，不拉取全量快照。
+**职责**：网关鉴权插件，封装权限中心回调鉴权、L1 缓存、条件评估等逻辑。采用**逐请求回调模式**（与 `gateway.md` §2.2.5 一致），Gateway 不直接读 Redis，不拉取全量快照。
 
 #### 4.3.1 自动配置
 

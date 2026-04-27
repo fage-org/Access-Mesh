@@ -1,3 +1,9 @@
+# Archived / 非权威来源
+
+本文档是 2026-04-28 文档重整前的旧版产品功能长文档，可能包含旧接口和旧字段。实现时请以 `plan/permission-center/api-contract.md` 和 `plan/schema/permission-center.sql` 为准。
+
+---
+
 # 通用权限中心 - 产品功能文档
 
 本文档定义权限中心所有功能模块、接口、入参/出参及业务规则，面向前端开发、后端开发和测试人员。

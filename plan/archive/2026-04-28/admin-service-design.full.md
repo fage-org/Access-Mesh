@@ -1,6 +1,12 @@
+# Archived / 非权威来源
+
+本文档是 2026-04-28 文档重整前的旧版 admin-service 详细设计，仅用于历史追溯。当前服务设计入口为 `plan/services/admin-service.md`。
+
+---
+
 # 管理服务 (admin-service) - 详细设计文档
 
-本文档定义管理服务的所有模块、接口清单及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）、`GATEWAY_DESIGN.md`（网关）和 `DESIGN.md`（权限中心）配套使用。
+本文档定义管理服务的所有模块、接口清单及核心业务规则。整体架构见 `../architecture.md`，网关设计见 `gateway.md`，权限中心概念模型见 `../permission-center/overview.md`。
 
 ---
 

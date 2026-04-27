@@ -8,8 +8,8 @@ Permission-center 是 AccessMesh 系统的核心权限引擎，当前仅有 4 �
 
 - 审计结果显示：permission-center/src/main/java/ 下仅有 4 个文件（Application + 1 个 stub Service + 1 个 stub Controller）
 - `PermissionServiceImpl` 中 5 个方法全部返回硬编码值，包含 2 个 TODO
-- `plan/permission_center_schema.sql` 已定义 18 张表
-- `plan/DESIGN.md` 和 `plan/PERMISSION_CENTER_IMPL_DESIGN.md` 已完成详细设计
+- `plan/schema/permission-center.sql` 已定义权限中心表结构
+- `plan/permission-center/overview.md`、`plan/permission-center/api-contract.md` 和 `plan/permission-center/implementation.md` 已完成详细设计
 
 ## Proposed Solution
 
@@ -32,7 +32,7 @@ We believe 分阶段实施（基础设施→核心鉴权→管理界面→高级
 |--------|--------|--------------|
 | 编译通过率 | 100% | `mvn clean compile -q` 无错误 |
 | 代码覆盖率 | 阶段 1-3 每阶段编译通过 | Maven 编译输出 |
-| API 端点实现率 | 设计文档中所有端点 100% 实现 | 对照 DESIGN.md 接口清单 |
+| API 端点实现率 | 设计文档中所有端点 100% 实现 | 对照 `plan/permission-center/api-contract.md` |
 
 ## Open Questions
 

@@ -1,6 +1,12 @@
+# Archived / 非权威来源
+
+本文档是 2026-04-28 文档重整前的旧版 Gateway 详细设计，仅用于历史追溯。当前服务设计入口为 `plan/services/gateway.md`。
+
+---
+
 # Gateway 网关服务 - 详细设计文档
 
-本文档定义 Gateway 服务的所有模块、配置结构、过滤器链及核心业务规则。与 `ARCHITECTURE_DESIGN.md`（整体架构）和 `DESIGN.md`（权限中心）配套使用。
+本文档定义 Gateway 服务的所有模块、配置结构、过滤器链及核心业务规则。整体架构见 `../architecture.md`，权限中心契约见 `../permission-center/api-contract.md`。
 
 ---
 
@@ -197,7 +203,7 @@ sa-token:
 
 **鉴权模式**：采用 **逐请求回调模式**。每次鉴权请求（L1 缓存未命中时）回调权限中心的 `check-interface` 接口获取判定结果。
 
-> 备选方案"接口权限快照"（拉取全量权限）详见 PERMISSION_CENTER_IMPL_DESIGN.md §3.3，当前未启用。
+> 备选方案"接口权限快照"（拉取全量权限）详见 `../permission-center/implementation.md` §3.3，当前未启用。
 > 快照模式适用于需要降低鉴权延迟的大型系统，启用时需同步修改 Gateway 路由逻辑。
 
 **流程**：

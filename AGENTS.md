@@ -2,10 +2,11 @@
 
 ## 项目概述
 
-**AccessMesh** 是一个基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
+**AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
 - **当前阶段**：设计完成，待编码实现
 - **当前分支**：`feat-permission-center`
+- **文档入口**：`plan/README.md`
 
 ## 技术栈
 
@@ -23,47 +24,53 @@
 | 日志 | SLF4J + Log4j2 |
 | 前端 | Vue 3 + Element Plus |
 
-## 架构概览
+## 服务架构
 
+```text
+Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
+               -> permission-center (9200)  核心权限引擎
+               -> example-service (9300)    对接演示
 ```
-Gateway (8080) ──→ admin-service (9100)      — 用户/组织/菜单/认证
-               ──→ permission-center (9200)  — 核心权限引擎
-               ──→ example-service (9300)    — 对接演示
-```
 
-详见 `plan/ARCHITECTURE_DESIGN.md`。
+整体架构见 `plan/architecture.md`。
 
-## 编码规范
+## 权威来源
 
-**所有规范见 `plan/PROJECT_RULES.md`**，核心要点：
+| 主题 | 权威文档 |
+|------|----------|
+| 文档入口与阅读顺序 | `plan/README.md` |
+| 工程规范 | `plan/project-rules.md` |
+| 整体架构 | `plan/architecture.md` |
+| 权限中心概念模型 | `plan/permission-center/overview.md` |
+| 权限中心 API 契约 | `plan/permission-center/api-contract.md` |
+| 权限中心核心流程 | `plan/permission-center/core-flows.md` |
+| 权限中心实现设计 | `plan/permission-center/implementation.md` |
+| 服务设计 | `plan/services/*.md` |
+| 表结构 | `plan/schema/*.sql` |
 
-- 所有接口 **POST + JSON Body**，禁止 GET/PUT/DELETE，禁止 RESTful 路径参数
-- **禁止 `@RequestParam`**（文件上传除外），所有参数通过 `@RequestBody` + Request DTO
-- 路径格式：`/api/{module}/{resource}/{action}`
-- 统一响应体：`{ "code": 200, "message": "success", "data": {}, "requestId": "...", "traceId": "..." }`
-- 错误码分段：10001-19999(admin) / 20001-29999(perm) / 30001-39999(example) / 90001-99999(全局)
-- 分层：Controller → 调度层 Service → 逻辑级 DomainService → Mapper
-- 禁止跳层调用，禁止同层横向调用
-- 禁止 Lombok，使用 Java 21 Record 替代不可变 DTO
-- 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`
-- 实体类不含业务逻辑，审计字段由框架填充
+`plan/archive/` 只用于历史追溯，不作为实现依据。
 
-## 项目文档索引
+## 核心编码规范
 
-| 文档 | 内容 |
-|------|------|
-| `plan/DESIGN.md` | 权限中心详细设计（18 表、角色模型、鉴权流程） |
-| `plan/ARCHITECTURE_DESIGN.md` | 微服务整体架构（4 服务、基础设施、服务间交互） |
-| `plan/GATEWAY_DESIGN.md` | Gateway 网关过滤器链、路由、安全设计 |
-| `plan/ADMIN_SERVICE_DESIGN.md` | 管理服务 11 模块设计（认证、用户、组织、菜单等） |
-| `plan/EXAMPLE_SERVICE_DESIGN.md` | 演示服务 + SDK Starter 设计 |
-| `plan/PERMISSION_CENTER_IMPL_DESIGN.md` | 权限中心实现层设计（类结构、鉴权链路、缓存） |
-| `plan/PRODUCT_FEATURES.md` | 权限中心产品功能文档（接口、入参、出参、业务规则） |
-| `plan/PROJECT_RULES.md` | 项目开发规范（接口、异常、日志、事务、安全等 16 章） |
-| `plan/SERVICE_MODULE_CHECKLIST.md` | 全服务模块讨论清单 |
-| `plan/MODULE_DISCUSSION_CHECKLIST.md` | 权限中心模块讨论清单 |
-| `plan/problem/UNRESOLVED_ISSUES.md` | 设计问题决议记录 |
-| `plan/*_schema.sql` | PostgreSQL 表结构（权限中心 18 表、管理服务 17 表、演示 4 表） |
+完整规范见 `plan/project-rules.md`。常用约束：
+
+- 所有接口使用 **POST + JSON Body**，禁止 GET/PUT/DELETE，禁止 RESTful 路径参数。
+- 禁止 `@RequestParam`（文件上传除外），所有参数通过 `@RequestBody` + Request DTO。
+- 路径格式：`/api/{module}/{resource}/{action}`；权限中心对外接口统一在 `/api/perm/*`。
+- 统一响应体：`{ "code": 200, "message": "success", "data": {}, "requestId": "...", "traceId": "..." }`。
+- 错误码分段：10001-19999(admin) / 20001-29999(perm) / 30001-39999(example) / 90001-99999(全局)。
+- 分层：Controller -> 调度层 Service -> 逻辑级 DomainService -> Mapper。
+- 禁止跳层调用，禁止同层横向调用。
+- 禁止 Lombok，使用 Java 21 Record 表达不可变 DTO。
+- 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。
+- 实体类不含业务逻辑，审计字段由框架填充。
+
+## 权限中心实现提醒
+
+- API 路径、请求体、响应体、错误原因以 `plan/permission-center/api-contract.md` 为准。
+- 表字段、索引、约束以 `plan/schema/permission-center.sql` 为准。
+- 核心场景链路以 `plan/permission-center/core-flows.md` 为准。
+- `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 
 ## 常用命令（开发阶段预估）
 
