@@ -28,10 +28,16 @@
 | Header | 必填 | 说明 |
 |--------|------|------|
 | `Authorization` | 管理 API 必填 | `Bearer <token>` |
-| `X-Tenant-Id` | 必填 | 当前租户 ID，由 Gateway 注入或调用方传入；请求体不再保留 `tenantId` |
+| `X-Tenant-Id` | 必填 | 当前租户 ID，由 Gateway 或可信服务注入；请求体不再保留 `tenantId` |
 | `X-Request-Id` | 可选 | 未传时由 Gateway 生成 |
 | `X-Service-Code` | 内部/SDK 必填 | 调用方服务编码，用于内部来源校验 |
 | `X-Api-Version` | 可选 | 契约版本，默认 `2026-04-26` |
+
+可信边界：
+
+- 外部客户端传入的 `X-Tenant-Id/X-User-Id/X-Service-Code` 必须由 Gateway 清洗，不允许原样透传。
+- Gateway 从 Token claim 解析租户和主体后重新注入标准 Header。
+- 服务间调用通过 Feign 拦截器透传可信 Header；permission-center 需校验服务身份与 Header 一致性。
 
 ### 3.2 统一响应
 
@@ -80,11 +86,11 @@
 | 对象 | 标准入参字段 | 说明 |
 |------|--------------|------|
 | 租户 | `X-Tenant-Id` | 只放 Header，不放 Body |
-| 用户/主体 | `subjectType` + `subjectExternalId` | `subjectType` 对应 `type_definition(type_key='user_type').type_value` |
-| 角色 | `roleType` + `roleExternalId` | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
-| 业务域 | `domainCode` | 可空；为空表示全局或不按域过滤 |
-| 资源 | `resourceType` + `resourceCode` + `codeType` | `codeType` 默认 `default` |
-| 操作 | `operationCode` | 在 `resourceType` 范围内解析；全局操作允许 `resourceType=null` |
+| 用户/主体 | `subjectTypeCode` + `subjectExternalId` | `subjectTypeCode` 对应 `type_definition(type_key='user_type').type_code` |
+| 角色 | `domainCode` + `roleTypeCode` + `roleExternalId` | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
+| 业务域 | `domainCode` | 可空；为空表示全局域 |
+| 资源 | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default` |
+| 操作 | `operationCode` | 在 `resourceTypeCode` 范围内解析；全局操作允许不绑定资源类型 |
 | 条件 | `conditionCode` | 可空 |
 | 明细记录 | `id` 或 `ids` | 仅用于更新/删除权限关系、日志详情等权限中心已返回的记录 |
 
@@ -94,6 +100,9 @@
 - 管理端列表、创建、详情响应可以返回内部 `id`，用于后续 `update/remove`。
 - 同一接口不同时接受 `id/code/externalId` 多套定位方式，避免歧义。
 - 所有请求体禁止出现 `tenantId`；服务端统一从 `X-Tenant-Id` 和安全上下文读取租户。
+- 对外 API 使用稳定字符串 `typeCode`；数据库实体继续保存 `type_value INT`，由服务端通过缓存解析，避免外部系统依赖内部数字枚举。
+- `domainCode` 是管理分区和命名空间，不是子租户。传入 `domainCode` 时只查该域和全局对象；不传时只查全局对象，不做跨域模糊匹配。
+- Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
 
 ## 4. 动词规范
 
@@ -260,9 +269,9 @@
 
 ```json
 {
-  "subjectType": 1,
+  "subjectTypeCode": "USER",
   "subjectExternalId": "u-10001",
-  "resourceType": 1,
+  "resourceTypeCode": "MENU",
   "resourceCode": "sys:user",
   "operationCode": "VIEW",
   "domainCode": "admin",
@@ -293,7 +302,7 @@
 
 ```json
 {
-  "subjectType": 1,
+  "subjectTypeCode": "USER",
   "subjectExternalId": "u-10001",
   "serviceCode": "admin-service",
   "httpMethod": "POST",
@@ -324,6 +333,7 @@
 
 - 查询 `resource_api_mapping` 必须带 `tenant_id + service_code + http_method + enabled + delete_flag=0`。
 - `path` 使用 Gateway 收到的原始路径，不使用 StripPrefix 后的服务内部路径。
+- 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许；响应返回所有命中资源和权限信息，便于审计解释。
 - 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
 
 ### 6.3 服务接口全量同步
@@ -367,11 +377,12 @@
 
 ```json
 {
-  "roleType": 1,
+  "domainCode": "admin",
+  "roleTypeCode": "BASIC_ROLE",
   "roleExternalId": "role_admin",
   "add": [
     {
-      "resourceType": 1,
+      "resourceTypeCode": "MENU",
       "resourceCode": "sys:user",
       "codeType": "default",
       "operationCode": "VIEW",
@@ -394,10 +405,14 @@
 规则：
 
 - `add/update/remove` 在同一事务中完成。
-- 角色使用 `roleType + roleExternalId` 定位。
-- 授权项使用 `resourceType + resourceCode + codeType + operationCode` 定位资源与操作。
-- 当授权项 `scopeAll=true` 时，使用 `resourceType + operationCode` 表达该资源类型的全量范围权限，不传 `resourceCode/codeType`。
+- 角色使用 `domainCode + roleTypeCode + roleExternalId` 定位；`domainCode` 为空时只定位全局角色。
+- 授权项使用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源与操作。
+- 当授权项 `scopeAll=true` 时，使用 `resourceTypeCode + operationCode` 表达该资源类型的全量范围权限，不传 `resourceCode/codeType`。
 - 操作必须与资源类型兼容。
+- `canManage=true` 表示授权者可把同一条权限授权给他人，但不得扩大资源、操作或范围；可授权对象列表由业务服务控制。
+- 授权者必须已经拥有目标权限且该权限 `canManage=true`，才能把同一权限授权给他人。
+- 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围。
+- permission-center 只校验授权者是否具备同一权限的委托能力，不负责生成候选被授权人列表。
 - 写入 `operation_log` 和 `permission_change_log`，递增 `permission_version`。
 - 资源依赖自动补全产生的授权必须标记 `grantSource=AUTO_DEP`。
 
@@ -411,11 +426,12 @@
 
 ```json
 {
-  "roleType": 1,
+  "domainCode": "example",
+  "roleTypeCode": "BASIC_ROLE",
   "roleExternalId": "role_report_viewer",
   "add": [
     {
-      "resourceType": 1,
+      "resourceTypeCode": "REPORT",
       "resourceCode": "report:sales",
       "codeType": "default",
       "operationCode": "DATA_READ",
@@ -436,7 +452,7 @@
   "items": [
     {
       "id": 200,
-      "resourceType": 1,
+      "resourceTypeCode": "REPORT",
       "resourceCode": "report:sales",
       "operationCode": "DATA_READ",
       "scopeAll": false,
@@ -455,7 +471,7 @@
   "parentPermissionId": 200,
   "children": [
     {
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:city:shanghai",
       "codeType": "default",
       "operationCode": "DATA_READ",
@@ -463,7 +479,7 @@
       "conditionCode": null
     },
     {
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:city:hangzhou",
       "codeType": "default",
       "operationCode": "DATA_READ",
@@ -481,7 +497,7 @@
   "items": [
     {
       "id": 201,
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:city:shanghai",
       "operationCode": "DATA_READ",
       "scopeAll": false,
@@ -489,7 +505,7 @@
     },
     {
       "id": 202,
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:city:hangzhou",
       "operationCode": "DATA_READ",
       "scopeAll": false,
@@ -516,7 +532,7 @@
   "items": [
     {
       "id": 201,
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:city:shanghai",
       "resourceName": "上海数据",
       "operationCode": "DATA_READ",
@@ -533,7 +549,7 @@
 
 ```json
 {
-  "resourceType": 4,
+  "resourceTypeCode": "DATA",
   "operationCode": "DATA_EDIT",
   "scopeAll": true,
   "canManage": false,
@@ -547,7 +563,7 @@
 - 子权限继承父权限的 `abstract_role_id`，调用方不需要再次传角色。
 - 子权限的 `depend_on = parentPermissionId`，只支持一层，不允许子权限继续挂子权限。
 - 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。
-- `scopeAll=true` 表示该授权覆盖 `resourceType` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应通过 `scopeAll=true` 明确表达全量范围。
+- `scopeAll=true` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应通过 `scopeAll=true` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 删除子权限只能通过 `remove-child` 或主权限级联删除完成。
 - 子权限写入、删除都必须记录 `permission_change_log`，并递增父角色的 `permission_version`。
@@ -562,10 +578,10 @@
 
 ```json
 {
-  "subjectType": 1,
+  "subjectTypeCode": "USER",
   "subjectExternalId": "u-10001",
   "domainCode": "admin",
-  "resourceTypes": [10],
+  "resourceTypeCodes": ["ORG"],
   "operationCodes": ["MANAGE"],
   "codeType": "default",
   "includeInherited": true,
@@ -584,7 +600,7 @@
 {
   "items": [
     {
-      "resourceType": 10,
+      "resourceTypeCode": "ORG",
       "resourceCode": "org:100",
       "resourceName": "研发中心",
       "codeType": "default",
@@ -604,15 +620,15 @@ admin-service 查询示例：
 
 | 查询目标 | 建模方式 | 查询参数 |
 |----------|----------|----------|
-| 可管理组织 | 组织同步为资源，例如 `resourceType=ORG`、`resourceCode=org:{orgId}` | `resourceTypes=[ORG]`、`operationCodes=["MANAGE"]` |
-| 可管理角色 | 角色同步为资源，例如 `resourceType=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypes=[ROLE]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
-| 可见菜单 | 菜单同步为资源，例如 `resourceType=MENU`、`resourceCode=menu:{menuCode}` | `resourceTypes=[MENU]`、`operationCodes=["VIEW"]`、`treeMode=true` |
+| 可管理组织 | 组织同步为资源，例如 `resourceTypeCode=ORG`、`resourceCode=org:{orgId}` | `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]` |
+| 可管理角色 | 角色同步为资源，例如 `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
+| 可见菜单 | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}` | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true` |
 
 规则：
 
 - 查询接口只返回权限事实和资源业务键，不查询 admin-service 的组织、角色、菜单业务表。
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
-- 多个角色命中同一资源时，按 `resourceType + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
+- 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。
 - 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
@@ -627,14 +643,14 @@ admin-service 查询示例：
 
 ```json
 {
-  "subjectType": 1,
+  "subjectTypeCode": "USER",
   "subjectExternalId": "u-10001",
   "domainCode": "example",
-  "parentResourceType": 1,
+  "parentResourceTypeCode": "REPORT",
   "parentResourceCode": "report:sales",
   "parentCodeType": "default",
   "parentOperationCodes": ["DATA_READ", "DATA_EDIT"],
-  "scopeResourceTypes": [4],
+  "scopeResourceTypeCodes": ["DATA"],
   "scopeOperationCodes": ["DATA_READ", "DATA_EDIT"],
   "scopeCodeType": "default",
   "context": {
@@ -654,7 +670,7 @@ admin-service 查询示例：
   "parentPermissionIds": [200, 260],
   "items": [
     {
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:dept:A",
       "resourceName": "A部门数据",
       "codeType": "default",
@@ -666,7 +682,7 @@ admin-service 查询示例：
       "dependOnPermissionIds": []
     },
     {
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": "data:dept:B",
       "resourceName": "B部门数据",
       "codeType": "default",
@@ -678,7 +694,7 @@ admin-service 查询示例：
       "dependOnPermissionIds": [200]
     },
     {
-      "resourceType": 4,
+      "resourceTypeCode": "DATA",
       "resourceCode": null,
       "resourceName": null,
       "codeType": null,
@@ -698,15 +714,15 @@ admin-service 查询示例：
 
 规则：
 
-- 权限中心先按 `parentResourceType + parentResourceCode + parentCodeType + parentOperationCodes[]` 执行主权限判定。
+- 权限中心先按 `parentResourceTypeCode + parentResourceCode + parentCodeType + parentOperationCodes[]` 执行主权限判定。
 - 主权限全部不通过时，返回 `allowed=false`、`items=[]`，不继续返回范围权限。
 - `DIRECT` 范围权限来自当前主体有效角色下 `depend_on IS NULL` 的范围资源授权。
 - `DEPENDENT` 范围权限来自 `depend_on IN parentPermissionIds` 的子权限授权，只在当前主资源上下文内生效。
 - 有效范围权限计算公式为 `effectiveScopes = DIRECT ∪ DEPENDENT`。
-- 多操作查询按范围资源聚合，按 `scopeAll + resourceType + resourceCode + codeType` 去重，并合并 `operations/sources/matchedPermissionIds`。
+- 多操作查询按范围资源聚合，按 `scopeAll + resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations/sources/matchedPermissionIds`。
 - 范围操作必须被至少一个已通过的主操作激活。推荐在 example-service 中使用同名业务数据动作，例如 `report:sales + DATA_READ -> dept + DATA_READ`、`report:sales + DATA_EDIT -> dept + DATA_EDIT`；这只是推荐范例，不作为所有接入系统的强制标准。
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
-- `scopeAll=true` 表示该 `resourceType` 下全量范围权限，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围；实现不应展开返回全部部门明细。
+- `scopeAll=true` 表示该 `resourceTypeCode` 下全量范围权限，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围；实现不应展开返回全部部门明细。
 - `items=[]` 不表示全量范围，只表示没有显式范围权限；全量必须通过 `scopeAll=true` 明确表达。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行把 `resourceCode` 或 `scopeAll=true` 映射为查询条件。
 
@@ -730,7 +746,7 @@ admin-service 查询示例：
 ## 8. 验收标准
 
 - 当 Gateway 使用默认配置回调权限中心时，系统应调用 `POST /api/perm/auth/check-interface` 并得到稳定响应。
-- 当外部系统只知道用户 `subjectType + subjectExternalId`、资源 `resourceType + resourceCode`、操作 `operationCode` 时，系统应能完成鉴权判定。
+- 当外部系统只知道用户 `subjectTypeCode + subjectExternalId`、资源 `resourceTypeCode + resourceCode`、操作 `operationCode` 时，系统应能完成鉴权判定。
 - 当管理端查询任何列表接口时，响应 `data` 应始终是对象，且列表数据位于 `data.items`。
 - 当调用批量删除接口时，系统应接受 `{ "ids": [...] }` 并执行软删除，不暴露 RESTful Path 参数。
 - 当同一路径映射存在于多个租户时，接口级鉴权应只在 `X-Tenant-Id` 对应租户内匹配。
@@ -758,3 +774,7 @@ admin-service 查询示例：
 6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。
 7. **范围权限**：`query-scopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限`，并支持 `parentOperationCodes[]` 与 `scopeOperationCodes[]` 多操作查询。
 8. **全量范围**：`role_resource_permission` 增加 `scope_all` 字段，`scopeAll=true` 显式表示某资源类型下的全量范围权限；空 `items=[]` 不表示全量。
+9. **类型模型**：对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`，内部存储继续使用 `type_value INT`，通过 `type_definition` 缓存解析。
+10. **业务域模型**：`domainCode` 是管理分区和命名空间；传入时查该域 + 全局，不传时只查全局，不跨域模糊匹配。
+11. **接口映射**：同一路径允许映射多个接口资源，Gateway 接口鉴权采用 OR 语义，任一映射资源权限通过即允许。
+12. **委托授权**：`canManage=true` 表示可把同一条权限授权给他人，但不得扩大资源、操作或范围；被授权对象候选范围由业务服务控制。

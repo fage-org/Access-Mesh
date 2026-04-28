@@ -17,6 +17,7 @@ CREATE TABLE type_definition (
     tenant_id     BIGINT NOT NULL,
     biz_domain_id BIGINT,
     type_key      VARCHAR(64) NOT NULL,
+    type_code     VARCHAR(64) NOT NULL,
     type_value    INT NOT NULL,
     name          VARCHAR(128) NOT NULL,
     description   VARCHAR(512),
@@ -32,15 +33,18 @@ CREATE TABLE type_definition (
     delete_flag   BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_type_definition_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_value) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_type_definition_global ON type_definition (tenant_id, type_key, type_value) WHERE biz_domain_id IS NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_value_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_value) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_value_global ON type_definition (tenant_id, type_key, type_value) WHERE biz_domain_id IS NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_code_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_code) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_code_global ON type_definition (tenant_id, type_key, type_code) WHERE biz_domain_id IS NULL AND delete_flag = 0;
 
-COMMENT ON TABLE type_definition IS '类型定义：type_key 如 user_type/role_type/resource_type/group_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission';
+COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type/group_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission';
 COMMENT ON COLUMN type_definition.id IS '主键';
 COMMENT ON COLUMN type_definition.tenant_id IS '租户ID';
 COMMENT ON COLUMN type_definition.biz_domain_id IS '业务域ID，NULL 表示全局类型';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type、group_type';
-COMMENT ON COLUMN type_definition.type_value IS '枚举值，如 1=人员 2=服务';
+COMMENT ON COLUMN type_definition.type_code IS '对外稳定编码，如 USER、SERVICE、BASIC_ROLE、MENU、DATA';
+COMMENT ON COLUMN type_definition.type_value IS '内部枚举值，如 1=人员 2=服务；只用于存储、索引和计算，不作为外部 API 契约';
 COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
@@ -263,7 +267,7 @@ CREATE UNIQUE INDEX uk_resource_api_mapping_route ON resource_api_mapping (tenan
 CREATE INDEX idx_resource_api_mapping_lookup ON resource_api_mapping (tenant_id, service_code, http_method, match_order) WHERE delete_flag = 0 AND enabled = true;
 CREATE INDEX idx_resource_api_mapping_resource ON resource_api_mapping (resource_entity_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE resource_api_mapping IS '接口资源映射：API 类资源到 service_code + http_method + path_pattern 的显式映射';
+COMMENT ON TABLE resource_api_mapping IS '接口资源映射：API 类资源到 service_code + http_method + path_pattern 的显式映射；同一路径允许映射多个资源，接口级鉴权采用 OR 语义';
 COMMENT ON COLUMN resource_api_mapping.service_code IS '所属服务编码';
 COMMENT ON COLUMN resource_api_mapping.http_method IS 'HTTP 方法，如 GET/POST/PUT/DELETE';
 COMMENT ON COLUMN resource_api_mapping.path_pattern IS '接口路径模式（完整路径含前缀）';
@@ -455,13 +459,13 @@ CREATE TABLE resource_dependency (
     delete_flag                   BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_resource_dependency ON resource_dependency (tenant_id, resource_entity_id, depends_on_resource_entity_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_resource_dependency ON resource_dependency (tenant_id, resource_entity_id, depends_on_resource_entity_id, COALESCE(source_operation_bits, 0)) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_entity_id) WHERE delete_flag = 0;
 
 COMMENT ON TABLE resource_dependency IS '资源依赖：source_operation_bits 为触发条件（源资源授权含这些bit时触发），required_operation_bits 为依赖资源需要的操作位。auto_grant=true 时授权时自动补全';
 COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权的）';
 COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '依赖资源ID（需自动补全的）';
-COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发';
+COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发；唯一约束中按 COALESCE(source_operation_bits,0) 区分同一资源对下不同触发操作';
 COMMENT ON COLUMN resource_dependency.required_operation_bits IS '依赖资源需要的操作位';
 COMMENT ON COLUMN resource_dependency.auto_grant IS '授权源资源时是否自动授予依赖资源权限';
 

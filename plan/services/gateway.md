@@ -13,7 +13,7 @@
 
 1. 接收客户端请求并匹配白名单。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
-3. 注入 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
+3. 清洗客户端伪造的安全 Header，再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. 按 `serviceCode + httpMethod + 原始 path` 调用权限中心接口级鉴权。
 5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
 

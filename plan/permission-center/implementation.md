@@ -316,9 +316,9 @@ public interface PermissionConditionDomainService {
 ```java
 /** POST /api/perm/auth/check，对外契约以 api-contract.md 为准 */
 public record AuthCheckReq(
-    @NotNull Integer subjectType,
+    @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
-    @NotNull Integer resourceType,
+    @NotBlank String resourceTypeCode,
     @NotBlank String resourceCode,
     @NotBlank String operationCode,
     String domainCode,
@@ -477,7 +477,7 @@ public class AuthServiceImpl implements AuthService {
 ```java
 /** POST /api/perm/auth/interface-snapshot，对外契约以 api-contract.md 为准 */
 public record InterfaceSnapshotReq(
-    @NotNull Integer subjectType,
+    @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
     @NotNull String serviceCode,
     Long permissionVersion   // 可空；传入时若与 Redis 版本一致则返回 NOT_MODIFIED
@@ -603,7 +603,8 @@ public interface RolePermissionDomainService {
 ```java
 /** POST /api/perm/role-resource-permission/save，对外契约以 api-contract.md 为准 */
 public record RoleResourcePermissionSaveReq(
-    @NotNull Integer roleType,
+    String domainCode,
+    @NotBlank String roleTypeCode,
     @NotBlank String roleExternalId,
     List<PermGrantItem> add,        // 新增条目
     List<PermUpdateItem> update,    // 更新条目
@@ -611,7 +612,7 @@ public record RoleResourcePermissionSaveReq(
 ) {}
 
 public record PermGrantItem(
-    @NotNull Integer resourceType,
+    @NotBlank String resourceTypeCode,
     String resourceCode,
     String codeType,
     @NotBlank String operationCode,
@@ -787,6 +788,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 | 自动补全不重复             | `ResourceDependencyDomainService.autoGrant`                | 若角色已拥有依赖资源的权限则跳过，补全记录 grant_source='AUTO_DEP' + grant_dep_id |
 | 授权来源标记                 | `RolePermissionDomainService.batchInsert`                  | 手动授权 grant_source='MANUAL'（默认），自动补全 grant_source='AUTO_DEP'，记录触发规则 id |
 | 依赖规则变更清理             | `ResourceDependencyDomainService.onRuleChanged`            | 规则删除/修改时按 grant_dep_id 精准清理 + 重新评估补全，递增受影响角色 version |
+| 委托授权不扩大             | `PermissionGrantService` 前置校验                          | `canManage=true` 只允许授权同一权限给他人，不能扩大资源、操作或范围；候选被授权人由业务服务控制 |
 | 版本递增在事务外           | `afterCommit` 钩子                                         | 防止事务回滚后版本已递增导致缓存失效不一致                                    |
 | 接口快照失效范围           | 通过 `resource_api_mapping` 查受影响 serviceCode           | 只失效变更涉及的服务，减少无效失效                                            |
 
@@ -798,6 +800,7 @@ public interface ResourceDependencyDomainService {
     /**
      * 自动补全：授权时根据依赖规则补充对应的接口/资源权限。
      * 场景：按钮 CREATE 权限 → 自动补全 POST /api/admin/users/create 的 ACCESS 权限
+     * 同一源资源和依赖资源允许按不同 source_operation_bits 配置多条规则。
      *
      * @param addItems 本次新增的授权条目
      * @return 补全后的新增条目（含 grant_source='AUTO_DEP' + grant_dep_id 标记）
@@ -898,17 +901,18 @@ Controller Request/Response DTO 是对外契约的一部分，统一以 `api-con
 
 ```java
 // 对外运行时接口使用稳定业务键，租户来自 X-Tenant-Id 或安全上下文。
-record AuthCheckReq(Integer subjectType, String subjectExternalId,
-                    Integer resourceType, String resourceCode,
+record AuthCheckReq(String subjectTypeCode, String subjectExternalId,
+                    String resourceTypeCode, String resourceCode,
                     String operationCode, String domainCode,
                     String codeType, String inheritMode,
                     Map<String, Object> context) {}
 
-record CheckInterfaceReq(Integer subjectType, String subjectExternalId,
+record CheckInterfaceReq(String subjectTypeCode, String subjectExternalId,
                          String serviceCode, String httpMethod,
                          String path, Map<String, Object> context) {}
 
-record RoleResourcePermissionSaveReq(Integer roleType, String roleExternalId,
+record RoleResourcePermissionSaveReq(String domainCode, String roleTypeCode,
+                                      String roleExternalId,
                                       List<GrantAddItem> add,
                                       List<GrantUpdateItem> update,
                                       List<Long> remove) {}

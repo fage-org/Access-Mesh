@@ -655,6 +655,9 @@ feign:
 | `X-Tenant-Id`    | 租户 ID                      |
 | `X-Service-Code` | 调用方服务标识               |
 
+- Gateway 必须清洗外部请求中伪造的 `X-Tenant-Id`、`X-User-Id`、`X-Service-Code` 等安全 Header，再根据 Token 或可信服务身份重新注入。
+- 业务服务和 permission-center 只能信任 Gateway/Feign 拦截器注入的安全上下文，不得直接信任客户端原始 Header。
+
 ### 14.3 降级与重试
 
 - **禁止**无限重试，最多重试 1 次（幂等接口）。

@@ -70,6 +70,7 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - API 路径、请求体、响应体、错误原因以 `plan/permission-center/api-contract.md` 为准。
 - 表字段、索引、约束以 `plan/schema/permission-center.sql` 为准。
 - 核心场景链路以 `plan/permission-center/core-flows.md` 为准。
+- 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`；内部表继续使用 `type_value` 数字值。
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 
 ## 常用命令（开发阶段预估）

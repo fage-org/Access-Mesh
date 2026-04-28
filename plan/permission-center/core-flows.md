@@ -8,10 +8,10 @@
 
 | 约定 | 说明 |
 |------|------|
-| 租户来源 | 只从 `X-Tenant-Id` 读取，请求体不包含 `tenantId` |
+| 租户来源 | 只从可信 `X-Tenant-Id` 读取，请求体不包含 `tenantId`；外部伪造 Header 必须由 Gateway 清洗 |
 | 操作者来源 | 管理类写操作从 Token/SecurityContext 读取操作者 |
 | 接口方式 | 全部 `POST + application/json` |
-| 对外标识 | 运行时接口使用 `subjectType + subjectExternalId`、`resourceType + resourceCode + codeType`、`operationCode` |
+| 对外标识 | 运行时接口使用 `subjectTypeCode + subjectExternalId`、`resourceTypeCode + resourceCode + codeType`、`operationCode` |
 | 内部明细 ID | 仅用于已返回记录的更新、删除、子权限挂载，如 `permissionId`、`ids` |
 | 响应结构 | `data` 必须是对象，列表使用 `data.items` |
 | 事实来源 | `abstract_user`、`abstract_role`、`resource_entity`、`operation_permission`、`role_resource_permission` 等原表是事实来源 |
@@ -37,15 +37,17 @@ flowchart LR
 
 | 步骤 | 接口 | 关键入参 | 结果 |
 |------|------|----------|------|
-| 1 | `POST /api/perm/type-definition/create` | `typeKey=user_type/role_type/resource_type` | 建立用户、角色、资源类型 |
+| 1 | `POST /api/perm/type-definition/create` | `typeKey + typeCode + typeValue` | 建立用户、角色、资源类型 |
 | 2 | `POST /api/perm/biz-domain/create` | `code=admin` | 建立业务域 |
-| 3 | `POST /api/perm/operation-permission/create` | `resourceType + operationCode` | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
+| 3 | `POST /api/perm/operation-permission/create` | `resourceTypeCode + operationCode` | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
 | 4 | `POST /api/perm/domain-config/save` | `configType=SCOPE/RELATION/BINDING/SUB_PERM` | 约束域内允许的角色、资源、操作和子权限 |
 | 5 | `POST /api/perm/system-config/save` | 租户级配置 | 保存角色唯一性、默认策略等配置 |
 
 关键逻辑：
 
 - 创建 `resource_type` 时可以自动预置 CRUD 或 ACCESS 操作，具体以实现配置为准。
+- 对外使用 `typeCode`，内部存储和计算使用 `typeValue`；服务端通过 `type_definition` 缓存完成解析。
+- `domainCode` 是管理分区和命名空间，不是子租户。传入时查该域和全局，不传时只查全局。
 - `SUB_PERM` 决定哪些资源类型可以作为某类父资源的子权限。
 - 这些配置是后续授权校验的基础，不直接给用户产生权限。
 
@@ -74,17 +76,17 @@ flowchart LR
 
 | 步骤 | 接口 | 关键入参 | 结果 |
 |------|------|----------|------|
-| 1 | `POST /api/perm/abstract-user/sync` | `userType + externalId + name + version` | 幂等同步用户 |
-| 2 | `POST /api/perm/abstract-role/create` | `roleType + roleExternalId + name + domainCode` | 创建可授权角色 |
-| 3 | `POST /api/perm/abstract-role/tree` | `domainCode/roleType` | 查看角色层级 |
-| 4 | `POST /api/perm/user-role/assign` | `subjectType + subjectExternalId + assignments[]` | 给用户分配角色 |
-| 5 | `POST /api/perm/permission-view/effective-roles` | `subjectType + subjectExternalId` | 验证用户有效角色 |
+| 1 | `POST /api/perm/abstract-user/sync` | `subjectTypeCode + externalId + name + version` | 幂等同步用户 |
+| 2 | `POST /api/perm/abstract-role/create` | `roleTypeCode + roleExternalId + name + domainCode` | 创建可授权角色 |
+| 3 | `POST /api/perm/abstract-role/tree` | `domainCode/roleTypeCode` | 查看角色层级 |
+| 4 | `POST /api/perm/user-role/assign` | `subjectTypeCode + subjectExternalId + assignments[]` | 给用户分配角色 |
+| 5 | `POST /api/perm/permission-view/effective-roles` | `subjectTypeCode + subjectExternalId` | 验证用户有效角色 |
 
 关键逻辑：
 
-- 用户同步以 `userType + externalId` 幂等定位。
+- 用户同步以 `subjectTypeCode + externalId` 幂等定位。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。
+- `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。
 
@@ -94,16 +96,16 @@ flowchart LR
 
 | 步骤 | 接口 | 关键入参 | 结果 |
 |------|------|----------|------|
-| 1 | `POST /api/perm/resource-entity/create` | `resourceType + resourceCode + codeType + name` | 创建菜单、按钮、API、DATA 等资源 |
-| 2 | `POST /api/perm/operation-permission/list` | `resourceType` | 选择适用操作 |
+| 1 | `POST /api/perm/resource-entity/create` | `resourceTypeCode + resourceCode + codeType + name` | 创建菜单、按钮、API、DATA 等资源 |
+| 2 | `POST /api/perm/operation-permission/list` | `resourceTypeCode` | 选择适用操作 |
 | 3 | `POST /api/perm/permission-condition/create` | `conditionCode + conditionRules` | 可选，创建复用条件 |
-| 4 | `POST /api/perm/role-resource-permission/save` | `roleType + roleExternalId + add/update/remove` | 三段式保存授权 |
-| 5 | `POST /api/perm/role-resource-permission/list` | `roleType + roleExternalId` | 验证角色权限 |
+| 4 | `POST /api/perm/role-resource-permission/save` | `domainCode + roleTypeCode + roleExternalId + add/update/remove` | 三段式保存授权 |
+| 5 | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId` | 验证角色权限 |
 
 关键逻辑：
 
 - `save` 在一个事务中处理 `add/update/remove`。
-- 授权项用 `resourceType + resourceCode + codeType + operationCode` 定位资源和操作。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源和操作。
 - 操作必须与资源类型匹配，或操作是全局操作。
 - 条件可选，填写 `conditionCode` 时必须存在且启用。
 - 写入后记录 `operation_log` 和 `permission_change_log`，递增该角色 `permission_version`，失效角色权限缓存。
@@ -115,7 +117,7 @@ flowchart LR
 | 步骤 | 接口 | 关键入参 | 结果 |
 |------|------|----------|------|
 | 1 | `POST /api/perm/domain-config/save` | `configType=SUB_PERM` | 定义父资源类型允许挂载的子资源类型 |
-| 2 | `POST /api/perm/resource-entity/create` | `resourceType=DATA + resourceCode` | 创建数据范围资源 |
+| 2 | `POST /api/perm/resource-entity/create` | `resourceTypeCode=DATA + resourceCode` | 创建数据范围资源 |
 | 3 | `POST /api/perm/role-resource-permission/save` | 主权限授权 | 返回主权限 `id` |
 | 4 | `POST /api/perm/role-resource-permission/add-child` | `parentPermissionId + children[]` | 写入子权限，`depend_on=parentPermissionId` |
 | 5 | `POST /api/perm/role-resource-permission/children` | `permissionId` | 查询主权限下子权限 |
@@ -124,7 +126,7 @@ flowchart LR
 关键逻辑：
 
 - `parentPermissionId` 指向 `role_resource_permission.id`，且该记录必须 `depend_on IS NULL`。
-- 子权限继承父权限的角色，不需要再次传 `roleType + roleExternalId`。
+- 子权限继承父权限的角色，不需要再次传 `roleTypeCode + roleExternalId`。
 - 子权限只支持一层，不允许子权限继续挂子权限。
 - 删除主权限时级联软删子权限。
 - 权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段。
@@ -137,7 +139,7 @@ flowchart LR
 
 | 步骤 | 执行方 | 动作 |
 |------|--------|------|
-| 1 | Gateway | 解析 Token，得到 `subjectType + subjectExternalId` 和 `X-Tenant-Id` |
+| 1 | Gateway | 解析 Token，得到 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`，并清洗外部伪造 Header |
 | 2 | Gateway | 提取 `serviceCode + httpMethod + 原始 path` |
 | 3 | Gateway | 查询本地 L1 缓存 |
 | 4 | Gateway | 缓存未命中时调用 `POST /api/perm/auth/check-interface` |
@@ -174,13 +176,13 @@ admin-service 需要先把可被权限控制的组织、角色、菜单同步或
 
 | 查询目标 | 资源建模 | 运行时查询 |
 |----------|----------|------------|
-| 用户能管理哪些组织 | `resourceType=ORG`、`resourceCode=org:{orgId}` | `query-resources` 传 `resourceTypes=[ORG]`、`operationCodes=["MANAGE"]` |
-| 用户能管理哪些角色 | `resourceType=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypes=[ROLE]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
-| 用户能看到哪些菜单 | `resourceType=MENU`、`resourceCode=menu:{menuCode}` | `query-resources` 传 `resourceTypes=[MENU]`、`operationCodes=["VIEW"]`、`treeMode=true` |
+| 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode=org:{orgId}` | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]` |
+| 用户能管理哪些角色 | `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
+| 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}` | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true` |
 
 调用链路：
 
-1. admin-service 从登录态取 `subjectType + subjectExternalId` 和 `X-Tenant-Id`。
+1. admin-service 从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
 2. admin-service 调用 `POST /api/perm/auth/query-resources`，传资源类型、操作码、业务域和上下文。
 3. permission-center 解析用户有效角色、角色继承、资源继承、条件、冲突规则。
 4. permission-center 返回命中的 `resourceCode`、`operations`、`matchedRoleIds`、`matchedPermissionIds`。
@@ -198,8 +200,8 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 | 步骤 | 动作 | 说明 |
 |------|------|------|
-| 1 | 同步报表资源 | 例如 `resourceType=REPORT`、`resourceCode=report:sales` |
-| 2 | 同步范围资源 | 例如 `resourceType=DATA`、`resourceCode=data:dept:A` |
+| 1 | 同步报表资源 | 例如 `resourceTypeCode=REPORT`、`resourceCode=report:sales` |
+| 2 | 同步范围资源 | 例如 `resourceTypeCode=DATA`、`resourceCode=data:dept:A` |
 | 3 | 配置直接范围权限 | 例如 A 部门主管角色拥有 `data:dept:A + DATA_READ` |
 | 4 | 配置报表主权限 | 推荐示例为 `report:sales + DATA_READ`、`report:sales + DATA_EDIT` |
 | 5 | 配置子权限 | 在销售报表主权限下额外挂 `data:dept:B + DATA_READ` |
@@ -258,6 +260,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 关键逻辑：
 
 - 自动补全不应产生重复授权。
+- 同一源资源和依赖资源可以按不同 `source_operation_bits` 配置多条依赖规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志和递增权限版本。
 
@@ -319,11 +322,13 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 ## 15. 仍需实现时重点校验
 
-- `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleType + roleExternalId + domainCode` 时必须带同一套过滤条件。
-- `operationCode` 在解析时必须结合 `resourceType`，避免不同资源类型下同名操作产生歧义。
-- `resourceCode` 必须结合 `resourceType + codeType + domainCode` 解析，避免跨域或多编码歧义。
+- `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleTypeCode + roleExternalId + domainCode` 时必须带同一套过滤条件。
+- `operationCode` 在解析时必须结合 `resourceTypeCode`，避免不同资源类型下同名操作产生歧义。
+- `resourceCode` 必须结合 `resourceTypeCode + codeType + domainCode` 解析，避免跨域或多编码歧义。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
+- `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许。
 - `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。
 - `role_resource_permission.scope_all` 必须显式参与查询结果，不能用空结果或特殊资源编码隐式表示全量范围。
+- `canManage=true` 只允许授权同一条权限，不能扩大资源、操作或范围；可授权对象候选范围由业务服务控制。
 - 所有 Request DTO 必须移除 `tenantId`。
 - 所有列表响应必须包装成 `data.items`，不能直接返回数组。

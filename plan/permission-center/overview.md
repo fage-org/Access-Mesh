@@ -31,16 +31,18 @@
 - `ORG`：组织角色，支持树形结构，可参与授权。
 - `POSITION`：职位角色，分配给用户时可通过 `user_role.relation_id` 绑定所属组织。
 - `PERSONAL`：个人角色，每个用户最多一个，用于用户级特殊授权。
-- `GROUP_ROLE`：分组角色，用于组织角色集合，不直接配置权限。
+- `GROUP_ROLE`：分组角色，用于组织角色集合，不直接配置权限。首期通过 `extra.basicRoleIds` 简化关联，缓存构建阶段展开。
 - `BASIC_ROLE`：基础角色，承载可复用权限配置。
 
 用户有效角色由 `user_role`、角色启停状态、分组角色展开、职位上下文共同决定。角色层级用于管理和分组，不默认表示权限继承。
 
 ## 资源与操作
 
-- 资源通过 `resourceType + resourceCode + codeType + domainCode` 定位。
+- 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode` 等稳定字符串编码；内部存储和计算使用 `type_definition.type_value`。
+- `domainCode` 是管理分区和命名空间，不是子租户。传入时查询该域和全局对象，不传时只查询全局对象。
+- 资源通过 `resourceTypeCode + resourceCode + codeType + domainCode` 定位。
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
-- 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作。
+- 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。
 - 业务服务如果需要查询“用户能管理哪些组织/角色/菜单”，应先把这些对象建模为 `resource_entity`。
 
 ## 范围权限
