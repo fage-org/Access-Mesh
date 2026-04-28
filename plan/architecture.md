@@ -70,7 +70,7 @@
 | 调用方            | 被调方            | 协议        | 场景                                                                     |
 | ----------------- | ----------------- | ----------- | ------------------------------------------------------------------------ |
 | gateway           | admin-service     | HTTP (转发) | 登录请求透传、管理接口转发                                               |
-| gateway           | permission-center | OpenFeign   | 拉取服务接口权限快照（按 service_code 维度）、权限版本轮询、条件鉴权回调 |
+| gateway           | permission-center | OpenFeign/HTTP | 调用 `POST /api/perm/auth/check-interface` 做接口级鉴权；`interface-snapshot` 仅作为可选优化 |
 | gateway           | example-service   | HTTP (转发) | 演示服务接口转发                                                         |
 | admin-service     | permission-center | OpenFeign   | 用户同步、角色查询/复用、菜单资源同步、鉴权查询                          |
 | example-service   | permission-center | OpenFeign   | 鉴权查询、权限数据查询                                                   |
@@ -94,12 +94,12 @@
 | --- | ---------------- | ---------------------------------------------------------------------------- |
 | 1   | 路由配置         | 基于 Nacos 动态路由配置，支持按服务名/路径匹配转发                           |
 | 2   | Token 校验过滤器 | 全局 GatewayFilter，Sa-Token 解析令牌，校验有效性和登录状态                  |
-| 3   | 接口鉴权过滤器   | 全局 GatewayFilter，对接权限中心判断接口权限，L1+L2 缓存，未注册接口默认拒绝 |
+| 3   | 接口鉴权过滤器   | 全局 GatewayFilter，对接权限中心判断接口权限，Gateway 仅维护短 TTL L1 缓存，未注册接口默认拒绝 |
 | 4   | 白名单管理       | 可配置的公开接口列表（Nacos 配置动态刷新），匹配的请求跳过鉴权               |
-| 5   | 请求头增强       | 注入标准请求头（tenant_id, user_id, request_id），清洗外部伪造头             |
+| 5   | 请求头增强       | 注入标准请求头（X-Tenant-Id、X-User-Id、X-Request-Id），清洗外部伪造头       |
 | 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                      |
 
-### 2.3 鉴权流程（与权限中心 §6.5 对齐）
+### 2.3 鉴权流程（与权限中心 core-flows 场景六对齐）
 
 ```
 请求到达 Gateway
@@ -108,7 +108,7 @@
     │
     ├─ 解析 Token → 失败 → 返回 401
     │
-    ├─ 提取 tenant_id, user_id, serviceCode
+    ├─ 提取 X-Tenant-Id、主体标识、serviceCode
     │
     ├─ 查 L1 Caffeine 缓存（tenantId + userId + serviceCode + method + path）
     │   ├─ 命中 → 直接放行/拒绝
@@ -380,5 +380,5 @@ perm-sdk/
 - **审计字段**：`created_by`、`updated_by`、`deleted_by`、`created_at`、`updated_at`、`deleted_at`
 - **所有接口 POST + JSON Body**
 - **通用响应结构**：`{ "code": 200, "message": "success", "data": {} }`
-- **分页规范**：与权限中心一致的 `pageNum/pageSize/rows/total`
+- **分页规范**：与项目规范一致，分页入参使用 `pageNum/pageSize/sort`，分页响应使用 `items/total/pageNum/pageSize/hasNext`
 - **禁止使用 Lombok**：使用 Java 21 Record 替代 Lombok 的 @Data/@Value/@Builder 等，保持代码清晰可控

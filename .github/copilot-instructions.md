@@ -51,7 +51,7 @@ R.fail(errorCode, message)
 - HTTP 状态码统一返回 `200`（业务错误通过 code 区分，Gateway 对外使用真实 HTTP 状态码）。
 - `message` 面向前端展示，不得包含堆栈信息。
 - `requestId` 由 Gateway 生成，`traceId` 由 Micrometer Tracing 生成。
-- 分页响应：`data = { items: [], pagination: { total, page, size, totalPages } }`。
+- 分页响应：`data = { items: [], total, pageNum, pageSize, hasNext }`；非分页列表也必须使用 `items` 包装。
 
 ---
 

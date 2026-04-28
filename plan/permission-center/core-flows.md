@@ -319,7 +319,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 ## 15. 仍需实现时重点校验
 
-- `abstract_role.external_id` 当前 schema 没有唯一索引；若对外使用 `roleType + roleExternalId` 定位角色，实现时需要补唯一约束或在服务层强校验。
+- `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleType + roleExternalId + domainCode` 时必须带同一套过滤条件。
 - `operationCode` 在解析时必须结合 `resourceType`，避免不同资源类型下同名操作产生歧义。
 - `resourceCode` 必须结合 `resourceType + codeType + domainCode` 解析，避免跨域或多编码歧义。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。

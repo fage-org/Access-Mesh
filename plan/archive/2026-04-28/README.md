@@ -26,3 +26,4 @@
 | `example-service-design.full.md` | `plan/EXAMPLE_SERVICE_DESIGN.md` | example-service 旧完整设计 |
 | `service-module-checklist.md` | `plan/SERVICE_MODULE_CHECKLIST.md` | 服务模块讨论清单 |
 | `permission-center-module-checklist.md` | `plan/MODULE_DISCUSSION_CHECKLIST.md` | 权限中心模块讨论清单 |
+| `permission-center-feign-path-mismatch.md` | `.claude/PRPs/problems/001-feign-path-mismatch.md` | 旧 Feign 路径问题记录，包含过期接口路径 |

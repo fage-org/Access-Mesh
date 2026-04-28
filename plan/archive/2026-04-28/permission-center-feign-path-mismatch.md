@@ -1,3 +1,8 @@
+# Archived / 非权威来源
+
+> 本文档是历史问题记录，已归档。内容可能包含旧路径、旧字段或已废弃契约。
+> 当前权限中心 API 以 `plan/permission-center/api-contract.md` 为准，当前实现设计以 `plan/permission-center/implementation.md` 为准。
+
 # Problem: Permission center coupling — admin-service binds to menu-specific Feign methods
 
 ## Status: RESOLVED (commit TBD)

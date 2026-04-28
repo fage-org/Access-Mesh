@@ -66,7 +66,7 @@
 - `9xxxx` 段系统公共错误由 `common` 模块统一定义枚举，各业务模块**不得重复定义**。
 - 每个模块维护一个 `XxxErrorCode` 枚举类，字段格式：`CODE(int code, String msg)`。
 
-### 1.3 分页入参规范
+### 1.3 分页入参与响应规范
 
 所有分页查询接口的分页参数统一命名：
 
@@ -78,33 +78,31 @@
 }
 ```
 
-| 字段     | 类型     | 说明                              |
-| -------- | -------- | --------------------------------- | ----------- |
-| `page` | `int`    | 当前页码，从 1 开始               |
-| `size` | `int`    | 每页条数，默认 20，最大不超过 100 |
-| `sort` | `String` | 排序字段和方向，格式 `field,asc   | desc`，可空 |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `pageNum` | `int` | 当前页码，从 1 开始 |
+| `pageSize` | `int` | 每页条数，默认 20，最大不超过 100 |
+| `sort` | `String` | 排序字段和方向，格式 `field,asc` 或 `field,desc`，可空 |
 
-### 1.4 分页响应结构
+分页响应结构统一放在 `data` 对象内：
 
 ```json
 {
   "code": 200,
-  "message": "ok",
+  "message": "success",
   "requestId": "...",
   "traceId": "...",
   "data": {
     "items": [],
-    "pagination": {
-      "total": 100,
-      "page": 1,
-      "size": 20,
-      "totalPages": 5
-    }
+    "total": 100,
+    "pageNum": 1,
+    "pageSize": 20,
+    "hasNext": true
   }
 }
 ```
 
-`data.items` 为数据列表，`data.pagination` 为分页元数据，两者**不可缺失**。
+`data.items` 为数据列表，`total/pageNum/pageSize/hasNext` 为分页元数据。非分页列表也必须使用 `{ "items": [...] }` 包装，不直接返回数组。
 
 ---
 
@@ -123,7 +121,8 @@
 - Controller 层**禁止**使用 `@RequestParam` 接收请求参数（文件上传 `MultipartFile` 场景除外）。
 - 所有请求参数必须通过 `@RequestBody` + Request DTO（Java Record）接收，包括单个 ID、查询条件、分页参数等。
 - **禁止**使用 `@GetMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`，统一使用 `@PostMapping`。
-- ID、tenantId 等参数**禁止**放在路径中（如 `/user/{id}`），必须放在 JSON Body 内。
+- 业务 ID、查询条件、分页参数等**禁止**放在路径中（如 `/user/{id}`），必须放在 JSON Body 内。
+- `tenantId` 不作为普通业务入参放在 URL 或 Body 中；服务端统一从 `X-Tenant-Id`、Token 或 SecurityContext 读取。
 
 **例外场景（允许 `@RequestParam`）：**
 

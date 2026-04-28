@@ -142,12 +142,16 @@ CREATE TABLE abstract_role (
 CREATE INDEX idx_abstract_role_tenant_domain ON abstract_role (tenant_id, biz_domain_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_role_tenant_type ON abstract_role (tenant_id, role_type) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_role_parent ON abstract_role (parent_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_abstract_role_external_domain ON abstract_role (tenant_id, role_type, biz_domain_id, external_id)
+    WHERE biz_domain_id IS NOT NULL AND external_id IS NOT NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_abstract_role_external_global ON abstract_role (tenant_id, role_type, external_id)
+    WHERE biz_domain_id IS NULL AND external_id IS NOT NULL AND delete_flag = 0;
 
 COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。删除级联：user_role + role_resource_permission';
 COMMENT ON COLUMN abstract_role.biz_domain_id IS '所属业务域ID，NULL 表示全局角色';
 COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；BASIC_ROLE 和 PERSONAL 不允许有子级（应用层约束）';
 COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/GROUP_ROLE(5)分组角色/BASIC_ROLE(6)基本角色，来自 type_definition';
-COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识';
+COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + biz_domain_id + external_id 定位角色';
 COMMENT ON COLUMN abstract_role.name IS '名称';
 COMMENT ON COLUMN abstract_role.status IS '状态：0=停用 1=启用，预留扩展空间';
 COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';

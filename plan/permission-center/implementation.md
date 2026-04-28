@@ -1,7 +1,7 @@
 # 权限中心 — 核心功能实现设计
 
-> 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。  
-> 覆盖内容：类名/方法签名、入出参 DTO、执行逻辑、公共 DomainService 复用策略、缓存策略、Mermaid 时序图。  
+> 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。
+> 本文档不定义对外 API 路径、请求体、响应体或错误原因；这些内容以 `api-contract.md` 为准。
 > 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/permission-center.sql` 为准。
 
 ---
@@ -302,6 +302,8 @@ public interface PermissionConditionDomainService {
 | ------------ | ------------------------------------------- | ------------------------------------- |
 | 单次鉴权     | `POST /api/perm/auth/check`                 | 精确判定一个用户对一个资源+操作的权限 |
 | 批量鉴权     | `POST /api/perm/auth/batch-check`           | 一次请求判定多个资源+操作组合         |
+| 资源权限查询 | `POST /api/perm/auth/query-resources`       | 查询主体可操作的资源业务键集合       |
+| 范围权限查询 | `POST /api/perm/auth/query-scopes`          | 查询主资源上下文内的直接范围和子权限 |
 | 接口权限快照 | `POST /api/perm/auth/interface-snapshot`    | 返回 gateway 消费的接口权限快照       |
 | 接口级判定   | `POST /api/perm/auth/check-interface`       | 按 serviceCode+method+path 判定（Gateway 回调入口，含 context 条件评估）|
 
@@ -309,19 +311,31 @@ public interface PermissionConditionDomainService {
 
 ### 3.2 单次鉴权执行链路
 
-#### 入参 DTO
+#### Controller 入参 DTO 与内部 Command
 
 ```java
-/** POST /api/auth/check */
+/** POST /api/perm/auth/check，对外契约以 api-contract.md 为准 */
 public record AuthCheckReq(
-    @NotNull Long tenantId,
-    @NotNull Long abstractUserId,
-    @NotNull Long resourceEntityId,
-    @NotNull Long operationPermissionId,
-    Long bizDomainId,             // 可空，传入时按域过滤角色
+    @NotNull Integer subjectType,
+    @NotBlank String subjectExternalId,
+    @NotNull Integer resourceType,
+    @NotBlank String resourceCode,
+    @NotBlank String operationCode,
+    String domainCode,
     String codeType,              // 可空，默认 "default"
     String inheritMode,           // NONE(默认) / CHILDREN / PARENT / BOTH
     Map<String, Object> context   // 可空，条件判断上下文（如 clientIp）
+) {}
+
+/** Service 层内部对象，由 Controller 从 Header/SecurityContext 和业务键解析得到 */
+record AuthCheckCommand(
+    Long tenantId,
+    Long abstractUserId,
+    Long resourceEntityId,
+    Long operationPermissionId,
+    Long bizDomainId,
+    String inheritMode,
+    Map<String, Object> context
 ) {}
 ```
 
@@ -330,8 +344,8 @@ public record AuthCheckReq(
 ```java
 public record AuthCheckResp(
     boolean allowed,
-    String denyReason,            // DENY 时非空：USER_DISABLED / NO_ROLE / NO_PERMISSION /
-                                  //   CONDITION_NOT_MET / PERMISSION_CONFLICT /
+    String reason,                // DENY 时非空：USER_DISABLED / NO_ROLE / NO_PERMISSION /
+                                  //   CONDITION_NOT_MET / CONFLICT_DETECTED /
                                   //   ROLE_DISABLED / RESOURCE_DISABLED
     Long matchedRoleId,           // 匹配到的角色ID（allowed=true 时有值）
     Long matchedPermissionId,     // 匹配到的授权记录ID（allowed=true 时有值）
@@ -387,7 +401,7 @@ sequenceDiagram
     PCD-->>AS: List<RolePermEntry> finalEntries
     Note over PCD: 有冲突时异步发事件通知
 
-    Note over AS: finalEntries 为空 → DENY/PERMISSION_CONFLICT
+    Note over AS: finalEntries 为空 → DENY/CONFLICT_DETECTED
 
     AS-->>C: AuthCheckResp(allowed=true)
 ```
@@ -401,7 +415,7 @@ public class AuthServiceImpl implements AuthService {
     // 注入各 DomainService（略）
 
     @Transactional(readOnly = true)
-    public AuthCheckResp check(AuthCheckReq req) {
+    public AuthCheckResp check(AuthCheckCommand req) {
         // Step 1：用户状态
         AbstractUser user = abstractUserDomainService.getEnabledOrThrow(req.tenantId(), req.abstractUserId());
         if (!user.enabled()) {
@@ -443,7 +457,7 @@ public class AuthServiceImpl implements AuthService {
         List<RolePermEntry> finalEntries = permissionConflictDomainService
             .filterPermMutex(req.tenantId(), passedEntries);
         if (finalEntries.isEmpty()) {
-            return AuthCheckResp.deny("PERMISSION_CONFLICT");
+            return AuthCheckResp.deny("CONFLICT_DETECTED");
         }
 
         return AuthCheckResp.allow();
@@ -455,16 +469,16 @@ public class AuthServiceImpl implements AuthService {
 
 ### 3.3 接口权限快照（备选方案，当前未启用）
 
-> **注意**：当前 Gateway 鉴权采用 **3.2 节逐请求回调模式**（`POST /api/auth/check`）。
+> **注意**：当前 Gateway 鉴权采用逐请求回调模式，入口是 `POST /api/perm/auth/check-interface`。
 > 本节为备选方案，适用于中大型系统需要降低鉴权延迟的场景，启用时需同步修改 Gateway 路由逻辑。
 
 #### 入参 / 出参
 
 ```java
-/** POST /api/auth/interface-snapshot */
+/** POST /api/perm/auth/interface-snapshot，对外契约以 api-contract.md 为准 */
 public record InterfaceSnapshotReq(
-    @NotNull Long tenantId,
-    @NotNull Long abstractUserId,
+    @NotNull Integer subjectType,
+    @NotBlank String subjectExternalId,
     @NotNull String serviceCode,
     Long permissionVersion   // 可空；传入时若与 Redis 版本一致则返回 NOT_MODIFIED
 ) {}
@@ -573,9 +587,12 @@ public interface RolePermissionDomainService {
 
 | 接口               | 路径                                         | 说明                                 |
 | ------------------ | -------------------------------------------- | ------------------------------------ |
-| 批量授权           | `POST /api/role-permission/batch-grant`       | 为角色批量新增/更新/删除资源权限     |
-| 查询角色权限       | `POST /api/role-permission/list`              | 查询角色已有权限列表（含子权限展开） |
-| 查询资源被授权情况 | `POST /api/role-permission/resource-grantees` | 哪些角色拥有某资源的权限             |
+| 三段式保存授权     | `POST /api/perm/role-resource-permission/save`     | 为角色批量新增/更新/删除资源权限 |
+| 查询角色权限       | `POST /api/perm/role-resource-permission/list`     | 查询角色已有权限列表（含子权限展开） |
+| 批量回收授权       | `POST /api/perm/role-resource-permission/revoke`   | 按权限记录批量回收授权 |
+| 查询子权限         | `POST /api/perm/role-resource-permission/children` | 查询主权限下子权限 |
+| 添加子权限         | `POST /api/perm/role-resource-permission/add-child` | 添加依赖主权限的范围/子权限 |
+| 删除子权限         | `POST /api/perm/role-resource-permission/remove-child` | 删除子权限 |
 
 ---
 
@@ -584,27 +601,38 @@ public interface RolePermissionDomainService {
 #### 入参 DTO
 
 ```java
-/** POST /api/role-permission/batch-grant */
-public record RolePermBatchGrantReq(
-    @NotNull Long tenantId,
-    @NotNull Long abstractRoleId,
+/** POST /api/perm/role-resource-permission/save，对外契约以 api-contract.md 为准 */
+public record RoleResourcePermissionSaveReq(
+    @NotNull Integer roleType,
+    @NotBlank String roleExternalId,
     List<PermGrantItem> add,        // 新增条目
     List<PermUpdateItem> update,    // 更新条目
-    List<Long> delete               // 要删除的 role_resource_permission.id 列表
+    List<Long> remove               // 要删除的 role_resource_permission.id 列表
 ) {}
 
 public record PermGrantItem(
-    @NotNull Long resourceEntityId,
-    @NotNull Long operationPermissionId,
-    Long dependOn,                  // 可空，父权限 id（单层依赖）
-    Long conditionId,               // 可空，权限条件 id
+    @NotNull Integer resourceType,
+    String resourceCode,
+    String codeType,
+    @NotBlank String operationCode,
+    Boolean scopeAll,
+    String conditionCode,           // 可空，权限条件业务键
     Boolean canManage               // 可空，默认 false
 ) {}
 
 public record PermUpdateItem(
     @NotNull Long id,               // role_resource_permission.id
-    Long conditionId,
+    String conditionCode,
     Boolean canManage
+) {}
+
+/** Service 层内部对象：Controller 解析 Header、角色业务键、资源业务键、操作码后得到 */
+record RoleResourcePermissionSaveCommand(
+    Long tenantId,
+    Long abstractRoleId,
+    List<RolePermGrantItem> add,
+    List<RolePermUpdateItem> update,
+    List<Long> remove
 ) {}
 ```
 
@@ -637,7 +665,7 @@ sequenceDiagram
     participant CACHE as PermCacheDomainService
     participant URD as UserRoleDomainService
 
-    C->>PS: batchGrant(RolePermBatchGrantReq)
+    C->>PS: save(RoleResourcePermissionSaveCommand)
 
     Note over PS: ① 校验阶段（非事务，前置快速失败）
     PS->>ARD: validateExists(tenantId, abstractRoleId)
@@ -697,7 +725,7 @@ sequenceDiagram
 public class PermissionGrantServiceImpl implements PermissionGrantService {
 
     @Transactional(rollbackFor = Exception.class)
-    public RolePermBatchGrantResp batchGrant(RolePermBatchGrantReq req) {
+    public RoleResourcePermissionSaveResp save(RoleResourcePermissionSaveCommand req) {
 
         // ① 前置校验
         abstractRoleDomainService.validateExists(req.tenantId(), req.abstractRoleId());
@@ -853,7 +881,7 @@ Gateway L1 缓存未命中时：
      b. 对每个角色读 Redis perm:role:perms:{tenantId}:{roleId} → 角色权限
      c. 匹配 serviceCode + httpMethod + path
      d. 对有 hasCondition=true 的条目 → 使用 context 评估条件
-     e. 返回 allowed/denied + denyReason
+     e. 返回 allowed/denied + reason
   6. 写入 L1 缓存（TTL 30s）
   7. 放行或返回 403
 
@@ -862,71 +890,63 @@ Gateway L1 缓存未命中时：
 
 ---
 
-## 6. DTO 汇总
+## 6. DTO 与内部模型边界
 
-### 6.1 鉴权相关 DTO
+Controller Request/Response DTO 是对外契约的一部分，统一以 `api-contract.md` 为准；本节只说明实现层需要维护的转换边界，避免把内部数据库 ID 泄漏成外部接口依赖。
+
+### 6.1 Controller DTO 原则
 
 ```java
-// 单次鉴权
-record AuthCheckReq(Long tenantId, Long abstractUserId, Long resourceEntityId,
-                    Long operationPermissionId, Long bizDomainId, String codeType,
-                    String inheritMode, Map<String,Object> context) {}
-record AuthCheckResp(boolean allowed, String denyReason) {}
+// 对外运行时接口使用稳定业务键，租户来自 X-Tenant-Id 或安全上下文。
+record AuthCheckReq(Integer subjectType, String subjectExternalId,
+                    Integer resourceType, String resourceCode,
+                    String operationCode, String domainCode,
+                    String codeType, String inheritMode,
+                    Map<String, Object> context) {}
 
-// 批量鉴权
-record BatchAuthCheckReq(Long tenantId, Long abstractUserId,
-                         List<AuthCheckItem> items, Long bizDomainId,
-                         Map<String,Object> context) {}
-record AuthCheckItem(Long resourceEntityId, Long operationPermissionId) {}
-record BatchAuthCheckResp(List<AuthCheckItemResult> results) {}
-record AuthCheckItemResult(Long resourceEntityId, Long operationPermissionId,
-                           boolean allowed, String denyReason) {}
-
-// 接口快照
-record InterfaceSnapshotReq(Long tenantId, Long abstractUserId,
-                             String serviceCode, Long permissionVersion) {}
-record InterfaceSnapshotResp(boolean notModified, long currentVersion,
-                              List<ApiPermissionEntry> allowedApis) {}
-record ApiPermissionEntry(String serviceCode, String httpMethod, String pathPattern,
-                          boolean hasCondition, Long conditionId) {}
-
-// 接口级判定（Gateway 回调入口）
-record CheckInterfaceReq(Long tenantId, Long userId,
+record CheckInterfaceReq(Integer subjectType, String subjectExternalId,
                          String serviceCode, String httpMethod,
-                         String path, Map<String,Object> context) {}
-record CheckInterfaceResp(boolean allowed, Long matchedRoleId,
-                          String matchedOperationCode, String denyReason) {}
+                         String path, Map<String, Object> context) {}
+
+record RoleResourcePermissionSaveReq(Integer roleType, String roleExternalId,
+                                      List<GrantAddItem> add,
+                                      List<GrantUpdateItem> update,
+                                      List<Long> remove) {}
 ```
 
-### 6.2 权限授权管理相关 DTO
+### 6.2 内部 Command 原则
 
 ```java
-// 批量授权
-record RolePermBatchGrantReq(Long tenantId, Long abstractRoleId,
-                              List<PermGrantItem> add, List<PermUpdateItem> update,
-                              List<Long> delete) {}
-record PermGrantItem(Long resourceEntityId, Long operationPermissionId,
-                     Long dependOn, Long conditionId, Boolean canManage) {}
-record PermUpdateItem(Long id, Long conditionId, Boolean canManage) {}
-record RolePermBatchGrantResp(int addedCount, int updatedCount, int deletedCount,
-                               List<Long> autoGrantedIds) {}
+// 内部 Command 可以使用 tenantId 和数据库 ID，但只能由 Controller/Assembler 解析生成。
+record AuthCheckCommand(Long tenantId, Long abstractUserId,
+                        Long resourceEntityId, Long operationPermissionId,
+                        Long bizDomainId, String inheritMode,
+                        Map<String, Object> context) {}
 
-// 查询角色权限列表
-record RolePermListReq(Long tenantId, Long abstractRoleId, Boolean expandSub,
-                       String codeType) {}
-record RolePermListResp(List<RolePermItemVO> items) {}
-record RolePermItemVO(Long id, Long resourceEntityId, String resourceCode,
-                      String resourceName, Long operationPermissionId, String opCode,
-                      Long dependOn, Long conditionId, Boolean canManage,
-                      List<RolePermItemVO> subPerms) {}
+record RoleResourcePermissionSaveCommand(Long tenantId, Long abstractRoleId,
+                                         List<RolePermGrantItem> add,
+                                         List<RolePermUpdateItem> update,
+                                         List<Long> remove) {}
 
-// 内部流转对象（不出 Controller）
 record RolePermEntry(Long roleId, Long resourceEntityId, Long operationPermissionId,
-                     Long conditionId, boolean canManage) {}
-record RolePermSnapshot(Set<Long> roleIds, Map<Long, RolePermBitmap> permBitmaps) {}
-record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}  // resourceId → effectiveBits
+                     Long conditionId, boolean scopeAll, boolean canManage,
+                     Long dependOn) {}
+```
 
-// 公共日志上下文
+转换规则：
+
+- Request DTO 不包含 `tenantId`；`tenantId` 只能来自 `X-Tenant-Id` 或安全上下文。
+- 运行时接口不要求调用方传 `abstractUserId/resourceEntityId/operationPermissionId`。
+- Controller 或 Assembler 负责把 `subjectExternalId/resourceCode/operationCode` 解析成内部 ID。
+- Response DTO 使用 `reason`，错误原因枚举以 `api-contract.md` 为准。
+- 列表响应统一包在 `data.items`；分页结构以最终项目规范和 `api-contract.md` 对齐后执行。
+
+### 6.3 公共内部对象
+
+```java
+record RolePermSnapshot(Set<Long> roleIds, Map<Long, RolePermBitmap> permBitmaps) {}
+record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}
+
 record ChangeLogContext(Long tenantId, Long operatorId, String requestId,
                         String changeSource) {}
 record ChangeLogEntry(String entityType, Long entityId, String operation,

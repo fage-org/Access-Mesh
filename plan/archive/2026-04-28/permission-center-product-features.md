@@ -483,7 +483,7 @@ POST /api/perm/abstract-user/remove
 > 角色分组（role_group）和分组-角色关联（role_group_role）表已移除。
 > 树形层级现通过 `abstract_role.parent_id` 实现，通过 `role_type=GROUP_ROLE` 区分分组角色。
 > 分组角色不直接配置权限，通过 `extra.basicRoleIds` 额外关联基本角色。
-> 详见 [DESIGN.md §4 角色模型](../DESIGN.md) 和下方第 5 节"抽象角色管理"。
+> 详见 [permission-center-design.full.md §4 角色模型](permission-center-design.full.md) 和下方第 5 节"抽象角色管理"。
 
 ---
 
