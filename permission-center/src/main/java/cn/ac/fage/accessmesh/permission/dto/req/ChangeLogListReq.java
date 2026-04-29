@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * List change logs with optional filters.
  */
 public record ChangeLogListReq(
-    @NotNull Long tenantId,
     String entityType,
     Long entityId,
     @NotNull Integer pageNum,

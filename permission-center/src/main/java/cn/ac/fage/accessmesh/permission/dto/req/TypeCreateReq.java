@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record TypeCreateReq(
-    @NotNull Long tenantId,
     Long bizDomainId,
     @NotBlank String typeKey,
     @NotNull Integer typeValue,

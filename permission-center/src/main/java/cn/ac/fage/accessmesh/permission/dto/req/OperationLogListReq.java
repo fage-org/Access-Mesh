@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * List operation logs with optional filters.
  */
 public record OperationLogListReq(
-    @NotNull Long tenantId,
     String module,
     String action,
     @NotNull Integer pageNum,

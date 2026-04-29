@@ -14,6 +14,7 @@ public class TypeDefinition {
     private Long tenantId;
     private Long bizDomainId;
     private String typeKey;
+    private String typeCode;
     private Integer typeValue;
     private String name;
     private String description;
@@ -36,6 +37,8 @@ public class TypeDefinition {
     public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
     public String getTypeKey() { return typeKey; }
     public void setTypeKey(String typeKey) { this.typeKey = typeKey; }
+    public String getTypeCode() { return typeCode; }
+    public void setTypeCode(String typeCode) { this.typeCode = typeCode; }
     public Integer getTypeValue() { return typeValue; }
     public void setTypeValue(Integer typeValue) { this.typeValue = typeValue; }
     public String getName() { return name; }

@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * List resource dependencies with optional filter.
  */
 public record DependencyListReq(
-    @NotNull Long tenantId,
     Long resourceEntityId
 ) {}

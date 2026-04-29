@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * List API mappings.
  */
 public record ApiMappingListReq(
-    @NotNull Long tenantId,
     @NotNull Long resourceId
 ) {}

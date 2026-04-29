@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * Get system config by tenantId + configKey.
  */
 public record SystemConfigGetReq(
-    @NotNull Long tenantId,
     @NotNull String configKey
 ) {}

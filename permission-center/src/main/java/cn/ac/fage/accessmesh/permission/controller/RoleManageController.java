@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ListWithTenantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleCreateReq;
@@ -20,7 +21,7 @@ import java.util.List;
  * All APIs: POST + JSON Body.
  */
 @RestController
-@RequestMapping("/api/role")
+@RequestMapping("/api/perm/abstract-role")
 public class RoleManageController {
 
     private final RoleManageService roleManageService;
@@ -34,15 +35,15 @@ public class RoleManageController {
      */
     @PostMapping("/create")
     public PermResult<RoleResp> createRole(@Valid @RequestBody RoleCreateReq req) {
-        return PermResult.success(roleManageService.createRole(req, null));
+        return PermResult.success(roleManageService.createRole(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
      * Get role by ID.
      */
-    @PostMapping("/get")
+    @PostMapping("/detail")
     public PermResult<RoleResp> getRole(@Valid @RequestBody IdWithTenantReq req) {
-        return PermResult.success(roleManageService.getRole(req.tenantId(), req.id()));
+        return PermResult.success(roleManageService.getRole(TenantContextHolder.getTenantId(), req.id()));
     }
 
     /**
@@ -51,15 +52,15 @@ public class RoleManageController {
     @PostMapping("/update")
     public PermResult<RoleResp> updateRole(@Valid @RequestBody RoleUpdateReq req) {
         return PermResult.success(roleManageService.updateRole(
-                req.tenantId(), req.roleId(), req.name(), req.sortOrder(), req.extra(), null));
+                TenantContextHolder.getTenantId(), req.roleId(), req.name(), req.sortOrder(), req.extra(), null));
     }
 
     /**
      * Delete role (soft, cascade delete children).
      */
-    @PostMapping("/delete")
+    @PostMapping("/remove")
     public PermResult<Void> deleteRole(@Valid @RequestBody IdWithTenantReq req) {
-        roleManageService.deleteRole(req.tenantId(), req.id(), null);
+        roleManageService.deleteRole(TenantContextHolder.getTenantId(), req.id(), null);
         return PermResult.success();
     }
 
@@ -68,7 +69,7 @@ public class RoleManageController {
      */
     @PostMapping("/set-status")
     public PermResult<Void> setRoleStatus(@Valid @RequestBody RoleStatusReq req) {
-        roleManageService.setRoleStatus(req.tenantId(), req.roleId(), req.status(), null);
+        roleManageService.setRoleStatus(TenantContextHolder.getTenantId(), req.roleId(), req.status(), null);
         return PermResult.success();
     }
 
@@ -77,7 +78,7 @@ public class RoleManageController {
      */
     @PostMapping("/tree")
     public PermResult<List<RoleTreeResp>> getRoleTree(@Valid @RequestBody ListWithTenantReq req) {
-        return PermResult.success(roleManageService.getRoleTree(req.tenantId(), req.filterValue() != null ? req.filterValue().longValue() : null));
+        return PermResult.success(roleManageService.getRoleTree(TenantContextHolder.getTenantId(), req.filterValue() != null ? req.filterValue().longValue() : null));
     }
 
     /**
@@ -85,6 +86,6 @@ public class RoleManageController {
      */
     @PostMapping("/list")
     public PermResult<List<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
-        return PermResult.success(roleManageService.listRoles(req.tenantId(), req.offset() != null ? req.offset() : 0, req.limit() != null ? req.limit() : 20));
+        return PermResult.success(roleManageService.listRoles(TenantContextHolder.getTenantId(), req.offset() != null ? req.offset() : 0, req.limit() != null ? req.limit() : 20));
     }
 }

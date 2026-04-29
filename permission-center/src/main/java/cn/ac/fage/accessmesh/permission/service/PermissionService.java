@@ -1,36 +1,51 @@
 package cn.ac.fage.accessmesh.permission.service;
 
-import cn.ac.fage.accessmesh.perm.common.model.PermCheckReq;
-import cn.ac.fage.accessmesh.perm.common.model.PermCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.permission.dto.req.InterfaceSnapshotReq;
+import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
+import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
 
 /**
- * Core permission check service — internal SDK contract.
+ * Core permission check service — auth check, query, and interface snapshot.
  */
 public interface PermissionService {
 
     /**
-     * Internal SDK permission check (used by gateway callback).
+     * Single auth check using stable business keys.
+     * tenantId is obtained from TenantContextHolder.
      */
-    PermCheckResp checkPermission(PermCheckReq req);
-
-    /**
-     * Detailed auth check with full chain (user status → role resolution → conflict filter → auth match → condition eval).
-     */
-    AuthCheckResp check(AuthCheckReq req);
+    AuthCheckResp check(Long tenantId, AuthCheckReq req);
 
     /**
      * Batch auth check for multiple resource+operation combinations.
      */
-    BatchAuthCheckResp batchCheck(BatchAuthCheckReq req);
+    BatchAuthCheckResp batchCheck(Long tenantId, BatchAuthCheckReq req);
 
     /**
      * Gateway callback: check permission by serviceCode + httpMethod + path.
      */
-    CheckInterfaceResp checkInterface(CheckInterfaceReq req);
+    CheckInterfaceResp checkInterface(Long tenantId, CheckInterfaceReq req);
+
+    /**
+     * Query resources accessible to a subject for a given resource type and operation.
+     */
+    QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req);
+
+    /**
+     * Query scope resources within a primary resource context (DIRECT \u222a DEPENDENT).
+     */
+    QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req);
+
+    /**
+     * Interface snapshot for Gateway consumption (optional optimisation path).
+     */
+    InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req);
 }

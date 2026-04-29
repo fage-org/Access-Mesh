@@ -3,8 +3,7 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Reusable: list endpoints that only need tenantId.
+ * Reusable: list endpoints where tenantId comes from X-Tenant-Id header.
+ * Empty request body.
  */
-public record TenantIdReq(
-    @NotNull Long tenantId
-) {}
+public record TenantIdReq() {}

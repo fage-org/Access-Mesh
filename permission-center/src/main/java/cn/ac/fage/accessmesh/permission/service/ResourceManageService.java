@@ -17,7 +17,7 @@ public interface ResourceManageService {
     /**
      * Create a resource entity.
      */
-    ResourceResp createResource(ResourceCreateReq req, Long operatorId);
+    ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId);
 
     /**
      * Get resource by ID.
@@ -27,7 +27,7 @@ public interface ResourceManageService {
     /**
      * Update a resource.
      */
-    ResourceResp updateResource(ResourceUpdateReq req, Long operatorId);
+    ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId);
 
     /**
      * Delete (soft) a resource and cascade-delete children.

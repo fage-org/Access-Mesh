@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * Get user permissions view.
  */
 public record UserPermissionViewReq(
-    @NotNull Long tenantId,
     @NotNull Long userId
 ) {}

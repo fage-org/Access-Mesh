@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionViewReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourcePermissionViewReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserPermissionViewReq;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
  * All APIs: POST + JSON Body.
  */
 @RestController
-@RequestMapping("/api/permission-view")
+@RequestMapping("/api/perm/permission-view")
 public class PermissionViewController {
 
     private final PermissionViewService permissionViewService;
@@ -28,24 +29,18 @@ public class PermissionViewController {
     /**
      * View a user's effective permissions (grouped by resource).
      */
-    @PostMapping("/user")
+    @PostMapping("/effective-permissions")
     public PermResult<UserPermissionViewResp> getUserPermissions(@Valid @RequestBody UserPermissionViewReq req) {
-        return PermResult.success(permissionViewService.getUserPermissions(req.tenantId(), req.userId()));
+        return PermResult.success(permissionViewService.getUserPermissions(TenantContextHolder.getTenantId(), req.userId()));
     }
 
-    /**
-     * View which roles have permissions on a resource.
-     */
-    @PostMapping("/resource")
+    @PostMapping("/resource-users")
     public PermResult<ResourcePermissionViewResp> getResourcePermissions(@Valid @RequestBody ResourcePermissionViewReq req) {
-        return PermResult.success(permissionViewService.getResourcePermissions(req.tenantId(), req.resourceEntityId()));
+        return PermResult.success(permissionViewService.getResourcePermissions(TenantContextHolder.getTenantId(), req.resourceEntityId()));
     }
 
-    /**
-     * View a role's permissions (flat list).
-     */
-    @PostMapping("/role")
+    @PostMapping("/role-permissions")
     public PermResult<RolePermissionViewResp> getRolePermissions(@Valid @RequestBody RolePermissionViewReq req) {
-        return PermResult.success(permissionViewService.getRolePermissions(req.tenantId(), req.roleId(), req.expandSub() != null && req.expandSub()));
+        return PermResult.success(permissionViewService.getRolePermissions(TenantContextHolder.getTenantId(), req.roleId(), req.expandSub() != null && req.expandSub()));
     }
 }

@@ -1,18 +1,22 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Permission grant/revoke management API.
+ * Role-resource permission management API.
  * All APIs: POST + JSON Body.
  */
 @RestController
-@RequestMapping("/api/role-permission")
+@RequestMapping("/api/perm/role-resource-permission")
 public class PermissionGrantController {
 
     private final PermissionGrantService permissionGrantService;
@@ -21,21 +25,16 @@ public class PermissionGrantController {
         this.permissionGrantService = permissionGrantService;
     }
 
-    /**
-     * Batch grant permissions to a role.
-     */
-    @PostMapping("/batch-grant")
+    @PostMapping("/save")
     public PermResult<Void> batchGrant(@RequestBody RoleGrantReq req) {
-        permissionGrantService.batchGrant(req.tenantId(), req.abstractRoleId(), req);
+        permissionGrantService.batchGrant(TenantContextHolder.getTenantId(), req.abstractRoleId(), req);
         return PermResult.success();
     }
 
-    /**
-     * Batch revoke permissions from a role.
-     */
-    @PostMapping("/batch-revoke")
+    @PostMapping("/revoke")
     public PermResult<Void> batchRevoke(@Valid @RequestBody BatchRevokeReq req) {
-        permissionGrantService.batchRevoke(req.tenantId(), req.roleId(), req.permissionIds());
+        permissionGrantService.batchRevoke(TenantContextHolder.getTenantId(), req.roleId(), req.permissionIds());
         return PermResult.success();
     }
 }
+

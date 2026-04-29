@@ -5,8 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record RoleGrantReq(
-    @NotNull(message = "租户ID不能为空")
-    Long tenantId,
     @NotNull(message = "角色ID不能为空")
     Long abstractRoleId,
     @NotEmpty(message = "授权列表不能为空")

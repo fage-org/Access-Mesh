@@ -38,9 +38,9 @@ public class RoleManageServiceImpl implements RoleManageService {
 
     @Override
     @Transactional
-    public RoleResp createRole(RoleCreateReq req, Long operatorId) {
+    public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         Long roleId = abstractRoleDomainService.createRole(
-            req.tenantId(), req.bizDomainId(), req.parentId(), req.roleType(),
+            tenantId, req.bizDomainId(), req.parentId(), req.roleType(),
             req.externalId(), req.name(), req.sortOrder(), req.extra()
         );
 

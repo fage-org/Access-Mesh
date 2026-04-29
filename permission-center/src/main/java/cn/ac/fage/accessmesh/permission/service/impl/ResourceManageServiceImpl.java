@@ -43,9 +43,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     @Override
     @Transactional
-    public ResourceResp createResource(ResourceCreateReq req, Long operatorId) {
+    public ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId) {
         ResourceEntity entity = new ResourceEntity();
-        entity.setTenantId(req.tenantId());
+        entity.setTenantId(tenantId);
         entity.setBizDomainId(req.bizDomainId());
         entity.setParentId(req.parentId());
         entity.setResourceType(req.resourceType());
@@ -77,9 +77,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     @Override
     @Transactional
-    public ResourceResp updateResource(ResourceUpdateReq req, Long operatorId) {
+    public ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId) {
         ResourceEntity entity = resourceEntityMapper.selectOneById(req.id());
-        if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(req.tenantId())) {
+        if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Resource not found: " + req.id());
         }
 
@@ -153,7 +153,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
 
         ResourceApiMapping mapping = new ResourceApiMapping();
-        mapping.setTenantId(req.tenantId());
+        mapping.setTenantId(tenantId);
         mapping.setResourceEntityId(resourceId);
         mapping.setServiceCode(req.serviceCode());
         mapping.setHttpMethod(req.httpMethod());

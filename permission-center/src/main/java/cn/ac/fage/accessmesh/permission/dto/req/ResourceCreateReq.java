@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record ResourceCreateReq(
-    @NotNull Long tenantId,
     Long bizDomainId,
     Long parentId,
     @NotNull Integer resourceType,

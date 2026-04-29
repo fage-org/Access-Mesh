@@ -1,22 +1,28 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * Batch auth check request — uses stable business keys.
+ * tenantId is NOT in the body; it is read from X-Tenant-Id header.
+ */
 public record BatchAuthCheckReq(
-    @NotNull(message = "租户ID不能为空")
-    Long tenantId,
-    @NotNull(message = "用户ID不能为空")
-    Long abstractUserId,
+    @NotBlank(message = "主体类型编码不能为空")
+    String subjectTypeCode,
+    @NotBlank(message = "主体外部标识不能为空")
+    String subjectExternalId,
     @NotEmpty(message = "检查项不能为空")
     List<AuthCheckItem> items,
-    String clientIp
+    Map<String, Object> context
 ) {
     public record AuthCheckItem(
-        Long resourceEntityId,
-        Long operationPermissionId,
-        Long bizDomainId,
+        @NotBlank String resourceTypeCode,
+        @NotBlank String resourceCode,
+        @NotBlank String operationCode,
+        String domainCode,
         String codeType,
         String inheritMode
     ) {}

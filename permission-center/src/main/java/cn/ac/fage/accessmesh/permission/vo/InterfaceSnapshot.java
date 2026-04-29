@@ -12,11 +12,10 @@ public record InterfaceSnapshot(
     List<InterfacePermEntry> entries
 ) {
     public record InterfacePermEntry(
-        Long resourceEntityId,
+        String serviceCode,
         String httpMethod,
         String pathPattern,
-        Long operationPermissionId,
-        String operationCode,
-        Long effectiveBits
+        boolean hasCondition,
+        Long conditionId
     ) {}
 }

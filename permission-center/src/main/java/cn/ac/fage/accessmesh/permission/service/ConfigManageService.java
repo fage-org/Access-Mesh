@@ -17,33 +17,34 @@ import java.util.List;
 public interface ConfigManageService {
 
     // ===== TypeDefinition =====
-    TypeDefinitionResp createType(TypeCreateReq req, Long operatorId);
+    TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId);
     TypeDefinitionResp getType(Long tenantId, Long typeId);
     List<TypeDefinitionResp> listTypes(Long tenantId, Long bizDomainId);
-    TypeDefinitionResp updateType(TypeUpdateReq req, Long operatorId);
+    TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId);
     void deleteType(Long tenantId, Long typeId, Long operatorId);
 
     // ===== BizDomain =====
-    BizDomainResp createBizDomain(BizDomainCreateReq req, Long operatorId);
+    BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId);
     BizDomainResp getBizDomain(Long tenantId, Long domainId);
     List<BizDomainResp> listBizDomains(Long tenantId);
-    BizDomainResp updateBizDomain(BizDomainUpdateReq req, Long operatorId);
+    BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId);
     void deleteBizDomain(Long tenantId, Long domainId, Long operatorId);
 
     // ===== DomainConfig =====
-    void upsertDomainConfig(DomainConfigReq req);
+    void upsertDomainConfig(Long tenantId, DomainConfigReq req);
     DomainConfigResp getDomainConfig(Long tenantId, Long bizDomainId, String configType);
     List<DomainConfigResp> listDomainConfigs(Long tenantId, Long bizDomainId);
+    void deleteDomainConfig(Long tenantId, Long bizDomainId, String configType);
 
     // ===== ServiceConfig =====
-    ServiceConfigResp createServiceConfig(ServiceConfigReq req, Long operatorId);
+    ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
     ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode);
     List<ServiceConfigResp> listServiceConfigs(Long tenantId);
-    ServiceConfigResp updateServiceConfig(ServiceConfigReq req, Long operatorId);
+    ServiceConfigResp updateServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
     void deleteServiceConfig(Long tenantId, String serviceCode, Long operatorId);
 
     // ===== SystemConfig =====
-    void upsertSystemConfig(SystemConfigReq req);
+    void upsertSystemConfig(Long tenantId, SystemConfigReq req);
     SystemConfigResp getSystemConfig(Long tenantId, String configKey);
     List<SystemConfigResp> listSystemConfigs(Long tenantId);
 }

@@ -8,7 +8,6 @@ import jakarta.validation.constraints.NotNull;
  * Add API mapping to a resource — combines path params with mapping fields.
  */
 public record ApiMappingAddReq(
-    @NotNull Long tenantId,
     @NotNull Long resourceId,
     @NotBlank String serviceCode,
     @NotBlank String httpMethod,

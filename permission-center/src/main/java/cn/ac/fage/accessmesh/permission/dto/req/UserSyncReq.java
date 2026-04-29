@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record UserSyncReq(
-    @NotNull Long tenantId,
     @NotNull Integer userType,
     @NotBlank String externalId,
     String name,

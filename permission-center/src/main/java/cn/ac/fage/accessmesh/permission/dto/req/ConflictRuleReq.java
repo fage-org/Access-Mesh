@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record ConflictRuleReq(
-    @NotNull Long tenantId,
     Long bizDomainId,
     @NotBlank String conflictType,
     Long firstOperationPermissionId,

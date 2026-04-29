@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * Role update: tenantId + roleId + optional fields.
  */
 public record RoleUpdateReq(
-    @NotNull Long tenantId,
     @NotNull Long roleId,
     String name,
     Integer sortOrder,

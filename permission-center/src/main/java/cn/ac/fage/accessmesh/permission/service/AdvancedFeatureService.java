@@ -14,14 +14,14 @@ import java.util.Set;
 public interface AdvancedFeatureService {
 
     // ===== PermissionCondition =====
-    ConditionResp createCondition(ConditionCreateReq req, Long operatorId);
+    ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId);
     ConditionResp getCondition(Long tenantId, Long conditionId);
     List<ConditionResp> listConditions(Long tenantId);
     void deleteCondition(Long tenantId, Long conditionId, Long operatorId);
     void setConditionEnabled(Long tenantId, Long conditionId, boolean enabled, Long operatorId);
 
     // ===== PermissionConflictRule =====
-    ConflictRuleResp createConflictRule(ConflictRuleReq req, Long operatorId);
+    ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId);
     ConflictRuleResp getConflictRule(Long tenantId, Long ruleId);
     List<ConflictRuleResp> listConflictRules(Long tenantId);
     void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId);
@@ -33,7 +33,7 @@ public interface AdvancedFeatureService {
     List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit);
 
     // ===== ResourceDependency =====
-    ResourceDependencyResp createDependency(ResourceDependencyCreateReq req, Long operatorId);
+    ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId);
     List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId);
     void deleteDependency(Long tenantId, Long dependencyId, Long operatorId);
     void batchSyncDependencies(Long tenantId, Long roleId, Long operatorId);

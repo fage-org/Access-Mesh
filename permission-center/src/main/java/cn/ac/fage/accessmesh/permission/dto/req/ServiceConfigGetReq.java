@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * Get service config by tenantId + serviceCode.
  */
 public record ServiceConfigGetReq(
-    @NotNull Long tenantId,
     @NotNull String serviceCode
 ) {}

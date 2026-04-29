@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.OperationCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.OperationListReq;
@@ -17,7 +18,7 @@ import java.util.List;
  * All APIs: POST + JSON Body.
  */
 @RestController
-@RequestMapping("/api/operation")
+@RequestMapping("/api/perm/operation-permission")
 public class OperationManageController {
 
     private final OperationManageService operationManageService;
@@ -32,15 +33,15 @@ public class OperationManageController {
     @PostMapping("/create")
     public PermResult<OperationPermissionResp> createOperation(@Valid @RequestBody OperationCreateReq req) {
         return PermResult.success(operationManageService.createOperation(
-                req.tenantId(), req.resourceType(), req.code(), req.name(), req.binaryBit(), req.inheritMask(), null));
+                TenantContextHolder.getTenantId(), req.resourceType(), req.code(), req.name(), req.binaryBit(), req.inheritMask(), null));
     }
 
     /**
      * Get operation by ID.
      */
-    @PostMapping("/get")
+    @PostMapping("/detail")
     public PermResult<OperationPermissionResp> getOperation(@Valid @RequestBody IdWithTenantReq req) {
-        return PermResult.success(operationManageService.getOperation(req.tenantId(), req.id()));
+        return PermResult.success(operationManageService.getOperation(TenantContextHolder.getTenantId(), req.id()));
     }
 
     /**
@@ -48,7 +49,7 @@ public class OperationManageController {
      */
     @PostMapping("/list")
     public PermResult<List<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
-        return PermResult.success(operationManageService.listOperations(req.tenantId(), req.resourceType()));
+        return PermResult.success(operationManageService.listOperations(TenantContextHolder.getTenantId(), req.resourceType()));
     }
 
     /**
@@ -57,15 +58,15 @@ public class OperationManageController {
     @PostMapping("/update")
     public PermResult<OperationPermissionResp> updateOperation(@Valid @RequestBody OperationUpdateReq req) {
         return PermResult.success(operationManageService.updateOperation(
-                req.tenantId(), req.operationId(), req.name(), req.binaryBit(), req.inheritMask(), null));
+                TenantContextHolder.getTenantId(), req.operationId(), req.name(), req.binaryBit(), req.inheritMask(), null));
     }
 
     /**
      * Delete operation (soft).
      */
-    @PostMapping("/delete")
+    @PostMapping("/remove")
     public PermResult<Void> deleteOperation(@Valid @RequestBody IdWithTenantReq req) {
-        operationManageService.deleteOperation(req.tenantId(), req.id(), null);
+        operationManageService.deleteOperation(TenantContextHolder.getTenantId(), req.id(), null);
         return PermResult.success();
     }
 }

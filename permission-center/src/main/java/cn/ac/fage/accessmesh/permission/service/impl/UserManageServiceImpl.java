@@ -45,10 +45,10 @@ public class UserManageServiceImpl implements UserManageService {
 
     @Override
     @Transactional
-    public UserResp syncUser(UserSyncReq req) {
+    public UserResp syncUser(Long tenantId, UserSyncReq req) {
         AbstractUser existing = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(req.tenantId()))
+                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
                 .and(ABSTRACT_USER.USER_TYPE.eq(req.userType()))
                 .and(ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
                 .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
@@ -64,7 +64,7 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         AbstractUser user = new AbstractUser();
-        user.setTenantId(req.tenantId());
+        user.setTenantId(tenantId);
         user.setUserType(req.userType());
         user.setExternalId(req.externalId());
         user.setName(req.name());
@@ -112,7 +112,7 @@ public class UserManageServiceImpl implements UserManageService {
 
     @Override
     @Transactional
-    public void assignRole(UserAssignRoleReq req) {
+    public void assignRole(Long tenantId, UserAssignRoleReq req) {
         // Check duplicate
         Long existing = userRoleMapper.selectOneByQuery(
             QueryWrapper.create()
@@ -127,7 +127,7 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         UserRole ur = new UserRole();
-        ur.setTenantId(req.tenantId());
+        ur.setTenantId(tenantId);
         ur.setAbstractUserId(req.abstractUserId());
         ur.setTargetType(req.targetType());
         ur.setTargetId(req.targetId());
@@ -140,7 +140,7 @@ public class UserManageServiceImpl implements UserManageService {
         userRoleMapper.insert(ur);
 
         // Invalidate user role cache
-        userRoleDomainService.invalidateRoleCache(req.tenantId(), req.abstractUserId());
+        userRoleDomainService.invalidateRoleCache(tenantId, req.abstractUserId());
     }
 
     @Override

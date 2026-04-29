@@ -71,9 +71,9 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
 
     @Override
     @Transactional
-    public ConditionResp createCondition(ConditionCreateReq req, Long operatorId) {
+    public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         PermissionCondition condition = new PermissionCondition();
-        condition.setTenantId(req.tenantId());
+        condition.setTenantId(tenantId);
         condition.setCode(req.code());
         condition.setName(req.name());
         condition.setConditionRules(req.conditionRules());
@@ -133,9 +133,9 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
 
     @Override
     @Transactional
-    public ConflictRuleResp createConflictRule(ConflictRuleReq req, Long operatorId) {
+    public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         PermissionConflictRule rule = new PermissionConflictRule();
-        rule.setTenantId(req.tenantId());
+        rule.setTenantId(tenantId);
         rule.setBizDomainId(req.bizDomainId());
         rule.setConflictType(req.conflictType());
         rule.setFirstOperationPermissionId(req.firstOperationPermissionId());
@@ -227,9 +227,9 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
 
     @Override
     @Transactional
-    public ResourceDependencyResp createDependency(ResourceDependencyCreateReq req, Long operatorId) {
+    public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
         ResourceDependency dep = new ResourceDependency();
-        dep.setTenantId(req.tenantId());
+        dep.setTenantId(tenantId);
         dep.setResourceEntityId(req.resourceEntityId());
         dep.setDependsOnResourceEntityId(req.dependsOnResourceEntityId());
         dep.setSourceOperationBits(req.sourceOperationBits());

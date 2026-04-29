@@ -41,7 +41,7 @@ public class PermissionClient {
      * Sends AuthCheckRequest (with clientIp populated from context)
      * and parses PermResult<CheckInterfaceResp> response.
      */
-    public Mono<AuthCheckResponse> checkInterface(AuthCheckRequest request) {
+    public Mono<AuthCheckResponse> checkInterface(AuthCheckRequest request, Long tenantId) {
         // Flatten clientIp from context if not already set
         if (request.getClientIp() == null && request.getContext() != null) {
             request.setClientIp(request.getContext().getIp());
@@ -52,6 +52,7 @@ public class PermissionClient {
 
         return webClient.post()
             .uri(checkInterfacePath)
+            .header("X-Tenant-Id", tenantId != null ? tenantId.toString() : "")
             .bodyValue(request)
             .retrieve()
             .bodyToMono(AuthCheckResponse.class)

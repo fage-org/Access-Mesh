@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 import jakarta.validation.constraints.NotNull;
 
 public record TypeUpdateReq(
-    @NotNull Long tenantId,
     @NotNull Long typeId,
     Long bizDomainId,
     String name,

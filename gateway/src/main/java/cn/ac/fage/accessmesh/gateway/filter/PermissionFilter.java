@@ -96,7 +96,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         // Build auth check request
         AuthCheckRequest req = new AuthCheckRequest();
-        req.setTenantId(tenantId);
         req.setUserId(userId);
         req.setServiceCode(serviceCode);
         req.setHttpMethod(httpMethod);
@@ -108,7 +107,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         req.setContext(ctx);
 
         // Call permission-center
-        return permissionClient.checkInterface(req)
+        return permissionClient.checkInterface(req, tenantId)
             .flatMap(resp -> {
                 if (resp != null && resp.isAllowed()) {
                     permissionCheckCache.put(cacheKey, true);

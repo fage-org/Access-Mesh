@@ -14,7 +14,7 @@ public interface RoleManageService {
     /**
      * Create a role.
      */
-    RoleResp createRole(RoleCreateReq req, Long operatorId);
+    RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId);
 
     /**
      * Get role by ID.

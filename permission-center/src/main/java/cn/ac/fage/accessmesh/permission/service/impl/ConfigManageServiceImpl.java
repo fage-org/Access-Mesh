@@ -50,9 +50,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public TypeDefinitionResp createType(TypeCreateReq req, Long operatorId) {
+    public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         TypeDefinition type = new TypeDefinition();
-        type.setTenantId(req.tenantId());
+        type.setTenantId(tenantId);
         type.setBizDomainId(req.bizDomainId());
         type.setTypeKey(req.typeKey());
         type.setTypeValue(req.typeValue());
@@ -108,11 +108,11 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public TypeDefinitionResp updateType(TypeUpdateReq req, Long operatorId) {
+    public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TYPE_DEFINITION.ID.eq(req.typeId()))
-                .and(TYPE_DEFINITION.TENANT_ID.eq(req.tenantId()))
+                .and(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
                 .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
         if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
@@ -130,9 +130,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public BizDomainResp createBizDomain(BizDomainCreateReq req, Long operatorId) {
+    public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         BizDomain domain = new BizDomain();
-        domain.setTenantId(req.tenantId());
+        domain.setTenantId(tenantId);
         domain.setCode(req.code());
         domain.setName(req.name());
         domain.setDescription(req.description());
@@ -177,11 +177,11 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public BizDomainResp updateBizDomain(BizDomainUpdateReq req, Long operatorId) {
+    public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(BIZ_DOMAIN.ID.eq(req.domainId()))
-                .and(BIZ_DOMAIN.TENANT_ID.eq(req.tenantId()))
+                .and(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
                 .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
         );
         if (domain == null) throw new IllegalArgumentException("BizDomain not found: " + req.domainId());
@@ -196,10 +196,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public void upsertDomainConfig(DomainConfigReq req) {
+    public void upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         DomainConfig existing = domainConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(DOMAIN_CONFIG.TENANT_ID.eq(req.tenantId()))
+                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
                 .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(req.bizDomainId()))
                 .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(req.configType()))
                 .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
@@ -211,7 +211,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             domainConfigMapper.update(existing);
         } else {
             DomainConfig config = new DomainConfig();
-            config.setTenantId(req.tenantId());
+            config.setTenantId(tenantId);
             config.setBizDomainId(req.bizDomainId());
             config.setConfigType(req.configType());
             config.setExtra(req.extra());
@@ -246,13 +246,30 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .stream().map(this::toDomainConfigResp).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public void deleteDomainConfig(Long tenantId, Long bizDomainId, String configType) {
+        DomainConfig config = domainConfigMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
+                .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(configType))
+                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+        );
+        if (config != null) {
+            config.setDeleteFlag(config.getId());
+            config.setDeletedAt(LocalDateTime.now());
+            domainConfigMapper.update(config);
+        }
+    }
+
     // ===== ServiceConfig =====
 
     @Override
     @Transactional
-    public ServiceConfigResp createServiceConfig(ServiceConfigReq req, Long operatorId) {
+    public ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         ServiceConfig config = new ServiceConfig();
-        config.setTenantId(req.tenantId());
+        config.setTenantId(tenantId);
         config.setServiceCode(req.serviceCode());
         config.setName(req.name());
         config.setBasePath(req.basePath());
@@ -305,10 +322,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public ServiceConfigResp updateServiceConfig(ServiceConfigReq req, Long operatorId) {
+    public ServiceConfigResp updateServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         ServiceConfig config = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(req.tenantId()))
+                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
                 .where(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
                 .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
@@ -327,10 +344,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public void upsertSystemConfig(SystemConfigReq req) {
+    public void upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYSTEM_CONFIG.TENANT_ID.eq(req.tenantId()))
+                .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
                 .and(SYSTEM_CONFIG.CONFIG_KEY.eq(req.configKey()))
                 .and(SYSTEM_CONFIG.DELETE_FLAG.eq(0))
         );
@@ -342,7 +359,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             systemConfigMapper.update(existing);
         } else {
             SystemConfig config = new SystemConfig();
-            config.setTenantId(req.tenantId());
+            config.setTenantId(tenantId);
             config.setConfigKey(req.configKey());
             config.setConfigValue(req.configValue());
             config.setDescription(req.description());

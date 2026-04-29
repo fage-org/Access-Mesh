@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthCheckRequest {
 
-    private Long tenantId;
     private Long userId;
     private String serviceCode;
     private String httpMethod;
@@ -16,14 +15,6 @@ public class AuthCheckRequest {
     /** Flat field matching permission-center CheckInterfaceReq.clientIp */
     private String clientIp;
     private Context context;
-
-    public Long getTenantId() {
-        return tenantId;
-    }
-
-    public void setTenantId(Long tenantId) {
-        this.tenantId = tenantId;
-    }
 
     public Long getUserId() {
         return userId;

@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * List resources with optional filter.
  */
 public record ResourceListReq(
-    @NotNull Long tenantId,
     Integer resourceType,
     Integer offset,
     Integer limit

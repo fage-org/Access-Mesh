@@ -15,7 +15,7 @@ public interface UserManageService {
     /**
      * Sync a user from external system (upsert by tenantId+userType+externalId).
      */
-    UserResp syncUser(UserSyncReq req);
+    UserResp syncUser(Long tenantId, UserSyncReq req);
 
     /**
      * Get user by ID.
@@ -35,7 +35,7 @@ public interface UserManageService {
     /**
      * Assign a role to a user.
      */
-    void assignRole(UserAssignRoleReq req);
+    void assignRole(Long tenantId, UserAssignRoleReq req);
 
     /**
      * Revoke a role from a user.

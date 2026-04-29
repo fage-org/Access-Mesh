@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record UserAssignRoleReq(
-    @NotNull Long tenantId,
     @NotNull Long abstractUserId,
     @NotBlank String targetType,
     @NotNull Long targetId,
