@@ -67,7 +67,9 @@ flowchart LR
 - 首期只支持 FULL 全量同步，本次上报内容就是该 `serviceCode` 的完整事实。
 - 权限中心用 `basePath + api.path` 生成 Gateway 原始路径并写入 `resource_api_mapping.path_pattern`。
 - 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
-- 上报中缺失的旧接口会被软删除映射；若资源是自动创建的 API 资源，也可同步软删除。
+- 自动创建的 API 资源必须标记 `ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC` 和稳定 `syncKey`。
+- 上报中缺失的旧接口会被软删除映射；若资源是同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 下自动创建的 API 资源，也可同步软删除。
+- FULL diff 不得删除人工维护或其他维护来源的资源。
 - Gateway 鉴权使用客户端原始请求路径匹配，不使用后端 StripPrefix 后路径。
 
 ## 5. 场景三：同步主体、创建角色、分配角色
@@ -145,7 +147,7 @@ flowchart LR
 | 4 | Gateway | 缓存未命中时调用 `POST /api/perm/auth/check-interface` |
 | 5 | permission-center | 按租户、服务、方法、路径匹配 `resource_api_mapping` |
 | 6 | permission-center | 解析资源、操作、用户有效角色、条件和冲突规则 |
-| 7 | permission-center | 返回 `allowed/reason/matchedResourceId/matchedRoleIds/cacheTtlSeconds` |
+| 7 | permission-center | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds` |
 | 8 | Gateway | 允许则转发业务服务，拒绝则返回 403 |
 
 拒绝原因示例：
@@ -242,7 +244,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 关键逻辑：
 
 - 同步入口不做增量模式，减少接入方心智负担。
-- 自动删除只应处理由接口同步创建的 API 资源，避免误删人工维护资源。
+- 自动删除只应处理同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 范围内由接口同步创建的 API 资源，避免误删人工维护资源。
 - 路径变更应视为旧接口删除和新接口新增。
 
 ## 11. 场景九：资源依赖自动补全
@@ -260,7 +262,10 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 关键逻辑：
 
 - 自动补全不应产生重复授权。
+- `resource_dependency.resource_entity_id` 是源资源/被授权资源；`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
+- 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = 授权资源ID`。
 - 同一源资源和依赖资源可以按不同 `source_operation_bits` 配置多条依赖规则。
+- `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志和递增权限版本。
 
@@ -371,10 +376,11 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 ## 15. 仍需实现时重点校验
 
 - `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleTypeCode + roleExternalId + domainCode` 时必须带同一套过滤条件。
+- `type_definition.type_value` 必须在同一 `tenant_id + type_key` 内全局唯一，不能按业务域重复分配相同值。
 - `operationCode` 在解析时必须结合 `resourceTypeCode`，避免不同资源类型下同名操作产生歧义。
 - `resourceCode` 必须结合 `resourceTypeCode + codeType + domainCode` 解析，避免跨域或多编码歧义。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
-- `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许。
+- `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许；响应必须使用 `matchedResources[]` 表达所有命中映射资源。
 - `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。
 - `role_resource_permission.scope_all` 必须显式参与查询结果，不能用空结果或特殊资源编码隐式表示全量范围。
 - `canManage=true` 只允许授权同一条权限，不能扩大资源、操作或范围；可授权对象候选范围由业务服务控制。

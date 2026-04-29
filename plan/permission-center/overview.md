@@ -39,11 +39,22 @@
 ## 资源与操作
 
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode` 等稳定字符串编码；内部存储和计算使用 `type_definition.type_value`。
+- `type_value` 在同一租户和同一 `type_key` 内全局唯一，不随业务域重复；业务域只影响 `type_code` 解析范围和管理分区。
 - `domainCode` 是管理分区和命名空间，不是子租户。传入时查询该域和全局对象，不传时只查询全局对象。
 - 资源通过 `resourceTypeCode + resourceCode + codeType + domainCode` 定位。
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
 - 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。
 - 业务服务如果需要查询“用户能管理哪些组织/角色/菜单”，应先把这些对象建模为 `resource_entity`。
+
+## 资源依赖
+
+资源依赖用于表达“授权一个源资源时，自动补齐它依赖的目标资源权限”。
+
+- `resource_dependency.resource_entity_id` 是源资源，即被授权后触发补全的资源。
+- `resource_dependency.depends_on_resource_entity_id` 是被源资源依赖的目标资源，即需要自动补全的资源。
+- `source_operation_bits` 限定源资源哪些操作会触发补全；为空表示源资源任意操作都触发。
+- `required_operation_bits` 表示目标资源需要补全的操作。
+- 批量同步依赖规则时，只能清理同一维护方和维护来源范围内的规则，避免 SDK/清单同步覆盖管理端手工配置。
 
 ## 范围权限
 

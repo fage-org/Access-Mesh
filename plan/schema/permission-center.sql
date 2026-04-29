@@ -33,8 +33,7 @@ CREATE TABLE type_definition (
     delete_flag   BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_type_definition_value_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_value) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_type_definition_value_global ON type_definition (tenant_id, type_key, type_value) WHERE biz_domain_id IS NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_value ON type_definition (tenant_id, type_key, type_value) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_type_definition_code_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_code) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
 CREATE UNIQUE INDEX uk_type_definition_code_global ON type_definition (tenant_id, type_key, type_code) WHERE biz_domain_id IS NULL AND delete_flag = 0;
 
@@ -44,7 +43,7 @@ COMMENT ON COLUMN type_definition.tenant_id IS '租户ID';
 COMMENT ON COLUMN type_definition.biz_domain_id IS '业务域ID，NULL 表示全局类型';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type、group_type';
 COMMENT ON COLUMN type_definition.type_code IS '对外稳定编码，如 USER、SERVICE、BASIC_ROLE、MENU、DATA';
-COMMENT ON COLUMN type_definition.type_value IS '内部枚举值，如 1=人员 2=服务；只用于存储、索引和计算，不作为外部 API 契约';
+COMMENT ON COLUMN type_definition.type_value IS '内部枚举值，如 1=人员 2=服务；同一 tenant_id + type_key 内全局唯一，不随 biz_domain_id 重复；只用于存储、索引和计算，不作为外部 API 契约';
 COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
@@ -213,6 +212,9 @@ CREATE TABLE resource_entity (
     status        INT NOT NULL DEFAULT 1,
     sort_order    INT DEFAULT 0,
     extra         JSONB DEFAULT '{}',
+    owner_service_code VARCHAR(128),
+    maintain_source    VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
+    sync_key           VARCHAR(256),
     created_by    BIGINT,
     updated_by    BIGINT,
     deleted_by    BIGINT,
@@ -228,6 +230,7 @@ CREATE UNIQUE INDEX uk_resource_entity_global ON resource_entity (tenant_id, res
 CREATE INDEX idx_resource_entity_tenant_domain ON resource_entity (tenant_id, biz_domain_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
+CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
 COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）';
 COMMENT ON COLUMN resource_entity.biz_domain_id IS '所属业务域ID，NULL 表示全局资源';
@@ -239,6 +242,9 @@ COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';
 COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
+COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；服务全量同步创建的资源填调用方 serviceCode，人工维护资源为空';
+COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展';
+COMMENT ON COLUMN resource_entity.sync_key IS '同步源内稳定键，用于 FULL diff 判断。SERVICE_SYNC 默认使用 serviceCode + resourceCode 或接口路径组合';
 
 -- -----------------------------------------------------------------------------
 -- 7. 接口资源映射表
@@ -449,6 +455,9 @@ CREATE TABLE resource_dependency (
     source_operation_bits         BIGINT,
     required_operation_bits       BIGINT NOT NULL,
     auto_grant                    BOOLEAN NOT NULL DEFAULT true,
+    owner_service_code            VARCHAR(128),
+    maintain_source               VARCHAR(32) NOT NULL DEFAULT 'ADMIN_UI',
+    sync_key                      VARCHAR(256),
     description                   VARCHAR(512),
     created_by                    BIGINT,
     updated_by                    BIGINT,
@@ -461,13 +470,17 @@ CREATE TABLE resource_dependency (
 
 CREATE UNIQUE INDEX uk_resource_dependency ON resource_dependency (tenant_id, resource_entity_id, depends_on_resource_entity_id, COALESCE(source_operation_bits, 0)) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_entity_id) WHERE delete_flag = 0;
+CREATE INDEX idx_resource_dependency_sync_owner ON resource_dependency (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_dependency IS '资源依赖：source_operation_bits 为触发条件（源资源授权含这些bit时触发），required_operation_bits 为依赖资源需要的操作位。auto_grant=true 时授权时自动补全';
-COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权的）';
-COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '依赖资源ID（需自动补全的）';
+COMMENT ON TABLE resource_dependency IS '资源依赖：resource_entity_id 是源资源/被授权资源；depends_on_resource_entity_id 是被源资源依赖、需要自动补全的目标资源。source_operation_bits 为触发条件，required_operation_bits 为目标资源需要的操作位。auto_grant=true 时授权源资源自动补全目标资源权限';
+COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权资源）。授权该资源且满足 source_operation_bits 时触发依赖补全';
+COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '被依赖资源ID（自动补全目标资源），即被 resource_entity_id 依赖的资源';
 COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发；唯一约束中按 COALESCE(source_operation_bits,0) 区分同一资源对下不同触发操作';
-COMMENT ON COLUMN resource_dependency.required_operation_bits IS '依赖资源需要的操作位';
-COMMENT ON COLUMN resource_dependency.auto_grant IS '授权源资源时是否自动授予依赖资源权限';
+COMMENT ON COLUMN resource_dependency.required_operation_bits IS '被依赖目标资源需要自动补全的操作位';
+COMMENT ON COLUMN resource_dependency.auto_grant IS '授权源资源时是否自动授予被依赖目标资源权限';
+COMMENT ON COLUMN resource_dependency.owner_service_code IS '依赖规则维护方服务编码；批量同步时用于限定 FULL diff 删除范围';
+COMMENT ON COLUMN resource_dependency.maintain_source IS '维护来源：ADMIN_UI=管理端维护，SDK_SCAN=SDK扫描，MANIFEST=声明式清单，SERVICE_SYNC=服务同步';
+COMMENT ON COLUMN resource_dependency.sync_key IS '同步源内稳定键，用于 FULL diff 判断。不同维护来源只清理同 owner_service_code + maintain_source 范围内缺失的规则';
 
 -- -----------------------------------------------------------------------------
 -- 14. 权限冲突规则表（角色互斥 + 权限互斥）
@@ -571,7 +584,7 @@ COMMENT ON COLUMN permission_change_log.entity_type IS '变更实体类型：use
 COMMENT ON COLUMN permission_change_log.operation IS '操作：INSERT/UPDATE/DELETE';
 COMMENT ON COLUMN permission_change_log.old_snapshot IS '变更前快照(JSON)';
 COMMENT ON COLUMN permission_change_log.new_snapshot IS '变更后快照(JSON)';
-COMMENT ON COLUMN permission_change_log.diff_snapshot IS '结构化变更摘要(JSON)，用于权限排查展示和筛选。顶层包含 eventType + items[]，只描述本次写操作直接改变了什么，不计算用户最终有效权限 diff';
+COMMENT ON COLUMN permission_change_log.diff_snapshot IS '结构化变更摘要(JSON)，用于权限排查展示和筛选。顶层包含 eventType + items[]，eventType/changeType 使用契约固定枚举；只描述本次写操作直接改变了什么，不计算用户最终有效权限 diff';
 COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/SYNC/API/SYSTEM';
 COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
 

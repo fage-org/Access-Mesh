@@ -207,6 +207,12 @@ public interface PermissionChangeDomainService {
      *       }
      *     ]
      *   }
+     *
+     * 枚举约束：
+     *   eventType 固定为 USER_ROLE_CHANGE / ROLE_PERMISSION_CHANGE /
+     *     ROLE_STATUS_CHANGE / RESOURCE_STATUS_CHANGE / CONDITION_CHANGE /
+     *     GROUP_ROLE_CHANGE / RESOURCE_DEPENDENCY_CHANGE
+     *   items[].changeType 固定为 ADD / REMOVE / UPDATE
      */
     void record(ChangeLogContext context, List<ChangeLogEntry> changes);
 }
@@ -711,7 +717,7 @@ sequenceDiagram
 
     Note over PS: ② 资源依赖自动补全（auto_grant=true）
     PS->>RDD: autoGrant(tenantId, abstractRoleId, addItems)
-    Note over RDD: 对每条 addItems，查 resource_dependency<br/>WHERE depends_on_resource_entity_id = item.resourceEntityId<br/>AND (source_operation_bits IS NULL OR source_operation_bits & item.opBits != 0)<br/>AND auto_grant = true
+    Note over RDD: 对每条 addItems，查 resource_dependency<br/>WHERE resource_entity_id = item.resourceEntityId<br/>AND (source_operation_bits IS NULL OR source_operation_bits & item.opBits != 0)<br/>AND auto_grant = true
     RDD-->>PS: List<AutoGrantEntry>（depId, targetResourceId, targetOpId）
     PS->>PS: 将 AutoGrantEntry 转为 grant_source='AUTO_DEP', grant_dep_id=depId 的 PermGrantItem
 
@@ -819,6 +825,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
 ### 4.4 ResourceDependencyDomainService 资源依赖自动补全与变更处理
 
+资源依赖方向固定为：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。授权源资源时按 `resource_entity_id = addItem.resourceEntityId` 查询依赖规则。
+
 ```java
 public interface ResourceDependencyDomainService {
 
@@ -838,7 +846,7 @@ public interface ResourceDependencyDomainService {
      *
      * 处理步骤：
      * 1. 清理：DELETE role_resource_permission WHERE grant_source='AUTO_DEP' AND grant_dep_id = dep.id
-     * 2. 重新评估：遍历所有拥有 depends_on_resource_entity_id 资源的角色
+     * 2. 重新评估：遍历所有拥有 resource_entity_id 源资源的角色
      *    - 不满足新规则的：已清理
      *    - 新满足的：补全自动补全条目
      * 3. 递增所有受影响角色的 permission_version

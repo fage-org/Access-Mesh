@@ -101,6 +101,7 @@
 - 同一接口不同时接受 `id/code/externalId` 多套定位方式，避免歧义。
 - 所有请求体禁止出现 `tenantId`；服务端统一从 `X-Tenant-Id` 和安全上下文读取租户。
 - 对外 API 使用稳定字符串 `typeCode`；数据库实体继续保存 `type_value INT`，由服务端通过缓存解析，避免外部系统依赖内部数字枚举。
+- `type_value` 在同一 `tenant_id + type_key` 内全局唯一，不随 `domainCode/biz_domain_id` 重复；`type_code` 仍可按业务域和全局分别定义。
 - `domainCode` 是管理分区和命名空间，不是子租户。传入 `domainCode` 时只查该域和全局对象；不传时只查全局对象，不做跨域模糊匹配。
 - Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
 
@@ -323,9 +324,17 @@
 {
   "allowed": true,
   "reason": null,
-  "matchedResourceId": 200,
-  "matchedOperationCode": "ACCESS",
-  "matchedRoleIds": [10],
+  "matchedResources": [
+    {
+      "resourceId": 200,
+      "resourceTypeCode": "API",
+      "resourceCode": "admin:user:list",
+      "operationCode": "ACCESS",
+      "allowed": true,
+      "matchedRoleIds": [10],
+      "matchedPermissionIds": [100]
+    }
+  ],
   "cacheTtlSeconds": 30
 }
 ```
@@ -334,7 +343,8 @@
 
 - 查询 `resource_api_mapping` 必须带 `tenant_id + service_code + http_method + enabled + delete_flag=0`。
 - `path` 使用 Gateway 收到的原始路径，不使用 StripPrefix 后的服务内部路径。
-- 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许；响应返回所有命中资源和权限信息，便于审计解释。
+- 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许。
+- 响应使用 `matchedResources[]` 返回所有命中的映射资源及各自鉴权结果；只要其中任一项 `allowed=true`，顶层 `allowed=true`。
 - 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
 
 ### 6.3 服务接口全量同步
@@ -370,7 +380,9 @@
 - 首期只支持 `syncMode=FULL`。FULL 模式下，以本次上报内容作为该 `serviceCode` 的完整事实来源。
 - 权限中心自动拼接 `basePath + path` 得到 Gateway 原始路径。
 - 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
-- 已不存在接口软删除映射和自动创建的 API 资源，不删除人工维护的非 API 资源。
+- `service-config/sync` 自动创建的 API 资源必须写入 `resource_entity.ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`、`syncKey`。
+- FULL diff 只能软删除同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 范围内本次缺失的 API 映射和自动创建资源。
+- 已不存在接口软删除映射和自动创建的 API 资源，不删除 `maintainSource=MANUAL` 或其他维护来源的资源。
 
 ### 6.4 三段式角色授权
 
@@ -1018,11 +1030,48 @@ admin-service 查询示例：
 `diff_snapshot` 字段约束：
 
 - 顶层必须包含 `eventType` 和 `items[]`。
-- `eventType` 首期建议值：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`GROUP_ROLE_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`。
-- `changeType` 首期建议值：`ADD`、`REMOVE`、`UPDATE`。
+- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`GROUP_ROLE_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`。
+- `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
+- `recent-changes` 响应中的 `impactLevel` 固定枚举：`DIRECT` 表示直接命中查询对象，`POSSIBLE` 表示通过角色、资源、条件、分组等间接关系可能影响查询对象。
 - 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeAll`。
 - 用户或角色来源使用稳定业务键，不要求在 `diff_snapshot` 中暴露内部 ID；内部 ID 可保留在 `old_snapshot/new_snapshot/entity_id` 中用于审计追溯。
 - `old_snapshot/new_snapshot` 继续保存原始变更前后快照；`diff_snapshot` 只保存排查展示需要的摘要。
+
+### 6.9 资源依赖批量同步
+
+`POST /api/perm/resource-dependency/batch-sync`
+
+```json
+{
+  "serviceCode": "example-service",
+  "maintainSource": "MANIFEST",
+  "syncMode": "FULL",
+  "items": [
+    {
+      "sourceResourceTypeCode": "REPORT",
+      "sourceResourceCode": "report:sales",
+      "sourceCodeType": "default",
+      "sourceOperationCodes": ["DATA_READ"],
+      "targetResourceTypeCode": "API",
+      "targetResourceCode": "api:report:sales:query",
+      "targetCodeType": "default",
+      "requiredOperationCodes": ["ACCESS"],
+      "autoGrant": true,
+      "description": "授权销售报表读取时自动补齐查询接口"
+    }
+  ]
+}
+```
+
+规则：
+
+- `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
+- `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
+- 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
+- `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。
+- `requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作。
+- FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则。
+- 同一语义依赖仍受 `tenant_id + resource_entity_id + depends_on_resource_entity_id + source_operation_bits` 唯一约束保护，避免不同来源重复创建同一条依赖。
 
 ## 7. 错误原因建议
 
@@ -1072,7 +1121,10 @@ admin-service 查询示例：
 6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。
 7. **范围权限**：`query-scopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限`，并支持 `parentOperationCodes[]` 与 `scopeOperationCodes[]` 多操作查询。
 8. **全量范围**：`role_resource_permission` 增加 `scope_all` 字段，`scopeAll=true` 显式表示某资源类型下的全量范围权限；空 `items=[]` 不表示全量。
-9. **类型模型**：对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`，内部存储继续使用 `type_value INT`，通过 `type_definition` 缓存解析。
+9. **类型模型**：对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`，内部存储继续使用 `type_value INT`，通过 `type_definition` 缓存解析；`type_value` 在同一 `tenant_id + type_key` 内全局唯一。
 10. **业务域模型**：`domainCode` 是管理分区和命名空间；传入时查该域 + 全局，不传时只查全局，不跨域模糊匹配。
 11. **接口映射**：同一路径允许映射多个接口资源，Gateway 接口鉴权采用 OR 语义，任一映射资源权限通过即允许。
 12. **委托授权**：`canManage=true` 表示可把同一条权限授权给他人，但不得扩大资源、操作或范围；被授权对象候选范围由业务服务控制。
+13. **资源依赖方向**：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
+14. **同步所有权**：服务接口同步和资源依赖同步必须通过 `ownerServiceCode + maintainSource + syncKey` 限定 FULL diff 删除范围。
+15. **变更摘要枚举**：`diff_snapshot.eventType`、`items[].changeType` 和 `recent-changes.impactLevel` 使用固定枚举，不使用开放字符串。
