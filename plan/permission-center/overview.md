@@ -71,6 +71,19 @@ effectiveScopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限
 - `auth/query-scopes`：查询用户在某个主资源上下文内能操作哪些范围资源。
 - `permission-view/*`：用于管理端解释和审计，不作为业务服务高频运行时依赖。
 
+## 权限排查与变更日志
+
+权限排查能力采用“当前权限事实 + 最近影响事件”的轻量模型，用于解释用户或管理员常见问题，例如“为什么突然缺失某权限”或“为什么突然新增某权限”。
+
+- `permission-view/effective-permissions` 分页筛选展示当前有效权限；用户视角可展示权限来源角色摘要。
+- `permission-view/explain` 是单权限排查主入口，用于解释某个具体资源操作当前是否拥有、来源角色、拒绝原因和近期相关变更。
+- `permission-view/recent-changes` 展示最近一段时间可能影响目标用户或角色权限的事件。
+- `effective-permissions` 默认不展开数据范围、子权限、API 资源和完整来源角色，避免大权限用户一次返回过多数据。
+- `permission_change_log.old_snapshot/new_snapshot` 保存原始审计快照。
+- `permission_change_log.diff_snapshot` 保存结构化变更摘要，顶层包含 `eventType + items[]`，用于排查展示和筛选。
+- `diff_snapshot` 只描述本次写操作直接改变了什么，不计算用户最终有效权限是否新增或删除。
+- 同一权限可能来自多个角色；某个角色删除权限时，只能说明“可能影响该用户”，不能直接推断“用户已失去该权限”。
+
 ## 缓存与一致性
 
 - 权限运行时计算应复用统一的角色解析、条件评估、冲突处理、租户过滤和缓存失效逻辑。

@@ -171,6 +171,8 @@ public interface PermissionVersionDomainService {
 
 ### 2.3 `PermissionChangeDomainService` — 权限变更日志
 
+`PermissionChangeDomainService` 只负责记录权限排查所需的变更事件，不负责生成用户有效权限的历史快照。`oldSnapshot/newSnapshot` 保存原始审计快照，`diff` 保存结构化摘要，供 `permission-view/recent-changes` 展示和筛选。
+
 ```java
 public interface PermissionChangeDomainService {
 
@@ -182,6 +184,29 @@ public interface PermissionChangeDomainService {
      *                   entityType, entityId, operation(CREATE/UPDATE/DELETE),
      *                   oldSnapshot(JSON), newSnapshot(JSON), diff(JSON),
      *                   affectedUserIds, affectedRoleIds
+     *
+     * diff 规范：
+     *   {
+     *     "eventType": "ROLE_PERMISSION_CHANGE",
+     *     "items": [
+     *       {
+     *         "changeType": "REMOVE",
+     *         "permission": {
+     *           "domainCode": "example",
+     *           "resourceTypeCode": "REPORT",
+     *           "resourceCode": "report:sales",
+     *           "codeType": "default",
+     *           "operationCode": "DATA_EDIT",
+     *           "scopeAll": false
+     *         },
+     *         "role": {
+     *           "roleTypeCode": "BASIC_ROLE",
+     *           "roleExternalId": "role_report_editor",
+     *           "roleName": "报表编辑员"
+     *         }
+     *       }
+     *     ]
+     *   }
      */
     void record(ChangeLogContext context, List<ChangeLogEntry> changes);
 }

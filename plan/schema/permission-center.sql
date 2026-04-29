@@ -564,13 +564,14 @@ CREATE INDEX idx_change_log_tenant_roles ON permission_change_log USING GIN (aff
 CREATE INDEX idx_change_log_tenant_domain_time ON permission_change_log (tenant_id, biz_domain_id, created_at DESC);
 CREATE INDEX idx_change_log_entity ON permission_change_log (tenant_id, entity_type, entity_id);
 CREATE INDEX idx_change_log_request_id ON permission_change_log (request_id) WHERE request_id IS NOT NULL;
+CREATE INDEX idx_change_log_event_time ON permission_change_log (tenant_id, (diff_snapshot->>'eventType'), created_at DESC) WHERE diff_snapshot IS NOT NULL;
 
 COMMENT ON TABLE permission_change_log IS '权限变更记录：详细记录权限相关变更的 before/after/diff，方便排查用户因配置问题导致权限失效';
 COMMENT ON COLUMN permission_change_log.entity_type IS '变更实体类型：user_role/role_resource_permission/abstract_user/abstract_role 等';
 COMMENT ON COLUMN permission_change_log.operation IS '操作：INSERT/UPDATE/DELETE';
 COMMENT ON COLUMN permission_change_log.old_snapshot IS '变更前快照(JSON)';
 COMMENT ON COLUMN permission_change_log.new_snapshot IS '变更后快照(JSON)';
-COMMENT ON COLUMN permission_change_log.diff_snapshot IS '变更差异(JSON)，前后快照对比';
+COMMENT ON COLUMN permission_change_log.diff_snapshot IS '结构化变更摘要(JSON)，用于权限排查展示和筛选。顶层包含 eventType + items[]，只描述本次写操作直接改变了什么，不计算用户最终有效权限 diff';
 COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/SYNC/API/SYSTEM';
 COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
 

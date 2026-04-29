@@ -251,11 +251,12 @@
 | 接口 | 说明 |
 |------|------|
 | `POST /api/perm/permission-view/effective-roles` | 查询用户有效角色 |
-| `POST /api/perm/permission-view/effective-permissions` | 查询用户有效权限 |
+| `POST /api/perm/permission-view/effective-permissions` | 分页筛选查询用户或角色当前有效权限 |
 | `POST /api/perm/permission-view/resource-tree` | 查询用户资源树 |
 | `POST /api/perm/permission-view/resource-users` | 查询拥有资源权限的用户 |
 | `POST /api/perm/permission-view/role-permissions` | 查询角色权限视图 |
-| `POST /api/perm/permission-view/recent-changes` | 查询近期权限变更 |
+| `POST /api/perm/permission-view/explain` | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
+| `POST /api/perm/permission-view/recent-changes` | 查询近期可能影响用户或角色权限的变更事件 |
 | `POST /api/perm/operation-log/list` | 操作日志 |
 | `POST /api/perm/permission-change-log/list` | 权限变更日志 |
 | `POST /api/perm/system-config/list` | 查询系统配置 |
@@ -725,6 +726,303 @@ admin-service 查询示例：
 - `scopeAll=true` 表示该 `resourceTypeCode` 下全量范围权限，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围；实现不应展开返回全部部门明细。
 - `items=[]` 不表示全量范围，只表示没有显式范围权限；全量必须通过 `scopeAll=true` 明确表达。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行把 `resourceCode` 或 `scopeAll=true` 映射为查询条件。
+
+### 6.8 权限排查视图与近期变更
+
+权限排查视图用于回答“用户或角色为什么当前有/没有某权限，以及最近有哪些变更可能影响了权限”。该能力不追求还原任意历史时刻的精确有效权限快照，首期采用“当前权限事实 + 最近影响事件”的轻量模型。
+
+#### 分页筛选查询当前有效权限
+
+`POST /api/perm/permission-view/effective-permissions`
+
+用户视角请求：
+
+```json
+{
+  "targetType": "USER",
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "domainCode": "example",
+  "resourceTypeCodes": ["REPORT"],
+  "operationCodes": ["DATA_READ", "DATA_EDIT"],
+  "resourceKeyword": "销售",
+  "sourceRoleExternalId": null,
+  "includeScopes": false,
+  "includeApiResources": false,
+  "includeSourceRoles": true,
+  "sourceRoleLimit": 3,
+  "pageNum": 1,
+  "pageSize": 50
+}
+```
+
+角色视角请求：
+
+```json
+{
+  "targetType": "ROLE",
+  "domainCode": "example",
+  "roleTypeCode": "BASIC_ROLE",
+  "roleExternalId": "role_report_viewer",
+  "resourceTypeCodes": ["REPORT"],
+  "operationCodes": ["DATA_READ"],
+  "includeScopes": false,
+  "includeApiResources": false,
+  "pageNum": 1,
+  "pageSize": 50
+}
+```
+
+响应示例：
+
+```json
+{
+  "targetType": "USER",
+  "items": [
+    {
+      "resourceTypeCode": "REPORT",
+      "resourceCode": "report:sales",
+      "resourceName": "销售报表",
+      "codeType": "default",
+      "operationCodes": ["DATA_READ"],
+      "scopeAll": false,
+      "sourceRoles": [
+        {
+          "roleTypeCode": "BASIC_ROLE",
+          "roleExternalId": "role_report_viewer",
+          "roleName": "报表查看员",
+          "via": ["GROUP_ROLE:finance_admin"]
+        }
+      ],
+      "sourceRoleCount": 1,
+      "sourceRolesTruncated": false,
+      "matchedPermissionIds": [200]
+    }
+  ],
+  "total": 1,
+  "pageNum": 1,
+  "pageSize": 50,
+  "hasNext": false
+}
+```
+
+规则：
+
+- `effective-permissions` 是管理端排查视图，不作为业务服务运行时高频接口；业务运行时继续使用 `auth/query-resources` 和 `auth/query-scopes`。
+- 该接口必须分页，禁止默认一次性返回用户或角色的全部有效权限；`pageSize` 必须有服务端上限。
+- 查询应支持 `domainCode`、`resourceTypeCodes`、`operationCodes`、`resourceKeyword`、`sourceRoleExternalId` 等筛选条件。
+- 默认 `includeScopes=false`，不展开数据范围或子权限；排查数据权限时由调用方显式开启。
+- 默认 `includeApiResources=false`，不返回 API 类型资源；排查接口权限时由调用方显式传 `resourceTypeCodes=["API"]` 或开启该字段。
+- 用户视角默认只返回来源角色摘要；`sourceRoles` 最多返回 `sourceRoleLimit` 条，同时返回 `sourceRoleCount` 和 `sourceRolesTruncated`。
+- 需要查看某条权限的完整来源角色时，应使用 `permission-view/explain` 或按权限键二次查询，不要求列表接口展开全部来源。
+
+#### 解释单个权限
+
+`POST /api/perm/permission-view/explain`
+
+用于排查“某用户或角色为什么有/没有某个具体权限”。这是单权限问题的推荐入口，避免通过 `effective-permissions` 拉取全量权限再筛选。
+
+请求：
+
+```json
+{
+  "targetType": "USER",
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "domainCode": "example",
+  "resourceTypeCode": "REPORT",
+  "resourceCode": "report:sales",
+  "codeType": "default",
+  "operationCode": "DATA_EDIT",
+  "includeSourceRoles": true,
+  "includeRecentChanges": true,
+  "recentDays": 30
+}
+```
+
+响应示例：
+
+```json
+{
+  "targetType": "USER",
+  "allowed": false,
+  "reason": "NO_PERMISSION",
+  "permission": {
+    "domainCode": "example",
+    "resourceTypeCode": "REPORT",
+    "resourceCode": "report:sales",
+    "codeType": "default",
+    "operationCode": "DATA_EDIT",
+    "scopeAll": false
+  },
+  "sourceRoles": [],
+  "matchedPermissionIds": [],
+  "recentChanges": [
+    {
+      "changeLogId": 9001,
+      "eventType": "ROLE_PERMISSION_CHANGE",
+      "changeType": "REMOVE",
+      "impactLevel": "POSSIBLE",
+      "message": "角色 报表编辑员 删除了销售报表 DATA_EDIT 权限，可能影响该用户",
+      "createdAt": "2026-04-20T10:30:00"
+    }
+  ]
+}
+```
+
+规则：
+
+- `explain` 只解释一个资源和一个操作，不返回权限列表。
+- `allowed/reason` 应复用 `auth/check` 的主体、角色、资源、操作、条件、冲突计算逻辑。
+- 用户视角需要返回命中的来源角色；未命中时返回拒绝原因和相关近期影响事件。
+- `includeRecentChanges=true` 时，只返回与目标权限键相关的近期事件；默认窗口为 30 天，服务端可限制最大窗口。
+- 范围权限排查应使用主资源权限 + `auth/query-scopes` 或后续扩展 `explain` 的 scope 参数，不应让本接口隐式展开全部范围。
+
+#### 查询近期影响事件
+
+`POST /api/perm/permission-view/recent-changes`
+
+```json
+{
+  "targetType": "USER",
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "domainCode": "example",
+  "since": "2026-03-29T00:00:00",
+  "until": "2026-04-29T23:59:59",
+  "eventTypes": ["USER_ROLE_CHANGE", "ROLE_PERMISSION_CHANGE", "ROLE_STATUS_CHANGE", "RESOURCE_STATUS_CHANGE", "CONDITION_CHANGE"],
+  "pageNum": 1,
+  "pageSize": 20
+}
+```
+
+响应示例：
+
+```json
+{
+  "items": [
+    {
+      "changeLogId": 9001,
+      "eventType": "ROLE_PERMISSION_CHANGE",
+      "changeType": "REMOVE",
+      "impactLevel": "POSSIBLE",
+      "message": "角色 报表编辑员 删除了销售报表 DATA_EDIT 权限，可能影响该用户",
+      "permission": {
+        "domainCode": "example",
+        "resourceTypeCode": "REPORT",
+        "resourceCode": "report:sales",
+        "codeType": "default",
+        "operationCode": "DATA_EDIT",
+        "scopeAll": false
+      },
+      "sourceRole": {
+        "roleTypeCode": "BASIC_ROLE",
+        "roleExternalId": "role_report_editor",
+        "roleName": "报表编辑员"
+      },
+      "operatorId": 100,
+      "operatorName": "admin",
+      "changeReason": "权限清理",
+      "createdAt": "2026-04-20T10:30:00"
+    }
+  ],
+  "total": 1,
+  "pageNum": 1,
+  "pageSize": 20,
+  "hasNext": false
+}
+```
+
+规则：
+
+- `recent-changes` 返回的是“可能影响目标权限的变更事件”，不是目标有效权限的精确历史 diff。
+- 查询对象为用户时，事件来源包括用户角色分配/回收、命中角色的权限增删改、角色启停、资源启停、条件变更、分组角色包含关系变化。
+- 查询对象为角色时，只返回该角色自身权限、状态、条件、依赖规则等相关变更。
+- 如果同一权限来自多个角色，某个角色删除权限不代表用户一定失去该权限；响应应使用 `impactLevel=POSSIBLE` 或解释性文案表达“可能影响”。
+- 需要展示“当前是否仍拥有某个具体权限”时，前端或管理端应优先调用 `permission-view/explain`；需要浏览权限清单时再调用 `effective-permissions`。
+- 默认查询最近 30 天；调用方可通过 `since/until` 缩小或扩大窗口，服务端可设置最大窗口限制。
+
+#### diff_snapshot 轻量规范
+
+`permission_change_log.diff_snapshot` 用于保存可展示、可检索的结构化变更摘要。它只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
+
+角色权限变更：
+
+```json
+{
+  "eventType": "ROLE_PERMISSION_CHANGE",
+  "items": [
+    {
+      "changeType": "REMOVE",
+      "permission": {
+        "domainCode": "example",
+        "resourceTypeCode": "REPORT",
+        "resourceCode": "report:sales",
+        "codeType": "default",
+        "operationCode": "DATA_EDIT",
+        "scopeAll": false
+      },
+      "role": {
+        "roleTypeCode": "BASIC_ROLE",
+        "roleExternalId": "role_report_editor",
+        "roleName": "报表编辑员"
+      }
+    }
+  ]
+}
+```
+
+用户角色变更：
+
+```json
+{
+  "eventType": "USER_ROLE_CHANGE",
+  "items": [
+    {
+      "changeType": "REMOVE",
+      "role": {
+        "roleTypeCode": "BASIC_ROLE",
+        "roleExternalId": "role_report_editor",
+        "roleName": "报表编辑员"
+      }
+    }
+  ]
+}
+```
+
+资源、角色或条件状态变更：
+
+```json
+{
+  "eventType": "RESOURCE_STATUS_CHANGE",
+  "items": [
+    {
+      "changeType": "UPDATE",
+      "resource": {
+        "domainCode": "example",
+        "resourceTypeCode": "REPORT",
+        "resourceCode": "report:sales",
+        "codeType": "default"
+      },
+      "before": {
+        "status": 1
+      },
+      "after": {
+        "status": 0
+      }
+    }
+  ]
+}
+```
+
+`diff_snapshot` 字段约束：
+
+- 顶层必须包含 `eventType` 和 `items[]`。
+- `eventType` 首期建议值：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`GROUP_ROLE_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`。
+- `changeType` 首期建议值：`ADD`、`REMOVE`、`UPDATE`。
+- 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeAll`。
+- 用户或角色来源使用稳定业务键，不要求在 `diff_snapshot` 中暴露内部 ID；内部 ID 可保留在 `old_snapshot/new_snapshot/entity_id` 中用于审计追溯。
+- `old_snapshot/new_snapshot` 继续保存原始变更前后快照；`diff_snapshot` 只保存排查展示需要的摘要。
 
 ## 7. 错误原因建议
 

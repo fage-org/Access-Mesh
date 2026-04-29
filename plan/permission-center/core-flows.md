@@ -271,19 +271,67 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 查询目标 | 接口 | 说明 |
 |----------|------|------|
 | 用户有效角色 | `POST /api/perm/permission-view/effective-roles` | 展示直接、分组、组织、职位等来源 |
-| 用户有效权限 | `POST /api/perm/permission-view/effective-permissions` | 展示资源、操作、数据范围 |
+| 用户有效权限 | `POST /api/perm/permission-view/effective-permissions` | 分页筛选展示当前有效权限 |
 | 用户资源树 | `POST /api/perm/permission-view/resource-tree` | 菜单/按钮展示常用 |
 | 资源授权用户 | `POST /api/perm/permission-view/resource-users` | 反查谁拥有某资源权限 |
 | 角色权限 | `POST /api/perm/permission-view/role-permissions` | 角色维度排查 |
-| 近期变更 | `POST /api/perm/permission-view/recent-changes` | 结合变更日志解释权限变化 |
+| 单权限解释 | `POST /api/perm/permission-view/explain` | 解释某个具体权限当前是否拥有、来源和近期影响事件 |
+| 近期变更 | `POST /api/perm/permission-view/recent-changes` | 查询近期可能影响用户或角色权限的变更事件 |
 | 操作日志 | `POST /api/perm/operation-log/list` | 所有写操作轻量审计 |
 | 权限变更日志 | `POST /api/perm/permission-change-log/list` | 权限 diff 审计 |
+
+### 12.1 用户排查链路
+
+典型问题：用户反馈“我突然没有某个报表权限”或“我突然多了某个权限”。
+
+| 步骤 | 接口 | 作用 |
+|------|------|------|
+| 1 | `POST /api/perm/permission-view/effective-roles` | 查询用户当前有效角色，确认是否被移除角色或命中停用角色 |
+| 2 | `POST /api/perm/permission-view/explain` | 针对用户反馈的具体资源和操作，解释当前是否拥有、来源角色和未命中原因 |
+| 3 | `POST /api/perm/permission-view/recent-changes` | 查询最近 30 天可能影响该用户权限的变更事件 |
+| 4 | `POST /api/perm/permission-view/effective-permissions` | 需要浏览当前权限清单时，按资源类型、操作、关键词分页筛选 |
+| 5 | `POST /api/perm/permission-change-log/list` | 必要时查看原始 before/after/diff 审计详情 |
+
+展示建议：
+
+```text
+当前权限：
+- report:sales DATA_READ，来源：报表查看员、部门主管
+
+最近变更：
+- 2026-04-20 管理员从“报表编辑员”角色删除了 report:sales DATA_EDIT
+- 2026-04-18 用户被移出“财务主管”角色
+- 2026-04-15 “销售报表”资源被停用后恢复
+```
+
+关键边界：
+
+- `explain` 回答“某个具体权限当前是否拥有、来源角色是谁、为什么拒绝、最近有什么相关变更”。
+- `effective-permissions` 回答“当前拥有什么权限”，但必须分页和筛选，不应用于一次性拉取全量权限。
+- `recent-changes` 回答“最近有哪些事件可能影响该用户权限”。
+- `recent-changes` 不承诺返回用户有效权限的精确历史 diff，因为同一权限可能同时来自多个角色。
+- 如果角色 A 删除了某权限，但角色 B 仍授予同一权限，用户当前仍拥有该权限；页面文案应表达为“可能影响”，不能写成“用户已失去权限”。
+- `effective-permissions` 默认不展开数据范围、子权限、API 资源和完整来源角色；调用方必须显式传过滤条件和展开选项。
+
+### 12.2 角色排查链路
+
+典型问题：管理员查看某个角色为什么当前权限发生变化。
+
+| 步骤 | 接口 | 作用 |
+|------|------|------|
+| 1 | `POST /api/perm/permission-view/role-permissions` | 查询角色当前权限配置 |
+| 2 | `POST /api/perm/permission-view/explain` | 针对某个资源和操作解释该角色当前是否拥有权限 |
+| 3 | `POST /api/perm/permission-view/recent-changes` | 查询该角色最近权限增删改、状态变更、依赖变更 |
+| 4 | `POST /api/perm/permission-change-log/list` | 查看原始审计记录 |
 
 关键逻辑：
 
 - 权限视图应使用实时事实数据或最新缓存，不应返回已软删除记录。
 - 视图接口用于解释和展示，不应承担写入职责。
 - 审计日志需要包含 `requestId`、操作者、目标对象、前后差异或摘要。
+- `permission_change_log.diff_snapshot` 保存结构化变更摘要，用于 `recent-changes` 展示和筛选；`old_snapshot/new_snapshot` 保存原始审计快照。
+- `diff_snapshot` 只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
+- 查询用户最近变更时，服务端可通过 `affected_abstract_user_ids` 直接匹配用户，也可通过用户当前/历史关联角色匹配 `affected_abstract_role_ids`；首期以“排查线索完整”为目标，不做历史快照回放。
 
 ## 13. 场景十一：回收、删除和级联
 
