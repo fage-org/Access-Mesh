@@ -3,13 +3,14 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
 import java.util.List;
 
 public record UserRolesResp(
-    Long abstractUserId,
+    String subjectTypeCode,
+    String subjectExternalId,
     List<RoleSummary> roles
 ) {
     public record RoleSummary(
-        Long roleId,
+        String roleExternalId,
         String roleName,
-        Integer roleType,
+        String roleTypeCode,
         String targetType,
         Long relationId,
         java.time.LocalDateTime validFrom,

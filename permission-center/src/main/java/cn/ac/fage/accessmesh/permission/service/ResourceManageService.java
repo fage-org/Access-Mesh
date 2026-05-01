@@ -19,6 +19,8 @@ public interface ResourceManageService {
      */
     ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId);
 
+    List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId);
+
     /**
      * Get resource by ID.
      */
@@ -29,30 +31,36 @@ public interface ResourceManageService {
      */
     ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId);
 
+    void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId);
+
     /**
      * Delete (soft) a resource and cascade-delete children.
      */
     void deleteResource(Long tenantId, Long resourceId, Long operatorId);
 
+    void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId);
+
     /**
      * Get resource tree for a tenant (optionally scoped to bizDomainId).
      */
-    List<ResourceTreeResp> getResourceTree(Long tenantId, Integer resourceType);
+    List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode);
 
     /**
      * List resources by tenant and type (flat list).
      */
-    List<ResourceResp> listResources(Long tenantId, Integer resourceType, int offset, int limit);
+    List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, int offset, int limit);
+
+    long countResources(Long tenantId, String resourceTypeCode);
 
     /**
      * Add an API mapping to a resource.
      */
-    void addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req);
+    ApiMappingResp addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req);
 
     /**
-     * Remove an API mapping.
+     * Remove API mappings by mapping row ids (tenant-scoped soft delete).
      */
-    void removeApiMapping(Long tenantId, Long resourceId, Long mappingId, Long operatorId);
+    void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId);
 
     /**
      * List API mappings for a resource.
@@ -62,5 +70,5 @@ public interface ResourceManageService {
     /**
      * Update an API mapping.
      */
-    void updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req);
+    ApiMappingResp updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req);
 }

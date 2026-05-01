@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import jakarta.validation.constraints.NotNull;
-
 /**
- * List roles: tenantId + pagination.
+ * List roles with standard pagination.
  */
 public record RoleListReq(
-    Integer offset,
-    Integer limit
+    String domainCode,
+    String roleTypeCode,
+    String keyword,
+    Integer pageNum,
+    Integer pageSize,
+    String sort
 ) {}

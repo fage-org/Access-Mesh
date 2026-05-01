@@ -24,25 +24,27 @@ public interface RoleManageService {
     /**
      * Update a role's basic info.
      */
-    RoleResp updateRole(Long tenantId, Long roleId, String name, Integer sortOrder, String extra, Long operatorId);
+    RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId);
+
+    void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId);
 
     /**
      * Delete (soft) a role and cascade-delete children.
      */
     void deleteRole(Long tenantId, Long roleId, Long operatorId);
 
-    /**
-     * Enable/disable a role.
-     */
-    void setRoleStatus(Long tenantId, Long roleId, int status, Long operatorId);
+    void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId);
 
     /**
-     * Get role tree for a tenant (optionally scoped to bizDomainId).
+     * Get role tree for a tenant. {@code domainCode} null/blank: global-domain roles only;
+     * otherwise roles in that domain plus global-domain roles.
      */
-    List<RoleTreeResp> getRoleTree(Long tenantId, Long bizDomainId);
+    List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode);
 
     /**
      * List roles by tenant (flat list).
      */
-    List<RoleResp> listRoles(Long tenantId, int offset, int limit);
+    List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword, int offset, int limit);
+
+    long countRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword);
 }

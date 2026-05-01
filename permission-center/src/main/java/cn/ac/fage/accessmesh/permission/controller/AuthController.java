@@ -28,11 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/perm/auth")
-public class InternalPermissionController {
+public class AuthController {
 
     private final PermissionService permissionService;
 
-    public InternalPermissionController(PermissionService permissionService) {
+    public AuthController(PermissionService permissionService) {
         this.permissionService = permissionService;
     }
 

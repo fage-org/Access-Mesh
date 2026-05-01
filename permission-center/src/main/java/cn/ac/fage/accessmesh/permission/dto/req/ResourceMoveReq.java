@@ -2,10 +2,7 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 
 import jakarta.validation.constraints.NotNull;
 
-/**
- * Remove API mapping.
- */
-public record ApiMappingRemoveReq(
+public record ResourceMoveReq(
     @NotNull Long resourceId,
-    @NotNull Long mappingId
+    Long parentId
 ) {}

@@ -63,6 +63,21 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     }
 
     @Override
+    public String resolveTypeCode(Long tenantId, String typeKey, Integer typeValue) {
+        if (typeValue == null) {
+            return null;
+        }
+        TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TYPE_DEFINITION.TYPE_VALUE.eq(typeValue))
+                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        );
+        return td != null ? td.getTypeCode() : null;
+    }
+
+    @Override
     public Long resolveUserId(Long tenantId, String subjectTypeCode, String subjectExternalId) {
         Integer userType = resolveTypeValue(tenantId, "user_type", subjectTypeCode);
         if (userType == null) return null;
@@ -94,9 +109,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = resolveDomainId(tenantId, domainCode);
-            if (domainId != null) {
-                qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(domainId));
+            if (domainId == null) {
+                return null;
             }
+            qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(domainId));
         }
 
         ResourceEntity resource = resourceEntityMapper.selectOneByQuery(qw);
@@ -146,9 +162,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = resolveDomainId(tenantId, domainCode);
-            if (domainId != null) {
-                qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
+            if (domainId == null) {
+                return null;
             }
+            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
         }
 
         AbstractRole role = abstractRoleMapper.selectOneByQuery(qw);

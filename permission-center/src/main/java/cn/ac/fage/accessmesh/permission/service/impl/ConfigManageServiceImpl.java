@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
@@ -11,16 +12,21 @@ import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.entity.*;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
+import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
 import static cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef.DOMAIN_CONFIG;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
 import static cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef.SERVICE_CONFIG;
 import static cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef.SYSTEM_CONFIG;
 import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
@@ -33,17 +39,29 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final DomainConfigMapper domainConfigMapper;
     private final ServiceConfigMapper serviceConfigMapper;
     private final SystemConfigMapper systemConfigMapper;
+    private final ResourceEntityMapper resourceEntityMapper;
+    private final ResourceApiMappingMapper resourceApiMappingMapper;
+    private final TypeResolutionService typeResolutionService;
+    private final OperationLogDomainService operationLogDomainService;
 
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
                                    DomainConfigMapper domainConfigMapper,
                                    ServiceConfigMapper serviceConfigMapper,
-                                   SystemConfigMapper systemConfigMapper) {
+                                   SystemConfigMapper systemConfigMapper,
+                                   ResourceEntityMapper resourceEntityMapper,
+                                   ResourceApiMappingMapper resourceApiMappingMapper,
+                                   TypeResolutionService typeResolutionService,
+                                   OperationLogDomainService operationLogDomainService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
         this.serviceConfigMapper = serviceConfigMapper;
         this.systemConfigMapper = systemConfigMapper;
+        this.resourceEntityMapper = resourceEntityMapper;
+        this.resourceApiMappingMapper = resourceApiMappingMapper;
+        this.typeResolutionService = typeResolutionService;
+        this.operationLogDomainService = operationLogDomainService;
     }
 
     // ===== TypeDefinition =====
@@ -81,11 +99,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    public List<TypeDefinitionResp> listTypes(Long tenantId, Long bizDomainId) {
+    public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
         QueryWrapper qw = QueryWrapper.create()
             .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
             .and(TYPE_DEFINITION.DELETE_FLAG.eq(0));
-        if (bizDomainId != null) {
+        if (domainCode != null && !domainCode.isBlank()) {
+            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+            if (bizDomainId == null) {
+                return List.of();
+            }
             qw.and(TYPE_DEFINITION.BIZ_DOMAIN_ID.eq(bizDomainId).or(TYPE_DEFINITION.BIZ_DOMAIN_ID.isNull()));
         }
         return typeDefinitionMapper.selectListByQuery(qw)
@@ -103,6 +125,35 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             type.setDeleteFlag(type.getId());
             type.setDeletedAt(LocalDateTime.now());
             typeDefinitionMapper.update(type);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            deleteType(tenantId, id, operatorId);
+            n++;
+        }
+        if (n > 0) {
+            operationLogDomainService.asyncRecord(
+                "perm",
+                "type-definition-remove",
+                "BATCH",
+                tenantId,
+                "batch soft-delete type_definition, count=" + n + ", ids=" + ids,
+                operatorId,
+                null,
+                null,
+                tenantId
+            );
         }
     }
 
@@ -176,6 +227,35 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            deleteBizDomain(tenantId, id, operatorId);
+            n++;
+        }
+        if (n > 0) {
+            operationLogDomainService.asyncRecord(
+                "perm",
+                "biz-domain-remove",
+                "BATCH",
+                tenantId,
+                "batch soft-delete biz_domain, count=" + n + ", ids=" + ids,
+                operatorId,
+                null,
+                null,
+                tenantId
+            );
+        }
+    }
+
+    @Override
     @Transactional
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         BizDomain domain = bizDomainMapper.selectOneByQuery(
@@ -196,11 +276,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     @Transactional
-    public void upsertDomainConfig(Long tenantId, DomainConfigReq req) {
+    public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
+        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
+        if (bizDomainId == null) {
+            throw new IllegalArgumentException("Unknown domainCode: " + req.domainCode());
+        }
         DomainConfig existing = domainConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(req.bizDomainId()))
+                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
                 .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(req.configType()))
                 .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
         );
@@ -209,21 +293,27 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             existing.setExtra(req.extra());
             existing.setUpdatedAt(LocalDateTime.now());
             domainConfigMapper.update(existing);
+            return toDomainConfigResp(existing);
         } else {
             DomainConfig config = new DomainConfig();
             config.setTenantId(tenantId);
-            config.setBizDomainId(req.bizDomainId());
+            config.setBizDomainId(bizDomainId);
             config.setConfigType(req.configType());
             config.setExtra(req.extra());
             config.setCreatedAt(LocalDateTime.now());
             config.setUpdatedAt(LocalDateTime.now());
             config.setDeleteFlag(0L);
             domainConfigMapper.insert(config);
+            return toDomainConfigResp(config);
         }
     }
 
     @Override
-    public DomainConfigResp getDomainConfig(Long tenantId, Long bizDomainId, String configType) {
+    public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
+        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+        if (bizDomainId == null) {
+            return null;
+        }
         DomainConfig config = domainConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
@@ -235,11 +325,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    public List<DomainConfigResp> listDomainConfigs(Long tenantId, Long bizDomainId) {
+    public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
         QueryWrapper qw = QueryWrapper.create()
             .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
             .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0));
-        if (bizDomainId != null) {
+        if (domainCode != null && !domainCode.isBlank()) {
+            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+            if (bizDomainId == null) {
+                return List.of();
+            }
             qw.and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId));
         }
         return domainConfigMapper.selectListByQuery(qw)
@@ -247,23 +341,64 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
-    public void deleteDomainConfig(Long tenantId, Long bizDomainId, String configType) {
-        DomainConfig config = domainConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(configType))
-                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-        );
-        if (config != null) {
-            config.setDeleteFlag(config.getId());
-            config.setDeletedAt(LocalDateTime.now());
-            domainConfigMapper.update(config);
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            return;
         }
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            DomainConfig config = domainConfigMapper.selectOneById(id);
+            if (config != null && Objects.equals(tenantId, config.getTenantId()) && config.getDeleteFlag() == 0L) {
+                config.setDeleteFlag(config.getId());
+                config.setDeletedAt(LocalDateTime.now());
+                domainConfigMapper.update(config);
+                n++;
+            }
+        }
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "domain-config-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + n + " domain_config row(s), ids=" + ids,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     // ===== ServiceConfig =====
+
+    @Override
+    @Transactional
+    public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
+        ServiceConfigResp existing = getServiceConfig(tenantId, req.serviceCode());
+        if (existing == null) {
+            return createServiceConfig(tenantId, req, operatorId);
+        }
+        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .where(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
+                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+        );
+        if (config == null) {
+            throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
+        }
+        if (req.name() != null) config.setName(req.name());
+        if (req.basePath() != null) config.setBasePath(req.basePath());
+        if (req.description() != null) config.setDescription(req.description());
+        if (req.status() != null) config.setStatus(req.status());
+        if (req.extra() != null) config.setExtra(req.extra());
+        config.setUpdatedAt(LocalDateTime.now());
+        serviceConfigMapper.update(config);
+        return toServiceConfigResp(config);
+    }
 
     @Override
     @Transactional
@@ -305,46 +440,241 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
-    public void deleteServiceConfig(Long tenantId, String serviceCode, Long operatorId) {
-        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.SERVICE_CODE.eq(serviceCode))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
-        if (config != null) {
-            config.setDeleteFlag(config.getId());
-            config.setDeletedAt(LocalDateTime.now());
-            serviceConfigMapper.update(config);
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            return;
         }
+        int n = 0;
+        for (Long id : ids) {
+            if (id == null) {
+                continue;
+            }
+            ServiceConfig config = serviceConfigMapper.selectOneById(id);
+            if (config != null && Objects.equals(tenantId, config.getTenantId()) && config.getDeleteFlag() == 0L) {
+                config.setDeleteFlag(config.getId());
+                config.setDeletedAt(LocalDateTime.now());
+                serviceConfigMapper.update(config);
+                n++;
+            }
+        }
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "service-config-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + n + " service_config row(s), ids=" + ids,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     @Override
     @Transactional
-    public ServiceConfigResp updateServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
-        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
+    public ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
+        if (!"FULL".equalsIgnoreCase(req.syncMode())) {
+            throw new IllegalArgumentException("Only FULL syncMode is supported");
+        }
+        ServiceConfig serviceConfig = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .where(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
+                .and(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
                 .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
-        if (config == null) throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
-        if (req.name() != null) config.setName(req.name());
-        if (req.basePath() != null) config.setBasePath(req.basePath());
-        if (req.description() != null) config.setDescription(req.description());
-        if (req.status() != null) config.setStatus(req.status());
-        if (req.extra() != null) config.setExtra(req.extra());
-        config.setUpdatedAt(LocalDateTime.now());
-        serviceConfigMapper.update(config);
-        return toServiceConfigResp(config);
+        if (serviceConfig == null) {
+            throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
+        }
+        if (req.basePath() != null && !req.basePath().isBlank()) {
+            serviceConfig.setBasePath(req.basePath());
+            serviceConfig.setUpdatedAt(LocalDateTime.now());
+            serviceConfigMapper.update(serviceConfig);
+        }
+        String basePath = normalizeBasePath(
+            req.basePath() != null && !req.basePath().isBlank() ? req.basePath() : serviceConfig.getBasePath()
+        );
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
+        if (apiType == null) {
+            throw new IllegalArgumentException("resource_type API not found");
+        }
+
+        int createdResources = 0;
+        int createdMappings = 0;
+        int updatedMappings = 0;
+        int deletedResources = 0;
+        int deletedMappings = 0;
+
+        java.util.Set<String> incomingRouteResourceKeys = new java.util.HashSet<>();
+        java.util.Set<Long> activeSyncedResourceIds = new java.util.HashSet<>();
+        for (ServiceConfigSyncReq.GroupItem group : req.groups()) {
+            for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
+                String fullPath = joinPath(basePath, api.path());
+                String routeResourceKey = api.httpMethod().toUpperCase() + "|" + fullPath + "|" + api.resourceCode();
+                incomingRouteResourceKeys.add(routeResourceKey);
+                String syncKey = req.serviceCode() + "|" + api.resourceCode();
+                ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                        .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                        .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(apiType))
+                        .and(RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
+                        .and(RESOURCE_ENTITY.CODE_TYPE.eq("default"))
+                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                );
+                if (resource == null) {
+                    resource = new ResourceEntity();
+                    resource.setTenantId(tenantId);
+                    resource.setResourceType(apiType);
+                    resource.setCode(api.resourceCode());
+                    resource.setCodeType("default");
+                    resource.setName(api.name());
+                    resource.setPath(fullPath);
+                    resource.setStatus(1);
+                    resource.setSortOrder(0);
+                    resource.setOwnerServiceCode(req.serviceCode());
+                    resource.setMaintainSource("SERVICE_SYNC");
+                    resource.setSyncKey(syncKey);
+                    resource.setExtra("{}");
+                    resource.setCreatedBy(operatorId);
+                    resource.setCreatedAt(LocalDateTime.now());
+                    resource.setUpdatedAt(LocalDateTime.now());
+                    resource.setDeleteFlag(0L);
+                    resourceEntityMapper.insert(resource);
+                    createdResources++;
+                } else {
+                    if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
+                        || resource.getOwnerServiceCode() == null
+                        || !req.serviceCode().equals(resource.getOwnerServiceCode())) {
+                        throw new IllegalStateException("resourceCode already maintained by non-sync source: " + api.resourceCode());
+                    }
+                    resource.setName(api.name());
+                    resource.setPath(fullPath);
+                    resource.setStatus(1);
+                    resource.setSyncKey(syncKey);
+                    resource.setUpdatedAt(LocalDateTime.now());
+                    resourceEntityMapper.update(resource);
+                }
+                activeSyncedResourceIds.add(resource.getId());
+
+                ResourceApiMapping mapping = resourceApiMappingMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                        .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                        .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
+                        .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
+                        .and(RESOURCE_API_MAPPING.HTTP_METHOD.eq(api.httpMethod().toUpperCase()))
+                        .and(RESOURCE_API_MAPPING.PATH_PATTERN.eq(fullPath))
+                        .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                );
+                if (mapping == null) {
+                    mapping = new ResourceApiMapping();
+                    mapping.setTenantId(tenantId);
+                    mapping.setResourceEntityId(resource.getId());
+                    mapping.setServiceCode(req.serviceCode());
+                    mapping.setHttpMethod(api.httpMethod().toUpperCase());
+                    mapping.setPathPattern(fullPath);
+                    mapping.setMatchOrder(0);
+                    mapping.setEnabled(true);
+                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
+                    mapping.setCreatedBy(operatorId);
+                    mapping.setCreatedAt(LocalDateTime.now());
+                    mapping.setUpdatedAt(LocalDateTime.now());
+                    mapping.setDeleteFlag(0L);
+                    resourceApiMappingMapper.insert(mapping);
+                    createdMappings++;
+                } else {
+                    mapping.setEnabled(true);
+                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
+                    mapping.setUpdatedAt(LocalDateTime.now());
+                    resourceApiMappingMapper.update(mapping);
+                    updatedMappings++;
+                }
+            }
+        }
+
+        java.util.List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
+                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+        );
+        for (ResourceApiMapping mapping : existingMappings) {
+            ResourceEntity resource = resourceEntityMapper.selectOneById(mapping.getResourceEntityId());
+            if (resource == null || resource.getDeleteFlag() != 0L) {
+                continue;
+            }
+            if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
+                || !req.serviceCode().equals(resource.getOwnerServiceCode())) {
+                continue;
+            }
+            String routeKey = mapping.getHttpMethod().toUpperCase() + "|" + mapping.getPathPattern();
+            String resourceCode = resource.getCode();
+            String routeResourceKey = routeKey + "|" + resourceCode;
+            if (!incomingRouteResourceKeys.contains(routeResourceKey)) {
+                mapping.setDeleteFlag(mapping.getId());
+                mapping.setDeletedAt(LocalDateTime.now());
+                resourceApiMappingMapper.update(mapping);
+                deletedMappings++;
+            }
+        }
+
+        java.util.List<ResourceEntity> apiResources = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(apiType))
+                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        java.util.List<ResourceEntity> syncedResources = apiResources.stream()
+            .filter(resource -> "SERVICE_SYNC".equals(resource.getMaintainSource())
+                && req.serviceCode().equals(resource.getOwnerServiceCode()))
+            .toList();
+        for (ResourceEntity resource : syncedResources) {
+            java.util.List<ResourceApiMapping> remainMappings = resourceApiMappingMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
+                    .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+            );
+            if (remainMappings.isEmpty()) {
+                resource.setDeleteFlag(resource.getId());
+                resource.setDeletedAt(LocalDateTime.now());
+                resourceEntityMapper.update(resource);
+                deletedResources++;
+            }
+        }
+
+        return new ServiceConfigSyncResp(
+            createdResources, createdMappings, updatedMappings, deletedResources, deletedMappings
+        );
+    }
+
+    @Override
+    public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
+        return resourceApiMappingMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
+                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+        ).stream().map(mapping -> new ApiMappingResp(
+            mapping.getId(),
+            mapping.getTenantId(),
+            mapping.getBizDomainId(),
+            mapping.getResourceEntityId(),
+            mapping.getServiceCode(),
+            mapping.getHttpMethod(),
+            mapping.getPathPattern(),
+            mapping.getMatchOrder(),
+            mapping.getEnabled(),
+            mapping.getExtra(),
+            mapping.getCreatedAt(),
+            mapping.getUpdatedAt()
+        )).collect(Collectors.toList());
     }
 
     // ===== SystemConfig =====
 
     @Override
     @Transactional
-    public void upsertSystemConfig(Long tenantId, SystemConfigReq req) {
+    public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
@@ -357,6 +687,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             existing.setDescription(req.description());
             existing.setUpdatedAt(LocalDateTime.now());
             systemConfigMapper.update(existing);
+            return toSystemConfigResp(existing);
         } else {
             SystemConfig config = new SystemConfig();
             config.setTenantId(tenantId);
@@ -367,6 +698,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             config.setUpdatedAt(LocalDateTime.now());
             config.setDeleteFlag(0L);
             systemConfigMapper.insert(config);
+            return toSystemConfigResp(config);
         }
     }
 
@@ -395,7 +727,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private TypeDefinitionResp toTypeResp(TypeDefinition t) {
         return new TypeDefinitionResp(
             t.getId(), t.getTenantId(), t.getBizDomainId(),
-            t.getTypeKey(), t.getTypeValue(), t.getName(),
+            t.getTypeKey(), t.getTypeCode(), t.getTypeValue(), t.getName(),
             t.getDescription(), t.getIsSystem(), t.getSortOrder(),
             t.getExtra(), t.getCreatedAt()
         );
@@ -429,4 +761,27 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             c.getConfigValue(), c.getDescription(), c.getUpdatedAt()
         );
     }
+
+    private String normalizeBasePath(String basePath) {
+        if (basePath == null || basePath.isBlank()) {
+            return "";
+        }
+        String path = basePath.trim();
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        return path;
+    }
+
+    private String joinPath(String basePath, String path) {
+        String p = path == null ? "" : path.trim();
+        if (!p.startsWith("/")) {
+            p = "/" + p;
+        }
+        return (basePath + p).replaceAll("//+", "/");
+    }
+
 }

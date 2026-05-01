@@ -1,6 +1,9 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Query resources accessible to a subject for a given resource type and operation.
@@ -9,8 +12,12 @@ import jakarta.validation.constraints.NotBlank;
 public record QueryResourcesReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
-    @NotBlank String resourceTypeCode,
-    @NotBlank String operationCode,
+    @NotEmpty List<String> resourceTypeCodes,
+    @NotEmpty List<String> operationCodes,
     String domainCode,
-    boolean canManageOnly
+    String codeType,
+    Boolean includeInherited,
+    Boolean includeChildren,
+    Boolean treeMode,
+    Map<String, Object> context
 ) {}

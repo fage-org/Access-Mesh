@@ -4,9 +4,11 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
-import cn.ac.fage.accessmesh.permission.dto.req.TenantIdReq;
+import cn.ac.fage.accessmesh.permission.dto.req.IdReq;
+import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.BizDomainResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,18 +38,20 @@ public class BizDomainController {
     }
 
     @PostMapping("/detail")
-    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody IdWithTenantReq req) {
+    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody IdReq req) {
         return PermResult.success(configManageService.getBizDomain(TenantContextHolder.getTenantId(), req.id()));
     }
 
     @PostMapping("/list")
-    public PermResult<List<BizDomainResp>> listBizDomains(@Valid @RequestBody TenantIdReq req) {
-        return PermResult.success(configManageService.listBizDomains(TenantContextHolder.getTenantId()));
+    public PermResult<ItemsResp<BizDomainResp>> listBizDomains(@Valid @RequestBody EmptyReq req) {
+        return PermResult.success(new ItemsResp<>(
+            configManageService.listBizDomains(TenantContextHolder.getTenantId())
+        ));
     }
 
     @PostMapping("/remove")
-    public PermResult<Void> deleteBizDomain(@Valid @RequestBody IdWithTenantReq req) {
-        configManageService.deleteBizDomain(TenantContextHolder.getTenantId(), req.id(), null);
+    public PermResult<Void> deleteBizDomain(@Valid @RequestBody IdsReq req) {
+        configManageService.deleteBizDomainsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 

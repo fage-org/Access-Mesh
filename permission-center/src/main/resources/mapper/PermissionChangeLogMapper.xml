@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.permission.mapper.PermissionChangeLogMapper">
+
+    <sql id="FilteredWhere">
+        WHERE tenant_id = #{tenantId}
+        <if test="userId != null">
+            AND affected_abstract_user_ids @> ARRAY[#{userId}]::bigint[]
+        </if>
+        <if test="roleId != null">
+            AND affected_abstract_role_ids @> ARRAY[#{roleId}]::bigint[]
+        </if>
+        <if test="since != null">
+            AND created_at &gt;= #{since}
+        </if>
+        <if test="until != null">
+            AND created_at &lt;= #{until}
+        </if>
+        <if test="eventTypes != null and eventTypes.size() &gt; 0">
+            AND diff_snapshot IS NOT NULL
+            AND jsonb_extract_path_text(diff_snapshot::jsonb, 'eventType') IN
+            <foreach collection="eventTypes" item="et" open="(" separator="," close=")">
+                #{et}
+            </foreach>
+        </if>
+    </sql>
+
+    <select id="selectByAffectedUser" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog">
+        SELECT * FROM permission_change_log
+        WHERE tenant_id = #{tenantId}
+          AND affected_abstract_user_ids @> ARRAY[#{userId}]::bigint[]
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByAffectedUser" resultType="long">
+        SELECT COUNT(*) FROM permission_change_log
+        WHERE tenant_id = #{tenantId}
+          AND affected_abstract_user_ids @> ARRAY[#{userId}]::bigint[]
+    </select>
+
+    <select id="selectFiltered" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog">
+        SELECT * FROM permission_change_log
+        <include refid="FilteredWhere"/>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countFiltered" resultType="long">
+        SELECT COUNT(*) FROM permission_change_log
+        <include refid="FilteredWhere"/>
+    </select>
+</mapper>

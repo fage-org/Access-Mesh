@@ -1,10 +1,8 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import jakarta.validation.constraints.NotNull;
-
 /**
- * List domain configs filtered by tenantId + optional bizDomainId.
+ * List domain configs filtered by optional domainCode.
  */
 public record DomainConfigListReq(
-    Long bizDomainId
+    String domainCode
 ) {}

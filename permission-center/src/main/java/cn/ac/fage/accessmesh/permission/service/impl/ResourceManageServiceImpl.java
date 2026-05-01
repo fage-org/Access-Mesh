@@ -13,7 +13,9 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
+import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
@@ -32,13 +35,19 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     private final ResourceEntityMapper resourceEntityMapper;
     private final ResourceApiMappingMapper apiMappingMapper;
     private final ResourceEntityDomainService resourceEntityDomainService;
+    private final TypeResolutionService typeResolutionService;
+    private final OperationLogDomainService operationLogDomainService;
 
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
-                                     ResourceEntityDomainService resourceEntityDomainService) {
+                                     ResourceEntityDomainService resourceEntityDomainService,
+                                     TypeResolutionService typeResolutionService,
+                                     OperationLogDomainService operationLogDomainService) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
+        this.typeResolutionService = typeResolutionService;
+        this.operationLogDomainService = operationLogDomainService;
     }
 
     @Override
@@ -48,7 +57,11 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         entity.setTenantId(tenantId);
         entity.setBizDomainId(req.bizDomainId());
         entity.setParentId(req.parentId());
-        entity.setResourceType(req.resourceType());
+        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
+        if (resourceType == null) {
+            throw new IllegalArgumentException("Unknown resourceTypeCode: " + req.resourceTypeCode());
+        }
+        entity.setResourceType(resourceType);
         entity.setCode(req.code());
         entity.setCodeType(req.codeType());
         entity.setName(req.name());
@@ -62,6 +75,16 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         entity.setDeleteFlag(0L);
         resourceEntityMapper.insert(entity);
         return toResourceResp(entity);
+    }
+
+    @Override
+    @Transactional
+    public List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId) {
+        List<ResourceResp> created = new ArrayList<>();
+        for (ResourceCreateReq req : reqs) {
+            created.add(createResource(tenantId, req, operatorId));
+        }
+        return created;
     }
 
     @Override
@@ -98,6 +121,25 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     @Override
     @Transactional
+    public void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId) {
+        ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
+        if (entity == null || entity.getDeleteFlag() != 0L || !tenantId.equals(entity.getTenantId())) {
+            throw new IllegalArgumentException("Resource not found: " + resourceId);
+        }
+        if (parentId != null) {
+            ResourceEntity parent = resourceEntityMapper.selectOneById(parentId);
+            if (parent == null || parent.getDeleteFlag() != 0L || !tenantId.equals(parent.getTenantId())) {
+                throw new IllegalArgumentException("Parent resource not found: " + parentId);
+            }
+        }
+        entity.setParentId(parentId);
+        entity.setUpdatedBy(operatorId);
+        entity.setUpdatedAt(LocalDateTime.now());
+        resourceEntityMapper.update(entity);
+    }
+
+    @Override
+    @Transactional
     public void deleteResource(Long tenantId, Long resourceId, Long operatorId) {
         ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
@@ -108,7 +150,19 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public List<ResourceTreeResp> getResourceTree(Long tenantId, Integer resourceType) {
+    @Transactional
+    public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
+        for (Long resourceId : resourceIds) {
+            deleteResource(tenantId, resourceId, operatorId);
+        }
+    }
+
+    @Override
+    public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode) {
+        Integer resourceType = null;
+        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
+            resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        }
         QueryWrapper qw = QueryWrapper.create()
             .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
             .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
@@ -131,7 +185,11 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public List<ResourceResp> listResources(Long tenantId, Integer resourceType, int offset, int limit) {
+    public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, int offset, int limit) {
+        Integer resourceType = null;
+        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
+            resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        }
         QueryWrapper qw = QueryWrapper.create()
             .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
             .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0));
@@ -145,8 +203,23 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
+    public long countResources(Long tenantId, String resourceTypeCode) {
+        Integer resourceType = null;
+        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
+            resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        }
+        QueryWrapper qw = QueryWrapper.create()
+            .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+            .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0));
+        if (resourceType != null) {
+            qw.and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
+        }
+        return resourceEntityMapper.selectCountByQuery(qw);
+    }
+
+    @Override
     @Transactional
-    public void addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req) {
+    public ApiMappingResp addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req) {
         ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Resource not found: " + resourceId);
@@ -165,19 +238,40 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         mapping.setUpdatedAt(LocalDateTime.now());
         mapping.setDeleteFlag(0L);
         apiMappingMapper.insert(mapping);
+        return toApiMappingResp(mapping);
     }
 
     @Override
-    @Transactional
-    public void removeApiMapping(Long tenantId, Long resourceId, Long mappingId, Long operatorId) {
-        ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
-        if (mapping != null && mapping.getDeleteFlag() == 0L
-            && mapping.getResourceEntityId().equals(resourceId)
-            && mapping.getTenantId().equals(tenantId)) {
-            mapping.setDeleteFlag(mapping.getId());
-            mapping.setDeletedAt(LocalDateTime.now());
-            apiMappingMapper.update(mapping);
+    @Transactional(rollbackFor = Exception.class)
+    public void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId) {
+        if (mappingIds == null || mappingIds.isEmpty()) {
+            return;
         }
+        int n = 0;
+        for (Long mappingId : mappingIds) {
+            if (mappingId == null) {
+                continue;
+            }
+            ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
+            if (mapping != null && mapping.getDeleteFlag() == 0L
+                && Objects.equals(tenantId, mapping.getTenantId())) {
+                mapping.setDeleteFlag(mapping.getId());
+                mapping.setDeletedAt(LocalDateTime.now());
+                apiMappingMapper.update(mapping);
+                n++;
+            }
+        }
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "resource-api-mapping-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + n + " resource_api_mapping row(s), ids=" + mappingIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     @Override
@@ -192,20 +286,35 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     @Override
     @Transactional
-    public void updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req) {
+    public ApiMappingResp updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req) {
         ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
-        if (mapping != null && mapping.getDeleteFlag() == 0L
-            && mapping.getResourceEntityId().equals(resourceId)
-            && mapping.getTenantId().equals(tenantId)) {
-            if (req.serviceCode() != null) mapping.setServiceCode(req.serviceCode());
-            if (req.httpMethod() != null) mapping.setHttpMethod(req.httpMethod());
-            if (req.pathPattern() != null) mapping.setPathPattern(req.pathPattern());
-            if (req.matchOrder() != null) mapping.setMatchOrder(req.matchOrder());
-            if (req.enabled() != null) mapping.setEnabled(req.enabled());
-            if (req.extra() != null) mapping.setExtra(req.extra());
-            mapping.setUpdatedAt(LocalDateTime.now());
-            apiMappingMapper.update(mapping);
+        if (mapping == null || mapping.getDeleteFlag() != 0L
+            || !mapping.getResourceEntityId().equals(resourceId)
+            || !mapping.getTenantId().equals(tenantId)) {
+            throw new IllegalArgumentException("Api mapping not found: " + mappingId);
         }
+        if (req.serviceCode() != null) {
+            mapping.setServiceCode(req.serviceCode());
+        }
+        if (req.httpMethod() != null) {
+            mapping.setHttpMethod(req.httpMethod());
+        }
+        if (req.pathPattern() != null) {
+            mapping.setPathPattern(req.pathPattern());
+        }
+        if (req.matchOrder() != null) {
+            mapping.setMatchOrder(req.matchOrder());
+        }
+        if (req.enabled() != null) {
+            mapping.setEnabled(req.enabled());
+        }
+        if (req.extra() != null) {
+            mapping.setExtra(req.extra());
+        }
+        mapping.setUpdatedAt(LocalDateTime.now());
+        apiMappingMapper.update(mapping);
+        ResourceApiMapping updated = apiMappingMapper.selectOneById(mappingId);
+        return toApiMappingResp(updated);
     }
 
     private ResourceTreeNode buildTreeNode(ResourceEntity entity, List<ResourceEntity> allEntities) {
@@ -215,7 +324,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             .collect(Collectors.toList());
 
         return new ResourceTreeNode(
-            entity.getId(), entity.getParentId(), entity.getResourceType(),
+            entity.getId(), entity.getParentId(), typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()),
             entity.getCode(), entity.getCodeType(), entity.getName(),
             entity.getPath(), entity.getStatus(), entity.getSortOrder(), children
         );
@@ -229,7 +338,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         return new ResourceResp(
             entity.getId(), entity.getTenantId(), entity.getBizDomainId(),
-            entity.getParentId(), entity.getResourceType(), resourceTypeName,
+            entity.getParentId(), typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()), resourceTypeName,
             entity.getCode(), entity.getCodeType(), entity.getName(),
             entity.getPath(), entity.getStatus(), entity.getSortOrder(),
             entity.getExtra(), entity.getCreatedAt(), entity.getUpdatedAt()

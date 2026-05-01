@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
+import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +20,21 @@ import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionT
 public class OperationManageServiceImpl implements OperationManageService {
 
     private final OperationPermissionMapper operationPermissionMapper;
+    private final TypeResolutionService typeResolutionService;
 
-    public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper) {
+    public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper,
+                                      TypeResolutionService typeResolutionService) {
         this.operationPermissionMapper = operationPermissionMapper;
+        this.typeResolutionService = typeResolutionService;
     }
 
     @Override
     @Transactional
-    public OperationPermissionResp createOperation(Long tenantId, Integer resourceType, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
+    public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
+        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        if (resourceType == null) {
+            throw new IllegalArgumentException("Unknown resourceTypeCode: " + resourceTypeCode);
+        }
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
         op.setResourceType(resourceType);
@@ -54,7 +62,11 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    public List<OperationPermissionResp> listOperations(Long tenantId, Integer resourceType) {
+    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode) {
+        Integer resourceType = null;
+        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
+            resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        }
         QueryWrapper qw = QueryWrapper.create()
             .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
             .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0));
@@ -92,6 +104,14 @@ public class OperationManageServiceImpl implements OperationManageService {
         }
     }
 
+    @Override
+    @Transactional
+    public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
+        for (Long operationId : operationIds) {
+            deleteOperation(tenantId, operationId, operatorId);
+        }
+    }
+
     private OperationPermissionResp toResp(OperationPermission op) {
         String resourceTypeName = "";
         try {
@@ -99,7 +119,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         } catch (IllegalArgumentException ignored) {}
 
         return new OperationPermissionResp(
-            op.getId(), op.getTenantId(), op.getResourceType(), resourceTypeName,
+            op.getId(), op.getTenantId(), typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()), resourceTypeName,
             op.getCode(), op.getName(), op.getBinaryBit(), op.getInheritMask(),
             op.getCreatedAt(), op.getUpdatedAt()
         );

@@ -2,10 +2,9 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 
 import jakarta.validation.constraints.NotNull;
 
-/**
- * Revoke role from user.
- */
-public record UserRevokeRoleReq(
+public record UserUpdateReq(
     @NotNull Long userId,
-    @NotNull Long userRoleId
+    String name,
+    Boolean enabled,
+    String extra
 ) {}

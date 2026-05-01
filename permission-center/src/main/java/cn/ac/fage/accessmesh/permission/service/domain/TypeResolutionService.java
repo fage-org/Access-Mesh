@@ -18,6 +18,11 @@ public interface TypeResolutionService {
     Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode);
 
     /**
+     * Resolve an internal type_value back to stable type_code.
+     */
+    String resolveTypeCode(Long tenantId, String typeKey, Integer typeValue);
+
+    /**
      * Resolve subjectTypeCode + subjectExternalId -> abstract_user.id.
      *
      * @param tenantId          the tenant

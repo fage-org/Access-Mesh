@@ -124,6 +124,11 @@
 - 业务 ID、查询条件、分页参数等**禁止**放在路径中（如 `/user/{id}`），必须放在 JSON Body 内。
 - `tenantId` 不作为普通业务入参放在 URL 或 Body 中；服务端统一从 `X-Tenant-Id`、Token 或 SecurityContext 读取。
 
+**permission-center 业务键与 `remove` 主键（补充）：**
+
+- 对外接口定位**用户/角色**时，使用 `subjectTypeCode + subjectExternalId`、`domainCode + roleTypeCode + roleExternalId` 等契约字段，**禁止**要求调用方传入 `abstract_user.id`、`abstract_role.id`（管理端二次查询用的 `list/detail` 返回 id 仅用于**同模块** update/remove 链路中已有说明的接口除外）。
+- `remove` 类接口请求体中的 `{ "ids": [...] }` 表示**配置表主键**（如 `domain_config.id`、`service_config.id`、`resource_api_mapping.id`），用于删除已在 `list`/`detail` 中返回过的行；与「主体/角色业务键」分层使用，互不替代。
+
 **例外场景（允许 `@RequestParam`）：**
 
 | 场景 | 原因 |
@@ -436,6 +441,10 @@ Mapper（数据访问层）
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
 - **禁止横向调用**：同层级之间禁止互相调用（如 Service A 调用 Service B 同层方法，应抽取到更低层）。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
+
+**permission-center Controller（补充）：**
+
+- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewService`）完成；Controller 仅做校验与 `PermResult` 包装。
 
 ### 8.3 包结构规范
 

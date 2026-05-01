@@ -8,7 +8,7 @@ public record ResourceResp(
     Long tenantId,
     Long bizDomainId,
     Long parentId,
-    Integer resourceType,
+    String resourceTypeCode,
     String resourceTypeName,
     String code,
     String codeType,

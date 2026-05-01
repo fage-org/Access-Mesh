@@ -2,11 +2,16 @@ package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
-import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigDeleteReq;
+import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigGetReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigApisReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
-import cn.ac.fage.accessmesh.permission.dto.req.TenantIdReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.permission.dto.req.EmptyReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,7 +37,7 @@ public class ServiceConfigController {
 
     @PostMapping("/save")
     public PermResult<ServiceConfigResp> saveServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
-        return PermResult.success(configManageService.createServiceConfig(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(configManageService.saveServiceConfig(TenantContextHolder.getTenantId(), req, null));
     }
 
     @PostMapping("/detail")
@@ -41,18 +46,27 @@ public class ServiceConfigController {
     }
 
     @PostMapping("/list")
-    public PermResult<List<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody TenantIdReq req) {
-        return PermResult.success(configManageService.listServiceConfigs(TenantContextHolder.getTenantId()));
+    public PermResult<ItemsResp<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody EmptyReq req) {
+        return PermResult.success(new ItemsResp<>(
+            configManageService.listServiceConfigs(TenantContextHolder.getTenantId())
+        ));
     }
 
     @PostMapping("/remove")
-    public PermResult<Void> deleteServiceConfig(@Valid @RequestBody ServiceConfigDeleteReq req) {
-        configManageService.deleteServiceConfig(TenantContextHolder.getTenantId(), req.serviceCode(), null);
+    public PermResult<Void> deleteServiceConfig(@Valid @RequestBody IdsReq req) {
+        configManageService.deleteServiceConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 
-    @PostMapping("/update")
-    public PermResult<ServiceConfigResp> updateServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
-        return PermResult.success(configManageService.updateServiceConfig(TenantContextHolder.getTenantId(), req, null));
+    @PostMapping("/sync")
+    public PermResult<ServiceConfigSyncResp> syncServiceConfig(@Valid @RequestBody ServiceConfigSyncReq req) {
+        return PermResult.success(configManageService.syncServiceInterfaces(TenantContextHolder.getTenantId(), req, null));
+    }
+
+    @PostMapping("/apis")
+    public PermResult<ItemsResp<ApiMappingResp>> listServiceApis(@Valid @RequestBody ServiceConfigApisReq req) {
+        return PermResult.success(new ItemsResp<>(
+            configManageService.listServiceApis(TenantContextHolder.getTenantId(), req.serviceCode())
+        ));
     }
 }

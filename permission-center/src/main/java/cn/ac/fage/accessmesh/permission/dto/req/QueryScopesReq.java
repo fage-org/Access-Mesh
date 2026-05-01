@@ -1,6 +1,9 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Query scope resources within a primary resource context.
@@ -9,9 +12,13 @@ import jakarta.validation.constraints.NotBlank;
 public record QueryScopesReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
-    @NotBlank String resourceTypeCode,
-    @NotBlank String resourceCode,
-    @NotBlank String operationCode,
+    @NotBlank String parentResourceTypeCode,
+    @NotBlank String parentResourceCode,
+    String parentCodeType,
+    @NotEmpty List<String> parentOperationCodes,
+    @NotEmpty List<String> scopeResourceTypeCodes,
+    @NotEmpty List<String> scopeOperationCodes,
+    String scopeCodeType,
     String domainCode,
-    String codeType
+    Map<String, Object> context
 ) {}

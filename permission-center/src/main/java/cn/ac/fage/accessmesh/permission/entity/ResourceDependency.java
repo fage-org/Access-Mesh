@@ -18,6 +18,9 @@ public class ResourceDependency {
     private Long requiredOperationBits;
     private Boolean autoGrant;
     private String description;
+    private String ownerServiceCode;
+    private String maintainSource;
+    private String syncKey;
     private Long createdBy;
     private Long updatedBy;
     private Long deletedBy;
@@ -42,6 +45,12 @@ public class ResourceDependency {
     public void setAutoGrant(Boolean autoGrant) { this.autoGrant = autoGrant; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getOwnerServiceCode() { return ownerServiceCode; }
+    public void setOwnerServiceCode(String ownerServiceCode) { this.ownerServiceCode = ownerServiceCode; }
+    public String getMaintainSource() { return maintainSource; }
+    public void setMaintainSource(String maintainSource) { this.maintainSource = maintainSource; }
+    public String getSyncKey() { return syncKey; }
+    public void setSyncKey(String syncKey) { this.syncKey = syncKey; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public Long getUpdatedBy() { return updatedBy; }

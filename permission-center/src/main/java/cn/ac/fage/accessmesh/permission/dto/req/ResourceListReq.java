@@ -1,12 +1,11 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import jakarta.validation.constraints.NotNull;
-
 /**
- * List resources with optional filter.
+ * List resources with optional filter and standard pagination.
  */
 public record ResourceListReq(
-    Integer resourceType,
-    Integer offset,
-    Integer limit
+    String resourceTypeCode,
+    Integer pageNum,
+    Integer pageSize,
+    String sort
 ) {}

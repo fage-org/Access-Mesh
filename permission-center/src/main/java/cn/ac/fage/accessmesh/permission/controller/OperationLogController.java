@@ -4,7 +4,9 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.OperationLogListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,10 +30,15 @@ public class OperationLogController {
     }
 
     @PostMapping("/list")
-    public PermResult<List<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
-        return PermResult.success(advancedFeatureService.listOperationLogs(
-                TenantContextHolder.getTenantId(), req.module(), req.action(),
-                req.pageNum() != null ? req.pageNum() : 0,
-                req.pageSize() != null ? req.pageSize() : 20));
+    public PermResult<PaginatedResp<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = advancedFeatureService.countOperationLogs(tenantId, req.module(), req.action());
+        List<OperationLogResp> items = advancedFeatureService.listOperationLogs(
+                tenantId, req.module(), req.action(),
+                offset, pageSize);
+        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

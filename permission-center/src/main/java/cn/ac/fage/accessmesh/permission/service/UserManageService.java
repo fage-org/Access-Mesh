@@ -1,7 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service;
 
 import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchAssignReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleListReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserRolesResp;
 
@@ -17,6 +22,10 @@ public interface UserManageService {
      */
     UserResp syncUser(Long tenantId, UserSyncReq req);
 
+    UserResp createUser(Long tenantId, UserCreateReq req);
+
+    UserResp updateUser(Long tenantId, UserUpdateReq req);
+
     /**
      * Get user by ID.
      */
@@ -27,28 +36,29 @@ public interface UserManageService {
      */
     void deleteUser(Long tenantId, Long userId);
 
-    /**
-     * Enable/disable a user.
-     */
-    void setUserEnabled(Long tenantId, Long userId, boolean enabled);
+    void deleteUsers(Long tenantId, List<Long> userIds);
 
     /**
      * Assign a role to a user.
      */
     void assignRole(Long tenantId, UserAssignRoleReq req);
 
-    /**
-     * Revoke a role from a user.
-     */
-    void revokeRole(Long tenantId, Long userId, Long userRoleId);
+    void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req);
 
     /**
-     * Get user's assigned roles.
+     * Batch revoke user-role relations (business keys per item).
      */
-    UserRolesResp getUserRoles(Long tenantId, Long userId);
+    void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req);
+
+    /**
+     * Get user's assigned roles by subject business keys.
+     */
+    UserRolesResp getUserRoles(Long tenantId, UserRoleListReq req);
 
     /**
      * List users by tenant (simple pagination).
      */
-    List<UserResp> listUsers(Long tenantId, int offset, int limit);
+    List<UserResp> listUsers(Long tenantId, String subjectTypeCode, String domainCode, String keyword, int offset, int limit);
+
+    long countUsers(Long tenantId, String subjectTypeCode, String domainCode, String keyword);
 }

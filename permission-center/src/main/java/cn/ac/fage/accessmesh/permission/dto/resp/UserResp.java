@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 public record UserResp(
     Long id,
     Long tenantId,
-    Integer userType,
+    String subjectTypeCode,
     String externalId,
     String name,
     Boolean enabled,

@@ -2,18 +2,26 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
 
 import java.util.List;
 
-/**
- * Query-scopes response \u2014 scope resources (DIRECT \u222a DEPENDENT) within a primary resource context.
- */
 public record QueryScopesResp(
-    boolean scopeAll,
-    List<ScopeEntry> items
+    boolean allowed,
+    String reason,
+    List<String> matchedParentOperations,
+    List<Long> parentPermissionIds,
+    List<ScopeEntry> items,
+    String mergeMode,
+    String permissionVersion,
+    int cacheTtlSeconds
 ) {
     public record ScopeEntry(
         String resourceTypeCode,
         String resourceCode,
         String codeType,
         String resourceName,
-        String grantSource
+        boolean scopeAll,
+        List<String> operations,
+        List<String> sources,
+        List<Long> matchedRoleIds,
+        List<Long> matchedPermissionIds,
+        List<Long> dependOnPermissionIds
     ) {}
 }

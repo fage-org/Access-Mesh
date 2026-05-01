@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotNull;
  * Shared: get/delete endpoints needing tenantId + single id.
  */
 public record IdWithTenantReq(
-    @NotNull Long tenantId,
     @NotNull Long id
 ) {}

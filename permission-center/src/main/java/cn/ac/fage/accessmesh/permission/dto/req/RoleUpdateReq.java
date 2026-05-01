@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 public record RoleUpdateReq(
     @NotNull Long roleId,
     String name,
+    Integer status,
     Integer sortOrder,
     String extra
 ) {}

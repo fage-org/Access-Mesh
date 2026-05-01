@@ -2,9 +2,10 @@ package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
-import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
-import cn.ac.fage.accessmesh.permission.dto.req.UserRevokeRoleReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchAssignReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.UserRoleListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
 import jakarta.validation.Valid;
@@ -33,14 +34,20 @@ public class UserRoleController {
         return PermResult.success();
     }
 
+    @PostMapping("/batch-assign")
+    public PermResult<Void> batchAssignRole(@Valid @RequestBody UserRoleBatchAssignReq req) {
+        userManageService.assignRolesBatch(TenantContextHolder.getTenantId(), req);
+        return PermResult.success();
+    }
+
     @PostMapping("/revoke")
-    public PermResult<Void> revokeRole(@Valid @RequestBody UserRevokeRoleReq req) {
-        userManageService.revokeRole(TenantContextHolder.getTenantId(), req.userId(), req.userRoleId());
+    public PermResult<Void> revokeRoles(@Valid @RequestBody UserRoleBatchRevokeReq req) {
+        userManageService.revokeRolesBatch(TenantContextHolder.getTenantId(), req);
         return PermResult.success();
     }
 
     @PostMapping("/list")
-    public PermResult<UserRolesResp> getUserRoles(@Valid @RequestBody IdWithTenantReq req) {
-        return PermResult.success(userManageService.getUserRoles(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<UserRolesResp> getUserRoles(@Valid @RequestBody UserRoleListReq req) {
+        return PermResult.success(userManageService.getUserRoles(TenantContextHolder.getTenantId(), req));
     }
 }

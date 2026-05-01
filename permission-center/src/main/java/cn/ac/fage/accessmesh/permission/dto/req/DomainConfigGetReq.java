@@ -1,11 +1,11 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 
 /**
- * Get domain config by tenantId + bizDomainId + configType.
+ * Get domain config by domainCode + configType.
  */
 public record DomainConfigGetReq(
-    @NotNull Long bizDomainId,
-    @NotNull String configType
+    @NotBlank String domainCode,
+    @NotBlank String configType
 ) {}

@@ -8,7 +8,7 @@ import java.util.List;
 public record RolePermissionViewResp(
     Long roleId,
     String roleName,
-    Integer roleType,
+    String roleTypeCode,
     List<PermissionItem> permissions
 ) {
     public record PermissionItem(
@@ -16,7 +16,7 @@ public record RolePermissionViewResp(
         Long resourceEntityId,
         String resourceCode,
         String resourceName,
-        Integer resourceType,
+        String resourceTypeCode,
         Long operationPermissionId,
         String operationCode,
         String operationName,

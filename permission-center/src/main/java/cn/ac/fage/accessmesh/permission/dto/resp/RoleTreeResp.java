@@ -10,7 +10,7 @@ public record RoleTreeResp(
         Long id,
         Long tenantId,
         Long parentId,
-        Integer roleType,
+        String roleTypeCode,
         String name,
         String externalId,
         Integer status,

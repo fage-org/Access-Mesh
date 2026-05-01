@@ -2,10 +2,10 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 
 import jakarta.validation.constraints.NotNull;
 
-/**
- * Enable/disable a permission condition.
- */
-public record ConditionSetEnabledReq(
+public record ConditionUpdateReq(
     @NotNull Long conditionId,
-    @NotNull Boolean enabled
+    String name,
+    String conditionRules,
+    Boolean enabled,
+    String description
 ) {}

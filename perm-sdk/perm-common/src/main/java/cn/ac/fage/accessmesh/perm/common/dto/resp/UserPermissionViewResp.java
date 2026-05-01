@@ -1,31 +1,28 @@
 package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * Shared: user's effective permissions view.
  */
 public record UserPermissionViewResp(
-    Long userId,
-    String userName,
-    Long tenantId,
-    List<ResourcePermission> resources
+    Long resourceEntityId,
+    String domainCode,
+    String resourceCode,
+    String resourceName,
+    String resourceTypeCode,
+    String codeType,
+    boolean scopeAll,
+    List<String> operationCodes,
+    List<SourceRole> sourceRoles,
+    int sourceRoleCount,
+    boolean sourceRolesTruncated,
+    List<Long> matchedPermissionIds
 ) {
-    public record ResourcePermission(
-        Long resourceEntityId,
-        String resourceCode,
-        String resourceName,
-        Integer resourceType,
-        List<Operation> operations,
-        List<String> roleNames
-    ) {}
-
-    public record Operation(
-        Long operationPermissionId,
-        String operationCode,
-        String operationName,
-        Long conditionId,
-        String grantSource
+    public record SourceRole(
+        String roleTypeCode,
+        String roleExternalId,
+        String roleName,
+        List<String> via
     ) {}
 }

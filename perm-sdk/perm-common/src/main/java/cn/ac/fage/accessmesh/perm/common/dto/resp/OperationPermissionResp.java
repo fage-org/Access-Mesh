@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public record OperationPermissionResp(
     Long id,
     Long tenantId,
-    Integer resourceType,
+    String resourceTypeCode,
     String resourceTypeName,
     String code,
     String name,

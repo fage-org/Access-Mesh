@@ -115,7 +115,7 @@ When 实施权限中心模块, I want to 按照设计文档分阶段实现所有
 
 **Phase 4: 核心鉴权**
 - **Goal**: 实现权限中心最核心的鉴权查询和授权管理
-- **Scope**: AuthService/AuthServiceImpl（checkPermission 三模式鉴权链路）、PermissionGrantService/PermissionGrantServiceImpl（批量授权/撤销）、InternalPermissionController（替换现有 stub）
+- **Scope**: AuthService/AuthServiceImpl（checkPermission 三模式鉴权链路）、PermissionGrantService/PermissionGrantServiceImpl（批量授权/撤销）、AuthController（替换现有 stub）
 - **Success signal**: 鉴权链路完整（用户状态→角色解析→冲突过滤→授权匹配→条件评估→返回结果）
 
 **Phase 5: 管理模块**

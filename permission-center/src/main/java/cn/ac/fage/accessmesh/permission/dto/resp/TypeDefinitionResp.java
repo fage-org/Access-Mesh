@@ -7,6 +7,7 @@ public record TypeDefinitionResp(
     Long tenantId,
     Long bizDomainId,
     String typeKey,
+    String typeCode,
     Integer typeValue,
     String name,
     String description,

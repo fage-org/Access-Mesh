@@ -4,9 +4,11 @@ import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 
 import java.util.List;
@@ -19,9 +21,11 @@ public interface ConfigManageService {
     // ===== TypeDefinition =====
     TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId);
     TypeDefinitionResp getType(Long tenantId, Long typeId);
-    List<TypeDefinitionResp> listTypes(Long tenantId, Long bizDomainId);
+    List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode);
     TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId);
     void deleteType(Long tenantId, Long typeId, Long operatorId);
+
+    void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId);
 
     // ===== BizDomain =====
     BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId);
@@ -30,21 +34,25 @@ public interface ConfigManageService {
     BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId);
     void deleteBizDomain(Long tenantId, Long domainId, Long operatorId);
 
+    void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId);
+
     // ===== DomainConfig =====
-    void upsertDomainConfig(Long tenantId, DomainConfigReq req);
-    DomainConfigResp getDomainConfig(Long tenantId, Long bizDomainId, String configType);
-    List<DomainConfigResp> listDomainConfigs(Long tenantId, Long bizDomainId);
-    void deleteDomainConfig(Long tenantId, Long bizDomainId, String configType);
+    DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req);
+    DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType);
+    List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode);
+    void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId);
 
     // ===== ServiceConfig =====
+    ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
     ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
     ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode);
     List<ServiceConfigResp> listServiceConfigs(Long tenantId);
-    ServiceConfigResp updateServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
-    void deleteServiceConfig(Long tenantId, String serviceCode, Long operatorId);
+    void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId);
+    ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId);
+    List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode);
 
     // ===== SystemConfig =====
-    void upsertSystemConfig(Long tenantId, SystemConfigReq req);
+    SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req);
     SystemConfigResp getSystemConfig(Long tenantId, String configKey);
     List<SystemConfigResp> listSystemConfigs(Long tenantId);
 }

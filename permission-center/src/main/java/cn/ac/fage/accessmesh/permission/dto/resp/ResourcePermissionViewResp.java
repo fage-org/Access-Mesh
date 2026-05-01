@@ -14,7 +14,7 @@ public record ResourcePermissionViewResp(
     public record RoleGrantInfo(
         Long roleId,
         String roleName,
-        Integer roleType,
+        String roleTypeCode,
         List<String> operations,
         String grantSource
     ) {}

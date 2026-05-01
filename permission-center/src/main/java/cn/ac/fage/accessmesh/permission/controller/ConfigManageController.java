@@ -2,10 +2,12 @@ package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
-import cn.ac.fage.accessmesh.permission.dto.req.IdWithTenantReq;
+import cn.ac.fage.accessmesh.permission.dto.req.IdReq;
+import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeListReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import jakarta.validation.Valid;
@@ -36,18 +38,20 @@ public class ConfigManageController {
     }
 
     @PostMapping("/detail")
-    public PermResult<TypeDefinitionResp> getType(@Valid @RequestBody IdWithTenantReq req) {
+    public PermResult<TypeDefinitionResp> getType(@Valid @RequestBody IdReq req) {
         return PermResult.success(configManageService.getType(TenantContextHolder.getTenantId(), req.id()));
     }
 
     @PostMapping("/list")
-    public PermResult<List<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
-        return PermResult.success(configManageService.listTypes(TenantContextHolder.getTenantId(), req.bizDomainId()));
+    public PermResult<ItemsResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
+        return PermResult.success(new ItemsResp<>(
+            configManageService.listTypes(TenantContextHolder.getTenantId(), req.domainCode())
+        ));
     }
 
     @PostMapping("/remove")
-    public PermResult<Void> deleteType(@Valid @RequestBody IdWithTenantReq req) {
-        configManageService.deleteType(TenantContextHolder.getTenantId(), req.id(), null);
+    public PermResult<Void> deleteType(@Valid @RequestBody IdsReq req) {
+        configManageService.deleteTypesByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 

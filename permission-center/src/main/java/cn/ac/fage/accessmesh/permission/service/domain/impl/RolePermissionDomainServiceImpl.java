@@ -45,8 +45,10 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
         List<RolePermSnapshot.RolePermEntry> entries = perms.stream()
             .map(p -> new RolePermSnapshot.RolePermEntry(
+                p.getId(), p.getAbstractRoleId(),
                 p.getResourceEntityId(), null, p.getResourceType(),
                 p.getOperationPermissionId(), null, null,
+                p.getGrantSource(),
                 p.getCanManage(), p.getConditionId(), p.getConditionId() != null,
                 p.getDependOn()
             ))
@@ -66,6 +68,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setOperationPermissionId(entry.operationPermissionId());
             rp.setResourceType(entry.resourceType());
             rp.setDependOn(entry.dependOn());
+            rp.setScopeAll(false);
             rp.setCanManage(entry.canManage() != null && entry.canManage());
             rp.setConditionId(entry.conditionId());
             rp.setGrantSource(changeSource != null ? changeSource : "MANUAL");

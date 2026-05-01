@@ -1,0 +1,14 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  datasource:
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
+  data:
+    redis:
+      timeout: 2s

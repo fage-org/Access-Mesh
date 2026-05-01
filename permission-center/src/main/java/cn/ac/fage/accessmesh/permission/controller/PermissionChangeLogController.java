@@ -3,10 +3,10 @@ package cn.ac.fage.accessmesh.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.ChangeLogListReq;
-import cn.ac.fage.accessmesh.permission.dto.req.OperationLogListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ChangeLogResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,10 +30,15 @@ public class PermissionChangeLogController {
     }
 
     @PostMapping("/list")
-    public PermResult<List<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
-        return PermResult.success(advancedFeatureService.listChangeLogs(
-                TenantContextHolder.getTenantId(), req.entityType(), req.entityId(),
-                req.pageNum() != null ? req.pageNum() : 0,
-                req.pageSize() != null ? req.pageSize() : 20));
+    public PermResult<PaginatedResp<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = advancedFeatureService.countChangeLogs(tenantId, req.entityType(), req.entityId());
+        List<ChangeLogResp> items = advancedFeatureService.listChangeLogs(
+                tenantId, req.entityType(), req.entityId(),
+                offset, pageSize);
+        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

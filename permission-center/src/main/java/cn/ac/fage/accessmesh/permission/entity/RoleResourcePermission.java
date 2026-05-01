@@ -17,6 +17,7 @@ public class RoleResourcePermission {
     private Long operationPermissionId;
     private Integer resourceType;
     private Long dependOn;
+    private Boolean scopeAll;
     private Boolean canManage;
     private Long conditionId;
     private String grantSource;
@@ -43,6 +44,8 @@ public class RoleResourcePermission {
     public void setResourceType(Integer resourceType) { this.resourceType = resourceType; }
     public Long getDependOn() { return dependOn; }
     public void setDependOn(Long dependOn) { this.dependOn = dependOn; }
+    public Boolean getScopeAll() { return scopeAll; }
+    public void setScopeAll(Boolean scopeAll) { this.scopeAll = scopeAll; }
     public Boolean getCanManage() { return canManage; }
     public void setCanManage(Boolean canManage) { this.canManage = canManage; }
     public Long getConditionId() { return conditionId; }

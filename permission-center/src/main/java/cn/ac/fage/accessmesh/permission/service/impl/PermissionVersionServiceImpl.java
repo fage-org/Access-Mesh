@@ -36,7 +36,7 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
     public PermissionVersionResp queryVersion(Long tenantId, PermissionVersionQueryReq req) {
         Long roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId == null) {
-            return null;
+            return new PermissionVersionResp(null, req.roleTypeCode(), req.roleExternalId(), 0L);
         }
 
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);

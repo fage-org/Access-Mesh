@@ -12,12 +12,15 @@ public record RolePermSnapshot(
     List<RolePermEntry> entries
 ) {
     public record RolePermEntry(
+        Long permissionId,
+        Long roleId,
         Long resourceEntityId,
         String resourceCode,
         Integer resourceType,
         Long operationPermissionId,
         String operationCode,
         Long effectiveBits,
+        String grantSource,
         Boolean canManage,
         Long conditionId,
         boolean hasCondition,

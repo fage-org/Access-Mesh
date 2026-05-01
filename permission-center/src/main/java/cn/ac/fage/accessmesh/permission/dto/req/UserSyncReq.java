@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record UserSyncReq(
-    @NotNull Integer userType,
+    @NotBlank String subjectTypeCode,
     @NotBlank String externalId,
     String name,
     Boolean enabled,

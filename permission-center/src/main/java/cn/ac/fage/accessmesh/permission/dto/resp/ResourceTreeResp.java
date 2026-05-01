@@ -9,7 +9,7 @@ public record ResourceTreeResp(
     public record ResourceTreeNode(
         Long id,
         Long parentId,
-        Integer resourceType,
+        String resourceTypeCode,
         String code,
         String codeType,
         String name,

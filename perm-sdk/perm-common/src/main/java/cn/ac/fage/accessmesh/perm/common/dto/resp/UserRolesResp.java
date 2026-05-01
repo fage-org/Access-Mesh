@@ -4,16 +4,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Shared: user's assigned roles from permission-center.
+ * Shared: user's assigned roles from permission-center (stable business keys only).
  */
 public record UserRolesResp(
-    Long abstractUserId,
+    String subjectTypeCode,
+    String subjectExternalId,
     List<RoleSummary> roles
 ) {
     public record RoleSummary(
-        Long roleId,
+        String roleExternalId,
         String roleName,
-        Integer roleType,
+        String roleTypeCode,
         String targetType,
         Long relationId,
         LocalDateTime validFrom,

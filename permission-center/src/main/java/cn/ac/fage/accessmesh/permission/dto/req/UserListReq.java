@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import jakarta.validation.constraints.NotNull;
-
 /**
- * List users: tenantId + pagination.
+ * List users with standard pagination.
  */
 public record UserListReq(
-    Integer offset,
-    Integer limit
+    String subjectTypeCode,
+    String domainCode,
+    String keyword,
+    Integer pageNum,
+    Integer pageSize,
+    String sort
 ) {}

@@ -2,18 +2,20 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
 
 import java.util.List;
 
-/**
- * Query-resources response \u2014 accessible resource codes for the subject.
- */
 public record QueryResourcesResp(
     List<ResourceEntry> items,
-    boolean scopeAll
+    String permissionVersion,
+    int cacheTtlSeconds
 ) {
     public record ResourceEntry(
         String resourceTypeCode,
         String resourceCode,
         String codeType,
         String resourceName,
-        boolean canManage
+        boolean canManage,
+        List<String> operations,
+        List<Long> matchedRoleIds,
+        List<Long> matchedPermissionIds,
+        List<String> grantSources
     ) {}
 }

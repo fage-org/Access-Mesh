@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotNull;
  */
 public record ResourceUpdateReq(
     @NotNull Long id,
-    @NotNull Long tenantId,
     String code,
     String name,
     String path,

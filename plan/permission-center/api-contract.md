@@ -220,6 +220,7 @@
 | `POST /api/perm/permission-condition/update` | 更新条件 |
 | `POST /api/perm/permission-condition/remove` | 删除条件，支持批量 |
 | `POST /api/perm/domain-config/list` | 查询域配置 |
+| `POST /api/perm/domain-config/detail` | 查询单条域配置 |
 | `POST /api/perm/domain-config/save` | 幂等保存域配置 |
 | `POST /api/perm/domain-config/remove` | 删除域配置 |
 | `POST /api/perm/resource-dependency/list` | 查询资源依赖 |
@@ -230,6 +231,7 @@
 | `POST /api/perm/resource-dependency/graph` | 查询依赖图 |
 | `POST /api/perm/resource-dependency/check` | 检查依赖是否成环 |
 | `POST /api/perm/conflict-rule/list` | 查询冲突规则 |
+| `POST /api/perm/conflict-rule/detail` | 查询冲突规则详情 |
 | `POST /api/perm/conflict-rule/create` | 创建冲突规则 |
 | `POST /api/perm/conflict-rule/update` | 更新冲突规则 |
 | `POST /api/perm/conflict-rule/remove` | 删除冲突规则，支持批量 |
@@ -261,6 +263,7 @@
 | `POST /api/perm/operation-log/list` | 操作日志 |
 | `POST /api/perm/permission-change-log/list` | 权限变更日志 |
 | `POST /api/perm/system-config/list` | 查询系统配置 |
+| `POST /api/perm/system-config/detail` | 查询系统配置详情 |
 | `POST /api/perm/system-config/save` | 保存系统配置 |
 
 ## 6. 核心请求契约
@@ -1072,6 +1075,91 @@ admin-service 查询示例：
 - `requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作。
 - FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则。
 - 同一语义依赖仍受 `tenant_id + resource_entity_id + depends_on_resource_entity_id + source_operation_bits` 唯一约束保护，避免不同来源重复创建同一条依赖。
+
+### 6.10 管理接口补充契约（实现约定）
+
+#### 6.10.1 `remove` 与 `{ "ids": [...] }`
+
+- 动词 `remove` 的请求体统一为 `{ "ids": [ ... ] }`，元素为**权限中心表主键**（`BIGINT`），用于删除已在 `list` / `detail` 响应中暴露过的配置行。
+- **适用范围**：`domain-config/remove`、`service-config/remove`、`resource-api-mapping/remove` 以及其它已声明支持批量的 `remove` 接口。
+- **与业务键的关系**：`ids` 中的主键**不**用于「首次定位外部主体/角色」；主体与角色在其它接口中仍使用 `subjectTypeCode + subjectExternalId`、`domainCode + roleTypeCode + roleExternalId` 等稳定键。调用方应先通过列表或详情拿到待删行的 `id`，再调用 `remove`。
+
+#### 6.10.2 `user-role/list` 与 `user-role/revoke`
+
+**`POST /api/perm/user-role/list`** — 按主体业务键查询该用户的角色关系：
+
+```json
+{
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001"
+}
+```
+
+可选扩展筛选字段（如 `domainCode`）由实现与前端约定；请求体**不得**使用权限中心内部 `abstract_user.id`。
+
+**`POST /api/perm/user-role/revoke`** — 批量回收，请求体示例：
+
+```json
+{
+  "items": [
+    {
+      "subjectTypeCode": "USER",
+      "subjectExternalId": "u-10001",
+      "domainCode": "admin",
+      "roleTypeCode": "BASIC_ROLE",
+      "roleExternalId": "role_admin",
+      "relationId": null
+    }
+  ]
+}
+```
+
+- 每条 `item` **必须**包含 `domainCode`，用于在「租户 + 域 + 全局」命名空间内唯一定位角色，避免跨业务域同名角色歧义。
+- `relationId` 与表 `user_role.relation_id` 一致（如 POSITION 等类型需要时填写，否则 `null`）。
+
+#### 6.10.3 `abstract-role/tree` 与 `extra-roles/*`
+
+**`POST /api/perm/abstract-role/tree`**：
+
+```json
+{
+  "domainCode": "admin"
+}
+```
+
+- `domainCode` 可省略或显式 `null`：仅返回**全局域**角色树（`biz_domain_id` 为空）。
+- `domainCode` 有值：返回该业务域下角色**以及**全局域角色的合并树（与实现中「域 OR 全局」过滤一致）。
+
+**`POST /api/perm/abstract-role/extra-roles/list|add|remove`** — 使用业务键定位分组角色与基本角色，示例（`add`）：
+
+```json
+{
+  "groupDomainCode": "admin",
+  "groupRoleTypeCode": "GROUP_ROLE",
+  "groupRoleExternalId": "finance_admin",
+  "basicDomainCode": "admin",
+  "basicRoleTypeCode": "BASIC_ROLE",
+  "basicRoleExternalId": "role_report_viewer"
+}
+```
+
+分组角色和基本角色可能属于不同业务域，因此使用独立的 `groupDomainCode` 和 `basicDomainCode` 分别定位。
+
+`list` 仅需定位分组角色的一组字段（`domainCode` + `groupRoleTypeCode` + `groupRoleExternalId`），响应为 `{ "items": [...] }`，每项为角色摘要（至少包含 `id`、`roleTypeCode`、`externalId`、`name`）。
+
+#### 6.10.4 `resource-api-mapping/create` 与 `update` 响应
+
+- `create`、`update` 成功后响应 `data` 为**单条**映射对象（与列表项结构一致），至少包含映射主键 `id` 及 `serviceCode`、`httpMethod`、`pathPattern` 等关键字段，便于调用方无需再发 `list` 即可确认结果。
+
+#### 6.10.5 `permission-view/explain` 在 `targetType=ROLE` 时的语义
+
+- `targetType=USER`：复用运行时鉴权等价逻辑（与 `auth/check` 一致的主体、角色解析、条件、冲突等）。
+- `targetType=ROLE`：**仅**判定该角色在 `role_resource_permission` 上是否**直接**拥有指定 `resourceTypeCode + resourceCode + codeType + operationCode`（含 `scopeAll`、条件启用、记录停用等角色侧字段）；**不**走用户维度的 `auth/check` 链路，不模拟用户继承的多角色并集。
+
+#### 6.10.6 批量删除与审计日志
+
+- 单次 `remove` 接口无论软删除多少行，**写入一条** `operation_log`（摘要中可含删除数量或 id 列表截断说明）。
+- 若该写操作需记 `permission_change_log`，同一事务内**写入一条**记录；`diff_snapshot` 符合 §6.8：`eventType` + `items[]`，可在 `items` 中列出多条 `REMOVE`/`UPDATE` 摘要，**禁止**为每个被删 id 各插入一条 `permission_change_log` 父记录。
 
 ## 7. 错误原因建议
 

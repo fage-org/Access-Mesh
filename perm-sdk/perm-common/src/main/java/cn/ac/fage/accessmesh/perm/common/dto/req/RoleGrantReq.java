@@ -1,23 +1,32 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 /**
  * Shared: batch grant permissions to a role.
  */
 public record RoleGrantReq(
-    @NotNull(message = "租户ID不能为空") Long tenantId,
-    @NotNull(message = "角色ID不能为空") Long abstractRoleId,
-    @NotEmpty(message = "授权列表不能为空") List<GrantItem> grants
+    String domainCode,
+    @NotBlank String roleTypeCode,
+    @NotBlank String roleExternalId,
+    List<GrantAddItem> add,
+    List<GrantUpdateItem> update,
+    List<Long> remove
 ) {
-    public record GrantItem(
-        @NotNull Long resourceEntityId,
-        @NotNull Long operationPermissionId,
-        Integer resourceType,
-        Long dependOn,
+    public record GrantAddItem(
+        @NotBlank String resourceTypeCode,
+        String resourceCode,
+        String codeType,
+        @NotBlank String operationCode,
+        Boolean scopeAll,
         Boolean canManage,
-        Long conditionId
+        String conditionCode
+    ) {}
+
+    public record GrantUpdateItem(
+        Long id,
+        Boolean canManage,
+        String conditionCode
     ) {}
 }

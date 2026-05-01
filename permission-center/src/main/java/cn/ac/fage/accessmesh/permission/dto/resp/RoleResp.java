@@ -7,7 +7,7 @@ public record RoleResp(
     Long tenantId,
     Long bizDomainId,
     Long parentId,
-    Integer roleType,
+    String roleTypeCode,
     String roleTypeName,
     String externalId,
     String name,

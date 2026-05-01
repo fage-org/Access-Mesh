@@ -21,6 +21,9 @@ public class ResourceEntity {
     private String path;
     private Integer status;
     private Integer sortOrder;
+    private String ownerServiceCode;
+    private String maintainSource;
+    private String syncKey;
     private String extra;
     private Long createdBy;
     private Long updatedBy;
@@ -52,6 +55,12 @@ public class ResourceEntity {
     public void setStatus(Integer status) { this.status = status; }
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public String getOwnerServiceCode() { return ownerServiceCode; }
+    public void setOwnerServiceCode(String ownerServiceCode) { this.ownerServiceCode = ownerServiceCode; }
+    public String getMaintainSource() { return maintainSource; }
+    public void setMaintainSource(String maintainSource) { this.maintainSource = maintainSource; }
+    public String getSyncKey() { return syncKey; }
+    public void setSyncKey(String syncKey) { this.syncKey = syncKey; }
     public String getExtra() { return extra; }
     public void setExtra(String extra) { this.extra = extra; }
     public Long getCreatedBy() { return createdBy; }
