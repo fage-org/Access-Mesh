@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
-import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingAddReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
@@ -158,7 +159,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode) {
+    public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode) {
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -169,6 +170,15 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             .and(RESOURCE_ENTITY.STATUS.eq(1));
         if (resourceType != null) {
             qw.and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
+        }
+        if (domainCode != null && !domainCode.isBlank()) {
+            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+            if (bizDomainId == null) {
+                return List.of();
+            }
+            qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(bizDomainId).or(RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull()));
+        } else {
+            qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
         }
 
         List<ResourceEntity> allEntities = resourceEntityMapper.selectListByQuery(qw);
@@ -185,7 +195,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, int offset, int limit) {
+    public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, String domainCode, int offset, int limit) {
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -196,6 +206,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         if (resourceType != null) {
             qw.and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
         }
+        applyDomainFilter(qw, tenantId, domainCode);
         qw.limit(limit).offset(offset);
 
         return resourceEntityMapper.selectListByQuery(qw)
@@ -203,7 +214,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public long countResources(Long tenantId, String resourceTypeCode) {
+    public long countResources(Long tenantId, String resourceTypeCode, String domainCode) {
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -214,20 +225,34 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         if (resourceType != null) {
             qw.and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
         }
+        applyDomainFilter(qw, tenantId, domainCode);
         return resourceEntityMapper.selectCountByQuery(qw);
+    }
+
+    private void applyDomainFilter(QueryWrapper qw, Long tenantId, String domainCode) {
+        if (domainCode != null && !domainCode.isBlank()) {
+            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+            if (bizDomainId != null) {
+                qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(bizDomainId).or(RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull()));
+            } else {
+                qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
+            }
+        } else {
+            qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
+        }
     }
 
     @Override
     @Transactional
-    public ApiMappingResp addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req) {
-        ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
+    public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
+        ResourceEntity entity = resourceEntityMapper.selectOneById(req.resourceId());
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
-            throw new IllegalArgumentException("Resource not found: " + resourceId);
+            throw new IllegalArgumentException("Resource not found: " + req.resourceId());
         }
 
         ResourceApiMapping mapping = new ResourceApiMapping();
         mapping.setTenantId(tenantId);
-        mapping.setResourceEntityId(resourceId);
+        mapping.setResourceEntityId(req.resourceId());
         mapping.setServiceCode(req.serviceCode());
         mapping.setHttpMethod(req.httpMethod());
         mapping.setPathPattern(req.pathPattern());
@@ -275,26 +300,28 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    public List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId) {
-        return apiMappingMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resourceId))
-                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-        ).stream().map(this::toApiMappingResp).collect(Collectors.toList());
+    public List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId, String serviceCode) {
+        QueryWrapper qw = QueryWrapper.create()
+            .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+            .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0));
+        if (resourceId != null) {
+            qw.and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resourceId));
+        }
+        if (serviceCode != null && !serviceCode.isBlank()) {
+            qw.and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode));
+        }
+        return apiMappingMapper.selectListByQuery(qw)
+            .stream().map(this::toApiMappingResp).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public ApiMappingResp updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req) {
-        ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
+    public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
+        ResourceApiMapping mapping = apiMappingMapper.selectOneById(req.mappingId());
         if (mapping == null || mapping.getDeleteFlag() != 0L
-            || !mapping.getResourceEntityId().equals(resourceId)
+            || !mapping.getResourceEntityId().equals(req.resourceId())
             || !mapping.getTenantId().equals(tenantId)) {
-            throw new IllegalArgumentException("Api mapping not found: " + mappingId);
-        }
-        if (req.serviceCode() != null) {
-            mapping.setServiceCode(req.serviceCode());
+            throw new IllegalArgumentException("Api mapping not found: " + req.mappingId());
         }
         if (req.httpMethod() != null) {
             mapping.setHttpMethod(req.httpMethod());
@@ -313,7 +340,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
         mapping.setUpdatedAt(LocalDateTime.now());
         apiMappingMapper.update(mapping);
-        ResourceApiMapping updated = apiMappingMapper.selectOneById(mappingId);
+        ResourceApiMapping updated = apiMappingMapper.selectOneById(req.mappingId());
         return toApiMappingResp(updated);
     }
 

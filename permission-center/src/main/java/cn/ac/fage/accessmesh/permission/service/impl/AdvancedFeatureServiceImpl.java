@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleDetectReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.DependencyBatchSyncReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
@@ -403,12 +404,25 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
+        Long sourceId = typeResolutionService.resolveResourceId(
+            tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
+        if (sourceId == null) {
+            throw new IllegalArgumentException("Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+        }
+        Long targetId = typeResolutionService.resolveResourceId(
+            tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
+        if (targetId == null) {
+            throw new IllegalArgumentException("Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+        }
+        Long sourceOperationBits = resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode());
+        Long requiredOperationBits = resolveOperationBits(tenantId, req.requiredOperationCodes(), req.targetResourceTypeCode());
+
         ResourceDependency dep = new ResourceDependency();
         dep.setTenantId(tenantId);
-        dep.setResourceEntityId(req.resourceEntityId());
-        dep.setDependsOnResourceEntityId(req.dependsOnResourceEntityId());
-        dep.setSourceOperationBits(req.sourceOperationBits());
-        dep.setRequiredOperationBits(req.requiredOperationBits());
+        dep.setResourceEntityId(sourceId);
+        dep.setDependsOnResourceEntityId(targetId);
+        dep.setSourceOperationBits(sourceOperationBits);
+        dep.setRequiredOperationBits(requiredOperationBits);
         dep.setAutoGrant(req.autoGrant() != null ? req.autoGrant() : true);
         dep.setDescription(req.description());
         dep.setCreatedBy(operatorId);
@@ -447,8 +461,12 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
         if (dep == null || dep.getDeleteFlag() != 0L || !tenantId.equals(dep.getTenantId())) {
             throw new IllegalArgumentException("Dependency not found: " + req.id());
         }
-        if (req.sourceOperationBits() != null) dep.setSourceOperationBits(req.sourceOperationBits());
-        if (req.requiredOperationBits() != null) dep.setRequiredOperationBits(req.requiredOperationBits());
+        if (req.sourceOperationCodes() != null) {
+            dep.setSourceOperationBits(resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode()));
+        }
+        if (req.requiredOperationCodes() != null) {
+            dep.setRequiredOperationBits(resolveOperationBits(tenantId, req.requiredOperationCodes(), req.targetResourceTypeCode()));
+        }
         if (req.autoGrant() != null) dep.setAutoGrant(req.autoGrant());
         if (req.description() != null) dep.setDescription(req.description());
         dep.setUpdatedAt(LocalDateTime.now());
@@ -457,8 +475,18 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     }
 
     @Override
-    public boolean hasDependencyCycle(Long tenantId, Long resourceEntityId, Long dependsOnResourceEntityId) {
-        if (Objects.equals(resourceEntityId, dependsOnResourceEntityId)) {
+    public boolean hasDependencyCycle(Long tenantId, ResourceDependencyCheckReq req) {
+        Long sourceId = typeResolutionService.resolveResourceId(
+            tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
+        if (sourceId == null) {
+            throw new IllegalArgumentException("Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+        }
+        Long targetId = typeResolutionService.resolveResourceId(
+            tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
+        if (targetId == null) {
+            throw new IllegalArgumentException("Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+        }
+        if (Objects.equals(sourceId, targetId)) {
             return true;
         }
         List<ResourceDependency> allDeps = dependencyMapper.selectListByQuery(
@@ -471,8 +499,8 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
             graph.computeIfAbsent(dep.getResourceEntityId(), k -> new HashSet<>())
                 .add(dep.getDependsOnResourceEntityId());
         }
-        graph.computeIfAbsent(resourceEntityId, k -> new HashSet<>()).add(dependsOnResourceEntityId);
-        return canReach(graph, dependsOnResourceEntityId, resourceEntityId, new HashSet<>());
+        graph.computeIfAbsent(sourceId, k -> new HashSet<>()).add(targetId);
+        return canReach(graph, targetId, sourceId, new HashSet<>());
     }
 
     private boolean canReach(Map<Long, Set<Long>> graph, Long current, Long target, Set<Long> visited) {

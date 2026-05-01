@@ -62,7 +62,7 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode) {
+    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);

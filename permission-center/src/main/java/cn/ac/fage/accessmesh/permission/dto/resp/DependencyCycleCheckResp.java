@@ -6,6 +6,8 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
  */
 public record DependencyCycleCheckResp(
     boolean hasCycle,
-    Long resourceEntityId,
-    Long dependsOnResourceEntityId
+    String sourceResourceTypeCode,
+    String sourceResourceCode,
+    String targetResourceTypeCode,
+    String targetResourceCode
 ) {}

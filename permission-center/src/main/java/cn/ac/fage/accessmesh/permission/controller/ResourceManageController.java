@@ -68,7 +68,7 @@ public class ResourceManageController {
     @PostMapping("/tree")
     public PermResult<ItemsResp<ResourceTreeResp>> getResourceTree(@Valid @RequestBody ResourceTreeReq req) {
         return PermResult.success(new ItemsResp<>(
-            resourceManageService.getResourceTree(TenantContextHolder.getTenantId(), req.resourceTypeCode())
+            resourceManageService.getResourceTree(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
         ));
     }
 
@@ -78,8 +78,8 @@ public class ResourceManageController {
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = resourceManageService.countResources(tenantId, req.resourceTypeCode());
-        List<ResourceResp> items = resourceManageService.listResources(tenantId, req.resourceTypeCode(), offset, pageSize);
+        long total = resourceManageService.countResources(tenantId, req.resourceTypeCode(), req.domainCode());
+        List<ResourceResp> items = resourceManageService.listResources(tenantId, req.resourceTypeCode(), req.domainCode(), offset, pageSize);
         return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

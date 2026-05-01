@@ -3,12 +3,14 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Update API mapping: path params in body + mapping fields.
+ * Update API mapping — field names consistent with ApiMappingAddReq.
  */
 public record ApiMappingUpdateReq(
     @NotNull Long resourceId,
     @NotNull Long mappingId,
-    @NotNull String apiPath,
-    @NotNull String method,
-    String description
+    String httpMethod,
+    String pathPattern,
+    Integer matchOrder,
+    Boolean enabled,
+    String extra
 ) {}

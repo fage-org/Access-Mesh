@@ -6,5 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * List operations with optional resourceType filter.
  */
 public record OperationListReq(
-    String resourceTypeCode
+    String resourceTypeCode,
+    String domainCode
 ) {}

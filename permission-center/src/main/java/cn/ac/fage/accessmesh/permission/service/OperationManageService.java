@@ -13,7 +13,7 @@ public interface OperationManageService {
 
     OperationPermissionResp getOperation(Long tenantId, Long operationId);
 
-    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode);
+    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode);
 
     OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId);
 

@@ -98,7 +98,41 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     }
 
     @Override
-    public PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
+    public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
+        int pageNum = req.pageNum() == null ? 1 : req.pageNum();
+        int pageSize = Math.min(req.pageSize() == null ? 50 : req.pageSize(), 200);
+        if ("USER".equalsIgnoreCase(req.targetType())) {
+            Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+            if (userId == null) {
+                return new PermissionEffectivePermissionsResp("USER", List.of(), 0, pageNum, pageSize, false);
+            }
+            PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, req);
+            List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(v ->
+                new PermissionEffectivePermissionsResp.EffectivePermissionItem(
+                    v.resourceTypeCode(), v.resourceCode(), v.resourceName(), v.codeType(),
+                    v.operationCodes(), v.scopeAll(),
+                    v.sourceRoles() == null ? List.of() : v.sourceRoles().stream().map(sr ->
+                        new PermissionEffectivePermissionsResp.SourceRole(sr.roleTypeCode(), sr.roleExternalId(), sr.roleName(), sr.via())
+                    ).toList(),
+                    v.sourceRoleCount(), v.sourceRolesTruncated(), v.matchedPermissionIds()
+                )
+            ).toList();
+            return new PermissionEffectivePermissionsResp("USER", items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
+        }
+        PaginatedResp<PermissionItem> paged = getRolePermissionItemsPaged(
+            tenantId, req.domainCode(), req.roleTypeCode(), req.roleExternalId(), pageNum, pageSize);
+        List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(p ->
+            new PermissionEffectivePermissionsResp.EffectivePermissionItem(
+                p.resourceTypeCode(), p.resourceCode(), p.resourceName(), null,
+                p.operationCode() == null ? List.of() : List.of(p.operationCode()),
+                false, List.of(), 0, false,
+                p.id() == null ? List.of() : List.of(p.id())
+            )
+        ).toList();
+        return new PermissionEffectivePermissionsResp("ROLE", items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
+    }
+
+    PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
         AbstractUser user = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(ABSTRACT_USER.ID.eq(userId))

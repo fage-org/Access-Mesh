@@ -55,7 +55,7 @@ public class OperationManageController {
     @PostMapping("/list")
     public PermResult<ItemsResp<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
         return PermResult.success(new ItemsResp<>(
-            operationManageService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode())
+            operationManageService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
         ));
     }
 

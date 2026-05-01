@@ -74,10 +74,9 @@ public class ResourceDependencyController {
 
     @PostMapping("/check")
     public PermResult<DependencyCycleCheckResp> check(@Valid @RequestBody ResourceDependencyCheckReq req) {
-        boolean hasCycle = advancedFeatureService.hasDependencyCycle(
-            TenantContextHolder.getTenantId(), req.resourceEntityId(), req.dependsOnResourceEntityId()
-        );
+        boolean hasCycle = advancedFeatureService.hasDependencyCycle(TenantContextHolder.getTenantId(), req);
         return PermResult.success(new DependencyCycleCheckResp(
-            hasCycle, req.resourceEntityId(), req.dependsOnResourceEntityId()));
+            hasCycle, req.sourceResourceTypeCode(), req.sourceResourceCode(),
+            req.targetResourceTypeCode(), req.targetResourceCode()));
     }
 }

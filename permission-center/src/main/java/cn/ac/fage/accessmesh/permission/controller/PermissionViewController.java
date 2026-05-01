@@ -17,10 +17,8 @@ import cn.ac.fage.accessmesh.permission.dto.resp.PermissionRecentChangesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourcePermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourcePermissionViewResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RolePermissionViewResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,23 +45,8 @@ public class PermissionViewController {
     }
 
     @PostMapping("/effective-permissions")
-    public PermResult<PermissionEffectivePermissionsResp<?>> getUserPermissions(@Valid @RequestBody UserPermissionViewReq req) {
-        Long tenantId = TenantContextHolder.getTenantId();
-        int pageNum = PageUtil.pageNum(req.pageNum());
-        int pageSize = Math.min(PageUtil.pageSize(req.pageSize(), 50), 200);
-        if ("USER".equalsIgnoreCase(req.targetType())) {
-            Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-            if (userId == null) {
-                return PermResult.success(new PermissionEffectivePermissionsResp<>("USER", List.of(), 0, pageNum, pageSize, false));
-            }
-            var paged = permissionViewService.getUserPermissionsWithFilters(tenantId, userId, req);
-            return PermResult.success(new PermissionEffectivePermissionsResp<>(
-                "USER", paged.items(), (int) paged.total(), pageNum, pageSize, paged.hasNext()));
-        }
-        var paged = permissionViewService.getRolePermissionItemsPaged(
-            tenantId, req.domainCode(), req.roleTypeCode(), req.roleExternalId(), pageNum, pageSize);
-        return PermResult.success(new PermissionEffectivePermissionsResp<>(
-            "ROLE", paged.items(), (int) paged.total(), pageNum, pageSize, paged.hasNext()));
+    public PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(@Valid @RequestBody UserPermissionViewReq req) {
+        return PermResult.success(permissionViewService.getEffectivePermissions(TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/resource-users")

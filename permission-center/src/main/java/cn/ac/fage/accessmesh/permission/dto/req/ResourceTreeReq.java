@@ -6,5 +6,6 @@ import jakarta.validation.constraints.NotNull;
  * Get resource tree with optional type filter.
  */
 public record ResourceTreeReq(
-    String resourceTypeCode
+    String resourceTypeCode,
+    String domainCode
 ) {}

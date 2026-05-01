@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service;
 
-import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingAddReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
@@ -43,19 +44,19 @@ public interface ResourceManageService {
     /**
      * Get resource tree for a tenant (optionally scoped to bizDomainId).
      */
-    List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode);
+    List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode);
 
     /**
-     * List resources by tenant and type (flat list).
+     * List resources by tenant and type (flat list), optionally filtered by domain.
      */
-    List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, int offset, int limit);
+    List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, String domainCode, int offset, int limit);
 
-    long countResources(Long tenantId, String resourceTypeCode);
+    long countResources(Long tenantId, String resourceTypeCode, String domainCode);
 
     /**
      * Add an API mapping to a resource.
      */
-    ApiMappingResp addApiMapping(Long tenantId, Long resourceId, ApiMappingReq req);
+    ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req);
 
     /**
      * Remove API mappings by mapping row ids (tenant-scoped soft delete).
@@ -63,12 +64,12 @@ public interface ResourceManageService {
     void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId);
 
     /**
-     * List API mappings for a resource.
+     * List API mappings, filtered by resourceId and/or serviceCode (AND semantics).
      */
-    List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId);
+    List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId, String serviceCode);
 
     /**
      * Update an API mapping.
      */
-    ApiMappingResp updateApiMapping(Long tenantId, Long resourceId, Long mappingId, ApiMappingReq req);
+    ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req);
 }

@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserResourceTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.EffectiveRoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionExplainResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourcePermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionRecentChangesResp;
@@ -26,9 +27,9 @@ public interface PermissionViewService {
     UserPermissionViewResp getUserPermissions(Long tenantId, Long userId);
 
     /**
-     * View a user's effective permissions with filters and pagination.
+     * View a user's effective permissions with filters and pagination (unified item type per §6.8).
      */
-    PaginatedResp<UserPermissionViewResp.ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req);
+    PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req);
 
     /**
      * View which roles have permissions on a resource.
