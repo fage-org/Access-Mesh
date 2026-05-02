@@ -14,4 +14,10 @@ public interface AbstractRoleDomainService {
     List<AbstractRole> listChildren(Long tenantId, Long parentId);
 
     List<Long> resolveDescendantIds(Long tenantId, Long roleId);
+
+    /**
+     * Select a valid role by ID with tenant and delete flag conditions.
+     * Returns null if role not found, deleted, or doesn't belong to the tenant.
+     */
+    AbstractRole selectValidById(Long tenantId, Long roleId);
 }

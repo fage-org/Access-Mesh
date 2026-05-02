@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionAddChildReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionChildrenReq;
@@ -23,7 +25,9 @@ import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
+import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +65,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final ResourceDependencyDomainService resourceDependencyDomainService;
     private final TypeResolutionService typeResolutionService;
     private final AuthorizationService authorizationService;
+    private final OperationPermissionDomainService operationPermissionDomainService;
+    private final AbstractRoleDomainService abstractRoleDomainService;
 
     public PermissionGrantServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
@@ -75,7 +81,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       UserRoleDomainService userRoleDomainService,
                                       ResourceDependencyDomainService resourceDependencyDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      AuthorizationService authorizationService) {
+                                      AuthorizationService authorizationService,
+                                      OperationPermissionDomainService operationPermissionDomainService,
+                                      AbstractRoleDomainService abstractRoleDomainService) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -90,6 +98,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.resourceDependencyDomainService = resourceDependencyDomainService;
         this.typeResolutionService = typeResolutionService;
         this.authorizationService = authorizationService;
+        this.operationPermissionDomainService = operationPermissionDomainService;
+        this.abstractRoleDomainService = abstractRoleDomainService;
     }
 
     @Override
@@ -124,7 +134,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         if (role == null) {
             throw new IllegalArgumentException("Role not found: " + roleId);
         }
-        if (role.getStatus() != 1) {
+        if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
             throw new IllegalStateException("Role is disabled: " + roleId);
         }
 
@@ -173,9 +183,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             }
 
             // Get existing permission to check what resource/operation it is
-            RoleResourcePermission existing = rolePermMapper.selectOneById(updateItem.id());
-            if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())
-                || !roleId.equals(existing.getAbstractRoleId())) {
+            RoleResourcePermission existing = rolePermissionDomainService.selectValidById(tenantId, roleId, updateItem.id());
+            if (existing == null) {
                 continue;
             }
 
@@ -204,15 +213,39 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         }
         // ===== END SECURITY CHECK =====
 
-        Set<Long> resourceIds = addItems.stream()
+        // ===== Batch resolution to avoid N+1 queries =====
+        // 1. Batch resolve resource IDs
+        List<ResourceResolveRequest> resourceRequests = addItems.stream()
             .filter(item -> !Boolean.TRUE.equals(item.scopeAll()))
-            .map(item -> typeResolutionService.resolveResourceId(
-                tenantId,
+            .map(item -> new ResourceResolveRequest(
                 item.resourceTypeCode(),
                 item.resourceCode(),
                 item.codeType(),
-                req.domainCode()
-            ))
+                req.domainCode()))
+            .distinct()
+            .collect(Collectors.toList());
+        Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
+
+        // 2. Batch resolve operation IDs by resource type
+        Map<String, Set<String>> operationCodesByType = addItems.stream()
+            .collect(Collectors.groupingBy(
+                RoleGrantReq.GrantAddItem::resourceTypeCode,
+                Collectors.mapping(RoleGrantReq.GrantAddItem::operationCode, Collectors.toSet())
+            ));
+        Map<String, Map<String, Long>> operationIdMapByType = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : operationCodesByType.entrySet()) {
+            Map<String, Long> opMap = typeResolutionService.batchResolveOperationIds(tenantId, entry.getKey(), entry.getValue());
+            operationIdMapByType.put(entry.getKey(), opMap);
+        }
+
+        // 3. Batch resolve resource type values
+        Set<String> resourceTypeCodes = addItems.stream()
+            .map(RoleGrantReq.GrantAddItem::resourceTypeCode)
+            .filter(code -> code != null && !code.isBlank())
+            .collect(Collectors.toSet());
+        Map<String, Integer> resourceTypeValueMap = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", resourceTypeCodes);
+
+        Set<Long> resourceIds = resourceIdMap.values().stream()
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
@@ -238,23 +271,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             boolean scopeAll = Boolean.TRUE.equals(item.scopeAll());
             Long resourceEntityId = null;
             if (!scopeAll) {
-                resourceEntityId = typeResolutionService.resolveResourceId(
-                    tenantId,
-                    item.resourceTypeCode(),
-                    item.resourceCode(),
-                    item.codeType(),
-                    req.domainCode()
-                );
+                ResourceResolveKey resKey = new ResourceResolveKey(
+                    item.resourceTypeCode(), item.resourceCode(), item.codeType(), req.domainCode());
+                resourceEntityId = resourceIdMap.get(resKey);
                 if (resourceEntityId == null) {
                     throw new IllegalArgumentException("resource not found: " + item.resourceCode());
                 }
             }
 
-            Long operationId = typeResolutionService.resolveOperationId(
-                tenantId, item.operationCode(), item.resourceTypeCode()
-            );
-            OperationPermission operation = operationPermissionMapper.selectOneById(operationId);
-            if (operation == null || operation.getDeleteFlag() != 0L || !tenantId.equals(operation.getTenantId())) {
+            Map<String, Long> opMap = operationIdMapByType.getOrDefault(item.resourceTypeCode(), Map.of());
+            Long operationId = opMap.get(item.operationCode());
+            OperationPermission operation = operationId != null
+                ? operationPermissionDomainService.selectValidById(tenantId, operationId) : null;
+            if (operation == null) {
                 throw new IllegalArgumentException("operationCode not found: " + item.operationCode());
             }
             Long conditionId = null;
@@ -275,7 +304,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setAbstractRoleId(roleId);
             rp.setResourceEntityId(scopeAll ? null : resourceEntityId);
             rp.setOperationPermissionId(operationId);
-            Integer finalResourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", item.resourceTypeCode());
+            Integer finalResourceType = resourceTypeValueMap.get(item.resourceTypeCode());
             if (finalResourceType == null) {
                 throw new IllegalArgumentException("resourceTypeCode not found: " + item.resourceTypeCode());
             }
@@ -306,9 +335,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             if (updateItem.id() == null) {
                 continue;
             }
-            RoleResourcePermission existing = rolePermMapper.selectOneById(updateItem.id());
-            if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())
-                || !roleId.equals(existing.getAbstractRoleId())) {
+            RoleResourcePermission existing = rolePermissionDomainService.selectValidById(tenantId, roleId, updateItem.id());
+            if (existing == null) {
                 continue;
             }
             if (updateItem.canGrant() != null) {
@@ -432,8 +460,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(readOnly = true)
     public List<RolePermissionItemResp> listChildren(Long tenantId, RolePermissionChildrenReq req) {
-        RoleResourcePermission parent = rolePermMapper.selectOneById(req.permissionId());
-        if (parent == null || parent.getDeleteFlag() != 0L || !tenantId.equals(parent.getTenantId())) {
+        RoleResourcePermission parent = rolePermissionDomainService.selectValidById(tenantId, null, req.permissionId());
+        if (parent == null) {
             return List.of();
         }
 
@@ -456,8 +484,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
-        RoleResourcePermission parent = rolePermMapper.selectOneById(req.parentPermissionId());
-        if (parent == null || parent.getDeleteFlag() != 0L || !tenantId.equals(parent.getTenantId())) {
+        RoleResourcePermission parent = rolePermissionDomainService.selectValidById(tenantId, null, req.parentPermissionId());
+        if (parent == null) {
             throw new IllegalArgumentException("parentPermissionId not found");
         }
 
@@ -551,8 +579,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
-        RoleResourcePermission child = rolePermMapper.selectOneById(req.permissionId());
-        if (child == null || child.getDeleteFlag() != 0L || !tenantId.equals(child.getTenantId())) {
+        RoleResourcePermission child = rolePermissionDomainService.selectValidById(tenantId, null, req.permissionId());
+        if (child == null) {
             throw new IllegalArgumentException("child permission not found");
         }
 
@@ -615,10 +643,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 QueryWrapper.create().where(PERMISSION_CONDITION.ID.in(conditionIds))
             ).stream().collect(java.util.stream.Collectors.toMap(PermissionCondition::getId, c -> c));
 
+        // Batch resolve resource type codes (avoid N+1)
+        Set<Integer> resourceTypeValues = perms.stream()
+            .map(RoleResourcePermission::getResourceType)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+
         return perms.stream().map(perm -> {
             ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceMap.get(perm.getResourceEntityId());
             OperationPermission operation = operationMap.get(perm.getOperationPermissionId());
-            String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", perm.getResourceType());
+            String resourceTypeCode = resourceTypeCodeMap.get(perm.getResourceType());
             PermissionCondition condition = perm.getConditionId() == null ? null : conditionMap.get(perm.getConditionId());
             return new RolePermissionItemResp(
                 perm.getId(),

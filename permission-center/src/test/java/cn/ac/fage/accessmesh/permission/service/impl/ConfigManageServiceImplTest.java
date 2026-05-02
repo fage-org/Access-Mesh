@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.permission.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +44,7 @@ class ConfigManageServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private OperationLogDomainService operationLogDomainService;
     @Mock private AuthorizationService authorizationService;
+    @Mock private ServiceInterfaceSyncService serviceInterfaceSyncService;
 
     private ConfigManageServiceImpl service;
 
@@ -51,7 +53,7 @@ class ConfigManageServiceImplTest {
         service = new ConfigManageServiceImpl(
             typeDefinitionMapper, bizDomainMapper, domainConfigMapper, serviceConfigMapper, systemConfigMapper,
             resourceEntityMapper, resourceApiMappingMapper, typeResolutionService, operationLogDomainService,
-            authorizationService
+            authorizationService, serviceInterfaceSyncService
         );
     }
 

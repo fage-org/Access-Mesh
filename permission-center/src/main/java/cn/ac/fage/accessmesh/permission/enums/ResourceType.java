@@ -23,4 +23,12 @@ public enum ResourceType {
         }
         throw new IllegalArgumentException("Unknown ResourceType value: " + value);
     }
+
+    public static String safeGetLabel(Integer value) {
+        try {
+            return fromValue(value != null ? value : 0).getLabel();
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
+    }
 }

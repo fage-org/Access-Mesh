@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.config.PermCacheProperties;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
@@ -20,20 +21,23 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     private static final String ROLE_PERMS_KEY = "perm:role:perms:";
     private static final String PERM_VERSION_KEY = "perm:permission-version:role:";
     private static final String INTERFACE_SNAPSHOT_KEY = "perm:gateway:interface-snapshot:";
-    private static final long L2_TTL_MINUTES = 30;
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final PermCacheProperties permCacheProperties;
     private Cache<String, Object> l1Cache;
 
-    public PermCacheDomainServiceImpl(RedisTemplate<String, Object> redisTemplate) {
+    public PermCacheDomainServiceImpl(RedisTemplate<String, Object> redisTemplate,
+                                       PermCacheProperties permCacheProperties) {
         this.redisTemplate = redisTemplate;
+        this.permCacheProperties = permCacheProperties;
     }
 
     @PostConstruct
     public void init() {
+        PermCacheProperties.L1Config l1 = permCacheProperties.getL1();
         l1Cache = Caffeine.newBuilder()
-            .maximumSize(1000)
-            .expireAfterWrite(10, TimeUnit.MINUTES)
+            .maximumSize(l1.getMaximumSize())
+            .expireAfterWrite(l1.getExpireMinutes(), TimeUnit.MINUTES)
             .build();
     }
 
@@ -74,7 +78,7 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     public void setRolePermSnapshot(Long tenantId, Long roleId, RolePermSnapshot snapshot) {
         String key = ROLE_PERMS_KEY + tenantId + ":" + roleId;
         l1Cache.put(key, snapshot);
-        redisTemplate.opsForValue().set(key, snapshot, L2_TTL_MINUTES, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(key, snapshot, permCacheProperties.getL2().getTtlMinutes(), TimeUnit.MINUTES);
     }
 
     @Override
@@ -110,7 +114,7 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     public void setInterfaceSnapshot(Long tenantId, String serviceCode, InterfaceSnapshot snapshot) {
         String key = INTERFACE_SNAPSHOT_KEY + tenantId + ":" + serviceCode;
         l1Cache.put(key, snapshot);
-        redisTemplate.opsForValue().set(key, snapshot, L2_TTL_MINUTES, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(key, snapshot, permCacheProperties.getL2().getTtlMinutes(), TimeUnit.MINUTES);
     }
 
     @Override

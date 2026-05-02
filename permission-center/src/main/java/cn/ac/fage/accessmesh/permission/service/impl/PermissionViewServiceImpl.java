@@ -17,8 +17,10 @@ import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
+import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -133,142 +135,323 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     }
 
     PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
+        PermissionQueryContext context = new PermissionQueryContext(tenantId, userId, req);
+
+        prepareContext(context);
+        if (context.isUserNotFound()) {
+            return emptyResponse(context);
+        }
+
+        loadRoles(context);
+        if (context.hasNoFilteredRoles()) {
+            return emptyResponse(context);
+        }
+
+        loadPermissions(context);
+        if (context.hasNoPermissions()) {
+            return emptyResponse(context);
+        }
+
+        filterPermissions(context);
+        paginateResults(context);
+        return assembleResponse(context);
+    }
+
+    /**
+     * Stage 1: Prepare context with user and pagination info.
+     */
+    private void prepareContext(PermissionQueryContext context) {
+        context.setPageNum(context.getRequest().pageNum() == null ? 1 : context.getRequest().pageNum());
+        context.setPageSize(context.getRequest().pageSize() == null ? 50 : Math.min(context.getRequest().pageSize(), 200));
+        context.setOffset(Math.max((context.getPageNum() - 1) * context.getPageSize(), 0));
+
         AbstractUser user = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.ID.eq(userId))
-                .and(ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .where(ABSTRACT_USER.ID.eq(context.getUserId()))
+                .and(ABSTRACT_USER.TENANT_ID.eq(context.getTenantId()))
                 .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
-        int pageNum = req.pageNum() == null ? 1 : req.pageNum();
-        int pageSize = req.pageSize() == null ? 50 : Math.min(req.pageSize(), 200);
-        if (user == null) {
-            return new PaginatedResp<>(List.of(), 0, pageNum, pageSize, false);
+        context.setUser(user);
+
+        if (user != null) {
+            Long domainId = typeResolutionService.resolveDomainId(context.getTenantId(), context.getRequest().domainCode());
+            context.setDomainId(domainId);
+        }
+    }
+
+    /**
+     * Stage 2: Load and filter user roles.
+     */
+    private void loadRoles(PermissionQueryContext context) {
+        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(
+            context.getTenantId(), context.getUserId(), context.getDomainId());
+        context.setRoleIds(roleIds);
+
+        if (context.hasNoRoles()) {
+            context.setFilteredRoleIds(Set.of());
+            return;
         }
 
-        Long domainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
-        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, domainId);
-        if (roleIds.isEmpty()) {
-            return new PaginatedResp<>(Collections.emptyList(), 0, pageNum, pageSize, false);
-        }
-        int offset = Math.max((pageNum - 1) * pageSize, 0);
+        Set<Long> filteredRoleIds = filterRoleIds(
+            context.getTenantId(), roleIds,
+            context.getRequest().sourceRoleExternalId(),
+            context.getRequest().roleTypeCode(),
+            context.getRequest().domainCode()
+        );
+        context.setFilteredRoleIds(filteredRoleIds);
 
-        Set<Long> filteredRoleIds = filterRoleIds(tenantId, roleIds, req.sourceRoleExternalId(), req.roleTypeCode(), req.domainCode());
-        if (filteredRoleIds.isEmpty()) {
-            return new PaginatedResp<>(List.of(), 0, pageNum, pageSize, false);
+        if (!context.hasNoFilteredRoles()) {
+            Map<Long, AbstractRole> roleMap = loadRoles(context.getTenantId(), filteredRoleIds);
+            context.setRoleMap(roleMap);
         }
-        Map<Long, AbstractRole> roleMap = loadRoles(tenantId, filteredRoleIds);
+    }
 
+    /**
+     * Stage 3: Load all permissions for filtered roles and related entities.
+     */
+    private void loadPermissions(PermissionQueryContext context) {
         List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(filteredRoleIds))
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(context.getTenantId()))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(context.getFilteredRoleIds()))
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
+        context.setAllPermissions(allPerms);
 
-        Set<Long> operationIds = allPerms.stream().map(RoleResourcePermission::getOperationPermissionId).collect(Collectors.toSet());
+        if (allPerms.isEmpty()) {
+            return;
+        }
+
+        // Batch load related entities
+        Set<Long> operationIds = allPerms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
         Map<Long, OperationPermission> operationMap = loadOperations(operationIds);
-        Set<Long> resourceIds = allPerms.stream().map(RoleResourcePermission::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, ResourceEntity> resourceMap = loadResources(tenantId, resourceIds);
-        Set<Long> domainIds = resourceMap.values().stream().map(ResourceEntity::getBizDomainId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, String> domainCodeMap = loadDomainCodes(tenantId, domainIds);
-        Integer apiTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
+        context.setOperationMap(operationMap);
 
-        List<RoleResourcePermission> filteredPerms = allPerms.stream().filter(p -> {
-            if (Boolean.FALSE.equals(req.includeScopes()) && p.getDependOn() != null) {
-                return false;
-            }
-            if (req.operationCodes() != null && !req.operationCodes().isEmpty()) {
-                OperationPermission op = operationMap.get(p.getOperationPermissionId());
-                if (op == null || op.getCode() == null || !req.operationCodes().contains(op.getCode())) {
-                    return false;
-                }
-            }
-            ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
-            if (resource == null && !Boolean.TRUE.equals(p.getScopeAll())) {
-                return false;
-            }
-            if (resource != null) {
-                String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType());
-                if (req.resourceTypeCodes() != null && !req.resourceTypeCodes().isEmpty()
-                    && (resourceTypeCode == null || !req.resourceTypeCodes().contains(resourceTypeCode))) {
-                    return false;
-                }
-                if (req.resourceKeyword() != null && !req.resourceKeyword().isBlank()
-                    && (resource.getName() == null || !resource.getName().contains(req.resourceKeyword()))) {
-                    return false;
-                }
-                if (Boolean.FALSE.equals(req.includeApiResources()) && apiTypeValue != null
-                    && Objects.equals(apiTypeValue, resource.getResourceType())) {
-                    return false;
-                }
-                if (req.domainCode() != null) {
-                    if (domainId == null || (!Objects.equals(domainId, resource.getBizDomainId()) && resource.getBizDomainId() != null)) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }).toList();
+        Set<Long> resourceIds = allPerms.stream()
+            .map(RoleResourcePermission::getResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = loadResources(context.getTenantId(), resourceIds);
+        context.setResourceMap(resourceMap);
 
+        Set<Long> domainIds = resourceMap.values().stream()
+            .map(ResourceEntity::getBizDomainId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, String> domainCodeMap = loadDomainCodes(context.getTenantId(), domainIds);
+        context.setDomainCodeMap(domainCodeMap);
+
+        // Resolve API type value for filtering
+        Integer apiTypeValue = typeResolutionService.resolveTypeValue(context.getTenantId(), "resource_type", "API");
+        context.setApiTypeValue(apiTypeValue);
+
+        // Batch resolve resource type codes
+        Set<Integer> allResourceTypes = allPerms.stream()
+            .map(RoleResourcePermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        allResourceTypes.addAll(resourceMap.values().stream()
+            .map(ResourceEntity::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()));
+        Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(
+            context.getTenantId(), "resource_type", allResourceTypes);
+        context.setResourceTypeCodeMap(resourceTypeCodeMap);
+
+        // Batch resolve role type codes
+        Set<Integer> roleTypeValues = context.getRoleMap().values().stream()
+            .map(AbstractRole::getRoleType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Integer, String> roleTypeCodeMap = typeResolutionService.batchResolveTypeCodes(
+            context.getTenantId(), "role_type", roleTypeValues);
+        context.setRoleTypeCodeMap(roleTypeCodeMap);
+    }
+
+    /**
+     * Stage 4: Filter permissions based on request criteria.
+     */
+    private void filterPermissions(PermissionQueryContext context) {
+        List<RoleResourcePermission> filteredPerms = context.getAllPermissions().stream()
+            .filter(p -> matchesFilters(p, context))
+            .toList();
+        context.setFilteredPermissions(filteredPerms);
+    }
+
+    /**
+     * Stage 5: Paginate filtered results and group by resource.
+     */
+    private void paginateResults(PermissionQueryContext context) {
+        List<RoleResourcePermission> filteredPerms = context.getFilteredPermissions();
         long total = filteredPerms.size();
-        List<RoleResourcePermission> pagePerms = filteredPerms.stream().skip(offset).limit(pageSize).toList();
+        context.setTotalCount(total);
+
+        List<RoleResourcePermission> pagePerms = filteredPerms.stream()
+            .skip(context.getOffset())
+            .limit(context.getPageSize())
+            .toList();
+        context.setPagedPermissions(pagePerms);
+
         Map<Long, List<RoleResourcePermission>> byResource = pagePerms.stream()
             .filter(p -> p.getResourceEntityId() != null)
             .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
+        context.setGroupedByResource(byResource);
 
-        int sourceRoleLimit = req.sourceRoleLimit() == null ? 20 : Math.max(req.sourceRoleLimit(), 0);
-        boolean includeSourceRoles = req.includeSourceRoles() == null || req.includeSourceRoles();
+        context.setHasNext(context.getOffset() + context.getPageSize() < total);
+    }
+
+    /**
+     * Stage 6: Assemble the final response.
+     */
+    private PaginatedResp<ResourcePermissionView> assembleResponse(PermissionQueryContext context) {
+        int sourceRoleLimit = context.getSourceRoleLimit();
+        boolean includeSourceRoles = context.shouldIncludeSourceRoles();
+
         List<ResourcePermissionView> resourceViews = new ArrayList<>();
-        for (Map.Entry<Long, List<RoleResourcePermission>> entry : byResource.entrySet()) {
-            ResourceEntity resource = resourceMap.get(entry.getKey());
+        for (Map.Entry<Long, List<RoleResourcePermission>> entry : context.getGroupedByResource().entrySet()) {
+            ResourceEntity resource = context.getResourceMap().get(entry.getKey());
             if (resource == null) {
                 continue;
             }
-            Set<String> operationCodes = entry.getValue().stream()
-                .map(RoleResourcePermission::getOperationPermissionId)
-                .map(operationMap::get)
-                .filter(Objects::nonNull)
-                .map(OperationPermission::getCode)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-            Set<Long> matchedPermissionIds = entry.getValue().stream()
-                .map(RoleResourcePermission::getId)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-            List<SourceRoleView> sourceRoles = entry.getValue().stream()
-                .map(RoleResourcePermission::getAbstractRoleId)
-                .distinct()
-                .map(roleMap::get)
-                .filter(Objects::nonNull)
-                .map(role -> new SourceRoleView(
-                    typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()),
-                    role.getExternalId(),
-                    role.getName(),
-                    List.of()
-                ))
-                .toList();
-            int sourceRoleCount = sourceRoles.size();
-            boolean sourceRolesTruncated = includeSourceRoles && sourceRoleLimit > 0 && sourceRoleCount > sourceRoleLimit;
-            List<SourceRoleView> returnedSourceRoles = includeSourceRoles
-                ? (sourceRoleLimit > 0 ? sourceRoles.stream().limit(sourceRoleLimit).toList() : List.of())
-                : List.of();
 
-            resourceViews.add(new ResourcePermissionView(
-                resource.getId(),
-                domainCodeMap.get(resource.getBizDomainId()),
-                resource.getCode(),
-                resource.getName(),
-                typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType()),
-                resource.getCodeType(),
-                entry.getValue().stream().anyMatch(p -> Boolean.TRUE.equals(p.getScopeAll())),
-                new ArrayList<>(operationCodes),
-                returnedSourceRoles,
-                sourceRoleCount,
-                sourceRolesTruncated,
-                new ArrayList<>(matchedPermissionIds)
-            ));
+            ResourcePermissionView view = buildResourcePermissionView(
+                entry.getKey(), entry.getValue(), resource, context, sourceRoleLimit, includeSourceRoles
+            );
+            resourceViews.add(view);
         }
 
-        return new PaginatedResp<>(resourceViews, total, pageNum, pageSize, offset + pageSize < total);
+        return new PaginatedResp<>(
+            resourceViews,
+            context.getTotalCount(),
+            context.getPageNum(),
+            context.getPageSize(),
+            context.isHasNext()
+        );
+    }
+
+    /**
+     * Check if a permission matches the filter criteria.
+     */
+    private boolean matchesFilters(RoleResourcePermission perm, PermissionQueryContext context) {
+        // Filter by scope
+        if (!context.shouldIncludeScopes() && perm.getDependOn() != null) {
+            return false;
+        }
+
+        // Filter by operation codes
+        if (context.hasOperationCodesFilter()) {
+            OperationPermission op = context.getOperationMap().get(perm.getOperationPermissionId());
+            if (op == null || op.getCode() == null || !context.getOperationCodesFilter().contains(op.getCode())) {
+                return false;
+            }
+        }
+
+        ResourceEntity resource = perm.getResourceEntityId() == null
+            ? null : context.getResourceMap().get(perm.getResourceEntityId());
+
+        // Must have resource if not scopeAll
+        if (resource == null && !Boolean.TRUE.equals(perm.getScopeAll())) {
+            return false;
+        }
+
+        if (resource != null) {
+            // Filter by resource type codes
+            String resourceTypeCode = context.getResourceTypeCodeMap().get(resource.getResourceType());
+            if (context.hasResourceTypeCodesFilter()
+                && (resourceTypeCode == null || !context.getRequest().resourceTypeCodes().contains(resourceTypeCode))) {
+                return false;
+            }
+
+            // Filter by resource keyword
+            if (context.hasResourceKeywordFilter()
+                && (resource.getName() == null || !resource.getName().contains(context.getRequest().resourceKeyword()))) {
+                return false;
+            }
+
+            // Filter by API resources
+            if (!context.shouldIncludeApiResources() && context.getApiTypeValue() != null
+                && Objects.equals(context.getApiTypeValue(), resource.getResourceType())) {
+                return false;
+            }
+
+            // Filter by domain
+            if (context.hasDomainFilter()) {
+                if (context.getDomainId() == null
+                    || (!Objects.equals(context.getDomainId(), resource.getBizDomainId()) && resource.getBizDomainId() != null)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Build a ResourcePermissionView for a single resource.
+     */
+    private ResourcePermissionView buildResourcePermissionView(
+            Long resourceId,
+            List<RoleResourcePermission> perms,
+            ResourceEntity resource,
+            PermissionQueryContext context,
+            int sourceRoleLimit,
+            boolean includeSourceRoles) {
+
+        Set<String> operationCodes = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .map(context.getOperationMap()::get)
+            .filter(Objects::nonNull)
+            .map(OperationPermission::getCode)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<Long> matchedPermissionIds = perms.stream()
+            .map(RoleResourcePermission::getId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<SourceRoleView> sourceRoles = perms.stream()
+            .map(RoleResourcePermission::getAbstractRoleId)
+            .distinct()
+            .map(context.getRoleMap()::get)
+            .filter(Objects::nonNull)
+            .map(role -> new SourceRoleView(
+                context.getRoleTypeCodeMap().get(role.getRoleType()),
+                role.getExternalId(),
+                role.getName(),
+                List.of()
+            ))
+            .toList();
+
+        int sourceRoleCount = sourceRoles.size();
+        boolean sourceRolesTruncated = includeSourceRoles && sourceRoleLimit > 0 && sourceRoleCount > sourceRoleLimit;
+        List<SourceRoleView> returnedSourceRoles = includeSourceRoles
+            ? (sourceRoleLimit > 0 ? sourceRoles.stream().limit(sourceRoleLimit).toList() : List.of())
+            : List.of();
+
+        return new ResourcePermissionView(
+            resourceId,
+            context.getDomainCodeMap().get(resource.getBizDomainId()),
+            resource.getCode(),
+            resource.getName(),
+            context.getResourceTypeCodeMap().get(resource.getResourceType()),
+            resource.getCodeType(),
+            perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getScopeAll())),
+            new ArrayList<>(operationCodes),
+            returnedSourceRoles,
+            sourceRoleCount,
+            sourceRolesTruncated,
+            new ArrayList<>(matchedPermissionIds)
+        );
+    }
+
+    /**
+     * Create an empty response for early exit scenarios.
+     */
+    private PaginatedResp<ResourcePermissionView> emptyResponse(PermissionQueryContext context) {
+        return new PaginatedResp<>(List.of(), 0, context.getPageNum(), context.getPageSize(), false);
     }
 
     private Map<Long, AbstractRole> loadRoles(Long tenantId, Set<Long> roleIds) {
@@ -371,6 +554,13 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toSet());
         Map<Long, OperationPermission> opMap = loadOperations(opIds);
 
+        // Batch resolve role type codes (avoid N+1)
+        Set<Integer> roleTypeValues = roleMap.values().stream()
+            .map(AbstractRole::getRoleType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Integer, String> roleTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "role_type", roleTypeValues);
+
         List<RoleGrantInfo> roleInfos = new ArrayList<>();
         for (Map.Entry<Long, List<RoleResourcePermission>> entry : byRole.entrySet()) {
             AbstractRole role = roleMap.get(entry.getKey());
@@ -385,7 +575,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             roleInfos.add(new RoleGrantInfo(
                 entry.getKey(),
                 role != null ? role.getName() : null,
-                role != null ? typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()) : null,
+                role != null ? roleTypeCodeMap.get(role.getRoleType()) : null,
                 opCodes,
                 entry.getValue().get(0).getGrantSource()
             ));
@@ -431,6 +621,13 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toSet());
         Map<Long, OperationPermission> opMap = loadOperations(opIds);
 
+        // Batch resolve resource type codes (avoid N+1)
+        Set<Integer> resourceTypeValues = perms.stream()
+            .map(RoleResourcePermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+
         List<PermissionItem> items = perms.stream()
             .map(p -> {
                 ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
@@ -440,7 +637,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                     p.getResourceEntityId(),
                     resource != null ? resource.getCode() : null,
                     resource != null ? resource.getName() : null,
-                    typeResolutionService.resolveTypeCode(tenantId, "resource_type", p.getResourceType()),
+                    resourceTypeCodeMap.get(p.getResourceType()),
                     p.getOperationPermissionId(),
                     op != null ? op.getCode() : null,
                     op != null ? op.getName() : null,
@@ -482,6 +679,13 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toSet());
         Map<Long, OperationPermission> opMap = loadOperations(opIds);
 
+        // Batch resolve resource type codes (avoid N+1)
+        Set<Integer> resourceTypeValues = perms.stream()
+            .map(RoleResourcePermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+
         List<PermissionItem> items = perms.stream().map(p -> {
             ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
             OperationPermission op = opMap.get(p.getOperationPermissionId());
@@ -490,7 +694,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 p.getResourceEntityId(),
                 resource != null ? resource.getCode() : null,
                 resource != null ? resource.getName() : null,
-                typeResolutionService.resolveTypeCode(tenantId, "resource_type", p.getResourceType()),
+                resourceTypeCodeMap.get(p.getResourceType()),
                 p.getOperationPermissionId(),
                 op != null ? op.getCode() : null,
                 op != null ? op.getName() : null,
@@ -649,7 +853,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
                 .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
-        if (role == null || role.getStatus() == null || role.getStatus() != 1) {
+        if (role == null || role.getStatus() == null || role.getStatus() != PermissionConstants.ENABLED_STATUS) {
             return AuthCheckResp.deny("ROLE_NOT_FOUND");
         }
 

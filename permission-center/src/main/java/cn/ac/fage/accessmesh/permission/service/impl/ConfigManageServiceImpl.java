@@ -9,28 +9,32 @@ import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
-import cn.ac.fage.accessmesh.permission.entity.*;
+import cn.ac.fage.accessmesh.permission.entity.BizDomain;
+import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
+import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.permission.entity.SystemConfig;
+import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
+import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
 import static cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef.DOMAIN_CONFIG;
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
 import static cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef.SERVICE_CONFIG;
 import static cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef.SYSTEM_CONFIG;
 import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
@@ -48,6 +52,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
+    private final ServiceInterfaceSyncService serviceInterfaceSyncService;
 
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
@@ -58,7 +63,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                                    ResourceApiMappingMapper resourceApiMappingMapper,
                                    TypeResolutionService typeResolutionService,
                                    OperationLogDomainService operationLogDomainService,
-                                   AuthorizationService authorizationService) {
+                                   AuthorizationService authorizationService,
+                                   ServiceInterfaceSyncService serviceInterfaceSyncService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -69,6 +75,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
+        this.serviceInterfaceSyncService = serviceInterfaceSyncService;
     }
 
     // ===== TypeDefinition =====
@@ -76,10 +83,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check - TYPE_DEFINITION management requires SYSTEM admin
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -134,10 +138,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteType(Long tenantId, Long typeId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -158,12 +159,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
             throw new SecurityException("No permission to delete type definitions");
         }
@@ -171,36 +169,66 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            deleteType(tenantId, id, operatorId);
-            n++;
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
-        if (n > 0) {
-            operationLogDomainService.asyncRecord(
-                "perm",
-                "type-definition-remove",
-                "BATCH",
-                tenantId,
-                "batch soft-delete type_definition, count=" + n + ", ids=" + ids,
-                operatorId,
-                null,
-                null,
-                tenantId
-            );
+
+        // Batch query (avoid N+1)
+        List<TypeDefinition> entities = typeDefinitionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TYPE_DEFINITION.ID.in(validInputIds))
+                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
         }
+
+        // Filter non-system types and collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .filter(e -> !Boolean.TRUE.equals(e.getIsSystem()))
+            .map(TypeDefinition::getId)
+            .collect(Collectors.toSet());
+
+        if (validIds.isEmpty()) {
+            return;
+        }
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            TypeDefinition updateEntity = new TypeDefinition();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            typeDefinitionMapper.update(updateEntity);
+        }
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "type-definition-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " type_definition row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -229,10 +257,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -275,10 +300,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomain(Long tenantId, Long domainId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -296,12 +318,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
             throw new SecurityException("No permission to delete biz domains");
         }
@@ -309,36 +328,61 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            deleteBizDomain(tenantId, id, operatorId);
-            n++;
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
-        if (n > 0) {
-            operationLogDomainService.asyncRecord(
-                "perm",
-                "biz-domain-remove",
-                "BATCH",
-                tenantId,
-                "batch soft-delete biz_domain, count=" + n + ", ids=" + ids,
-                operatorId,
-                null,
-                null,
-                tenantId
-            );
+
+        // Batch query (avoid N+1)
+        List<BizDomain> entities = bizDomainMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BIZ_DOMAIN.ID.in(validInputIds))
+                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
         }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(BizDomain::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            BizDomain updateEntity = new BizDomain();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            bizDomainMapper.update(updateEntity);
+        }
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "biz-domain-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " biz_domain row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -436,28 +480,60 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check (added - was missing)
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete domain configs");
+        }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            DomainConfig config = domainConfigMapper.selectOneById(id);
-            if (config != null && Objects.equals(tenantId, config.getTenantId()) && config.getDeleteFlag() == 0L) {
-                config.setDeleteFlag(config.getId());
-                config.setDeletedAt(LocalDateTime.now());
-                domainConfigMapper.update(config);
-                n++;
-            }
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
+
+        // Batch query (avoid N+1)
+        List<DomainConfig> entities = domainConfigMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                .and(DOMAIN_CONFIG.ID.in(validInputIds))
+                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
+        }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(DomainConfig::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            DomainConfig updateEntity = new DomainConfig();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            domainConfigMapper.update(updateEntity);
+        }
+
+        // Log record
         operationLogDomainService.asyncRecord(
             "perm",
             "domain-config-remove",
             "BATCH",
             tenantId,
-            "soft-deleted " + n + " domain_config row(s), ids=" + ids,
+            "soft-deleted " + validIds.size() + " domain_config row(s), ids=" + validIds,
             operatorId,
             null,
             null,
@@ -470,10 +546,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -506,10 +579,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
@@ -554,12 +624,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
             throw new SecurityException("No permission to delete service configs");
         }
@@ -567,25 +634,50 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            ServiceConfig config = serviceConfigMapper.selectOneById(id);
-            if (config != null && Objects.equals(tenantId, config.getTenantId()) && config.getDeleteFlag() == 0L) {
-                config.setDeleteFlag(config.getId());
-                config.setDeletedAt(LocalDateTime.now());
-                serviceConfigMapper.update(config);
-                n++;
-            }
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
+
+        // Batch query (avoid N+1)
+        List<ServiceConfig> entities = serviceConfigMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SERVICE_CONFIG.ID.in(validInputIds))
+                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
+        }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(ServiceConfig::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            ServiceConfig updateEntity = new ServiceConfig();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            serviceConfigMapper.update(updateEntity);
+        }
+
+        // Log record
         operationLogDomainService.asyncRecord(
             "perm",
             "service-config-remove",
             "BATCH",
             tenantId,
-            "soft-deleted " + n + " service_config row(s), ids=" + ids,
+            "soft-deleted " + validIds.size() + " service_config row(s), ids=" + validIds,
             operatorId,
             null,
             null,
@@ -596,199 +688,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
-        if (!"FULL".equalsIgnoreCase(req.syncMode())) {
-            throw new IllegalArgumentException("Only FULL syncMode is supported");
-        }
-        ServiceConfig serviceConfig = serviceConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
-        if (serviceConfig == null) {
-            throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
-        }
-        if (req.basePath() != null && !req.basePath().isBlank()) {
-            serviceConfig.setBasePath(req.basePath());
-            serviceConfig.setUpdatedAt(LocalDateTime.now());
-            serviceConfigMapper.update(serviceConfig);
-        }
-        String basePath = normalizeBasePath(
-            req.basePath() != null && !req.basePath().isBlank() ? req.basePath() : serviceConfig.getBasePath()
-        );
-        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
-        if (apiType == null) {
-            throw new IllegalArgumentException("resource_type API not found");
-        }
-
-        int createdResources = 0;
-        int createdMappings = 0;
-        int updatedMappings = 0;
-        int deletedResources = 0;
-        int deletedMappings = 0;
-
-        java.util.Set<String> incomingRouteResourceKeys = new java.util.HashSet<>();
-        java.util.Set<Long> activeSyncedResourceIds = new java.util.HashSet<>();
-        for (ServiceConfigSyncReq.GroupItem group : req.groups()) {
-            for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
-                String fullPath = joinPath(basePath, api.path());
-                String routeResourceKey = api.httpMethod().toUpperCase() + "|" + fullPath + "|" + api.resourceCode();
-                incomingRouteResourceKeys.add(routeResourceKey);
-                String syncKey = req.serviceCode() + "|" + api.resourceCode();
-                ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                        .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(apiType))
-                        .and(RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
-                        .and(RESOURCE_ENTITY.CODE_TYPE.eq("default"))
-                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-                );
-                if (resource == null) {
-                    resource = new ResourceEntity();
-                    resource.setTenantId(tenantId);
-                    resource.setResourceType(apiType);
-                    resource.setCode(api.resourceCode());
-                    resource.setCodeType("default");
-                    resource.setName(api.name());
-                    resource.setPath(fullPath);
-                    resource.setStatus(1);
-                    resource.setSortOrder(0);
-                    resource.setOwnerServiceCode(req.serviceCode());
-                    resource.setMaintainSource("SERVICE_SYNC");
-                    resource.setSyncKey(syncKey);
-                    resource.setExtra("{}");
-                    resource.setCreatedBy(operatorId);
-                    resource.setCreatedAt(LocalDateTime.now());
-                    resource.setUpdatedAt(LocalDateTime.now());
-                    resource.setDeleteFlag(0L);
-                    resourceEntityMapper.insert(resource);
-                    createdResources++;
-                } else {
-                    if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
-                        || resource.getOwnerServiceCode() == null
-                        || !req.serviceCode().equals(resource.getOwnerServiceCode())) {
-                        throw new IllegalStateException("resourceCode already maintained by non-sync source: " + api.resourceCode());
-                    }
-                    resource.setName(api.name());
-                    resource.setPath(fullPath);
-                    resource.setStatus(1);
-                    resource.setSyncKey(syncKey);
-                    resource.setUpdatedAt(LocalDateTime.now());
-                    resourceEntityMapper.update(resource);
-                }
-                activeSyncedResourceIds.add(resource.getId());
-
-                ResourceApiMapping mapping = resourceApiMappingMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                        .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                        .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
-                        .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
-                        .and(RESOURCE_API_MAPPING.HTTP_METHOD.eq(api.httpMethod().toUpperCase()))
-                        .and(RESOURCE_API_MAPPING.PATH_PATTERN.eq(fullPath))
-                        .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-                );
-                if (mapping == null) {
-                    mapping = new ResourceApiMapping();
-                    mapping.setTenantId(tenantId);
-                    mapping.setResourceEntityId(resource.getId());
-                    mapping.setServiceCode(req.serviceCode());
-                    mapping.setHttpMethod(api.httpMethod().toUpperCase());
-                    mapping.setPathPattern(fullPath);
-                    mapping.setMatchOrder(0);
-                    mapping.setEnabled(true);
-                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
-                    mapping.setCreatedBy(operatorId);
-                    mapping.setCreatedAt(LocalDateTime.now());
-                    mapping.setUpdatedAt(LocalDateTime.now());
-                    mapping.setDeleteFlag(0L);
-                    resourceApiMappingMapper.insert(mapping);
-                    createdMappings++;
-                } else {
-                    mapping.setEnabled(true);
-                    mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
-                    mapping.setUpdatedAt(LocalDateTime.now());
-                    resourceApiMappingMapper.update(mapping);
-                    updatedMappings++;
-                }
-            }
-        }
-
-        java.util.List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
-                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-        );
-
-        // Batch load all resources (avoid N+1)
-        Set<Long> mappingResourceIds = existingMappings.stream()
-            .map(ResourceApiMapping::getResourceEntityId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, ResourceEntity> resourceMap = mappingResourceIds.isEmpty() ? Map.of()
-            : resourceEntityMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.ID.in(mappingResourceIds))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
-
-        for (ResourceApiMapping mapping : existingMappings) {
-            ResourceEntity resource = resourceMap.get(mapping.getResourceEntityId());
-            if (resource == null) {
-                continue;
-            }
-            if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
-                || !req.serviceCode().equals(resource.getOwnerServiceCode())) {
-                continue;
-            }
-            String routeKey = mapping.getHttpMethod().toUpperCase() + "|" + mapping.getPathPattern();
-            String resourceCode = resource.getCode();
-            String routeResourceKey = routeKey + "|" + resourceCode;
-            if (!incomingRouteResourceKeys.contains(routeResourceKey)) {
-                mapping.setDeleteFlag(mapping.getId());
-                mapping.setDeletedAt(LocalDateTime.now());
-                resourceApiMappingMapper.update(mapping);
-                deletedMappings++;
-            }
-        }
-
-        java.util.List<ResourceEntity> apiResources = resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(apiType))
-                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        );
-        java.util.List<ResourceEntity> syncedResources = apiResources.stream()
-            .filter(resource -> "SERVICE_SYNC".equals(resource.getMaintainSource())
-                && req.serviceCode().equals(resource.getOwnerServiceCode()))
-            .toList();
-
-        // Batch load mappings for all synced resources to avoid N+1 query
-        Set<Long> syncedResourceIds = syncedResources.stream()
-            .map(ResourceEntity::getId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, List<ResourceApiMapping>> mappingsByResourceId = syncedResourceIds.isEmpty() ? Map.of()
-            : resourceApiMappingMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.in(syncedResourceIds))
-                    .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-            ).stream().collect(Collectors.groupingBy(ResourceApiMapping::getResourceEntityId));
-
-        for (ResourceEntity resource : syncedResources) {
-            List<ResourceApiMapping> remainMappings = mappingsByResourceId.getOrDefault(resource.getId(), List.of());
-            if (remainMappings.isEmpty()) {
-                resource.setDeleteFlag(resource.getId());
-                resource.setDeletedAt(LocalDateTime.now());
-                resourceEntityMapper.update(resource);
-                deletedResources++;
-            }
-        }
-
-        return new ServiceConfigSyncResp(
-            createdResources, createdMappings, updatedMappings, deletedResources, deletedMappings
-        );
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }
 
     @Override
@@ -904,28 +805,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             c.getId(), c.getTenantId(), c.getConfigKey(),
             c.getConfigValue(), c.getDescription(), c.getUpdatedAt()
         );
-    }
-
-    private String normalizeBasePath(String basePath) {
-        if (basePath == null || basePath.isBlank()) {
-            return "";
-        }
-        String path = basePath.trim();
-        if (!path.startsWith("/")) {
-            path = "/" + path;
-        }
-        if (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        return path;
-    }
-
-    private String joinPath(String basePath, String path) {
-        String p = path == null ? "" : path.trim();
-        if (!p.startsWith("/")) {
-            p = "/" + p;
-        }
-        return (basePath + p).replaceAll("//+", "/");
     }
 
 }

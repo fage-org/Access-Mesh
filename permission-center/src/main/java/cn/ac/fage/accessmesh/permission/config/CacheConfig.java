@@ -12,13 +12,20 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class CacheConfig {
 
+    private final PermCacheProperties permCacheProperties;
+
+    public CacheConfig(PermCacheProperties permCacheProperties) {
+        this.permCacheProperties = permCacheProperties;
+    }
+
     @Bean
     @Primary
     public CacheManager cacheManager() {
+        PermCacheProperties.L1Config l1 = permCacheProperties.getL1();
         CaffeineCacheManager manager = new CaffeineCacheManager();
         manager.setCaffeine(Caffeine.newBuilder()
-            .maximumSize(1000)
-            .expireAfterWrite(10, TimeUnit.MINUTES)
+            .maximumSize(l1.getMaximumSize())
+            .expireAfterWrite(l1.getExpireMinutes(), TimeUnit.MINUTES)
             .recordStats());
         return manager;
     }

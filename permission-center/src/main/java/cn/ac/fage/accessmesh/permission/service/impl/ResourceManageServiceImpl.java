@@ -16,17 +16,26 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ResourceApiMappingDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
+import cn.ac.fage.accessmesh.permission.util.TreeBuilder;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
@@ -35,9 +44,12 @@ import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTa
 @Service
 public class ResourceManageServiceImpl implements ResourceManageService {
 
+    private static final Logger log = LoggerFactory.getLogger(ResourceManageServiceImpl.class);
+
     private final ResourceEntityMapper resourceEntityMapper;
     private final ResourceApiMappingMapper apiMappingMapper;
     private final ResourceEntityDomainService resourceEntityDomainService;
+    private final ResourceApiMappingDomainService resourceApiMappingDomainService;
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
@@ -45,12 +57,14 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
                                      ResourceEntityDomainService resourceEntityDomainService,
+                                     ResourceApiMappingDomainService resourceApiMappingDomainService,
                                      TypeResolutionService typeResolutionService,
                                      OperationLogDomainService operationLogDomainService,
                                      AuthorizationService authorizationService) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
+        this.resourceApiMappingDomainService = resourceApiMappingDomainService;
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
@@ -59,10 +73,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
@@ -96,10 +107,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
@@ -127,19 +135,16 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "UPDATE")) {
-            throw new SecurityException("No permission to update resource");
-        }
-
-        ResourceEntity entity = resourceEntityMapper.selectOneById(req.id());
-        if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
+        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.id());
+        if (entity == null) {
             throw new IllegalArgumentException("Resource not found: " + req.id());
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific resource
+        if (!authorizationService.canManageResource(tenantId, operatorId, req.id())) {
+            throw new SecurityException("No permission to update resource: " + req.id());
         }
 
         if (req.code() != null) entity.setCode(req.code());
@@ -158,23 +163,21 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "UPDATE")) {
-            throw new SecurityException("No permission to move resource");
-        }
-
-        ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
-        if (entity == null || entity.getDeleteFlag() != 0L || !tenantId.equals(entity.getTenantId())) {
+        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, resourceId);
+        if (entity == null) {
             throw new IllegalArgumentException("Resource not found: " + resourceId);
         }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific resource
+        if (!authorizationService.canManageResource(tenantId, operatorId, resourceId)) {
+            throw new SecurityException("No permission to move resource: " + resourceId);
+        }
+
         if (parentId != null) {
-            ResourceEntity parent = resourceEntityMapper.selectOneById(parentId);
-            if (parent == null || parent.getDeleteFlag() != 0L || !tenantId.equals(parent.getTenantId())) {
+            ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
+            if (parent == null) {
                 throw new IllegalArgumentException("Parent resource not found: " + parentId);
             }
         }
@@ -187,19 +190,16 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteResource(Long tenantId, Long resourceId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "DELETE")) {
-            throw new SecurityException("No permission to delete resource");
-        }
-
-        ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
-        if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
+        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, resourceId);
+        if (entity == null) {
             throw new IllegalArgumentException("Resource not found: " + resourceId);
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific resource
+        if (!authorizationService.canManageResource(tenantId, operatorId, resourceId)) {
+            throw new SecurityException("No permission to delete resource: " + resourceId);
         }
 
         resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
@@ -208,18 +208,73 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return;
         }
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "DELETE")) {
-            throw new SecurityException("No permission to delete resources");
+        // Filter out null IDs
+        Set<Long> validResourceIds = resourceIds.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validResourceIds.isEmpty()) {
+            return;
         }
 
-        for (Long resourceId : resourceIds) {
-            deleteResource(tenantId, resourceId, operatorId);
+        // Batch query resources to validate existence
+        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_ENTITY.ID.in(validResourceIds))
+                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
+        }
+
+        // Build map of existing resources
+        Map<Long, ResourceEntity> existingResources = entities.stream()
+            .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+
+        // Batch permission check - avoid N+1 queries
+        Map<Long, Boolean> permissionMap = authorizationService.canManageResources(tenantId, operatorId, existingResources.keySet());
+
+        // Filter resources that operator has permission to delete
+        List<Long> permittedIds = new ArrayList<>();
+        List<Long> deniedIds = new ArrayList<>();
+        for (Long resourceId : existingResources.keySet()) {
+            if (Boolean.TRUE.equals(permissionMap.get(resourceId))) {
+                permittedIds.add(resourceId);
+            } else {
+                deniedIds.add(resourceId);
+            }
+        }
+
+        // Log denied deletions
+        if (!deniedIds.isEmpty()) {
+            log.info("Operator {} denied to delete resources: {}", operatorId, deniedIds);
+        }
+
+        // Execute batch delete for permitted resources
+        for (Long resourceId : permittedIds) {
+            resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
+        }
+
+        if (!permittedIds.isEmpty()) {
+            operationLogDomainService.asyncRecord(
+                "perm",
+                "resource-entity-remove",
+                "BATCH",
+                tenantId,
+                "soft-deleted " + permittedIds.size() + " resource(s), ids=" + permittedIds + ", denied=" + deniedIds.size(),
+                operatorId,
+                null,
+                null,
+                tenantId
+            );
         }
     }
 
@@ -232,7 +287,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         QueryWrapper qw = QueryWrapper.create()
             .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
             .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            .and(RESOURCE_ENTITY.STATUS.eq(1));
+            .and(RESOURCE_ENTITY.STATUS.eq(PermissionConstants.ENABLED_STATUS));
         if (resourceType != null) {
             qw.and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
         }
@@ -248,15 +303,25 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         List<ResourceEntity> allEntities = resourceEntityMapper.selectListByQuery(qw);
 
+        // Build tree using TreeBuilder
+        TreeBuilder<ResourceEntity, ResourceTreeNode> treeBuilder = new TreeBuilder<>(
+            ResourceEntity::getId,
+            ResourceEntity::getParentId,
+            (entity, children) -> new ResourceTreeNode(
+                entity.getId(), entity.getParentId(),
+                typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()),
+                entity.getCode(), entity.getCodeType(), entity.getName(),
+                entity.getPath(), entity.getStatus(), entity.getSortOrder(), children
+            )
+        );
+
         List<ResourceEntity> roots = allEntities.stream()
             .filter(r -> r.getParentId() == null)
             .collect(Collectors.toList());
 
-        List<ResourceTreeResp> result = new ArrayList<>();
-        for (ResourceEntity root : roots) {
-            result.add(new ResourceTreeResp(buildTreeNode(root, allEntities)));
-        }
-        return result;
+        return treeBuilder.buildTrees(roots, allEntities).stream()
+            .map(ResourceTreeResp::new)
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -310,8 +375,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
-        ResourceEntity entity = resourceEntityMapper.selectOneById(req.resourceId());
-        if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
+        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.resourceId());
+        if (entity == null) {
             throw new IllegalArgumentException("Resource not found: " + req.resourceId());
         }
 
@@ -334,6 +399,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId) {
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (mappingIds == null || mappingIds.isEmpty()) {
             return;
         }
@@ -342,9 +408,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             if (mappingId == null) {
                 continue;
             }
-            ResourceApiMapping mapping = apiMappingMapper.selectOneById(mappingId);
-            if (mapping != null && mapping.getDeleteFlag() == 0L
-                && Objects.equals(tenantId, mapping.getTenantId())) {
+            ResourceApiMapping mapping = resourceApiMappingDomainService.selectValidById(tenantId, mappingId);
+            if (mapping != null) {
                 mapping.setDeleteFlag(mapping.getId());
                 mapping.setDeletedAt(LocalDateTime.now());
                 apiMappingMapper.update(mapping);
@@ -382,10 +447,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
-        ResourceApiMapping mapping = apiMappingMapper.selectOneById(req.mappingId());
-        if (mapping == null || mapping.getDeleteFlag() != 0L
-            || !mapping.getResourceEntityId().equals(req.resourceId())
-            || !mapping.getTenantId().equals(tenantId)) {
+        ResourceApiMapping mapping = resourceApiMappingDomainService.selectValidById(tenantId, req.mappingId());
+        if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
             throw new IllegalArgumentException("Api mapping not found: " + req.mappingId());
         }
         if (req.httpMethod() != null) {
@@ -409,24 +472,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         return toApiMappingResp(updated);
     }
 
-    private ResourceTreeNode buildTreeNode(ResourceEntity entity, List<ResourceEntity> allEntities) {
-        List<ResourceTreeNode> children = allEntities.stream()
-            .filter(r -> entity.getId().equals(r.getParentId()))
-            .map(r -> buildTreeNode(r, allEntities))
-            .collect(Collectors.toList());
-
-        return new ResourceTreeNode(
-            entity.getId(), entity.getParentId(), typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()),
-            entity.getCode(), entity.getCodeType(), entity.getName(),
-            entity.getPath(), entity.getStatus(), entity.getSortOrder(), children
-        );
-    }
-
     private ResourceResp toResourceResp(ResourceEntity entity) {
-        String resourceTypeName = "";
-        try {
-            resourceTypeName = ResourceType.fromValue(entity.getResourceType() != null ? entity.getResourceType() : 0).getLabel();
-        } catch (IllegalArgumentException ignored) {}
+        String resourceTypeName = ResourceType.safeGetLabel(entity.getResourceType());
 
         return new ResourceResp(
             entity.getId(), entity.getTenantId(), entity.getBizDomainId(),

@@ -108,4 +108,17 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
         role.setDeletedAt(now);
         abstractRoleMapper.update(role);
     }
+
+    @Override
+    public AbstractRole selectValidById(Long tenantId, Long roleId) {
+        if (roleId == null) {
+            return null;
+        }
+        return abstractRoleMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_ROLE.ID.eq(roleId))
+                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
+    }
 }

@@ -13,12 +13,14 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceDependencyDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,8 @@ class PermissionGrantServiceImplTest {
     @Mock private ResourceDependencyDomainService resourceDependencyDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private AuthorizationService authorizationService;
+    @Mock private OperationPermissionDomainService operationPermissionDomainService;
+    @Mock private AbstractRoleDomainService abstractRoleDomainService;
 
     private PermissionGrantServiceImpl service;
 
@@ -60,7 +64,7 @@ class PermissionGrantServiceImplTest {
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
             operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
-            authorizationService
+            authorizationService, operationPermissionDomainService, abstractRoleDomainService
         );
     }
 

@@ -124,4 +124,19 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rolePermMapper.cascadeSoftDeleteChildren(tenantId, List.of(permissionId), deletedAt);
         }
     }
+
+    @Override
+    public RoleResourcePermission selectValidById(Long tenantId, Long roleId, Long permissionId) {
+        if (permissionId == null) {
+            return null;
+        }
+        QueryWrapper qw = QueryWrapper.create()
+            .where(ROLE_RESOURCE_PERMISSION.ID.eq(permissionId))
+            .and(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+            .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
+        if (roleId != null) {
+            qw.and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId));
+        }
+        return rolePermMapper.selectOneByQuery(qw);
+    }
 }

@@ -18,38 +18,46 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
+import cn.ac.fage.accessmesh.permission.service.domain.AbstractUserDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 import static cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef.USER_ROLE;
 
 @Service
 public class UserManageServiceImpl implements UserManageService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserManageServiceImpl.class);
+
     private final AbstractUserMapper abstractUserMapper;
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
+    private final AbstractUserDomainService abstractUserDomainService;
     private final UserRoleDomainService userRoleDomainService;
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
@@ -60,6 +68,7 @@ public class UserManageServiceImpl implements UserManageService {
     public UserManageServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
                                  AbstractRoleMapper abstractRoleMapper,
+                                 AbstractUserDomainService abstractUserDomainService,
                                  UserRoleDomainService userRoleDomainService,
                                  TypeResolutionService typeResolutionService,
                                  OperationLogDomainService operationLogDomainService,
@@ -69,6 +78,7 @@ public class UserManageServiceImpl implements UserManageService {
         this.abstractUserMapper = abstractUserMapper;
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
+        this.abstractUserDomainService = abstractUserDomainService;
         this.userRoleDomainService = userRoleDomainService;
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
@@ -163,8 +173,8 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        AbstractUser existing = abstractUserMapper.selectOneById(req.userId());
-        if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())) {
+        AbstractUser existing = abstractUserDomainService.selectValidById(tenantId, req.userId());
+        if (existing == null) {
             throw new IllegalArgumentException("User not found: " + req.userId());
         }
 
@@ -202,8 +212,8 @@ public class UserManageServiceImpl implements UserManageService {
     public void deleteUser(Long tenantId, Long userId) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user == null || user.getDeleteFlag() != 0L || !user.getTenantId().equals(tenantId)) {
+        AbstractUser user = abstractUserDomainService.selectValidById(tenantId, userId);
+        if (user == null) {
             throw new IllegalArgumentException("User not found: " + userId);
         }
 
@@ -279,9 +289,8 @@ public class UserManageServiceImpl implements UserManageService {
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
-            throw new SecurityException("No permission to assign roles");
-        }
+        // Note: Type-level permission check removed - instance-level check is performed in assignRoleSingle
+        // via authorizationService.canManageRole(tenantId, operatorId, targetRoleId)
 
         if (req.items() == null || req.items().isEmpty()) {
             throw new IllegalArgumentException("items must not be empty");
@@ -295,9 +304,9 @@ public class UserManageServiceImpl implements UserManageService {
     @Transactional(rollbackFor = Exception.class)
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
-            throw new SecurityException("No permission to assign roles batch");
-        }
+
+        // Note: Type-level permission check removed - instance-level check is performed in assignRoleSingle
+        // via authorizationService.canManageRole(tenantId, operatorId, targetRoleId)
 
         for (String subjectExternalId : req.subjectExternalIds()) {
             assignRoleSingle(tenantId, operatorId, new UserAssignRoleReq.AssignItem(
@@ -317,23 +326,91 @@ public class UserManageServiceImpl implements UserManageService {
     @Transactional(rollbackFor = Exception.class)
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
-            throw new SecurityException("No permission to revoke roles");
+
+        if (req.items() == null || req.items().isEmpty()) {
+            return;
         }
+
+        // ===== Batch resolution to avoid N+1 queries =====
+        // 1. Collect all unique role external IDs and batch resolve
+        Set<String> roleExternalIds = req.items().stream()
+            .map(UserRoleBatchRevokeReq.RevokeItem::roleExternalId)
+            .filter(id -> id != null && !id.isBlank())
+            .collect(Collectors.toSet());
+        // Group by roleTypeCode + domainCode for batch resolve
+        Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
+            .collect(Collectors.groupingBy(
+                item -> item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : ""),
+                Collectors.mapping(UserRoleBatchRevokeReq.RevokeItem::roleExternalId, Collectors.toSet())
+            ));
+        Map<String, Long> roleIdMap = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
+            String[] parts = entry.getKey().split(":");
+            String roleTypeCode = parts[0];
+            String domainCode = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null;
+            Map<String, Long> partialMap = typeResolutionService.batchResolveRoleIds(
+                tenantId, roleTypeCode, entry.getValue(), domainCode);
+            roleIdMap.putAll(partialMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                    e -> roleTypeCode + ":" + (domainCode != null ? domainCode : "") + ":" + e.getKey(),
+                    Map.Entry::getValue
+                )));
+        }
+
+        // 2. Collect all unique user external IDs and batch resolve
+        Map<String, Set<String>> userExternalIdsByType = req.items().stream()
+            .collect(Collectors.groupingBy(
+                UserRoleBatchRevokeReq.RevokeItem::subjectTypeCode,
+                Collectors.mapping(UserRoleBatchRevokeReq.RevokeItem::subjectExternalId, Collectors.toSet())
+            ));
+        Map<String, Long> userIdMap = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : userExternalIdsByType.entrySet()) {
+            Map<String, Long> partialMap = typeResolutionService.batchResolveUserIds(
+                tenantId, entry.getKey(), entry.getValue());
+            userIdMap.putAll(partialMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                    e -> entry.getKey() + ":" + e.getKey(),
+                    Map.Entry::getValue
+                )));
+        }
+
+        // Collect all target role IDs for batch permission check
+        Set<Long> targetRoleIds = new LinkedHashSet<>();
+        for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
+            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            Long targetRoleId = roleIdMap.get(roleKey);
+            if (targetRoleId != null) {
+                targetRoleIds.add(targetRoleId);
+            }
+        }
+
+        // Batch permission check - avoid N+1 queries
+        Map<Long, Boolean> permissionMap = authorizationService.canManageRoles(tenantId, operatorId, targetRoleIds);
 
         List<Long> affectedUserIds = new ArrayList<>();
         List<Long> affectedRoleIds = new ArrayList<>();
         ArrayNode itemsJson = objectMapper.createArrayNode();
         int revoked = 0;
+        List<String> deniedItems = new ArrayList<>();
+
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            Long abstractUserId = typeResolutionService.resolveUserId(tenantId, item.subjectTypeCode(), item.subjectExternalId());
+            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            Long abstractUserId = userIdMap.get(userKey);
             if (abstractUserId == null) {
                 throw new IllegalArgumentException("User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
             }
-            Long targetRoleId = typeResolutionService.resolveRoleId(tenantId, item.roleTypeCode(), item.roleExternalId(), item.domainCode());
+            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId == null) {
                 throw new IllegalArgumentException("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }
+
+            // Check permission using pre-checked result
+            if (!Boolean.TRUE.equals(permissionMap.get(targetRoleId))) {
+                deniedItems.add(item.subjectTypeCode() + "/" + item.subjectExternalId() + " -> " + item.roleTypeCode() + "/" + item.roleExternalId());
+                continue;  // Skip this item, no permission to revoke
+            }
+
             QueryWrapper qw = QueryWrapper.create()
                 .where(USER_ROLE.TENANT_ID.eq(tenantId))
                 .and(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
@@ -364,6 +441,12 @@ public class UserManageServiceImpl implements UserManageService {
             roleNode.put("roleName", role != null ? role.getName() : "");
             itemsJson.add(it);
         }
+
+        // Log denied items
+        if (!deniedItems.isEmpty()) {
+            log.info("Operator {} denied to revoke roles for items: {}", operatorId, deniedItems);
+        }
+
         Set<Long> uniqueUsers = new LinkedHashSet<>(affectedUserIds);
         for (Long uid : uniqueUsers) {
             userRoleDomainService.invalidateRoleCache(tenantId, uid);
@@ -398,7 +481,7 @@ public class UserManageServiceImpl implements UserManageService {
             "user-role-revoke",
             "BATCH",
             tenantId,
-            "revoked " + revoked + " user-role relation(s)",
+            "revoked " + revoked + " user-role relation(s), denied=" + deniedItems.size(),
             null,
             null,
             null,
@@ -462,7 +545,7 @@ public class UserManageServiceImpl implements UserManageService {
         if (subjectTypeCode != null && !subjectTypeCode.isBlank()) {
             Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", subjectTypeCode);
             if (userType == null) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             queryWrapper.and(ABSTRACT_USER.USER_TYPE.eq(userType));
         }
@@ -476,7 +559,7 @@ public class UserManageServiceImpl implements UserManageService {
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             List<Long> roleIds = abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -485,7 +568,7 @@ public class UserManageServiceImpl implements UserManageService {
                     .and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()))
             ).stream().map(AbstractRole::getId).toList();
             if (roleIds.isEmpty()) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             List<Long> userIds = userRoleMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -494,7 +577,7 @@ public class UserManageServiceImpl implements UserManageService {
                     .and(USER_ROLE.TARGET_ID.in(roleIds))
             ).stream().map(UserRole::getAbstractUserId).distinct().toList();
             if (userIds.isEmpty()) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             queryWrapper.and(ABSTRACT_USER.ID.in(userIds));
         }

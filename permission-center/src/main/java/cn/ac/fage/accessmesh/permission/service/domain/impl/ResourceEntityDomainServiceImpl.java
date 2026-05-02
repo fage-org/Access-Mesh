@@ -60,31 +60,22 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     @Transactional(rollbackFor = Exception.class)
     public void deleteWithChildren(Long tenantId, Long resourceId) {
         LocalDateTime now = LocalDateTime.now();
-        ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
-        if (entity == null || entity.getDeleteFlag() != 0L) return;
+        // Validate entity exists and belongs to tenant
+        ResourceEntity entity = selectValidById(tenantId, resourceId);
+        if (entity == null) return;
 
-        // Collect all IDs to soft delete
-        List<Long> childIds = resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RESOURCE_ENTITY.PARENT_ID.eq(resourceId))
-                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        ).stream().map(ResourceEntity::getId).toList();
+        // Use CTE to get all descendant IDs including self in a single query
+        List<Long> allIds = resourceEntityMapper.selectDescendantIdsIncludingSelf(tenantId, resourceId);
 
+        // Get all role permissions for the entire subtree
         List<Long> permIds = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceId))
+                .where(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIds))
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         ).stream().map(RoleResourcePermission::getId).toList();
 
-        // Batch soft delete children
-        if (!childIds.isEmpty()) {
-            resourceEntityMapper.softDeleteBatch(tenantId, childIds, now);
-        }
-
-        // Soft delete resource itself
-        entity.setDeleteFlag(entity.getId());
-        entity.setDeletedAt(now);
-        resourceEntityMapper.update(entity);
+        // Batch soft delete all descendants (including self)
+        resourceEntityMapper.softDeleteBatch(tenantId, allIds, now);
 
         // Batch soft delete associated role permissions
         if (!permIds.isEmpty()) {
@@ -162,21 +153,58 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
 
     @Override
     public List<Long> getDescendantIds(Long tenantId, Long resourceEntityId) {
-        List<Long> ids = new ArrayList<>();
-        collectDescendants(tenantId, resourceEntityId, ids);
-        return ids;
+        if (resourceEntityId == null) {
+            return List.of();
+        }
+        // Use CTE recursive query for efficient single-query retrieval
+        List<Long> ids = resourceEntityMapper.selectDescendantIds(tenantId, resourceEntityId);
+        return ids != null ? ids : List.of();
     }
 
-    private void collectDescendants(Long tenantId, Long parentId, List<Long> result) {
-        List<ResourceEntity> children = resourceEntityMapper.selectListByQuery(
+    @Override
+    public List<Long> getDescendantIdsIncludingSelf(Long tenantId, Long resourceEntityId) {
+        if (resourceEntityId == null) {
+            return List.of();
+        }
+        // Use CTE recursive query for efficient single-query retrieval
+        List<Long> ids = resourceEntityMapper.selectDescendantIdsIncludingSelf(tenantId, resourceEntityId);
+        return ids != null ? ids : List.of();
+    }
+
+    @Override
+    public Map<Long, List<Long>> batchGetDescendantIds(Long tenantId, Set<Long> resourceEntityIds) {
+        if (resourceEntityIds == null || resourceEntityIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, List<Long>> result = new HashMap<>();
+        // Initialize result with empty lists for all input IDs
+        for (Long id : resourceEntityIds) {
+            result.put(id, new ArrayList<>());
+        }
+
+        // Process each resource ID individually using CTE
+        // This is efficient because each CTE query is a single database round-trip
+        for (Long resourceEntityId : resourceEntityIds) {
+            List<Long> descendants = resourceEntityMapper.selectDescendantIds(tenantId, resourceEntityId);
+            if (descendants != null && !descendants.isEmpty()) {
+                result.get(resourceEntityId).addAll(descendants);
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    public ResourceEntity selectValidById(Long tenantId, Long resourceId) {
+        if (resourceId == null) {
+            return null;
+        }
+        return resourceEntityMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .where(RESOURCE_ENTITY.PARENT_ID.eq(parentId))
+                .where(RESOURCE_ENTITY.ID.eq(resourceId))
+                .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
                 .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
-        for (ResourceEntity child : children) {
-            result.add(child.getId());
-            collectDescendants(tenantId, child.getId(), result);
-        }
     }
 }

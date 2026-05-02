@@ -71,6 +71,41 @@ public interface AuthorizationService {
     boolean hasPermissionOnRole(Long tenantId, Long operatorId, Long targetRoleId, String permissionType);
 
     /**
+     * Checks if the operator has MANAGE permission on the specified resource entity.
+     * This is an instance-level permission check.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param resourceId the resource entity ID to manage
+     * @return true if operator has MANAGE permission on the resource
+     */
+    boolean canManageResource(Long tenantId, Long operatorId, Long resourceId);
+
+    /**
+     * Batch checks if the operator has MANAGE permission on multiple roles.
+     * Returns a map of role ID to permission result.
+     * Optimized to avoid N+1 queries.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param roleIds the set of role IDs to check
+     * @return Map of role ID to Boolean (true if has MANAGE permission)
+     */
+    Map<Long, Boolean> canManageRoles(Long tenantId, Long operatorId, Set<Long> roleIds);
+
+    /**
+     * Batch checks if the operator has MANAGE permission on multiple resources.
+     * Returns a map of resource ID to permission result.
+     * Optimized to avoid N+1 queries.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param resourceIds the set of resource entity IDs to check
+     * @return Map of resource ID to Boolean (true if has MANAGE permission)
+     */
+    Map<Long, Boolean> canManageResources(Long tenantId, Long operatorId, Set<Long> resourceIds);
+
+    /**
      * Unified permission check method.
      * Checks if the operator has specified operations on a target.
      *

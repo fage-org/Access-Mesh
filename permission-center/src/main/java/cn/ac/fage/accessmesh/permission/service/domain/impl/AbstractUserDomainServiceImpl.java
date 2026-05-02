@@ -79,4 +79,17 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
         user.setUpdatedAt(LocalDateTime.now());
         abstractUserMapper.update(user);
     }
+
+    @Override
+    public AbstractUser selectValidById(Long tenantId, Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return abstractUserMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_USER.ID.eq(userId))
+                .and(ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+        );
+    }
 }

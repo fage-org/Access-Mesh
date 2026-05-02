@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.config;
 
+import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -63,7 +64,7 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
 
     private String getClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isEmpty()) {
+        if (StringUtils.isNotEmpty(forwardedFor)) {
             return forwardedFor.split(",")[0].trim();
         }
         String realIp = request.getHeader("X-Real-IP");

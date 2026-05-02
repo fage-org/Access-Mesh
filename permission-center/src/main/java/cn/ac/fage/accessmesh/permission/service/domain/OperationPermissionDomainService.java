@@ -18,4 +18,10 @@ public interface OperationPermissionDomainService {
     void insert(OperationPermission entity);
 
     int update(OperationPermission entity);
+
+    /**
+     * Select a valid operation permission by ID with tenant and delete flag conditions.
+     * Returns null if operation not found, deleted, or doesn't belong to the tenant.
+     */
+    OperationPermission selectValidById(Long tenantId, Long operationId);
 }

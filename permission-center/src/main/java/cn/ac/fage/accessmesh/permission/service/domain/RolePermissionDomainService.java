@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
+import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 
 import java.time.LocalDateTime;
@@ -18,4 +19,10 @@ public interface RolePermissionDomainService {
      * Does NOT increment version - caller should handle version increment.
      */
     void revokePermissionWithCascade(Long tenantId, Long roleId, Long permissionId, LocalDateTime deletedAt);
+
+    /**
+     * Select a valid role resource permission by ID with tenant, roleId and delete flag conditions.
+     * Returns null if permission not found, deleted, or doesn't belong to the tenant/role.
+     */
+    RoleResourcePermission selectValidById(Long tenantId, Long roleId, Long permissionId);
 }

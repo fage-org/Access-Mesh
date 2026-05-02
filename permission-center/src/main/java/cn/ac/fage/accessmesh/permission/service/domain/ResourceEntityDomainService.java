@@ -32,7 +32,37 @@ public interface ResourceEntityDomainService {
 
     /**
      * Get all descendant resource IDs (children, grandchildren, etc.) for a resource.
-     * Recursively collects all nested children.
+     * Uses PostgreSQL CTE recursive query for efficient single-query retrieval.
+     *
+     * @param tenantId        tenant ID
+     * @param resourceEntityId the resource entity ID to find descendants for
+     * @return list of descendant IDs (excluding the resource itself)
      */
     List<Long> getDescendantIds(Long tenantId, Long resourceEntityId);
+
+    /**
+     * Get all descendant resource IDs including self.
+     * Uses PostgreSQL CTE recursive query for efficient single-query retrieval.
+     *
+     * @param tenantId        tenant ID
+     * @param resourceEntityId the resource entity ID to find descendants for
+     * @return list of descendant IDs including the resource itself
+     */
+    List<Long> getDescendantIdsIncludingSelf(Long tenantId, Long resourceEntityId);
+
+    /**
+     * Batch get descendant IDs for multiple resources.
+     * Uses PostgreSQL CTE recursive query for efficient single-query retrieval.
+     *
+     * @param tenantId       tenant ID
+     * @param resourceEntityIds set of resource entity IDs
+     * @return map of resourceEntityId -> list of descendant IDs (excluding self)
+     */
+    Map<Long, List<Long>> batchGetDescendantIds(Long tenantId, Set<Long> resourceEntityIds);
+
+    /**
+     * Select a valid resource entity by ID with tenant and delete flag conditions.
+     * Returns null if resource not found, deleted, or doesn't belong to the tenant.
+     */
+    ResourceEntity selectValidById(Long tenantId, Long resourceId);
 }

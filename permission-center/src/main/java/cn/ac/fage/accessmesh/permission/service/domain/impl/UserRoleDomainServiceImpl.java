@@ -7,6 +7,8 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
+import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -104,8 +106,22 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
         ).stream().map(UserRole::getAbstractUserId).distinct().collect(Collectors.toList());
 
+        if (userIds.isEmpty()) {
+            return;
+        }
+
+        // 批量构建 L2 Redis keys
+        String keyPrefix = ROLES_KEY_PREFIX + tenantId + ":";
+        List<String> l2Keys = userIds.stream()
+            .map(userId -> keyPrefix + userId)
+            .collect(Collectors.toList());
+
+        // 批量删除 L2 Redis 缓存（一次网络往返）
+        redisTemplate.delete(l2Keys);
+
+        // 批量失效 L1 Caffeine 缓存（本地操作，可循环处理）
         for (Long userId : userIds) {
-            invalidateRoleCache(tenantId, userId);
+            permCacheDomainService.evictEffectiveRoles(tenantId, userId);
         }
     }
 
@@ -132,7 +148,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         if (!roleIds.isEmpty()) {
             QueryWrapper qw = QueryWrapper.create()
                 .where(ABSTRACT_ROLE.ID.in(roleIds))
-                .and(ABSTRACT_ROLE.STATUS.eq(1))
+                .and(ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
                 .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
             if (bizDomainId != null) {
                 qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
@@ -152,7 +168,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         }
 
         // Parse extra.basicRoleIds from JSON
-        if (groupRole.getExtra() != null && !groupRole.getExtra().isEmpty()) {
+        if (StringUtils.isNotEmpty(groupRole.getExtra())) {
             try {
                 JsonNode extraNode = objectMapper.readTree(groupRole.getExtra());
                 JsonNode basicRoleIdsNode = extraNode.get("basicRoleIds");

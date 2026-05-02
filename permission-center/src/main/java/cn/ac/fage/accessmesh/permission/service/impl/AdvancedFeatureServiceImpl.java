@@ -17,11 +17,13 @@ import cn.ac.fage.accessmesh.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +62,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
+    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
 
     public AdvancedFeatureServiceImpl(PermissionConditionMapper conditionMapper,
                                       PermissionConflictRuleMapper conflictRuleMapper,
@@ -75,7 +78,8 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
                                       UserRoleDomainService userRoleDomainService,
                                       TypeResolutionService typeResolutionService,
                                       OperationLogDomainService operationLogDomainService,
-                                      AuthorizationService authorizationService) {
+                                      AuthorizationService authorizationService,
+                                      EntityBatchLoadDomainService entityBatchLoadDomainService) {
         this.conditionMapper = conditionMapper;
         this.conflictRuleMapper = conflictRuleMapper;
         this.changeLogMapper = changeLogMapper;
@@ -91,6 +95,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
+        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
     }
 
     // ===== PermissionCondition =====
@@ -98,9 +103,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONDITION", "MANAGE")) {
             throw new SecurityException("No permission to manage conditions");
         }
@@ -133,9 +136,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONDITION", "MANAGE")) {
             throw new SecurityException("No permission to manage conditions");
         }
@@ -172,9 +173,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONDITION", "MANAGE")) {
             throw new SecurityException("No permission to manage conditions");
         }
@@ -189,36 +188,59 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONDITION", "MANAGE")) {
             throw new SecurityException("No permission to manage conditions");
         }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            deleteCondition(tenantId, id, operatorId);
-            n++;
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
-        if (n > 0) {
-            operationLogDomainService.asyncRecord(
-                "perm",
-                "permission-condition-remove",
-                "BATCH",
-                tenantId,
-                "batch soft-delete permission_condition, count=" + n + ", ids=" + ids,
-                operatorId,
-                null,
-                null,
-                tenantId
-            );
+
+        // Batch query (avoid N+1)
+        List<PermissionCondition> entities = conditionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                .and(PERMISSION_CONDITION.ID.in(validInputIds))
+                .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
         }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(PermissionCondition::getId)
+            .collect(Collectors.toSet());
+
+        // Batch soft delete (single query instead of N individual updates)
+        LocalDateTime now = LocalDateTime.now();
+        conditionMapper.softDeleteBatch(tenantId, validIds.stream().toList(), now);
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "permission-condition-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " permission_condition row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     // ===== PermissionConflictRule =====
@@ -226,9 +248,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONFLICT_RULE", "MANAGE")) {
             throw new SecurityException("No permission to manage conflict rules");
         }
@@ -273,9 +293,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONFLICT_RULE", "MANAGE")) {
             throw new SecurityException("No permission to manage conflict rules");
         }
@@ -318,9 +336,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONFLICT_RULE", "MANAGE")) {
             throw new SecurityException("No permission to manage conflict rules");
         }
@@ -335,36 +351,65 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRulesByIds(Long tenantId, List<Long> ids, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "CONFLICT_RULE", "MANAGE")) {
             throw new SecurityException("No permission to manage conflict rules");
         }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long id : ids) {
-            if (id == null) {
-                continue;
-            }
-            deleteConflictRule(tenantId, id, operatorId);
-            n++;
+
+        // Filter out null IDs
+        Set<Long> validInputIds = ids.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
-        if (n > 0) {
-            operationLogDomainService.asyncRecord(
-                "perm",
-                "conflict-rule-remove",
-                "BATCH",
-                tenantId,
-                "batch soft-delete permission_conflict_rule, count=" + n + ", ids=" + ids,
-                operatorId,
-                null,
-                null,
-                tenantId
-            );
+
+        // Batch query (avoid N+1)
+        List<PermissionConflictRule> entities = conflictRuleMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .and(PERMISSION_CONFLICT_RULE.ID.in(validInputIds))
+                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
         }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(PermissionConflictRule::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            PermissionConflictRule updateEntity = new PermissionConflictRule();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            conflictRuleMapper.update(updateEntity);
+        }
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "conflict-rule-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " permission_conflict_rule row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     // ===== PermissionChangeLog =====
@@ -458,9 +503,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "DEPENDENCY", "MANAGE")) {
             throw new SecurityException("No permission to manage dependencies");
         }
@@ -517,9 +560,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp updateDependency(Long tenantId, ResourceDependencyUpdateReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "DEPENDENCY", "MANAGE")) {
             throw new SecurityException("No permission to manage dependencies");
         }
@@ -587,9 +628,7 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDependency(Long tenantId, Long dependencyId, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "DEPENDENCY", "MANAGE")) {
             throw new SecurityException("No permission to manage dependencies");
         }
@@ -604,44 +643,71 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDependencies(Long tenantId, List<Long> dependencyIds, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check (entry-level)
         if (!authorizationService.hasPermission(tenantId, operatorId, "DEPENDENCY", "MANAGE")) {
             throw new SecurityException("No permission to manage dependencies");
         }
+
         if (dependencyIds == null || dependencyIds.isEmpty()) {
             return;
         }
-        int n = 0;
-        for (Long dependencyId : dependencyIds) {
-            if (dependencyId == null) {
-                continue;
-            }
-            deleteDependency(tenantId, dependencyId, operatorId);
-            n++;
+
+        // Filter out null IDs
+        Set<Long> validInputIds = dependencyIds.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
         }
-        if (n > 0) {
-            operationLogDomainService.asyncRecord(
-                "perm",
-                "resource-dependency-remove",
-                "BATCH",
-                tenantId,
-                "batch soft-delete resource_dependency, count=" + n + ", ids=" + dependencyIds,
-                operatorId,
-                null,
-                null,
-                tenantId
-            );
+
+        // Batch query (avoid N+1)
+        List<ResourceDependency> entities = dependencyMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_DEPENDENCY.ID.in(validInputIds))
+                .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
         }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(ResourceDependency::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            ResourceDependency updateEntity = new ResourceDependency();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            dependencyMapper.update(updateEntity);
+        }
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "resource-dependency-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " resource_dependency row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!authorizationService.hasPermission(tenantId, operatorId, "DEPENDENCY", "MANAGE")) {
             throw new SecurityException("No permission to manage dependencies");
         }
@@ -753,14 +819,30 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
         if (operationCodes == null || operationCodes.isEmpty()) {
             return null;
         }
+
+        // Convert to Set for batch resolution (deduplicates codes)
+        Set<String> codeSet = new HashSet<>(operationCodes);
+
+        // Batch resolve operation IDs (O(1) instead of O(N))
+        Map<String, Long> codeToIdMap = typeResolutionService.batchResolveOperationIds(
+            tenantId, resourceTypeCode, codeSet);
+
+        // Collect valid IDs
+        Set<Long> opIds = codeToIdMap.values().stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        if (opIds.isEmpty()) {
+            return 0L;
+        }
+
+        // Batch load operations (O(1) instead of O(N))
+        Map<Long, OperationPermission> opMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, opIds);
+
+        // Calculate bits from loaded operations
         Long bits = 0L;
-        for (String code : operationCodes) {
-            Long opId = typeResolutionService.resolveOperationId(tenantId, code, resourceTypeCode);
-            if (opId == null) {
-                continue;
-            }
-            OperationPermission op = operationPermissionMapper.selectOneById(opId);
-            if (op != null && op.getBinaryBit() != null) {
+        for (OperationPermission op : opMap.values()) {
+            if (op.getBinaryBit() != null) {
                 bits |= op.getBinaryBit();
             }
         }
@@ -772,12 +854,8 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
-            throw new SecurityException("No permission to manage roles");
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
         if (groupId == null) {
@@ -787,6 +865,11 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
             tenantId, req.basicRoleTypeCode(), req.basicRoleExternalId(), req.basicDomainCode());
         if (basicRoleId == null) {
             throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on the group role
+        if (!authorizationService.canManageRole(tenantId, operatorId, groupId)) {
+            throw new SecurityException("No permission to manage group role: " + groupId);
         }
 
         AbstractRole groupRole = abstractRoleMapper.selectOneByQuery(
@@ -829,12 +912,8 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
-            throw new SecurityException("No permission to manage roles");
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
         if (groupId == null) {
@@ -844,6 +923,11 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
             tenantId, req.basicRoleTypeCode(), req.basicRoleExternalId(), req.basicDomainCode());
         if (basicRoleId == null) {
             throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on the group role
+        if (!authorizationService.canManageRole(tenantId, operatorId, groupId)) {
+            throw new SecurityException("No permission to manage group role: " + groupId);
         }
 
         UserRole ur = userRoleMapper.selectOneByQuery(

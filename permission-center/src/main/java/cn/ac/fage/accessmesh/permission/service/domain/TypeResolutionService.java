@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
+
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -97,4 +101,55 @@ public interface TypeResolutionService {
      * @return abstract_role.id, or null if not found
      */
     Long resolveRoleId(Long tenantId, String roleTypeCode, String roleExternalId, String domainCode);
+
+    // ===== Batch resolution methods (avoid N+1 queries) =====
+
+    /**
+     * Batch resolve domainCodes -> domainIds.
+     *
+     * @param tenantId    the tenant
+     * @param domainCodes set of domain codes to resolve, null/empty returns empty map
+     * @return map of domainCode -> domainId, empty map if input is empty
+     */
+    Map<String, Long> batchResolveDomainIds(Long tenantId, Set<String> domainCodes);
+
+    /**
+     * Batch resolve operationCodes -> operationIds for a specific resource type.
+     *
+     * @param tenantId         the tenant
+     * @param resourceTypeCode the resource type code to narrow the search scope
+     * @param operationCodes   set of operation codes to resolve, null/empty returns empty map
+     * @return map of operationCode -> operationId, empty map if input is empty
+     */
+    Map<String, Long> batchResolveOperationIds(Long tenantId, String resourceTypeCode, Set<String> operationCodes);
+
+    /**
+     * Batch resolve resources by their business keys.
+     *
+     * @param tenantId the tenant
+     * @param requests list of ResourceResolveRequest containing resourceTypeCode, resourceCode, codeType, domainCode
+     * @return map of ResourceResolveKey -> resourceId, empty map if input is empty
+     */
+    Map<ResourceResolveKey, Long> batchResolveResourceIds(Long tenantId, List<ResourceResolveRequest> requests);
+
+    /**
+     * Batch resolve user externalIds -> userIds for a specific subject type.
+     *
+     * @param tenantId        the tenant
+     * @param subjectTypeCode the user type code
+     * @param externalIds     set of external IDs to resolve, null/empty returns empty map
+     * @return map of externalId -> userId, empty map if input is empty
+     */
+    Map<String, Long> batchResolveUserIds(Long tenantId, String subjectTypeCode, Set<String> externalIds);
+
+    /**
+     * Batch resolve role externalIds -> roleIds for a specific role type and domain.
+     *
+     * @param tenantId       the tenant
+     * @param roleTypeCode   the role type code
+     * @param externalIds    set of external IDs to resolve, null/empty returns empty map
+     * @param domainCode     the domain code, null means global
+     * @return map of externalId -> roleId, empty map if input is empty
+     */
+    Map<String, Long> batchResolveRoleIds(Long tenantId, String roleTypeCode, Set<String> externalIds, String domainCode);
 }

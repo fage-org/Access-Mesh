@@ -13,4 +13,10 @@ public interface AbstractUserDomainService {
     void disableUser(Long tenantId, Long userId);
 
     AbstractUser findByExternalId(Long tenantId, Integer userType, String externalId);
+
+    /**
+     * Select a valid user by ID with tenant and delete flag conditions.
+     * Returns null if user not found, deleted, or doesn't belong to the tenant.
+     */
+    AbstractUser selectValidById(Long tenantId, Long userId);
 }

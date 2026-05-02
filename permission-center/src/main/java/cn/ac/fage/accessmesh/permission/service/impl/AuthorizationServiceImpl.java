@@ -78,6 +78,133 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     }
 
     @Override
+    public boolean canManageResource(Long tenantId, Long operatorId, Long resourceId) {
+        // Delegate to checkPermissionOnResource with MANAGE operation
+        return checkPermissionOnResource(tenantId, operatorId, resourceId, "MANAGE");
+    }
+
+    @Override
+    public Map<Long, Boolean> canManageRoles(Long tenantId, Long operatorId, Set<Long> roleIds) {
+        if (tenantId == null || operatorId == null || roleIds == null || roleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // Get operator's active roles once (with L1/L2 cache)
+        Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
+        if (operatorRoleIds.isEmpty()) {
+            Map<Long, Boolean> results = new HashMap<>();
+            for (Long roleId : roleIds) {
+                results.put(roleId, false);
+            }
+            return results;
+        }
+
+        // Resolve ROLE resource type once
+        Integer roleResourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "ROLE");
+        if (roleResourceType == null) {
+            Map<Long, Boolean> results = new HashMap<>();
+            for (Long roleId : roleIds) {
+                results.put(roleId, false);
+            }
+            return results;
+        }
+
+        // Find MANAGE operation permission for ROLE type
+        OperationPermission managePerm = operationPermissionMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(roleResourceType))
+                .and(OPERATION_PERMISSION.CODE.eq("MANAGE"))
+                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        if (managePerm == null) {
+            Map<Long, Boolean> results = new HashMap<>();
+            for (Long roleId : roleIds) {
+                results.put(roleId, false);
+            }
+            return results;
+        }
+
+        // Batch query all role_resource_permissions for target roles with MANAGE operation
+        List<RoleResourcePermission> perms = roleResourcePermissionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(operatorRoleIds))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(roleIds))
+                .and(ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(managePerm.getId()))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        // Build result map - collect all role IDs that have permission
+        Set<Long> permittedRoleIds = perms.stream()
+            .map(RoleResourcePermission::getResourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        Map<Long, Boolean> results = new HashMap<>();
+        for (Long roleId : roleIds) {
+            results.put(roleId, permittedRoleIds.contains(roleId));
+        }
+
+        return results;
+    }
+
+    @Override
+    public Map<Long, Boolean> canManageResources(Long tenantId, Long operatorId, Set<Long> resourceIds) {
+        if (tenantId == null || operatorId == null || resourceIds == null || resourceIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // Get operator's active roles once (with L1/L2 cache)
+        Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
+        if (operatorRoleIds.isEmpty()) {
+            Map<Long, Boolean> results = new HashMap<>();
+            for (Long resourceId : resourceIds) {
+                results.put(resourceId, false);
+            }
+            return results;
+        }
+
+        // Batch query all role_resource_permissions for target resources
+        List<RoleResourcePermission> perms = roleResourcePermissionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(operatorRoleIds))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceIds))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opMap = opIds.isEmpty() ? Map.of() :
+            operationPermissionMapper.selectListByQuery(
+                QueryWrapper.create().where(OPERATION_PERMISSION.ID.in(opIds))
+            ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
+
+        // Group permissions by resource entity ID, checking if any has MANAGE operation
+        Map<Long, Boolean> results = new HashMap<>();
+        for (Long resourceId : resourceIds) {
+            results.put(resourceId, false);  // default to false
+        }
+
+        for (RoleResourcePermission perm : perms) {
+            OperationPermission op = opMap.get(perm.getOperationPermissionId());
+            if (op != null && "MANAGE".equalsIgnoreCase(op.getCode())) {
+                Long resId = perm.getResourceEntityId();
+                if (resId != null) {
+                    results.put(resId, true);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    @Override
     public boolean hasPermission(Long tenantId, Long operatorId, String resourceTypeCode, String operationCode) {
         if (tenantId == null || operatorId == null || resourceTypeCode == null || operationCode == null) {
             return false;

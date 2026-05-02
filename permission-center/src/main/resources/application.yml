@@ -8,15 +8,13 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-cache:
-  caffeine:
-    spec: maximumSize=1000,expireAfterWrite=10m
-
 perm:
   cache:
-    l1-enabled: true
-    l2-enabled: true
-    default-ttl-minutes: 30
+    l1:
+      maximum-size: 1000
+      expire-minutes: 10
+    l2:
+      ttl-minutes: 30
 
 logging:
   level:

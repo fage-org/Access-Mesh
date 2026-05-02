@@ -15,11 +15,16 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.SqlUtil;
+import cn.ac.fage.accessmesh.permission.util.TreeBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,6 +40,8 @@ import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef
 
 @Service
 public class RoleManageServiceImpl implements RoleManageService {
+
+    private static final Logger log = LoggerFactory.getLogger(RoleManageServiceImpl.class);
 
     private final AbstractRoleMapper abstractRoleMapper;
     private final AbstractRoleDomainService abstractRoleDomainService;
@@ -65,10 +73,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
         if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "CREATE")) {
@@ -102,19 +107,16 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "UPDATE")) {
-            throw new SecurityException("No permission to update role");
-        }
-
-        AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-        if (role == null || role.getDeleteFlag() != 0L || !role.getTenantId().equals(tenantId)) {
+        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
+        if (role == null) {
             throw new IllegalArgumentException("Role not found: " + roleId);
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific role
+        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
+            throw new SecurityException("No permission to update role: " + roleId);
         }
 
         if (name != null) role.setName(name);
@@ -131,23 +133,21 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "UPDATE")) {
-            throw new SecurityException("No permission to move role");
-        }
-
-        AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-        if (role == null || role.getDeleteFlag() != 0L || !tenantId.equals(role.getTenantId())) {
+        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
+        if (role == null) {
             throw new IllegalArgumentException("Role not found: " + roleId);
         }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific role
+        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
+            throw new SecurityException("No permission to move role: " + roleId);
+        }
+
         if (parentId != null) {
-            AbstractRole parent = abstractRoleMapper.selectOneById(parentId);
-            if (parent == null || parent.getDeleteFlag() != 0L || !tenantId.equals(parent.getTenantId())) {
+            AbstractRole parent = abstractRoleDomainService.selectValidById(tenantId, parentId);
+            if (parent == null) {
                 throw new IllegalArgumentException("Parent role not found: " + parentId);
             }
         }
@@ -160,19 +160,16 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteRole(Long tenantId, Long roleId, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "DELETE")) {
-            throw new SecurityException("No permission to delete role");
-        }
-
-        AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-        if (role == null || role.getDeleteFlag() != 0L || !role.getTenantId().equals(tenantId)) {
+        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
+        if (role == null) {
             throw new IllegalArgumentException("Role not found: " + roleId);
+        }
+
+        // Instance-level permission check: operator must have MANAGE permission on this specific role
+        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
+            throw new SecurityException("No permission to delete role: " + roleId);
         }
 
         abstractRoleDomainService.deleteRole(tenantId, roleId);
@@ -184,30 +181,67 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
-        // Resolve operatorId from context if not provided
-        if (operatorId == null) {
-            operatorId = OperatorContext.getOperatorId();
-        }
-
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "DELETE")) {
-            throw new SecurityException("No permission to delete roles");
-        }
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         if (roleIds == null || roleIds.isEmpty()) {
             return;
         }
+
+        // Filter out null IDs
+        Set<Long> validRoleIds = roleIds.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validRoleIds.isEmpty()) {
+            return;
+        }
+
+        // Batch query roles to validate existence
+        List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.ID.in(validRoleIds))
+                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
+
+        if (roles.isEmpty()) {
+            return;
+        }
+
+        // Build map of existing roles
+        Map<Long, AbstractRole> existingRoles = roles.stream()
+            .collect(Collectors.toMap(AbstractRole::getId, r -> r));
+
+        // Batch permission check - avoid N+1 queries
+        Map<Long, Boolean> permissionMap = authorizationService.canManageRoles(tenantId, operatorId, existingRoles.keySet());
+
+        // Filter roles that operator has permission to delete
+        List<Long> permittedIds = new ArrayList<>();
+        List<Long> deniedIds = new ArrayList<>();
+        for (Long roleId : existingRoles.keySet()) {
+            if (Boolean.TRUE.equals(permissionMap.get(roleId))) {
+                permittedIds.add(roleId);
+            } else {
+                deniedIds.add(roleId);
+            }
+        }
+
+        // Log denied deletions
+        if (!deniedIds.isEmpty()) {
+            log.info("Operator {} denied to delete roles: {}", operatorId, deniedIds);
+        }
+
+        if (permittedIds.isEmpty()) {
+            return;
+        }
+
+        // Execute batch delete for permitted roles
         List<Long> doneIds = new ArrayList<>();
         ArrayNode itemsJson = objectMapper.createArrayNode();
-        for (Long roleId : roleIds) {
-            if (roleId == null) {
-                continue;
-            }
-            AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-            if (role == null || role.getDeleteFlag() != 0L || !tenantId.equals(role.getTenantId())) {
-                throw new IllegalArgumentException("Role not found: " + roleId);
-            }
-            deleteRole(tenantId, roleId, operatorId);
+        for (Long roleId : permittedIds) {
+            AbstractRole role = existingRoles.get(roleId);
+            abstractRoleDomainService.deleteRole(tenantId, roleId);
+            permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
             doneIds.add(roleId);
             ObjectNode it = objectMapper.createObjectNode();
             it.put("changeType", "REMOVE");
@@ -217,9 +251,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             roleNode.put("roleName", role.getName() != null ? role.getName() : "");
             itemsJson.add(it);
         }
-        if (doneIds.isEmpty()) {
-            return;
-        }
+
         ObjectNode diffRoot = objectMapper.createObjectNode();
         diffRoot.put("eventType", "ROLE_BATCH_DELETE");
         diffRoot.set("items", itemsJson);
@@ -250,7 +282,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             "abstract-role-remove",
             "BATCH",
             tenantId,
-            "soft-deleted " + doneIds.size() + " role(s), ids=" + doneIds,
+            "soft-deleted " + doneIds.size() + " role(s), ids=" + doneIds + ", denied=" + deniedIds.size(),
             operatorId,
             null,
             null,
@@ -270,7 +302,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         QueryWrapper qw = QueryWrapper.create()
             .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
             .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            .and(ABSTRACT_ROLE.STATUS.eq(1));
+            .and(ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS));
         if (bizDomainId != null) {
             qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
         } else {
@@ -279,16 +311,25 @@ public class RoleManageServiceImpl implements RoleManageService {
 
         List<AbstractRole> allRoles = abstractRoleMapper.selectListByQuery(qw);
 
-        // Build tree: root roles are those with parentId=null or parentId pointing to deleted roles
+        // Build tree using TreeBuilder
+        TreeBuilder<AbstractRole, RoleTreeNode> treeBuilder = new TreeBuilder<>(
+            AbstractRole::getId,
+            AbstractRole::getParentId,
+            (role, children) -> new RoleTreeNode(
+                role.getId(), role.getTenantId(), role.getParentId(),
+                typeResolutionService.resolveTypeCode(role.getTenantId(), "role_type", role.getRoleType()),
+                role.getName(), role.getExternalId(),
+                role.getStatus(), role.getSortOrder(), children
+            )
+        );
+
         List<AbstractRole> roots = allRoles.stream()
             .filter(r -> r.getParentId() == null)
             .collect(Collectors.toList());
 
-        List<RoleTreeResp> result = new ArrayList<>();
-        for (AbstractRole root : roots) {
-            result.add(new RoleTreeResp(buildTreeNode(root, allRoles)));
-        }
-        return result;
+        return treeBuilder.buildTrees(roots, allRoles).stream()
+            .map(RoleTreeResp::new)
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -314,14 +355,14 @@ public class RoleManageServiceImpl implements RoleManageService {
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
-                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             queryWrapper.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
         }
         if (roleTypeCode != null && !roleTypeCode.isBlank()) {
             Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
             if (roleType == null) {
-                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(-1L));
+                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             queryWrapper.and(ABSTRACT_ROLE.ROLE_TYPE.eq(roleType));
         }
@@ -335,24 +376,8 @@ public class RoleManageServiceImpl implements RoleManageService {
         return queryWrapper;
     }
 
-    private RoleTreeNode buildTreeNode(AbstractRole role, List<AbstractRole> allRoles) {
-        List<RoleTreeNode> children = allRoles.stream()
-            .filter(r -> role.getId().equals(r.getParentId()))
-            .map(r -> buildTreeNode(r, allRoles))
-            .collect(Collectors.toList());
-
-        return new RoleTreeNode(
-            role.getId(), role.getTenantId(), role.getParentId(),
-            typeResolutionService.resolveTypeCode(role.getTenantId(), "role_type", role.getRoleType()), role.getName(), role.getExternalId(),
-            role.getStatus(), role.getSortOrder(), children
-        );
-    }
-
     private RoleResp toRoleResp(AbstractRole role) {
-        String roleTypeName = "";
-        try {
-            roleTypeName = RoleType.fromValue(role.getRoleType() != null ? role.getRoleType() : 0).getLabel();
-        } catch (IllegalArgumentException ignored) {}
+        String roleTypeName = RoleType.safeGetLabel(role.getRoleType());
 
         return new RoleResp(
             role.getId(), role.getTenantId(), role.getBizDomainId(),

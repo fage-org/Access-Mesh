@@ -4,14 +4,18 @@ import cn.ac.fage.accessmesh.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
+import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
@@ -21,11 +25,17 @@ public class OperationManageServiceImpl implements OperationManageService {
 
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
+    private final AuthorizationService authorizationService;
+    private final OperationLogDomainService operationLogDomainService;
 
     public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper,
-                                      TypeResolutionService typeResolutionService) {
+                                      TypeResolutionService typeResolutionService,
+                                      AuthorizationService authorizationService,
+                                      OperationLogDomainService operationLogDomainService) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
+        this.authorizationService = authorizationService;
+        this.operationLogDomainService = operationLogDomainService;
     }
 
     @Override
@@ -107,16 +117,69 @@ public class OperationManageServiceImpl implements OperationManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
-        for (Long operationId : operationIds) {
-            deleteOperation(tenantId, operationId, operatorId);
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check (added - was missing)
+        if (!authorizationService.hasPermission(tenantId, operatorId, "OPERATION", "MANAGE")) {
+            throw new SecurityException("No permission to delete operations");
         }
+
+        if (operationIds == null || operationIds.isEmpty()) {
+            return;
+        }
+
+        // Filter out null IDs
+        Set<Long> validInputIds = operationIds.stream()
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        if (validInputIds.isEmpty()) {
+            return;
+        }
+
+        // Batch query (avoid N+1)
+        List<OperationPermission> entities = operationPermissionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OPERATION_PERMISSION.ID.in(validInputIds))
+                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        if (entities.isEmpty()) {
+            return;
+        }
+
+        // Collect valid IDs
+        Set<Long> validIds = entities.stream()
+            .map(OperationPermission::getId)
+            .collect(Collectors.toSet());
+
+        // Batch update (soft delete) - use entity ID as deleteFlag
+        LocalDateTime now = LocalDateTime.now();
+        for (Long id : validIds) {
+            OperationPermission updateEntity = new OperationPermission();
+            updateEntity.setId(id);
+            updateEntity.setDeleteFlag(id);
+            updateEntity.setDeletedAt(now);
+            operationPermissionMapper.update(updateEntity);
+        }
+
+        // Log record
+        operationLogDomainService.asyncRecord(
+            "perm",
+            "operation-permission-remove",
+            "BATCH",
+            tenantId,
+            "soft-deleted " + validIds.size() + " operation_permission row(s), ids=" + validIds,
+            operatorId,
+            null,
+            null,
+            tenantId
+        );
     }
 
     private OperationPermissionResp toResp(OperationPermission op) {
-        String resourceTypeName = "";
-        try {
-            resourceTypeName = ResourceType.fromValue(op.getResourceType() != null ? op.getResourceType() : 0).getLabel();
-        } catch (IllegalArgumentException ignored) {}
+        String resourceTypeName = ResourceType.safeGetLabel(op.getResourceType());
 
         return new OperationPermissionResp(
             op.getId(), op.getTenantId(), typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()), resourceTypeName,
