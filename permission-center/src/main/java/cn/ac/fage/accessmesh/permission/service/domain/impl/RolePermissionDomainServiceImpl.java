@@ -49,7 +49,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
                 p.getResourceEntityId(), null, p.getResourceType(),
                 p.getOperationPermissionId(), null, null,
                 p.getGrantSource(),
-                p.getCanManage(), p.getConditionId(), p.getConditionId() != null,
+                p.getCanGrant(), p.getConditionId(), p.getConditionId() != null,
                 p.getDependOn()
             ))
             .collect(Collectors.toList());
@@ -69,7 +69,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setResourceType(entry.resourceType());
             rp.setDependOn(entry.dependOn());
             rp.setScopeAll(false);
-            rp.setCanManage(entry.canManage() != null && entry.canManage());
+            rp.setCanGrant(entry.canGrant() != null && entry.canGrant());
             rp.setConditionId(entry.conditionId());
             rp.setGrantSource(changeSource != null ? changeSource : "MANUAL");
             rp.setCreatedAt(LocalDateTime.now());
@@ -83,30 +83,45 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
-        Set<Long> affectedRoles = Set.of(roleId);
 
-        for (Long permId : permissionIds) {
-            RoleResourcePermission rp = rolePermMapper.selectOneById(permId);
-            if (rp != null && rp.getDeleteFlag() == 0L && rp.getAbstractRoleId().equals(roleId)) {
-                rp.setDeleteFlag(rp.getId());
-                rp.setDeletedAt(now);
-                rolePermMapper.update(rp);
-
-                // Cascade delete sub-permissions
-                List<RoleResourcePermission> children = rolePermMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(ROLE_RESOURCE_PERMISSION.DEPEND_ON.eq(permId))
-                        .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-                );
-                for (RoleResourcePermission child : children) {
-                    child.setDeleteFlag(child.getId());
-                    child.setDeletedAt(now);
-                    rolePermMapper.update(child);
-                }
-            }
+        // Validate permissions belong to the role
+        long validCount = rolePermMapper.selectCountByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+        if (validCount == 0) {
+            return;
         }
 
-        permissionVersionDomainService.batchIncrement(tenantId, affectedRoles);
+        // Batch soft delete the permissions (single SQL, avoid N+1)
+        rolePermMapper.softDeleteBatch(tenantId, permissionIds, now);
+
+        // Batch cascade delete all children (single SQL, avoid N+1)
+        rolePermMapper.cascadeSoftDeleteChildren(tenantId, permissionIds, now);
+
+        permissionVersionDomainService.increment(tenantId, roleId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void revokePermissionWithCascade(Long tenantId, Long roleId, Long permissionId, LocalDateTime deletedAt) {
+        RoleResourcePermission rp = rolePermMapper.selectOneById(permissionId);
+        if (rp != null && rp.getDeleteFlag() == 0L && rp.getAbstractRoleId().equals(roleId)
+            && rp.getTenantId().equals(tenantId)) {
+            // Soft delete the permission
+            rp.setDeleteFlag(rp.getId());
+            rp.setDeletedAt(deletedAt);
+            rolePermMapper.update(rp);
+
+            // Cascade soft delete sub-permissions using batch SQL (avoid N+1)
+            rolePermMapper.cascadeSoftDeleteChildren(tenantId, List.of(permissionId), deletedAt);
+        }
     }
 }

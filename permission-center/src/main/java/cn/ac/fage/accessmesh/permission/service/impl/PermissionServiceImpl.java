@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.req.InterfaceSnapshotReq;
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
@@ -12,6 +13,8 @@ import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp.AuthCheckIte
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp.TreeNode;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp.ResourceEntry;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
@@ -28,10 +31,12 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
@@ -56,6 +61,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
 import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
@@ -80,6 +86,8 @@ public class PermissionServiceImpl implements PermissionService {
     private final TypeResolutionService typeResolutionService;
     private final PermCacheDomainService permCacheDomainService;
     private final PermissionVersionDomainService permissionVersionDomainService;
+    private final ResourceEntityDomainService resourceEntityDomainService;
+    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
 
     public PermissionServiceImpl(AbstractUserMapper abstractUserMapper,
                                  ResourceEntityMapper resourceEntityMapper,
@@ -93,7 +101,9 @@ public class PermissionServiceImpl implements PermissionService {
                                  RolePermissionDomainService rolePermissionDomainService,
                                  TypeResolutionService typeResolutionService,
                                  PermCacheDomainService permCacheDomainService,
-                                 PermissionVersionDomainService permissionVersionDomainService) {
+                                 PermissionVersionDomainService permissionVersionDomainService,
+                                 ResourceEntityDomainService resourceEntityDomainService,
+                                 EntityBatchLoadDomainService entityBatchLoadDomainService) {
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
@@ -107,6 +117,8 @@ public class PermissionServiceImpl implements PermissionService {
         this.typeResolutionService = typeResolutionService;
         this.permCacheDomainService = permCacheDomainService;
         this.permissionVersionDomainService = permissionVersionDomainService;
+        this.resourceEntityDomainService = resourceEntityDomainService;
+        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
     }
 
     @Override
@@ -177,8 +189,13 @@ public class PermissionServiceImpl implements PermissionService {
         if (userId == null) {
             return CheckInterfaceResp.deny("USER_NOT_FOUND");
         }
-        AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user == null || user.getDeleteFlag() != 0L) {
+        AbstractUser user = abstractUserMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_USER.ID.eq(userId))
+                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+        );
+        if (user == null) {
             return CheckInterfaceResp.deny("USER_NOT_FOUND");
         }
         if (!Boolean.TRUE.equals(user.getEnabled())) {
@@ -205,6 +222,13 @@ public class PermissionServiceImpl implements PermissionService {
             return CheckInterfaceResp.deny("API_NOT_REGISTERED");
         }
 
+        // Batch load resource entities for matched mappings to avoid N+1 queries
+        Set<Long> mappingResourceIds = matchedMappings.stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, ResourceEntity> mappingResourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, mappingResourceIds);
+
         Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, null);
         if (effectiveRoleIds.isEmpty()) {
             return CheckInterfaceResp.deny("NO_ROLE");
@@ -221,7 +245,7 @@ public class PermissionServiceImpl implements PermissionService {
         Map<Integer, List<OperationPermission>> operationCacheByType = new HashMap<>();
 
         for (ResourceApiMapping matchedMapping : matchedMappings) {
-            ResourceEntity resource = resourceEntityMapper.selectOneById(matchedMapping.getResourceEntityId());
+            ResourceEntity resource = mappingResourceMap.get(matchedMapping.getResourceEntityId());
             if (resource == null || resource.getDeleteFlag() != 0L) {
                 continue;
             }
@@ -325,6 +349,17 @@ public class PermissionServiceImpl implements PermissionService {
             .filter(p -> Boolean.TRUE.equals(p.getScopeAll()) || p.getResourceEntityId() == null)
             .toList();
 
+        // Batch load resource entities to avoid N+1 queries
+        Set<Long> resourceIds = permsByResource.keySet();
+        Map<Long, ResourceEntity> resourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> operationIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> operationMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
+
         List<ResourceEntry> items = new ArrayList<>();
         boolean includeChildren = req.includeChildren() == null || req.includeChildren();
         String requiredCodeType = req.codeType();
@@ -332,7 +367,7 @@ public class PermissionServiceImpl implements PermissionService {
         for (Map.Entry<Long, List<RoleResourcePermission>> entry : permsByResource.entrySet()) {
             Long rid = entry.getKey();
             List<RoleResourcePermission> resourcePerms = entry.getValue();
-            ResourceEntity r = resourceEntityMapper.selectOneById(rid);
+            ResourceEntity r = resourceMap.get(rid);
             if (r == null || r.getDeleteFlag() != 0L) continue;
             if (requiredCodeType != null && !requiredCodeType.isBlank() && !requiredCodeType.equals(r.getCodeType())) {
                 continue;
@@ -345,10 +380,10 @@ public class PermissionServiceImpl implements PermissionService {
                 continue;
             }
 
-            boolean canManage = resourcePerms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanManage()));
+            boolean canGrant = resourcePerms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanGrant()));
             List<String> operations = resourcePerms.stream()
                 .map(p -> {
-                    OperationPermission op = operationPermissionMapper.selectOneById(p.getOperationPermissionId());
+                    OperationPermission op = operationMap.get(p.getOperationPermissionId());
                     return op != null ? op.getCode() : null;
                 })
                 .filter(Objects::nonNull)
@@ -379,7 +414,7 @@ public class PermissionServiceImpl implements PermissionService {
             String resolvedResourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", r.getResourceType());
             items.add(new ResourceEntry(
                 resolvedResourceTypeCode, r.getCode(), r.getCodeType(), r.getName(),
-                canManage, filteredOperations, matchedRoleIds, matchedPermissionIds, grantSources
+                canGrant, filteredOperations, matchedRoleIds, matchedPermissionIds, grantSources
             ));
         }
         if (!scopeAllPerms.isEmpty()) {
@@ -390,7 +425,7 @@ public class PermissionServiceImpl implements PermissionService {
                 Integer resourceType = scopeEntry.getKey();
                 String resolvedResourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resourceType);
                 List<String> allowedOps = scopeEntry.getValue().stream()
-                    .map(p -> operationPermissionMapper.selectOneById(p.getOperationPermissionId()))
+                    .map(p -> operationMap.get(p.getOperationPermissionId()))
                     .filter(Objects::nonNull)
                     .map(OperationPermission::getCode)
                     .filter(operationCodes::contains)
@@ -426,10 +461,10 @@ public class PermissionServiceImpl implements PermissionService {
                         .map(RoleResourcePermission::getId).filter(Objects::nonNull).distinct().toList();
                     List<String> grantSources = scopeEntry.getValue().stream()
                         .map(RoleResourcePermission::getGrantSource).filter(Objects::nonNull).distinct().toList();
-                    boolean canManage = scopeEntry.getValue().stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanManage()));
+                    boolean canGrant = scopeEntry.getValue().stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanGrant()));
                     items.add(new ResourceEntry(
                         resolvedResourceTypeCode, r.getCode(), r.getCodeType(), r.getName(),
-                        canManage, allowedOps, matchedRoleIds, matchedPermissionIds, grantSources
+                        canGrant, allowedOps, matchedRoleIds, matchedPermissionIds, grantSources
                     ));
                 }
             }
@@ -440,11 +475,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .toList();
         }
 
-        long version = validRoleIds.stream()
-            .mapToLong(roleId -> permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
-            .max()
-            .orElse(0L);
-        String permissionVersion = userId + ":" + version;
+        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, validRoleIds);
         return new QueryResourcesResp(items, permissionVersion, 60);
     }
 
@@ -504,12 +535,20 @@ public class PermissionServiceImpl implements PermissionService {
                     .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.eq(scopeType))
                     .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
             );
+            // Batch load resource entities for entries to avoid N+1 queries
+            List<RolePermEntry> allScopeEntries = toRolePermEntries(tenantId, scopePermCandidates);
+            Set<Long> scopeResourceIds = allScopeEntries.stream()
+                .map(RolePermEntry::resourceEntityId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+            Map<Long, ResourceEntity> scopeResourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, scopeResourceIds);
+
             for (String scopeOpCode : req.scopeOperationCodes()) {
                 Long scopeOpId = typeResolutionService.resolveOperationId(tenantId, scopeOpCode, scopeTypeCode);
                 if (scopeOpId == null) {
                     continue;
                 }
-                List<RolePermEntry> entries = toRolePermEntries(scopePermCandidates).stream()
+                List<RolePermEntry> entries = allScopeEntries.stream()
                     .filter(entry -> entry.operationPermissionId().equals(scopeOpId))
                     .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
                     .toList();
@@ -518,7 +557,7 @@ public class PermissionServiceImpl implements PermissionService {
 
                 for (RolePermEntry entry : entries) {
                     boolean scopeAll = entry.resourceEntityId() == null;
-                    ResourceEntity resource = scopeAll ? null : resourceEntityMapper.selectOneById(entry.resourceEntityId());
+                    ResourceEntity resource = scopeAll ? null : scopeResourceMap.get(entry.resourceEntityId());
                     if (!scopeAll && (resource == null || resource.getDeleteFlag() != 0L)) {
                         continue;
                     }
@@ -564,11 +603,7 @@ public class PermissionServiceImpl implements PermissionService {
                 new ArrayList<>(item.dependOnPermissionIds)
             ))
             .toList();
-        long version = validRoleIds.stream()
-            .mapToLong(roleId -> permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
-            .max()
-            .orElse(0L);
-        String permissionVersion = userId + ":" + version;
+        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, validRoleIds);
         return new QueryScopesResp(
             true,
             null,
@@ -581,15 +616,19 @@ public class PermissionServiceImpl implements PermissionService {
         );
     }
 
-    private List<RolePermEntry> toRolePermEntries(List<RoleResourcePermission> perms) {
+    private List<RolePermEntry> toRolePermEntries(Long tenantId, List<RoleResourcePermission> perms) {
         if (perms.isEmpty()) {
             return List.of();
         }
-        Map<Long, OperationPermission> opCache = new HashMap<>();
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opCache = entityBatchLoadDomainService.batchLoadOperations(tenantId, opIds);
         List<RolePermEntry> entries = new ArrayList<>();
         for (RoleResourcePermission perm : perms) {
-            OperationPermission grantedOp = opCache.computeIfAbsent(
-                perm.getOperationPermissionId(), operationPermissionMapper::selectOneById);
+            OperationPermission grantedOp = opCache.get(perm.getOperationPermissionId());
             if (grantedOp == null) {
                 continue;
             }
@@ -603,7 +642,7 @@ public class PermissionServiceImpl implements PermissionService {
                 grantedOp.getCode(),
                 null,
                 perm.getGrantSource(),
-                perm.getCanManage(),
+                perm.getCanGrant(),
                 perm.getConditionId(),
                 perm.getConditionId() != null,
                 perm.getDependOn()
@@ -635,10 +674,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (effectiveRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
-        long currentVersion = validRoleIds.stream()
-            .mapToLong(roleId -> permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
-            .max()
-            .orElse(0L);
+        long currentVersion = permissionVersionDomainService.calculateMaxVersion(tenantId, validRoleIds);
         if (req.permissionVersion() != null && req.permissionVersion().equals(currentVersion)) {
             return new InterfaceSnapshotResp(true, currentVersion, List.of());
         }
@@ -704,8 +740,13 @@ public class PermissionServiceImpl implements PermissionService {
     private AuthCheckResp checkInternal(Long tenantId, Long userId, Long resourceEntityId,
                                         Long operationPermissionId, Long bizDomainId,
                                         String inheritMode, Map<String, Object> context) {
-        AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user == null || user.getDeleteFlag() != 0L) return AuthCheckResp.deny("USER_NOT_FOUND");
+        AbstractUser user = abstractUserMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_USER.ID.eq(userId))
+                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+        );
+        if (user == null) return AuthCheckResp.deny("USER_NOT_FOUND");
         if (!Boolean.TRUE.equals(user.getEnabled())) return AuthCheckResp.deny("USER_DISABLED");
 
         Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);
@@ -743,13 +784,13 @@ public class PermissionServiceImpl implements PermissionService {
             .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
 
         if ("PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode)) {
-            List<Long> parentIds = getAncestorIds(tenantId, resourceEntityId);
+            List<Long> parentIds = resourceEntityDomainService.getAncestorIds(tenantId, resourceEntityId);
             if (!parentIds.isEmpty()) {
                 targetResourceIds.addAll(parentIds);
             }
         }
         if ("CHILDREN".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode)) {
-            List<Long> childIds = getDescendantIds(tenantId, resourceEntityId);
+            List<Long> childIds = resourceEntityDomainService.getDescendantIds(tenantId, resourceEntityId);
             if (!childIds.isEmpty()) {
                 targetResourceIds.addAll(childIds);
             }
@@ -766,25 +807,27 @@ public class PermissionServiceImpl implements PermissionService {
         OperationPermission targetOp = operationPermissionMapper.selectOneById(operationPermissionId);
         if (targetOp == null) return Collections.emptyList();
 
-        Map<Long, OperationPermission> opCache = new HashMap<>();
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> grantedOpIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        grantedOpIds.add(operationPermissionId);
+        Map<Long, OperationPermission> opCache = new HashMap<>(entityBatchLoadDomainService.batchLoadOperations(tenantId, grantedOpIds));
         opCache.put(operationPermissionId, targetOp);
 
         List<RolePermEntry> result = new ArrayList<>();
         for (RoleResourcePermission perm : perms) {
-            OperationPermission grantedOp = opCache.computeIfAbsent(
-                perm.getOperationPermissionId(), operationPermissionMapper::selectOneById);
+            OperationPermission grantedOp = opCache.get(perm.getOperationPermissionId());
             if (grantedOp == null) continue;
 
-            long effectiveBits = (grantedOp.getBinaryBit() != null ? grantedOp.getBinaryBit() : 0L)
-                | (grantedOp.getInheritMask() != null ? grantedOp.getInheritMask() : 0L);
-            long targetBit = targetOp.getBinaryBit() != null ? targetOp.getBinaryBit() : 0L;
-            if (targetBit != 0L && (effectiveBits & targetBit) != 0) {
+            if (grantedOp.matchesBit(targetOp)) {
                 result.add(new RolePermEntry(
                     perm.getId(), perm.getAbstractRoleId(),
                     perm.getResourceEntityId(), null, perm.getResourceType(),
                     perm.getOperationPermissionId(), grantedOp.getCode(), null,
                     perm.getGrantSource(),
-                    perm.getCanManage(), perm.getConditionId(), perm.getConditionId() != null,
+                    perm.getCanGrant(), perm.getConditionId(), perm.getConditionId() != null,
                     perm.getDependOn()));
             }
         }
@@ -836,33 +879,189 @@ public class PermissionServiceImpl implements PermissionService {
         return false;
     }
 
-    private List<Long> getAncestorIds(Long tenantId, Long resourceEntityId) {
-        List<Long> ids = new ArrayList<>();
-        Long current = resourceEntityId;
-        while (current != null) {
-            ResourceEntity e = resourceEntityMapper.selectOneById(current);
-            if (e == null || e.getDeleteFlag() != 0L || !e.getTenantId().equals(tenantId)) break;
-            if (e.getParentId() != null) { ids.add(e.getParentId()); current = e.getParentId(); } else break;
+    @Override
+    @Transactional(readOnly = true)
+    public PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req) {
+        // 1. Resolve subject to internal user ID
+        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        if (userId == null) {
+            return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
         }
-        return ids;
+
+        // 2. Resolve starting resource
+        Long rootResourceId = typeResolutionService.resolveResourceId(
+            tenantId, req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.domainCode()
+        );
+        if (rootResourceId == null) {
+            return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
+        }
+
+        // 3. Resolve bizDomainId from domainCode
+        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
+
+        // 4. Get effective roles
+        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);
+        if (effectiveRoleIds.isEmpty()) {
+            return new PermissionTreeResp(buildNode(tenantId, rootResourceId, 0, Set.of(), false, null),
+                List.of(), List.of(), null, 60);
+        }
+        Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
+
+        // 5. Get all permissions for valid roles
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(validRoleIds))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        // 6. Build permission map by resource entity ID
+        Map<Long, List<RoleResourcePermission>> permsByResource = allPerms.stream()
+            .filter(p -> p.getResourceEntityId() != null)
+            .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
+
+        // 7. Resolve operation permission IDs for requested operation codes
+        Integer resourceTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
+        Set<Long> operationIds = new HashSet<>();
+        for (String opCode : req.operationCodes()) {
+            Long opId = typeResolutionService.resolveOperationId(tenantId, opCode, req.resourceTypeCode());
+            if (opId != null) {
+                operationIds.add(opId);
+            }
+        }
+
+        // Batch load operation permissions for getOperationsForResource calls
+        Map<Long, OperationPermission> operationMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
+
+        // 8. Traverse based on direction
+        ResourceEntity rootResource = resourceEntityMapper.selectOneById(rootResourceId);
+        TreeNode root = buildNode(tenantId, rootResourceId, 0,
+            getOperationsForResource(permsByResource.get(rootResourceId), operationIds, operationMap),
+            hasCanGrant(permsByResource.get(rootResourceId), operationIds),
+            rootResource != null ? rootResource.getName() : null);
+
+        List<TreeNode> ancestors = List.of();
+        List<TreeNode> descendants = List.of();
+        int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
+
+        String direction = req.direction().toUpperCase();
+        if ("ANCESTORS".equals(direction) || "BOTH".equals(direction)) {
+            ancestors = traverseAncestors(tenantId, rootResourceId, permsByResource, operationIds, operationMap, maxDepth);
+        }
+        if ("DESCENDANTS".equals(direction) || "BOTH".equals(direction)) {
+            descendants = traverseDescendants(tenantId, rootResourceId, permsByResource, operationIds, operationMap, maxDepth);
+        }
+
+        // 9. Build permission version
+        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, validRoleIds);
+
+        return new PermissionTreeResp(root, ancestors, descendants, permissionVersion, 60);
     }
 
-    private List<Long> getDescendantIds(Long tenantId, Long resourceEntityId) {
-        List<Long> ids = new ArrayList<>();
-        collectDescendants(tenantId, resourceEntityId, ids);
-        return ids;
+    private TreeNode buildNode(Long tenantId, Long resourceId, int depth,
+                               Set<String> operations, boolean canGrant, String name) {
+        ResourceEntity resource = resourceEntityMapper.selectOneById(resourceId);
+        if (resource == null) {
+            return new TreeNode(resourceId, null, null, name, depth, operations, canGrant, null);
+        }
+        String typeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType());
+        return new TreeNode(resourceId, typeCode, resource.getCode(), resource.getName(), depth, operations, canGrant, null);
     }
 
-    private void collectDescendants(Long tenantId, Long parentId, List<Long> result) {
+    private Set<String> getOperationsForResource(List<RoleResourcePermission> perms, Set<Long> operationIds,
+                                                  Map<Long, OperationPermission> operationMap) {
+        if (perms == null || perms.isEmpty()) return Set.of();
+        return perms.stream()
+            .filter(p -> operationIds.contains(p.getOperationPermissionId()))
+            .map(p -> {
+                OperationPermission op = operationMap.get(p.getOperationPermissionId());
+                return op != null ? op.getCode() : null;
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
+
+    private Set<String> getOperationsForResource(Long tenantId, List<RoleResourcePermission> perms, Set<Long> operationIds) {
+        if (perms == null || perms.isEmpty()) return Set.of();
+        // Legacy method with batch loading - for backward compatibility
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> operationMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, opIds);
+        return getOperationsForResource(perms, operationIds, operationMap);
+    }
+
+    private boolean hasCanGrant(List<RoleResourcePermission> perms, Set<Long> operationIds) {
+        if (perms == null || perms.isEmpty()) return false;
+        return perms.stream()
+            .filter(p -> operationIds.contains(p.getOperationPermissionId()))
+            .anyMatch(p -> Boolean.TRUE.equals(p.getCanGrant()));
+    }
+
+    private List<TreeNode> traverseAncestors(Long tenantId, Long startResourceId,
+                                              Map<Long, List<RoleResourcePermission>> permsByResource,
+                                              Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
+                                              int maxDepth) {
+        List<TreeNode> ancestors = new ArrayList<>();
+        Long currentId = startResourceId;
+        int depth = -1;
+
+        while (currentId != null && Math.abs(depth) <= maxDepth) {
+            ResourceEntity resource = resourceEntityMapper.selectOneById(currentId);
+            if (resource == null || resource.getDeleteFlag() != 0L || !resource.getTenantId().equals(tenantId)) {
+                break;
+            }
+            if (resource.getParentId() != null) {
+                List<RoleResourcePermission> perms = permsByResource.get(resource.getParentId());
+                Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
+                if (!ops.isEmpty()) {
+                    TreeNode node = buildNode(tenantId, resource.getParentId(), depth, ops,
+                        hasCanGrant(perms, operationIds), null);
+                    ancestors.add(node);
+                }
+                currentId = resource.getParentId();
+                depth--;
+            } else {
+                break;
+            }
+        }
+        return ancestors;
+    }
+
+    private List<TreeNode> traverseDescendants(Long tenantId, Long startResourceId,
+                                                Map<Long, List<RoleResourcePermission>> permsByResource,
+                                                Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
+                                                int maxDepth) {
+        List<TreeNode> descendants = new ArrayList<>();
+        collectDescendantsWithPermission(tenantId, startResourceId, permsByResource, operationIds, operationMap, 1, maxDepth, descendants);
+        return descendants;
+    }
+
+    private void collectDescendantsWithPermission(Long tenantId, Long parentId,
+                                                   Map<Long, List<RoleResourcePermission>> permsByResource,
+                                                   Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
+                                                   int currentDepth, int maxDepth,
+                                                   List<TreeNode> result) {
+        if (currentDepth > maxDepth) return;
+
         List<ResourceEntity> children = resourceEntityMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
                 .where(RESOURCE_ENTITY.PARENT_ID.eq(parentId))
                 .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
+
         for (ResourceEntity child : children) {
-            result.add(child.getId());
-            collectDescendants(tenantId, child.getId(), result);
+            List<RoleResourcePermission> perms = permsByResource.get(child.getId());
+            Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
+            if (!ops.isEmpty()) {
+                TreeNode node = buildNode(tenantId, child.getId(), currentDepth, ops,
+                    hasCanGrant(perms, operationIds), child.getName());
+                result.add(node);
+            }
+            collectDescendantsWithPermission(tenantId, child.getId(), permsByResource, operationIds, operationMap,
+                currentDepth + 1, maxDepth, result);
         }
     }
 }

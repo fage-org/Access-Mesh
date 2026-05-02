@@ -53,4 +53,27 @@ public class OperationPermission {
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
     public Long getDeleteFlag() { return deleteFlag; }
     public void setDeleteFlag(Long deleteFlag) { this.deleteFlag = deleteFlag; }
+
+    /**
+     * Get effective permission bits: binaryBit | inheritMask.
+     * Used for permission matching with bitwise operations.
+     */
+    public long getEffectiveBits() {
+        return (binaryBit != null ? binaryBit : 0L)
+            | (inheritMask != null ? inheritMask : 0L);
+    }
+
+    /**
+     * Check if this permission's effective bits match the target's binary bit.
+     * Used to determine if a permission grant covers the requested operation.
+     *
+     * @param target the target operation permission to match against
+     * @return true if (effectiveBits & target.binaryBit) != 0
+     */
+    public boolean matchesBit(OperationPermission target) {
+        if (target == null || target.binaryBit == null || target.binaryBit == 0L) {
+            return false;
+        }
+        return (getEffectiveBits() & target.binaryBit) != 0;
+    }
 }

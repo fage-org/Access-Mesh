@@ -17,6 +17,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
@@ -55,6 +57,8 @@ class PermissionServiceImplCheckInterfaceTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermCacheDomainService permCacheDomainService;
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
+    @Mock private ResourceEntityDomainService resourceEntityDomainService;
+    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
 
     private PermissionServiceImpl service;
 
@@ -64,7 +68,7 @@ class PermissionServiceImplCheckInterfaceTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, permCacheDomainService,
-            permissionVersionDomainService
+            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService
         );
     }
 
@@ -76,7 +80,7 @@ class PermissionServiceImplCheckInterfaceTest {
         user.setId(10L);
         user.setDeleteFlag(0L);
         user.setEnabled(true);
-        when(abstractUserMapper.selectOneById(10L)).thenReturn(user);
+        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
         when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
@@ -94,7 +98,7 @@ class PermissionServiceImplCheckInterfaceTest {
         user.setId(10L);
         user.setDeleteFlag(0L);
         user.setEnabled(true);
-        when(abstractUserMapper.selectOneById(10L)).thenReturn(user);
+        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
 
         ResourceApiMapping m1 = new ResourceApiMapping();
         m1.setResourceEntityId(100L);
@@ -117,8 +121,8 @@ class PermissionServiceImplCheckInterfaceTest {
         r2.setDeleteFlag(0L);
         r2.setResourceType(1);
         r2.setCode("api:user:list:2");
-        when(resourceEntityMapper.selectOneById(100L)).thenReturn(r1);
-        when(resourceEntityMapper.selectOneById(101L)).thenReturn(r2);
+        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(100L, r1, 101L, r2));
         OperationPermission op = new OperationPermission();
         op.setId(300L);
         op.setCode("ACCESS");
@@ -149,6 +153,8 @@ class PermissionServiceImplCheckInterfaceTest {
             .thenReturn(List.of(), List.of(new RolePermSnapshot.RolePermEntry(
                 401L, 200L, 101L, null, 1, 300L, "ACCESS", null, "MANUAL", false, null, false, null
             )));
+        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(300L, op));
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
 
@@ -166,7 +172,7 @@ class PermissionServiceImplCheckInterfaceTest {
         user.setId(10L);
         user.setDeleteFlag(0L);
         user.setEnabled(true);
-        when(abstractUserMapper.selectOneById(10L)).thenReturn(user);
+        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
 
         ResourceApiMapping mapping = new ResourceApiMapping();
         mapping.setResourceEntityId(100L);
@@ -180,8 +186,9 @@ class PermissionServiceImplCheckInterfaceTest {
         r1.setDeleteFlag(0L);
         r1.setResourceType(1);
         r1.setCode("api:user:list:1");
-        when(resourceEntityMapper.selectOneById(100L)).thenReturn(r1);
         when(typeResolutionService.resolveTypeCode(1L, "resource_type", 1)).thenReturn("API");
+        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(100L, r1));
 
         OperationPermission op = new OperationPermission();
         op.setId(300L);

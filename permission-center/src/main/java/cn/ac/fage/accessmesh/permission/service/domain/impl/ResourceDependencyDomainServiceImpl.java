@@ -21,8 +21,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
 import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
@@ -121,22 +123,39 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         );
 
         for (ResourceDependency dep : deps) {
-            // Check if the triggering resource is being granted
+            // Pre-load all existing auto-grant permissions for this role and dependency targets
+            // to avoid N+1 query in nested loop
+            Set<Long> targetResourceIds = deps.stream()
+                .map(ResourceDependency::getDependsOnResourceEntityId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            Set<Long> depIds = deps.stream()
+                .map(ResourceDependency::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+            Map<Long, Map<Long, RoleResourcePermission>> existingAutoGrants = targetResourceIds.isEmpty() ? Map.of()
+                : rolePermMapper.selectListByQuery(
+                    QueryWrapper.create()
+                        .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                        .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                        .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
+                        .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
+                        .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
+                        .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                ).stream().collect(Collectors.groupingBy(
+                    RoleResourcePermission::getResourceEntityId,
+                    Collectors.toMap(RoleResourcePermission::getGrantDepId, p -> p, (a, b) -> a)
+                ));
+
             for (RoleResourcePermission rp : toInsert) {
                 if (Objects.equals(rp.getResourceEntityId(), dep.getResourceEntityId())
                     && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBits(rp.getOperationPermissionId()))) {
-                    // Check if already granted
-                    Long existing = rolePermMapper.selectOneByQuery(
-                        QueryWrapper.create()
-                            .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                            .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                            .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(dep.getDependsOnResourceEntityId()))
-                            .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                            .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.eq(dep.getId()))
-                            .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-                    ) != null ? 1L : null;
+                    // Check if already granted using pre-loaded cache (no query)
+                    Map<Long, RoleResourcePermission> resourceGrants = existingAutoGrants.get(dep.getDependsOnResourceEntityId());
+                    boolean alreadyGranted = resourceGrants != null && resourceGrants.containsKey(dep.getId());
 
-                    if (existing == null) {
+                    if (!alreadyGranted) {
                         Long requiredOpId = resolveOperationPermissionId(
                             tenantId, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationBits(), null);
                         if (requiredOpId == null) {
@@ -150,7 +169,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                         autoRp.setResourceType(null);
                         autoRp.setDependOn(null);
                         autoRp.setScopeAll(false);
-                        autoRp.setCanManage(false);
+                        autoRp.setCanGrant(false);
                         autoRp.setConditionId(null);
                         autoRp.setGrantSource(GrantSource.AUTO_DEP.getValue());
                         autoRp.setGrantDepId(dep.getId());
@@ -175,8 +194,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         if (opId == null) return 0L;
         OperationPermission op = operationPermissionMapper.selectOneById(opId);
         if (op == null) return 0L;
-        return (op.getBinaryBit() != null ? op.getBinaryBit() : 0L)
-            | (op.getInheritMask() != null ? op.getInheritMask() : 0L);
+        return op.getEffectiveBits();
     }
 
     private void autoGrantDependency(Long tenantId, Long roleId, ResourceDependency dep) {
@@ -192,7 +210,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         rp.setScopeAll(false);
         rp.setGrantSource(GrantSource.AUTO_DEP.getValue());
         rp.setGrantDepId(dep.getId());
-        rp.setCanManage(false);
+        rp.setCanGrant(false);
         rp.setCreatedAt(LocalDateTime.now());
         rp.setUpdatedAt(LocalDateTime.now());
         rp.setDeleteFlag(0L);
@@ -219,8 +237,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                 .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         );
         for (OperationPermission operation : operations) {
-            long effectiveBits = (operation.getBinaryBit() != null ? operation.getBinaryBit() : 0L)
-                | (operation.getInheritMask() != null ? operation.getInheritMask() : 0L);
+            long effectiveBits = operation.getEffectiveBits();
             if ((effectiveBits & requiredBits) == requiredBits) {
                 return operation.getId();
             }

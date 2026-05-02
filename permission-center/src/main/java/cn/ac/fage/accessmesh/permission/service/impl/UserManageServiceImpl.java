@@ -247,23 +247,17 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         // Batch soft delete users
-        for (AbstractUser user : users) {
-            user.setDeleteFlag(user.getId());
-            user.setDeletedAt(now);
-            abstractUserMapper.update(user);
-        }
+        abstractUserMapper.softDeleteBatch(tenantId, existingUserIds.stream().toList(), now);
 
         // Batch soft delete user_role associations
-        List<UserRole> userRoles = userRoleMapper.selectListByQuery(
+        List<Long> userRoleIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.TENANT_ID.eq(tenantId))
                 .and(USER_ROLE.ABSTRACT_USER_ID.in(existingUserIds))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
-        );
-        for (UserRole ur : userRoles) {
-            ur.setDeleteFlag(ur.getId());
-            ur.setDeletedAt(now);
-            userRoleMapper.update(ur);
+        ).stream().map(UserRole::getId).toList();
+        if (!userRoleIds.isEmpty()) {
+            userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
         }
 
         // Invalidate cache for affected users

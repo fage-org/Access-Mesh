@@ -361,17 +361,22 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Map<Long, List<RoleResourcePermission>> byRole = perms.stream()
             .collect(Collectors.groupingBy(RoleResourcePermission::getAbstractRoleId));
 
+        // Batch load roles to avoid N+1 queries
+        Map<Long, AbstractRole> roleMap = loadRoles(tenantId, byRole.keySet());
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+
         List<RoleGrantInfo> roleInfos = new ArrayList<>();
         for (Map.Entry<Long, List<RoleResourcePermission>> entry : byRole.entrySet()) {
-            AbstractRole role = abstractRoleMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.ID.eq(entry.getKey()))
-                    .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            );
+            AbstractRole role = roleMap.get(entry.getKey());
             List<String> opCodes = entry.getValue().stream()
                 .map(p -> {
-                    OperationPermission op = operationPermissionMapper.selectOneById(p.getOperationPermissionId());
+                    OperationPermission op = opMap.get(p.getOperationPermissionId());
                     return op != null ? op.getCode() : null;
                 })
                 .filter(Objects::nonNull)
@@ -412,15 +417,24 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
+        // Batch load resource entities to avoid N+1 queries
+        Set<Long> resourceIds = perms.stream()
+            .map(RoleResourcePermission::getResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = loadResources(tenantId, resourceIds);
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+
         List<PermissionItem> items = perms.stream()
             .map(p -> {
-                ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceEntityMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.ID.eq(p.getResourceEntityId()))
-                        .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-                );
-                OperationPermission op = operationPermissionMapper.selectOneById(p.getOperationPermissionId());
+                ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
+                OperationPermission op = opMap.get(p.getOperationPermissionId());
                 return new PermissionItem(
                     p.getId(),
                     p.getResourceEntityId(),
@@ -432,7 +446,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                     op != null ? op.getName() : null,
                     p.getDependOn(),
                     p.getConditionId(),
-                    p.getCanManage(),
+                    p.getCanGrant(),
                     p.getGrantSource()
                 );
             })
@@ -454,14 +468,23 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
         long total = rolePermMapper.selectCountByQuery(base);
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(base.clone().limit(pageSize).offset(offset));
+        // Batch load resource entities to avoid N+1 queries
+        Set<Long> resourceIds = perms.stream()
+            .map(RoleResourcePermission::getResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = loadResources(tenantId, resourceIds);
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> opIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+
         List<PermissionItem> items = perms.stream().map(p -> {
-            ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceEntityMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.ID.eq(p.getResourceEntityId()))
-                    .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            );
-            OperationPermission op = operationPermissionMapper.selectOneById(p.getOperationPermissionId());
+            ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
+            OperationPermission op = opMap.get(p.getOperationPermissionId());
             return new PermissionItem(
                 p.getId(),
                 p.getResourceEntityId(),
@@ -473,7 +496,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 op != null ? op.getName() : null,
                 p.getDependOn(),
                 p.getConditionId(),
-                p.getCanManage(),
+                p.getCanGrant(),
                 p.getGrantSource()
             );
         }).toList();
@@ -649,23 +672,24 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         OperationPermission targetOp = operationPermissionMapper.selectOneById(operationPermissionId);
-        if (targetOp == null) {
-            return AuthCheckResp.deny("OPERATION_NOT_FOUND");
-        }
-        long targetBit = targetOp.getBinaryBit() != null ? targetOp.getBinaryBit() : 0L;
-        if (targetBit == 0L) {
+        if (targetOp == null || targetOp.getBinaryBit() == null || targetOp.getBinaryBit() == 0L) {
             return AuthCheckResp.deny("NO_PERMISSION");
         }
 
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> grantedOpIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, OperationPermission> opMap = loadOperations(grantedOpIds);
+
         List<Long> matchedPermissionIds = new ArrayList<>();
         for (RoleResourcePermission perm : perms) {
-            OperationPermission grantedOp = operationPermissionMapper.selectOneById(perm.getOperationPermissionId());
+            OperationPermission grantedOp = opMap.get(perm.getOperationPermissionId());
             if (grantedOp == null) {
                 continue;
             }
-            long effectiveBits = (grantedOp.getBinaryBit() != null ? grantedOp.getBinaryBit() : 0L)
-                | (grantedOp.getInheritMask() != null ? grantedOp.getInheritMask() : 0L);
-            if ((effectiveBits & targetBit) != 0) {
+            if (grantedOp.matchesBit(targetOp)) {
                 matchedPermissionIds.add(perm.getId());
             }
         }

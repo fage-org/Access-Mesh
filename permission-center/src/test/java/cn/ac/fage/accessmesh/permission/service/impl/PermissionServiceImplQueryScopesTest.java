@@ -15,6 +15,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
@@ -26,12 +28,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +54,8 @@ class PermissionServiceImplQueryScopesTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermCacheDomainService permCacheDomainService;
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
+    @Mock private ResourceEntityDomainService resourceEntityDomainService;
+    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
 
     private PermissionServiceImpl service;
 
@@ -75,7 +81,7 @@ class PermissionServiceImplQueryScopesTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, permCacheDomainService,
-            permissionVersionDomainService
+            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService
         );
     }
 
@@ -116,6 +122,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setBinaryBit(1L);
         op.setInheritMask(0L);
         when(operationPermissionMapper.selectOneById(300L)).thenReturn(op);
+        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(300L, op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
@@ -160,6 +168,8 @@ class PermissionServiceImplQueryScopesTest {
         when(operationPermissionMapper.selectOneById(300L)).thenReturn(op);
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenReturn(List.of());
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(300L, op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertFalse(resp.allowed());
@@ -202,6 +212,8 @@ class PermissionServiceImplQueryScopesTest {
         when(operationPermissionMapper.selectOneById(300L)).thenReturn(op);
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenReturn(List.of());
+        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(300L, op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertFalse(resp.allowed());
@@ -258,6 +270,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setBinaryBit(1L);
         op.setInheritMask(0L);
         when(operationPermissionMapper.selectOneById(300L)).thenReturn(op);
+        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(300L, op));
 
         ResourceEntity directResource = new ResourceEntity();
         directResource.setId(101L);
@@ -271,8 +285,8 @@ class PermissionServiceImplQueryScopesTest {
         dependentResource.setCode("dept:b");
         dependentResource.setCodeType("default");
         dependentResource.setName("Dept B");
-        when(resourceEntityMapper.selectOneById(101L)).thenReturn(directResource);
-        when(resourceEntityMapper.selectOneById(102L)).thenReturn(dependentResource);
+        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
+            .thenReturn(Map.of(101L, directResource, 102L, dependentResource));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertTrue(resp.allowed());

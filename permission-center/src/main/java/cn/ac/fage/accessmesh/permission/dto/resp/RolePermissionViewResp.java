@@ -22,7 +22,7 @@ public record RolePermissionViewResp(
         String operationName,
         Long dependOn,
         Long conditionId,
-        Boolean canManage,
+        Boolean canGrant,
         String grantSource
     ) {}
 }

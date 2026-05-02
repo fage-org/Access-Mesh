@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.PermissionVersionTableDef.PERMISSION_VERSION;
 
@@ -56,6 +57,23 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         permCacheDomainService.setPermVersion(tenantId, roleId, version);
         redisTemplate.opsForValue().set(l2Key, version);
         return version;
+    }
+
+    @Override
+    public long calculateMaxVersion(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return 0L;
+        }
+        return roleIds.stream()
+            .mapToLong(roleId -> getCurrentVersion(tenantId, roleId))
+            .max()
+            .orElse(0L);
+    }
+
+    @Override
+    public String buildPermissionVersionKey(Long userId, Long tenantId, Set<Long> roleIds) {
+        long maxVersion = calculateMaxVersion(tenantId, roleIds);
+        return userId + ":" + maxVersion;
     }
 
     @Override

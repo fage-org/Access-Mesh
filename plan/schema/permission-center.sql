@@ -383,7 +383,7 @@ CREATE TABLE role_resource_permission (
     resource_type           INT NOT NULL,
     depend_on               BIGINT,
     scope_all               BOOLEAN NOT NULL DEFAULT false,
-    can_manage              BOOLEAN NOT NULL DEFAULT false,
+    can_grant              BOOLEAN NOT NULL DEFAULT false,
     condition_id            BIGINT,
     grant_source            VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
     grant_dep_id            BIGINT,
@@ -413,7 +413,7 @@ COMMENT ON COLUMN role_resource_permission.resource_entity_id IS '资源实体ID
 COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型；普通授权时从 resource_entity 自动填充，scope_all=true 时用于标识全量范围资源类型';
 COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自引用），NULL=主权限，非NULL=子权限。单层依赖。删除父权限时级联软删子权限';
 COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resource_type 下全部范围资源；true 时 resource_entity_id 必须为空';
-COMMENT ON COLUMN role_resource_permission.can_manage IS '是否可管理(给他人授权)';
+COMMENT ON COLUMN role_resource_permission.can_grant IS '是否可授权(该权限可被当前角色关联的用户授予他人)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
 COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全';
 COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';

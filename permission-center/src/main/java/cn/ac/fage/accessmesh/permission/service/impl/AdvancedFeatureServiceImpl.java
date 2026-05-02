@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
@@ -657,9 +658,21 @@ public class AdvancedFeatureServiceImpl implements AdvancedFeatureService {
                     .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
             );
 
+            // Batch load all resources (avoid N+1)
+            Set<Long> allResourceIds = existingDeps.stream()
+                .flatMap(dep -> Stream.of(dep.getResourceEntityId(), dep.getDependsOnResourceEntityId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            Map<Long, ResourceEntity> resourceMap = allResourceIds.isEmpty() ? Map.of()
+                : resourceEntityMapper.selectListByQuery(
+                    QueryWrapper.create()
+                        .where(RESOURCE_ENTITY.ID.in(allResourceIds))
+                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+
             for (ResourceDependency existing : existingDeps) {
-                ResourceEntity sourceResource = resourceEntityMapper.selectOneById(existing.getResourceEntityId());
-                ResourceEntity targetResource = resourceEntityMapper.selectOneById(existing.getDependsOnResourceEntityId());
+                ResourceEntity sourceResource = resourceMap.get(existing.getResourceEntityId());
+                ResourceEntity targetResource = resourceMap.get(existing.getDependsOnResourceEntityId());
                 if (sourceResource == null || targetResource == null) {
                     continue;
                 }

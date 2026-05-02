@@ -102,7 +102,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             throw new IllegalArgumentException("Role not found by business key");
         }
 
-        // Operator authorization check
+        // Operator authorization check - MANAGE permission on role
         Long operatorId = OperatorContext.getOperatorId();
         if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
             throw new SecurityException("Operator " + operatorId + " lacks MANAGE permission for role " + roleId);
@@ -132,6 +132,78 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         List<RoleGrantReq.GrantUpdateItem> updateItems = req.update() == null ? List.of() : req.update();
         List<Long> removeItems = req.remove() == null ? List.of() : req.remove();
 
+        // ===== SECURITY CHECK: Validate grant permissions for each add item =====
+        // Operator must have the permission AND canGrant=true to grant it to others
+        if (!addItems.isEmpty()) {
+            Set<AuthorizationService.GrantCheckKey> grantKeys = addItems.stream()
+                .map(item -> new AuthorizationService.GrantCheckKey(
+                    item.resourceTypeCode(),
+                    item.resourceCode(),
+                    item.operationCode(),
+                    Boolean.TRUE.equals(item.scopeAll())
+                ))
+                .collect(Collectors.toSet());
+
+            Map<String, AuthorizationService.GrantCheckResult> grantResults =
+                authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, req.domainCode());
+
+            // Check each add item
+            for (RoleGrantReq.GrantAddItem item : addItems) {
+                String permKey = buildGrantKey(item);
+                AuthorizationService.GrantCheckResult result = grantResults.get(permKey);
+
+                if (result == null || !result.canGrant()) {
+                    String reason = result != null ? result.reason() : "UNKNOWN";
+                    throw new SecurityException(String.format(
+                        "Operator %s cannot grant permission %s:%s:%s (scopeAll=%s). Reason: %s. " +
+                        "Operator must have the permission with canGrant=true.",
+                        operatorId, item.resourceTypeCode(),
+                        item.resourceCode() == null ? "*" : item.resourceCode(),
+                        item.operationCode(), item.scopeAll(), reason
+                    ));
+                }
+            }
+        }
+
+        // ===== SECURITY CHECK: Validate grant permissions for update items that change canGrant =====
+        // If operator wants to set canGrant=true, they must already have canGrant=true on that permission
+        for (RoleGrantReq.GrantUpdateItem updateItem : updateItems) {
+            if (updateItem.id() == null || !Boolean.TRUE.equals(updateItem.canGrant())) {
+                continue;  // No need to check if not setting canGrant=true
+            }
+
+            // Get existing permission to check what resource/operation it is
+            RoleResourcePermission existing = rolePermMapper.selectOneById(updateItem.id());
+            if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())
+                || !roleId.equals(existing.getAbstractRoleId())) {
+                continue;
+            }
+
+            // Get resource info
+            ResourceEntity resource = existing.getResourceEntityId() == null ? null
+                : resourceEntityMapper.selectOneById(existing.getResourceEntityId());
+            OperationPermission operation = operationPermissionMapper.selectOneById(existing.getOperationPermissionId());
+            String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", existing.getResourceType());
+
+            // Check if operator can grant this permission
+            boolean canGrant = authorizationService.canGrantPermission(
+                tenantId, operatorId, resourceTypeCode,
+                resource == null ? null : resource.getCode(),
+                operation == null ? null : operation.getCode(),
+                Boolean.TRUE.equals(existing.getScopeAll()),
+                req.domainCode()
+            );
+
+            if (!canGrant) {
+                throw new SecurityException(String.format(
+                    "Operator %s cannot set canGrant=true on permission id=%s. " +
+                    "Operator must have the permission with canGrant=true.",
+                    operatorId, updateItem.id()
+                ));
+            }
+        }
+        // ===== END SECURITY CHECK =====
+
         Set<Long> resourceIds = addItems.stream()
             .filter(item -> !Boolean.TRUE.equals(item.scopeAll()))
             .map(item -> typeResolutionService.resolveResourceId(
@@ -143,18 +215,21 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             ))
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, ResourceEntity> resourceById = new HashMap<>();
-        for (Long resId : resourceIds) {
-            ResourceEntity res = resourceEntityMapper.selectOneByQuery(
+
+        // Batch load resources to avoid N+1 query
+        Map<Long, ResourceEntity> resourceById = resourceIds.isEmpty() ? Map.of()
+            : resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.ID.eq(resId))
-                    .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_ENTITY.ID.in(resourceIds))
                     .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            );
-            if (res == null) {
+            ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+
+        // Validate all resources exist
+        for (Long resId : resourceIds) {
+            if (!resourceById.containsKey(resId)) {
                 throw new IllegalArgumentException("Resource not found: " + resId);
             }
-            resourceById.put(resId, res);
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -209,7 +284,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             }
             rp.setResourceType(finalResourceType);
             rp.setScopeAll(scopeAll);
-            rp.setCanManage(item.canManage() != null ? item.canManage() : false);
+            rp.setCanGrant(item.canGrant() != null ? item.canGrant() : false);
             rp.setConditionId(conditionId);
             rp.setGrantSource(GrantSource.MANUAL.getValue());
             rp.setCreatedAt(now);
@@ -222,14 +297,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .autoGrantForInsert(tenantId, roleId, toInsert);
         toInsert.addAll(autoGranted);
 
-        for (Long permId : removeItems) {
-            RoleResourcePermission rp = rolePermMapper.selectOneById(permId);
-            if (rp != null && rp.getDeleteFlag() == 0L && rp.getAbstractRoleId().equals(roleId)
-                && rp.getTenantId().equals(tenantId)) {
-                rp.setDeleteFlag(rp.getId());
-                rp.setDeletedAt(now);
-                rolePermMapper.update(rp);
-            }
+        // Batch soft delete permissions to avoid N+1 query
+        if (!removeItems.isEmpty()) {
+            rolePermissionDomainService.revokePermissions(tenantId, roleId, removeItems);
         }
 
         for (RoleGrantReq.GrantUpdateItem updateItem : updateItems) {
@@ -241,8 +311,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 || !roleId.equals(existing.getAbstractRoleId())) {
                 continue;
             }
-            if (updateItem.canManage() != null) {
-                existing.setCanManage(updateItem.canManage());
+            if (updateItem.canGrant() != null) {
+                existing.setCanGrant(updateItem.canGrant());
             }
             if (updateItem.conditionCode() != null) {
                 if (updateItem.conditionCode().isBlank()) {
@@ -313,26 +383,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         LocalDateTime now = LocalDateTime.now();
 
         for (Long permId : permissionIds) {
-            RoleResourcePermission rp = rolePermMapper.selectOneById(permId);
-            if (rp != null && rp.getDeleteFlag() == 0L && rp.getAbstractRoleId().equals(roleId)
-                && rp.getTenantId().equals(tenantId)) {
-                // Soft delete
-                rp.setDeleteFlag(rp.getId());
-                rp.setDeletedAt(now);
-                rolePermMapper.update(rp);
-
-                // Cascade soft delete sub-permissions
-                List<RoleResourcePermission> children = rolePermMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(ROLE_RESOURCE_PERMISSION.DEPEND_ON.eq(permId))
-                        .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-                );
-                for (RoleResourcePermission child : children) {
-                    child.setDeleteFlag(child.getId());
-                    child.setDeletedAt(now);
-                    rolePermMapper.update(child);
-                }
-            }
+            rolePermissionDomainService.revokePermissionWithCascade(tenantId, roleId, permId, now);
         }
 
         // Increment version and invalidate caches after commit
@@ -476,7 +527,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setResourceType(resourceType);
             rp.setDependOn(parent.getId());
             rp.setScopeAll(scopeAll);
-            rp.setCanManage(Boolean.TRUE.equals(child.canManage()));
+            rp.setCanGrant(Boolean.TRUE.equals(child.canGrant()));
             rp.setConditionId(conditionId);
             rp.setGrantSource(GrantSource.MANUAL.getValue());
             rp.setCreatedAt(now);
@@ -531,11 +582,44 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         if (perms.isEmpty()) {
             return List.of();
         }
+        // Batch load resource entities to avoid N+1 queries
+        Set<Long> resourceIds = perms.stream()
+            .map(RoleResourcePermission::getResourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of() :
+            resourceEntityMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_ENTITY.ID.in(resourceIds))
+                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+            ).stream().collect(java.util.stream.Collectors.toMap(ResourceEntity::getId, r -> r));
+
+        // Batch load operation permissions to avoid N+1 queries
+        Set<Long> operationIds = perms.stream()
+            .map(RoleResourcePermission::getOperationPermissionId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of() :
+            operationPermissionMapper.selectListByQuery(
+                QueryWrapper.create().where(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
+            ).stream().collect(java.util.stream.Collectors.toMap(OperationPermission::getId, op -> op));
+
+        // Batch load permission conditions to avoid N+1 queries
+        Set<Long> conditionIds = perms.stream()
+            .map(RoleResourcePermission::getConditionId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, PermissionCondition> conditionMap = conditionIds.isEmpty() ? Map.of() :
+            permissionConditionMapper.selectListByQuery(
+                QueryWrapper.create().where(PERMISSION_CONDITION.ID.in(conditionIds))
+            ).stream().collect(java.util.stream.Collectors.toMap(PermissionCondition::getId, c -> c));
+
         return perms.stream().map(perm -> {
-            ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceEntityMapper.selectOneById(perm.getResourceEntityId());
-            OperationPermission operation = operationPermissionMapper.selectOneById(perm.getOperationPermissionId());
+            ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceMap.get(perm.getResourceEntityId());
+            OperationPermission operation = operationMap.get(perm.getOperationPermissionId());
             String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", perm.getResourceType());
-            PermissionCondition condition = perm.getConditionId() == null ? null : permissionConditionMapper.selectOneById(perm.getConditionId());
+            PermissionCondition condition = perm.getConditionId() == null ? null : conditionMap.get(perm.getConditionId());
             return new RolePermissionItemResp(
                 perm.getId(),
                 resourceTypeCode,
@@ -543,7 +627,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 resource == null ? null : resource.getCodeType(),
                 resource == null ? null : resource.getName(),
                 operation == null ? null : operation.getCode(),
-                perm.getCanManage(),
+                perm.getCanGrant(),
                 condition == null ? null : condition.getCode(),
                 Boolean.TRUE.equals(perm.getScopeAll()),
                 perm.getDependOn()
@@ -561,5 +645,16 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             }
         }
         return codes;
+    }
+
+    /**
+     * Build permission key for grant check matching AuthorizationServiceImpl format.
+     */
+    private String buildGrantKey(RoleGrantReq.GrantAddItem item) {
+        return String.format("%s:%s:%s:%s",
+            item.resourceTypeCode(),
+            item.resourceCode() == null ? "*" : item.resourceCode(),
+            item.operationCode(),
+            Boolean.TRUE.equals(item.scopeAll()) ? "ALL" : "SPECIFIC");
     }
 }

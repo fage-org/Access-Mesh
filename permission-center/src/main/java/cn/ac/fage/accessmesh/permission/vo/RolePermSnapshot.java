@@ -21,7 +21,7 @@ public record RolePermSnapshot(
         String operationCode,
         Long effectiveBits,
         String grantSource,
-        Boolean canManage,
+        Boolean canGrant,
         Long conditionId,
         boolean hasCondition,
         Long dependOn

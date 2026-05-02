@@ -1,17 +1,30 @@
 package cn.ac.fage.accessmesh.permission.service;
 
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionCheckBatchReq;
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionCheckReq;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionCheckBatchResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionCheckResp;
+
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Service for authorization checks.
+ *
+ * Note: Methods named "canManage*" check for MANAGE operation permission,
+ *       NOT the canGrant field. canGrant is only used in permission granting flow
+ *       to determine if a permission can be delegated to others.
  */
 public interface AuthorizationService {
 
     /**
      * Checks if the operator has MANAGE permission on the specified role.
+     * This checks operation_permission.code = "MANAGE", not canGrant field.
      *
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetRoleId the target role ID to manage
-     * @return true if operator can manage the role
+     * @return true if operator has MANAGE permission on the role
      */
     boolean canManageRole(Long tenantId, Long operatorId, Long targetRoleId);
 
@@ -56,4 +69,76 @@ public interface AuthorizationService {
      * @return true if operator has the specified permission on the role
      */
     boolean hasPermissionOnRole(Long tenantId, Long operatorId, Long targetRoleId, String permissionType);
+
+    /**
+     * Unified permission check method.
+     * Checks if the operator has specified operations on a target.
+     *
+     * @param tenantId the tenant ID
+     * @param req the permission check request containing operator, target, and operations
+     * @return PermissionCheckResp with boolean result for each operation code
+     */
+    PermissionCheckResp checkPermissions(Long tenantId, PermissionCheckReq req);
+
+    /**
+     * Batch permission check method.
+     * Checks if the operator has specified operations on multiple targets.
+     * Returns results for each target ID.
+     *
+     * @param tenantId the tenant ID
+     * @param req the batch permission check request
+     * @return PermissionCheckBatchResp with results for each target ID
+     */
+    PermissionCheckBatchResp checkPermissionsBatch(Long tenantId, PermissionCheckBatchReq req);
+
+    /**
+     * Check if operator can grant a specific permission to others.
+     * Operator must:
+     * 1. Have the same permission (resourceType + resource/scopeAll + operation)
+     * 2. Have canGrant=true on that permission
+     *
+     * This is used in the permission granting flow to validate delegation.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param resourceTypeCode the resource type code
+     * @param resourceCode the resource code (null for scopeAll=true)
+     * @param operationCode the operation code
+     * @param scopeAll whether the permission is for all resources of this type
+     * @param domainCode the domain code (optional, for resource resolution)
+     * @return true if operator has the permission AND canGrant=true
+     */
+    boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+                               String resourceCode, String operationCode, boolean scopeAll, String domainCode);
+
+    /**
+     * Batch check if operator can grant multiple permissions.
+     * Returns detailed results for each permission key.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param permissions the permissions to check (resourceTypeCode, resourceCode, operationCode, scopeAll)
+     * @param domainCode the domain code (optional)
+     * @return Map of permission key to GrantCheckResult (canGrant, reason if not)
+     */
+    Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
+                                                              Set<GrantCheckKey> permissions, String domainCode);
+
+    /**
+     * Key for grant permission check.
+     */
+    record GrantCheckKey(
+        String resourceTypeCode,
+        String resourceCode,
+        String operationCode,
+        boolean scopeAll
+    ) {}
+
+    /**
+     * Result of grant permission check.
+     */
+    record GrantCheckResult(
+        boolean canGrant,
+        String reason  // null if canGrant=true, otherwise explains why not
+    ) {}
 }

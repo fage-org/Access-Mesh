@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
@@ -717,9 +719,22 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                 .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
                 .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
         );
+
+        // Batch load all resources (avoid N+1)
+        Set<Long> mappingResourceIds = existingMappings.stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = mappingResourceIds.isEmpty() ? Map.of()
+            : resourceEntityMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_ENTITY.ID.in(mappingResourceIds))
+                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+            ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+
         for (ResourceApiMapping mapping : existingMappings) {
-            ResourceEntity resource = resourceEntityMapper.selectOneById(mapping.getResourceEntityId());
-            if (resource == null || resource.getDeleteFlag() != 0L) {
+            ResourceEntity resource = resourceMap.get(mapping.getResourceEntityId());
+            if (resource == null) {
                 continue;
             }
             if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
@@ -747,13 +762,22 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .filter(resource -> "SERVICE_SYNC".equals(resource.getMaintainSource())
                 && req.serviceCode().equals(resource.getOwnerServiceCode()))
             .toList();
-        for (ResourceEntity resource : syncedResources) {
-            java.util.List<ResourceApiMapping> remainMappings = resourceApiMappingMapper.selectListByQuery(
+
+        // Batch load mappings for all synced resources to avoid N+1 query
+        Set<Long> syncedResourceIds = syncedResources.stream()
+            .map(ResourceEntity::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, List<ResourceApiMapping>> mappingsByResourceId = syncedResourceIds.isEmpty() ? Map.of()
+            : resourceApiMappingMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
+                    .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.in(syncedResourceIds))
                     .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-            );
+            ).stream().collect(Collectors.groupingBy(ResourceApiMapping::getResourceEntityId));
+
+        for (ResourceEntity resource : syncedResources) {
+            List<ResourceApiMapping> remainMappings = mappingsByResourceId.getOrDefault(resource.getId(), List.of());
             if (remainMappings.isEmpty()) {
                 resource.setDeleteFlag(resource.getId());
                 resource.setDeletedAt(LocalDateTime.now());

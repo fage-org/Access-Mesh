@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Resolves external stable business keys (typeCode, externalId, code) to internal database IDs.
  * Used by auth check and management APIs to translate the contract layer to the data layer.
@@ -18,9 +21,29 @@ public interface TypeResolutionService {
     Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode);
 
     /**
+     * Batch resolve type_codes to type_values for the given type_key.
+     *
+     * @param tenantId the tenant
+     * @param typeKey  e.g. "user_type", "role_type", "resource_type"
+     * @param codes    set of type codes to resolve
+     * @return map of typeCode -> typeValue, empty map if codes is empty
+     */
+    Map<String, Integer> batchResolveTypeValues(Long tenantId, String typeKey, Set<String> codes);
+
+    /**
      * Resolve an internal type_value back to stable type_code.
      */
     String resolveTypeCode(Long tenantId, String typeKey, Integer typeValue);
+
+    /**
+     * Batch resolve type_values back to type_codes for the given type_key.
+     *
+     * @param tenantId the tenant
+     * @param typeKey  e.g. "user_type", "role_type", "resource_type"
+     * @param values   set of type values to resolve
+     * @return map of typeValue -> typeCode, empty map if values is empty
+     */
+    Map<Integer, String> batchResolveTypeCodes(Long tenantId, String typeKey, Set<Integer> values);
 
     /**
      * Resolve subjectTypeCode + subjectExternalId -> abstract_user.id.

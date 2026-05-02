@@ -76,6 +76,19 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     }
 
     @Override
+    public Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds, Long bizDomainId) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, Set<Long>> result = new HashMap<>();
+        for (Long userId : userIds) {
+            result.put(userId, resolveEffectiveRoles(tenantId, userId, bizDomainId));
+        }
+        return result;
+    }
+
+    @Override
     public void invalidateRoleCache(Long tenantId, Long userId) {
         permCacheDomainService.evictEffectiveRoles(tenantId, userId);
         String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
@@ -86,7 +99,8 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     public void invalidateRoleCacheByRole(Long tenantId, Long roleId) {
         List<Long> userIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.TARGET_ID.eq(roleId))
+                .where(USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(USER_ROLE.TARGET_ID.eq(roleId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
         ).stream().map(UserRole::getAbstractUserId).distinct().collect(Collectors.toList());
 
@@ -98,7 +112,8 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     private Set<Long> resolveFromDb(Long tenantId, Long userId, Long bizDomainId) {
         List<UserRole> userRoles = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
+                .where(USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
                 .and(USER_ROLE.VALID_FROM.le(LocalDateTime.now()).or(USER_ROLE.VALID_FROM.isNull()))
                 .and(USER_ROLE.VALID_TO.ge(LocalDateTime.now()).or(USER_ROLE.VALID_TO.isNull()))
@@ -132,7 +147,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     private void resolveGroupRole(Long tenantId, Long groupId, Set<Long> roleIds) {
         // Query the group role itself to get extra.basicRoleIds
         AbstractRole groupRole = abstractRoleMapper.selectOneById(groupId);
-        if (groupRole == null) {
+        if (groupRole == null || !groupRole.getTenantId().equals(tenantId) || groupRole.getDeleteFlag() != 0L) {
             return;
         }
 

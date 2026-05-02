@@ -6,12 +6,14 @@ import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.req.InterfaceSnapshotReq;
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
@@ -64,5 +66,10 @@ public class AuthController {
     @PostMapping("/interface-snapshot")
     public PermResult<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {
         return PermResult.success(permissionService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
+    }
+
+    @PostMapping("/query-permission-tree")
+    public PermResult<PermissionTreeResp> queryPermissionTree(@Valid @RequestBody PermissionTreeReq req) {
+        return PermResult.success(permissionService.queryPermissionTree(TenantContextHolder.getTenantId(), req));
     }
 }

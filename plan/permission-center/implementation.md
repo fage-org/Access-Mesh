@@ -997,3 +997,377 @@ record ChangeLogEntry(String entityType, Long entityId, String operation,
 >
 > - 在此基础上补充用户管理（abstract_user + user_role）模块的执行链路设计
 > - 或直接开始 permission-center 服务代码骨架搭建（pom.xml + 主启动类 + 基础配置）
+
+---
+
+## 7. 统一权限检查方案
+
+### 7.1 `canGrant` 字段业务含义
+
+`role_resource_permission.can_grant` 字段表示该权限条目是否可被当前角色关联的用户授予（委托）给他人。
+
+**关键区分**：
+- **`canGrant` ≠ 管理权限**：`canGrant` 只用于授权流程判断，不用于鉴权判断
+- **管理权限判断**：应通过 `operation_permission.code = "MANAGE"` 实现
+- **授权流程**：用户想将某权限授予他人时，需检查该用户对该权限是否拥有 `canGrant=true`
+
+**命名变更记录**：
+| 旧字段名 | 新字段名 | 旧语义（错误） | 新语义（正确） |
+|----------|----------|----------------|----------------|
+| `can_manage` | `can_grant` | 可管理该资源 | 可授权给他人 |
+
+**使用场景**：
+- 授权时校验：授权者必须拥有目标权限且 `canGrant=true` 才能将同一权限授予他人
+- 委托限制：授权者只能授权自己已有的权限，不能扩大资源、操作或范围
+- 被授权对象：由业务服务控制候选范围，permission-center 不负责生成候选列表
+
+---
+
+### 7.2 统一权限检查方法设计
+
+#### 内部方法 `AuthorizationService.checkPermissions`
+
+用于 permission-center 内部各 Service 统一调用，避免分散的权限检查逻辑。
+
+**入参 DTO**：
+```java
+public record PermissionCheckReq(
+    Long operatorId,           // 操作者用户ID
+    String targetType,         // 目标类型：USER / ROLE / RESOURCE
+    Long targetId,             // 目标对象ID
+    Set<String> operationCodes // 操作类型集合：VIEW / CREATE / EDIT / DELETE / MANAGE
+) {}
+```
+
+**返回 DTO**：
+```java
+public record PermissionCheckResp(
+    Map<String, Boolean> results  // key=operationCode, value=是否有权限
+) {}
+```
+
+**调用规范**：
+| 场景 | 调用方法 |
+|------|----------|
+| 检查用户是否能编辑某角色 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "ROLE", targetRoleId, Set.of("MANAGE")))` |
+| 检查用户是否能查看/编辑/删除某资源 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "RESOURCE", resourceId, Set.of("VIEW", "EDIT", "DELETE")))` |
+| 检查用户对另一个用户的管理权限 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "USER", targetUserId, Set.of("MANAGE")))` |
+
+**与 `query-resources` 的区别**：
+| 维度 | `checkPermissions`（内部） | `query-resources`（对外） |
+|------|---------------------------|--------------------------|
+| 用途 | 返回布尔判断结果 | 返回可访问资源集合 |
+| 调用方 | permission-center 内部 Service | Gateway / SDK / 外部系统 |
+| 入参 | 内部 ID（operatorId, targetId） | 业务键（subjectExternalId, resourceCode） |
+
+---
+
+### 7.3 批量权限检查方法设计
+
+#### 内部方法 `AuthorizationService.checkPermissionsBatch`
+
+用于批量检查多个目标的权限，避免 N+1 查询问题。
+
+**入参 DTO**：
+```java
+public record PermissionCheckBatchReq(
+    Long operatorId,           // 操作者用户ID
+    String targetType,         // 目标类型：USER / ROLE / RESOURCE
+    Set<Long> targetIds,       // 多个目标对象ID
+    Set<String> operationCodes // 操作类型集合
+) {}
+```
+
+**返回 DTO**：
+```java
+public record PermissionCheckBatchResp(
+    Map<Long, PermissionCheckResp> results  // key=targetId, value=该目标的权限结果
+) {
+    // 获取有权限的目标ID集合
+    Set<Long> getIdsWithPermission(String operationCode);
+    // 获取无权限的目标ID集合
+    Set<Long> getIdsWithoutPermission(String operationCode);
+    // 是否所有目标都有权限
+    boolean allHavePermission(String operationCode);
+}
+```
+
+**性能优化关键点**：
+| 目标类型 | 优化策略 | 查询次数 |
+|----------|----------|----------|
+| USER | USER:MANAGE 权限是全局的（不依赖具体 targetUserId），一次查询即可 | 1 次 role_resource_permission |
+| ROLE | 批量查询所有目标角色的权限，按 resource_entity_id 分组 | 1 次 role_resource_permission |
+| RESOURCE | 批量查询所有目标资源的权限，按 resource_entity_id 分组 | 1 次 role_resource_permission |
+
+**N+1 问题对比**：
+| 方式 | 批量删除 100 个用户 | 批量删除 100 个角色 |
+|------|---------------------|---------------------|
+| 循环调用 `canManageUser/canManageRole` | 100 次 DB 查询 | 100 次 DB 查询 |
+| 使用 `checkPermissionsBatch` | 1 次 DB 查询 | 1 次 DB 查询 |
+
+---
+
+### 7.4 权限检查工具类 `PermissionCheckUtils`
+
+封装常见校验场景的工具类，支持自修改例外和严格检查两种模式。
+
+**核心方法**：
+
+```java
+public final class PermissionCheckUtils {
+
+    /**
+     * 检查用户管理权限（含自修改例外）。
+     * operator 可以管理自己（self-modification allowed）。
+     */
+    public static PermissionBatchResult checkCanManageUsersWithSelfModification(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
+
+    /**
+     * 检查用户管理权限（严格模式，无自修改例外）。
+     * operator 不能管理自己，必须拥有 USER:MANAGE 权限。
+     */
+    public static PermissionBatchResult checkCanManageUsersStrict(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
+
+    /**
+     * 检查角色管理权限（无自修改例外）。
+     */
+    public static PermissionBatchResult checkCanManageRoles(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
+
+    /**
+     * 检查角色查看权限。
+     */
+    public static PermissionBatchResult checkCanViewRoles(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
+
+    /**
+     * 校验并抛异常（含自修改例外）。
+     */
+    public static void validateCanManageUsersOrThrow(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
+
+    /**
+     * 校验并抛异常（角色管理）。
+     */
+    public static void validateCanManageRolesOrThrow(
+        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
+}
+```
+
+**返回结果结构**：
+```java
+public record PermissionBatchResult(
+    Set<Long> allowedIds,   // 有权限的目标ID集合
+    Set<Long> deniedIds     // 无权限的目标ID集合
+) {
+    boolean allAllowed();   // 是否全部通过
+    boolean anyDenied();    // 是否有拒绝
+}
+```
+
+**使用示例**：
+
+```java
+// 批量删除用户时校验（含自修改例外）
+Set<Long> userIds = Set.of(1L, 2L, 3L, operatorId);
+PermissionCheckUtils.validateCanManageUsersOrThrow(authorizationService, tenantId, operatorId, userIds);
+// operatorId 对应的用户允许自修改，其他用户需要 MANAGE 权限
+
+// 批量分配角色时校验（严格模式，用户不能给自己分配）
+Set<Long> userIds = Set.of(1L, 2L, operatorId);
+PermissionBatchResult result = PermissionCheckUtils.checkCanManageUsersStrict(
+    authorizationService, tenantId, operatorId, userIds);
+if (result.anyDenied()) {
+    throw new SecurityException("No permission to manage users: " + result.deniedIds());
+}
+
+// 批量修改角色权限时校验
+Set<Long> roleIds = Set.of(100L, 200L, 300L);
+PermissionCheckUtils.validateCanManageRolesOrThrow(authorizationService, tenantId, operatorId, roleIds);
+```
+
+---
+
+### 7.5 权限树查询接口 `query-permission-tree`
+
+用于外部系统查询从某个资源节点出发，用户能操作的层级关系。
+
+**接口路径**：`POST /api/perm/auth/query-permission-tree`
+
+**入参 DTO**：
+```java
+public record PermissionTreeReq(
+    @NotBlank String subjectTypeCode,
+    @NotBlank String subjectExternalId,
+    @NotBlank String resourceTypeCode,
+    @NotBlank String resourceCode,          // 起点资源
+    String codeType,
+    @NotEmpty Set<String> operationCodes,   // 操作类型集合
+    @NotBlank String direction,             // ANCESTORS(向上) / DESCENDANTS(向下) / BOTH(双向)
+    Integer maxDepth,                       // 最大层级深度
+    String domainCode,
+    Map<String, Object> context
+) {}
+```
+
+**返回 DTO**：
+```java
+public record PermissionTreeResp(
+    TreeNode root,                          // 起点节点
+    List<TreeNode> ancestors,               // 父级链路（direction=ANCESTORS/BOTH）
+    List<TreeNode> descendants,             // 子级树（direction=DESCENDANTS/BOTH）
+    String permissionVersion,
+    int cacheTtlSeconds
+) {
+    public record TreeNode(
+        Long resourceId,
+        String resourceTypeCode,
+        String resourceCode,
+        String resourceName,
+        int depth,                          // 相对起点的层级
+        Set<String> operations,             // 用户对该节点拥有的操作
+        boolean canGrant,                   // 是否可授权
+        List<TreeNode> children             // 子节点（仅descendants树）
+    ) {}
+}
+```
+
+**典型场景**：
+| 场景 | direction | 用途 |
+|------|-----------|------|
+| 用户能看到某个菜单，想知道父菜单链路 | `ANCESTORS` | 显示面包屑导航时过滤无权限节点 |
+| 用户有某个组织管理权限，想知道下级组织树 | `DESCENDANTS` | 组织管理页面显示可管理的子组织 |
+| 用户对某个角色有权限，想知道完整层级关系 | `BOTH` | 角色权限配置页面 |
+
+**与 `query-resources` 的区别**：
+| 维度 | `query-resources` | `query-permission-tree` |
+|------|-------------------|------------------------|
+| 查询起点 | 无起点，查所有可访问资源 | 从指定资源节点出发 |
+| 遍历方向 | 只向下（children） | 支持向上/向下/双向 |
+| 返回范围 | 用户有权限的全部资源 | 只返回起点路径上有权限的节点 |
+| 用途 | "我能访问哪些资源" | "从某资源出发，我能操作的层级关系" |
+
+---
+
+### 7.6 实现注意事项
+
+1. **移除 `CAN_MANAGE` 误用**：`AuthorizationServiceImpl` 中不再使用 `CAN_MANAGE.eq(true)` 作为权限判断条件
+2. **`canGrant` 只用于授权流程**：在 `PermissionGrantServiceImpl` 授权时校验，不在鉴权时使用
+3. **统一入口**：内部权限检查统一调用 `AuthorizationService.checkPermissions` 或 `checkPermissionsBatch`，避免各 Service 分散实现
+4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `checkPermissionsBatch` 或 `PermissionCheckUtils`，一次 DB 查询完成全部权限校验
+5. **自修改例外场景区分**：
+   - 删除用户：使用 `checkCanManageUsersWithSelfModification`（允许删除自己）
+   - 分配角色：使用 `checkCanManageUsersStrict`（不允许给自己分配角色，需严格权限检查）
+6. **树形遍历深度限制**：`query-permission-tree` 必须有 `maxDepth` 限制，防止无限递归
+
+### 7.7 授权安全校验（Grant Validation）
+
+**问题背景**：原 `batchGrant` 方法只检查 operator 是否有 MANAGE 权限，未检查是否能授予特定权限。这导致：
+- 用户可授予自己不拥有的权限
+- 用户可授予自己拥有但 `canGrant=false` 的权限
+- 用户可授予 `scopeAll=true` 但自己只有特定资源权限的权限
+
+**修复方案**：在 `PermissionGrantServiceImpl.batchGrant` 中增加授权校验逻辑。
+
+#### 校验逻辑
+
+```java
+// 对每个 add 项校验：
+// 1. operator 必须有相同的权限（resourceType + resource/scopeAll + operation）
+// 2. operator 的该权限必须有 canGrant=true
+// 3. 如果授予 scopeAll=true，operator 必须有 scopeAll=true（不能从特定资源权限授权全量）
+
+Set<GrantCheckKey> grantKeys = addItems.stream()
+    .map(item -> new GrantCheckKey(
+        item.resourceTypeCode(),
+        item.resourceCode(),
+        item.operationCode(),
+        item.scopeAll()
+    ))
+    .collect(Collectors.toSet());
+
+Map<String, GrantCheckResult> grantResults =
+    authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, domainCode);
+
+// 校验每项，不满足则抛 SecurityException
+for (GrantAddItem item : addItems) {
+    GrantCheckResult result = grantResults.get(buildGrantKey(item));
+    if (!result.canGrant()) {
+        throw new SecurityException("Operator cannot grant permission...");
+    }
+}
+```
+
+#### `AuthorizationService` 新增接口
+
+```java
+/**
+ * Check if operator can grant a specific permission to others.
+ */
+boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+                           String resourceCode, String operationCode, boolean scopeAll, String domainCode);
+
+/**
+ * Batch check grant permissions.
+ */
+Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
+                                                          Set<GrantCheckKey> permissions, String domainCode);
+
+record GrantCheckKey(
+    String resourceTypeCode,
+    String resourceCode,
+    String operationCode,
+    boolean scopeAll
+) {}
+
+record GrantCheckResult(
+    boolean canGrant,
+    String reason  // NO_ROLE / NO_PERMISSION / NO_GRANT_RIGHT / RESOURCE_NOT_FOUND
+) {}
+```
+
+#### 实现要点
+
+1. **scopeAll 校验规则**：
+   - 授权 `scopeAll=false`（特定资源）：operator 可用 `scopeAll=true` 或特定资源权限
+   - 授权 `scopeAll=true`（全量范围）：operator 必须有 `scopeAll=true`
+
+2. **update 项校验**：
+   - 如果 update 设置 `canGrant=true`，operator 必须有该权限且 `canGrant=true`
+
+3. **符合 api-contract.md 约定**：
+   - 授权者必须已经拥有目标权限且该权限 `canGrant=true`
+   - 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围
+
+#### 错误码
+
+| reason | 说明 |
+|--------|------|
+| `NO_ROLE` | operator 无有效角色 |
+| `NO_PERMISSION` | operator 无该权限 |
+| `NO_GRANT_RIGHT` | operator 有权限但 `canGrant=false` |
+| `RESOURCE_NOT_FOUND` | 资源不存在 |
+| `INVALID_RESOURCE_TYPE` | 资源类型无效 |
+| `INVALID_OPERATION` | 操作类型无效 |
+
+#### 批量查询优化（避免 N+1）
+
+`checkGrantPermissionsBatch` 实现采用批量查询策略，将 N 次数据库访问优化为固定 4 次：
+
+| 步骤 | 查询内容 | 查询次数 |
+|------|----------|----------|
+| 1 | 获取 operator 的有效角色 | 1 次 |
+| 2 | 批量查询所有涉及的 operationPermissions | 1 次 |
+| 3 | 批量解析所有 resourceEntityIds（通过 typeResolutionService） | N 次（可优化为批量） |
+| 4 | 批量查询所有 roleResourcePermissions | 1 次 |
+
+**优化后查询次数**：2-3 次固定查询 + N 次 resourceEntityId 解析（typeResolutionService 可进一步优化为批量）
+
+**核心思路**：
+1. 预加载所有 `operationPermissions` 到 `Map<Long, OperationPermission>`
+2. 预加载所有 `roleResourcePermissions` 到两个 Map：
+   - `permsBySpecificResource`: key = `resourceType:opCode:resourceEntityId`
+   - `permsByScopeAll`: key = `resourceType:opCode`
+3. 内存中匹配每个 `GrantCheckKey`，无需额外数据库访问

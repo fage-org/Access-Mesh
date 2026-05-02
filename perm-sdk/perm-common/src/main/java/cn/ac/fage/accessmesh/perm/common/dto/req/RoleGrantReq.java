@@ -20,13 +20,13 @@ public record RoleGrantReq(
         String codeType,
         @NotBlank String operationCode,
         Boolean scopeAll,
-        Boolean canManage,
+        Boolean canGrant,
         String conditionCode
     ) {}
 
     public record GrantUpdateItem(
         Long id,
-        Boolean canManage,
+        Boolean canGrant,
         String conditionCode
     ) {}
 }

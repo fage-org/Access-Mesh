@@ -454,6 +454,7 @@ cn.ac.fage.accessmesh.{service}
 ├── service
 │   ├── impl            # 调度层 Service 实现
 │   └── domain          # 逻辑级 Domain Service
+│       └── impl        # Domain Service 实现
 ├── mapper              # MyBatis-Flex Mapper
 ├── entity              # 数据库实体
 ├── dto
@@ -464,6 +465,187 @@ cn.ac.fage.accessmesh.{service}
 ├── config              # 配置类
 └── util                # 本模块专用工具类（禁止与 common 重复）
 ```
+
+### 8.4 Service 层复用与扩展规范
+
+本节定义两层 Service（调度层 Service / 逻辑级 DomainService）的功能复用原则与扩展性设计要求，**新增、修改功能时必须遵循**。
+
+#### 8.4.1 两层职责划分
+
+| 层级 | 命名 | 职责 | 典型方法 |
+|------|------|------|---------|
+| **调度层 Service** | `XxxService` / `XxxServiceImpl` | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`checkPermissions()`、`listEffectiveRoles()` |
+| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理 | `resolveEffectiveRoles()`、`getAncestorIds()`、`revokePermissionWithCascade()` |
+
+**核心原则**：
+- 调度层负责**组合**，不实现单一领域逻辑
+- 领域层负责**原子逻辑**，可被多个调度层服务复用
+- 领域层方法应**高内聚**，一个方法只做一件事
+
+#### 8.4.2 必须复用的场景
+
+以下场景**必须**复用现有 DomainService 方法，禁止在调度层重新实现：
+
+| 场景 | 已有 DomainService 方法 | 禁止行为 |
+|------|------------------------|---------|
+| 用户角色解析（带缓存） | `UserRoleDomainService.resolveEffectiveRoles()` | 调度层直接查询 `user_role` 表 |
+| 资源层级遍历 | `ResourceEntityDomainService.getAncestorIds()` / `getDescendantIds()` | 调度层写递归遍历逻辑 |
+| 权限级联删除 | `RolePermissionDomainService.revokePermissionWithCascade()` | 调度层写子权限删除循环 |
+| 权限版本递增 | `PermissionVersionDomainService.increment()` | 调度层直接更新版本字段 |
+| 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()` | 调度层查 `type_definition` 表 |
+
+**判断标准**：如果逻辑涉及**单一领域实体**的原子操作（查、改、删、转换），应下沉到 DomainService。
+
+#### 8.4.3 新增功能前的检查清单
+
+新增 Service 方法前，**必须**检查：
+
+1. **是否已有可复用的 DomainService 方法？**
+   - 搜索 `service/domain/` 目录下相关领域服务
+   - 检查方法签名是否满足需求（参数、返回值）
+
+2. **是否需要新建 DomainService 方法？**
+   - 如果逻辑是单一领域的原子操作，应新建 DomainService 方法
+   - 新建前确认没有类似逻辑已在其他 DomainService 中实现
+
+3. **调度层是否只做编排？**
+   - 调度层方法应只包含：调用 DomainService、结果组合、异常转换
+   - 如果调度层出现 `if/for/while` 处理业务数据，考虑下沉
+
+4. **是否有缓存可利用？**
+   - DomainService 中的缓存方法（如 `resolveEffectiveRoles()`）优先使用
+   - 禁止在调度层绕过缓存直接查数据库
+
+#### 8.4.4 扩展性设计要求
+
+新增 DomainService 方法时，**必须**考虑扩展性：
+
+| 要求 | 说明 | 示例 |
+|------|------|------|
+| **参数设计** | 预留过滤/扩展参数，使用 nullable 或默认值 | `resolveEffectiveRoles(tenantId, userId, bizDomainId, includeDisabled)` |
+| **返回值设计** | 返回足够信息供调用方二次处理，不丢失上下文 | 返回 `Set<Long>` 角色 ID + `Map<Long, RoleInfo>` 角色详情 |
+| **批量优化** | 支持批量输入，避免 N+1 查询 | `batchGetRolePermissions(roleIds)` 返回 `Map<Long, List<...>>` |
+| **缓存友好** | 高频查询方法应集成缓存，调用方无需关心缓存细节 | `resolveEffectiveRoles()` 内置 L1/L2 缓存 |
+
+**禁止行为**：
+- 禁止 DomainService 方法返回 Controller 层 DTO（如 `XxxResp`），应返回领域对象或基础类型
+- 禁止 DomainService 方法依赖外部业务上下文（如 `OperatorContext`），应通过参数传入
+
+#### 8.4.5 代码重复检测标准
+
+以下模式表示代码重复，**必须**重构：
+
+| 重复模式 | 检测方法 | 重构方案 |
+|---------|---------|---------|
+| 相同 SQL 查询出现在多个 Service | Grep 搜索 `selectListByQuery` 或表名 | 抽取到 DomainService 或 Mapper |
+| 相同数据转换逻辑出现在多处 | 搜索 `new XxxResp(...)` 或 `stream().map(...)` | 抽取为 DomainService 转换方法或实体方法 |
+| 相同计算公式出现在多处 | 搜索计算表达式（如 `binaryBit | inheritMask`） | 抽取为实体方法（如 `getEffectiveBits()`） |
+| 相同业务校验逻辑出现在多处 | 搜索校验注释或异常抛出 | 抽取为 DomainService 校验方法 |
+
+#### 8.4.6 实体方法封装标准
+
+以下逻辑**优先**封装到实体类（Entity）方法：
+
+| 场景 | 实体方法示例 |
+|------|-------------|
+| 字段派生计算 | `OperationPermission.getEffectiveBits()` = `binaryBit | inheritMask` |
+| 状态判断 | `AbstractRole.isEnabled()` = `status == 1 && deleteFlag == 0` |
+| 业务字段格式化 | `ResourceEntity.getFullCode()` = `parentCode + "/" + code` |
+
+**规则**：
+- 实体方法**禁止**依赖外部服务（Mapper、其他 Service）
+- 实体方法**禁止**修改自身状态（保持只读计算）
+- 复杂逻辑（涉及多表查询）不应放实体类，放 DomainService
+
+#### 8.4.7 已识别的复用案例
+
+以下为当前 permission-center 已实现的复用模式，**后续开发必须沿用**：
+
+```
+调度层 PermissionGrantServiceImpl
+  └→ 调用 UserRoleDomainService.resolveEffectiveRoles()（带缓存）
+  └→ 调用 RolePermissionDomainService.revokePermissionWithCascade()（级联删除）
+  └→ 调用 PermissionVersionDomainService.increment()（版本管理）
+
+调度层 AuthorizationServiceImpl
+  └→ 调用 UserRoleDomainService.resolveEffectiveRoles()（角色解析+缓存）
+  └→ 调用 TypeResolutionService.resolveTypeValue()（类型转换）
+
+调度层 PermissionServiceImpl
+  └→ 调用 ResourceEntityDomainService.getAncestorIds()（层级遍历）
+  └→ 调用 OperationPermission.getEffectiveBits()（实体方法）
+```
+
+**违反此规范的代码评审时必须打回修改**。
+
+#### 8.4.8 N+1 查询性能问题禁止
+
+**定义**：N+1 问题是指在循环中逐个查询数据库，导致 1 次主查询 + N 次额外查询的性能问题。这是 Service 层最常见且最严重的性能缺陷。
+
+**禁止场景**：
+
+| 禁止模式 | 问题示例 | 正确方案 |
+|---------|---------|---------|
+| 循环内单条查询 | `for (Long id : ids) { mapper.selectOneById(id); }` | `mapper.selectListByQuery(ids)` 批量查询 |
+| 循环内关联查询 | `for (Role r : roles) { r.getPermissions(); }` 每次查权限表 | 先批量查所有权限，再按 roleId 分组 |
+| 循环内类型解析 | `for (Entity e : list) { typeService.resolve(e.type); }` | 批量解析或使用缓存 Map |
+| 循环内外部调用 | `for (User u : users) { feign.getUserDetail(u.id); }` | 批量 Feign 接口或本地批量查询 |
+
+**检测方法**：
+
+1. **代码审查**：搜索以下模式组合
+   - `for` / `while` 循环 + `selectOneById` / `selectOneByQuery`
+   - `stream().map()` 内部调用 Mapper 方法
+   - 循环内调用 DomainService 单条查询方法
+
+2. **日志监控**：开启 MyBatis-Flex SQL 日志，观察同一请求内相同 SQL 执行次数
+   - 同一 SQL 执行次数 > 3 次，大概率是 N+1 问题
+   - 同一请求 SQL 总数 > 20 条，需审查是否有 N+1
+
+3. **性能测试**：接口响应时间随数据量线性增长，可能是 N+1
+
+**正确批量查询模式**：
+
+```java
+// ❌ N+1 错误模式
+List<Long> roleIds = ...;
+Map<Long, AbstractRole> roleMap = new HashMap<>();
+for (Long roleId : roleIds) {
+    AbstractRole role = abstractRoleMapper.selectOneById(roleId);  // N 次查询
+    roleMap.put(roleId, role);
+}
+
+// ✅ 批量查询正确模式
+List<Long> roleIds = ...;
+List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
+    QueryWrapper.create().where(ABSTRACT_ROLE.ID.in(roleIds))
+);
+Map<Long, AbstractRole> roleMap = roles.stream()
+    .collect(Collectors.toMap(AbstractRole::getId, r -> r));  // 1 次查询
+```
+
+**批量查询设计要求**：
+
+| 要求 | 说明 |
+|------|------|
+| **DomainService 提供批量方法** | 高频查询场景必须提供 `batchGetXxx(List<Long> ids)` 方法 |
+| **批量结果用 Map 返回** | 返回 `Map<Long, Xxx>` 便于调用方按 ID 快速获取 |
+| **批量方法内含缓存** | 批量方法应利用缓存，避免每次批量查询都穿透到 DB |
+| **分批处理** | 批量 ID 数量 > 1000 时分批查询（每批 500-1000），避免 SQL 过长 |
+
+**已识别的批量优化案例**：
+
+| 场景 | 批量方法 |
+|------|---------|
+| 权限批量检查 | `AuthorizationService.checkPermissionsBatch()` |
+| 授权批量校验 | `AuthorizationService.checkGrantPermissionsBatch()` |
+| 角色批量加载 | `PermissionViewServiceImpl.loadRoles(Set<Long> roleIds)` |
+| 操作权限批量加载 | `PermissionViewServiceImpl.loadOperations(Set<Long> opIds)` |
+
+**评审标准**：
+- 新增 Service 方法包含循环 + 数据库查询，**必须打回**
+- 已有方法发现 N+1 问题，**必须修复**（优先级：P1）
+- 循环内调用外部服务（Feign/HTTP），**必须打回**（改用批量接口）
 
 ---
 
@@ -635,6 +817,58 @@ deleted_at  TIMESTAMPTZ
 - 多条件查询建**复合索引**，遵循最左前缀原则。
 - 单表索引数量不超过 5 个（避免写放大）。
 - 禁止在低基数字段（如 `delete_flag`）上单独建索引。
+
+### 13.5 SQL 书写规范
+
+- **所有自定义 SQL 必须写在 XML 文件中**，禁止使用 `@Update`、`@Select`、`@Insert`、`@Delete` 等注解直接书写 SQL。
+- XML 文件位置：`src/main/resources/mapper/XxxMapper.xml`。
+- Mapper 接口只声明方法签名，不包含 SQL 内容。
+
+**规范示例**：
+
+```xml
+<!-- src/main/resources/mapper/UserRoleMapper.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper">
+
+    <update id="softDeleteBatch">
+        UPDATE user_role
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND delete_flag = 0 AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>
+```
+
+```java
+// src/main/java/.../mapper/UserRoleMapper.java
+public interface UserRoleMapper extends BaseMapper<UserRole> {
+
+    int softDeleteBatch(@Param("tenantId") Long tenantId,
+                        @Param("ids") List<Long> ids,
+                        @Param("deletedAt") LocalDateTime deletedAt);
+}
+```
+
+**禁止示例**：
+
+```java
+// ❌ 禁止使用注解书写 SQL
+@Update("<script>UPDATE user_role SET delete_flag = id WHERE id IN <foreach...></script>")
+int softDeleteBatch(...);
+```
+
+**原因**：
+- XML 文件便于 SQL 维护和版本管理
+- 复杂 SQL（多条件、动态拼接）在 XML 中更清晰
+- 避免注解字符串过长影响代码可读性
+- 统一风格便于团队协作和代码审查
 
 ---
 

@@ -7,7 +7,7 @@ public record RolePermissionItemResp(
     String codeType,
     String resourceName,
     String operationCode,
-    Boolean canManage,
+    Boolean canGrant,
     String conditionCode,
     boolean scopeAll,
     Long dependOn

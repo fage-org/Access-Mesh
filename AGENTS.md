@@ -60,6 +60,8 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - 统一响应体：`{ "code": 200, "message": "success", "data": {}, "requestId": "...", "traceId": "..." }`。
 - 错误码分段：10001-19999(admin) / 20001-29999(perm) / 30001-39999(example) / 90001-99999(全局)。
 - 分层：Controller -> 调度层 Service -> 逻辑级 DomainService -> Mapper。
+- **Service 层复用规范**：新增/修改功能必须检查 DomainService 是否有可复用方法，禁止在调度层重新实现领域逻辑。详见 `plan/project-rules.md` §8.4。
+- **N+1 查询禁止**：循环内禁止单条数据库查询，必须使用批量查询方法。详见 `plan/project-rules.md` §8.4.8。
 - 禁止跳层调用，禁止同层横向调用。
 - 禁止 Lombok，使用 Java 21 Record 表达不可变 DTO。
 - 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。

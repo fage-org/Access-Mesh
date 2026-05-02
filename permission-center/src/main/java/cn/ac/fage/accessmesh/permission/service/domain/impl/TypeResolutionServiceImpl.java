@@ -16,6 +16,11 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
@@ -63,6 +68,24 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     }
 
     @Override
+    public Map<String, Integer> batchResolveTypeValues(Long tenantId, String typeKey, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return typeDefinitionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TYPE_DEFINITION.TYPE_CODE.in(codes))
+                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        ).stream().collect(Collectors.toMap(
+            TypeDefinition::getTypeCode,
+            TypeDefinition::getTypeValue,
+            (a, b) -> a
+        ));
+    }
+
+    @Override
     public String resolveTypeCode(Long tenantId, String typeKey, Integer typeValue) {
         if (typeValue == null) {
             return null;
@@ -75,6 +98,24 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
         return td != null ? td.getTypeCode() : null;
+    }
+
+    @Override
+    public Map<Integer, String> batchResolveTypeCodes(Long tenantId, String typeKey, Set<Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return typeDefinitionMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TYPE_DEFINITION.TYPE_VALUE.in(values))
+                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        ).stream().collect(Collectors.toMap(
+            TypeDefinition::getTypeValue,
+            TypeDefinition::getTypeCode,
+            (a, b) -> a
+        ));
     }
 
     @Override

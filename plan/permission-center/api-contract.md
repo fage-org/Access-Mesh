@@ -403,14 +403,14 @@
       "codeType": "default",
       "operationCode": "VIEW",
       "scopeAll": false,
-      "canManage": false,
+      "canGrant": false,
       "conditionCode": null
     }
   ],
   "update": [
     {
       "id": 100,
-      "canManage": true,
+      "canGrant": true,
       "conditionCode": "office-hours"
     }
   ],
@@ -425,8 +425,8 @@
 - 授权项使用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源与操作。
 - 当授权项 `scopeAll=true` 时，使用 `resourceTypeCode + operationCode` 表达该资源类型的全量范围权限，不传 `resourceCode/codeType`。
 - 操作必须与资源类型兼容。
-- `canManage=true` 表示授权者可把同一条权限授权给他人，但不得扩大资源、操作或范围；可授权对象列表由业务服务控制。
-- 授权者必须已经拥有目标权限且该权限 `canManage=true`，才能把同一权限授权给他人。
+- `canGrant=true` 表示授权者可把同一条权限授权给他人，但不得扩大资源、操作或范围；可授权对象列表由业务服务控制。
+- 授权者必须已经拥有目标权限且该权限 `canGrant=true`，才能把同一权限授权给他人。
 - 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围。
 - permission-center 只校验授权者是否具备同一权限的委托能力，不负责生成候选被授权人列表。
 - 写入 `operation_log` 和 `permission_change_log`，递增 `permission_version`。
@@ -452,7 +452,7 @@
       "codeType": "default",
       "operationCode": "DATA_READ",
       "scopeAll": false,
-      "canManage": false,
+      "canGrant": false,
       "conditionCode": null
     }
   ],
@@ -568,7 +568,7 @@
   "resourceTypeCode": "DATA",
   "operationCode": "DATA_EDIT",
   "scopeAll": true,
-  "canManage": false,
+  "canGrant": false,
   "conditionCode": null
 }
 ```
@@ -621,7 +621,7 @@
       "resourceName": "研发中心",
       "codeType": "default",
       "operations": ["MANAGE"],
-      "canManage": true,
+      "canGrant": true,
       "matchedRoleIds": [10, 11],
       "matchedPermissionIds": [301, 315],
       "grantSources": ["MANUAL"]
@@ -1212,7 +1212,7 @@ admin-service 查询示例：
 9. **类型模型**：对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`，内部存储继续使用 `type_value INT`，通过 `type_definition` 缓存解析；`type_value` 在同一 `tenant_id + type_key` 内全局唯一。
 10. **业务域模型**：`domainCode` 是管理分区和命名空间；传入时查该域 + 全局，不传时只查全局，不跨域模糊匹配。
 11. **接口映射**：同一路径允许映射多个接口资源，Gateway 接口鉴权采用 OR 语义，任一映射资源权限通过即允许。
-12. **委托授权**：`canManage=true` 表示可把同一条权限授权给他人，但不得扩大资源、操作或范围；被授权对象候选范围由业务服务控制。
+12. **委托授权**：`canGrant=true` 表示可把同一条权限授权给他人，但不得扩大资源、操作或范围；被授权对象候选范围由业务服务控制。
 13. **资源依赖方向**：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 14. **同步所有权**：服务接口同步和资源依赖同步必须通过 `ownerServiceCode + maintainSource + syncKey` 限定 FULL diff 删除范围。
 15. **变更摘要枚举**：`diff_snapshot.eventType`、`items[].changeType` 和 `recent-changes.impactLevel` 使用固定枚举，不使用开放字符串。

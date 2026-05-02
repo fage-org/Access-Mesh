@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -41,6 +42,7 @@ class ConfigManageServiceImplTest {
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private OperationLogDomainService operationLogDomainService;
+    @Mock private AuthorizationService authorizationService;
 
     private ConfigManageServiceImpl service;
 
@@ -48,7 +50,8 @@ class ConfigManageServiceImplTest {
     void setUp() {
         service = new ConfigManageServiceImpl(
             typeDefinitionMapper, bizDomainMapper, domainConfigMapper, serviceConfigMapper, systemConfigMapper,
-            resourceEntityMapper, resourceApiMappingMapper, typeResolutionService, operationLogDomainService
+            resourceEntityMapper, resourceApiMappingMapper, typeResolutionService, operationLogDomainService,
+            authorizationService
         );
     }
 

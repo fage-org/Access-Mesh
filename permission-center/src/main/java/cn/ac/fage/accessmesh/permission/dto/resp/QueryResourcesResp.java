@@ -12,7 +12,7 @@ public record QueryResourcesResp(
         String resourceCode,
         String codeType,
         String resourceName,
-        boolean canManage,
+        boolean canGrant,
         List<String> operations,
         List<Long> matchedRoleIds,
         List<Long> matchedPermissionIds,

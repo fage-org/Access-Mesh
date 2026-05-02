@@ -4,12 +4,14 @@ import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.req.InterfaceSnapshotReq;
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
 
@@ -48,4 +50,10 @@ public interface PermissionService {
      * Interface snapshot for Gateway consumption (optional optimisation path).
      */
     InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req);
+
+    /**
+     * Query permission tree from a starting resource node.
+     * Returns accessible resources in ancestor/descendant directions.
+     */
+    PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req);
 }
