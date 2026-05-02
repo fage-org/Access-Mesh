@@ -121,7 +121,7 @@ public class OrgServiceImpl implements OrgService {
 
     @Override
     public PaginatedResult<OrgResp> pageOrgs(PageReq pageReq, OrgQuery query) {
-        QueryWrapper qw = QueryWrapper.create()
+        QueryWrapper<?> qw = QueryWrapper.create()
             .where(SYS_ORG.DELETE_FLAG.eq(0));
         if (query != null) {
             if (query.orgName() != null) qw.and(SYS_ORG.NAME.like(query.orgName()));
@@ -144,7 +144,7 @@ public class OrgServiceImpl implements OrgService {
 
     @Override
     public List<OrgResp> treeOrgs(OrgQuery query) {
-        QueryWrapper qw = QueryWrapper.create()
+        QueryWrapper<?> qw = QueryWrapper.create()
             .where(SYS_ORG.DELETE_FLAG.eq(0));
         if (query != null) {
             if (query.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));

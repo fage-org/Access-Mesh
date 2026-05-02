@@ -14,13 +14,13 @@ spring:
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/perm_db?useSSL=false&serverTimezone=Asia/Shanghai
     username: postgres
-    password: postgres
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
       host: 127.0.0.1
       port: 6379
-      password:
+      password: ${REDIS_PASSWORD:}
       database: 0
 
 mybatis-flex:
@@ -32,3 +32,25 @@ mybatis-flex:
 
 logging:
   config: classpath:log4j2-spring.xml
+
+perm:
+  # Internal API secret for gateway-to-service communication.
+  # Must match the value injected by gateway as X-Internal-Secret header.
+  # Leave empty in dev mode (validation skipped).
+  internal-secret: ${PERM_INTERNAL_SECRET:}
+  cache:
+    l1:
+      maximum-size: ${PERM_CACHE_L1_SIZE:1000}
+      expire-minutes: ${PERM_CACHE_L1_EXPIRE:10}
+    l2:
+      ttl-minutes: ${PERM_CACHE_L2_TTL:30}
+
+spring:
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 16
+        queue-capacity: 1000
+        keep-alive: 60s
+      thread-name-prefix: perm-async-

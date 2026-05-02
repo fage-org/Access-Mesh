@@ -105,7 +105,8 @@ public class GatewayProperties {
             "X-Tenant-Id",
             "X-User-Name",
             "X-User-Roles",
-            "X-User-Type"
+            "X-User-Type",
+            "X-Internal-Secret"
         );
         private Enrich enrich = new Enrich();
 

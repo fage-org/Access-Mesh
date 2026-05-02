@@ -103,6 +103,7 @@ gateway:
       - X-User-Name
       - X-User-Roles
       - X-User-Type
+      - X-Internal-Secret
     enrich:
       request-id: X-Request-Id
       tenant-id: X-Tenant-Id
@@ -117,3 +118,8 @@ gateway:
 
 logging:
   config: classpath:log4j2-spring.xml
+
+perm:
+  # Internal API secret injected as X-Internal-Secret header to downstream services.
+  # Must match perm.internal-secret in permission-center.
+  internal-secret: ${PERM_INTERNAL_SECRET:}

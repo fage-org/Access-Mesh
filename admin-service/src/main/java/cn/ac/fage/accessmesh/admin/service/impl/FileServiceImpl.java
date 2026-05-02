@@ -109,7 +109,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
-        QueryWrapper qw = QueryWrapper.create()
+        QueryWrapper<?> qw = QueryWrapper.create()
             .where(SYS_FILE.DELETE_FLAG.eq(0));
         if (bizType != null) qw.and(SYS_FILE.BUCKET_NAME.eq(bizType));
         qw.orderBy(SYS_FILE.CREATED_AT.desc());

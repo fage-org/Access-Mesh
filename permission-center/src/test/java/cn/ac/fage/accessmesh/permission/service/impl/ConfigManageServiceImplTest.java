@@ -59,16 +59,16 @@ class ConfigManageServiceImplTest {
         config.setDeleteFlag(0L);
         when(serviceConfigMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(config);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(1);
-        when(resourceEntityMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(null);
-        when(resourceApiMappingMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(null);
-        when(resourceApiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
         when(resourceEntityMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
+        when(resourceApiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
 
         doAnswer(inv -> {
-            ResourceEntity entity = inv.getArgument(0);
-            entity.setId(100L);
-            return 1;
-        }).when(resourceEntityMapper).insert(any(ResourceEntity.class));
+            List<ResourceEntity> entities = inv.getArgument(0);
+            for (int i = 0; i < entities.size(); i++) {
+                entities.get(i).setId(100L + i);
+            }
+            return entities.size();
+        }).when(resourceEntityMapper).insertBatch(any(List.class));
 
         ServiceConfigSyncReq req = new ServiceConfigSyncReq(
             "admin-service",
@@ -83,8 +83,11 @@ class ConfigManageServiceImplTest {
 
         service.syncServiceInterfaces(1L, req, null);
 
-        ArgumentCaptor<ResourceApiMapping> mappingCaptor = ArgumentCaptor.forClass(ResourceApiMapping.class);
-        org.mockito.Mockito.verify(resourceApiMappingMapper).insert(mappingCaptor.capture());
-        assertEquals("/admin/api/user/list", mappingCaptor.getValue().getPathPattern());
+        // Verify batch insert was called and capture the list
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ResourceApiMapping>> mappingCaptor = ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(resourceApiMappingMapper).insertBatch(mappingCaptor.capture());
+        assertEquals(1, mappingCaptor.getValue().size());
+        assertEquals("/admin/api/user/list", mappingCaptor.getValue().get(0).getPathPattern());
     }
 }

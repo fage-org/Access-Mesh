@@ -137,7 +137,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(PageReq pageReq, UserQuery query) {
-        QueryWrapper qw = QueryWrapper.create()
+        QueryWrapper<?> qw = QueryWrapper.create()
             .where(SYS_USER.DELETE_FLAG.eq(0));
 
         if (query != null) {

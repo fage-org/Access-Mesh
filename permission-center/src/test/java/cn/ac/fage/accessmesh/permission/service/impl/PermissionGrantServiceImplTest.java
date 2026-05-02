@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionAddChildReq;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
@@ -80,10 +81,10 @@ class PermissionGrantServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SER")).thenReturn(3);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(
-            10L, List.of(new RolePermissionAddChildReq.ChildItem("SER", "x", "default", "VIEW", false, null))
+            10L, List.of(new RolePermissionAddChildReq.ChildItem("SER", "x", "default", "VIEW", false, null, null))
         );
 
-        assertThrows(IllegalArgumentException.class, () -> service.addChildren(1L, req));
+        assertThrows(BizException.class, () -> service.addChildren(1L, req));
     }
 
     @Test
@@ -98,9 +99,9 @@ class PermissionGrantServiceImplTest {
         when(typeResolutionService.resolveOperationId(1L, "DATA_READ", "DATA")).thenReturn(11L);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(
-            10L, List.of(new RolePermissionAddChildReq.ChildItem("DATA", null, "default", "DATA_READ", false, null))
+            10L, List.of(new RolePermissionAddChildReq.ChildItem("DATA", null, "default", "DATA_READ", false, null, null))
         );
 
-        assertThrows(IllegalArgumentException.class, () -> service.addChildren(1L, req));
+        assertThrows(BizException.class, () -> service.addChildren(1L, req));
     }
 }
