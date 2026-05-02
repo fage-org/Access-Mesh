@@ -7,6 +7,8 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,15 +34,18 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     private final AbstractRoleMapper abstractRoleMapper;
     private final PermCacheDomainService permCacheDomainService;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     public UserRoleDomainServiceImpl(UserRoleMapper userRoleMapper,
                                      AbstractRoleMapper abstractRoleMapper,
                                      PermCacheDomainService permCacheDomainService,
-                                     RedisTemplate<String, Object> redisTemplate) {
+                                     RedisTemplate<String, Object> redisTemplate,
+                                     ObjectMapper objectMapper) {
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.permCacheDomainService = permCacheDomainService;
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -125,10 +130,35 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     }
 
     private void resolveGroupRole(Long tenantId, Long groupId, Set<Long> roleIds) {
-        // Recursive: resolve children
+        // Query the group role itself to get extra.basicRoleIds
+        AbstractRole groupRole = abstractRoleMapper.selectOneById(groupId);
+        if (groupRole == null) {
+            return;
+        }
+
+        // Parse extra.basicRoleIds from JSON
+        if (groupRole.getExtra() != null && !groupRole.getExtra().isEmpty()) {
+            try {
+                JsonNode extraNode = objectMapper.readTree(groupRole.getExtra());
+                JsonNode basicRoleIdsNode = extraNode.get("basicRoleIds");
+                if (basicRoleIdsNode != null && basicRoleIdsNode.isArray()) {
+                    for (JsonNode idNode : basicRoleIdsNode) {
+                        Long basicRoleId = idNode.asLong();
+                        if (basicRoleId != null && basicRoleId > 0) {
+                            roleIds.add(basicRoleId);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse extra.basicRoleIds for group role {}: {}", groupId, e.getMessage());
+            }
+        }
+
+        // Recursive: resolve children (roles with parent_id = groupId)
         List<AbstractRole> children = abstractRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ABSTRACT_ROLE.PARENT_ID.eq(groupId))
+                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
                 .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
         for (AbstractRole child : children) {

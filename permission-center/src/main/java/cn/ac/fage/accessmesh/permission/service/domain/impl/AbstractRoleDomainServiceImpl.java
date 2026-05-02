@@ -26,7 +26,7 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Long createRole(Long tenantId, Long bizDomainId, Long parentId, Integer roleType,
                            String externalId, String name, Integer sortOrder, String extra) {
         RoleType rt = RoleType.fromValue(roleType);
@@ -49,7 +49,7 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteRole(Long tenantId, Long roleId) {
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         if (role == null || role.getDeleteFlag() != 0L) return;

@@ -4,8 +4,11 @@ import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.InetAddress;
@@ -19,6 +22,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class PermissionConditionDomainServiceImpl implements PermissionConditionDomainService {
+
+    private static final Logger log = LoggerFactory.getLogger(PermissionConditionDomainServiceImpl.class);
 
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
@@ -64,7 +69,12 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 if (!allMatch && matched) return true;
             }
             return allMatch;
+        } catch (JsonProcessingException e) {
+            log.warn("Invalid conditionRules JSON format, conditionId: {}, rules: {}, error: {}",
+                conditionId, condition.getConditionRules(), e.getMessage());
+            return false;
         } catch (Exception e) {
+            log.error("Unexpected error evaluating condition, conditionId: {}", conditionId, e);
             return false;
         }
     }
@@ -85,24 +95,38 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     private boolean evaluateDateRange(JsonNode params) {
         if (!params.has("start") || !params.has("end")) return false;
+        String startDate = params.get("start").asText();
+        String endDate = params.get("end").asText();
         try {
             LocalDate now = LocalDate.now();
-            LocalDate start = LocalDate.parse(params.get("start").asText());
-            LocalDate end = LocalDate.parse(params.get("end").asText());
+            LocalDate start = LocalDate.parse(startDate);
+            LocalDate end = LocalDate.parse(endDate);
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
+            log.warn("Invalid date range format, startDate: {}, endDate: {}, error: {}",
+                startDate, endDate, e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Unexpected error evaluating date range, startDate: {}, endDate: {}", startDate, endDate, e);
             return false;
         }
     }
 
     private boolean evaluateTimeRange(JsonNode params) {
         if (!params.has("start") || !params.has("end")) return false;
+        String startTime = params.get("start").asText();
+        String endTime = params.get("end").asText();
         try {
             LocalTime now = LocalTime.now();
-            LocalTime start = LocalTime.parse(params.get("start").asText());
-            LocalTime end = LocalTime.parse(params.get("end").asText());
+            LocalTime start = LocalTime.parse(startTime);
+            LocalTime end = LocalTime.parse(endTime);
             return !now.isBefore(start) && !now.isAfter(end);
+        } catch (DateTimeParseException e) {
+            log.warn("Invalid time range format, startTime: {}, endTime: {}, error: {}",
+                startTime, endTime, e.getMessage());
+            return false;
         } catch (Exception e) {
+            log.error("Unexpected error evaluating time range, startTime: {}, endTime: {}", startTime, endTime, e);
             return false;
         }
     }
@@ -151,7 +175,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 if (clientBit != networkBit) return false;
             }
             return true;
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid CIDR format: {}, error: {}", cidr, e.getMessage());
+            return false;
         } catch (Exception e) {
+            log.error("Unexpected error matching IP against CIDR: {}", cidr, e);
             return false;
         }
     }

@@ -51,7 +51,7 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteWithChildren(Long tenantId, Long resourceId) {
         LocalDateTime now = LocalDateTime.now();
         ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);

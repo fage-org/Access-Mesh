@@ -16,11 +16,14 @@ import cn.ac.fage.accessmesh.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -52,6 +55,7 @@ public class UserManageServiceImpl implements UserManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final ObjectMapper objectMapper;
+    private final AuthorizationService authorizationService;
 
     public UserManageServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
@@ -60,7 +64,8 @@ public class UserManageServiceImpl implements UserManageService {
                                  TypeResolutionService typeResolutionService,
                                  OperationLogDomainService operationLogDomainService,
                                  PermissionChangeDomainService permissionChangeDomainService,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 AuthorizationService authorizationService) {
         this.abstractUserMapper = abstractUserMapper;
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -69,11 +74,18 @@ public class UserManageServiceImpl implements UserManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.objectMapper = objectMapper;
+        this.authorizationService = authorizationService;
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResp syncUser(Long tenantId, UserSyncReq req) {
+        // Permission check - sync user requires USER_SYNC permission
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!authorizationService.hasPermission(tenantId, operatorId, "USER", "SYNC")) {
+            throw new SecurityException("No permission to sync user");
+        }
+
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
             throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
@@ -110,8 +122,14 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResp createUser(Long tenantId, UserCreateReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
+        if (!authorizationService.hasPermission(tenantId, operatorId, "USER", "CREATE")) {
+            throw new SecurityException("No permission to create user");
+        }
+
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
             throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
@@ -141,12 +159,19 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
         AbstractUser existing = abstractUserMapper.selectOneById(req.userId());
         if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())) {
             throw new IllegalArgumentException("User not found: " + req.userId());
         }
+
+        if (!authorizationService.canManageUser(tenantId, operatorId, req.userId())) {
+            throw new SecurityException("No permission to update user: " + req.userId());
+        }
+
         if (req.name() != null) {
             existing.setName(req.name());
         }
@@ -173,40 +198,115 @@ public class UserManageServiceImpl implements UserManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long tenantId, Long userId) {
+        Long operatorId = OperatorContext.getOperatorId();
+
         AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user != null && user.getDeleteFlag() == 0L && user.getTenantId().equals(tenantId)) {
+        if (user == null || user.getDeleteFlag() != 0L || !user.getTenantId().equals(tenantId)) {
+            throw new IllegalArgumentException("User not found: " + userId);
+        }
+
+        if (!authorizationService.canManageUser(tenantId, operatorId, userId)) {
+            throw new SecurityException("No permission to delete user: " + userId);
+        }
+
+        user.setDeleteFlag(user.getId());
+        user.setDeletedAt(LocalDateTime.now());
+        abstractUserMapper.update(user);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteUsers(Long tenantId, List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+
+        Long operatorId = OperatorContext.getOperatorId();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Batch query users to validate existence
+        List<AbstractUser> users = abstractUserMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_USER.ID.in(userIds))
+                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+        );
+
+        if (users.isEmpty()) {
+            return;
+        }
+
+        // Permission check for each user (self-modification is allowed)
+        Set<Long> existingUserIds = users.stream().map(AbstractUser::getId).collect(Collectors.toSet());
+        for (Long userId : existingUserIds) {
+            if (!authorizationService.canManageUser(tenantId, operatorId, userId)) {
+                throw new SecurityException("No permission to delete user: " + userId);
+            }
+        }
+
+        // Batch soft delete users
+        for (AbstractUser user : users) {
             user.setDeleteFlag(user.getId());
-            user.setDeletedAt(LocalDateTime.now());
+            user.setDeletedAt(now);
             abstractUserMapper.update(user);
         }
-    }
 
-    @Override
-    @Transactional
-    public void deleteUsers(Long tenantId, List<Long> userIds) {
-        for (Long userId : userIds) {
-            deleteUser(tenantId, userId);
+        // Batch soft delete user_role associations
+        List<UserRole> userRoles = userRoleMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(USER_ROLE.ABSTRACT_USER_ID.in(existingUserIds))
+                .and(USER_ROLE.DELETE_FLAG.eq(0))
+        );
+        for (UserRole ur : userRoles) {
+            ur.setDeleteFlag(ur.getId());
+            ur.setDeletedAt(now);
+            userRoleMapper.update(ur);
         }
+
+        // Invalidate cache for affected users
+        for (Long userId : existingUserIds) {
+            userRoleDomainService.invalidateRoleCache(tenantId, userId);
+        }
+
+        // Single operation log
+        operationLogDomainService.asyncRecord(
+            "user", "BATCH_DELETE",
+            "abstract_user", null,
+            "Deleted " + users.size() + " users",
+            operatorId, null, null, tenantId
+        );
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
+            throw new SecurityException("No permission to assign roles");
+        }
+
         if (req.items() == null || req.items().isEmpty()) {
             throw new IllegalArgumentException("items must not be empty");
         }
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            assignRoleSingle(tenantId, item);
+            assignRoleSingle(tenantId, operatorId, item);
         }
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
+            throw new SecurityException("No permission to assign roles batch");
+        }
+
         for (String subjectExternalId : req.subjectExternalIds()) {
-            assignRoleSingle(tenantId, new UserAssignRoleReq.AssignItem(
+            assignRoleSingle(tenantId, operatorId, new UserAssignRoleReq.AssignItem(
                 req.subjectTypeCode(),
                 subjectExternalId,
                 req.domainCode(),
@@ -222,6 +322,11 @@ public class UserManageServiceImpl implements UserManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "MANAGE")) {
+            throw new SecurityException("No permission to revoke roles");
+        }
+
         List<Long> affectedUserIds = new ArrayList<>();
         List<Long> affectedRoleIds = new ArrayList<>();
         ArrayNode itemsJson = objectMapper.createArrayNode();
@@ -282,7 +387,7 @@ public class UserManageServiceImpl implements UserManageService {
         Set<Long> uniqueRoles = new LinkedHashSet<>(affectedRoleIds);
         Long[] roleArr = uniqueRoles.toArray(Long[]::new);
         permissionChangeDomainService.record(
-            new PermissionChangeDomainService.ChangeLogContext(tenantId, null, null, null, "MANUAL", "user-role-revoke"),
+            new PermissionChangeDomainService.ChangeLogContext(tenantId, null, operatorId, null, "MANUAL", "user-role-revoke"),
             List.of(new PermissionChangeDomainService.ChangeLogEntry(
                 "user_role",
                 0L,
@@ -368,9 +473,10 @@ public class UserManageServiceImpl implements UserManageService {
             queryWrapper.and(ABSTRACT_USER.USER_TYPE.eq(userType));
         }
         if (keyword != null && !keyword.isBlank()) {
+            String pattern = SqlUtil.likePattern(keyword);
             queryWrapper.and(
-                ABSTRACT_USER.NAME.like("%" + keyword + "%")
-                    .or(ABSTRACT_USER.EXTERNAL_ID.like("%" + keyword + "%"))
+                ABSTRACT_USER.NAME.like(pattern)
+                    .or(ABSTRACT_USER.EXTERNAL_ID.like(pattern))
             );
         }
         if (domainCode != null && !domainCode.isBlank()) {
@@ -401,7 +507,7 @@ public class UserManageServiceImpl implements UserManageService {
         return queryWrapper;
     }
 
-    private void assignRoleSingle(Long tenantId, UserAssignRoleReq.AssignItem req) {
+    private void assignRoleSingle(Long tenantId, Long operatorId, UserAssignRoleReq.AssignItem req) {
         Long abstractUserId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (abstractUserId == null) {
             throw new IllegalArgumentException("User not found by business key");
@@ -410,6 +516,12 @@ public class UserManageServiceImpl implements UserManageService {
         if (targetRoleId == null) {
             throw new IllegalArgumentException("Role not found by business key");
         }
+
+        // Check if operator has permission to manage the target role
+        if (!authorizationService.canManageRole(tenantId, operatorId, targetRoleId)) {
+            throw new SecurityException("No permission to assign role: " + targetRoleId);
+        }
+
         Long existing = userRoleMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))

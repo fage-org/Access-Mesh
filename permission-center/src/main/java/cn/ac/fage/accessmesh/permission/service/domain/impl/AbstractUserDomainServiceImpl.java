@@ -22,7 +22,7 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public AbstractUser createUser(Integer userType, String externalId, String name, Boolean enabled, String extra, Long tenantId) {
         AbstractUser user = new AbstractUser();
         user.setTenantId(tenantId);
@@ -39,7 +39,7 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long tenantId, Long userId) {
         AbstractUser user = abstractUserMapper.selectOneById(userId);
         if (user != null && user.getDeleteFlag() == 0L) {
@@ -50,13 +50,13 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void enableUser(Long tenantId, Long userId) {
         updateUserStatus(userId, true);
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void disableUser(Long tenantId, Long userId) {
         updateUserStatus(userId, false);
     }

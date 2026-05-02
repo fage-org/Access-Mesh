@@ -59,7 +59,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public long increment(Long tenantId, Long roleId) {
         long current = getCurrentVersion(tenantId, roleId);
         long newVersion = current + 1;
@@ -75,7 +75,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void batchIncrement(Long tenantId, Collection<Long> roleIds) {
         for (Long roleId : roleIds) {
             increment(tenantId, roleId);

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.config;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.nio.charset.StandardCharsets;
 
@@ -29,19 +29,27 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
     @Value("${perm.internal-secret:}")
     private String expectedSecret;
 
+    @PostConstruct
+    public void validateConfiguration() {
+        if (expectedSecret == null || expectedSecret.isBlank()) {
+            throw new IllegalStateException(
+                "CRITICAL: perm.internal-secret is not configured. " +
+                "This secret is required for securing internal management APIs. " +
+                "Set PERM_INTERNAL_SECRET environment variable or perm.internal-secret in configuration."
+            );
+        }
+        log.info("Internal API secret validation configured successfully");
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
-        // Skip validation if secret is not configured (dev mode)
-        if (expectedSecret == null || expectedSecret.isBlank()) {
-            log.debug("X-Internal-Secret not configured, skipping validation");
-            return true;
-        }
-
         String providedSecret = request.getHeader(SECRET_HEADER);
         if (providedSecret == null || !providedSecret.equals(expectedSecret)) {
-            log.warn("Blocked request without valid X-Internal-Secret: {} {}",
-                request.getMethod(), request.getRequestURI());
+            String clientIp = getClientIp(request);
+            String userId = request.getHeader("X-User-Id");
+            log.warn("Blocked request without valid X-Internal-Secret: {} {} from IP={}, userId={}",
+                request.getMethod(), request.getRequestURI(), clientIp, userId);
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -51,5 +59,17 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
             return false;
         }
         return true;
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isEmpty()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null) {
+            return realIp;
+        }
+        return request.getRemoteAddr();
     }
 }

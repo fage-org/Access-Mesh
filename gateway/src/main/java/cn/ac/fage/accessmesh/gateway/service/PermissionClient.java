@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.gateway.model.AuthCheckRequest;
 import cn.ac.fage.accessmesh.gateway.model.AuthCheckResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -20,6 +21,9 @@ public class PermissionClient {
 
     private final WebClient webClient;
     private final String checkInterfacePath;
+
+    @Value("${perm.internal-secret:}")
+    private String internalSecret;
 
     public PermissionClient(WebClient.Builder loadBalancedWebClientBuilder,
                             GatewayProperties gatewayProperties) {
@@ -53,6 +57,7 @@ public class PermissionClient {
         return webClient.post()
             .uri(checkInterfacePath)
             .header("X-Tenant-Id", tenantId != null ? tenantId.toString() : "")
+            .header("X-Internal-Secret", internalSecret)
             .bodyValue(request)
             .retrieve()
             .bodyToMono(AuthCheckResponse.class)

@@ -7,12 +7,15 @@ import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp.RoleTreeNode;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.RoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -39,6 +42,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     private final ObjectMapper objectMapper;
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
+    private final AuthorizationService authorizationService;
 
     public RoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  AbstractRoleDomainService abstractRoleDomainService,
@@ -46,7 +50,8 @@ public class RoleManageServiceImpl implements RoleManageService {
                                  TypeResolutionService typeResolutionService,
                                  ObjectMapper objectMapper,
                                  OperationLogDomainService operationLogDomainService,
-                                 PermissionChangeDomainService permissionChangeDomainService) {
+                                 PermissionChangeDomainService permissionChangeDomainService,
+                                 AuthorizationService authorizationService) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.abstractRoleDomainService = abstractRoleDomainService;
         this.permCacheDomainService = permCacheDomainService;
@@ -54,11 +59,22 @@ public class RoleManageServiceImpl implements RoleManageService {
         this.objectMapper = objectMapper;
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
+        this.authorizationService = authorizationService;
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "CREATE")) {
+            throw new SecurityException("No permission to create role");
+        }
+
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
             throw new IllegalArgumentException("Unknown roleTypeCode: " + req.roleTypeCode());
@@ -84,8 +100,18 @@ public class RoleManageServiceImpl implements RoleManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "UPDATE")) {
+            throw new SecurityException("No permission to update role");
+        }
+
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         if (role == null || role.getDeleteFlag() != 0L || !role.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Role not found: " + roleId);
@@ -103,8 +129,18 @@ public class RoleManageServiceImpl implements RoleManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "UPDATE")) {
+            throw new SecurityException("No permission to move role");
+        }
+
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         if (role == null || role.getDeleteFlag() != 0L || !tenantId.equals(role.getTenantId())) {
             throw new IllegalArgumentException("Role not found: " + roleId);
@@ -122,8 +158,18 @@ public class RoleManageServiceImpl implements RoleManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteRole(Long tenantId, Long roleId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "DELETE")) {
+            throw new SecurityException("No permission to delete role");
+        }
+
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         if (role == null || role.getDeleteFlag() != 0L || !role.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Role not found: " + roleId);
@@ -138,6 +184,16 @@ public class RoleManageServiceImpl implements RoleManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "DELETE")) {
+            throw new SecurityException("No permission to delete roles");
+        }
+
         if (roleIds == null || roleIds.isEmpty()) {
             return;
         }
@@ -270,9 +326,10 @@ public class RoleManageServiceImpl implements RoleManageService {
             queryWrapper.and(ABSTRACT_ROLE.ROLE_TYPE.eq(roleType));
         }
         if (keyword != null && !keyword.isBlank()) {
+            String pattern = SqlUtil.likePattern(keyword);
             queryWrapper.and(
-                ABSTRACT_ROLE.NAME.like("%" + keyword + "%")
-                    .or(ABSTRACT_ROLE.EXTERNAL_ID.like("%" + keyword + "%"))
+                ABSTRACT_ROLE.NAME.like(pattern)
+                    .or(ABSTRACT_ROLE.EXTERNAL_ID.like(pattern))
             );
         }
         return queryWrapper;

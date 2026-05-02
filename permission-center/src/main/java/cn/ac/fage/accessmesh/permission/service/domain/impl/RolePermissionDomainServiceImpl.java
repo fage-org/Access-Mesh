@@ -58,7 +58,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void grantPermissions(Long tenantId, Long roleId, List<RolePermSnapshot.RolePermEntry> entries, String changeSource) {
         for (RolePermSnapshot.RolePermEntry entry : entries) {
             RoleResourcePermission rp = new RoleResourcePermission();
@@ -81,7 +81,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds) {
         LocalDateTime now = LocalDateTime.now();
         Set<Long> affectedRoles = Set.of(roleId);

@@ -29,7 +29,7 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) {
@@ -78,7 +78,7 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         OperationPermission op = operationPermissionMapper.selectOneById(operationId);
         if (op == null || op.getDeleteFlag() != 0L || !op.getTenantId().equals(tenantId)) {
@@ -94,7 +94,7 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteOperation(Long tenantId, Long operationId, Long operatorId) {
         OperationPermission op = operationPermissionMapper.selectOneById(operationId);
         if (op != null && op.getDeleteFlag() == 0L && op.getTenantId().equals(tenantId)) {
@@ -105,7 +105,7 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
         for (Long operationId : operationIds) {
             deleteOperation(tenantId, operationId, operatorId);

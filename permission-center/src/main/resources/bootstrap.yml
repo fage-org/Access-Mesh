@@ -36,7 +36,8 @@ logging:
 perm:
   # Internal API secret for gateway-to-service communication.
   # Must match the value injected by gateway as X-Internal-Secret header.
-  # Leave empty in dev mode (validation skipped).
+  # REQUIRED: Application will fail to start if not configured.
+  # Set PERM_INTERNAL_SECRET environment variable or configure in Nacos.
   internal-secret: ${PERM_INTERNAL_SECRET:}
   cache:
     l1:

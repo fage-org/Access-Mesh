@@ -11,9 +11,11 @@ import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.*;
 import cn.ac.fage.accessmesh.permission.entity.*;
 import cn.ac.fage.accessmesh.permission.mapper.*;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +45,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
+    private final AuthorizationService authorizationService;
 
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
@@ -52,7 +55,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                                    ResourceEntityMapper resourceEntityMapper,
                                    ResourceApiMappingMapper resourceApiMappingMapper,
                                    TypeResolutionService typeResolutionService,
-                                   OperationLogDomainService operationLogDomainService) {
+                                   OperationLogDomainService operationLogDomainService,
+                                   AuthorizationService authorizationService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -62,13 +66,24 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
+        this.authorizationService = authorizationService;
     }
 
     // ===== TypeDefinition =====
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check - TYPE_DEFINITION management requires SYSTEM admin
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to create type definition");
+        }
+
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
         type.setBizDomainId(req.bizDomainId());
@@ -115,8 +130,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteType(Long tenantId, Long typeId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete type definition");
+        }
+
         TypeDefinition type = typeDefinitionMapper.selectOneById(typeId);
         if (type != null && type.getDeleteFlag() == 0L && type.getTenantId().equals(tenantId)) {
             if (Boolean.TRUE.equals(type.getIsSystem())) {
@@ -131,6 +156,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete type definitions");
+        }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
@@ -158,8 +193,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to update type definition");
+        }
+
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TYPE_DEFINITION.ID.eq(req.typeId()))
@@ -180,8 +225,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     // ===== BizDomain =====
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to create biz domain");
+        }
+
         BizDomain domain = new BizDomain();
         domain.setTenantId(tenantId);
         domain.setCode(req.code());
@@ -216,8 +271,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomain(Long tenantId, Long domainId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete biz domain");
+        }
+
         BizDomain domain = bizDomainMapper.selectOneById(domainId);
         if (domain != null && domain.getDeleteFlag() == 0L && domain.getTenantId().equals(tenantId)) {
             domain.setDeleteFlag(domain.getId());
@@ -229,6 +294,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete biz domains");
+        }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
@@ -256,8 +331,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to update biz domain");
+        }
+
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(BIZ_DOMAIN.ID.eq(req.domainId()))
@@ -275,8 +360,14 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     // ===== DomainConfig =====
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
+        // Permission check for config operations
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to manage domain config");
+        }
+
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
         if (bizDomainId == null) {
             throw new IllegalArgumentException("Unknown domainCode: " + req.domainCode());
@@ -375,8 +466,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     // ===== ServiceConfig =====
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to save service config");
+        }
+
         ServiceConfigResp existing = getServiceConfig(tenantId, req.serviceCode());
         if (existing == null) {
             return createServiceConfig(tenantId, req, operatorId);
@@ -401,8 +502,17 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to create service config");
+        }
         ServiceConfig config = new ServiceConfig();
         config.setTenantId(tenantId);
         config.setServiceCode(req.serviceCode());
@@ -442,6 +552,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+            throw new SecurityException("No permission to delete service configs");
+        }
+
         if (ids == null || ids.isEmpty()) {
             return;
         }
@@ -472,7 +592,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
         if (!"FULL".equalsIgnoreCase(req.syncMode())) {
             throw new IllegalArgumentException("Only FULL syncMode is supported");
@@ -673,7 +793,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     // ===== SystemConfig =====
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()

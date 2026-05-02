@@ -52,7 +52,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void processDependencies(Long tenantId, Long roleId, Long resourceEntityId, Long operationBits) {
         List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
             QueryWrapper.create()
@@ -70,7 +70,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void cleanupDependencies(Long tenantId, Long roleId, Long resourceEntityId) {
         List<RoleResourcePermission> autoGrants = rolePermMapper.selectListByQuery(
             QueryWrapper.create()

@@ -13,10 +13,12 @@ import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,22 +40,35 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
+    private final AuthorizationService authorizationService;
 
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
                                      ResourceEntityDomainService resourceEntityDomainService,
                                      TypeResolutionService typeResolutionService,
-                                     OperationLogDomainService operationLogDomainService) {
+                                     OperationLogDomainService operationLogDomainService,
+                                     AuthorizationService authorizationService) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
+        this.authorizationService = authorizationService;
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
+            throw new SecurityException("No permission to create resource");
+        }
+
         ResourceEntity entity = new ResourceEntity();
         entity.setTenantId(tenantId);
         entity.setBizDomainId(req.bizDomainId());
@@ -79,8 +94,18 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
+            throw new SecurityException("No permission to create resources");
+        }
+
         List<ResourceResp> created = new ArrayList<>();
         for (ResourceCreateReq req : reqs) {
             created.add(createResource(tenantId, req, operatorId));
@@ -100,8 +125,18 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "UPDATE")) {
+            throw new SecurityException("No permission to update resource");
+        }
+
         ResourceEntity entity = resourceEntityMapper.selectOneById(req.id());
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Resource not found: " + req.id());
@@ -121,8 +156,18 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "UPDATE")) {
+            throw new SecurityException("No permission to move resource");
+        }
+
         ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
         if (entity == null || entity.getDeleteFlag() != 0L || !tenantId.equals(entity.getTenantId())) {
             throw new IllegalArgumentException("Resource not found: " + resourceId);
@@ -140,8 +185,18 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteResource(Long tenantId, Long resourceId, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "DELETE")) {
+            throw new SecurityException("No permission to delete resource");
+        }
+
         ResourceEntity entity = resourceEntityMapper.selectOneById(resourceId);
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Resource not found: " + resourceId);
@@ -151,8 +206,18 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
+        // Resolve operatorId from context if not provided
+        if (operatorId == null) {
+            operatorId = OperatorContext.getOperatorId();
+        }
+
+        // Permission check
+        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "DELETE")) {
+            throw new SecurityException("No permission to delete resources");
+        }
+
         for (Long resourceId : resourceIds) {
             deleteResource(tenantId, resourceId, operatorId);
         }
@@ -243,7 +308,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         ResourceEntity entity = resourceEntityMapper.selectOneById(req.resourceId());
         if (entity == null || entity.getDeleteFlag() != 0L || !entity.getTenantId().equals(tenantId)) {
@@ -315,7 +380,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         ResourceApiMapping mapping = apiMappingMapper.selectOneById(req.mappingId());
         if (mapping == null || mapping.getDeleteFlag() != 0L
