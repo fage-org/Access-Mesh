@@ -207,4 +207,19 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
                 .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
     }
+
+    @Override
+    public Long findByTypeAndCode(Long tenantId, Integer resourceType, String code) {
+        if (tenantId == null || resourceType == null || code == null || code.isBlank()) {
+            return null;
+        }
+        ResourceEntity entity = resourceEntityMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+                .and(RESOURCE_ENTITY.CODE.eq(code))
+                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        return entity != null ? entity.getId() : null;
+    }
 }

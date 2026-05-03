@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
+import cn.ac.fage.accessmesh.permission.service.domain.ServiceResourceValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -53,6 +54,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
     private final ServiceInterfaceSyncService serviceInterfaceSyncService;
+    private final ServiceResourceValidator serviceResourceValidator;
 
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
@@ -64,7 +66,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                                    TypeResolutionService typeResolutionService,
                                    OperationLogDomainService operationLogDomainService,
                                    AuthorizationService authorizationService,
-                                   ServiceInterfaceSyncService serviceInterfaceSyncService) {
+                                   ServiceInterfaceSyncService serviceInterfaceSyncService,
+                                   ServiceResourceValidator serviceResourceValidator) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -76,6 +79,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
         this.serviceInterfaceSyncService = serviceInterfaceSyncService;
+        this.serviceResourceValidator = serviceResourceValidator;
     }
 
     // ===== TypeDefinition =====
@@ -689,6 +693,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        
+        // Permission validation: check SYNC_INTERFACE permission on SERVICE resource
+        serviceResourceValidator.validateInterfaceSyncPermission(tenantId, operatorId, req.serviceCode());
+        
         return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }
 

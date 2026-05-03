@@ -19,6 +19,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -355,7 +356,9 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     /**
      * Checks if operator has a specific operation permission on a resource entity.
      */
-    private boolean checkPermissionOnResource(Long tenantId, Long operatorId, Long resourceEntityId, String operationCode) {
+    @Override
+    @Transactional(readOnly = true)
+    public boolean checkPermissionOnResource(Long tenantId, Long operatorId, Long resourceEntityId, String operationCode) {
         if (tenantId == null || operatorId == null || resourceEntityId == null || operationCode == null) {
             return false;
         }

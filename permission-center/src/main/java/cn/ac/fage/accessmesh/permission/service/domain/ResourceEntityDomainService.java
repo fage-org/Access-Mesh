@@ -65,4 +65,14 @@ public interface ResourceEntityDomainService {
      * Returns null if resource not found, deleted, or doesn't belong to the tenant.
      */
     ResourceEntity selectValidById(Long tenantId, Long resourceId);
+    /**
+     * Find a resource entity by resource type and code.
+     * Used for looking up SERVICE resources by service code.
+     *
+     * @param tenantId      the tenant ID
+     * @param resourceType  the resource type value (from type_definition)
+     * @param code          the resource entity code
+     * @return the resource entity ID, or null if not found
+     */
+    Long findByTypeAndCode(Long tenantId, Integer resourceType, String code);
 }

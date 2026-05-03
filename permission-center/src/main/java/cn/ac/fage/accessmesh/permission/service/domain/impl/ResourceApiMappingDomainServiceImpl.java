@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.ResourceApiMappingDomainS
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
@@ -60,5 +61,13 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
                 .and(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
                 .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
         );
+    }
+
+    @Override
+    public int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return resourceApiMappingMapper.softDeleteBatch(tenantId, ids, deletedAt);
     }
 }

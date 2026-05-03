@@ -82,6 +82,18 @@ public interface AuthorizationService {
     boolean canManageResource(Long tenantId, Long operatorId, Long resourceId);
 
     /**
+     * Checks if the operator has a specific operation permission on a resource entity.
+     * This is an instance-level permission check for any operation code.
+     *
+     * @param tenantId the tenant ID
+     * @param operatorId the operator's user ID
+     * @param resourceEntityId the resource entity ID
+     * @param operationCode the operation code (e.g., "MANAGE", "VIEW", "MANAGE_API_MAPPING", "SYNC_INTERFACE")
+     * @return true if operator has the specified operation permission on the resource
+     */
+    boolean checkPermissionOnResource(Long tenantId, Long operatorId, Long resourceEntityId, String operationCode);
+
+    /**
      * Batch checks if the operator has MANAGE permission on multiple roles.
      * Returns a map of role ID to permission result.
      * Optimized to avoid N+1 queries.
