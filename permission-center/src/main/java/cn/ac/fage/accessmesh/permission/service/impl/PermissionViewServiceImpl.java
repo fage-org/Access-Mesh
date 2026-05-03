@@ -14,12 +14,13 @@ import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.SourceRo
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.entity.*;
 import cn.ac.fage.accessmesh.permission.mapper.*;
-import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.service.LogQueryService;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,7 +51,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final UserRoleDomainService userRoleDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermissionService permissionService;
-    private final AdvancedFeatureService advancedFeatureService;
+    private final LogQueryService logQueryService;
     private final ObjectMapper objectMapper;
 
     public PermissionViewServiceImpl(AbstractUserMapper abstractUserMapper,
@@ -62,7 +63,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      UserRoleDomainService userRoleDomainService,
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
-                                     AdvancedFeatureService advancedFeatureService,
+                                     LogQueryService logQueryService,
                                      ObjectMapper objectMapper) {
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -73,7 +74,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.userRoleDomainService = userRoleDomainService;
         this.typeResolutionService = typeResolutionService;
         this.permissionService = permissionService;
-        this.advancedFeatureService = advancedFeatureService;
+        this.logQueryService = logQueryService;
         this.objectMapper = objectMapper;
     }
 
@@ -101,8 +102,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
-        int pageNum = req.pageNum() == null ? 1 : req.pageNum();
-        int pageSize = Math.min(req.pageSize() == null ? 50 : req.pageSize(), 200);
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
         if ("USER".equalsIgnoreCase(req.targetType())) {
             Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
             if (userId == null) {
@@ -161,8 +162,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * Stage 1: Prepare context with user and pagination info.
      */
     private void prepareContext(PermissionQueryContext context) {
-        context.setPageNum(context.getRequest().pageNum() == null ? 1 : context.getRequest().pageNum());
-        context.setPageSize(context.getRequest().pageSize() == null ? 50 : Math.min(context.getRequest().pageSize(), 200));
+        context.setPageNum(PageUtil.pageNum(context.getRequest().pageNum()));
+        context.setPageSize(PageUtil.pageSize(context.getRequest().pageSize()));
         context.setOffset(Math.max((context.getPageNum() - 1) * context.getPageSize(), 0));
 
         AbstractUser user = abstractUserMapper.selectOneByQuery(
@@ -799,8 +800,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         } else if ("ROLE".equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
             roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         }
-        int pageNum = req.pageNum() == null ? 1 : req.pageNum();
-        int pageSize = req.pageSize() == null ? 20 : Math.min(req.pageSize(), 200);
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = Math.max((pageNum - 1) * pageSize, 0);
         if ("USER".equalsIgnoreCase(req.targetType()) && userId == null) {
             return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
@@ -808,9 +809,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if ("ROLE".equalsIgnoreCase(req.targetType()) && roleId == null) {
             return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
         }
-        long total = advancedFeatureService.countChangeLogsFiltered(
+        long total = logQueryService.countChangeLogsFiltered(
             tenantId, userId, roleId, req.since(), req.until(), req.eventTypes());
-        List<ChangeLogResp> logs = advancedFeatureService.listChangeLogsFiltered(
+        List<ChangeLogResp> logs = logQueryService.listChangeLogsFiltered(
             tenantId, userId, roleId, req.since(), req.until(), req.eventTypes(), offset, pageSize);
         List<RecentChangeResp> items = logs.stream().map(this::toRecentChange).toList();
         int totalInt = total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;

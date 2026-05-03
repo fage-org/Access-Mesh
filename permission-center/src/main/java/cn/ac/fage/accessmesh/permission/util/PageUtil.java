@@ -6,7 +6,7 @@ package cn.ac.fage.accessmesh.permission.util;
 public final class PageUtil {
 
     private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final int MAX_PAGE_SIZE = 200;
+    public static final int MAX_PAGE_SIZE = 200;
 
     private PageUtil() {}
 

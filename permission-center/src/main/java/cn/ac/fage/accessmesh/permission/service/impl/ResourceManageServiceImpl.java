@@ -19,7 +19,9 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceApiMappingDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.ServiceResourceValidator;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
@@ -54,7 +56,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     private final TypeResolutionService typeResolutionService;
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
-    private final ServiceResourceValidator serviceResourceValidator;
+    private final ResourcePermissionValidator permissionValidator;
 
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
@@ -63,7 +65,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
                                      TypeResolutionService typeResolutionService,
                                      OperationLogDomainService operationLogDomainService,
                                      AuthorizationService authorizationService,
-                                     ServiceResourceValidator serviceResourceValidator) {
+                                     ResourcePermissionValidator permissionValidator) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
@@ -71,7 +73,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         this.typeResolutionService = typeResolutionService;
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
-        this.serviceResourceValidator = serviceResourceValidator;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -80,7 +82,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationType.CREATE)) {
             throw new SecurityException("No permission to create resource");
         }
 
@@ -114,7 +116,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "RESOURCE", "CREATE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationType.CREATE)) {
             throw new SecurityException("No permission to create resources");
         }
 
@@ -147,9 +149,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific resource
-        if (!authorizationService.canManageResource(tenantId, operatorId, req.id())) {
-            throw new SecurityException("No permission to update resource: " + req.id());
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationType.MANAGE);
 
         if (req.code() != null) entity.setCode(req.code());
         if (req.name() != null) entity.setName(req.name());
@@ -175,9 +175,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific resource
-        if (!authorizationService.canManageResource(tenantId, operatorId, resourceId)) {
-            throw new SecurityException("No permission to move resource: " + resourceId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationType.MANAGE);
 
         if (parentId != null) {
             ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
@@ -202,9 +200,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific resource
-        if (!authorizationService.canManageResource(tenantId, operatorId, resourceId)) {
-            throw new SecurityException("No permission to delete resource: " + resourceId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationType.MANAGE);
 
         resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
     }
@@ -244,22 +240,16 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
         // Batch permission check - avoid N+1 queries
-        Map<Long, Boolean> permissionMap = authorizationService.canManageResources(tenantId, operatorId, existingResources.keySet());
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, existingResources.keySet(), OperationType.MANAGE);
 
         // Filter resources that operator has permission to delete
         List<Long> permittedIds = new ArrayList<>();
-        List<Long> deniedIds = new ArrayList<>();
         for (Long resourceId : existingResources.keySet()) {
-            if (Boolean.TRUE.equals(permissionMap.get(resourceId))) {
+            if (!deniedIds.contains(resourceId)) {
                 permittedIds.add(resourceId);
             } else {
-                deniedIds.add(resourceId);
+                log.info("Operator {} denied to delete resource: {}", operatorId, resourceId);
             }
-        }
-
-        // Log denied deletions
-        if (!deniedIds.isEmpty()) {
-            log.info("Operator {} denied to delete resources: {}", operatorId, deniedIds);
         }
 
         // Execute batch delete for permitted resources
@@ -381,7 +371,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         // Permission validation: check MANAGE_API_MAPPING permission on SERVICE resource
         Long operatorId = OperatorContext.getOperatorId();
-        serviceResourceValidator.validateApiMappingPermission(tenantId, operatorId, req.serviceCode());
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationType.MANAGE_API_MAPPING);
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.resourceId());
         if (entity == null) {
@@ -440,7 +430,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             .collect(Collectors.toSet());
 
         // Use batch validation to avoid N+1 queries
-        serviceResourceValidator.validateApiMappingPermissionBatch(tenantId, operatorId, serviceCodes);
+        permissionValidator.validateBatch(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCodes, OperationType.MANAGE_API_MAPPING);
 
         // Batch soft delete all valid mappings (single query)
         LocalDateTime now = LocalDateTime.now();
@@ -486,7 +476,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             throw new IllegalArgumentException("Api mapping not found: " + req.mappingId());
         }
         // Validate permission using the mapping's service code (from database, not request)
-        serviceResourceValidator.validateApiMappingPermission(tenantId, operatorId, mapping.getServiceCode());
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationType.MANAGE_API_MAPPING);
         if (req.httpMethod() != null) {
             mapping.setHttpMethod(req.httpMethod());
         }

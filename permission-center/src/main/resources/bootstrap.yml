@@ -39,6 +39,15 @@ perm:
   # REQUIRED: Application will fail to start if not configured.
   # Set PERM_INTERNAL_SECRET environment variable or configure in Nacos.
   internal-secret: ${PERM_INTERNAL_SECRET:}
+
+  # Header signature validation configuration.
+  # Validates HMAC-SHA256 signatures on X-User-Id and X-Tenant-Id headers.
+  # Must match gateway.signature.secret in gateway configuration.
+  signature:
+    enabled: true
+    secret: ${ACCESSMESH_SIGNATURE_SECRET:}
+    valid-seconds: 300
+
   cache:
     l1:
       maximum-size: ${PERM_CACHE_L1_SIZE:1000}

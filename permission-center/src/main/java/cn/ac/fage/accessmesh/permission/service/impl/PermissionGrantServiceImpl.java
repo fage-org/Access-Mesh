@@ -22,10 +22,13 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -67,6 +70,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final AuthorizationService authorizationService;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final AbstractRoleDomainService abstractRoleDomainService;
+    private final ResourcePermissionValidator permissionValidator;
 
     public PermissionGrantServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
@@ -83,7 +87,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       TypeResolutionService typeResolutionService,
                                       AuthorizationService authorizationService,
                                       OperationPermissionDomainService operationPermissionDomainService,
-                                      AbstractRoleDomainService abstractRoleDomainService) {
+                                      AbstractRoleDomainService abstractRoleDomainService,
+                                      ResourcePermissionValidator permissionValidator) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -100,6 +105,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.authorizationService = authorizationService;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.abstractRoleDomainService = abstractRoleDomainService;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -114,9 +120,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - MANAGE permission on role
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
-            throw new SecurityException("Operator " + operatorId + " lacks MANAGE permission for role " + roleId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         boolean hasChanges = (req.add() != null && !req.add().isEmpty())
             || (req.update() != null && !req.update().isEmpty())
@@ -362,8 +366,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rolePermMapper.update(existing);
         }
 
-        for (RoleResourcePermission rp : toInsert) {
-            rolePermMapper.insert(rp);
+        if (!toInsert.isEmpty()) {
+            rolePermMapper.insertBatch(toInsert);
         }
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -403,9 +407,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
-            throw new SecurityException("Operator " + operatorId + " lacks MANAGE permission for role " + roleId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
         LocalDateTime now = LocalDateTime.now();
@@ -444,7 +446,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - VIEW permission required
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.hasPermissionOnRole(tenantId, operatorId, roleId, "VIEW")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.VIEW)) {
             return List.of();
         }
 
@@ -467,7 +469,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - VIEW permission required
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.hasPermissionOnRole(tenantId, operatorId, parent.getAbstractRoleId(), "VIEW")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationType.VIEW)) {
             return List.of();
         }
 
@@ -491,9 +493,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.canManageRole(tenantId, operatorId, parent.getAbstractRoleId())) {
-            throw new SecurityException("Operator " + operatorId + " lacks MANAGE permission for role " + parent.getAbstractRoleId());
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationType.MANAGE);
 
         if (parent.getDependOn() != null) {
             throw new IllegalArgumentException("parentPermissionId must be a top-level permission");
@@ -586,9 +586,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.canManageRole(tenantId, operatorId, child.getAbstractRoleId())) {
-            throw new SecurityException("Operator " + operatorId + " lacks MANAGE permission for role " + child.getAbstractRoleId());
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationType.MANAGE);
 
         if (child.getDependOn() == null) {
             throw new IllegalArgumentException("permission is not a child");

@@ -18,6 +18,7 @@ import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +28,12 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Instance-level cache for parsed condition rules (JsonNode).
+     * Key: conditionId, Value: parsed JsonNode (only the rules, not the evaluation result)
+     */
+    private final Map<Long, JsonNode> rulesCache = new ConcurrentHashMap<>();
 
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
                                                  ObjectMapper objectMapper) {
@@ -51,13 +58,31 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     private boolean evaluateCondition(Long conditionId, Map<String, Object> context) {
-        PermissionCondition condition = conditionMapper.selectOneById(conditionId);
-        if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())) {
-            return false;
+        // Try to get parsed rules from instance-level cache first
+        JsonNode rules = rulesCache.get(conditionId);
+
+        if (rules == null) {
+            // Cache miss: fetch from database and parse JSON
+            PermissionCondition condition = conditionMapper.selectOneById(conditionId);
+            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())) {
+                return false;
+            }
+
+            try {
+                rules = objectMapper.readTree(condition.getConditionRules());
+                // Cache the parsed JsonNode for future use
+                rulesCache.put(conditionId, rules);
+            } catch (JsonProcessingException e) {
+                log.warn("Invalid conditionRules JSON format, conditionId: {}, error: {}",
+                    conditionId, e.getMessage());
+                return false;
+            } catch (Exception e) {
+                log.error("Unexpected error parsing conditionRules, conditionId: {}", conditionId, e);
+                return false;
+            }
         }
 
         try {
-            JsonNode rules = objectMapper.readTree(condition.getConditionRules());
             String logic = rules.has("logic") ? rules.get("logic").asText() : "AND";
             JsonNode items = rules.get("items");
             if (items == null || !items.isArray()) return false;
@@ -69,10 +94,6 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 if (!allMatch && matched) return true;
             }
             return allMatch;
-        } catch (JsonProcessingException e) {
-            log.warn("Invalid conditionRules JSON format, conditionId: {}, rules: {}, error: {}",
-                conditionId, condition.getConditionRules(), e.getMessage());
-            return false;
         } catch (Exception e) {
             log.error("Unexpected error evaluating condition, conditionId: {}", conditionId, e);
             return false;

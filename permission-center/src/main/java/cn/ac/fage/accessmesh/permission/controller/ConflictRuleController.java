@@ -11,59 +11,56 @@ import cn.ac.fage.accessmesh.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictRuleResp;
-import cn.ac.fage.accessmesh.permission.service.AdvancedFeatureService;
+import cn.ac.fage.accessmesh.permission.service.ConflictRuleManageService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * Conflict rule management API.
- * All APIs: POST + JSON Body.
  */
 @RestController
 @RequestMapping("/api/perm/conflict-rule")
 public class ConflictRuleController {
 
-    private final AdvancedFeatureService advancedFeatureService;
+    private final ConflictRuleManageService conflictRuleManageService;
 
-    public ConflictRuleController(AdvancedFeatureService advancedFeatureService) {
-        this.advancedFeatureService = advancedFeatureService;
+    public ConflictRuleController(ConflictRuleManageService conflictRuleManageService) {
+        this.conflictRuleManageService = conflictRuleManageService;
     }
 
     @PostMapping("/create")
     public PermResult<ConflictRuleResp> createConflictRule(@Valid @RequestBody ConflictRuleReq req) {
-        return PermResult.success(advancedFeatureService.createConflictRule(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(conflictRuleManageService.createConflictRule(TenantContextHolder.getTenantId(), req, null));
     }
 
     @PostMapping("/detail")
     public PermResult<ConflictRuleResp> getConflictRule(@Valid @RequestBody IdReq req) {
-        return PermResult.success(advancedFeatureService.getConflictRule(TenantContextHolder.getTenantId(), req.id()));
+        return PermResult.success(conflictRuleManageService.getConflictRule(TenantContextHolder.getTenantId(), req.id()));
     }
 
     @PostMapping("/list")
     public PermResult<ItemsResp<ConflictRuleResp>> listConflictRules(@Valid @RequestBody EmptyReq req) {
         return PermResult.success(new ItemsResp<>(
-            advancedFeatureService.listConflictRules(TenantContextHolder.getTenantId())
+            conflictRuleManageService.listConflictRules(TenantContextHolder.getTenantId())
         ));
     }
 
     @PostMapping("/remove")
     public PermResult<Void> deleteConflictRule(@Valid @RequestBody IdsReq req) {
-        advancedFeatureService.deleteConflictRulesByIds(TenantContextHolder.getTenantId(), req.ids(), null);
+        conflictRuleManageService.deleteConflictRulesByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 
     @PostMapping("/update")
     public PermResult<ConflictRuleResp> updateConflictRule(@Valid @RequestBody ConflictRuleUpdateReq req) {
-        return PermResult.success(advancedFeatureService.updateConflictRule(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(conflictRuleManageService.updateConflictRule(TenantContextHolder.getTenantId(), req, null));
     }
 
     @PostMapping("/detect")
     public PermResult<ConflictDetectResp> detectConflictRule(@Valid @RequestBody ConflictRuleDetectReq req) {
-        return PermResult.success(advancedFeatureService.detectConflictRule(TenantContextHolder.getTenantId(), req));
+        return PermResult.success(conflictRuleManageService.detectConflictRule(TenantContextHolder.getTenantId(), req));
     }
 }

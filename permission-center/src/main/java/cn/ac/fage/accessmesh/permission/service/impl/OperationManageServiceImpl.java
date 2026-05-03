@@ -6,6 +6,9 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -27,15 +30,18 @@ public class OperationManageServiceImpl implements OperationManageService {
     private final TypeResolutionService typeResolutionService;
     private final AuthorizationService authorizationService;
     private final OperationLogDomainService operationLogDomainService;
+    private final ResourcePermissionValidator permissionValidator;
 
     public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
                                       AuthorizationService authorizationService,
-                                      OperationLogDomainService operationLogDomainService) {
+                                      OperationLogDomainService operationLogDomainService,
+                                      ResourcePermissionValidator permissionValidator) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.authorizationService = authorizationService;
         this.operationLogDomainService = operationLogDomainService;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -120,7 +126,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (added - was missing)
-        if (!authorizationService.hasPermission(tenantId, operatorId, "OPERATION", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 

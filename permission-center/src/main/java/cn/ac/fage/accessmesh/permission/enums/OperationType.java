@@ -1,25 +1,96 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+/**
+ * Operation types for permission checks.
+ * Used as parameter in permission validation methods for extensibility.
+ */
 public enum OperationType {
+    /**
+     * Create new resource instance - type-level permission check.
+     */
     CREATE("CREATE"),
+
+    /**
+     * View resource instance details.
+     */
+    VIEW("VIEW"),
+
+    /**
+     * Manage resource instance (update settings, properties).
+     */
+    MANAGE("MANAGE"),
+
+    /**
+     * Update resource instance - alias for MANAGE in some contexts.
+     */
     UPDATE("UPDATE"),
+
+    /**
+     * Delete resource instance.
+     */
     DELETE("DELETE"),
+
+    /**
+     * Assign roles/permissions to users.
+     */
     ASSIGN("ASSIGN"),
+
+    /**
+     * Revoke roles/permissions from users.
+     */
+    REVOKE("REVOKE"),
+
+    /**
+     * Sync data (interfaces, resources, etc).
+     */
     SYNC("SYNC"),
-    REVOKE("REVOKE");
 
-    private final String value;
+    /**
+     * Manage API mappings for a service resource.
+     */
+    MANAGE_API_MAPPING("MANAGE_API_MAPPING"),
 
-    OperationType(String value) {
-        this.value = value;
+    /**
+     * Sync interfaces for a service.
+     */
+    SYNC_INTERFACE("SYNC_INTERFACE"),
+
+    /**
+     * Grant permissions on resource to others.
+     */
+    GRANT("GRANT");
+
+    private final String code;
+
+    OperationType(String code) {
+        this.code = code;
     }
 
-    public String getValue() { return value; }
+    public String getCode() {
+        return code;
+    }
 
-    public static OperationType fromValue(String value) {
-        for (OperationType t : values()) {
-            if (t.value.equals(value)) return t;
+    /**
+     * Parse from code string, case-insensitive.
+     */
+    public static OperationType fromCode(String code) {
+        if (code == null || code.isBlank()) {
+            return null;
         }
-        throw new IllegalArgumentException("Unknown OperationType value: " + value);
+        String normalized = code.trim().toUpperCase();
+        for (OperationType op : values()) {
+            if (op.code.equals(normalized) || op.name().equals(normalized)) {
+                return op;
+            }
+        }
+        throw new IllegalArgumentException("Unknown OperationType: " + code);
+    }
+
+    /**
+     * Check if this operation is a type-level operation (no specific instance).
+     * CREATE is type-level because the instance doesn't exist yet.
+     */
+    public boolean isTypeLevelOperation() {
+        return this == CREATE;
     }
 }

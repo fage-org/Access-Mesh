@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -60,6 +61,10 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void grantPermissions(Long tenantId, Long roleId, List<RolePermSnapshot.RolePermEntry> entries, String changeSource) {
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        List<RoleResourcePermission> toInsert = new ArrayList<>(entries.size());
         for (RolePermSnapshot.RolePermEntry entry : entries) {
             RoleResourcePermission rp = new RoleResourcePermission();
             rp.setTenantId(tenantId);
@@ -75,8 +80,9 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setCreatedAt(LocalDateTime.now());
             rp.setUpdatedAt(LocalDateTime.now());
             rp.setDeleteFlag(0L);
-            rolePermMapper.insert(rp);
+            toInsert.add(rp);
         }
+        rolePermMapper.insertBatch(toInsert);
         permissionVersionDomainService.increment(tenantId, roleId);
     }
 

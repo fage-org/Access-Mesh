@@ -10,6 +10,9 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.RoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
@@ -51,6 +54,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final AuthorizationService authorizationService;
+    private final ResourcePermissionValidator permissionValidator;
 
     public RoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  AbstractRoleDomainService abstractRoleDomainService,
@@ -59,7 +63,8 @@ public class RoleManageServiceImpl implements RoleManageService {
                                  ObjectMapper objectMapper,
                                  OperationLogDomainService operationLogDomainService,
                                  PermissionChangeDomainService permissionChangeDomainService,
-                                 AuthorizationService authorizationService) {
+                                 AuthorizationService authorizationService,
+                                 ResourcePermissionValidator permissionValidator) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.abstractRoleDomainService = abstractRoleDomainService;
         this.permCacheDomainService = permCacheDomainService;
@@ -68,6 +73,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.authorizationService = authorizationService;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -76,7 +82,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "ROLE", "CREATE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationType.CREATE)) {
             throw new SecurityException("No permission to create role");
         }
 
@@ -115,9 +121,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
-            throw new SecurityException("No permission to update role: " + roleId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         if (name != null) role.setName(name);
         if (status != null) role.setStatus(status);
@@ -141,9 +145,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
-            throw new SecurityException("No permission to move role: " + roleId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         if (parentId != null) {
             AbstractRole parent = abstractRoleDomainService.selectValidById(tenantId, parentId);
@@ -168,9 +170,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        if (!authorizationService.canManageRole(tenantId, operatorId, roleId)) {
-            throw new SecurityException("No permission to delete role: " + roleId);
-        }
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         abstractRoleDomainService.deleteRole(tenantId, roleId);
 
@@ -213,22 +213,16 @@ public class RoleManageServiceImpl implements RoleManageService {
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
         // Batch permission check - avoid N+1 queries
-        Map<Long, Boolean> permissionMap = authorizationService.canManageRoles(tenantId, operatorId, existingRoles.keySet());
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationType.MANAGE);
 
         // Filter roles that operator has permission to delete
         List<Long> permittedIds = new ArrayList<>();
-        List<Long> deniedIds = new ArrayList<>();
         for (Long roleId : existingRoles.keySet()) {
-            if (Boolean.TRUE.equals(permissionMap.get(roleId))) {
+            if (!deniedIds.contains(roleId)) {
                 permittedIds.add(roleId);
             } else {
-                deniedIds.add(roleId);
+                log.info("Operator {} denied to delete role: {}", operatorId, roleId);
             }
-        }
-
-        // Log denied deletions
-        if (!deniedIds.isEmpty()) {
-            log.info("Operator {} denied to delete roles: {}", operatorId, deniedIds);
         }
 
         if (permittedIds.isEmpty()) {

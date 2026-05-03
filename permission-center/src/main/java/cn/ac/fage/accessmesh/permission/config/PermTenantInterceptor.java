@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.config;
 
+import cn.ac.fage.accessmesh.permission.util.SecurityEventType;
+import cn.ac.fage.accessmesh.permission.util.SecurityLogUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -26,7 +28,13 @@ public class PermTenantInterceptor implements HandlerInterceptor {
         String tenantIdStr = request.getHeader(HEADER_TENANT_ID);
 
         if (tenantIdStr == null || tenantIdStr.isBlank()) {
-            log.warn("Missing required header X-Tenant-Id from request: {} {}", request.getMethod(), request.getRequestURI());
+            SecurityLogUtil.logSecurityEvent(
+                SecurityEventType.BLOCKED_REQUEST,
+                request,
+                "Missing required header: X-Tenant-Id",
+                null,
+                null
+            );
             writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Missing required header: X-Tenant-Id");
             return false;
         }
@@ -35,7 +43,14 @@ public class PermTenantInterceptor implements HandlerInterceptor {
             Long tenantId = Long.parseLong(tenantIdStr.trim());
             TenantContextHolder.setTenantId(tenantId);
         } catch (NumberFormatException e) {
-            log.warn("Invalid X-Tenant-Id header value: {} from request: {} {}", tenantIdStr, request.getMethod(), request.getRequestURI());
+            // Use structured logging to prevent log injection attacks
+            SecurityLogUtil.logSecurityEvent(
+                SecurityEventType.SUSPICIOUS_INPUT,
+                request,
+                "Invalid X-Tenant-Id header format",
+                null,
+                tenantIdStr
+            );
             writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid X-Tenant-Id header format");
             return false;
         }

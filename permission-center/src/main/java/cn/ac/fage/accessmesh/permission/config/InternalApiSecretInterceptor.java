@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.config;
 
+import cn.ac.fage.accessmesh.permission.util.SecurityEventType;
+import cn.ac.fage.accessmesh.permission.util.SecurityLogUtil;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,10 +49,18 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
                              Object handler) throws Exception {
         String providedSecret = request.getHeader(SECRET_HEADER);
         if (providedSecret == null || !providedSecret.equals(expectedSecret)) {
-            String clientIp = getClientIp(request);
             String userId = request.getHeader("X-User-Id");
-            log.warn("Blocked request without valid X-Internal-Secret: {} {} from IP={}, userId={}",
-                request.getMethod(), request.getRequestURI(), clientIp, userId);
+            String tenantId = request.getHeader("X-Tenant-Id");
+            
+            // Use structured logging to prevent log injection attacks
+            SecurityLogUtil.logSecurityEvent(
+                SecurityEventType.BLOCKED_REQUEST,
+                request,
+                "Missing or invalid X-Internal-Secret header",
+                userId,
+                tenantId
+            );
+            
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -60,17 +70,5 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
             return false;
         }
         return true;
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.isNotEmpty(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null) {
-            return realIp;
-        }
-        return request.getRemoteAddr();
     }
 }

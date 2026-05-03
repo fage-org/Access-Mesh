@@ -20,8 +20,11 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
-import cn.ac.fage.accessmesh.permission.service.domain.ServiceResourceValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.TypeDefPermissionStrategy;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -54,7 +57,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
     private final ServiceInterfaceSyncService serviceInterfaceSyncService;
-    private final ServiceResourceValidator serviceResourceValidator;
+    private final ResourcePermissionValidator permissionValidator;
+    private final TypeDefPermissionStrategy typeDefPermissionStrategy;
 
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
@@ -67,7 +71,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                                    OperationLogDomainService operationLogDomainService,
                                    AuthorizationService authorizationService,
                                    ServiceInterfaceSyncService serviceInterfaceSyncService,
-                                   ServiceResourceValidator serviceResourceValidator) {
+                                   ResourcePermissionValidator permissionValidator,
+                                   TypeDefPermissionStrategy typeDefPermissionStrategy) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -79,7 +84,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
         this.serviceInterfaceSyncService = serviceInterfaceSyncService;
-        this.serviceResourceValidator = serviceResourceValidator;
+        this.permissionValidator = permissionValidator;
+        this.typeDefPermissionStrategy = typeDefPermissionStrategy;
     }
 
     // ===== TypeDefinition =====
@@ -89,10 +95,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check - TYPE_DEFINITION management requires SYSTEM admin
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
-            throw new SecurityException("No permission to create type definition");
-        }
+        // Permission check - instance-level for TYPE_DEFINITION resource
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationType.CREATE);
 
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
@@ -144,16 +148,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public void deleteType(Long tenantId, Long typeId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
-            throw new SecurityException("No permission to delete type definition");
+
+
+        // Permission check - instance-level for TYPE_DEFINITION resource
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationType.MANAGE);
+
+        // Check if system type - cannot be deleted
+        if (typeDefPermissionStrategy.isSystemType(tenantId, typeId)) {
+            throw new IllegalStateException("Cannot delete system type: " + typeId);
         }
 
         TypeDefinition type = typeDefinitionMapper.selectOneById(typeId);
         if (type != null && type.getDeleteFlag() == 0L && type.getTenantId().equals(tenantId)) {
-            if (Boolean.TRUE.equals(type.getIsSystem())) {
-                throw new IllegalStateException("Cannot delete system type: " + typeId);
-            }
             type.setDeleteFlag(type.getId());
             type.setDeletedAt(LocalDateTime.now());
             typeDefinitionMapper.update(type);
@@ -164,11 +170,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        // Permission check (entry-level)
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
-            throw new SecurityException("No permission to delete type definitions");
-        }
 
         if (ids == null || ids.isEmpty()) {
             return;
@@ -182,6 +183,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (validInputIds.isEmpty()) {
             return;
         }
+
+        // Permission check - instance-level batch validation for TYPE_DEFINITION resources
+        permissionValidator.validateBatch(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationType.MANAGE);
 
         // Batch query (avoid N+1)
         List<TypeDefinition> entities = typeDefinitionMapper.selectListByQuery(
@@ -205,15 +209,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Batch update (soft delete) - use entity ID as deleteFlag
+        // Batch soft delete using mapper method
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            TypeDefinition updateEntity = new TypeDefinition();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            typeDefinitionMapper.update(updateEntity);
-        }
+        typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         // Log record
         operationLogDomainService.asyncRecord(
@@ -234,10 +232,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
-            throw new SecurityException("No permission to update type definition");
-        }
+        // Permission check - instance-level for TYPE_DEFINITION resource
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationType.MANAGE);
 
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
@@ -264,7 +260,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
 
@@ -307,7 +303,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to delete biz domain");
         }
 
@@ -325,7 +321,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (entry-level)
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
 
@@ -389,7 +385,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
 
@@ -414,7 +410,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         // Permission check for config operations
         Long operatorId = OperatorContext.getOperatorId();
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
 
@@ -487,7 +483,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (added - was missing)
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
 
@@ -553,7 +549,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to save service config");
         }
 
@@ -586,7 +582,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to create service config");
         }
         ServiceConfig config = new ServiceConfig();
@@ -631,7 +627,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (entry-level)
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to delete service configs");
         }
 
@@ -695,7 +691,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         
         // Permission validation: check SYNC_INTERFACE permission on SERVICE resource
-        serviceResourceValidator.validateInterfaceSyncPermission(tenantId, operatorId, req.serviceCode());
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationType.SYNC_INTERFACE);
         
         return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }

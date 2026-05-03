@@ -16,6 +16,7 @@ public class GatewayProperties {
     private Cache cache = new Cache();
     private Header header = new Header();
     private Permission permission = new Permission();
+    private Signature signature = new Signature();
 
     public Whitelist getWhitelist() {
         return whitelist;
@@ -47,6 +48,14 @@ public class GatewayProperties {
 
     public void setPermission(Permission permission) {
         this.permission = permission;
+    }
+
+    public Signature getSignature() {
+        return signature;
+    }
+
+    public void setSignature(Signature signature) {
+        this.signature = signature;
     }
 
     public static class Whitelist {
@@ -106,7 +115,9 @@ public class GatewayProperties {
             "X-User-Name",
             "X-User-Roles",
             "X-User-Type",
-            "X-Internal-Secret"
+            "X-Internal-Secret",
+            "X-User-Signature",
+            "X-Signature-Timestamp"
         );
         private Enrich enrich = new Enrich();
 
@@ -202,6 +213,65 @@ public class GatewayProperties {
 
         public void setUnregisteredPolicy(String unregisteredPolicy) {
             this.unregisteredPolicy = unregisteredPolicy;
+        }
+    }
+
+    /**
+     * Signature configuration for header signing.
+     * Used to prevent header tampering between gateway and downstream services.
+     */
+    public static class Signature {
+        /**
+         * Whether signature generation is enabled.
+         */
+        private boolean enabled = true;
+
+        /**
+         * Secret key for HMAC-SHA256 signing.
+         * Should be configured via environment variable for security.
+         */
+        private String secret;
+
+        /**
+         * Header name for the signature value.
+         */
+        private String headerName = "X-User-Signature";
+
+        /**
+         * Header name for the signature timestamp.
+         */
+        private String timestampHeaderName = "X-Signature-Timestamp";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getSecret() {
+            return secret;
+        }
+
+        public void setSecret(String secret) {
+            this.secret = secret;
+        }
+
+        public String getHeaderName() {
+            return headerName;
+        }
+
+        public void setHeaderName(String headerName) {
+            this.headerName = headerName;
+        }
+
+        public String getTimestampHeaderName() {
+            return timestampHeaderName;
+        }
+
+        public void setTimestampHeaderName(String timestampHeaderName) {
+            this.timestampHeaderName = timestampHeaderName;
         }
     }
 }

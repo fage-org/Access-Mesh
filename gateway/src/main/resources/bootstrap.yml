@@ -104,6 +104,8 @@ gateway:
       - X-User-Roles
       - X-User-Type
       - X-Internal-Secret
+      - X-User-Signature
+      - X-Signature-Timestamp
     enrich:
       request-id: X-Request-Id
       tenant-id: X-Tenant-Id
@@ -115,6 +117,17 @@ gateway:
     service-url: lb://permission-center
     check-interface-path: /api/perm/auth/check-interface
     unregistered-policy: DENY
+
+  # Header signature configuration
+  # Signs user identity headers (X-User-Id, X-Tenant-Id) to prevent tampering
+  signature:
+    enabled: true
+    # Secret key for HMAC-SHA256 signing
+    # MUST be configured via environment variable: ACCESSMESH_SIGNATURE_SECRET
+    # Must match perm.signature.secret in permission-center
+    secret: ${ACCESSMESH_SIGNATURE_SECRET:}
+    header-name: X-User-Signature
+    timestamp-header-name: X-Signature-Timestamp
 
 logging:
   config: classpath:log4j2-spring.xml

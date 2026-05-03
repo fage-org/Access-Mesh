@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
@@ -38,29 +40,52 @@ import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionT
 @Service
 public class TypeResolutionServiceImpl implements TypeResolutionService {
 
+    private static final String TYPE_VALUE_CACHE_KEY_PREFIX = "perm:type:value:";
+    private static final String TYPE_CODE_CACHE_KEY_PREFIX = "perm:type:code:";
+    private static final long TYPE_CACHE_TTL_HOURS = 1; // 字典/枚举配置类数据，L2 TTL 为 1 小时
+    private static final long NULL_CACHE_TTL_SECONDS = 30; // NULL 值缓存 TTL 不超过 30 秒，防止缓存穿透
+    private static final String NULL_MARKER = "##NULL##";
+
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final BizDomainMapper bizDomainMapper;
     private final AbstractRoleMapper abstractRoleMapper;
     private final OperationPermissionMapper operationPermissionMapper;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     public TypeResolutionServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                      AbstractUserMapper abstractUserMapper,
                                      ResourceEntityMapper resourceEntityMapper,
                                      BizDomainMapper bizDomainMapper,
                                      AbstractRoleMapper abstractRoleMapper,
-                                     OperationPermissionMapper operationPermissionMapper) {
+                                     OperationPermissionMapper operationPermissionMapper,
+                                     RedisTemplate<String, Object> redisTemplate) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.operationPermissionMapper = operationPermissionMapper;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {
+        String cacheKey = TYPE_VALUE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeCode;
+
+        // Try to get from cache
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            if (NULL_MARKER.equals(cached)) {
+                return null;
+            }
+            if (cached instanceof Integer) {
+                return (Integer) cached;
+            }
+        }
+
+        // Cache miss, query database
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -68,7 +93,17 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 .and(TYPE_DEFINITION.TYPE_CODE.eq(typeCode))
                 .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
-        return td != null ? td.getTypeValue() : null;
+
+        Integer result = td != null ? td.getTypeValue() : null;
+
+        // Cache the result (use NULL_MARKER for null values to distinguish from cache miss)
+        if (result != null) {
+            redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        } else {
+            redisTemplate.opsForValue().set(cacheKey, NULL_MARKER, NULL_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+        }
+
+        return result;
     }
 
     @Override
@@ -94,6 +129,21 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (typeValue == null) {
             return null;
         }
+
+        String cacheKey = TYPE_CODE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeValue;
+
+        // Try to get from cache
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            if (NULL_MARKER.equals(cached)) {
+                return null;
+            }
+            if (cached instanceof String) {
+                return (String) cached;
+            }
+        }
+
+        // Cache miss, query database
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -101,7 +151,17 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 .and(TYPE_DEFINITION.TYPE_VALUE.eq(typeValue))
                 .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
-        return td != null ? td.getTypeCode() : null;
+
+        String result = td != null ? td.getTypeCode() : null;
+
+        // Cache the result (use NULL_MARKER for null values to distinguish from cache miss)
+        if (result != null) {
+            redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        } else {
+            redisTemplate.opsForValue().set(cacheKey, NULL_MARKER, NULL_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+        }
+
+        return result;
     }
 
     @Override

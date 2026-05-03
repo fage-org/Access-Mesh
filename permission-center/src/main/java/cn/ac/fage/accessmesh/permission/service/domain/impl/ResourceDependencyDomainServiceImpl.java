@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
 import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
 
 @Service
 public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDomainService {
@@ -230,17 +229,11 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                 resourceType = resource.getResourceType();
             }
         }
-        List<OperationPermission> operations = operationPermissionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(resourceType == null ? OPERATION_PERMISSION.ID.isNotNull() : OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType))
-                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-        );
-        for (OperationPermission operation : operations) {
-            long effectiveBits = operation.getEffectiveBits();
-            if ((effectiveBits & requiredBits) == requiredBits) {
-                return operation.getId();
-            }
+        // Use SQL bitwise filtering to avoid full table load
+        List<OperationPermission> matchingOps = operationPermissionMapper.selectByEffectiveBitsMatch(
+            tenantId, resourceType, requiredBits);
+        if (!matchingOps.isEmpty()) {
+            return matchingOps.get(0).getId();
         }
         return fallbackOperationId;
     }

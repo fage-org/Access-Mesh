@@ -49,6 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.AntPathMatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,6 +75,7 @@ import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTa
 public class PermissionServiceImpl implements PermissionService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
@@ -1135,20 +1137,8 @@ public class PermissionServiceImpl implements PermissionService {
 
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
-        if (pattern.contains("{")) {
-            String[] pp = pattern.split("/"), ap = path.split("/");
-            if (pp.length != ap.length) return false;
-            for (int i = 0; i < pp.length; i++) {
-                if (pp[i].startsWith("{") && pp[i].endsWith("}")) continue;
-                if (!pp[i].equals(ap[i])) return false;
-            }
-            return true;
-        }
-        if (pattern.contains("*")) {
-            String regex = pattern.replace(".", "\\.").replace("**", ".*").replace("*", "[^/]*");
-            return path.matches(regex);
-        }
-        return false;
+        // AntPathMatcher 支持 *、**、{xxx} 三种通配符
+        return PATH_MATCHER.match(pattern, path);
     }
 
     @Override

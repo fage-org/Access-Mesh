@@ -6,6 +6,8 @@ import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
@@ -37,6 +39,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
     private final OperationLogDomainService operationLogDomainService;
     private final TypeResolutionService typeResolutionService;
     private final SyncModeStrategyFactory strategyFactory;
+    private final ResourcePermissionValidator permissionValidator;
 
     public ServiceInterfaceSyncServiceImpl(
             ResourceSyncHandler resourceSyncHandler,
@@ -45,7 +48,8 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
             AuthorizationService authorizationService,
             OperationLogDomainService operationLogDomainService,
             TypeResolutionService typeResolutionService,
-            SyncModeStrategyFactory strategyFactory) {
+            SyncModeStrategyFactory strategyFactory,
+            ResourcePermissionValidator permissionValidator) {
         this.resourceSyncHandler = resourceSyncHandler;
         this.mappingSyncHandler = mappingSyncHandler;
         this.serviceConfigMapper = serviceConfigMapper;
@@ -53,6 +57,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
         this.operationLogDomainService = operationLogDomainService;
         this.typeResolutionService = typeResolutionService;
         this.strategyFactory = strategyFactory;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -94,7 +99,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
      * Validate permission for sync operation.
      */
     private void validatePermission(Long tenantId, Long operatorId) {
-        if (!authorizationService.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", "MANAGE")) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to sync service interfaces");
         }
     }

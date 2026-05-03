@@ -1,9 +1,7 @@
 package cn.ac.fage.accessmesh.permission.util;
 
-import cn.ac.fage.accessmesh.permission.dto.req.PermissionCheckBatchReq;
-import cn.ac.fage.accessmesh.permission.dto.resp.PermissionCheckBatchResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.PermissionCheckResp;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,22 +20,35 @@ public final class PermissionCheckUtils {
      * Check if operator can manage multiple users.
      * Handles self-modification exception: operator can always manage themselves.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetUserIds the target user IDs to check
      * @return PermissionBatchResult containing allowed and denied IDs
      */
     public static PermissionBatchResult checkCanManageUsersWithSelfModification(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
 
-        PermissionCheckBatchResp resp = authService.checkPermissionsBatch(
-            tenantId,
-            new PermissionCheckBatchReq(operatorId, "USER", targetUserIds, Set.of("MANAGE"))
-        );
+        // Filter out self (self-modification is always allowed)
+        Set<Long> nonSelfUserIds = targetUserIds.stream()
+            .filter(id -> !operatorId.equals(id))
+            .collect(Collectors.toSet());
 
-        Set<Long> allowedIds = resp.getIdsWithPermission("MANAGE");
-        Set<Long> deniedIds = resp.getIdsWithoutPermission("MANAGE");
+        if (nonSelfUserIds.isEmpty()) {
+            // All are self, all allowed
+            return new PermissionBatchResult(targetUserIds, Set.of());
+        }
+
+        // USER MANAGE is type-level, so check once
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "USER", nonSelfUserIds, OperationType.MANAGE);
+
+        // Build result: self + allowed non-self = allowed, denied non-self = denied
+        Set<Long> allowedIds = new HashSet<>();
+        for (Long id : targetUserIds) {
+            if (operatorId.equals(id) || !deniedIds.contains(id)) {
+                allowedIds.add(id);
+            }
+        }
 
         return new PermissionBatchResult(allowedIds, deniedIds);
     }
@@ -46,48 +57,43 @@ public final class PermissionCheckUtils {
      * Check if operator can manage multiple users WITHOUT self-modification exception.
      * Self-modification is NOT allowed - strict permission check.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetUserIds the target user IDs to check
      * @return PermissionBatchResult containing allowed and denied IDs
      */
     public static PermissionBatchResult checkCanManageUsersStrict(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
 
-        // For strict check, we need to override the self-modification logic
-        // Use RESOURCE type instead of USER type to avoid self-modification exception
-        // But since USER permissions are global, we just check if operator has USER:MANAGE
+        // USER MANAGE is type-level permission
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "USER", targetUserIds, OperationType.MANAGE);
 
-        boolean hasManagePermission = authService.hasPermission(tenantId, operatorId, "USER", "MANAGE");
+        Set<Long> allowedIds = targetUserIds.stream()
+            .filter(id -> !deniedIds.contains(id))
+            .collect(Collectors.toSet());
 
-        if (hasManagePermission) {
-            return new PermissionBatchResult(targetUserIds, Set.of());
-        } else {
-            return new PermissionBatchResult(Set.of(), targetUserIds);
-        }
+        return new PermissionBatchResult(allowedIds, deniedIds);
     }
 
     /**
      * Check if operator can manage multiple roles.
      * No self-modification exception applies.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetRoleIds the target role IDs to check
      * @return PermissionBatchResult containing allowed and denied IDs
      */
     public static PermissionBatchResult checkCanManageRoles(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
 
-        PermissionCheckBatchResp resp = authService.checkPermissionsBatch(
-            tenantId,
-            new PermissionCheckBatchReq(operatorId, "ROLE", targetRoleIds, Set.of("MANAGE"))
-        );
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "ROLE", targetRoleIds, OperationType.MANAGE);
 
-        Set<Long> allowedIds = resp.getIdsWithPermission("MANAGE");
-        Set<Long> deniedIds = resp.getIdsWithoutPermission("MANAGE");
+        Set<Long> allowedIds = targetRoleIds.stream()
+            .filter(id -> !deniedIds.contains(id))
+            .collect(Collectors.toSet());
 
         return new PermissionBatchResult(allowedIds, deniedIds);
     }
@@ -95,22 +101,20 @@ public final class PermissionCheckUtils {
     /**
      * Check if operator has VIEW permission on multiple roles.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetRoleIds the target role IDs to check
      * @return PermissionBatchResult containing allowed and denied IDs
      */
     public static PermissionBatchResult checkCanViewRoles(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
 
-        PermissionCheckBatchResp resp = authService.checkPermissionsBatch(
-            tenantId,
-            new PermissionCheckBatchReq(operatorId, "ROLE", targetRoleIds, Set.of("VIEW"))
-        );
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "ROLE", targetRoleIds, OperationType.VIEW);
 
-        Set<Long> allowedIds = resp.getIdsWithPermission("VIEW");
-        Set<Long> deniedIds = resp.getIdsWithoutPermission("VIEW");
+        Set<Long> allowedIds = targetRoleIds.stream()
+            .filter(id -> !deniedIds.contains(id))
+            .collect(Collectors.toSet());
 
         return new PermissionBatchResult(allowedIds, deniedIds);
     }
@@ -118,27 +122,24 @@ public final class PermissionCheckUtils {
     /**
      * Check multiple operations on multiple resources.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetResourceIds the target resource IDs to check
-     * @param operationCodes the operations to check
+     * @param operationTypes the operations to check
      * @return PermissionBatchResult containing allowed and denied IDs for EACH operation
      */
-    public static Map<String, PermissionBatchResult> checkResourcePermissions(
-            AuthorizationService authService, Long tenantId, Long operatorId,
-            Set<Long> targetResourceIds, Set<String> operationCodes) {
+    public static Map<OperationType, PermissionBatchResult> checkResourcePermissions(
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId,
+            Set<Long> targetResourceIds, Set<OperationType> operationTypes) {
 
-        PermissionCheckBatchResp resp = authService.checkPermissionsBatch(
-            tenantId,
-            new PermissionCheckBatchReq(operatorId, "RESOURCE", targetResourceIds, operationCodes)
-        );
-
-        Map<String, PermissionBatchResult> resultsByOperation = new HashMap<>();
-        for (String opCode : operationCodes) {
-            Set<Long> allowedIds = resp.getIdsWithPermission(opCode);
-            Set<Long> deniedIds = resp.getIdsWithoutPermission(opCode);
-            resultsByOperation.put(opCode, new PermissionBatchResult(allowedIds, deniedIds));
+        Map<OperationType, PermissionBatchResult> resultsByOperation = new HashMap<>();
+        for (OperationType opType : operationTypes) {
+            Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "RESOURCE", targetResourceIds, opType);
+            Set<Long> allowedIds = targetResourceIds.stream()
+                .filter(id -> !deniedIds.contains(id))
+                .collect(Collectors.toSet());
+            resultsByOperation.put(opType, new PermissionBatchResult(allowedIds, deniedIds));
         }
 
         return resultsByOperation;
@@ -148,17 +149,17 @@ public final class PermissionCheckUtils {
      * Validate and throw exception if any target is denied.
      * For users with self-modification exception.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetUserIds the target user IDs to validate
      * @throws SecurityException if any target user is denied
      */
     public static void validateCanManageUsersOrThrow(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
 
         PermissionBatchResult result = checkCanManageUsersWithSelfModification(
-            authService, tenantId, operatorId, targetUserIds
+            permissionValidator, tenantId, operatorId, targetUserIds
         );
 
         if (!result.deniedIds().isEmpty()) {
@@ -169,17 +170,17 @@ public final class PermissionCheckUtils {
     /**
      * Validate and throw exception if any target role is denied for MANAGE.
      *
-     * @param authService the authorization service
+     * @param permissionValidator the permission validator
      * @param tenantId the tenant ID
      * @param operatorId the operator's user ID
      * @param targetRoleIds the target role IDs to validate
      * @throws SecurityException if any target role is denied
      */
     public static void validateCanManageRolesOrThrow(
-            AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
+            ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
 
         PermissionBatchResult result = checkCanManageRoles(
-            authService, tenantId, operatorId, targetRoleIds
+            permissionValidator, tenantId, operatorId, targetRoleIds
         );
 
         if (!result.deniedIds().isEmpty()) {

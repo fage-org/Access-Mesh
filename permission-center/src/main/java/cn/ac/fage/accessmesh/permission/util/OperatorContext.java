@@ -31,7 +31,14 @@ public final class OperatorContext {
             try {
                 return Long.parseLong(userIdHeader.trim());
             } catch (NumberFormatException e) {
-                log.warn("Invalid X-User-Id header: {}", userIdHeader);
+                // Use structured logging to prevent log injection attacks
+                SecurityLogUtil.logSecurityEvent(
+                    SecurityEventType.SUSPICIOUS_INPUT,
+                    request,
+                    "Invalid X-User-Id header format",
+                    userIdHeader,
+                    null
+                );
             }
         }
 
