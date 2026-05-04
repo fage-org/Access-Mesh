@@ -94,7 +94,7 @@ gateway:
   cache:
     l1:
       max-size: 50000
-      ttl-seconds: 30
+      ttl-seconds: 10  # 缩短TTL以降低权限撤销后的风险窗口（原30秒）
 
   header:
     clean:

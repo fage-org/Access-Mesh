@@ -16,6 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -92,7 +94,16 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
 
         if (!affectedRoles.isEmpty()) {
-            permissionVersionDomainService.batchIncrement(tenantId, affectedRoles);
+            // 版本递增（事务提交后执行）
+            final Set<Long> affectedRolesForCache = affectedRoles;
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        permissionVersionDomainService.batchIncrement(tenantId, affectedRolesForCache);
+                    }
+                });
+            }
         }
     }
 
@@ -215,7 +226,16 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         rp.setUpdatedAt(now);
         rp.setDeleteFlag(0L);
         rolePermMapper.insert(rp);
-        permissionVersionDomainService.increment(tenantId, roleId);
+        // 版本递增（事务提交后执行）
+        final Long roleIdForCache = roleId;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    permissionVersionDomainService.increment(tenantId, roleIdForCache);
+                }
+            });
+        }
         log.info("Auto-granted dependency: role={}, resource={}", roleId, dep.getDependsOnResourceEntityId());
     }
 

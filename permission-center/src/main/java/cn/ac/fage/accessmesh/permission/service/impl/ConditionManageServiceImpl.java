@@ -15,6 +15,8 @@ import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -95,9 +97,16 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 
-        // 问题6：更新后失效缓存
-        conditionDomainService.evictConditionCache(tenantId, req.conditionId());
-
+        // 问题6：更新后失效缓存（事务提交后执行）
+        final Long conditionIdForCache = req.conditionId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    conditionDomainService.evictConditionCache(tenantId, conditionIdForCache);
+                }
+            });
+        }
         return toConditionResp(condition);
     }
 
@@ -122,8 +131,17 @@ public class ConditionManageServiceImpl implements ConditionManageService {
             condition.setDeletedAt(LocalDateTime.now());
             conditionMapper.update(condition);
 
-            // 问题6：删除后失效缓存
-            conditionDomainService.evictConditionCache(tenantId, conditionId);
+            // 问题6：删除后失效缓存（事务提交后执行）
+            final Long tenantIdForCache = tenantId;
+            final Long conditionIdForCache = conditionId;
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        conditionDomainService.evictConditionCache(tenantIdForCache, conditionIdForCache);
+                    }
+                });
+            }
         }
     }
 
@@ -151,8 +169,16 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         LocalDateTime now = LocalDateTime.now();
         conditionMapper.softDeleteBatch(tenantId, validIds.stream().toList(), now);
 
-        // 问题6：批量删除后失效缓存
-        conditionDomainService.evictConditionCacheBatch(tenantId, validIds);
+        // 问题6：批量删除后失效缓存（事务提交后执行）
+        final Set<Long> validIdsForCache = validIds;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    conditionDomainService.evictConditionCacheBatch(tenantId, validIdsForCache);
+                }
+            });
+        }
 
         operationLogDomainService.asyncRecord(
             "perm", "permission-condition-remove", "BATCH", tenantId,

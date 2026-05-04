@@ -31,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -175,8 +177,16 @@ public class RoleManageServiceImpl implements RoleManageService {
 
         abstractRoleDomainService.deleteRole(tenantId, roleId);
 
-        // Invalidate caches
-        permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
+        // Invalidate caches（事务提交后执行）
+        final Long roleIdForCache = roleId;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    permCacheDomainService.evictRolePermSnapshot(tenantId, roleIdForCache);
+                }
+            });
+        }
     }
 
     @Override
@@ -233,10 +243,11 @@ public class RoleManageServiceImpl implements RoleManageService {
         // Execute batch delete for permitted roles
         List<Long> doneIds = new ArrayList<>();
         ArrayNode itemsJson = objectMapper.createArrayNode();
+        Set<Long> roleIdsToEvict = new LinkedHashSet<>();
         for (Long roleId : permittedIds) {
             AbstractRole role = existingRoles.get(roleId);
             abstractRoleDomainService.deleteRole(tenantId, roleId);
-            permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
+            roleIdsToEvict.add(roleId);
             doneIds.add(roleId);
             ObjectNode it = objectMapper.createObjectNode();
             it.put("changeType", "REMOVE");
@@ -245,6 +256,18 @@ public class RoleManageServiceImpl implements RoleManageService {
             roleNode.put("roleExternalId", role.getExternalId());
             roleNode.put("roleName", role.getName() != null ? role.getName() : "");
             itemsJson.add(it);
+        }
+        // 批量失效缓存（事务提交后执行）
+        final Set<Long> roleIdsToEvictForCache = roleIdsToEvict;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (Long roleId : roleIdsToEvictForCache) {
+                        permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
+                    }
+                }
+            });
         }
 
         ObjectNode diffRoot = objectMapper.createObjectNode();

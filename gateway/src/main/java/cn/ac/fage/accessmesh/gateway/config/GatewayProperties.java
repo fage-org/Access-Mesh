@@ -88,7 +88,7 @@ public class GatewayProperties {
 
         public static class L1 {
             private long maxSize = 50000;
-            private int ttlSeconds = 30;
+            private int ttlSeconds = 10;  // 缩短TTL以降低权限撤销后的风险窗口（原30秒）
 
             public long getMaxSize() {
                 return maxSize;

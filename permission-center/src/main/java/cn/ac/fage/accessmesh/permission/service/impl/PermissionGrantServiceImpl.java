@@ -697,8 +697,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 new Long[]{parent.getAbstractRoleId()}
             ));
         }
-        permissionVersionDomainService.increment(tenantId, parent.getAbstractRoleId());
-        userRoleDomainService.invalidateRoleCacheByRole(tenantId, parent.getAbstractRoleId());
+        // 版本递增和缓存失效（事务提交后执行）
+        final Long roleIdForCache = parent.getAbstractRoleId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    permissionVersionDomainService.increment(tenantId, roleIdForCache);
+                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
+                }
+            });
+        }
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
             tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
         ), changeLogs);
@@ -723,8 +732,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         child.setDeleteFlag(child.getId());
         child.setDeletedAt(LocalDateTime.now());
         rolePermMapper.update(child);
-        permissionVersionDomainService.increment(tenantId, child.getAbstractRoleId());
-        userRoleDomainService.invalidateRoleCacheByRole(tenantId, child.getAbstractRoleId());
+        // 版本递增和缓存失效（事务提交后执行）
+        final Long roleIdForCache = child.getAbstractRoleId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    permissionVersionDomainService.increment(tenantId, roleIdForCache);
+                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
+                }
+            });
+        }
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
             tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
         ), List.of(new PermissionChangeDomainService.ChangeLogEntry(

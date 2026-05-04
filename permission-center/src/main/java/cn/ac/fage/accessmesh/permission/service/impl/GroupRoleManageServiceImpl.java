@@ -18,6 +18,8 @@ import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -100,7 +102,16 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         ur.setDeleteFlag(0L);
         userRoleMapper.insert(ur);
 
-        userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupId);
+        // 缓存失效（事务提交后执行）
+        final Long groupIdForCache = groupId;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupIdForCache);
+                }
+            });
+        }
     }
 
     @Override
@@ -133,7 +144,17 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
             ur.setDeleteFlag(ur.getId());
             ur.setDeletedAt(LocalDateTime.now());
             userRoleMapper.update(ur);
-            userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupId);
+            // 缓存失效（事务提交后执行）
+            final Long tenantIdForCache = tenantId;
+            final Long groupIdForCache = groupId;
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        userRoleDomainService.invalidateRoleCacheByRole(tenantIdForCache, groupIdForCache);
+                    }
+                });
+            }
         }
     }
 

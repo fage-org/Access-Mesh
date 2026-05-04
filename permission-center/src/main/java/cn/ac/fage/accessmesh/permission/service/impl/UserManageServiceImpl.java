@@ -38,6 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -288,9 +290,17 @@ public class UserManageServiceImpl implements UserManageService {
             userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
         }
 
-        // Invalidate cache for affected users
-        for (Long userId : existingUserIds) {
-            userRoleDomainService.invalidateRoleCache(tenantId, userId);
+        // Invalidate cache for affected users（事务提交后执行）
+        final Set<Long> existingUserIdsForCache = existingUserIds;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (Long userId : existingUserIdsForCache) {
+                        userRoleDomainService.invalidateRoleCache(tenantId, userId);
+                    }
+                }
+            });
         }
 
         // Single operation log
@@ -498,8 +508,17 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         Set<Long> uniqueUsers = new LinkedHashSet<>(affectedUserIds);
-        for (Long uid : uniqueUsers) {
-            userRoleDomainService.invalidateRoleCache(tenantId, uid);
+        // 缓存失效（事务提交后执行）
+        final Set<Long> uniqueUsersForCache = uniqueUsers;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (Long uid : uniqueUsersForCache) {
+                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
+                    }
+                }
+            });
         }
         ObjectNode diffRoot = objectMapper.createObjectNode();
         diffRoot.put("eventType", "USER_ROLE_CHANGE");
@@ -691,7 +710,16 @@ public class UserManageServiceImpl implements UserManageService {
         ur.setUpdatedAt(now);
         ur.setDeleteFlag(0L);
         userRoleMapper.insert(ur);
-        userRoleDomainService.invalidateRoleCache(tenantId, abstractUserId);
+        // 缓存失效（事务提交后执行）
+        final Long abstractUserIdForCache = abstractUserId;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    userRoleDomainService.invalidateRoleCache(tenantId, abstractUserIdForCache);
+                }
+            });
+        }
     }
 
     private UserResp toUserResp(AbstractUser user) {
