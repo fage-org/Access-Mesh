@@ -1,10 +1,23 @@
-# dual-layer-cache-framework
+---
+name: dual-layer-cache-framework
+description: >-
+  双层缓存框架（L1 Caffeine + L2 Redis）使用规范。
+  TRIGGER when: 涉及缓存相关代码、创建新 CacheManager、修改 AbstractGenericCacheManager、
+  使用 GenericCacheManager 接口、缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、
+  "evict"、"put"、"getBatch"、CacheProperties、CacheAutoConfiguration。
+origin: project
+metadata:
+  project: AccessMesh
+  version: "1.0.0"
+---
+
+# 双层缓存框架规范
 
 双层缓存框架（L1 Caffeine + L2 Redis）的统一使用规范。
 
-## 概述
+## 框架位置
 
-**位置**: `common/src/main/java/cn/ac/fage/accessmesh/common/cache/`
+`common/src/main/java/cn/ac/fage/accessmesh/common/cache/`
 
 **核心组件**:
 - `GenericCacheManager<K, V>` - 通用缓存管理器接口
@@ -12,9 +25,8 @@
 - `CacheProperties` - L1/L2 配置属性
 - `CacheAutoConfiguration` - 自动配置类
 
-## 缓存规范
+## 键格式
 
-### 键格式
 ```
 namespace:tenantId:key
 ```
@@ -23,7 +35,7 @@ namespace:tenantId:key
 - `perm:condition:rules:1:123` - 租户1的条件规则123
 - `perm:user:effective-roles:1:456` - 租户1的用户456的有效角色
 
-### 操作顺序
+## 操作顺序（关键）
 
 | 操作 | 顺序 | 原因 |
 |------|------|------|
@@ -31,7 +43,7 @@ namespace:tenantId:key
 | **失效** | 先 L2 后 L1 | 防止竞态条件（L1 清除但 L2 还有旧数据） |
 | **读取** | 先 L1 → L2 → Loader | 本地优先，减少网络开销 |
 
-### TTL 配置
+## TTL 配置
 
 | 层级 | 默认 TTL | 说明 |
 |------|----------|------|
@@ -39,44 +51,11 @@ namespace:tenantId:key
 | L2 (Redis) | 30-60 分钟 | 分布式缓存，较长有效期 |
 | 空值/失败标记 | TTL 的 50% | 防止缓存穿透，较短有效期 |
 
-## API
-
-### 接口定义
+## 创建新缓存管理器
 
 ```java
-public interface GenericCacheManager<K, V> {
-    // 配置方法
-    String getNamespace();
-    int getL1TtlMinutes();
-    int getL2TtlMinutes();
-    long getL1MaximumSize();
-    Class<V> getValueClass();
-
-    // 单条操作
-    V get(Long tenantId, K key, BiFunction<Long, K, V> loader);
-    void put(Long tenantId, K key, V value);
-    void evict(Long tenantId, K key);
-
-    // 批量操作
-    Map<K, V> getBatch(Long tenantId, Set<K> keys, 
-                       BiFunction<Long, Set<K>, Map<K, V>> loader);
-    void putBatch(Long tenantId, Map<K, V> data);
-    void evictBatch(Long tenantId, Set<K> keys);
-
-    // 全量失效
-    void evictAll(Long tenantId);
-
-    // 辅助方法
-    String buildCacheKey(Long tenantId, K key);
-}
-```
-
-### 使用示例
-
-```java
-// 1. 创建具体实现类
 @Component
-public class ConditionRulesCacheManager 
+public class ConditionRulesCacheManager
     extends AbstractGenericCacheManager<Long, JsonNode> {
 
     private final CacheProperties cacheProperties;
@@ -117,8 +96,9 @@ public class ConditionRulesCacheManager
 }
 ```
 
+## 在业务服务中使用
+
 ```java
-// 2. 在业务服务中使用
 @Service
 public class PermissionConditionDomainServiceImpl {
 
@@ -166,6 +146,59 @@ public class PermissionConditionDomainServiceImpl {
 }
 ```
 
+## 失效触发时机
+
+**必须在数据变更时主动失效缓存**：
+
+```java
+@Service
+public class ConditionManageServiceImpl {
+
+    @Transactional(rollbackFor = Exception.class)
+    public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
+        // ... 更新数据库
+        conditionMapper.update(condition);
+
+        // 失效缓存（事务提交后）
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                conditionDomainService.evictConditionCache(tenantId, req.conditionId());
+            }
+        });
+
+        return toConditionResp(condition);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteConditionsByIds(Long tenantId, Set<Long> conditionIds, Long operatorId) {
+        // ... 批量删除
+        conditionMapper.softDeleteBatch(conditionIds);
+
+        // 批量失效缓存
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                conditionDomainService.evictConditionCacheBatch(tenantId, conditionIds);
+            }
+        });
+    }
+}
+```
+
+## 方法选择
+
+| 场景 | 方法 | 说明 |
+|------|------|------|
+| 单条查询，可能需要加载 | `get(tenantId, key, loader)` | 自动加载并缓存 |
+| 单条查询，不加载 | `getOnly(tenantId, key)` | 仅查缓存，不触发加载 |
+| 批量查询 | `getBatch(tenantId, keys, loader)` | 批量加载，减少网络往返 |
+| 单条写入 | `put(tenantId, key, value)` | 同时写 L1 和 L2 |
+| 批量写入 | `putBatch(tenantId, data)` | Pipeline 优化 |
+| 单条失效 | `evict(tenantId, key)` | 先 L2 后 L1 |
+| 批量失效 | `evictBatch(tenantId, keys)` | 批量删除 L2，循环失效 L1 |
+| 全量失效 | `evictAll(tenantId)` | SCAN 分批删除 |
+
 ## 关键特性
 
 ### 1. 空值缓存（防止穿透）
@@ -183,14 +216,13 @@ if (value == null) {
 ### 2. 解析失败标记（防止重复解析）
 
 ```java
-// JSON 解析失败时缓存失败标记
 protected static final String PARSE_FAILED_MARKER = "__PARSE_FAILED__";
 
 try {
     return objectMapper.readValue(json, valueType);
 } catch (JsonProcessingException e) {
     // 缓存失败标记，避免重复尝试解析无效 JSON
-    redisTemplate.opsForValue().set(fullKey, PARSE_FAILED_MARKER, 
+    redisTemplate.opsForValue().set(fullKey, PARSE_FAILED_MARKER,
         Duration.ofMinutes(getL2TtlMinutes() / 2));
     return null;
 }
@@ -200,7 +232,7 @@ try {
 
 ```java
 private static final int MAX_KEY_LENGTH = 500;
-private static final Pattern ILLEGAL_CHAR_PATTERN = 
+private static final Pattern ILLEGAL_CHAR_PATTERN =
     Pattern.compile("[\\x00-\\x1F\\x7F]");  // 控制字符
 
 protected String validateAndCleanKey(String key) {
@@ -242,7 +274,7 @@ public void evictAll(Long tenantId) {
         .match(pattern)
         .count(100)  // 每次扫描 100 个键
         .build();
-    
+
     List<String> keysToDelete = new ArrayList<>();
     try (var cursor = redisTemplate.scan(options)) {
         while (cursor.hasNext()) {
@@ -306,80 +338,6 @@ accessmesh:
       ttl-minutes: 30          # L2 过期时间（分钟）
 ```
 
-### pom.xml 依赖
-
-```xml
-<!-- common 模块已包含，其他模块只需依赖 common -->
-<dependency>
-    <groupId>cn.ac.fage.accessmesh</groupId>
-    <artifactId>common</artifactId>
-</dependency>
-```
-
-## 失效触发时机
-
-**必须在数据变更时主动失效缓存**：
-
-```java
-@Service
-public class ConditionManageServiceImpl {
-
-    private final PermissionConditionDomainService conditionDomainService;
-
-    @Transactional(rollbackFor = Exception.class)
-    public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
-        // ... 更新数据库
-        conditionMapper.update(condition);
-        
-        // 失效缓存（事务提交后）
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                conditionDomainService.evictConditionCache(tenantId, req.conditionId());
-            }
-        });
-        
-        return toConditionResp(condition);
-    }
-
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteConditionsByIds(Long tenantId, Set<Long> conditionIds, Long operatorId) {
-        // ... 批量删除
-        conditionMapper.softDeleteBatch(conditionIds);
-        
-        // 批量失效缓存
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                conditionDomainService.evictConditionCacheBatch(tenantId, conditionIds);
-            }
-        });
-    }
-}
-```
-
-## 方法选择
-
-| 场景 | 方法 | 说明 |
-|------|------|------|
-| 单条查询，可能需要加载 | `get(tenantId, key, loader)` | 自动加载并缓存 |
-| 单条查询，不加载 | `getOnly(tenantId, key)` | 仅查缓存，不触发加载 |
-| 批量查询 | `getBatch(tenantId, keys, loader)` | 批量加载，减少网络往返 |
-| 单条写入 | `put(tenantId, key, value)` | 同时写 L1 和 L2 |
-| 批量写入 | `putBatch(tenantId, data)` | Pipeline 优化 |
-| 单条失效 | `evict(tenantId, key)` | 先 L2 后 L1 |
-| 批量失效 | `evictBatch(tenantId, keys)` | 批量删除 L2，循环失效 L1 |
-| 全量失效 | `evictAll(tenantId)` | SCAN 分批删除 |
-
-## 相关文件
-
-- `common/cache/GenericCacheManager.java` - 接口定义
-- `common/cache/AbstractGenericCacheManager.java` - 抽象实现（约 800 行）
-- `common/cache/CacheProperties.java` - 配置属性
-- `common/cache/CacheAutoConfiguration.java` - 自动配置
-- `permission-center/service/cache/impl/ConditionRulesCacheManager.java` - 具体实现示例
-- `permission-center/service/domain/impl/PermissionConditionDomainServiceImpl.java` - 使用示例
-
 ## 禁止事项
 
 - ❌ 禁止在循环中调用 `get()` 单条查询（使用 `getBatch()`）
@@ -389,3 +347,12 @@ public class ConditionManageServiceImpl {
 - ❌ 禁止在缓存键中包含未验证的用户输入
 - ❌ 禁止在数据变更后不触发缓存失效
 - ❌ 禁止使用 `ConcurrentHashMap` 替代 Caffeine（缺少 TTL、容量限制）
+
+## 相关文件
+
+| 文件 | 说明 |
+|------|------|
+| `common/cache/GenericCacheManager.java` | 接口定义 |
+| `common/cache/AbstractGenericCacheManager.java` | 抽象实现（约 800 行） |
+| `common/cache/CacheProperties.java` | 配置属性 |
+| `common/cache/CacheAutoConfiguration.java` | 自动配置 |

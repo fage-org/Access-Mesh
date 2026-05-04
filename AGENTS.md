@@ -77,10 +77,17 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 - `resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 
-## 双层缓存框架规范
+## 项目级 Skills（自动加载）
 
-完整规范见 `.claude/skills/dual-layer-cache-framework.md`。核心要点：
+项目在 `.claude/skills/` 目录下定义了以下技能，会在相关场景自动加载：
 
+### dual-layer-cache-framework
+
+**自动触发条件**: 涉及缓存相关代码、创建新 CacheManager、修改 AbstractGenericCacheManager、
+使用 GenericCacheManager 接口、缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、
+"evict"、"put"、"getBatch"、CacheProperties、CacheAutoConfiguration。
+
+**核心要点**:
 - **框架位置**: `common/cache/` 模块，所有服务可复用
 - **键格式**: `namespace:tenantId:key`
 - **写入顺序**: 先 L2 (Redis) 后 L1 (Caffeine)
@@ -99,6 +106,29 @@ public class MyCacheManager extends AbstractGenericCacheManager<Long, MyData> {
     // ... 配置 TTL、maximumSize
 }
 ```
+
+### resource-permission-validator
+
+**自动触发条件**: 涉及权限校验代码、创建新 ResourcePermissionStrategy、使用 ResourcePermissionValidator、
+OperationType 枚举、权限相关逻辑、关键词 "permission"、"权限"、"validate"、"hasPermission"、
+"validateBatch"、"getDeniedIds"、"canGrant"、"ResourcePermissionStrategy"。
+
+**核心 API**:
+```java
+// 单实例校验（无权限抛 SecurityException）
+permissionValidator.validate(tenantId, operatorId, "SERVICE", serviceCode, OperationType.MANAGE_API_MAPPING);
+
+// 批量校验
+permissionValidator.validateBatch(tenantId, operatorId, "ROLE", roleIds, OperationType.DELETE);
+
+// 非抛出检查（返回 boolean）
+boolean allowed = permissionValidator.hasPermission(tenantId, operatorId, "USER", userId, OperationType.MANAGE);
+
+// 获取被拒绝的 ID
+Set<Long> denied = permissionValidator.getDeniedIds(tenantId, operatorId, "DOMAIN", domainIds, OperationType.VIEW);
+```
+
+**OperationType 枚举**: CREATE, VIEW, MANAGE, UPDATE, DELETE, ASSIGN, REVOKE, SYNC, MANAGE_API_MAPPING, SYNC_INTERFACE, GRANT
 
 ## 常用命令（开发阶段预估）
 

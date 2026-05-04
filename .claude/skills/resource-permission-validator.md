@@ -1,4 +1,17 @@
-# resource-permission-validator
+---
+name: resource-permission-validator
+description: >-
+  通用资源权限校验器使用规范。
+  TRIGGER when: 涉及权限校验代码、创建新 ResourcePermissionStrategy、使用 ResourcePermissionValidator、
+  OperationType 枚举、权限相关逻辑、关键词 "permission"、"权限"、"validate"、"hasPermission"、
+  "validateBatch"、"getDeniedIds"、"canGrant"、"ResourcePermissionStrategy"。
+origin: project
+metadata:
+  project: AccessMesh
+  version: "1.0.0"
+---
+
+# 通用资源权限校验器规范
 
 Universal resource permission validator with operation type as enum parameter.
 
@@ -24,11 +37,21 @@ Set<Long> denied = permissionValidator.getDeniedIds(tenantId, operatorId, "DOMAI
 CREATE, VIEW, MANAGE, UPDATE, DELETE, ASSIGN, REVOKE, SYNC, MANAGE_API_MAPPING, SYNC_INTERFACE, GRANT
 ```
 
+## 方法选择
+
+| 场景 | 方法 |
+|------|------|
+| 操作前强制校验 | `validate` |
+| 批量操作前校验 | `validateBatch` |
+| UI 显示控制（显示/隐藏按钮） | `hasPermission` |
+| 业务逻辑分支 | `hasPermission` |
+| 部分执行（只操作有权限的） | `getDeniedIds` |
+
 ## Strategy 只负责 ID 转换
 
 Strategy 的唯一职责是将业务 ID 转换为 `resource_entity.code`：
 
-| 资源类型 | 业务 ID | Strategy 转换 |
+| 赚源类型 | 业务 ID | Strategy 转换 |
 |----------|---------|---------------|
 | SERVICE | serviceCode (String) | 直接作为 code |
 | DOMAIN | bizDomainId (Long) | bizDomainId → bizDomain.code |
@@ -105,16 +128,6 @@ public class ProjectPermissionStrategy implements ResourcePermissionStrategy<Lon
 
 Strategy 自动通过 Spring DI 注册，无需手动配置。
 
-## 方法选择
-
-| 场景 | 方法 |
-|------|------|
-| 操作前强制校验 | `validate` |
-| 批量操作前校验 | `validateBatch` |
-| UI 显示控制（显示/隐藏按钮） | `hasPermission` |
-| 业务逻辑分支 | `hasPermission` |
-| 部分执行（只操作有权限的） | `getDeniedIds` |
-
 ## AuthorizationService 现仅用于 canGrant
 
 **AuthorizationService** 现在只保留权限委托检查：
@@ -171,11 +184,13 @@ PermissionCheckUtils.validateCanManageRolesOrThrow(
 
 ## 相关文件
 
-- `ResourcePermissionValidator.java` - 通用验证器
-- `ResourcePermissionStrategy.java` - ID 转换策略接口
-- `OperationType.java` - 操作类型枚举
-- `ServicePermissionStrategy.java` - SERVICE 策略
-- `DomainPermissionStrategy.java` - DOMAIN 策略
-- `TypeDefPermissionStrategy.java` - TYPE_DEFINITION 策略（含 `isSystemType()` 业务助手）
-- `AuthorizationService.java` - 仅 canGrant 权限委托检查
-- `PermissionCheckUtils.java` - 批量权限检查工具类
+| 文件 | 说明 |
+|------|------|
+| `ResourcePermissionValidator.java` | 通用验证器 |
+| `ResourcePermissionStrategy.java` | ID 转换策略接口 |
+| `OperationType.java` | 操作类型枚举 |
+| `ServicePermissionStrategy.java` | SERVICE 策略 |
+| `DomainPermissionStrategy.java` | DOMAIN 策略 |
+| `TypeDefPermissionStrategy.java` | TYPE_DEFINITION 策略（含 `isSystemType()` 业务助手） |
+| `AuthorizationService.java` | 仅 canGrant 权限委托检查 |
+| `PermissionCheckUtils.java` | 批量权限检查工具类 |
