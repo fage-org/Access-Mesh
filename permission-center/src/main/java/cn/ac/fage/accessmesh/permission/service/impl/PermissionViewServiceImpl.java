@@ -1010,9 +1010,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         }
 
         List<ResourcePermissionTreeResp> roots = new ArrayList<>();
+        Set<Long> treeVisited = new HashSet<>();
         for (ResourceEntity entity : entities) {
             if (!childIds.contains(entity.getId())) {
-                roots.add(buildPermissionTreeNode(entity.getId(), viewMap, entityMap, childrenMap, tenantId));
+                roots.add(buildPermissionTreeNode(entity.getId(), viewMap, entityMap, childrenMap, tenantId, treeVisited));
             }
         }
         return roots;
@@ -1023,7 +1024,16 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             Map<Long, ResourcePermissionView> viewMap,
             Map<Long, ResourceEntity> entityMap,
             Map<Long, List<Long>> childrenMap,
-            Long tenantId) {
+            Long tenantId,
+            Set<Long> visited) {
+        // 防止循环引用：检查是否已访问
+        if (visited.contains(entityId)) {
+            return new ResourcePermissionTreeResp(
+                entityId, null, null, null, null, "default", false, List.of(), List.of()
+            );
+        }
+        visited.add(entityId);
+
         ResourcePermissionView view = viewMap.get(entityId);
         ResourceEntity entity = entityMap.get(entityId);
         String domainCode = null;
@@ -1050,7 +1060,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
         List<Long> childEntityIds = childrenMap.getOrDefault(entityId, List.of());
         List<ResourcePermissionTreeResp> children = childEntityIds.stream()
-            .map(childId -> buildPermissionTreeNode(childId, viewMap, entityMap, childrenMap, tenantId))
+            .map(childId -> buildPermissionTreeNode(childId, viewMap, entityMap, childrenMap, tenantId, visited))
             .collect(Collectors.toList());
 
         return new ResourcePermissionTreeResp(

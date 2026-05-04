@@ -361,9 +361,10 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         );
 
         Set<Long> roleIds = new HashSet<>();
+        Set<Long> visited = new HashSet<>();
         for (UserRole ur : userRoles) {
             if ("GROUP_ROLE".equals(ur.getTargetType())) {
-                resolveGroupRole(tenantId, ur.getTargetId(), roleIds);
+                resolveGroupRole(tenantId, ur.getTargetId(), roleIds, visited);
             } else {
                 roleIds.add(ur.getTargetId());
             }
@@ -385,7 +386,13 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         return roleIds;
     }
 
-    private void resolveGroupRole(Long tenantId, Long groupId, Set<Long> roleIds) {
+    private void resolveGroupRole(Long tenantId, Long groupId, Set<Long> roleIds, Set<Long> visited) {
+        // 防止循环引用：检查是否已访问
+        if (visited.contains(groupId)) {
+            return;
+        }
+        visited.add(groupId);
+
         // Query the group role itself to get extra.basicRoleIds
         AbstractRole groupRole = abstractRoleMapper.selectOneById(groupId);
         if (groupRole == null || !groupRole.getTenantId().equals(tenantId) || groupRole.getDeleteFlag() != 0L) {
@@ -419,7 +426,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         );
         for (AbstractRole child : children) {
             if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                resolveGroupRole(tenantId, child.getId(), roleIds);
+                resolveGroupRole(tenantId, child.getId(), roleIds, visited);
             } else {
                 roleIds.add(child.getId());
             }

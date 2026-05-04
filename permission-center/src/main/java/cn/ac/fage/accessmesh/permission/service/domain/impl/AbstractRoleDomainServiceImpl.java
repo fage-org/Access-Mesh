@@ -85,18 +85,25 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     @Override
     public List<Long> resolveDescendantIds(Long tenantId, Long roleId) {
         Set<Long> result = new java.util.HashSet<>();
-        collectDescendants(tenantId, roleId, result);
+        Set<Long> visited = new java.util.HashSet<>();
+        collectDescendants(tenantId, roleId, result, visited);
         return new ArrayList<>(result);
     }
 
-    private void collectDescendants(Long tenantId, Long roleId, Set<Long> result) {
+    private void collectDescendants(Long tenantId, Long roleId, Set<Long> result, Set<Long> visited) {
+        // 防止循环引用：检查是否已访问
+        if (visited.contains(roleId)) {
+            return;
+        }
+        visited.add(roleId);
+
         List<AbstractRole> children = listChildren(tenantId, roleId);
         for (AbstractRole child : children) {
             result.add(child.getId());
             if (child.getRoleType() != null
                 && (child.getRoleType() == RoleType.GROUP_ROLE.getValue()
                     || child.getRoleType() == RoleType.ORG.getValue())) {
-                collectDescendants(tenantId, child.getId(), result);
+                collectDescendants(tenantId, child.getId(), result, visited);
             }
         }
     }

@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.permission.util;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,7 +49,8 @@ public class TreeBuilder<E, N> {
                 e -> parentIdExtractor.apply(e) != null ? parentIdExtractor.apply(e) : -1L
             ));
 
-        return buildNode(root, byParentId);
+        Set<Long> visited = new HashSet<>();
+        return buildNode(root, byParentId, visited);
     }
 
     /**
@@ -63,18 +66,26 @@ public class TreeBuilder<E, N> {
                 e -> parentIdExtractor.apply(e) != null ? parentIdExtractor.apply(e) : -1L
             ));
 
+        Set<Long> visited = new HashSet<>();
         return roots.stream()
-            .map(root -> buildNode(root, byParentId))
+            .map(root -> buildNode(root, byParentId, visited))
             .collect(Collectors.toList());
     }
 
-    private N buildNode(E entity, Map<Long, List<E>> byParentId) {
+    private N buildNode(E entity, Map<Long, List<E>> byParentId, Set<Long> visited) {
         Long entityId = idExtractor.apply(entity);
+
+        // 防止循环引用：检查是否已访问
+        if (visited.contains(entityId)) {
+            return nodeBuilder.apply(entity, List.of());
+        }
+        visited.add(entityId);
+
         List<E> childEntities = byParentId.getOrDefault(entityId, List.of());
 
         // Recursively build children first
         List<N> children = childEntities.stream()
-            .map(child -> buildNode(child, byParentId))
+            .map(child -> buildNode(child, byParentId, visited))
             .collect(Collectors.toList());
 
         return nodeBuilder.apply(entity, children);

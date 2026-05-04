@@ -86,8 +86,15 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     @Override
     public List<Long> getAncestorIds(Long tenantId, Long resourceEntityId) {
         List<Long> ids = new ArrayList<>();
+        Set<Long> visited = new HashSet<>();
         Long current = resourceEntityId;
         while (current != null) {
+            // 防止循环引用：检查是否已访问
+            if (visited.contains(current)) {
+                break;
+            }
+            visited.add(current);
+
             ResourceEntity e = resourceEntityMapper.selectOneById(current);
             if (e == null || e.getDeleteFlag() != 0L || !e.getTenantId().equals(tenantId)) {
                 break;
@@ -112,18 +119,27 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         // First, load the initial set
         Map<Long, ResourceEntity> entityMap = new HashMap<>();
         Set<Long> toLoad = new HashSet<>(resourceIds);
+        Set<Long> visited = new HashSet<>();
 
         while (!toLoad.isEmpty()) {
+            // 防止循环引用：过滤已加载的实体
+            toLoad.removeAll(visited);
+
+            if (toLoad.isEmpty()) {
+                break;
+            }
+
             List<ResourceEntity> loaded = resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
                     .and(RESOURCE_ENTITY.ID.in(toLoad))
                     .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
+            visited.addAll(toLoad);
             toLoad.clear();
             for (ResourceEntity e : loaded) {
                 entityMap.put(e.getId(), e);
-                if (e.getParentId() != null && !entityMap.containsKey(e.getParentId())) {
+                if (e.getParentId() != null && !entityMap.containsKey(e.getParentId()) && !visited.contains(e.getParentId())) {
                     toLoad.add(e.getParentId());
                 }
             }
@@ -133,8 +149,15 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long resourceId : resourceIds) {
             List<Long> ancestors = new ArrayList<>();
+            Set<Long> pathVisited = new HashSet<>();
             Long current = resourceId;
             while (current != null) {
+                // 防止循环引用：检查是否已访问
+                if (pathVisited.contains(current)) {
+                    break;
+                }
+                pathVisited.add(current);
+
                 ResourceEntity e = entityMap.get(current);
                 if (e == null) {
                     break;
