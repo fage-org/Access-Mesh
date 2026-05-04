@@ -73,7 +73,8 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         JsonNode rules = rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
             // loader: 从数据库加载条件规则
             PermissionCondition condition = conditionMapper.selectOneById(cid);
-            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())) {
+            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
+                || !tid.equals(condition.getTenantId())) {
                 return null; // 返回 null 会被缓存为空值
             }
 

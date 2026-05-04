@@ -50,8 +50,8 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteRole(Long tenantId, Long roleId) {
-        AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-        if (role == null || role.getDeleteFlag() != 0L) return;
+        AbstractRole role = selectValidById(tenantId, roleId);
+        if (role == null) return;
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -73,7 +73,8 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     public List<AbstractRole> listChildren(Long tenantId, Long parentId) {
         return abstractRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.PARENT_ID.eq(parentId))
+                .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.PARENT_ID.eq(parentId))
                 .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
     }

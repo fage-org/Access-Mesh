@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.admin.entity.SysSyncRetry;
 import cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysSyncRetryMapper;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -20,6 +21,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import cn.ac.fage.accessmesh.common.mybatis.TenantAwareScheduled;
+import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef.SYS_SYNC_RETRY;
 
@@ -45,10 +49,20 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         SysSyncRetry existing = null;
         if (messageKey != null) {
             existing = syncRetryMapper.selectOneByQuery(
-                QueryWrapper.create().where(SYS_SYNC_RETRY.MESSAGE_KEY.eq(messageKey)).and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                QueryWrapper.create()
+                    .where(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                    .and(SYS_SYNC_RETRY.MESSAGE_KEY.eq(messageKey))
+                    .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
             );
         }
         if (existing != null) {
+            existing.setRetryCount(existing.getRetryCount() + 1);
+            existing.setLastError(truncate(error, 500));
+            existing.setNextRetryAt(now.plusMinutes(Math.min(existing.getRetryCount() * 5, 60)));
+            existing.setStatus(existing.getRetryCount() >= existing.getMaxRetries() ? "exhausted" : "pending");
+            existing.setUpdatedAt(now);
+            syncRetryMapper.update(existing);
+        } else {
             SysSyncRetry record = new SysSyncRetry();
             record.setMessageKey(messageKey);
             record.setTargetService(targetService);
@@ -64,20 +78,15 @@ public class SyncRetryServiceImpl implements SyncRetryService {
             record.setUpdatedAt(now);
             record.setDeleteFlag(0L);
             syncRetryMapper.insert(record);
-        } else {
-            existing.setRetryCount(existing.getRetryCount() + 1);
-            existing.setLastError(truncate(error, 500));
-            existing.setNextRetryAt(now.plusMinutes(Math.min(existing.getRetryCount() * 5, 60)));
-            existing.setStatus(existing.getRetryCount() >= existing.getMaxRetries() ? "exhausted" : "pending");
-            existing.setUpdatedAt(now);
-            syncRetryMapper.update(existing);
         }
     }
 
     @Override
     @Transactional
     public void markSuccess(Long id) {
-        SysSyncRetry record = syncRetryMapper.selectOneById(id);
+        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
+            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setStatus("success");
             record.setUpdatedAt(LocalDateTime.now());
@@ -91,7 +100,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         recordSyncFailure(
             null, null, null, null, null, null, error
         );
-        SysSyncRetry record = syncRetryMapper.selectOneById(id);
+        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
+            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setRetryCount(record.getRetryCount() + 1);
             record.setLastError(truncate(error, 500));
@@ -109,6 +120,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
                 .where(SYS_SYNC_RETRY.STATUS.eq("pending"))
                 .and(SYS_SYNC_RETRY.RETRY_COUNT.lt(SYS_SYNC_RETRY.MAX_RETRIES))
                 .and(SYS_SYNC_RETRY.NEXT_RETRY_AT.le(LocalDateTime.now()))
+                .and(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
                 .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
                 .orderBy(SYS_SYNC_RETRY.CREATED_AT.asc())
         );
@@ -117,7 +129,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional
     public void deleteProcessed(Long id) {
-        SysSyncRetry record = syncRetryMapper.selectOneById(id);
+        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
+            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setDeleteFlag(record.getId());
             record.setDeletedAt(LocalDateTime.now());
@@ -130,7 +144,8 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         Page<SysSyncRetry> page = syncRetryMapper.paginate(
             Page.of(pageReq.getPageNum(), pageReq.getPageSize()),
             QueryWrapper.create()
-                .where(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                .where(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
                 .orderBy(SYS_SYNC_RETRY.CREATED_AT.desc())
         );
         long totalPages = (page.getTotalRow() + pageReq.getPageSize() - 1) / pageReq.getPageSize();
@@ -140,11 +155,11 @@ public class SyncRetryServiceImpl implements SyncRetryService {
 
     /**
      * Scheduled task that retries pending sync failures.
-     * Runs every 30 seconds.
+     * Runs every 30 seconds, once per active tenant.
      *
-     * TODO: 多租户支持 - 当前定时任务无租户上下文，需要遍历所有租户分别处理
-     * 后续方案：查询所有租户列表，每个租户独立设置 TenantContextHolder 后执行
+     * <p>{@code @TenantAwareScheduled} ensures tenant context is set for each iteration.
      */
+    @TenantAwareScheduled
     @Scheduled(fixedDelay = 30000, initialDelay = 60000)
     public void processRetries() {
         List<SysSyncRetry> pending = getPendingRetries();

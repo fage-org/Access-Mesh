@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+
 import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
@@ -30,6 +31,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT;
+import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
 
 @Service
 public class OAuth2ServiceImpl implements OAuth2Service {
@@ -224,8 +226,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
-        SysUser user = userMapper.selectOneById(userId);
-        if (user == null || user.getDeleteFlag() != 0L) {
+        SysUser user = userMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_USER.ID.eq(userId))
+                .and(SYS_USER.DELETE_FLAG.eq(0))
+        );
+        if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
                 AdminErrorCode.USER_NOT_FOUND.getMessage());
         }

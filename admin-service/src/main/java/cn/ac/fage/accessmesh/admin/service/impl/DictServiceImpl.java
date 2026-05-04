@@ -19,7 +19,9 @@ import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.DictService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.cache.annotation.CacheEvict;
@@ -81,6 +83,7 @@ public class DictServiceImpl implements DictService {
         List<SysDictType> types = dictTypeMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SYS_DICT_TYPE.ID.in(req.ids()))
+                .and(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
                 .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
         );
         
@@ -93,7 +96,8 @@ public class DictServiceImpl implements DictService {
             List<SysDictData> dataWithTypes = dictDataMapper.selectListByQuery(
                 QueryWrapper.create()
                     .select(SYS_DICT_DATA.DICT_TYPE)
-                    .where(SYS_DICT_DATA.DICT_TYPE.in(dictTypes))
+                    .where(SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                    .and(SYS_DICT_DATA.DICT_TYPE.in(dictTypes))
                     .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
                     .groupBy(SYS_DICT_DATA.DICT_TYPE)
             );
@@ -116,7 +120,8 @@ public class DictServiceImpl implements DictService {
     public List<DictTypeResp> listDictTypes() {
         List<SysDictType> types = dictTypeMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+                .where(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
                 .orderBy(SYS_DICT_TYPE.CREATED_AT.asc())
         );
         return types.stream().map(t -> {
@@ -130,7 +135,8 @@ public class DictServiceImpl implements DictService {
         Page<SysDictType> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysDictType> result = dictTypeMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+                .where(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
                 .orderBy(SYS_DICT_TYPE.CREATED_AT.asc()));
 
         List<DictTypeResp> items = result.getRecords().stream()
@@ -149,8 +155,10 @@ public class DictServiceImpl implements DictService {
         // Permission check - type-level CREATE for dict data
         permissionValidator.checkTypeLevel(AdminResourceType.DICT_DATA, AdminOperationCode.CREATE);
 
-        SysDictType type = dictTypeMapper.selectOneById(req.dictTypeId());
-        if (type == null || type.getDeleteFlag() != 0L) {
+        SysDictType type = TenantSafeQuery.selectOneByIdSafe(
+            dictTypeMapper, SYS_DICT_TYPE.ID, SYS_DICT_TYPE.TENANT_ID, SYS_DICT_TYPE.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), req.dictTypeId());
+        if (type == null) {
             throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
         SysDictData data = new SysDictData();
@@ -178,8 +186,10 @@ public class DictServiceImpl implements DictService {
             AdminOperationCode.UPDATE
         );
 
-        SysDictData data = dictDataMapper.selectOneById(req.dictTypeId());
-        if (data == null || data.getDeleteFlag() != 0L) {
+        SysDictData data = TenantSafeQuery.selectOneByIdSafe(
+            dictDataMapper, SYS_DICT_DATA.ID, SYS_DICT_DATA.TENANT_ID, SYS_DICT_DATA.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), req.dictTypeId());
+        if (data == null) {
             throw new BizException(AdminErrorCode.DICT_DATA_NOT_FOUND.getCode(), AdminErrorCode.DICT_DATA_NOT_FOUND.getMessage());
         }
         data.setDictLabel(req.dictLabel());
@@ -202,8 +212,10 @@ public class DictServiceImpl implements DictService {
             AdminOperationCode.DELETE
         );
 
-        SysDictData data = dictDataMapper.selectOneById(req.id());
-        if (data == null || data.getDeleteFlag() != 0L) return;
+        SysDictData data = TenantSafeQuery.selectOneByIdSafe(
+            dictDataMapper, SYS_DICT_DATA.ID, SYS_DICT_DATA.TENANT_ID, SYS_DICT_DATA.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), req.id());
+        if (data == null) return;
         data.setDeleteFlag(data.getId());
         data.setDeletedAt(LocalDateTime.now());
         dictDataMapper.update(data);
@@ -211,11 +223,14 @@ public class DictServiceImpl implements DictService {
 
     @Override
     public List<DictDataResp> listDictData(Long dictTypeId) {
-        SysDictType type = dictTypeMapper.selectOneById(dictTypeId);
+        SysDictType type = TenantSafeQuery.selectOneByIdSafe(
+            dictTypeMapper, SYS_DICT_TYPE.ID, SYS_DICT_TYPE.TENANT_ID, SYS_DICT_TYPE.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), dictTypeId);
         if (type == null) return List.of();
         return dictDataMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_DICT_DATA.DICT_TYPE.eq(type.getDictType()))
+                .where(SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SYS_DICT_DATA.DICT_TYPE.eq(type.getDictType()))
                 .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
                 .orderBy(SYS_DICT_DATA.SORT_ORDER.asc())
         ).stream().map(d -> new DictDataResp(

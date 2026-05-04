@@ -13,8 +13,10 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.ConfigService;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
@@ -42,7 +44,8 @@ public class ConfigServiceImpl implements ConfigService {
         Page<SysConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysConfig> result = configMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_CONFIG.DELETE_FLAG.eq(0))
+                .where(SYS_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SYS_CONFIG.DELETE_FLAG.eq(0))
                 .orderBy(SYS_CONFIG.CREATED_AT.asc()));
 
         var items = result.getRecords().stream()
@@ -56,8 +59,10 @@ public class ConfigServiceImpl implements ConfigService {
 
     @Override
     public ConfigResp getConfig(Long id) {
-        SysConfig config = configMapper.selectOneById(id);
-        if (config == null || config.getDeleteFlag() != 0L) {
+        SysConfig config = TenantSafeQuery.selectOneByIdSafe(
+            configMapper, SYS_CONFIG.ID, SYS_CONFIG.TENANT_ID, SYS_CONFIG.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), id);
+        if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
         return new ConfigResp(config.getId(), config.getConfigName(), config.getConfigKey(), config.getConfigValue(), config.getRemark(), config.getCreatedAt(), config.getUpdatedAt());
@@ -73,8 +78,10 @@ public class ConfigServiceImpl implements ConfigService {
             AdminOperationCode.UPDATE
         );
 
-        SysConfig config = configMapper.selectOneById(req.id());
-        if (config == null || config.getDeleteFlag() != 0L) {
+        SysConfig config = TenantSafeQuery.selectOneByIdSafe(
+            configMapper, SYS_CONFIG.ID, SYS_CONFIG.TENANT_ID, SYS_CONFIG.DELETE_FLAG,
+            TenantContextHolder.getTenantId(), req.id());
+        if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
         if (Boolean.TRUE.equals(config.getIsSystem())) {
@@ -100,6 +107,7 @@ public class ConfigServiceImpl implements ConfigService {
         List<SysConfig> configs = configMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SYS_CONFIG.ID.in(req.ids()))
+                .and(SYS_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
                 .and(SYS_CONFIG.DELETE_FLAG.eq(0))
         );
         

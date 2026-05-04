@@ -422,7 +422,8 @@ public class UserManageServiceImpl implements UserManageService {
         Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
             : abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.ID.in(targetRoleIds))
+                    .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                    .and(ABSTRACT_ROLE.ID.in(targetRoleIds))
                     .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
@@ -697,7 +698,8 @@ public class UserManageServiceImpl implements UserManageService {
 
         Long existing = userRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
+                .where(USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
                 .and(USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
                 .and(USER_ROLE.TARGET_ID.eq(targetRoleId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))

@@ -273,7 +273,8 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             Map<Long, ResourceEntity> resourceMap = allResourceIds.isEmpty() ? Map.of()
                 : resourceEntityMapper.selectListByQuery(
                     QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.ID.in(allResourceIds))
+                        .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                        .and(RESOURCE_ENTITY.ID.in(allResourceIds))
                         .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 

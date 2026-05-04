@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
 
 @Service
@@ -39,7 +40,12 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
             return new PermissionVersionResp(null, req.roleTypeCode(), req.roleExternalId(), 0L);
         }
 
-        AbstractRole role = abstractRoleMapper.selectOneById(roleId);
+        AbstractRole role = abstractRoleMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(ABSTRACT_ROLE.ID.eq(roleId))
+                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
         String roleTypeCode = req.roleTypeCode();
         String roleExternalId = req.roleExternalId();
 

@@ -70,7 +70,8 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         // Get all role permissions for the entire subtree
         List<Long> permIds = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIds))
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIds))
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         ).stream().map(RoleResourcePermission::getId).toList();
 

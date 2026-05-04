@@ -42,8 +42,8 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long tenantId, Long userId) {
-        AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user != null && user.getDeleteFlag() == 0L) {
+        AbstractUser user = selectValidById(tenantId, userId);
+        if (user != null) {
             user.setDeleteFlag(user.getId());
             user.setDeletedAt(LocalDateTime.now());
             abstractUserMapper.update(user);

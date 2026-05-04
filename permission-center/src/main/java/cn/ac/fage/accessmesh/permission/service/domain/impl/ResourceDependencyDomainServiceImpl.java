@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
+import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
 import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
 
 @Service
@@ -278,7 +279,12 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
         Integer resourceType = null;
         if (resourceEntityId != null) {
-            ResourceEntity resource = resourceEntityMapper.selectOneById(resourceEntityId);
+            ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_ENTITY.ID.eq(resourceEntityId))
+                    .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+            );
             if (resource != null) {
                 resourceType = resource.getResourceType();
             }
