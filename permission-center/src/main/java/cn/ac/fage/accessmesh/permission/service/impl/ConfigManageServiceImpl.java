@@ -724,6 +724,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
+        // Permission check for config operations
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+            throw new SecurityException("No permission to manage system config");
+        }
+
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))

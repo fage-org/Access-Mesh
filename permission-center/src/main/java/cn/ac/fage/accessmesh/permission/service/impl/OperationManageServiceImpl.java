@@ -47,6 +47,13 @@ public class OperationManageServiceImpl implements OperationManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.CREATE)) {
+            throw new SecurityException("No permission to create operation");
+        }
+
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) {
             throw new IllegalArgumentException("Unknown resourceTypeCode: " + resourceTypeCode);
@@ -96,6 +103,13 @@ public class OperationManageServiceImpl implements OperationManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
+            throw new SecurityException("No permission to update operation");
+        }
+
         OperationPermission op = operationPermissionMapper.selectOneById(operationId);
         if (op == null || op.getDeleteFlag() != 0L || !op.getTenantId().equals(tenantId)) {
             throw new IllegalArgumentException("Operation not found: " + operationId);
@@ -112,6 +126,13 @@ public class OperationManageServiceImpl implements OperationManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOperation(Long tenantId, Long operationId, Long operatorId) {
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // Permission check
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
+            throw new SecurityException("No permission to delete operation");
+        }
+
         OperationPermission op = operationPermissionMapper.selectOneById(operationId);
         if (op != null && op.getDeleteFlag() == 0L && op.getTenantId().equals(tenantId)) {
             op.setDeleteFlag(op.getId());
