@@ -343,6 +343,8 @@ public class ResourcePermissionValidator {
         );
     }
 
+    // 类型级权限：scopeAll=true 表示用户对该资源类型的所有实例都有操作权限
+    // 实例级权限：scopeAll=false + resourceEntityId=具体ID 表示用户只对特定实例有权限
     private boolean checkTypeLevelPermission(Long tenantId, Set<Long> roleIds,
                                               Integer resourceType, OperationType operation) {
         OperationPermission opPerm = findOperationPermission(tenantId, resourceType, operation);
@@ -350,12 +352,14 @@ public class ResourcePermissionValidator {
             return false;
         }
 
+        // 类型级权限定义：scopeAll=true 表示对该资源类型的所有实例都有权限
         List<RoleResourcePermission> perms = roleResourcePermissionMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
                 .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.eq(resourceType))
                 .and(ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(opPerm.getId()))
-                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.isNull())
+                .and(ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(true))
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         return !perms.isEmpty();

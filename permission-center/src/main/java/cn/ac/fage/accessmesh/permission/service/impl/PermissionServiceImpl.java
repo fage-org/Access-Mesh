@@ -347,6 +347,79 @@ public class PermissionServiceImpl implements PermissionService {
         boolean hasMatchedResource = false;
         Map<Integer, List<OperationPermission>> operationCacheByType = new HashMap<>();
 
+        // Batch pre-query type-level permissions to avoid N queries inside loop
+        // Collect all resource types and operation IDs that will be checked
+        Set<Integer> resourceTypesToCheck = matchedMappings.stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .map(id -> mappingResourceMap.get(id))
+            .filter(java.util.Objects::nonNull)
+            .map(ResourceEntity::getResourceType)
+            .collect(java.util.stream.Collectors.toSet());
+
+        // Pre-load all ACCESS operation permissions for these resource types
+        for (Integer rt : resourceTypesToCheck) {
+            operationCacheByType.computeIfAbsent(rt, rType ->
+                operationPermissionMapper.selectListByQuery(
+                    QueryWrapper.create()
+                        .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                        .and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(rType))
+                        .and(OPERATION_PERMISSION.CODE.eq(PermConstants.Operation.ACCESS))
+                        .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                )
+            );
+        }
+
+        Set<Long> allOperationIds = operationCacheByType.values().stream()
+            .flatMap(List::stream)
+            .map(OperationPermission::getId)
+            .collect(java.util.stream.Collectors.toSet());
+
+        // Batch query type-level permissions for all resource types in ONE query per type
+        // Use IN clause for operation IDs to avoid nested loops
+        Map<Integer, Map<Long, List<RolePermEntry>>> typeLevelPermCache = new HashMap<>();
+        for (Integer rt : resourceTypesToCheck) {
+            List<RolePermEntry> batchTypePerms = queryTypeLevelPermissionsBatch(
+                tenantId, validRoleIds, rt, allOperationIds);
+            if (!batchTypePerms.isEmpty()) {
+                Map<Long, List<RolePermEntry>> opPermMap = batchTypePerms.stream()
+                    .collect(Collectors.groupingBy(RolePermEntry::operationPermissionId));
+                typeLevelPermCache.put(rt, opPermMap);
+            }
+        }
+
+        // Batch resolve all resource type codes to avoid N calls inside loop
+        Map<Integer, String> resourceTypeCodeCache = typeResolutionService.batchResolveTypeCodes(
+            tenantId, "resource_type", resourceTypesToCheck);
+
+        // Batch pre-query instance-level permissions to avoid N×M queries inside nested loop
+        // Query ALL permissions for these resources, then filter by matchesBit in memory
+        // This preserves the bit-matching behavior of the original method
+        Set<Long> allResourceIdsToCheck = matchedMappings.stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+
+        // Cache by resourceId only (not by operationId, to allow matchesBit filtering)
+        Map<Long, List<RolePermEntry>> instancePermCache = new HashMap<>();
+        Set<Long> permOpIds = new HashSet<>(allOperationIds);  // Collect all op IDs for loading
+        if (!allResourceIdsToCheck.isEmpty()) {
+            List<RolePermEntry> batchInstancePerms = queryMatchedEntriesBatch(
+                tenantId, validRoleIds, allResourceIdsToCheck);
+            // Collect operation IDs from permissions for matchesBit check
+            permOpIds.addAll(batchInstancePerms.stream()
+                .map(RolePermEntry::operationPermissionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+            // Group by resourceId only
+            instancePermCache = batchInstancePerms.stream()
+                .filter(e -> e.resourceEntityId() != null)
+                .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId));
+        }
+
+        // Pre-cache all operation permission objects for matchesBit checking in loop
+        Map<Long, OperationPermission> allOpsCache = entityBatchLoadDomainService.batchLoadOperations(tenantId, permOpIds);
+
         for (ResourceApiMapping matchedMapping : matchedMappings) {
             ResourceEntity resource = mappingResourceMap.get(matchedMapping.getResourceEntityId());
             if (resource == null || resource.getDeleteFlag() != 0L) {
@@ -354,19 +427,62 @@ public class PermissionServiceImpl implements PermissionService {
             }
             hasMatchedResource = true;
 
-            List<OperationPermission> allOps = operationCacheByType.computeIfAbsent(resource.getResourceType(), rt ->
-                operationPermissionMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                        .and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(rt))
-                        .and(OPERATION_PERMISSION.CODE.eq(PermConstants.Operation.ACCESS))
-                        .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-                )
-            );
-            String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType());
+            List<OperationPermission> allOps = operationCacheByType.get(resource.getResourceType());
+            if (allOps == null || allOps.isEmpty()) {
+                continue;
+            }
+
+            String resourceTypeCode = resourceTypeCodeCache.get(resource.getResourceType());
             for (OperationPermission op : allOps) {
-                List<RolePermEntry> entries = queryMatchedEntries(tenantId, validRoleIds,
-                    matchedMapping.getResourceEntityId(), op.getId(), null);
+                // 1. First check type-level permission from cache
+                Map<Long, List<RolePermEntry>> typeOpMap = typeLevelPermCache.get(resource.getResourceType());
+                List<RolePermEntry> typeLevelEntries = typeOpMap != null ? typeOpMap.getOrDefault(op.getId(), List.of()) : List.of();
+
+                if (!typeLevelEntries.isEmpty()) {
+                    List<RolePermEntry> passedTypeLevel = permissionConditionDomainService.evaluate(tenantId, typeLevelEntries, context);
+                    if (!passedTypeLevel.isEmpty()) {
+                        List<RolePermEntry> finalTypeLevel = permissionConflictDomainService.filterPermMutex(tenantId, passedTypeLevel);
+                        if (!finalTypeLevel.isEmpty()) {
+                            // Type-level permission matched, grant access
+                            anyAllowed = true;
+                            List<Long> typeMatchedRoleIds = finalTypeLevel.stream()
+                                .map(RolePermEntry::roleId)
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .toList();
+                            List<Long> typeMatchedPermissionIds = finalTypeLevel.stream()
+                                .map(RolePermEntry::permissionId)
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .toList();
+                            matchedResources.add(new CheckInterfaceResp.MatchedResource(
+                                resource.getId(),
+                                resourceTypeCode,
+                                resource.getCode(),
+                                op.getCode(),
+                                true,
+                                typeMatchedRoleIds,
+                                typeMatchedPermissionIds
+                            ));
+                            continue;
+                        }
+                    }
+                }
+
+                // 2. Type-level not matched, check instance-level permission from cache
+                // Get all permissions for this resource, then filter by matchesBit
+                List<RolePermEntry> allResourcePerms = instancePermCache.getOrDefault(
+                    matchedMapping.getResourceEntityId(), List.of());
+
+                // Filter permissions that match this operation via matchesBit
+                OperationPermission targetOp = allOpsCache.get(op.getId());
+                List<RolePermEntry> entries = allResourcePerms.stream()
+                    .filter(e -> {
+                        OperationPermission grantedOp = allOpsCache.get(e.operationPermissionId());
+                        return grantedOp != null && targetOp != null && grantedOp.matchesBit(targetOp);
+                    })
+                    .toList();
+
                 List<RolePermEntry> passed = entries.isEmpty()
                     ? List.of()
                     : permissionConditionDomainService.evaluate(tenantId, entries, context);
@@ -637,30 +753,38 @@ public class PermissionServiceImpl implements PermissionService {
         Set<Integer> resourceTypeValues = scopeAllByType.keySet();
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
 
-        for (Map.Entry<Integer, List<RoleResourcePermission>> scopeEntry : scopeAllByType.entrySet()) {
-            Integer resourceType = scopeEntry.getKey();
-            String resolvedResourceTypeCode = resourceTypeCodeMap.get(resourceType);
-            List<String> allowedOps = scopeEntry.getValue().stream()
-                .map(p -> operationMap.get(p.getOperationPermissionId()))
-                .filter(Objects::nonNull)
-                .map(OperationPermission::getCode)
-                .filter(operationCodes::contains)
-                .distinct()
-                .toList();
-            if (allowedOps.isEmpty()) {
-                continue;
-            }
-            List<ResourceEntity> allTypeResources = resourceEntityMapper.selectListByQuery(
+        // Batch query all resources for scopeAll types in ONE query (avoid N queries)
+        if (!resourceTypeValues.isEmpty()) {
+            List<ResourceEntity> allScopeAllResources = resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+                    .and(RESOURCE_ENTITY.RESOURCE_TYPE.in(resourceTypeValues))
                     .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
-            for (ResourceEntity r : allTypeResources) {
-                ResourceEntry entry = buildScopeAllResourceEntry(tenantId, r, scopeEntry.getValue(),
-                    resolvedResourceTypeCode, allowedOps, context, items);
-                if (entry != null) {
-                    items.add(entry);
+            // Group by resource type for processing
+            Map<Integer, List<ResourceEntity>> resourcesByType = allScopeAllResources.stream()
+                .collect(Collectors.groupingBy(ResourceEntity::getResourceType));
+
+            for (Map.Entry<Integer, List<RoleResourcePermission>> scopeEntry : scopeAllByType.entrySet()) {
+                Integer resourceType = scopeEntry.getKey();
+                String resolvedResourceTypeCode = resourceTypeCodeMap.get(resourceType);
+                List<String> allowedOps = scopeEntry.getValue().stream()
+                    .map(p -> operationMap.get(p.getOperationPermissionId()))
+                    .filter(Objects::nonNull)
+                    .map(OperationPermission::getCode)
+                    .filter(operationCodes::contains)
+                    .distinct()
+                    .toList();
+                if (allowedOps.isEmpty()) {
+                    continue;
+                }
+                List<ResourceEntity> typeResources = resourcesByType.getOrDefault(resourceType, List.of());
+                for (ResourceEntity r : typeResources) {
+                    ResourceEntry entry = buildScopeAllResourceEntry(tenantId, r, scopeEntry.getValue(),
+                        resolvedResourceTypeCode, allowedOps, context, items);
+                    if (entry != null) {
+                        items.add(entry);
+                    }
                 }
             }
         }
@@ -842,29 +966,47 @@ public class PermissionServiceImpl implements PermissionService {
             scopeOpIdMapByType.put(scopeTypeCode, opMap);
         }
 
+        // Collect all scope types for batch query
+        Set<Integer> allScopeTypes = scopeTypeValueMap.values().stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        // Batch query ALL permissions for all scope types in ONE query (avoid N queries)
+        List<RoleResourcePermission> allScopePermCandidates = allScopeTypes.isEmpty()
+            ? List.of()
+            : rolePermMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(context.validRoleIds))
+                    .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.in(allScopeTypes))
+                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+            );
+
+        // Convert all to RolePermEntry once (avoid N conversions)
+        List<RolePermEntry> allScopeEntries = toRolePermEntries(tenantId, allScopePermCandidates);
+
+        // Group permissions by resource type for processing
+        Map<Integer, List<RolePermEntry>> scopeEntriesByType = allScopeEntries.stream()
+            .filter(e -> e.resourceType() != null)
+            .collect(Collectors.groupingBy(RolePermEntry::resourceType));
+
+        // Batch load resource entities for all entries (avoid N+1)
+        Set<Long> scopeResourceIds = allScopeEntries.stream()
+            .map(RolePermEntry::resourceEntityId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, ResourceEntity> scopeResourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, scopeResourceIds);
+
         Map<String, ScopeAccumulator> merged = new LinkedHashMap<>();
         for (String scopeTypeCode : req.scopeResourceTypeCodes()) {
             Integer scopeType = scopeTypeValueMap.get(scopeTypeCode);
             if (scopeType == null) {
                 continue;
             }
-            List<RoleResourcePermission> scopePermCandidates = rolePermMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(context.validRoleIds))
-                    .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.eq(scopeType))
-                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-            );
-            // Batch load resource entities for entries to avoid N+1 queries
-            List<RolePermEntry> allScopeEntries = toRolePermEntries(tenantId, scopePermCandidates);
-            Set<Long> scopeResourceIds = allScopeEntries.stream()
-                .map(RolePermEntry::resourceEntityId)
-                .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-            Map<Long, ResourceEntity> scopeResourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, scopeResourceIds);
+            List<RolePermEntry> typeScopeEntries = scopeEntriesByType.getOrDefault(scopeType, List.of());
 
             Map<String, Long> scopeOpIdMap = scopeOpIdMapByType.getOrDefault(scopeTypeCode, Map.of());
-            processScopeOperations(tenantId, context, req, scopeTypeCode, scopeOpIdMap, scopeOpId -> allScopeEntries.stream()
+            processScopeOperations(tenantId, context, req, scopeTypeCode, scopeOpIdMap, scopeOpId -> typeScopeEntries.stream()
                 .filter(entry -> entry.operationPermissionId().equals(scopeOpId))
                 .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
                 .toList(), scopeResourceMap, merged);
@@ -1029,10 +1171,33 @@ public class PermissionServiceImpl implements PermissionService {
                 .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
-        Set<Long> allowedResourceIds = allPerms.stream()
-            .map(RoleResourcePermission::getResourceEntityId)
+        // 1. Get resource types with type-level permission (scopeAll=true)
+        Set<Integer> scopeAllResourceTypes = allPerms.stream()
+            .filter(p -> Boolean.TRUE.equals(p.getScopeAll()))
+            .map(RoleResourcePermission::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
+
+        Set<Long> allowedResourceIds = new HashSet<>();
+
+        // 2. For scopeAll=true resource types, batch query all resources using IN clause
+        if (!scopeAllResourceTypes.isEmpty()) {
+            List<ResourceEntity> allTypeResources = resourceEntityMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_ENTITY.RESOURCE_TYPE.in(scopeAllResourceTypes))
+                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+            );
+            allowedResourceIds.addAll(allTypeResources.stream()
+                .map(ResourceEntity::getId)
+                .toList());
+        }
+
+        // 3. Add instance-level permission resource IDs
+        allowedResourceIds.addAll(allPerms.stream()
+            .filter(p -> p.getResourceEntityId() != null && !Boolean.TRUE.equals(p.getScopeAll()))
+            .map(RoleResourcePermission::getResourceEntityId)
+            .collect(Collectors.toSet()));
 
         List<ApiPermissionEntry> entries = new ArrayList<>();
         if (!allowedResourceIds.isEmpty()) {
@@ -1079,6 +1244,98 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     // =========== Internal helpers ===========
+
+    /**
+     * Query type-level permissions (scopeAll=true) for a resource type + operation.
+     * Type-level permission means the user has permission on ALL instances of this resource type.
+     *
+     * @param tenantId tenant ID
+     * @param roleIds valid role IDs (after mutex filtering)
+     * @param resourceType resource type value
+     * @param operationPermissionId operation permission ID
+     * @return list of matching RolePermEntry, empty if no type-level permission found
+     */
+    private List<RolePermEntry> queryTypeLevelPermissions(Long tenantId, Set<Long> roleIds,
+                                                           Integer resourceType, Long operationPermissionId) {
+        return queryTypeLevelPermissionsBatch(tenantId, roleIds, resourceType, Set.of(operationPermissionId));
+    }
+
+    /**
+     * Batch query type-level permissions (scopeAll=true) for a resource type + multiple operations.
+     * Uses IN clause to avoid N queries for N operations.
+     *
+     * @param tenantId tenant ID
+     * @param roleIds valid role IDs (after mutex filtering)
+     * @param resourceType resource type value
+     * @param operationPermissionIds operation permission IDs to check
+     * @return list of matching RolePermEntry, empty if no type-level permission found
+     */
+    private List<RolePermEntry> queryTypeLevelPermissionsBatch(Long tenantId, Set<Long> roleIds,
+                                                                Integer resourceType, Set<Long> operationPermissionIds) {
+        if (roleIds.isEmpty() || operationPermissionIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<RoleResourcePermission> scopeAllPerms = rolePermMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.eq(resourceType))
+                .and(ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(operationPermissionIds))
+                .and(ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(true))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        if (scopeAllPerms.isEmpty()) {
+            return List.of();
+        }
+
+        return scopeAllPerms.stream()
+            .map(p -> new RolePermEntry(
+                p.getId(),
+                p.getAbstractRoleId(),
+                p.getResourceEntityId(),
+                null,
+                p.getResourceType(),
+                p.getOperationPermissionId(),
+                null,
+                null,
+                p.getGrantSource(),
+                p.getCanGrant(),
+                p.getConditionId(),
+                p.getConditionId() != null,
+                p.getDependOn()))
+            .toList();
+    }
+
+    /**
+     * Query type-level permissions (scopeAll=true) with batch operation IDs.
+     * Used by interfaceSnapshot to find all resource types with type-level permission.
+     *
+     * @param tenantId tenant ID
+     * @param roleIds valid role IDs (after mutex filtering)
+     * @param operationIds operation permission IDs to check
+     * @return set of resource types that have type-level permission for at least one operation
+     */
+    private Set<Integer> getResourceTypesWithScopeAll(Long tenantId, Set<Long> roleIds, Set<Long> operationIds) {
+        if (roleIds.isEmpty() || operationIds.isEmpty()) {
+            return Set.of();
+        }
+
+        List<RoleResourcePermission> scopeAllPerms = rolePermMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
+                .and(ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(operationIds))
+                .and(ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(true))
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        return scopeAllPerms.stream()
+            .map(RoleResourcePermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+    }
 
     /**
      * Type-level permission check (e.g., CREATE operation).
@@ -1221,11 +1478,34 @@ public class PermissionServiceImpl implements PermissionService {
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) return AuthCheckResp.deny("NO_ROLE");
 
+        Map<String, Object> ctx = context != null ? context : Map.of();
+
+        // Get resource entity for type-level check
+        ResourceEntity resource = resourceEntityMapper.selectOneById(resourceEntityId);
+        if (resource == null) return AuthCheckResp.deny("RESOURCE_NOT_FOUND");
+
+        // 1. First check type-level permission (scopeAll=true)
+        List<RolePermEntry> typeLevelEntries = queryTypeLevelPermissions(
+            tenantId, validRoleIds, resource.getResourceType(), operationPermissionId);
+
+        if (!typeLevelEntries.isEmpty()) {
+            List<RolePermEntry> passedTypeLevel = permissionConditionDomainService.evaluate(tenantId, typeLevelEntries, ctx);
+            if (!passedTypeLevel.isEmpty()) {
+                List<RolePermEntry> finalTypeLevel = permissionConflictDomainService.filterPermMutex(tenantId, passedTypeLevel);
+                if (!finalTypeLevel.isEmpty()) {
+                    boolean conditionEvaluated = passedTypeLevel.stream().anyMatch(RolePermEntry::hasCondition);
+                    List<Long> matchedRoleIds = finalTypeLevel.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
+                    List<Long> matchedPermissionIds = finalTypeLevel.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
+                    return AuthCheckResp.allow(matchedRoleIds, matchedPermissionIds, conditionEvaluated);
+                }
+            }
+        }
+
+        // 2. Type-level not matched, check instance-level permission
         List<RolePermEntry> entries = queryMatchedEntries(tenantId, validRoleIds, resourceEntityId,
             operationPermissionId, inheritMode);
         if (entries.isEmpty()) return AuthCheckResp.deny("NO_PERMISSION");
 
-        Map<String, Object> ctx = context != null ? context : Map.of();
         List<RolePermEntry> passedEntries = permissionConditionDomainService.evaluate(tenantId, entries, ctx);
         if (passedEntries.isEmpty()) return AuthCheckResp.deny("CONDITION_NOT_MET");
 
@@ -1298,6 +1578,56 @@ public class PermissionServiceImpl implements PermissionService {
             }
         }
         return result;
+    }
+
+    /**
+     * Batch query ALL instance-level permissions for multiple resource IDs.
+     * Does NOT filter by operation IDs or do matchesBit check (caller does that).
+     * This preserves the bit-matching behavior matching the original queryMatchedEntries.
+     *
+     * @param tenantId tenant ID
+     * @param roleIds valid role IDs
+     * @param resourceEntityIds resource entity IDs to check
+     * @return list of all RolePermEntry for these resources (caller filters by matchesBit)
+     */
+    private List<RolePermEntry> queryMatchedEntriesBatch(Long tenantId, Set<Long> roleIds,
+                                                          Set<Long> resourceEntityIds) {
+        if (roleIds.isEmpty() || resourceEntityIds.isEmpty()) {
+            return List.of();
+        }
+
+        // Query ALL instance-level permissions for these resources
+        // Caller will filter by matchesBit to preserve original behavior
+        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
+                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceEntityIds))
+                .and(ROLE_RESOURCE_PERMISSION.SCOPE_ALL.ne(true))  // Instance-level only
+                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+
+        if (perms.isEmpty()) {
+            return List.of();
+        }
+
+        // Convert to RolePermEntry without matchesBit filtering
+        return perms.stream()
+            .map(perm -> new RolePermEntry(
+                perm.getId(),
+                perm.getAbstractRoleId(),
+                perm.getResourceEntityId(),
+                null,
+                perm.getResourceType(),
+                perm.getOperationPermissionId(),
+                null,  // opCode will be loaded by caller if needed
+                null,
+                perm.getGrantSource(),
+                perm.getCanGrant(),
+                perm.getConditionId(),
+                perm.getConditionId() != null,
+                perm.getDependOn()))
+            .toList();
     }
 
     private static final class ScopeAccumulator {
