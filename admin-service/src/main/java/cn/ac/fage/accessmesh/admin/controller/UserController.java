@@ -2,10 +2,16 @@ package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
-import cn.ac.fage.accessmesh.admin.dto.req.*;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.ResetPasswordReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserBatchCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.admin.service.UserService;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import jakarta.validation.Valid;
@@ -57,9 +63,8 @@ public class UserController {
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody PageReq pageReq,
-                                                                     UserQuery query) {
-        return PermResult.success(userService.pageUsers(pageReq, query));
+    public PermResult<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
+        return PermResult.success(userService.pageUsers(req));
     }
 
     @PostMapping("/reset-password")

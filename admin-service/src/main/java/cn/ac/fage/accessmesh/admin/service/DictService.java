@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictDataResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;

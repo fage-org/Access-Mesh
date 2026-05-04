@@ -1,9 +1,15 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.admin.dto.req.*;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgBatchCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgPageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgQuery;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgResp;
 import cn.ac.fage.accessmesh.admin.service.OrgService;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import jakarta.validation.Valid;
@@ -50,13 +56,12 @@ public class OrgController {
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<OrgResp>> pageOrgs(@Valid @RequestBody PageReq pageReq,
-                                                           OrgQuery query) {
-        return PermResult.success(orgService.pageOrgs(pageReq, query));
+    public PermResult<PaginatedResult<OrgResp>> pageOrgs(@Valid @RequestBody OrgPageReq req) {
+        return PermResult.success(orgService.pageOrgs(req));
     }
 
     @PostMapping("/tree")
-    public PermResult<List<OrgResp>> treeOrgs(OrgQuery query) {
+    public PermResult<List<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
         return PermResult.success(orgService.treeOrgs(query));
     }
 }

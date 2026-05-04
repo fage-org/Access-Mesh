@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionVersionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -148,7 +149,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         versionMapper.insertBatch(newVersions);
 
         // 4. 批量写入 L2 缓存（使用 pipelined 提高性能，每个 key 单独设置 TTL）
-        redisTemplate.executePipelined((org.springframework.data.redis.connection.RedisCallback<Object>) connection -> {
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             for (Map.Entry<String, Long> entry : redisKeyToVersion.entrySet()) {
                 byte[] keyBytes = entry.getKey().getBytes();
                 byte[] valueBytes = entry.getValue().toString().getBytes();

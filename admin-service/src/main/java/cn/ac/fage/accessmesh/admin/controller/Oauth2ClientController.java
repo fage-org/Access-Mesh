@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
-import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
+import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientPageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.admin.service.Oauth2ClientService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -26,14 +28,14 @@ public class Oauth2ClientController {
 
     @PostMapping("/create")
     @AuditLog(module = "OAuth2客户端", action = "创建", targetType = "OAUTH2_CLIENT")
-    public PermResult<Long> createClient(@Valid @RequestBody SysOauth2Client client) {
-        return PermResult.success(oauth2ClientService.createClient(client));
+    public PermResult<Long> createClient(@Valid @RequestBody Oauth2ClientCreateReq req) {
+        return PermResult.success(oauth2ClientService.createClient(req));
     }
 
     @PostMapping("/update")
     @AuditLog(module = "OAuth2客户端", action = "修改", targetType = "OAUTH2_CLIENT")
-    public PermResult<Void> updateClient(@Valid @RequestBody SysOauth2Client client) {
-        oauth2ClientService.updateClient(client);
+    public PermResult<Void> updateClient(@Valid @RequestBody Oauth2ClientUpdateReq req) {
+        oauth2ClientService.updateClient(req);
         return PermResult.success();
     }
 
@@ -45,12 +47,12 @@ public class Oauth2ClientController {
     }
 
     @PostMapping("/detail")
-    public PermResult<SysOauth2Client> getClient(@Valid @RequestBody IdReq req) {
-        return PermResult.success(oauth2ClientService.getClient(req.id()));
+    public PermResult<Oauth2ClientResp> getClient(@Valid @RequestBody IdReq req) {
+        return PermResult.success(oauth2ClientService.getClientResp(req.id()));
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<SysOauth2Client>> pageClients(@Valid @RequestBody PageReq pageReq) {
-        return PermResult.success(oauth2ClientService.pageClients(pageReq));
+    public PermResult<PaginatedResult<Oauth2ClientResp>> pageClients(@Valid @RequestBody Oauth2ClientPageReq req) {
+        return PermResult.success(oauth2ClientService.pageClientResps(req));
     }
 }

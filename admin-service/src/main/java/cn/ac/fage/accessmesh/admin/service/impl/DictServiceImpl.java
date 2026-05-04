@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictDataResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.admin.entity.SysDictData;
@@ -14,6 +14,9 @@ import cn.ac.fage.accessmesh.admin.entity.table.SysDictTypeTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysDictDataMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysDictTypeMapper;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.DictService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -36,16 +39,22 @@ public class DictServiceImpl implements DictService {
 
     private final SysDictTypeMapper dictTypeMapper;
     private final SysDictDataMapper dictDataMapper;
+    private final AdminPermissionValidator permissionValidator;
 
-    public DictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper) {
+    public DictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper,
+                           AdminPermissionValidator permissionValidator) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictType(DictTypeCreateReq req) {
+        // Permission check - type-level CREATE
+        permissionValidator.checkTypeLevel(AdminResourceType.DICT, AdminOperationCode.CREATE);
+
         SysDictType type = new SysDictType();
         type.setDictType(req.dictType());
         type.setDictName(req.dictName());
@@ -62,6 +71,12 @@ public class DictServiceImpl implements DictService {
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictType(IdsReq req) {
+        // Permission check - batch instance-level DELETE
+        List<String> resourceCodes = req.ids().stream()
+            .map(String::valueOf)
+            .collect(Collectors.toList());
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.DICT, resourceCodes, AdminOperationCode.DELETE);
+
         LocalDateTime now = LocalDateTime.now();
         for (Long id : req.ids()) {
             SysDictType type = dictTypeMapper.selectOneById(id);
@@ -118,6 +133,9 @@ public class DictServiceImpl implements DictService {
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictData(DictDataCreateReq req) {
+        // Permission check - type-level CREATE for dict data
+        permissionValidator.checkTypeLevel(AdminResourceType.DICT_DATA, AdminOperationCode.CREATE);
+
         SysDictType type = dictTypeMapper.selectOneById(req.dictTypeId());
         if (type == null || type.getDeleteFlag() != 0L) {
             throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
@@ -140,6 +158,13 @@ public class DictServiceImpl implements DictService {
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
     public void updateDictData(DictDataCreateReq req) {
+        // Permission check - instance-level UPDATE
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.DICT_DATA,
+            String.valueOf(req.dictTypeId()),
+            AdminOperationCode.UPDATE
+        );
+
         SysDictData data = dictDataMapper.selectOneById(req.dictTypeId());
         if (data == null || data.getDeleteFlag() != 0L) {
             throw new BizException(AdminErrorCode.DICT_DATA_NOT_FOUND.getCode(), AdminErrorCode.DICT_DATA_NOT_FOUND.getMessage());
@@ -157,6 +182,13 @@ public class DictServiceImpl implements DictService {
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictData(IdReq req) {
+        // Permission check - instance-level DELETE
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.DICT_DATA,
+            String.valueOf(req.id()),
+            AdminOperationCode.DELETE
+        );
+
         SysDictData data = dictDataMapper.selectOneById(req.id());
         if (data == null || data.getDeleteFlag() != 0L) return;
         data.setDeleteFlag(1L);

@@ -8,6 +8,8 @@ import java.util.Map;
 /**
  * Batch auth check request — uses stable business keys.
  * tenantId is NOT in the body; it is read from X-Tenant-Id header.
+ *
+ * For type-level operations (e.g., CREATE), resourceCode can be null in AuthCheckItem.
  */
 public record BatchAuthCheckReq(
     @NotBlank(message = "主体类型编码不能为空")
@@ -20,7 +22,7 @@ public record BatchAuthCheckReq(
 ) {
     public record AuthCheckItem(
         @NotBlank String resourceTypeCode,
-        @NotBlank String resourceCode,
+        String resourceCode,  // Nullable for type-level operations (CREATE)
         @NotBlank String operationCode,
         String domainCode,
         String codeType,

@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
+import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef;
 import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
@@ -19,8 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef.SYS_ORG;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
 
@@ -81,17 +85,24 @@ public class UserOrgServiceImpl implements UserOrgService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void setPrimaryOrg(Long userId, Long orgId) {
-        List<SysUserOrg> all = userOrgMapper.selectListByQuery(
+        LocalDateTime now = LocalDateTime.now();
+
+        // 查询所有用户组织关联
+        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
-        for (SysUserOrg uo : all) {
-            uo.setIsPrimary(uo.getOrgId().equals(orgId));
-            uo.setUpdatedAt(LocalDateTime.now());
-            userOrgMapper.update(uo);
+
+        // 批量更新：先全部设为非主组织
+        for (SysUserOrg uo : userOrgs) {
+            SysUserOrg update = new SysUserOrg();
+            update.setId(uo.getId());
+            update.setIsPrimary(uo.getOrgId().equals(orgId));
+            update.setUpdatedAt(now);
+            userOrgMapper.update(update);
         }
     }
 
@@ -102,8 +113,23 @@ public class UserOrgServiceImpl implements UserOrgService {
                 .where(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
+
+        if (userOrgs.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量查询组织信息（避免N+1问题）
+        Set<Long> orgIds = userOrgs.stream().map(SysUserOrg::getOrgId).collect(Collectors.toSet());
+        List<SysOrg> orgs = orgMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_ORG.ID.in(orgIds))
+                .and(SYS_ORG.DELETE_FLAG.eq(0))
+        );
+        Map<Long, SysOrg> orgMap = orgs.stream()
+            .collect(Collectors.toMap(SysOrg::getId, o -> o));
+
         return userOrgs.stream().map(uo -> {
-            SysOrg org = orgMapper.selectOneById(uo.getOrgId());
+            SysOrg org = orgMap.get(uo.getOrgId());
             String orgName = org != null ? org.getName() : null;
             String orgType = org != null ? org.getOrgType() : null;
             return new UserPageItemResp.OrgBrief(uo.getOrgId(), orgName, orgType, Boolean.TRUE.equals(uo.getIsPrimary()));

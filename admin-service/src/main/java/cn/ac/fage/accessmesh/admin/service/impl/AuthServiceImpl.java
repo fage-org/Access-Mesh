@@ -23,11 +23,17 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.imageio.ImageIO;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysLoginLogTableDef.SYS_LOGIN_LOG;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT;
@@ -37,6 +43,7 @@ import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String CAPTCHA_KEY_PREFIX = "captcha:";
     private static final String LOGIN_FAIL_PREFIX = "login:fail:";
     private static final String SMS_CODE_PREFIX = "sms:code:";
@@ -66,7 +73,7 @@ public class AuthServiceImpl implements AuthService {
         String captchaId = UUID.randomUUID().toString();
         String code = generateRandomCode(4);
         redisTemplate.opsForValue().set(CAPTCHA_KEY_PREFIX + captchaId, code, 5, TimeUnit.MINUTES);
-        String image = "data:image/png;base64,captcha-placeholder-" + code;
+        String image = generateCaptchaImage(code);
         return new CaptchaResp(captchaId, image);
     }
 
@@ -291,8 +298,84 @@ public class AuthServiceImpl implements AuthService {
         String chars = "0123456789";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
-            sb.append(chars.charAt((int) (Math.random() * chars.length())));
+            sb.append(chars.charAt(SECURE_RANDOM.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    /**
+     * 生成验证码图片（PNG格式，Base64编码）
+     */
+    private String generateCaptchaImage(String code) {
+        int width = 120;
+        int height = 40;
+
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2d = image.createGraphics();
+
+        // 设置抗锯齿
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // 背景色（浅灰）
+        g2d.setColor(new Color(240, 240, 240));
+        g2d.fillRect(0, 0, width, height);
+
+        // 绘制干扰线
+        for (int i = 0; i < 8; i++) {
+            g2d.setColor(new Color(
+                SECURE_RANDOM.nextInt(100) + 100,
+                SECURE_RANDOM.nextInt(100) + 100,
+                SECURE_RANDOM.nextInt(100) + 100
+            ));
+            int x1 = SECURE_RANDOM.nextInt(width);
+            int y1 = SECURE_RANDOM.nextInt(height);
+            int x2 = SECURE_RANDOM.nextInt(width);
+            int y2 = SECURE_RANDOM.nextInt(height);
+            g2d.drawLine(x1, y1, x2, y2);
+        }
+
+        // 绘制噪点
+        for (int i = 0; i < 50; i++) {
+            g2d.setColor(new Color(
+                SECURE_RANDOM.nextInt(150) + 100,
+                SECURE_RANDOM.nextInt(150) + 100,
+                SECURE_RANDOM.nextInt(150) + 100
+            ));
+            int x = SECURE_RANDOM.nextInt(width);
+            int y = SECURE_RANDOM.nextInt(height);
+            g2d.fillOval(x, y, 2, 2);
+        }
+
+        // 绘制验证码字符
+        g2d.setFont(new Font("Arial", Font.BOLD, 24));
+        int charWidth = width / code.length();
+        for (int i = 0; i < code.length(); i++) {
+            // 每个字符颜色略有不同
+            g2d.setColor(new Color(
+                SECURE_RANDOM.nextInt(50) + 30,
+                SECURE_RANDOM.nextInt(50) + 30,
+                SECURE_RANDOM.nextInt(50) + 80
+            ));
+            // 字符位置随机偏移
+            int x = charWidth * i + SECURE_RANDOM.nextInt(10) - 5;
+            int y = height / 2 + SECURE_RANDOM.nextInt(10) - 5 + 8;
+            // 字符随机旋转
+            double angle = (SECURE_RANDOM.nextDouble() - 0.5) * 0.3;
+            g2d.rotate(angle, x + charWidth / 2, y);
+            g2d.drawString(String.valueOf(code.charAt(i)), x, y);
+            g2d.rotate(-angle, x + charWidth / 2, y);
+        }
+
+        g2d.dispose();
+
+        // 转换为 Base64
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", baos);
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (java.io.IOException e) {
+            // 图片生成失败时返回空白图片（不应影响正常流程）
+            return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        }
     }
 }

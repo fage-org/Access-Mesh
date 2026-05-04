@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
 import cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef;
@@ -127,7 +127,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup) {
-        QueryWrapper<?> qw = QueryWrapper.create().where(SYS_JOB.DELETE_FLAG.eq(0));
+        QueryWrapper qw = QueryWrapper.create().where(SYS_JOB.DELETE_FLAG.eq(0));
         if (jobGroup != null) qw.and(SYS_JOB.JOB_GROUP.eq(jobGroup));
         qw.orderBy(SYS_JOB.CREATED_AT.desc());
 
@@ -141,7 +141,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public PaginatedResult<SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
-        QueryWrapper<?> qw = QueryWrapper.create().orderBy(SYS_JOB_LOG.CREATED_AT.desc());
+        QueryWrapper qw = QueryWrapper.create().orderBy(SYS_JOB_LOG.CREATED_AT.desc());
         if (jobId != null) {
             qw.where(SYS_JOB_LOG.JOB_ID.eq(jobId));
         }

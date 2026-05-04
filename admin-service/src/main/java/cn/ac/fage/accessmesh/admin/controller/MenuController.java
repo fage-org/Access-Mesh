@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.MenuResp;

@@ -1,20 +1,22 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.MenuBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.BatchResultResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
-import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.MenuService;
+import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.MenuSyncHandler;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PermResult;
-import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
-import cn.ac.fage.accessmesh.perm.common.dto.req.IdWithTenantReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
@@ -31,47 +35,47 @@ import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
 public class MenuServiceImpl implements MenuService {
 
     private static final Logger log = LoggerFactory.getLogger(MenuServiceImpl.class);
-    private static final int RESOURCE_TYPE_MENU = 1;
 
     private final SysMenuMapper menuMapper;
-    private final PermissionFeignClient permissionFeignClient;
     private final cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService;
+    private final MenuDomainService menuDomainService;
+    private final MenuSyncHandler menuSyncHandler;
+    private final AdminPermissionValidator permissionValidator;
 
     public MenuServiceImpl(SysMenuMapper menuMapper,
-                           PermissionFeignClient permissionFeignClient,
-                           cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService) {
+                           cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService,
+                           MenuDomainService menuDomainService,
+                           MenuSyncHandler menuSyncHandler,
+                           AdminPermissionValidator permissionValidator) {
         this.menuMapper = menuMapper;
-        this.permissionFeignClient = permissionFeignClient;
         this.roleProxyService = roleProxyService;
+        this.menuDomainService = menuDomainService;
+        this.menuSyncHandler = menuSyncHandler;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     public Long createMenu(MenuCreateReq req) {
+        // Permission check - type-level CREATE
+        permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
+
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 使用 DomainService 检查权限标识重复
         if (req.perms() != null && !req.perms().isBlank()) {
-            SysMenu existing = menuMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(SYS_MENU.PERM_CODE.eq(req.perms()))
-                    .and(SYS_MENU.DELETE_FLAG.eq(0))
-            );
+            SysMenu existing = menuDomainService.findByPermCode(tenantId, req.perms());
             if (existing != null) {
                 throw new BizException(AdminErrorCode.MENU_PERM_CODE_EXISTS.getCode(),
                     AdminErrorCode.MENU_PERM_CODE_EXISTS.getMessage());
             }
         }
 
-        int depth = calculateDepth(req.parentId());
+        // 使用 DomainService 计算深度
+        int depth = menuDomainService.calculateDepth(tenantId, req.parentId());
         if (depth > 5) {
             throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
                 AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
-        }
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // Sync to permission-center as a MENU resource
-        Long permResourceId = null;
-        if (req.perms() != null && !req.perms().isBlank()) {
-            permResourceId = syncResourceToPermissionCenter(tenantId, null, req.parentId(), req.perms(), req.menuName(), null);
         }
 
         SysMenu menu = new SysMenu();
@@ -86,45 +90,56 @@ public class MenuServiceImpl implements MenuService {
         menu.setSortOrder(req.sort());
         menu.setVisible(req.visible() != null && req.visible() == 1);
         menu.setStatus(req.status() != null ? req.status() : 1);
-        menu.setPermResourceId(permResourceId);
         menu.setCreatedAt(LocalDateTime.now());
         menu.setUpdatedAt(LocalDateTime.now());
         menu.setDeleteFlag(0L);
         menuMapper.insert(menu);
+
+        // 使用 SyncHandler 同步到权限中心
+        Long permResourceId = menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
+        if (permResourceId != null) {
+            menu.setPermResourceId(permResourceId);
+            menuMapper.update(menu);
+            log.info("Menu synced to permission-center: menuId={}, permResourceId={}", menu.getId(), permResourceId);
+        }
+
         return menu.getId();
     }
 
     @Override
     @Transactional
     public void updateMenu(MenuUpdateReq req) {
-        SysMenu menu = menuMapper.selectOneById(req.id());
-        if (menu == null || menu.getDeleteFlag() != 0L) {
+        // Permission check - instance-level UPDATE
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.MENU,
+            String.valueOf(req.id()),
+            AdminOperationCode.UPDATE
+        );
+
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 使用 DomainService 获取菜单
+        SysMenu menu = menuDomainService.selectValidById(tenantId, req.id());
+        if (menu == null) {
             throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
         }
+
+        // 使用 DomainService 检查权限标识重复
         if (req.perms() != null && !req.perms().isBlank() && !req.perms().equals(menu.getPermCode())) {
-            SysMenu existing = menuMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(SYS_MENU.PERM_CODE.eq(req.perms()))
-                    .and(SYS_MENU.DELETE_FLAG.eq(0))
-                    .and(SYS_MENU.ID.ne(req.id()))
-            );
+            SysMenu existing = menuDomainService.findByPermCode(tenantId, req.perms());
             if (existing != null) {
                 throw new BizException(AdminErrorCode.MENU_PERM_CODE_EXISTS.getCode(),
                     AdminErrorCode.MENU_PERM_CODE_EXISTS.getMessage());
             }
         }
+
+        // 使用 DomainService 检查新父菜单深度
         if (req.parentId() != null && !req.parentId().equals(menu.getParentId())) {
-            int depth = calculateDepth(req.parentId());
+            int depth = menuDomainService.calculateDepth(tenantId, req.parentId());
             if (depth > 5) {
                 throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
                     AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
             }
-        }
-
-        // Sync to permission-center
-        if (req.perms() != null && !req.perms().isBlank()
-            && (!req.perms().equals(menu.getPermCode()) || !req.menuName().equals(menu.getName()))) {
-            updateResourceInPermissionCenter(menu, req.menuName(), req.perms());
         }
 
         menu.setMenuType(req.menuType() != null ? String.valueOf(req.menuType()) : menu.getMenuType());
@@ -139,38 +154,52 @@ public class MenuServiceImpl implements MenuService {
         menu.setStatus(req.status() != null ? req.status() : menu.getStatus());
         menu.setUpdatedAt(LocalDateTime.now());
         menuMapper.update(menu);
+
+        // 使用 SyncHandler 同步更新到权限中心
+        if (menu.getPermResourceId() != null || (req.perms() != null && !req.perms().isBlank())) {
+            menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
+        }
     }
 
     @Override
     @Transactional
     public void deleteMenu(Long id) {
-        SysMenu menu = menuMapper.selectOneById(id);
-        if (menu == null || menu.getDeleteFlag() != 0L) {
+        // Permission check - instance-level DELETE
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.MENU,
+            String.valueOf(id),
+            AdminOperationCode.DELETE
+        );
+
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 使用 DomainService 获取菜单
+        SysMenu menu = menuDomainService.selectValidById(tenantId, id);
+        if (menu == null) {
             throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
         }
-        long childCount = menuMapper.selectCountByQuery(
-            QueryWrapper.create()
-                .where(SYS_MENU.PARENT_ID.eq(id))
-                .and(SYS_MENU.DELETE_FLAG.eq(0))
-        );
-        if (childCount > 0) {
+
+        // 使用 DomainService 检查是否有子菜单
+        if (menuDomainService.hasChildren(tenantId, id)) {
             throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(), AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
 
-        // Delete from permission-center
+        // 使用 SyncHandler 从权限中心删除
         if (menu.getPermResourceId() != null) {
-            deleteResourceFromPermissionCenter(menu.getTenantId(), menu.getPermResourceId());
+            menuSyncHandler.deleteMenuFromPermissionCenter(tenantId, menu.getPermResourceId());
         }
 
-        menu.setDeleteFlag(1L);
-        menu.setDeletedAt(LocalDateTime.now());
-        menuMapper.update(menu);
+        // 使用 DomainService 批量软删除
+        menuDomainService.softDeleteBatch(tenantId, List.of(id));
     }
 
     @Override
     public MenuResp getMenu(Long id) {
-        SysMenu menu = menuMapper.selectOneById(id);
-        if (menu == null || menu.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 使用 DomainService 获取菜单
+        SysMenu menu = menuDomainService.selectValidById(tenantId, id);
+        if (menu == null) {
             throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
         }
         return toResp(menu, List.of());
@@ -192,58 +221,104 @@ public class MenuServiceImpl implements MenuService {
         return info != null ? info.permissions() : List.of();
     }
 
-    // ========== Permission Center Sync ==========
+    @Override
+    @Transactional
+    public BatchResultResp batchCreateMenus(MenuBatchCreateReq req) {
+        // Permission check - type-level CREATE
+        permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
 
-    private Long syncResourceToPermissionCenter(Long tenantId, Long resourceId, Long parentId, String code, String name, String path) {
-        ResourceCreateReq req = new ResourceCreateReq(
-            tenantId, null,
-            parentId != null && parentId > 0 ? parentId : 0L,
-            RESOURCE_TYPE_MENU, code, null, name, path, 1, 0, null
-        );
-        PermResult<Long> result = permissionFeignClient.createResource(req);
-        if (result == null || result.data() == null) {
-            log.warn("Failed to sync resource to permission-center: code={}, name={}", code, name);
-            return null;
+        Long tenantId = TenantContextHolder.getTenantId();
+        List<Long> successIds = new ArrayList<>();
+        List<String> failedMessages = new ArrayList<>();
+
+        for (MenuCreateReq menuReq : req.menus()) {
+            try {
+                // 检查权限标识重复
+                if (menuReq.perms() != null && !menuReq.perms().isBlank()) {
+                    SysMenu existing = menuDomainService.findByPermCode(tenantId, menuReq.perms());
+                    if (existing != null) {
+                        failedMessages.add("权限标识已存在: " + menuReq.perms());
+                        continue;
+                    }
+                }
+
+                // 计算深度
+                int depth = menuDomainService.calculateDepth(tenantId, menuReq.parentId());
+                if (depth > 5) {
+                    failedMessages.add("菜单层级超过限制: " + menuReq.menuName());
+                    continue;
+                }
+
+                SysMenu menu = new SysMenu();
+                menu.setTenantId(tenantId);
+                menu.setParentId(menuReq.parentId() != null ? menuReq.parentId() : 0L);
+                menu.setMenuType(String.valueOf(menuReq.menuType()));
+                menu.setName(menuReq.menuName());
+                menu.setPath(menuReq.path());
+                menu.setComponent(menuReq.component());
+                menu.setPermCode(menuReq.perms());
+                menu.setIcon(menuReq.icon());
+                menu.setSortOrder(menuReq.sort());
+                menu.setVisible(menuReq.visible() != null && menuReq.visible() == 1);
+                menu.setStatus(menuReq.status() != null ? menuReq.status() : 1);
+                menu.setCreatedAt(LocalDateTime.now());
+                menu.setUpdatedAt(LocalDateTime.now());
+                menu.setDeleteFlag(0L);
+                menuMapper.insert(menu);
+
+                // 同步到权限中心
+                menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
+
+                successIds.add(menu.getId());
+            } catch (Exception e) {
+                log.error("Failed to create menu: menuName={}", menuReq.menuName(), e);
+                failedMessages.add("创建失败: " + menuReq.menuName() + " - " + e.getMessage());
+            }
         }
-        return result.data();
+
+        return BatchResultResp.partial(req.menus().size(), successIds.size(), successIds, failedMessages);
     }
 
-    private void updateResourceInPermissionCenter(SysMenu menu, String name, String code) {
-        if (menu.getPermResourceId() == null) {
-            return;
+    @Override
+    @Transactional
+    public void batchDeleteMenus(IdsReq req) {
+        // Permission check - batch instance-level DELETE
+        List<String> resourceCodes = req.ids().stream()
+            .map(String::valueOf)
+            .collect(Collectors.toList());
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.MENU, resourceCodes, AdminOperationCode.DELETE);
+
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 获取所有菜单及其子孙ID
+        Set<Long> allIdsToDelete = new java.util.HashSet<>();
+        for (Long menuId : req.ids()) {
+            SysMenu menu = menuDomainService.selectValidById(tenantId, menuId);
+            if (menu == null) continue;
+
+            // 获取子孙ID
+            List<Long> descendantIds = menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId);
+            allIdsToDelete.addAll(descendantIds);
+
+            // 从权限中心删除
+            if (menu.getPermResourceId() != null) {
+                menuSyncHandler.deleteMenuFromPermissionCenter(tenantId, menu.getPermResourceId());
+            }
         }
-        ResourceUpdateReq req = new ResourceUpdateReq(
-            menu.getPermResourceId(), menu.getTenantId(),
-            code, name, menu.getPath(), menu.getStatus(), menu.getSortOrder(), menu.getExtra()
-        );
-        PermResult<Long> result = permissionFeignClient.updateResource(req);
-        if (result == null) {
-            log.warn("Failed to update resource in permission-center: resourceId={}", menu.getPermResourceId());
+
+        // 批量软删除
+        if (!allIdsToDelete.isEmpty()) {
+            menuDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
         }
     }
 
-    private void deleteResourceFromPermissionCenter(Long tenantId, Long permResourceId) {
-        IdWithTenantReq req = new IdWithTenantReq(tenantId, permResourceId);
-        PermResult<Void> result = permissionFeignClient.deleteResource(req);
-        if (result == null) {
-            log.warn("Failed to delete resource from permission-center: resourceId={}", permResourceId);
-        }
+    @Override
+    public List<Long> getDescendantMenuIds(Long menuId) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        return menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId);
     }
 
     // ========== Helpers ==========
-
-    private int calculateDepth(Long parentId) {
-        if (parentId == null || parentId == 0L) return 1;
-        int depth = 0;
-        Long current = parentId;
-        while (current != null && current != 0L) {
-            SysMenu menu = menuMapper.selectOneById(current);
-            if (menu == null) break;
-            depth++;
-            current = menu.getParentId();
-        }
-        return depth + 1;
-    }
 
     private MenuResp toResp(SysMenu menu, List<MenuResp> children) {
         return new MenuResp(

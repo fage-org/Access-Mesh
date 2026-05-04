@@ -9,10 +9,9 @@ import cn.ac.fage.accessmesh.admin.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import cn.hutool.jwt.JWT;
-import cn.hutool.jwt.JWTUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -298,19 +297,16 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     private String generateAccessToken(long userId, String clientId, String scope) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sub", String.valueOf(userId));
-        payload.put("client_id", clientId);
-        payload.put("tenant_id", "0");
+        Map<String, Object> extraData = new LinkedHashMap<>();
+        extraData.put("client_id", clientId);
+        extraData.put("tenant_id", "0");
         if (scope != null && !scope.isBlank()) {
-            payload.put("scope", scope);
+            extraData.put("scope", scope);
         }
-        payload.put("iat", System.currentTimeMillis() / 1000);
-        long exp = System.currentTimeMillis() / 1000 + 86400;
-        payload.put("exp", exp);
-        payload.put("jti", UUID.randomUUID().toString().replace("-", ""));
+        extraData.put("jti", UUID.randomUUID().toString().replace("-", ""));
 
-        return JWTUtil.createToken(payload, jwtSecretKey.getBytes(StandardCharsets.UTF_8));
+        // SaJwtUtil.createToken(key, loginId, extraData, tokenType)
+        return SaJwtUtil.createToken(jwtSecretKey, userId, extraData, "Bearer");
     }
 
     private boolean verifyPkce(String codeChallenge, String codeVerifier, String method) {
@@ -391,8 +387,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     private String extractJti(String token) {
         try {
-            JWT jwt = JWTUtil.parseToken(token);
-            Object jti = jwt.getPayload("jti");
+            // JWT format: header.payload.signature
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return token;
+            String payloadJson = new String(
+                Base64.getUrlDecoder().decode(parts[1]),
+                StandardCharsets.UTF_8
+            );
+            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
+            Object jti = payload.get("jti");
             return jti != null ? jti.toString() : token;
         } catch (Exception e) {
             return token;
@@ -401,8 +404,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     private long getTokenRemainingTtl(String token) {
         try {
-            JWT jwt = JWTUtil.parseToken(token);
-            Object exp = jwt.getPayload("exp");
+            // JWT format: header.payload.signature
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return 86400;
+            String payloadJson = new String(
+                Base64.getUrlDecoder().decode(parts[1]),
+                StandardCharsets.UTF_8
+            );
+            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
+            Object exp = payload.get("exp");
             if (exp == null) return 86400;
             long expTime = exp instanceof Number ? ((Number) exp).longValue() : Long.parseLong(exp.toString());
             long remaining = expTime - System.currentTimeMillis() / 1000;

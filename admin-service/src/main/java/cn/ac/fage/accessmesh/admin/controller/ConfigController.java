@@ -1,9 +1,12 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.admin.dto.req.*;
+import cn.ac.fage.accessmesh.admin.dto.req.ConfigUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.ConfigResp;
 import cn.ac.fage.accessmesh.admin.service.ConfigService;
+import cn.ac.fage.accessmesh.common.model.IdReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import jakarta.validation.Valid;

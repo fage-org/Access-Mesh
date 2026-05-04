@@ -1,10 +1,14 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.admin.dto.req.*;
+import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictDataResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.admin.service.DictService;
+import cn.ac.fage.accessmesh.common.model.IdReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import jakarta.validation.Valid;
@@ -69,7 +73,7 @@ public class DictController {
     }
 
     @PostMapping("/data/list")
-    public PermResult<List<DictDataResp>> listDictData(IdReq req) {
+    public PermResult<List<DictDataResp>> listDictData(@Valid @RequestBody IdReq req) {
         return PermResult.success(dictService.listDictData(req.id()));
     }
 }

@@ -10,18 +10,21 @@ public interface RoleProxyService {
     Long createRoleForOrg(String roleName, Long orgId, Long tenantId);
 
     /**
-     * Grant a resource permission to a role.
+     * Grant a menu resource permission to a role.
      * @param tenantId tenant ID
      * @param roleId role ID in permission-center
-     * @param resourceId resource entity ID in permission-center
-     * @param opCode operation code (e.g. "VIEW") — resolved to operationPermissionId internally
+     * @param menuId menu entity ID (will be resolved to resourceId)
+     * @param opCode operation code (e.g. "VIEW")
      */
-    void grantResourceToRole(Long tenantId, Long roleId, Long resourceId, String opCode);
+    void grantMenuToRole(Long tenantId, Long roleId, Long menuId, String opCode);
 
     /**
-     * Revoke a resource permission from a role.
+     * Revoke a menu resource permission from a role.
+     * @param tenantId tenant ID
+     * @param roleId role ID in permission-center
+     * @param menuId menu entity ID (will be resolved to resourceId)
      */
-    void revokeResourceFromRole(Long tenantId, Long roleId, Long resourceId);
+    void revokeMenuFromRole(Long tenantId, Long roleId, Long menuId);
 
     /**
      * Load user's roles and effective permissions from permission-center.

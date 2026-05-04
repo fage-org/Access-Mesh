@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysAuditLog;
 import cn.ac.fage.accessmesh.admin.entity.table.SysAuditLogTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysAuditLogMapper;

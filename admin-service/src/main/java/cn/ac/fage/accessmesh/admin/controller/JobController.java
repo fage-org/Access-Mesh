@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
-import cn.ac.fage.accessmesh.admin.dto.req.IdReq;
+import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.PageReq;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
 import cn.ac.fage.accessmesh.admin.service.JobService;
