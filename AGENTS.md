@@ -77,6 +77,29 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 - `resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 
+## 双层缓存框架规范
+
+完整规范见 `.claude/skills/dual-layer-cache-framework.md`。核心要点：
+
+- **框架位置**: `common/cache/` 模块，所有服务可复用
+- **键格式**: `namespace:tenantId:key`
+- **写入顺序**: 先 L2 (Redis) 后 L1 (Caffeine)
+- **失效顺序**: 先 L2 后 L1（防止竞态条件）
+- **读取顺序**: L1 → L2 → Loader
+- **空值缓存**: 使用 `NULL_MARKER`，较短 TTL 防止穿透
+- **键验证**: 长度限制 500 字符，清理控制字符
+- **禁止事项**: 禁止 KEYS 命令（用 SCAN）、禁止循环单条查询（用批量）、禁止变更后不失效
+
+**创建新缓存管理器**:
+```java
+@Component
+public class MyCacheManager extends AbstractGenericCacheManager<Long, MyData> {
+    @Override public String getNamespace() { return "my:namespace"; }
+    @Override public Class<MyData> getValueClass() { return MyData.class; }
+    // ... 配置 TTL、maximumSize
+}
+```
+
 ## 常用命令（开发阶段预估）
 
 ```bash

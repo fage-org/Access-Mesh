@@ -729,7 +729,36 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 ## 12. 缓存规范
 
-### 12.1 缓存策略
+### 12.0 双层缓存框架（统一实现）
+
+> **完整规范见 `.claude/skills/dual-layer-cache-framework.md`**
+
+项目已实现统一的 `GenericCacheManager` 框架（位于 `common/cache/` 模块），所有缓存操作必须使用此框架：
+
+- **接口**: `GenericCacheManager<K, V>`
+- **抽象实现**: `AbstractGenericCacheManager<K, V>`
+- **配置**: `CacheProperties`（application.yml 配置 L1/L2 TTL、maximumSize）
+
+**核心规范**：
+
+| 操作 | 顺序 | 说明 |
+|------|------|------|
+| **写入** | 先 L2 后 L1 | 确保 Redis 优先，分布式一致性 |
+| **失效** | 先 L2 后 L1 | 防止竞态条件（L1 清除但 L2 还有旧数据） |
+| **读取** | L1 → L2 → Loader | 本地优先，减少网络开销 |
+
+**键格式**: `namespace:tenantId:key`（示例：`perm:condition:rules:1:123`）
+
+**禁止事项**：
+- ❌ 禁止使用 `ConcurrentHashMap` 替代 Caffeine（缺少 TTL、容量限制）
+- ❌ 禁止使用 Redis KEYS 命令（用 SCAN）
+- ❌ 禁止先失效 L1 后失效 L2
+- ❌ 禁止在循环中调用单条查询方法（用批量方法）
+- ❌ 禁止数据变更后不触发缓存失效
+
+---
+
+### 12.1 缓存策略（已由框架统一实现）
 
 - 采用 **L1（本地缓存 Caffeine）+ L2（Redis）两级缓存**策略。
 - 缓存一致性模式：统一使用 **Cache Aside（旁路缓存）**模式。

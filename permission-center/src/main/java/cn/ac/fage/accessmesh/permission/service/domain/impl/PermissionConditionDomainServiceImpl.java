@@ -1,11 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.common.cache.GenericCacheManager;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
+import cn.ac.fage.accessmesh.permission.service.cache.impl.ConditionRulesCacheManager;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -17,9 +18,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,15 +33,16 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     private final ObjectMapper objectMapper;
 
     /**
-     * Instance-level cache for parsed condition rules (JsonNode).
-     * Key: conditionId, Value: parsed JsonNode (only the rules, not the evaluation result)
+     * 问题7：使用 GenericCacheManager 替代本地 ConcurrentHashMap 缓存
      */
-    private final Map<Long, JsonNode> rulesCache = new ConcurrentHashMap<>();
+    private final GenericCacheManager<Long, JsonNode> rulesCacheManager;
 
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
-                                                 ObjectMapper objectMapper) {
+                                                 ObjectMapper objectMapper,
+                                                 ConditionRulesCacheManager rulesCacheManager) {
         this.conditionMapper = conditionMapper;
         this.objectMapper = objectMapper;
+        this.rulesCacheManager = rulesCacheManager;
     }
 
     @Override
@@ -53,34 +56,40 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                     return true;
                 }
                 return conditionCache.computeIfAbsent(entry.conditionId(),
-                    id -> evaluateCondition(id, context));
+                    id -> evaluateCondition(tenantId, id, context));
             })
             .collect(Collectors.toList());
     }
 
-    private boolean evaluateCondition(Long conditionId, Map<String, Object> context) {
-        // Try to get parsed rules from instance-level cache first
-        JsonNode rules = rulesCache.get(conditionId);
-
-        if (rules == null) {
-            // Cache miss: fetch from database and parse JSON
-            PermissionCondition condition = conditionMapper.selectOneById(conditionId);
+    /**
+     * 评估条件
+     * <p>
+     * 问题7：使用闭包/lambda 传递 tenantId 给缓存 loader
+     * 问题11：处理 JSON 解析失败的情况
+     * </p>
+     */
+    private boolean evaluateCondition(Long tenantId, Long conditionId, Map<String, Object> context) {
+        // 问题7：使用缓存管理器，通过 BiFunction 传递 tenantId
+        JsonNode rules = rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
+            // loader: 从数据库加载条件规则
+            PermissionCondition condition = conditionMapper.selectOneById(cid);
             if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())) {
-                return false;
+                return null; // 返回 null 会被缓存为空值
             }
 
             try {
-                rules = objectMapper.readTree(condition.getConditionRules());
-                // Cache the parsed JsonNode for future use
-                rulesCache.put(conditionId, rules);
-            } catch (JsonProcessingException e) {
-                log.warn("Invalid conditionRules JSON format, conditionId: {}, error: {}",
-                    conditionId, e.getMessage());
-                return false;
+                return objectMapper.readTree(condition.getConditionRules());
             } catch (Exception e) {
-                log.error("Unexpected error parsing conditionRules, conditionId: {}", conditionId, e);
-                return false;
+                log.warn("Failed to parse conditionRules JSON, conditionId: {}, error: {}",
+                    cid, e.getMessage());
+                // 问题11：返回特殊标记表示解析失败，避免重复解析
+                return null;
             }
+        });
+
+        // 如果规则为空（条件不存在、禁用或解析失败），返回 false
+        if (rules == null) {
+            return false;
         }
 
         try {
@@ -204,5 +213,38 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             log.error("Unexpected error matching IP against CIDR: {}", cidr, e);
             return false;
         }
+    }
+
+    /**
+     * 使指定条件的缓存失效
+     * <p>
+     * 当条件更新或删除时调用此方法
+     * </p>
+     *
+     * @param tenantId    租户 ID
+     * @param conditionId 条件 ID
+     */
+    public void evictConditionCache(Long tenantId, Long conditionId) {
+        rulesCacheManager.evict(tenantId, conditionId);
+    }
+
+    /**
+     * 批量使条件缓存失效
+     *
+     * @param tenantId     租户 ID
+     * @param conditionIds 条件 ID 集合
+     */
+    public void evictConditionCacheBatch(Long tenantId, Set<Long> conditionIds) {
+        if (conditionIds == null || conditionIds.isEmpty()) {
+            return;
+        }
+        rulesCacheManager.evictBatch(tenantId, conditionIds);
+    }
+
+    /**
+     * 获取缓存管理器（供外部调用）
+     */
+    public GenericCacheManager<Long, JsonNode> getRulesCacheManager() {
+        return rulesCacheManager;
     }
 }

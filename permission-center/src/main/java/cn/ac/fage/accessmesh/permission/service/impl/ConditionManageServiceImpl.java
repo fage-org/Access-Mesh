@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermissionConditionDomainServiceImpl;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -29,12 +30,19 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final ResourcePermissionValidator permissionValidator;
 
+    /**
+     * 问题6：注入 PermissionConditionDomainServiceImpl 用于缓存失效
+     */
+    private final PermissionConditionDomainServiceImpl conditionDomainService;
+
     public ConditionManageServiceImpl(PermissionConditionMapper conditionMapper,
                                        OperationLogDomainService operationLogDomainService,
-                                       ResourcePermissionValidator permissionValidator) {
+                                       ResourcePermissionValidator permissionValidator,
+                                       PermissionConditionDomainServiceImpl conditionDomainService) {
         this.conditionMapper = conditionMapper;
         this.operationLogDomainService = operationLogDomainService;
         this.permissionValidator = permissionValidator;
+        this.conditionDomainService = conditionDomainService;
     }
 
     @Override
@@ -86,6 +94,10 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         if (req.description() != null) condition.setDescription(req.description());
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
+
+        // 问题6：更新后失效缓存
+        conditionDomainService.evictConditionCache(tenantId, req.conditionId());
+
         return toConditionResp(condition);
     }
 
@@ -109,6 +121,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
             condition.setDeleteFlag(condition.getId());
             condition.setDeletedAt(LocalDateTime.now());
             conditionMapper.update(condition);
+
+            // 问题6：删除后失效缓存
+            conditionDomainService.evictConditionCache(tenantId, conditionId);
         }
     }
 
@@ -135,6 +150,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         Set<Long> validIds = entities.stream().map(PermissionCondition::getId).collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();
         conditionMapper.softDeleteBatch(tenantId, validIds.stream().toList(), now);
+
+        // 问题6：批量删除后失效缓存
+        conditionDomainService.evictConditionCacheBatch(tenantId, validIds);
 
         operationLogDomainService.asyncRecord(
             "perm", "permission-condition-remove", "BATCH", tenantId,
