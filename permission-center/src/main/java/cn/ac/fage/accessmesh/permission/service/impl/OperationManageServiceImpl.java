@@ -182,15 +182,9 @@ public class OperationManageServiceImpl implements OperationManageService {
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
 
-        // Batch update (soft delete) - use entity ID as deleteFlag
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            OperationPermission updateEntity = new OperationPermission();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            operationPermissionMapper.update(updateEntity);
-        }
+        operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         // Log record
         operationLogDomainService.asyncRecord(

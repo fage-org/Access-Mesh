@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
@@ -30,6 +34,8 @@ import java.util.concurrent.ScheduledFuture;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysJobLogTableDef.SYS_JOB_LOG;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef.SYS_JOB;
+import static cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef.SYS_JOB;
+import java.util.List;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -39,17 +45,25 @@ public class JobServiceImpl implements JobService {
     private final SysJobMapper jobMapper;
     private final SysJobLogMapper jobLogMapper;
     private final TaskScheduler taskScheduler;
+    private final AdminPermissionValidator permissionValidator;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
-    public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler) {
+    public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler,
+                          AdminPermissionValidator permissionValidator) {
         this.jobMapper = jobMapper;
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     public Long createJob(SysJob job) {
+        // Permission check - type-level CREATE
+        permissionValidator.checkTypeLevel(AdminResourceType.JOB, AdminOperationCode.CREATE);
+
+        Long tenantId = TenantContextHolder.getTenantId();
+        job.setTenantId(tenantId);
         job.setCreatedAt(LocalDateTime.now());
         job.setUpdatedAt(LocalDateTime.now());
         job.setDeleteFlag(0L);
@@ -64,14 +78,25 @@ public class JobServiceImpl implements JobService {
     @Override
     @Transactional
     public void updateJob(SysJob job) {
-        SysJob existing = jobMapper.selectOneById(job.getId());
-        if (existing == null || existing.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysJob existing = jobMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_JOB.ID.eq(job.getId()))
+                .and(SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SYS_JOB.DELETE_FLAG.eq(0))
+        );
+        if (existing == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
+
+        // Permission check - instance-level UPDATE
+        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, job.getId().toString(), AdminOperationCode.UPDATE);
+
         // If cron changed, reschedule
         if (existing.getStatus() == 1) {
             unscheduleJob(job.getId());
         }
+        job.setTenantId(tenantId);
         job.setUpdatedAt(LocalDateTime.now());
         jobMapper.update(job);
         if (job.getStatus() == 1) {
@@ -83,24 +108,51 @@ public class JobServiceImpl implements JobService {
     @Override
     @Transactional
     public void deleteJobs(IdsReq req) {
-        LocalDateTime now = LocalDateTime.now();
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // Permission check - batch instance-level DELETE
+        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.JOB, resourceCodes, AdminOperationCode.DELETE);
+
+        // Unschedule jobs first (must remain as loop for scheduler operation)
         for (Long id : req.ids()) {
             unscheduleJob(id);
-            SysJob job = jobMapper.selectOneById(id);
-            if (job == null || job.getDeleteFlag() != 0L) continue;
-            job.setDeleteFlag(1L);
-            job.setDeletedAt(now);
-            jobMapper.update(job);
+        }
+
+        // Batch query valid jobs (performance fix: avoid N+1 queries for SELECT)
+        List<SysJob> jobs = jobMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_JOB.ID.in(req.ids()))
+                .and(SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SYS_JOB.DELETE_FLAG.eq(0))
+        );
+
+        // Batch soft delete (performance fix: use single SQL instead of loop)
+        if (!jobs.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            List<Long> validIds = jobs.stream().map(SysJob::getId).collect(java.util.stream.Collectors.toList());
+            jobMapper.softDeleteBatch(tenantId, validIds, now);
         }
     }
 
     @Override
     @Transactional
     public void toggleJobStatus(Long id, Integer status) {
-        SysJob job = jobMapper.selectOneById(id);
-        if (job == null || job.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysJob job = jobMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_JOB.ID.eq(id))
+                .and(SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SYS_JOB.DELETE_FLAG.eq(0))
+        );
+        if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
+
+        // Permission check - instance-level ENABLE/DISABLE
+        String operationCode = status == 1 ? AdminOperationCode.ENABLE : AdminOperationCode.DISABLE;
+        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), operationCode);
+
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
         jobMapper.update(job);
@@ -113,8 +165,14 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public void triggerJob(Long id) {
-        SysJob job = jobMapper.selectOneById(id);
-        if (job == null || job.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysJob job = jobMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_JOB.ID.eq(id))
+                .and(SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SYS_JOB.DELETE_FLAG.eq(0))
+        );
+        if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
         executeJob(job);
@@ -122,12 +180,21 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public SysJob getJob(Long id) {
-        return jobMapper.selectOneById(id);
+        Long tenantId = TenantContextHolder.getTenantId();
+        return jobMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_JOB.ID.eq(id))
+                .and(SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SYS_JOB.DELETE_FLAG.eq(0))
+        );
     }
 
     @Override
     public PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup) {
-        QueryWrapper qw = QueryWrapper.create().where(SYS_JOB.DELETE_FLAG.eq(0));
+        Long tenantId = TenantContextHolder.getTenantId();
+        QueryWrapper qw = QueryWrapper.create()
+            .where(SYS_JOB.TENANT_ID.eq(tenantId))
+            .and(SYS_JOB.DELETE_FLAG.eq(0));
         if (jobGroup != null) qw.and(SYS_JOB.JOB_GROUP.eq(jobGroup));
         qw.orderBy(SYS_JOB.CREATED_AT.desc());
 
@@ -141,9 +208,12 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public PaginatedResult<SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
-        QueryWrapper qw = QueryWrapper.create().orderBy(SYS_JOB_LOG.CREATED_AT.desc());
+        Long tenantId = TenantContextHolder.getTenantId();
+        QueryWrapper qw = QueryWrapper.create()
+            .where(SYS_JOB_LOG.TENANT_ID.eq(tenantId))
+            .orderBy(SYS_JOB_LOG.CREATED_AT.desc());
         if (jobId != null) {
-            qw.where(SYS_JOB_LOG.JOB_ID.eq(jobId));
+            qw.and(SYS_JOB_LOG.JOB_ID.eq(jobId));
         }
 
         Page<SysJobLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
@@ -179,6 +249,7 @@ public class JobServiceImpl implements JobService {
     void executeJob(SysJob job) {
         long start = System.currentTimeMillis();
         SysJobLog jobLog = new SysJobLog();
+        jobLog.setTenantId(job.getTenantId());
         jobLog.setJobId(job.getId());
         jobLog.setJobName(job.getJobName());
         jobLog.setInvokeTarget(job.getInvokeTarget());

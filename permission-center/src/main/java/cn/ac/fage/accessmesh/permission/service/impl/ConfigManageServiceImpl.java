@@ -119,6 +119,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
+        // Permission check - VIEW operation on TYPE_DEFINITION
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationType.VIEW);
+
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TYPE_DEFINITION.ID.eq(typeId))
@@ -130,6 +134,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
+        // Permission check - VIEW operation on TYPE_DEFINITION (type-level)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationType.VIEW);
+
         QueryWrapper qw = QueryWrapper.create()
             .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
             .and(TYPE_DEFINITION.DELETE_FLAG.eq(0));
@@ -281,6 +289,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
+        // Permission check - VIEW operation on DOMAIN
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationType.VIEW);
+
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(BIZ_DOMAIN.ID.eq(domainId))
@@ -292,6 +304,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public List<BizDomainResp> listBizDomains(Long tenantId) {
+        // Permission check - VIEW operation on DOMAIN (type-level)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationType.VIEW);
+
         return bizDomainMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
@@ -357,15 +373,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .map(BizDomain::getId)
             .collect(Collectors.toSet());
 
-        // Batch update (soft delete) - use entity ID as deleteFlag
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            BizDomain updateEntity = new BizDomain();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            bizDomainMapper.update(updateEntity);
-        }
+        bizDomainMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         // Log record
         operationLogDomainService.asyncRecord(
@@ -450,6 +460,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
         if (bizDomainId == null) {
             return null;
@@ -466,6 +480,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         QueryWrapper qw = QueryWrapper.create()
             .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
             .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0));
@@ -520,15 +538,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .map(DomainConfig::getId)
             .collect(Collectors.toSet());
 
-        // Batch update (soft delete) - use entity ID as deleteFlag
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            DomainConfig updateEntity = new DomainConfig();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            domainConfigMapper.update(updateEntity);
-        }
+        domainConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         // Log record
         operationLogDomainService.asyncRecord(
@@ -607,6 +619,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
+        // Permission check - VIEW operation on SERVICE
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationType.VIEW);
+
         ServiceConfig config = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
@@ -618,6 +634,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
+        // Permission check - VIEW operation on SERVICE (type-level)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationType.VIEW);
+
         return serviceConfigMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
@@ -665,15 +685,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .map(ServiceConfig::getId)
             .collect(Collectors.toSet());
 
-        // Batch update (soft delete) - use entity ID as deleteFlag
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            ServiceConfig updateEntity = new ServiceConfig();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            serviceConfigMapper.update(updateEntity);
-        }
+        serviceConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         // Log record
         operationLogDomainService.asyncRecord(
@@ -764,6 +778,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         SystemConfig config = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
@@ -775,6 +793,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
     @Override
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         return systemConfigMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))

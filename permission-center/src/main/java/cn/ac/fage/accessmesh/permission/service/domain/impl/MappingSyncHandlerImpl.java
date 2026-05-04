@@ -13,6 +13,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -142,7 +143,9 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                     .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
+        // Performance fix: collect IDs and batch soft delete
         LocalDateTime now = LocalDateTime.now();
+        List<Long> idsToDelete = new ArrayList<>();
         for (ResourceApiMapping mapping : existingMappings) {
             ResourceEntity resource = resourceMap.get(mapping.getResourceEntityId());
             if (resource == null) {
@@ -160,11 +163,12 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
             String routeResourceKey = routeKey + "|" + resourceCode;
 
             if (!incomingKeys.contains(routeResourceKey)) {
-                mapping.setDeleteFlag(mapping.getId());
-                mapping.setDeletedAt(now);
-                resourceApiMappingMapper.update(mapping);
-                deletedCount++;
+                idsToDelete.add(mapping.getId());
             }
+        }
+        if (!idsToDelete.isEmpty()) {
+            resourceApiMappingMapper.softDeleteBatch(tenantId, idsToDelete, now);
+            deletedCount = idsToDelete.size();
         }
 
         return deletedCount;

@@ -461,6 +461,9 @@ public class UserManageServiceImpl implements UserManageService {
         ArrayNode itemsJson = objectMapper.createArrayNode();
         int revoked = 0;
         List<String> deniedItems = new ArrayList<>();
+        // Performance fix: collect IDs for batch soft delete
+        List<Long> idsToDelete = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
             String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
@@ -486,9 +489,7 @@ public class UserManageServiceImpl implements UserManageService {
             if (ur == null) {
                 throw new IllegalArgumentException("User-role relation not found for item");
             }
-            ur.setDeleteFlag(ur.getId());
-            ur.setDeletedAt(LocalDateTime.now());
-            userRoleMapper.update(ur);
+            idsToDelete.add(ur.getId());
             revoked++;
             affectedUserIds.add(abstractUserId);
             affectedRoleIds.add(targetRoleId);
@@ -500,6 +501,10 @@ public class UserManageServiceImpl implements UserManageService {
             roleNode.put("roleExternalId", item.roleExternalId());
             roleNode.put("roleName", role != null ? role.getName() : "");
             itemsJson.add(it);
+        }
+        // Performance fix: batch soft delete instead of loop updates
+        if (!idsToDelete.isEmpty()) {
+            userRoleMapper.softDeleteBatch(tenantId, idsToDelete, now);
         }
 
         // Log denied items

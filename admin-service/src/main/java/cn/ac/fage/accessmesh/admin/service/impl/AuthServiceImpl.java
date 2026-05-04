@@ -15,9 +15,13 @@ import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.*;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.service.AuthService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
+import cn.dev33.satoken.session.SaSession;
+import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -106,6 +110,9 @@ public class AuthServiceImpl implements AuthService {
 
         clearLoginFail(tenantId, req.username());
         StpUtil.login(user.getId());
+        // FIX #1: Store tenantId in session for security validation
+        SaSession session = StpUtil.getSession();
+        session.set("tenantId", user.getTenantId());
         String token = StpUtil.getTokenValue();
 
         recordLoginLog(tenantId, req.username(), req.clientId(), 1, null);
@@ -140,6 +147,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         StpUtil.login(user.getId());
+        // FIX #1: Store tenantId in session for security validation (sms login)
+        SaSession session = StpUtil.getSession();
+        session.set("tenantId", user.getTenantId());
         String token = StpUtil.getTokenValue();
 
         recordLoginLog(tenantId, req.phone(), req.clientId(), 1, null);
@@ -163,7 +173,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserInfoResp getUserInfo(Long userId) {
-        SysUser user = userMapper.selectOneById(userId);
+        // FIX #13: Validate userId belongs to current tenant
+        Long currentTenantId = TenantContextHolder.getTenantId();
+        SysUser user = userMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_USER.ID.eq(userId))
+                .and(SYS_USER.TENANT_ID.eq(currentTenantId))
+                .and(SYS_USER.DELETE_FLAG.eq(0))
+        );
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }

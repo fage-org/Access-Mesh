@@ -7,39 +7,65 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 @Mapper
 public interface SysOrgMapper extends BaseMapper<SysOrg> {
 
     /**
-     * 批量软删除组织
+     * Batch soft delete organizations.
+     * Sets delete_flag = 1 and deleted_at for each organization.
      *
-     * @param tenantId  租户ID
-     * @param ids       组织ID列表
-     * @param deletedAt 删除时间
-     * @return 影响行数
+     * @param tenantId  the tenant ID
+     * @param ids       the list of organization IDs to delete
+     * @param deletedAt the timestamp of deletion
+     * @return number of rows updated
      */
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
-     * 使用 PostgreSQL CTE 递归查询获取所有子孙组织ID（不包括自身）
+     * Use PostgreSQL CTE recursive query to get all descendant organization IDs (excluding self).
      *
-     * @param tenantId 租户ID
-     * @param orgId    组织ID
-     * @return 子孙组织ID列表
+     * @param tenantId tenant ID
+     * @param orgId    organization ID
+     * @return descendant organization ID list
      */
     List<Long> selectDescendantIds(@Param("tenantId") Long tenantId,
                                    @Param("orgId") Long orgId);
 
     /**
-     * 使用 PostgreSQL CTE 递归查询获取所有子孙组织ID（包括自身）
+     * Use PostgreSQL CTE recursive query to get all descendant organization IDs (including self).
      *
-     * @param tenantId 租户ID
-     * @param orgId    组织ID
-     * @return 子孙组织ID列表（包含自身）
+     * @param tenantId tenant ID
+     * @param orgId    organization ID
+     * @return descendant organization ID list (including self)
      */
     List<Long> selectDescendantIdsIncludingSelf(@Param("tenantId") Long tenantId,
                                                 @Param("orgId") Long orgId);
+
+    /**
+     * Use PostgreSQL CTE recursive query to get all descendant organization IDs for multiple starting points.
+     * Returns a list of DescendantResult objects mapping each orgId to its descendants.
+     *
+     * @param tenantId tenant ID
+     * @param orgIds   set of organization IDs to find descendants for
+     * @return list of descendant results (org_id, descendant_id pairs)
+     */
+    List<DescendantResult> selectBatchDescendantIds(@Param("tenantId") Long tenantId,
+                                                    @Param("orgIds") Set<Long> orgIds);
+
+    /**
+     * Result class for batch descendant query.
+     */
+    class DescendantResult {
+        private Long orgId;
+        private Long descendantId;
+
+        public Long getOrgId() { return orgId; }
+        public void setOrgId(Long orgId) { this.orgId = orgId; }
+        public Long getDescendantId() { return descendantId; }
+        public void setDescendantId(Long descendantId) { this.descendantId = descendantId; }
+    }
 }

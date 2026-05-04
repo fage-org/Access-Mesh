@@ -13,6 +13,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -144,16 +145,19 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
             ).stream().collect(Collectors.groupingBy(ResourceApiMapping::getResourceEntityId));
 
         // Delete orphaned resources (those without remaining mappings)
+        // Performance fix: collect IDs and batch soft delete
         LocalDateTime now = LocalDateTime.now();
+        List<Long> idsToDelete = new ArrayList<>();
         for (ResourceEntity resource : syncedResources) {
             List<ResourceApiMapping> remainMappings = mappingsByResourceId.getOrDefault(
                 resource.getId(), List.of());
             if (remainMappings.isEmpty()) {
-                resource.setDeleteFlag(resource.getId());
-                resource.setDeletedAt(now);
-                resourceEntityMapper.update(resource);
-                deletedCount++;
+                idsToDelete.add(resource.getId());
             }
+        }
+        if (!idsToDelete.isEmpty()) {
+            resourceEntityMapper.softDeleteBatch(tenantId, idsToDelete, now);
+            deletedCount = idsToDelete.size();
         }
 
         return deletedCount;

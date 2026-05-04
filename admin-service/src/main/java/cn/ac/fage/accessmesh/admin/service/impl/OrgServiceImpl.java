@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -193,8 +194,11 @@ public class OrgServiceImpl implements OrgService {
 
     @Override
     public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
+        // FIX #7: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.DELETE_FLAG.eq(0));
+            .where(SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SYS_ORG.DELETE_FLAG.eq(0));
         if (req.orgName() != null) qw.and(SYS_ORG.NAME.like(req.orgName()));
         if (req.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
         if (req.status() != null) qw.and(SYS_ORG.STATUS.eq(req.status()));
@@ -214,8 +218,11 @@ public class OrgServiceImpl implements OrgService {
 
     @Override
     public List<OrgResp> treeOrgs(OrgQuery query) {
+        // FIX #8: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.DELETE_FLAG.eq(0));
+            .where(SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SYS_ORG.DELETE_FLAG.eq(0));
         if (query != null) {
             if (query.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
             if (query.status() != null) qw.and(SYS_ORG.STATUS.eq(query.status()));
@@ -295,23 +302,30 @@ public class OrgServiceImpl implements OrgService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 获取所有组织及其子孙ID
+        // Performance fix: Batch load orgs and descendants
+        Set<Long> orgIdSet = new java.util.HashSet<>(req.ids());
+        List<SysOrg> orgs = orgDomainService.selectValidByIds(tenantId, orgIdSet);
+
+        // Get all descendant IDs in batch
+        Map<Long, List<Long>> descendantMap = orgDomainService.batchGetDescendantIds(tenantId, orgIdSet);
+
+        // Collect all IDs to delete (including self)
         Set<Long> allIdsToDelete = new java.util.HashSet<>();
-        for (Long orgId : req.ids()) {
-            SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
-            if (org == null) continue;
+        for (SysOrg org : orgs) {
+            Long orgId = org.getId();
+            // Add self
+            allIdsToDelete.add(orgId);
+            // Add descendants
+            List<Long> descendants = descendantMap.getOrDefault(orgId, List.of());
+            allIdsToDelete.addAll(descendants);
 
-            // 获取子孙ID
-            List<Long> descendantIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, orgId);
-            allIdsToDelete.addAll(descendantIds);
-
-            // 从权限中心删除
+            // Delete from permission center
             if (org.getPermRoleId() != null) {
                 orgSyncHandler.deleteOrgFromPermissionCenter(tenantId, org.getPermRoleId());
             }
         }
 
-        // 批量软删除
+        // Batch soft delete
         if (!allIdsToDelete.isEmpty()) {
             orgDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
         }

@@ -125,14 +125,9 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.OAUTH2_CLIENT, resourceCodes, AdminOperationCode.DELETE);
 
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysOauth2Client client = oauth2ClientMapper.selectOneById(id);
-            if (client == null || client.getDeleteFlag() != 0L) continue;
-            client.setDeleteFlag(1L);
-            client.setDeletedAt(now);
-            oauth2ClientMapper.update(client);
-        }
+        oauth2ClientMapper.softDeleteBatch(req.ids(), now);
     }
 
     @Override

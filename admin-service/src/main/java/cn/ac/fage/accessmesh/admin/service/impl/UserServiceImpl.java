@@ -256,8 +256,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
+        // FIX #4: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_USER.DELETE_FLAG.eq(0));
+            .where(SYS_USER.TENANT_ID.eq(tenantId))
+            .and(SYS_USER.DELETE_FLAG.eq(0));
 
         if (req.username() != null) qw.and(SYS_USER.USERNAME.like(req.username()));
         if (req.name() != null) qw.and(SYS_USER.NAME.like(req.name()));
@@ -426,9 +429,12 @@ public class UserServiceImpl implements UserService {
     }
 
     private List<UserResp.OrgBrief> getUserOrgs(Long userId) {
+        // FIX #5: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
         return userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.eq(userId))
+                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
         ).stream()
             .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))

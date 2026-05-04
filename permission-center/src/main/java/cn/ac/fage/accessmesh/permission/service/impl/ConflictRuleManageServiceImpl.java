@@ -162,14 +162,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(PermissionConflictRule::getId).collect(Collectors.toSet());
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            PermissionConflictRule updateEntity = new PermissionConflictRule();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            conflictRuleMapper.update(updateEntity);
-        }
+        conflictRuleMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         operationLogDomainService.asyncRecord(
             "perm", "conflict-rule-remove", "BATCH", tenantId,

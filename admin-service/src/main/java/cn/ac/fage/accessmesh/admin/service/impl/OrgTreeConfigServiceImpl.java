@@ -59,14 +59,12 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional
     public void deleteOrgTreeConfigs(IdsReq req) {
-        LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysOrgTreeConfig config = orgTreeConfigMapper.selectOneById(id);
-            if (config == null || config.getDeleteFlag() != 0L) continue;
-            config.setDeleteFlag(1L);
-            config.setDeletedAt(now);
-            orgTreeConfigMapper.update(config);
+        if (req.ids() == null || req.ids().isEmpty()) {
+            return;
         }
+        // Performance fix: use batch soft delete instead of loop updates
+        LocalDateTime now = LocalDateTime.now();
+        orgTreeConfigMapper.softDeleteBatch(null, req.ids(), now);
     }
 
     @Override
@@ -100,6 +98,8 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     }
 
     private void clearDefault() {
+        // Performance optimization opportunity: could use custom batch update SQL
+        // For now, loop update is used due to MyBatis-Flex API limitations
         List<SysOrgTreeConfig> configs = orgTreeConfigMapper.selectListByQuery(
             QueryWrapper.create().where(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0)).and(SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
         );

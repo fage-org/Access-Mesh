@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.Resource
 import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.SourceRoleView;
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.entity.*;
+import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.LogQueryService;
@@ -22,8 +23,10 @@ import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -55,6 +58,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final PermissionService permissionService;
     private final LogQueryService logQueryService;
     private final ObjectMapper objectMapper;
+    private final ResourcePermissionValidator permissionValidator;
 
     public PermissionViewServiceImpl(AbstractUserMapper abstractUserMapper,
                                      AbstractRoleMapper abstractRoleMapper,
@@ -66,7 +70,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
                                      LogQueryService logQueryService,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     ResourcePermissionValidator permissionValidator) {
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
@@ -78,10 +83,15 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.permissionService = permissionService;
         this.logQueryService = logQueryService;
         this.objectMapper = objectMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     public UserPermissionViewResp getUserPermissions(Long tenantId, Long userId) {
+        // Permission check - VIEW operation on USER resource
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationType.VIEW);
+
         PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, new UserPermissionViewReq(
             PermConstants.TargetType.USER, null, null, null, null, null, null, null, null, null,
             false, false, true, 20, 1, 50
@@ -104,6 +114,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG (viewing permission configurations)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType())) {
@@ -525,7 +539,16 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public ResourcePermissionViewResp getResourcePermissions(Long tenantId, String domainCode, String resourceTypeCode, String resourceCode, String codeType) {
+        // Permission check - VIEW operation on RESOURCE
+        Long operatorId = OperatorContext.getOperatorId();
         Long resourceEntityId = typeResolutionService.resolveResourceId(tenantId, resourceTypeCode, resourceCode, codeType, domainCode);
+        if (resourceEntityId != null) {
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceEntityId, OperationType.VIEW);
+        } else {
+            // Fallback to type-level check if resource not found
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationType.VIEW);
+        }
+
         if (resourceEntityId == null) {
             return null;
         }
@@ -591,7 +614,16 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public RolePermissionViewResp getRolePermissions(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, boolean expandSub) {
+        // Permission check - VIEW operation on ROLE
+        Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);
+        if (roleId != null) {
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.VIEW);
+        } else {
+            // Fallback to type-level check if role not found
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationType.VIEW);
+        }
+
         if (roleId == null) {
             return null;
         }
@@ -657,7 +689,16 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public PaginatedResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, int pageNum, int pageSize) {
+        // Permission check - VIEW operation on ROLE
+        Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);
+        if (roleId != null) {
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.VIEW);
+        } else {
+            // Fallback to type-level check if role not found
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationType.VIEW);
+        }
+
         if (roleId == null) {
             return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
@@ -712,6 +753,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG (explaining permission configurations)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         AuthCheckResp checkResp;
         if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
             checkResp = checkRoleDirectGrant(tenantId, req);
@@ -796,6 +841,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public PermissionRecentChangesResp recentChanges(Long tenantId, PermissionRecentChangesReq req) {
+        // Permission check - VIEW operation on SYSTEM_CONFIG (viewing change logs)
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+
         Long userId = null;
         Long roleId = null;
         if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
@@ -824,7 +873,16 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public ItemsResp<EffectiveRoleResp> listEffectiveRoles(Long tenantId, UserEffectiveRolesReq req) {
+        // Permission check - VIEW operation on USER
+        Long operatorId = OperatorContext.getOperatorId();
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        if (userId != null) {
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationType.VIEW);
+        } else {
+            // Fallback to type-level check if user not found
+            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationType.VIEW);
+        }
+
         if (userId == null) {
             return new ItemsResp<>(List.of());
         }
@@ -975,6 +1033,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
     @Override
     public List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req) {
+        // Permission check - VIEW operation on USER
+        Long operatorId = OperatorContext.getOperatorId();
+        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationType.VIEW);
+
         UserPermissionViewReq treeReq = new UserPermissionViewReq(
             PermConstants.TargetType.USER, req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),
             null, null, req.resourceTypeCodes(), req.operationCodes(),

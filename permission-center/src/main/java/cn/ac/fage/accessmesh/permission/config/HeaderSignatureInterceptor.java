@@ -41,8 +41,8 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
     private static final String ERROR_AUTH_FAILED = "Authentication failed";
     private static final String ERROR_INTERNAL = "Internal error";
 
-    @Value("${perm.signature.enabled:true}")
-    private boolean signatureEnabled;
+    // FIX #2: Remove enabled configuration - signature validation is always required
+    // Signature validation cannot be disabled via configuration for security
 
     @Value("${perm.signature.secret:}")
     private String signatureSecret;
@@ -54,11 +54,7 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
 
     @PostConstruct
     public void validateConfiguration() {
-        if (!signatureEnabled) {
-            log.info("Header signature validation is DISABLED");
-            return;
-        }
-
+        // FIX #2: Signature validation is mandatory - cannot be disabled
         if (signatureSecret == null || signatureSecret.isBlank()) {
             throw new IllegalStateException("Header signature secret not configured. Application cannot start without proper signature configuration.");
         }
@@ -84,10 +80,7 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
-        if (!signatureEnabled) {
-            return true;
-        }
-
+        // FIX #2: Signature validation is always enforced - no enabled check
         String userId = request.getHeader(HEADER_USER_ID);
         String tenantId = request.getHeader(HEADER_TENANT_ID);
 

@@ -219,16 +219,13 @@ public class GatewayProperties {
     /**
      * Signature configuration for header signing.
      * Used to prevent header tampering between gateway and downstream services.
+     * FIX #7: Signature is always enabled - removed enabled field for security
      */
     public static class Signature {
         /**
-         * Whether signature generation is enabled.
-         */
-        private boolean enabled = true;
-
-        /**
          * Secret key for HMAC-SHA256 signing.
          * Should be configured via environment variable for security.
+         * REQUIRED: Application will fail to start if not configured.
          */
         private String secret;
 
@@ -242,13 +239,8 @@ public class GatewayProperties {
          */
         private String timestampHeaderName = "X-Signature-Timestamp";
 
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
+        // FIX #7: isEnabled() removed - signature is always enabled
+        // Setter for enabled also removed
 
         public String getSecret() {
             return secret;

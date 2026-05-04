@@ -32,13 +32,15 @@ public class PermWebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // Register signature interceptor first for all API paths
         // This validates that headers from gateway are authentic
+        // FIX #9: Extended to cover actuator endpoints for security
         registry.addInterceptor(headerSignatureInterceptor)
-                .addPathPatterns("/api/**", "/internal/**")
+                .addPathPatterns("/api/**", "/internal/**", "/actuator/**")
                 .order(1);
 
         // Register tenant interceptor for all API paths
+        // FIX #9: Extended to cover actuator endpoints
         registry.addInterceptor(permTenantInterceptor)
-                .addPathPatterns("/api/**", "/internal/**")
+                .addPathPatterns("/api/**", "/internal/**", "/actuator/**")
                 .order(2);
 
         // Register internal API secret interceptor for management endpoints

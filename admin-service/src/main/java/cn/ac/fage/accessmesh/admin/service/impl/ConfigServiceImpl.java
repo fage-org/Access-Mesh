@@ -96,17 +96,26 @@ public class ConfigServiceImpl implements ConfigService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
-        LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysConfig config = configMapper.selectOneById(id);
-            if (config == null || config.getDeleteFlag() != 0L) continue;
+        // Batch query to check system config and filter valid IDs (performance fix: avoid N+1 queries)
+        List<SysConfig> configs = configMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_CONFIG.ID.in(req.ids()))
+                .and(SYS_CONFIG.DELETE_FLAG.eq(0))
+        );
+        
+        // Check if any config is system config (immutable)
+        for (SysConfig config : configs) {
             if (Boolean.TRUE.equals(config.getIsSystem())) {
                 throw new BizException(AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getCode(),
                     AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getMessage());
             }
-            config.setDeleteFlag(1L);
-            config.setDeletedAt(now);
-            configMapper.update(config);
+        }
+        
+        // Batch soft delete (performance fix: use single SQL instead of loop)
+        if (!configs.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            List<Long> validIds = configs.stream().map(SysConfig::getId).collect(java.util.stream.Collectors.toList());
+            configMapper.softDeleteBatch(validIds, now);
         }
     }
 }

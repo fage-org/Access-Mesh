@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OperationPermissionMapper extends BaseMapper<OperationPermission> {
@@ -31,4 +32,17 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
         @Param("tenantId") Long tenantId,
         @Param("resourceType") Integer resourceType,
         @Param("requiredBits") Long requiredBits);
+
+    /**
+     * Batch soft delete operation permissions.
+     * Sets delete_flag = id and deleted_at for each operation permission.
+     *
+     * @param tenantId   the tenant ID
+     * @param ids        the list of operation permission IDs to delete
+     * @param deletedAt  the timestamp of deletion
+     * @return number of rows updated
+     */
+    int softDeleteBatch(@Param("tenantId") Long tenantId,
+                        @Param("ids") List<Long> ids,
+                        @Param("deletedAt") LocalDateTime deletedAt);
 }

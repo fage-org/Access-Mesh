@@ -245,6 +245,7 @@ CREATE TABLE sys_menu (
 
 CREATE UNIQUE INDEX uk_menu_perm_code ON sys_menu (tenant_id, perm_code) WHERE delete_flag = 0 AND perm_code IS NOT NULL;
 CREATE INDEX idx_menu_parent ON sys_menu (tenant_id, parent_id) WHERE delete_flag = 0;
+CREATE INDEX idx_menu_service_tenant ON sys_menu (tenant_id, service_code) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_menu IS '菜单表：admin-service 事实源，MENU/BUTTON 类型同步到权限中心 resource_entity';
 COMMENT ON COLUMN sys_menu.menu_type IS '类型：DIR=目录，MENU=菜单，BUTTON=按钮';

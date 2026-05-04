@@ -58,18 +58,15 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
         if (role.getRoleType() != null
             && (role.getRoleType() == RoleType.GROUP_ROLE.getValue()
                 || role.getRoleType() == RoleType.ORG.getValue())) {
-            // Recursive delete children
-            List<AbstractRole> children = abstractRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.PARENT_ID.eq(roleId))
-                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            );
-            for (AbstractRole child : children) {
-                softDeleteRole(child.getId(), now);
+            // Use CTE query to get all descendant IDs, then batch delete (performance fix)
+            List<Long> descendantIds = abstractRoleMapper.selectDescendantIds(tenantId, roleId);
+            if (!descendantIds.isEmpty()) {
+                abstractRoleMapper.softDeleteBatch(tenantId, descendantIds, now);
             }
         }
 
-        softDeleteRole(roleId, now);
+        // Delete the role itself
+        abstractRoleMapper.softDeleteBatch(tenantId, java.util.List.of(roleId), now);
     }
 
     @Override

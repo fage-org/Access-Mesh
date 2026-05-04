@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.FileResp;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
 
 @Service
@@ -184,7 +186,9 @@ public class FileServiceImpl implements FileService {
 
         // 13. 记录文件信息到数据库
         String filePath = bizType != null ? bizType + "/" + dateDir + "/" + fileName : "default/" + dateDir + "/" + fileName;
+        Long tenantId = TenantContextHolder.getTenantId();
         SysFile sysFile = new SysFile();
+        sysFile.setTenantId(tenantId);
         sysFile.setOriginalName(originalName);
         sysFile.setFileName(fileName);
         sysFile.setFilePath(filePath);
@@ -203,25 +207,45 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public void deleteFiles(IdsReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        // Batch query valid files (performance fix: avoid N+1 queries for SELECT)
+        List<SysFile> files = fileMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_FILE.ID.in(req.ids()))
+                .and(SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SYS_FILE.DELETE_FLAG.eq(0))
+        );
+
+        if (files.isEmpty()) {
+            return;
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysFile f = fileMapper.selectOneById(id);
-            if (f == null || f.getDeleteFlag() != 0L) continue;
+
+        // Delete physical files (must remain as loop - file system operation)
+        for (SysFile f : files) {
             try {
                 Path path = Paths.get(storagePath, f.getFilePath());
                 Files.deleteIfExists(path);
             } catch (IOException ignored) {
             }
-            f.setDeleteFlag(1L);
-            f.setDeletedAt(now);
-            fileMapper.update(f);
         }
+
+        // Batch soft delete in database (performance fix: use single SQL instead of loop)
+        List<Long> validIds = files.stream().map(SysFile::getId).collect(java.util.stream.Collectors.toList());
+        fileMapper.softDeleteBatch(tenantId, validIds, now);
     }
 
     @Override
     public FileResp getFile(Long id) {
-        SysFile f = fileMapper.selectOneById(id);
-        if (f == null || f.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysFile f = fileMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_FILE.ID.eq(id))
+                .and(SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SYS_FILE.DELETE_FLAG.eq(0))
+        );
+        if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }
         return toResp(f);
@@ -229,8 +253,10 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
+        Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_FILE.DELETE_FLAG.eq(0));
+            .where(SYS_FILE.TENANT_ID.eq(tenantId))
+            .and(SYS_FILE.DELETE_FLAG.eq(0));
         if (bizType != null) qw.and(SYS_FILE.BUCKET_NAME.eq(bizType));
         qw.orderBy(SYS_FILE.CREATED_AT.desc());
 
@@ -257,8 +283,14 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public byte[] downloadFile(Long id, jakarta.servlet.http.HttpServletResponse response) {
-        SysFile f = fileMapper.selectOneById(id);
-        if (f == null || f.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysFile f = fileMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_FILE.ID.eq(id))
+                .and(SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SYS_FILE.DELETE_FLAG.eq(0))
+        );
+        if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }
         Path filePath = Paths.get(storagePath, f.getFilePath());

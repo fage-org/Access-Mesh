@@ -94,8 +94,10 @@ public class SignatureEnrichFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // Skip signature if not enabled or no secret configured
-        if (!signatureConfig.isEnabled() || !macInitialized || macThreadLocal == null) {
+        // FIX #6: Signature generation is mandatory - no enabled check
+        // Only skip if secret not configured (startup validation should catch this)
+        if (!macInitialized || macThreadLocal == null) {
+            log.warn("Signature generation skipped - secret not configured. This should not happen in production!");
             return chain.filter(exchange);
         }
 

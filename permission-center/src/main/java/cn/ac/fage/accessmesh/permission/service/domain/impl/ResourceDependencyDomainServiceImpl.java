@@ -21,11 +21,13 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
@@ -85,11 +87,13 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         );
 
         Set<Long> affectedRoles = new HashSet<>();
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (RoleResourcePermission rp : autoGrants) {
-            rp.setDeleteFlag(rp.getId());
-            rp.setDeletedAt(now);
-            rolePermMapper.update(rp);
+        if (!autoGrants.isEmpty()) {
+            List<Long> idsToDelete = autoGrants.stream()
+                .map(RoleResourcePermission::getId)
+                .collect(java.util.stream.Collectors.toList());
+            rolePermMapper.softDeleteBatch(tenantId, idsToDelete, now);
             affectedRoles.add(roleId);
         }
 
@@ -123,6 +127,24 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             return autoGranted;
         }
 
+        // Performance fix: Pre-load all operation permissions for O(1) lookup in nested loop
+        Set<Long> opIds = new HashSet<>();
+        for (RoleResourcePermission rp : toInsert) {
+            if (rp.getOperationPermissionId() != null) {
+                opIds.add(rp.getOperationPermissionId());
+            }
+        }
+        Map<Long, OperationPermission> opPermCache = new HashMap<>();
+        if (!opIds.isEmpty()) {
+            for (OperationPermission op : operationPermissionMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(opIds))
+                    .and(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+            )) {
+                opPermCache.put(op.getId(), op);
+            }
+        }
+
         // Find dependency rules where source resource is in the granted resources
         List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
             QueryWrapper.create()
@@ -132,35 +154,35 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                 .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
         );
 
+        // Pre-load all existing auto-grant permissions for this role and dependency targets
+        // to avoid N+1 query in nested loop
+        Set<Long> targetResourceIds = deps.stream()
+            .map(ResourceDependency::getDependsOnResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Set<Long> depIds = deps.stream()
+            .map(ResourceDependency::getId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        Map<Long, Map<Long, RoleResourcePermission>> existingAutoGrants = targetResourceIds.isEmpty() ? Map.of()
+            : rolePermMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                    .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
+                    .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
+                    .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
+                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+            ).stream().collect(Collectors.groupingBy(
+                RoleResourcePermission::getResourceEntityId,
+                Collectors.toMap(RoleResourcePermission::getGrantDepId, Function.identity(), (a, b) -> a)
+            ));
+
         for (ResourceDependency dep : deps) {
-            // Pre-load all existing auto-grant permissions for this role and dependency targets
-            // to avoid N+1 query in nested loop
-            Set<Long> targetResourceIds = deps.stream()
-                .map(ResourceDependency::getDependsOnResourceEntityId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-            Set<Long> depIds = deps.stream()
-                .map(ResourceDependency::getId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-            Map<Long, Map<Long, RoleResourcePermission>> existingAutoGrants = targetResourceIds.isEmpty() ? Map.of()
-                : rolePermMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                        .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                        .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
-                        .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                        .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
-                        .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-                ).stream().collect(Collectors.groupingBy(
-                    RoleResourcePermission::getResourceEntityId,
-                    Collectors.toMap(RoleResourcePermission::getGrantDepId, p -> p, (a, b) -> a)
-                ));
-
             for (RoleResourcePermission rp : toInsert) {
                 if (Objects.equals(rp.getResourceEntityId(), dep.getResourceEntityId())
-                    && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBits(rp.getOperationPermissionId()))) {
+                    && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBitsFromCache(rp.getOperationPermissionId(), opPermCache))) {
                     // Check if already granted using pre-loaded cache (no query)
                     Map<Long, RoleResourcePermission> resourceGrants = existingAutoGrants.get(dep.getDependsOnResourceEntityId());
                     boolean alreadyGranted = resourceGrants != null && resourceGrants.containsKey(dep.getId());
@@ -203,6 +225,17 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     private Long getEffectiveOpBits(Long opId) {
         if (opId == null) return 0L;
         OperationPermission op = operationPermissionMapper.selectOneById(opId);
+        if (op == null) return 0L;
+        return op.getEffectiveBits();
+    }
+
+    /**
+     * Get effective operation bits from pre-loaded cache (performance optimization).
+     * Used in nested loops to avoid N+1 queries.
+     */
+    private Long getEffectiveOpBitsFromCache(Long opId, Map<Long, OperationPermission> cache) {
+        if (opId == null) return 0L;
+        OperationPermission op = cache.get(opId);
         if (op == null) return 0L;
         return op.getEffectiveBits();
     }

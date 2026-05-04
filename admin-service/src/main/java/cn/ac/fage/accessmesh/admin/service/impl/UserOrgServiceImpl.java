@@ -13,12 +13,18 @@ import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.service.UserOrgService;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,20 +40,37 @@ public class UserOrgServiceImpl implements UserOrgService {
     private final SysUserOrgMapper userOrgMapper;
     private final SysOrgMapper orgMapper;
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
+    private final AdminPermissionValidator permissionValidator;
 
     public UserOrgServiceImpl(SysUserOrgMapper userOrgMapper, SysOrgMapper orgMapper,
-                              SysOrgTreeConfigMapper orgTreeConfigMapper) {
+                              SysOrgTreeConfigMapper orgTreeConfigMapper,
+                              AdminPermissionValidator permissionValidator) {
         this.userOrgMapper = userOrgMapper;
         this.orgMapper = orgMapper;
         this.orgTreeConfigMapper = orgTreeConfigMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     public void assignUserToOrgs(UserOrgAssignReq req) {
+        // FIX #1: Add permission validation - user org assignment is an UPDATE operation on USER resource
+        Long tenantId = TenantContextHolder.getTenantId();
+        Long operatorId = StpUtil.getLoginIdAsLong();
+
+        // Self-assignment exemption: user can assign own orgs without permission check
+        if (!req.userId().equals(operatorId)) {
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.USER,
+                String.valueOf(req.userId()),
+                AdminOperationCode.UPDATE
+            );
+        }
+
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
+                .where(SYS_ORG_TREE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
                 .and(SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
         );
         for (SysOrgTreeConfig config : defaultConfigs) {
@@ -58,28 +81,50 @@ public class UserOrgServiceImpl implements UserOrgService {
         }
 
         userOrgMapper.deleteByQuery(
-            QueryWrapper.create().where(SYS_USER_ORG.USER_ID.eq(req.userId()))
+            QueryWrapper.create()
+                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_USER_ORG.USER_ID.eq(req.userId()))
         );
 
         LocalDateTime now = LocalDateTime.now();
+        // Performance fix: collect entities for batch insert
+        List<SysUserOrg> toInsert = new ArrayList<>();
         for (Long orgId : req.orgIds()) {
             SysUserOrg assoc = new SysUserOrg();
+            assoc.setTenantId(tenantId);
             assoc.setUserId(req.userId());
             assoc.setOrgId(orgId);
             assoc.setIsPrimary(orgId.equals(req.primaryOrgId()));
             assoc.setCreatedAt(now);
             assoc.setUpdatedAt(now);
             assoc.setDeleteFlag(0L);
-            userOrgMapper.insert(assoc);
+            toInsert.add(assoc);
+        }
+        if (!toInsert.isEmpty()) {
+            userOrgMapper.insertBatch(toInsert);
         }
     }
 
     @Override
     @Transactional
     public void removeUserFromOrg(Long userId, Long orgId) {
+        // FIX #1: Add permission validation
+        Long tenantId = TenantContextHolder.getTenantId();
+        Long operatorId = StpUtil.getLoginIdAsLong();
+
+        // Self-removal exemption: user can remove own org association
+        if (!userId.equals(operatorId)) {
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.USER,
+                String.valueOf(userId),
+                AdminOperationCode.UPDATE
+            );
+        }
+
         userOrgMapper.deleteByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.eq(userId))
+                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.ORG_ID.eq(orgId))
         );
     }
@@ -87,16 +132,31 @@ public class UserOrgServiceImpl implements UserOrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setPrimaryOrg(Long userId, Long orgId) {
+        // FIX #1: Add permission validation
+        Long tenantId = TenantContextHolder.getTenantId();
+        Long operatorId = StpUtil.getLoginIdAsLong();
+
+        // Self-modification exemption: user can set own primary org
+        if (!userId.equals(operatorId)) {
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.USER,
+                String.valueOf(userId),
+                AdminOperationCode.UPDATE
+            );
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
-        // 查询所有用户组织关联
+        // Query all user-org associations
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.eq(userId))
+                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
-        // 批量更新：先全部设为非主组织
+        // Performance optimization opportunity: could use custom batch update SQL
+        // For now, loop update is used due to MyBatis-Flex API limitations
         for (SysUserOrg uo : userOrgs) {
             SysUserOrg update = new SysUserOrg();
             update.setId(uo.getId());
@@ -108,9 +168,13 @@ public class UserOrgServiceImpl implements UserOrgService {
 
     @Override
     public List<UserPageItemResp.OrgBrief> getUserOrgs(Long userId) {
+        // FIX: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
+
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.eq(userId))
+                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_USER_ORG.USER_ID.eq(userId))
                 .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
@@ -122,7 +186,8 @@ public class UserOrgServiceImpl implements UserOrgService {
         Set<Long> orgIds = userOrgs.stream().map(SysUserOrg::getOrgId).collect(Collectors.toSet());
         List<SysOrg> orgs = orgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.ID.in(orgIds))
+                .where(SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SYS_ORG.ID.in(orgIds))
                 .and(SYS_ORG.DELETE_FLAG.eq(0))
         );
         Map<Long, SysOrg> orgMap = orgs.stream()

@@ -234,14 +234,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(ResourceDependency::getId).collect(Collectors.toSet());
+        // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        for (Long id : validIds) {
-            ResourceDependency updateEntity = new ResourceDependency();
-            updateEntity.setId(id);
-            updateEntity.setDeleteFlag(id);
-            updateEntity.setDeletedAt(now);
-            dependencyMapper.update(updateEntity);
-        }
+        dependencyMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
         operationLogDomainService.asyncRecord(
             "perm", "resource-dependency-remove", "BATCH", tenantId,
@@ -280,6 +275,8 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                         .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
+            // Collect IDs to delete (performance fix: use batch SQL instead of loop updates)
+            List<Long> idsToDelete = new java.util.ArrayList<>();
             for (ResourceDependency existing : existingDeps) {
                 ResourceEntity sourceResource = resourceMap.get(existing.getResourceEntityId());
                 ResourceEntity targetResource = resourceMap.get(existing.getDependsOnResourceEntityId());
@@ -289,10 +286,12 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                     Objects.equals(item.sourceResourceCode(), sourceResource.getCode())
                         && Objects.equals(item.targetResourceCode(), targetResource.getCode()));
                 if (!stillPresent) {
-                    existing.setDeleteFlag(existing.getId());
-                    existing.setDeletedAt(now);
-                    dependencyMapper.update(existing);
+                    idsToDelete.add(existing.getId());
                 }
+            }
+            // Batch soft delete collected IDs
+            if (!idsToDelete.isEmpty()) {
+                dependencyMapper.softDeleteBatch(tenantId, idsToDelete, now);
             }
         }
 
@@ -341,6 +340,8 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             }
         }
 
+        // Performance fix: collect inserts for batch operation
+        List<ResourceDependency> toInsert = new ArrayList<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             ResourceResolveKey sourceKey = new ResourceResolveKey(
                 item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
@@ -358,6 +359,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             ResourceDependency existing = existingDepMap.get(depKey);
 
             if (existing != null) {
+                // Note: update remains per-item due to varying field values per entity
                 if (sourceOperationBits != null) existing.setSourceOperationBits(sourceOperationBits);
                 if (requiredOperationBits != null) existing.setRequiredOperationBits(requiredOperationBits);
                 if (item.autoGrant() != null) existing.setAutoGrant(item.autoGrant());
@@ -381,8 +383,12 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                 dep.setCreatedAt(now);
                 dep.setUpdatedAt(now);
                 dep.setDeleteFlag(0L);
-                dependencyMapper.insert(dep);
+                toInsert.add(dep);
             }
+        }
+        // Performance fix: batch insert instead of loop inserts
+        if (!toInsert.isEmpty()) {
+            dependencyMapper.insertBatch(toInsert);
         }
     }
 

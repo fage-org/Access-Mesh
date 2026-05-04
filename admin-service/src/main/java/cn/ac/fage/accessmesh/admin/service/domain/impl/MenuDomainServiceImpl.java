@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.service.domain.impl;
 
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper;
+import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper.DescendantResult;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
@@ -51,15 +52,19 @@ public class MenuDomainServiceImpl implements MenuDomainService {
             return Collections.emptyMap();
         }
 
+        // Initialize result with empty lists for each input ID
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long id : menuIds) {
             result.put(id, new ArrayList<>());
         }
 
-        for (Long menuId : menuIds) {
-            List<Long> descendants = menuMapper.selectDescendantIds(tenantId, menuId);
-            if (descendants != null && !descendants.isEmpty()) {
-                result.get(menuId).addAll(descendants);
+        // Performance fix: Use single batch CTE query instead of N+1 queries
+        List<DescendantResult> descendants = menuMapper.selectBatchDescendantIds(tenantId, menuIds);
+        for (DescendantResult dr : descendants) {
+            Long rootId = dr.getMenuId();
+            Long descId = dr.getDescendantId();
+            if (rootId != null && descId != null) {
+                result.computeIfAbsent(rootId, k -> new ArrayList<>()).add(descId);
             }
         }
 
@@ -68,21 +73,61 @@ public class MenuDomainServiceImpl implements MenuDomainService {
 
     @Override
     public List<Long> getAncestorIds(Long tenantId, Long menuId) {
-        List<Long> ids = new ArrayList<>();
-        Long current = menuId;
-        while (current != null) {
-            SysMenu menu = menuMapper.selectOneById(current);
-            if (menu == null || menu.getDeleteFlag() != 0L || !menu.getTenantId().equals(tenantId)) {
-                break;
-            }
-            if (menu.getParentId() != null && menu.getParentId() != 0L) {
-                ids.add(menu.getParentId());
-                current = menu.getParentId();
-            } else {
-                break;
+        // Performance fix: Use batch loading pattern (same as OrgDomainServiceImpl.batchGetAncestorIds)
+        Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, Set.of(menuId));
+        return ancestorMap.getOrDefault(menuId, List.of());
+    }
+
+    /**
+     * Batch get ancestor IDs for multiple menu IDs.
+     * Uses batch loading pattern to avoid N+1 queries.
+     */
+    public Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> menuIds) {
+        if (menuIds == null || menuIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // Batch load all menus and their ancestors
+        Map<Long, SysMenu> entityMap = new HashMap<>();
+        Set<Long> toLoad = new HashSet<>(menuIds);
+
+        while (!toLoad.isEmpty()) {
+            List<SysMenu> loaded = menuMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(SYS_MENU.TENANT_ID.eq(tenantId))
+                    .and(SYS_MENU.ID.in(toLoad))
+                    .and(SYS_MENU.DELETE_FLAG.eq(0))
+            );
+            toLoad.clear();
+            for (SysMenu menu : loaded) {
+                entityMap.put(menu.getId(), menu);
+                if (menu.getParentId() != null && menu.getParentId() != 0L
+                    && !entityMap.containsKey(menu.getParentId())) {
+                    toLoad.add(menu.getParentId());
+                }
             }
         }
-        return ids;
+
+        // Build ancestor chains for each input menuId
+        Map<Long, List<Long>> result = new HashMap<>();
+        for (Long menuId : menuIds) {
+            List<Long> ancestors = new ArrayList<>();
+            Long current = menuId;
+            while (current != null) {
+                SysMenu menu = entityMap.get(current);
+                if (menu == null) {
+                    break;
+                }
+                if (menu.getParentId() != null && menu.getParentId() != 0L) {
+                    ancestors.add(menu.getParentId());
+                    current = menu.getParentId();
+                } else {
+                    break;
+                }
+            }
+            result.put(menuId, ancestors);
+        }
+        return result;
     }
 
     @Override
@@ -172,16 +217,14 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (parentId == null || parentId == 0L) {
             return 1;
         }
-        int depth = 0;
-        Long current = parentId;
-        while (current != null && current != 0L) {
-            SysMenu menu = menuMapper.selectOneById(current);
-            if (menu == null || menu.getDeleteFlag() != 0L) {
-                break;
-            }
-            depth++;
-            current = menu.getParentId();
-        }
-        return depth + 1;
+
+        // Performance fix: Pre-load ancestors and compute depth
+        // Use batchGetAncestorIds to load all ancestors in batch
+        Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, Set.of(parentId));
+        List<Long> ancestors = ancestorMap.getOrDefault(parentId, List.of());
+
+        // Depth = number of ancestors + 1 (for self)
+        // ancestors includes all parent IDs up the tree
+        return ancestors.size() + 1;
     }
 }

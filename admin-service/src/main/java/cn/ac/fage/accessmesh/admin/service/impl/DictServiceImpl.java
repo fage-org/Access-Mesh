@@ -77,24 +77,37 @@ public class DictServiceImpl implements DictService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.DICT, resourceCodes, AdminOperationCode.DELETE);
 
-        LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysDictType type = dictTypeMapper.selectOneById(id);
-            if (type != null && type.getDeleteFlag() == 0L) {
-                long dataCount = dictDataMapper.selectCountByQuery(
-                    QueryWrapper.create()
-                        .where(SYS_DICT_DATA.DICT_TYPE.eq(type.getDictType()))
-                        .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
-                );
-                if (dataCount > 0) {
-                    throw new BizException(AdminErrorCode.DICT_TYPE_HAS_DATA.getCode(), AdminErrorCode.DICT_TYPE_HAS_DATA.getMessage());
-                }
+        // Batch query to check for data and filter valid IDs (performance fix: avoid N+1 queries)
+        List<SysDictType> types = dictTypeMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_DICT_TYPE.ID.in(req.ids()))
+                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+        );
+        
+        // Batch check if any type has associated data (performance fix: single query with GROUP BY)
+        if (!types.isEmpty()) {
+            List<String> dictTypes = types.stream()
+                .map(SysDictType::getDictType)
+                .collect(Collectors.toList());
+
+            List<SysDictData> dataWithTypes = dictDataMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .select(SYS_DICT_DATA.DICT_TYPE)
+                    .where(SYS_DICT_DATA.DICT_TYPE.in(dictTypes))
+                    .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
+                    .groupBy(SYS_DICT_DATA.DICT_TYPE)
+            );
+
+            if (!dataWithTypes.isEmpty()) {
+                throw new BizException(AdminErrorCode.DICT_TYPE_HAS_DATA.getCode(), AdminErrorCode.DICT_TYPE_HAS_DATA.getMessage());
             }
-            SysDictType existing = dictTypeMapper.selectOneById(id);
-            if (existing == null || existing.getDeleteFlag() != 0L) continue;
-            existing.setDeleteFlag(1L);
-            existing.setDeletedAt(now);
-            dictTypeMapper.update(existing);
+        }
+        
+        // Batch soft delete (performance fix: use single SQL instead of loop)
+        if (!types.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            List<Long> validIds = types.stream().map(SysDictType::getId).collect(java.util.stream.Collectors.toList());
+            dictTypeMapper.softDeleteBatch(validIds, now);
         }
     }
 

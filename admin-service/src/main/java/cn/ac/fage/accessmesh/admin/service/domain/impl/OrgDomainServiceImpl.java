@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.service.domain.impl;
 
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper;
+import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper.DescendantResult;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
@@ -51,15 +52,19 @@ public class OrgDomainServiceImpl implements OrgDomainService {
             return Collections.emptyMap();
         }
 
+        // Initialize result with empty lists for each input ID
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long id : orgIds) {
             result.put(id, new ArrayList<>());
         }
 
-        for (Long orgId : orgIds) {
-            List<Long> descendants = orgMapper.selectDescendantIds(tenantId, orgId);
-            if (descendants != null && !descendants.isEmpty()) {
-                result.get(orgId).addAll(descendants);
+        // Performance fix: Use single batch CTE query instead of N+1 queries
+        List<DescendantResult> descendants = orgMapper.selectBatchDescendantIds(tenantId, orgIds);
+        for (DescendantResult dr : descendants) {
+            Long rootId = dr.getOrgId();
+            Long descId = dr.getDescendantId();
+            if (rootId != null && descId != null) {
+                result.computeIfAbsent(rootId, k -> new ArrayList<>()).add(descId);
             }
         }
 
@@ -68,21 +73,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
 
     @Override
     public List<Long> getAncestorIds(Long tenantId, Long orgId) {
-        List<Long> ids = new ArrayList<>();
-        Long current = orgId;
-        while (current != null) {
-            SysOrg org = orgMapper.selectOneById(current);
-            if (org == null || org.getDeleteFlag() != 0L || !org.getTenantId().equals(tenantId)) {
-                break;
-            }
-            if (org.getParentId() != null && org.getParentId() != 0L) {
-                ids.add(org.getParentId());
-                current = org.getParentId();
-            } else {
-                break;
-            }
-        }
-        return ids;
+        // Performance fix: Delegate to batchGetAncestorIds to avoid N+1 queries
+        Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, Set.of(orgId));
+        return ancestorMap.getOrDefault(orgId, List.of());
     }
 
     @Override

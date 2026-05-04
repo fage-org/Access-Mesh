@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysAuditLog;
 import cn.ac.fage.accessmesh.admin.entity.table.SysAuditLogTableDef;
@@ -25,9 +26,11 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     public PaginatedResult<SysAuditLog> pageAuditLogs(PageReq pageReq) {
+        Long tenantId = TenantContextHolder.getTenantId();
         Page<SysAuditLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysAuditLog> result = auditLogMapper.paginate(page,
             QueryWrapper.create()
+                .where(SYS_AUDIT_LOG.TENANT_ID.eq(tenantId))
                 .orderBy(SYS_AUDIT_LOG.CREATED_AT.desc()));
 
         List<SysAuditLog> items = result.getRecords();

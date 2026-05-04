@@ -14,6 +14,7 @@ public final class OperatorContext {
 
     private static final Logger log = LoggerFactory.getLogger(OperatorContext.class);
     private static final String HEADER_USER_ID = "X-User-Id";
+    private static final String HEADER_SIGNATURE = "X-User-Signature";  // FIX #3: Added for signature verification
 
     private OperatorContext() {}
 
@@ -24,6 +25,20 @@ public final class OperatorContext {
      */
     public static Long getOperatorId() {
         HttpServletRequest request = getRequest();
+
+        // FIX #3: Verify signature header exists (signature validation must have passed)
+        // If HeaderSignatureInterceptor validated successfully, this header must be present
+        String signature = request.getHeader(HEADER_SIGNATURE);
+        if (signature == null || signature.isBlank()) {
+            SecurityLogUtil.logSecurityEvent(
+                SecurityEventType.INVALID_SIGNATURE,
+                request,
+                "Request not signed by gateway - missing X-User-Signature header",
+                null,
+                null
+            );
+            throw new SecurityException("Request not signed by gateway - signature validation bypass attempt detected");
+        }
 
         // X-User-Id Header (injected by Gateway)
         String userIdHeader = request.getHeader(HEADER_USER_ID);

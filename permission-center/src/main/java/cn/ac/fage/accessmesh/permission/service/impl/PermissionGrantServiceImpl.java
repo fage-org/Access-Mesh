@@ -490,19 +490,18 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
 
         List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
-        LocalDateTime now = LocalDateTime.now();
 
-        for (Long permId : permissionIds) {
-            rolePermissionDomainService.revokePermissionWithCascade(tenantId, roleId, permId, now);
+        // Performance fix: use batch method instead of loop
+        if (!permissionIds.isEmpty()) {
+            rolePermissionDomainService.revokePermissions(tenantId, roleId, permissionIds);
         }
 
-        // Increment version and invalidate caches after commit
+        // Note: version increment and cache invalidation are handled by revokePermissions internally
+        // Only record operation log here
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permissionVersionDomainService.increment(tenantId, roleId);
-                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleId);
                     operationLogDomainService.asyncRecord(
                         "role_resource_permission", "BATCH_REVOKE",
                         "abstract_role", roleId,
@@ -690,12 +689,15 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setCreatedAt(now);
             rp.setUpdatedAt(now);
             rp.setDeleteFlag(0L);
-            rolePermMapper.insert(rp);
             inserted.add(rp);
             changeLogs.add(new PermissionChangeDomainService.ChangeLogEntry(
                 "role_resource_permission", rp.getId(), "ADD", null, "child-added", "{}", null,
                 new Long[]{parent.getAbstractRoleId()}
             ));
+        }
+        // Performance fix: batch insert instead of loop insert
+        if (!inserted.isEmpty()) {
+            rolePermMapper.insertBatch(inserted);
         }
         // 版本递增和缓存失效（事务提交后执行）
         final Long roleIdForCache = parent.getAbstractRoleId();

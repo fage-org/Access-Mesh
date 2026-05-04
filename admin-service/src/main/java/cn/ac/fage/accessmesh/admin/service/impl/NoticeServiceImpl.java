@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.NoticeCreateReq;
@@ -25,22 +29,31 @@ import java.util.List;
 
 import static cn.ac.fage.accessmesh.admin.entity.table.SysNoticeTableDef.SYS_NOTICE;
 import static cn.ac.fage.accessmesh.admin.entity.table.SysUserNoticeTableDef.SYS_USER_NOTICE;
+import static cn.ac.fage.accessmesh.admin.entity.table.SysNoticeTableDef.SYS_NOTICE;
 
 @Service
 public class NoticeServiceImpl implements NoticeService {
 
     private final SysNoticeMapper noticeMapper;
     private final SysUserNoticeMapper userNoticeMapper;
+    private final AdminPermissionValidator permissionValidator;
 
-    public NoticeServiceImpl(SysNoticeMapper noticeMapper, SysUserNoticeMapper userNoticeMapper) {
+    public NoticeServiceImpl(SysNoticeMapper noticeMapper, SysUserNoticeMapper userNoticeMapper,
+                             AdminPermissionValidator permissionValidator) {
         this.noticeMapper = noticeMapper;
         this.userNoticeMapper = userNoticeMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     public Long createNotice(NoticeCreateReq req) {
+        // Permission check - type-level CREATE
+        permissionValidator.checkTypeLevel(AdminResourceType.NOTICE, AdminOperationCode.CREATE);
+
+        Long tenantId = TenantContextHolder.getTenantId();
         SysNotice notice = new SysNotice();
+        notice.setTenantId(tenantId);
         notice.setTitle(req.title());
         notice.setContent(req.content());
         notice.setNoticeType(req.noticeType() != null ? String.valueOf(req.noticeType()) : "1");
@@ -56,14 +69,20 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     @Transactional
     public void updateNotice(NoticeCreateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
         SysNotice notice = noticeMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SYS_NOTICE.TITLE.eq(req.title()))
+                .and(SYS_NOTICE.TENANT_ID.eq(tenantId))
                 .and(SYS_NOTICE.DELETE_FLAG.eq(0))
         );
         if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
+
+        // Permission check - instance-level UPDATE
+        permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE, notice.getId().toString(), AdminOperationCode.UPDATE);
+
         notice.setTitle(req.title());
         notice.setContent(req.content());
         notice.setNoticeType(req.noticeType() != null ? String.valueOf(req.noticeType()) : notice.getNoticeType());
@@ -75,20 +94,36 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     @Transactional
     public void deleteNotice(IdsReq req) {
-        LocalDateTime now = LocalDateTime.now();
-        for (Long id : req.ids()) {
-            SysNotice notice = noticeMapper.selectOneById(id);
-            if (notice == null || notice.getDeleteFlag() != 0L) continue;
-            notice.setDeleteFlag(1L);
-            notice.setDeletedAt(now);
-            noticeMapper.update(notice);
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // Permission check - batch instance-level DELETE
+        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.NOTICE, resourceCodes, AdminOperationCode.DELETE);
+
+        // Batch query valid notices (performance fix: avoid N+1 queries)
+        List<SysNotice> notices = noticeMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SYS_NOTICE.ID.in(req.ids()))
+                .and(SYS_NOTICE.TENANT_ID.eq(tenantId))
+                .and(SYS_NOTICE.DELETE_FLAG.eq(0))
+        );
+        if (!notices.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            List<Long> validIds = notices.stream().map(SysNotice::getId).collect(java.util.stream.Collectors.toList());
+            noticeMapper.softDeleteBatch(tenantId, validIds, now);
         }
     }
 
     @Override
     public NoticeResp getNotice(Long id) {
-        SysNotice notice = noticeMapper.selectOneById(id);
-        if (notice == null || notice.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysNotice notice = noticeMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_NOTICE.ID.eq(id))
+                .and(SYS_NOTICE.TENANT_ID.eq(tenantId))
+                .and(SYS_NOTICE.DELETE_FLAG.eq(0))
+        );
+        if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
         return new NoticeResp(notice.getId(), notice.getTitle(), notice.getContent(),
@@ -98,10 +133,12 @@ public class NoticeServiceImpl implements NoticeService {
 
     @Override
     public PaginatedResult<NoticeResp> pageNotices(PageReq pageReq) {
+        Long tenantId = TenantContextHolder.getTenantId();
         Page<SysNotice> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysNotice> result = noticeMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_NOTICE.DELETE_FLAG.eq(0))
+                .where(SYS_NOTICE.TENANT_ID.eq(tenantId))
+                .and(SYS_NOTICE.DELETE_FLAG.eq(0))
                 .orderBy(SYS_NOTICE.CREATED_AT.desc()));
 
         List<NoticeResp> items = result.getRecords().stream()
@@ -118,10 +155,20 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     @Transactional
     public void publishNotice(Long id) {
-        SysNotice notice = noticeMapper.selectOneById(id);
-        if (notice == null || notice.getDeleteFlag() != 0L) {
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysNotice notice = noticeMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(SYS_NOTICE.ID.eq(id))
+                .and(SYS_NOTICE.TENANT_ID.eq(tenantId))
+                .and(SYS_NOTICE.DELETE_FLAG.eq(0))
+        );
+        if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
+
+        // Permission check - instance-level PUBLISH
+        permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE, notice.getId().toString(), AdminOperationCode.PUBLISH);
+
         notice.setStatus(1);
         notice.setPublishedAt(LocalDateTime.now());
         notice.setUpdatedAt(LocalDateTime.now());
@@ -152,19 +199,12 @@ public class NoticeServiceImpl implements NoticeService {
 
     @Override
     public List<UserNoticeItem> listMyNotices(Long userId) {
-        // Query all notices joined with user's read status
-        String sql = """
-            SELECT n.id AS notice_id, n.title, n.content, n.notice_type, n.created_at,
-                   COALESCE(un.is_read, false) AS is_read, un.read_at
-            FROM sys_notice n
-            LEFT JOIN sys_user_notice un ON un.notice_id = n.id AND un.user_id = ?
-            WHERE n.delete_flag = 0 AND n.status = 1
-            ORDER BY n.created_at DESC
-            """.stripIndent();
+        Long tenantId = TenantContextHolder.getTenantId();
         // Fallback: use two separate queries since MyBatis-Flex doesn't support raw SQL easily
         List<SysNotice> notices = noticeMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_NOTICE.DELETE_FLAG.eq(0))
+                .where(SYS_NOTICE.TENANT_ID.eq(tenantId))
+                .and(SYS_NOTICE.DELETE_FLAG.eq(0))
                 .and(SYS_NOTICE.STATUS.eq(1))
                 .orderBy(SYS_NOTICE.CREATED_AT.desc())
         );

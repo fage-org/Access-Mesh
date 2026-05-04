@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -207,9 +208,12 @@ public class MenuServiceImpl implements MenuService {
 
     @Override
     public List<MenuResp> treeMenu() {
+        // FIX #6: Add tenantId filter for security
+        Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_MENU.DELETE_FLAG.eq(0))
+                .where(SYS_MENU.TENANT_ID.eq(tenantId))
+                .and(SYS_MENU.DELETE_FLAG.eq(0))
                 .orderBy(SYS_MENU.SORT_ORDER.asc(), SYS_MENU.CREATED_AT.asc())
         );
         return buildTree(all, 0L);
@@ -290,23 +294,30 @@ public class MenuServiceImpl implements MenuService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 获取所有菜单及其子孙ID
+        // Performance fix: Batch load menus and descendants
+        Set<Long> menuIdSet = new java.util.HashSet<>(req.ids());
+        List<SysMenu> menus = menuDomainService.selectValidByIds(tenantId, menuIdSet);
+
+        // Get all descendant IDs in batch
+        Map<Long, List<Long>> descendantMap = menuDomainService.batchGetDescendantIds(tenantId, menuIdSet);
+
+        // Collect all IDs to delete (including self)
         Set<Long> allIdsToDelete = new java.util.HashSet<>();
-        for (Long menuId : req.ids()) {
-            SysMenu menu = menuDomainService.selectValidById(tenantId, menuId);
-            if (menu == null) continue;
+        for (SysMenu menu : menus) {
+            Long menuId = menu.getId();
+            // Add self
+            allIdsToDelete.add(menuId);
+            // Add descendants
+            List<Long> descendants = descendantMap.getOrDefault(menuId, List.of());
+            allIdsToDelete.addAll(descendants);
 
-            // 获取子孙ID
-            List<Long> descendantIds = menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId);
-            allIdsToDelete.addAll(descendantIds);
-
-            // 从权限中心删除
+            // Delete from permission center
             if (menu.getPermResourceId() != null) {
                 menuSyncHandler.deleteMenuFromPermissionCenter(tenantId, menu.getPermResourceId());
             }
         }
 
-        // 批量软删除
+        // Batch soft delete
         if (!allIdsToDelete.isEmpty()) {
             menuDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
         }
