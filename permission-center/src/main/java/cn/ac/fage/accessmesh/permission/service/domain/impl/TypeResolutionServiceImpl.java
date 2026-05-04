@@ -55,6 +55,9 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final RedisTemplate<String, Object> redisTemplate;
 
+    // TODO: 构造函数依赖过多(7个)，违反单一职责原则
+    // 建议：按类型拆分解析服务（如用户解析、角色解析、资源解析分离）
+    // 优先级：P4（临界情况，可关注但不强制整改）
     public TypeResolutionServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                      AbstractUserMapper abstractUserMapper,
                                      ResourceEntityMapper resourceEntityMapper,

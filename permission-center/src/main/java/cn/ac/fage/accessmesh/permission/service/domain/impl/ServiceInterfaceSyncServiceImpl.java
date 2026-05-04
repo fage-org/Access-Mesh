@@ -43,6 +43,9 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
     private final SyncModeStrategyFactory strategyFactory;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(8个)，违反单一职责原则
+    // 建议：拆分接口同步/批量处理职责
+    // 优先级：P3（低优先级，可关注但不强制整改）
     public ServiceInterfaceSyncServiceImpl(
             ResourceSyncHandler resourceSyncHandler,
             MappingSyncHandler mappingSyncHandler,

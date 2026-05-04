@@ -75,6 +75,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final AbstractRoleDomainService abstractRoleDomainService;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(17个)，违反单一职责原则
+    // 建议：拆分为 GrantValidationService/GrantExecutionService/GrantCascadeService
+    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public PermissionGrantServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
                                       OperationPermissionMapper operationPermissionMapper,

@@ -94,6 +94,9 @@ public class PermissionServiceImpl implements PermissionService {
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final EntityBatchLoadDomainService entityBatchLoadDomainService;
 
+    // TODO: 构造函数依赖过多(15个)，违反单一职责原则
+    // 建议：拆分为 PermissionQueryService/PermissionCheckService/PermissionTreeService
+    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public PermissionServiceImpl(AbstractUserMapper abstractUserMapper,
                                  ResourceEntityMapper resourceEntityMapper,
                                  ResourceApiMappingMapper apiMappingMapper,

@@ -60,6 +60,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final ObjectMapper objectMapper;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(12个)，违反单一职责原则
+    // 建议：拆分权限视图查询/变更日志查询职责
+    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public PermissionViewServiceImpl(AbstractUserMapper abstractUserMapper,
                                      AbstractRoleMapper abstractRoleMapper,
                                      ResourceEntityMapper resourceEntityMapper,

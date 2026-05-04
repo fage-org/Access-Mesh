@@ -60,6 +60,8 @@ public class UserServiceImpl implements UserService {
     private final ObjectMapper objectMapper;
     private final AdminPermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(8个)，建议抽离同步和重试逻辑到独立服务
+    // 优先级：P3（低优先级，可关注但不强制整改）
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
                            UserDomainService userDomainService, UserSyncHandler userSyncHandler,
                            TransactionTemplate transactionTemplate, SyncRetryService syncRetryService,

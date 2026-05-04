@@ -42,6 +42,8 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖达到6个，刚超过阈值，建议拆分批量同步逻辑
+    // 优先级：P4（临界情况，可关注但不强制整改）
     public DependencyManageServiceImpl(ResourceDependencyMapper dependencyMapper,
                                         ResourceEntityMapper resourceEntityMapper,
                                         TypeResolutionService typeResolutionService,

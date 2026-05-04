@@ -60,6 +60,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final ResourcePermissionValidator permissionValidator;
     private final TypeDefPermissionStrategy typeDefPermissionStrategy;
 
+    // TODO: 构造函数依赖过多(13个)，违反单一职责原则
+    // 建议：拆分配置查询/配置管理/配置同步职责
+    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
                                    DomainConfigMapper domainConfigMapper,

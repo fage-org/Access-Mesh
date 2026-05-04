@@ -59,6 +59,8 @@ public class RoleManageServiceImpl implements RoleManageService {
     private final AuthorizationService authorizationService;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(9个)，建议拆分角色CRUD和树形结构构建职责
+    // 优先级：P3（低优先级，可关注但不强制整改）
     public RoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  AbstractRoleDomainService abstractRoleDomainService,
                                  PermCacheDomainService permCacheDomainService,

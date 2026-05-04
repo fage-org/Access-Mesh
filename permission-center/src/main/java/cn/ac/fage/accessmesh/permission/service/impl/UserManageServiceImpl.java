@@ -72,6 +72,9 @@ public class UserManageServiceImpl implements UserManageService {
     private final AuthorizationService authorizationService;
     private final ResourcePermissionValidator permissionValidator;
 
+    // TODO: 构造函数依赖过多(11个)，违反单一职责原则
+    // 建议：拆分为 UserSyncService/UserRoleAssignService/UserQueryService
+    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public UserManageServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
                                  AbstractRoleMapper abstractRoleMapper,
