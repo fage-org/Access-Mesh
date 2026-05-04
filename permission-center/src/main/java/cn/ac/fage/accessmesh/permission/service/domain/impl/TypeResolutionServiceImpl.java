@@ -78,6 +78,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {
         String cacheKey = TYPE_VALUE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeCode;
 
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 get + set 操作不具备原子性，高并发下可能导致缓存击穿
+        // 建议：使用分布式锁（如 Redisson）或 singleflight 模式合并并发请求
+        // 优先级：P2（性能优化，可关注但不强制整改）
         // Try to get from cache
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {

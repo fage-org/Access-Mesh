@@ -100,6 +100,10 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     @Override
     public void setRolePermSnapshot(Long tenantId, Long roleId, RolePermSnapshot snapshot) {
         String key = buildCacheKey(NAMESPACE_ROLE_PERMS, tenantId, roleId);
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 L2 + L1 写入不具备原子性，可能导致短暂不一致
+        // 建议：考虑使用 write-behind 策略或事务后失效机制
+        // 优先级：P2（性能优化，可关注但不强制整改）
         // 问题5：写入顺序先 L2 后 L1
         redisTemplate.opsForValue().set(key, snapshot, permCacheProperties.getL2().getTtlMinutes(), TimeUnit.MINUTES);
         l1Cache.put(key, snapshot);

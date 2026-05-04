@@ -404,6 +404,10 @@ public abstract class AbstractGenericCacheManager<K, V> implements GenericCacheM
     public void evict(Long tenantId, K key) {
         String fullKey = buildCacheKey(tenantId, key);
 
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 L2 delete + L1 invalidate 操作不具备原子性
+        // 建议：在高一致性场景下考虑使用分布式锁或延迟双删策略
+        // 优先级：P2（性能优化，可关注但不强制整改）
         // 先失效 L2，再失效 L1
         deleteFromL2(fullKey);
         l1Cache.invalidate(fullKey);

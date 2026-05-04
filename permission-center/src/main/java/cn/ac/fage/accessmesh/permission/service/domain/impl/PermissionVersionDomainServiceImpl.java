@@ -61,6 +61,10 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
                 .limit(1)
         );
         long version = latest != null ? latest.getVersionNo() : 1L;
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 set + expire 操作不具备原子性，可能导致缓存击穿或短暂不一致
+        // 建议：使用 Pipeline SETEX 或 Lua 脚本保证原子性
+        // 优先级：P2（性能优化，可关注但不强制整改）
         permCacheDomainService.setPermVersion(tenantId, roleId, version);
         redisTemplate.opsForValue().set(l2Key, version, VERSION_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return version;

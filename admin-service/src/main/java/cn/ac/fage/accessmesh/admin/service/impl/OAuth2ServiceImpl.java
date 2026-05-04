@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,14 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private static final String AUTH_CODE_PREFIX = "oauth2:code:";
     private static final String REFRESH_TOKEN_PREFIX = "oauth2:refresh:";
     private static final int AUTH_CODE_TTL_SECONDS = 300;
+
+    // Lua脚本：GET + DEL 合并为原子操作，确保授权码/刷新令牌一次性使用
+    private static final String LUA_GET_AND_DELETE =
+        "local value = redis.call('GET', KEYS[1]) " +
+        "if value then " +
+        "    redis.call('DEL', KEYS[1]) " +
+        "end " +
+        "return value";
 
     private final SysOauth2ClientMapper oauth2ClientMapper;
     private final SysUserMapper userMapper;
@@ -146,8 +155,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                     AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
             }
 
-            // Look up refresh token
-            String refreshTokenDataJson = redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + refreshToken);
+            // 使用 Lua 脚本原子性地获取并删除 refresh token，防止重复使用
+            String refreshTokenDataJson = redisTemplate.execute(
+                new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
+                Collections.singletonList(REFRESH_TOKEN_PREFIX + refreshToken)
+            );
+
             if (refreshTokenDataJson == null) {
                 throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
@@ -169,9 +182,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
-
-            // Delete old refresh token (rotation)
-            redisTemplate.delete(REFRESH_TOKEN_PREFIX + refreshToken);
 
             // Generate new access token
             String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId, refreshTokenData.getScope());
@@ -248,9 +258,13 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
         }
 
-        // 4. Get and validate authorization code
+        // 4. 使用 Lua 脚本原子性地获取并删除 authorization code，确保一次性使用
         String codeKey = AUTH_CODE_PREFIX + req.code();
-        String codeDataJson = redisTemplate.opsForValue().get(codeKey);
+        String codeDataJson = redisTemplate.execute(
+            new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
+            Collections.singletonList(codeKey)
+        );
+
         if (codeDataJson == null) {
             throw new BizException(AdminErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AdminErrorCode.OAUTH2_CODE_INVALID.getMessage());
@@ -285,10 +299,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             }
         }
 
-        // 7. Delete auth code (one-time use)
-        redisTemplate.delete(codeKey);
-
-        // 8. Generate tokens
+        // 7. Generate tokens
         int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
         int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
         String scope = codeData.getScope();

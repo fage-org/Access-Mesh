@@ -72,6 +72,10 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         // DB resolution
         Set<Long> effectiveRoles = resolveFromDb(tenantId, userId, bizDomainId);
 
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 L2 + L1 写入顺序可能导致短暂不一致，并发请求可能读到旧值
+        // 建议：使用分布式锁或 write-through 策略保证一致性
+        // 优先级：P2（性能优化，可关注但不强制整改）
         // Write to L2 and L1
         redisTemplate.opsForValue().set(l2Key, effectiveRoles, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         permCacheDomainService.setEffectiveRoles(tenantId, userId, effectiveRoles);

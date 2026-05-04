@@ -40,6 +40,10 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
 
     @Override
     public Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds) {
+        // TODO: Redis 操作竞态条件风险
+        // 问题：当前 get + set 操作不具备原子性，并发请求可能导致缓存穿透
+        // 建议：使用分布式锁或 singleflight 模式合并并发请求
+        // 优先级：P2（性能优化，可关注但不强制整改）
         // Get cached mutex rules
         String cacheKey = ROLE_MUTEX_KEY + tenantId;
         Object cached = redisTemplate.opsForValue().get(cacheKey);

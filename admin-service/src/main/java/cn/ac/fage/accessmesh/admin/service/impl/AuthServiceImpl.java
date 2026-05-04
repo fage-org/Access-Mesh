@@ -25,6 +25,7 @@ import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -33,6 +34,7 @@ import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +55,22 @@ public class AuthServiceImpl implements AuthService {
     private static final String SMS_CODE_PREFIX = "sms:code:";
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
     private static final long LOCK_DURATION_MINUTES = 30;
+
+    // Lua脚本：INCR + EXPIRE 合并为原子操作，避免竞态条件
+    private static final String LUA_INCREMENT_WITH_EXPIRE =
+        "local count = redis.call('INCR', KEYS[1]) " +
+        "if count == 1 then " +
+        "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
+        "end " +
+        "return count";
+
+    // Lua脚本：GET + DEL 合并为原子操作，确保验证码一次性使用
+    private static final String LUA_GET_AND_DELETE =
+        "local value = redis.call('GET', KEYS[1]) " +
+        "if value then " +
+        "    redis.call('DEL', KEYS[1]) " +
+        "end " +
+        "return value";
 
     private final SysUserMapper userMapper;
     private final SysUserOrgMapper userOrgMapper;
@@ -208,12 +226,20 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void validateCaptcha(String captchaId, String captchaCode) {
+        if (captchaId == null || captchaCode == null) {
+            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "验证码参数缺失");
+        }
+
         String key = CAPTCHA_KEY_PREFIX + captchaId;
-        String stored = redisTemplate.opsForValue().get(key);
+        // 使用 Lua 脚本原子性地获取并删除验证码，确保一次性使用
+        String stored = redisTemplate.execute(
+            new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
+            Collections.singletonList(key)
+        );
+
         if (stored == null || !stored.equalsIgnoreCase(captchaCode)) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), AdminErrorCode.CAPTCHA_INCORRECT.getMessage());
         }
-        redisTemplate.delete(key);
     }
 
     private SysOauth2Client validateClient(String clientId) {
@@ -272,10 +298,13 @@ public class AuthServiceImpl implements AuthService {
 
     private void recordLoginFail(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        Long count = redisTemplate.opsForValue().increment(key);
-        if (count != null && count == 1) {
-            redisTemplate.expire(key, LOCK_DURATION_MINUTES, TimeUnit.MINUTES);
-        }
+        // 使用 Lua 脚本原子性地执行 INCR + EXPIRE，避免竞态条件
+        Long count = redisTemplate.execute(
+            new DefaultRedisScript<>(LUA_INCREMENT_WITH_EXPIRE, Long.class),
+            Collections.singletonList(key),
+            String.valueOf(LOCK_DURATION_MINUTES * 60)  // TTL in seconds
+        );
+
         if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
             // Mark user status as locked in DB
             SysUser user = findUser(tenantId, username);
@@ -294,12 +323,20 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void validateSmsCode(String phone, String smsCode) {
+        if (phone == null || smsCode == null) {
+            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");
+        }
+
         String key = SMS_CODE_PREFIX + phone;
-        String stored = redisTemplate.opsForValue().get(key);
+        // 使用 Lua 脚本原子性地获取并删除短信验证码，确保一次性使用
+        String stored = redisTemplate.execute(
+            new DefaultRedisScript<>(LUA_GET_AND_DELETE, String.class),
+            Collections.singletonList(key)
+        );
+
         if (stored == null || !stored.equals(smsCode)) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码错误或已过期");
         }
-        redisTemplate.delete(key);
     }
 
     private SysUser findUserByPhone(Long tenantId, String phone) {
