@@ -66,8 +66,9 @@ public class OperationManageServiceImpl implements OperationManageService {
         op.setBinaryBit(binaryBit);
         op.setInheritMask(inheritMask);
         op.setCreatedBy(operatorId);
-        op.setCreatedAt(LocalDateTime.now());
-        op.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        op.setCreatedAt(now);
+        op.setUpdatedAt(now);
         op.setDeleteFlag(0L);
         operationPermissionMapper.insert(op);
         return toResp(op);

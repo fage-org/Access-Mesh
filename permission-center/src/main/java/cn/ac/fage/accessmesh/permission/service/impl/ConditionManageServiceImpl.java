@@ -51,8 +51,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         condition.setEnabled(req.enabled() != null ? req.enabled() : true);
         condition.setDescription(req.description());
         condition.setCreatedBy(operatorId);
-        condition.setCreatedAt(LocalDateTime.now());
-        condition.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        condition.setCreatedAt(now);
+        condition.setUpdatedAt(now);
         condition.setDeleteFlag(0L);
         conditionMapper.insert(condition);
         return toConditionResp(condition);

@@ -93,8 +93,9 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                     mapping.setEnabled(true);
                     mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
                     mapping.setCreatedBy(context.operatorId());
-                    mapping.setCreatedAt(LocalDateTime.now());
-                    mapping.setUpdatedAt(LocalDateTime.now());
+                    LocalDateTime now = LocalDateTime.now();
+                    mapping.setCreatedAt(now);
+                    mapping.setUpdatedAt(now);
                     mapping.setDeleteFlag(0L);
                     resourceApiMappingMapper.insert(mapping);
                     createdCount++;

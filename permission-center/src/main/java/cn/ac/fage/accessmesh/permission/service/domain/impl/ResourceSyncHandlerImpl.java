@@ -75,8 +75,9 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setSyncKey(syncKey);
                     resource.setExtra("{}");
                     resource.setCreatedBy(context.operatorId());
-                    resource.setCreatedAt(LocalDateTime.now());
-                    resource.setUpdatedAt(LocalDateTime.now());
+                    LocalDateTime now = LocalDateTime.now();
+                    resource.setCreatedAt(now);
+                    resource.setUpdatedAt(now);
                     resource.setDeleteFlag(0L);
                     resourceEntityMapper.insert(resource);
                     createdCount++;

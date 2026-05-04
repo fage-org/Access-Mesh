@@ -39,8 +39,9 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
         role.setStatus(1);
         role.setSortOrder(sortOrder != null ? sortOrder : 0);
         role.setExtra(extra);
-        role.setCreatedAt(LocalDateTime.now());
-        role.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        role.setCreatedAt(now);
+        role.setUpdatedAt(now);
         role.setDeleteFlag(0L);
         abstractRoleMapper.insert(role);
         return role.getId();

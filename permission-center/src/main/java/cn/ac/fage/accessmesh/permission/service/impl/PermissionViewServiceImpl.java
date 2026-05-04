@@ -771,10 +771,11 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         List<RecentChangeResp> recentChanges = List.of();
         if (Boolean.TRUE.equals(req.includeRecentChanges())) {
             int recentDays = req.recentDays() == null ? 30 : Math.max(req.recentDays(), 1);
+            LocalDateTime now = LocalDateTime.now();
             PermissionRecentChangesReq recentReq = new PermissionRecentChangesReq(
                 req.targetType(), req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.domainCode(),
-                LocalDateTime.now().minusDays(recentDays), LocalDateTime.now(),
+                now.minusDays(recentDays), now,
                 null, 1, 50
             );
             recentChanges = recentChanges(tenantId, recentReq).items();

@@ -131,8 +131,9 @@ public class UserManageServiceImpl implements UserManageService {
         user.setName(req.name());
         user.setEnabled(req.enabled() != null ? req.enabled() : true);
         user.setExtra(req.extra());
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         user.setDeleteFlag(0L);
         abstractUserMapper.insert(user);
         return toUserResp(user);
@@ -168,8 +169,9 @@ public class UserManageServiceImpl implements UserManageService {
         user.setName(req.name());
         user.setEnabled(req.enabled() != null ? req.enabled() : true);
         user.setExtra(req.extra());
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         user.setDeleteFlag(0L);
         abstractUserMapper.insert(user);
         return toUserResp(user);
@@ -543,13 +545,14 @@ public class UserManageServiceImpl implements UserManageService {
         if (userId == null) {
             return new UserRolesResp(req.subjectTypeCode(), req.subjectExternalId(), List.of());
         }
+        LocalDateTime now = LocalDateTime.now();
         List<UserRole> userRoles = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
                 .and(USER_ROLE.TENANT_ID.eq(tenantId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
-                .and(USER_ROLE.VALID_FROM.le(LocalDateTime.now()).or(USER_ROLE.VALID_FROM.isNull()))
-                .and(USER_ROLE.VALID_TO.ge(LocalDateTime.now()).or(USER_ROLE.VALID_TO.isNull()))
+                .and(USER_ROLE.VALID_FROM.le(now).or(USER_ROLE.VALID_FROM.isNull()))
+                .and(USER_ROLE.VALID_TO.ge(now).or(USER_ROLE.VALID_TO.isNull()))
         );
 
         // 批量预加载角色，避免 N+1 查询
@@ -683,8 +686,9 @@ public class UserManageServiceImpl implements UserManageService {
         ur.setRelationId(req.relationId());
         ur.setValidFrom(req.validFrom());
         ur.setValidTo(req.validTo());
-        ur.setCreatedAt(LocalDateTime.now());
-        ur.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        ur.setCreatedAt(now);
+        ur.setUpdatedAt(now);
         ur.setDeleteFlag(0L);
         userRoleMapper.insert(ur);
         userRoleDomainService.invalidateRoleCache(tenantId, abstractUserId);

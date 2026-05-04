@@ -103,8 +103,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
         entity.setExtra(req.extra());
         entity.setCreatedBy(operatorId);
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
         entity.setDeleteFlag(0L);
         resourceEntityMapper.insert(entity);
         return toResourceResp(entity);
@@ -387,8 +388,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         mapping.setMatchOrder(req.matchOrder());
         mapping.setEnabled(req.enabled() != null ? req.enabled() : true);
         mapping.setExtra(req.extra());
-        mapping.setCreatedAt(LocalDateTime.now());
-        mapping.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        mapping.setCreatedAt(now);
+        mapping.setUpdatedAt(now);
         mapping.setDeleteFlag(0L);
         apiMappingMapper.insert(mapping);
         return toApiMappingResp(mapping);

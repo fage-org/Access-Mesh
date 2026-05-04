@@ -352,13 +352,14 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     }
 
     private Set<Long> resolveFromDb(Long tenantId, Long userId, Long bizDomainId) {
+        LocalDateTime now = LocalDateTime.now();
         List<UserRole> userRoles = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.TENANT_ID.eq(tenantId))
                 .and(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
-                .and(USER_ROLE.VALID_FROM.le(LocalDateTime.now()).or(USER_ROLE.VALID_FROM.isNull()))
-                .and(USER_ROLE.VALID_TO.ge(LocalDateTime.now()).or(USER_ROLE.VALID_TO.isNull()))
+                .and(USER_ROLE.VALID_FROM.le(now).or(USER_ROLE.VALID_FROM.isNull()))
+                .and(USER_ROLE.VALID_TO.ge(now).or(USER_ROLE.VALID_TO.isNull()))
         );
 
         Set<Long> roleIds = new HashSet<>();

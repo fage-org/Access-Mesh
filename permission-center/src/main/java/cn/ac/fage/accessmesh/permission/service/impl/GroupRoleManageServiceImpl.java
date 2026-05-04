@@ -94,8 +94,9 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         ur.setTargetType(PermConstants.TargetType.GROUP_ROLE);
         ur.setTargetId(groupId);
         ur.setRelationId(basicRoleId);
-        ur.setCreatedAt(LocalDateTime.now());
-        ur.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        ur.setCreatedAt(now);
+        ur.setUpdatedAt(now);
         ur.setDeleteFlag(0L);
         userRoleMapper.insert(ur);
 

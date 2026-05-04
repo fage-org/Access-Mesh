@@ -57,8 +57,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         rule.setSecondAbstractRoleId(req.secondAbstractRoleId());
         rule.setDescription(req.description());
         rule.setCreatedBy(operatorId);
-        rule.setCreatedAt(LocalDateTime.now());
-        rule.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        rule.setCreatedAt(now);
+        rule.setUpdatedAt(now);
         rule.setDeleteFlag(0L);
         conflictRuleMapper.insert(rule);
         return toConflictRuleResp(rule);

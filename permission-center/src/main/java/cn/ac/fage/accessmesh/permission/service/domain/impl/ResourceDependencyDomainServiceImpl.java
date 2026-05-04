@@ -210,8 +210,9 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         rp.setGrantSource(GrantSource.AUTO_DEP.getValue());
         rp.setGrantDepId(dep.getId());
         rp.setCanGrant(false);
-        rp.setCreatedAt(LocalDateTime.now());
-        rp.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        rp.setCreatedAt(now);
+        rp.setUpdatedAt(now);
         rp.setDeleteFlag(0L);
         rolePermMapper.insert(rp);
         permissionVersionDomainService.increment(tenantId, roleId);

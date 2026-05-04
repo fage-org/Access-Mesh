@@ -78,8 +78,9 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setCanGrant(entry.canGrant() != null && entry.canGrant());
             rp.setConditionId(entry.conditionId());
             rp.setGrantSource(changeSource != null ? changeSource : PermConstants.MaintainSource.MANUAL);
-            rp.setCreatedAt(LocalDateTime.now());
-            rp.setUpdatedAt(LocalDateTime.now());
+            LocalDateTime now = LocalDateTime.now();
+            rp.setCreatedAt(now);
+            rp.setUpdatedAt(now);
             rp.setDeleteFlag(0L);
             toInsert.add(rp);
         }

@@ -84,8 +84,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         dep.setAutoGrant(req.autoGrant() != null ? req.autoGrant() : true);
         dep.setDescription(req.description());
         dep.setCreatedBy(operatorId);
-        dep.setCreatedAt(LocalDateTime.now());
-        dep.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        dep.setCreatedAt(now);
+        dep.setUpdatedAt(now);
         dep.setDeleteFlag(0L);
         dependencyMapper.insert(dep);
 

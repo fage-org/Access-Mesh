@@ -31,8 +31,9 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
         user.setName(name);
         user.setEnabled(enabled != null ? enabled : true);
         user.setExtra(extra);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
         user.setDeleteFlag(0L);
         abstractUserMapper.insert(user);
         return user;
