@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
@@ -83,11 +84,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         }
 
         try {
-            String logic = rules.has("logic") ? rules.get("logic").asText() : "AND";
+            String logic = rules.has("logic") ? rules.get("logic").asText() : PermConstants.ConditionLogic.AND;
             JsonNode items = rules.get("items");
             if (items == null || !items.isArray()) return false;
 
-            boolean allMatch = logic.equals("AND");
+            boolean allMatch = logic.equals(PermConstants.ConditionLogic.AND);
             for (JsonNode item : items) {
                 boolean matched = evaluateItem(item, context);
                 if (allMatch && !matched) return false;
@@ -106,10 +107,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         if (params == null) return false;
 
         return switch (type) {
-            case "DATE_RANGE" -> evaluateDateRange(params);
-            case "TIME_RANGE" -> evaluateTimeRange(params);
-            case "IP_WHITELIST" -> evaluateIpWhitelist(params, context);
-            case "IP_BLACKLIST" -> !evaluateIpWhitelist(params, context);
+            case PermConstants.ConditionType.DATE_RANGE -> evaluateDateRange(params);
+            case PermConstants.ConditionType.TIME_RANGE -> evaluateTimeRange(params);
+            case PermConstants.ConditionType.IP_WHITELIST -> evaluateIpWhitelist(params, context);
+            case PermConstants.ConditionType.IP_BLACKLIST -> !evaluateIpWhitelist(params, context);
             default -> false;
         };
     }

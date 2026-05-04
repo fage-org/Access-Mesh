@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
@@ -203,7 +204,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) return null;
 
-        String effectiveCodeType = (codeType != null && !codeType.isBlank()) ? codeType : "default";
+        String effectiveCodeType = (codeType != null && !codeType.isBlank()) ? codeType : PermConstants.CodeType.DEFAULT;
 
         QueryWrapper qw = QueryWrapper.create()
             .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
@@ -385,7 +386,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             // Build lookup map by code+codeType+domainId
             Map<String, ResourceEntity> resourceLookup = new HashMap<>();
             for (ResourceEntity res : resources) {
-                String codeType = res.getCodeType() != null ? res.getCodeType() : "default";
+                String codeType = res.getCodeType() != null ? res.getCodeType() : PermConstants.CodeType.DEFAULT;
                 String domainKey = res.getBizDomainId() != null ? String.valueOf(res.getBizDomainId()) : "";
                 String lookupKey = res.getCode() + ":" + codeType + ":" + domainKey;
                 resourceLookup.put(lookupKey, res);
@@ -393,7 +394,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
             // Match requests to resources
             for (ResourceResolveRequest req : typeRequests) {
-                String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : "default";
+                String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
                 Long domainId = req.domainCode() != null && !req.domainCode().isBlank()
                     ? domainIdByCode.get(req.domainCode()) : null;
                 String domainKey = domainId != null ? String.valueOf(domainId) : "";

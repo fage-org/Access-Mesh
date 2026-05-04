@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
@@ -76,7 +77,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setScopeAll(false);
             rp.setCanGrant(entry.canGrant() != null && entry.canGrant());
             rp.setConditionId(entry.conditionId());
-            rp.setGrantSource(changeSource != null ? changeSource : "MANUAL");
+            rp.setGrantSource(changeSource != null ? changeSource : PermConstants.MaintainSource.MANUAL);
             rp.setCreatedAt(LocalDateTime.now());
             rp.setUpdatedAt(LocalDateTime.now());
             rp.setDeleteFlag(0L);

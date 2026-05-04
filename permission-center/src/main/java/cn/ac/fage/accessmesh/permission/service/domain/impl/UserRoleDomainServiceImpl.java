@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
@@ -141,7 +142,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             Long userId = ur.getAbstractUserId();
             userToRoleIds.computeIfAbsent(userId, k -> new HashSet<>());
 
-            if ("GROUP_ROLE".equals(ur.getTargetType())) {
+            if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
                 groupRoleIds.add(ur.getTargetId());
             } else {
                 userToRoleIds.get(userId).add(ur.getTargetId());
@@ -160,7 +161,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
         // 将展开后的角色添加到用户角色集合
         for (UserRole ur : allUserRoles) {
-            if ("GROUP_ROLE".equals(ur.getTargetType())) {
+            if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
                 Set<Long> expandedRoles = groupRoleExpandCache.get(ur.getTargetId());
                 if (expandedRoles != null) {
                     userToRoleIds.get(ur.getAbstractUserId()).addAll(expandedRoles);
@@ -365,7 +366,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
         // 收集所有 GROUP_ROLE 的 ID，使用批量方法一次性展开
         for (UserRole ur : userRoles) {
-            if ("GROUP_ROLE".equals(ur.getTargetType())) {
+            if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
                 groupRoleIds.add(ur.getTargetId());
             } else {
                 roleIds.add(ur.getTargetId());

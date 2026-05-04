@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp;
@@ -259,7 +260,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         Long[] roleArr = uniqueRoleIds.toArray(Long[]::new);
         permissionChangeDomainService.record(
             new PermissionChangeDomainService.ChangeLogContext(
-                tenantId, null, operatorId, null, "MANUAL", "abstract-role-batch-remove"),
+                tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
             List.of(new PermissionChangeDomainService.ChangeLogEntry(
                 "abstract_role",
                 0L,

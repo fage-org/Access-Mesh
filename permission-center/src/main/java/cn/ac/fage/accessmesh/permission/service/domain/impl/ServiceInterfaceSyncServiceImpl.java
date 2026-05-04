@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
@@ -7,6 +8,7 @@ import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceSyncHandler;
@@ -77,7 +79,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
         );
 
         // Resolve API type
-        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
         if (apiType == null) {
             throw new IllegalArgumentException("resource_type API not found");
         }
@@ -99,7 +101,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
      * Validate permission for sync operation.
      */
     private void validatePermission(Long tenantId, Long operatorId) {
-        if (!permissionValidator.hasPermission(tenantId, operatorId, "SYSTEM_CONFIG", null, OperationType.MANAGE)) {
+        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
             throw new SecurityException("No permission to sync service interfaces");
         }
     }

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
@@ -355,7 +356,7 @@ public class PermissionServiceImpl implements PermissionService {
                     QueryWrapper.create()
                         .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
                         .and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(rt))
-                        .and(OPERATION_PERMISSION.CODE.eq("ACCESS"))
+                        .and(OPERATION_PERMISSION.CODE.eq(PermConstants.Operation.ACCESS))
                         .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
                 )
             );
@@ -505,7 +506,7 @@ public class PermissionServiceImpl implements PermissionService {
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(qw);
         if (!includeInherited) {
             perms = perms.stream()
-                .filter(p -> "MANUAL".equalsIgnoreCase(p.getGrantSource()))
+                .filter(p -> PermConstants.MaintainSource.MANUAL.equalsIgnoreCase(p.getGrantSource()))
                 .toList();
         }
         return perms;

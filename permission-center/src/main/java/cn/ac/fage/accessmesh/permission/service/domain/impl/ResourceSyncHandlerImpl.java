@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
@@ -54,7 +55,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                         .where(RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
                         .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(context.apiType()))
                         .and(RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
-                        .and(RESOURCE_ENTITY.CODE_TYPE.eq("default"))
+                        .and(RESOURCE_ENTITY.CODE_TYPE.eq(PermConstants.CodeType.DEFAULT))
                         .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 );
 
@@ -64,13 +65,13 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setTenantId(context.tenantId());
                     resource.setResourceType(context.apiType());
                     resource.setCode(api.resourceCode());
-                    resource.setCodeType("default");
+                    resource.setCodeType(PermConstants.CodeType.DEFAULT);
                     resource.setName(api.name());
                     resource.setPath(fullPath);
                     resource.setStatus(1);
                     resource.setSortOrder(0);
                     resource.setOwnerServiceCode(context.req().serviceCode());
-                    resource.setMaintainSource("SERVICE_SYNC");
+                    resource.setMaintainSource(PermConstants.MaintainSource.SERVICE_SYNC);
                     resource.setSyncKey(syncKey);
                     resource.setExtra("{}");
                     resource.setCreatedBy(context.operatorId());
@@ -81,7 +82,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     createdCount++;
                 } else {
                     // Validate ownership
-                    if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
+                    if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                         || resource.getOwnerServiceCode() == null
                         || !context.req().serviceCode().equals(resource.getOwnerServiceCode())) {
                         throw new IllegalStateException(
@@ -119,7 +120,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
 
         // Filter synced resources for this service
         List<ResourceEntity> syncedResources = apiResources.stream()
-            .filter(resource -> "SERVICE_SYNC".equals(resource.getMaintainSource())
+            .filter(resource -> PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                 && serviceCode.equals(resource.getOwnerServiceCode()))
             .toList();
 

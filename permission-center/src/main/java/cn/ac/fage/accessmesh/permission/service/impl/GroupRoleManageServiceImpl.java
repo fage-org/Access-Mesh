@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.GroupRoleExtraRoleReq;
 import cn.ac.fage.accessmesh.permission.dto.req.GroupRoleExtraRolesListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleSummaryResp;
@@ -72,7 +73,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
                 .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
                 .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
-        Integer groupRoleTypeValue = typeResolutionService.resolveTypeValue(tenantId, "role_type", "GROUP_ROLE");
+        Integer groupRoleTypeValue = typeResolutionService.resolveTypeValue(tenantId, "role_type", PermConstants.TargetType.GROUP_ROLE);
         if (groupRole == null || groupRoleTypeValue == null || !groupRoleTypeValue.equals(groupRole.getRoleType())) {
             throw new IllegalArgumentException("Not a valid GROUP_ROLE: " + req.groupRoleExternalId());
         }
@@ -90,7 +91,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         UserRole ur = new UserRole();
         ur.setTenantId(tenantId);
         ur.setAbstractUserId(null);
-        ur.setTargetType("GROUP_ROLE");
+        ur.setTargetType(PermConstants.TargetType.GROUP_ROLE);
         ur.setTargetId(groupId);
         ur.setRelationId(basicRoleId);
         ur.setCreatedAt(LocalDateTime.now());
@@ -122,7 +123,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         UserRole ur = userRoleMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .where(USER_ROLE.TARGET_TYPE.eq("GROUP_ROLE"))
+                .where(USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
                 .and(USER_ROLE.TARGET_ID.eq(groupId))
                 .and(USER_ROLE.RELATION_ID.eq(basicRoleId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
@@ -145,7 +146,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         Set<Long> basicRoleIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .where(USER_ROLE.TARGET_TYPE.eq("GROUP_ROLE"))
+                .where(USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
                 .where(USER_ROLE.TARGET_ID.eq(groupId))
                 .and(USER_ROLE.DELETE_FLAG.eq(0))
         ).stream()

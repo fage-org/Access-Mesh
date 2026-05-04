@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionExplainReq;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionRecentChangesReq;
@@ -13,6 +14,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.Resource
 import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.SourceRoleView;
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.entity.*;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.LogQueryService;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
@@ -81,7 +83,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     @Override
     public UserPermissionViewResp getUserPermissions(Long tenantId, Long userId) {
         PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, new UserPermissionViewReq(
-            "USER", null, null, null, null, null, null, null, null, null,
+            PermConstants.TargetType.USER, null, null, null, null, null, null, null, null, null,
             false, false, true, 20, 1, 50
         ));
         AbstractUser user = abstractUserMapper.selectOneByQuery(
@@ -95,7 +97,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         }
         String subjectTypeCode = typeResolutionService.resolveTypeCode(tenantId, "user_type", user.getUserType());
         if (subjectTypeCode == null) {
-            subjectTypeCode = "USER";
+            subjectTypeCode = PermConstants.TargetType.USER;
         }
         return new UserPermissionViewResp(subjectTypeCode, user.getExternalId(), user.getName(), paged.items());
     }
@@ -104,10 +106,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
-        if ("USER".equalsIgnoreCase(req.targetType())) {
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType())) {
             Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
             if (userId == null) {
-                return new PermissionEffectivePermissionsResp("USER", List.of(), 0, pageNum, pageSize, false);
+                return new PermissionEffectivePermissionsResp(PermConstants.TargetType.USER, List.of(), 0, pageNum, pageSize, false);
             }
             PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, req);
             List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(v ->
@@ -120,7 +122,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                     v.sourceRoleCount(), v.sourceRolesTruncated(), v.matchedPermissionIds()
                 )
             ).toList();
-            return new PermissionEffectivePermissionsResp("USER", items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
+            return new PermissionEffectivePermissionsResp(PermConstants.TargetType.USER, items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
         }
         PaginatedResp<PermissionItem> paged = getRolePermissionItemsPaged(
             tenantId, req.domainCode(), req.roleTypeCode(), req.roleExternalId(), pageNum, pageSize);
@@ -132,7 +134,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 p.id() == null ? List.of() : List.of(p.id())
             )
         ).toList();
-        return new PermissionEffectivePermissionsResp("ROLE", items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
+        return new PermissionEffectivePermissionsResp(PermConstants.TargetType.ROLE, items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
     }
 
     PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
@@ -246,7 +248,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         context.setDomainCodeMap(domainCodeMap);
 
         // Resolve API type value for filtering
-        Integer apiTypeValue = typeResolutionService.resolveTypeValue(context.getTenantId(), "resource_type", "API");
+        Integer apiTypeValue = typeResolutionService.resolveTypeValue(context.getTenantId(), "resource_type", ResourceTypeCode.API);
         context.setApiTypeValue(apiTypeValue);
 
         // Batch resolve resource type codes
@@ -711,7 +713,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     @Override
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
         AuthCheckResp checkResp;
-        if ("ROLE".equalsIgnoreCase(req.targetType())) {
+        if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
             checkResp = checkRoleDirectGrant(tenantId, req);
         } else {
             checkResp = permissionService.check(
@@ -732,7 +734,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
         List<PermissionExplainResp.SourceRole> sourceRoles = List.of();
         if (Boolean.TRUE.equals(req.includeSourceRoles())) {
-            if ("ROLE".equalsIgnoreCase(req.targetType())) {
+            if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
                 Long roleId = typeResolutionService.resolveRoleId(
                     tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
                 if (roleId != null) {
@@ -795,18 +797,18 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public PermissionRecentChangesResp recentChanges(Long tenantId, PermissionRecentChangesReq req) {
         Long userId = null;
         Long roleId = null;
-        if ("USER".equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
             userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        } else if ("ROLE".equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
+        } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
             roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         }
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = Math.max((pageNum - 1) * pageSize, 0);
-        if ("USER".equalsIgnoreCase(req.targetType()) && userId == null) {
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && userId == null) {
             return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
         }
-        if ("ROLE".equalsIgnoreCase(req.targetType()) && roleId == null) {
+        if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && roleId == null) {
             return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
         }
         long total = logQueryService.countChangeLogsFiltered(
@@ -826,7 +828,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return new ItemsResp<>(List.of());
         }
         UserPermissionViewReq viewReq = new UserPermissionViewReq(
-            "USER", req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),
+            PermConstants.TargetType.USER, req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),
             null, null, null, null, null, null,
             false, false, true, 200, 1, 200
         );
@@ -973,7 +975,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     @Override
     public List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req) {
         UserPermissionViewReq treeReq = new UserPermissionViewReq(
-            "USER", req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),
+            PermConstants.TargetType.USER, req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),
             null, null, req.resourceTypeCodes(), req.operationCodes(),
             req.resourceKeyword(), null, false, false, false, null, 1, 10000
         );
@@ -1029,7 +1031,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         // 防止循环引用：检查是否已访问
         if (visited.contains(entityId)) {
             return new ResourcePermissionTreeResp(
-                entityId, null, null, null, null, "default", false, List.of(), List.of()
+                entityId, null, null, null, null, PermConstants.CodeType.DEFAULT, false, List.of(), List.of()
             );
         }
         visited.add(entityId);
@@ -1038,7 +1040,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         ResourceEntity entity = entityMap.get(entityId);
         String domainCode = null;
         String resourceTypeCode = null;
-        String codeType = "default";
+        String codeType = PermConstants.CodeType.DEFAULT;
         List<String> operationCodes = List.of();
         boolean scopeAll = false;
         String resourceCode = null;

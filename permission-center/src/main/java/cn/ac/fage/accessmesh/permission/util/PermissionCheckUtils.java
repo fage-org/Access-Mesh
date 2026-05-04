@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.util;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 
@@ -40,7 +41,7 @@ public final class PermissionCheckUtils {
         }
 
         // USER MANAGE is type-level, so check once
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "USER", nonSelfUserIds, OperationType.MANAGE);
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, PermConstants.TargetType.USER, nonSelfUserIds, OperationType.MANAGE);
 
         // Build result: self + allowed non-self = allowed, denied non-self = denied
         Set<Long> allowedIds = new HashSet<>();
@@ -67,7 +68,7 @@ public final class PermissionCheckUtils {
             ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetUserIds) {
 
         // USER MANAGE is type-level permission
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "USER", targetUserIds, OperationType.MANAGE);
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, PermConstants.TargetType.USER, targetUserIds, OperationType.MANAGE);
 
         Set<Long> allowedIds = targetUserIds.stream()
             .filter(id -> !deniedIds.contains(id))
@@ -89,7 +90,7 @@ public final class PermissionCheckUtils {
     public static PermissionBatchResult checkCanManageRoles(
             ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
 
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "ROLE", targetRoleIds, OperationType.MANAGE);
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, PermConstants.TargetType.ROLE, targetRoleIds, OperationType.MANAGE);
 
         Set<Long> allowedIds = targetRoleIds.stream()
             .filter(id -> !deniedIds.contains(id))
@@ -110,7 +111,7 @@ public final class PermissionCheckUtils {
     public static PermissionBatchResult checkCanViewRoles(
             ResourcePermissionValidator permissionValidator, Long tenantId, Long operatorId, Set<Long> targetRoleIds) {
 
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, "ROLE", targetRoleIds, OperationType.VIEW);
+        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, PermConstants.TargetType.ROLE, targetRoleIds, OperationType.VIEW);
 
         Set<Long> allowedIds = targetRoleIds.stream()
             .filter(id -> !deniedIds.contains(id))

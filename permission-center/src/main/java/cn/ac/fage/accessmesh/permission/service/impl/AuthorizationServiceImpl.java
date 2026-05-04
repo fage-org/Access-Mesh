@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
@@ -120,7 +121,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         // 4. Batch resolve resource entity IDs
         List<ResourceResolveRequest> resourceRequests = permissions.stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
-            .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), "default", domainCode))
+            .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), PermConstants.CodeType.DEFAULT, domainCode))
             .distinct()
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resolvedResourceIds = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);

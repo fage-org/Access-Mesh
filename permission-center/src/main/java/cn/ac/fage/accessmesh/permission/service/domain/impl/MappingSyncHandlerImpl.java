@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
@@ -59,7 +60,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                         .where(RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
                         .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(context.apiType()))
                         .and(RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
-                        .and(RESOURCE_ENTITY.CODE_TYPE.eq("default"))
+                        .and(RESOURCE_ENTITY.CODE_TYPE.eq(PermConstants.CodeType.DEFAULT))
                         .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 );
 
@@ -148,7 +149,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
             }
 
             // Only delete mappings for SERVICE_SYNC resources owned by this service
-            if (!"SERVICE_SYNC".equals(resource.getMaintainSource())
+            if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                 || !serviceCode.equals(resource.getOwnerServiceCode())) {
                 continue;
             }

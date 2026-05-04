@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
@@ -15,6 +16,7 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.enums.ConfigType;
 import cn.ac.fage.accessmesh.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
@@ -583,7 +585,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 QueryWrapper.create()
                     .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
                     .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(parentResource.getBizDomainId()))
-                    .and(DOMAIN_CONFIG.CONFIG_TYPE.eq("SUB_PERM"))
+                    .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.SUB_PERM.getValue()))
                     .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
             );
         }
@@ -698,7 +700,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         permissionVersionDomainService.increment(tenantId, parent.getAbstractRoleId());
         userRoleDomainService.invalidateRoleCacheByRole(tenantId, parent.getAbstractRoleId());
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
-            tenantId, null, operatorId, null, "MANUAL", "add-child"
+            tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
         ), changeLogs);
         return toItemRespList(tenantId, inserted);
     }
@@ -724,7 +726,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         permissionVersionDomainService.increment(tenantId, child.getAbstractRoleId());
         userRoleDomainService.invalidateRoleCacheByRole(tenantId, child.getAbstractRoleId());
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
-            tenantId, null, operatorId, null, "MANUAL", "remove-child"
+            tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
         ), List.of(new PermissionChangeDomainService.ChangeLogEntry(
             "role_resource_permission", child.getId(), "REMOVE", "child-exists", null, "{}", null,
             new Long[]{child.getAbstractRoleId()}

@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.enums.OperationType;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
@@ -40,7 +42,7 @@ public class ResourcePermissionValidator {
 
     private static final Logger log = LoggerFactory.getLogger(ResourcePermissionValidator.class);
     private static final String RESOURCE_TYPE_KEY = "resource_type";
-    private static final String FALLBACK_TYPE_CODE = "SYSTEM_CONFIG";
+    private static final String FALLBACK_TYPE_CODE = ResourceTypeCode.SYSTEM_CONFIG;
 
     private final TypeResolutionService typeResolutionService;
     private final UserRoleDomainService userRoleDomainService;

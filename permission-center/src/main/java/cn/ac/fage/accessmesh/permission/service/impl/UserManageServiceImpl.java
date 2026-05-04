@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
@@ -511,7 +512,7 @@ public class UserManageServiceImpl implements UserManageService {
         Set<Long> uniqueRoles = new LinkedHashSet<>(affectedRoleIds);
         Long[] roleArr = uniqueRoles.toArray(Long[]::new);
         permissionChangeDomainService.record(
-            new PermissionChangeDomainService.ChangeLogContext(tenantId, null, operatorId, null, "MANUAL", "user-role-revoke"),
+            new PermissionChangeDomainService.ChangeLogContext(tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
             List.of(new PermissionChangeDomainService.ChangeLogEntry(
                 "user_role",
                 0L,

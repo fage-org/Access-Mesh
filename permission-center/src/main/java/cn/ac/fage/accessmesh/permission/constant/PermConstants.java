@@ -41,4 +41,29 @@ public final class PermConstants {
         String ORG = "ORG";
         String USER = "USER";
     }
+
+    /**
+     * Operation constants for operation_permission.code
+     */
+    public interface Operation {
+        String ACCESS = "ACCESS";
+    }
+
+    /**
+     * Condition logic constants for permission condition evaluation
+     */
+    public interface ConditionLogic {
+        String AND = "AND";
+        String OR = "OR";
+    }
+
+    /**
+     * Condition type constants for permission condition rules
+     */
+    public interface ConditionType {
+        String DATE_RANGE = "DATE_RANGE";
+        String TIME_RANGE = "TIME_RANGE";
+        String IP_WHITELIST = "IP_WHITELIST";
+        String IP_BLACKLIST = "IP_BLACKLIST";
+    }
 }
