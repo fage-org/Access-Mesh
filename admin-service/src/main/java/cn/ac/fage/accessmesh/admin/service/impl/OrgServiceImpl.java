@@ -16,10 +16,12 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.OrgService;
+import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgSyncHandler;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
@@ -45,13 +47,18 @@ public class OrgServiceImpl implements OrgService {
     private final OrgDomainService orgDomainService;
     private final OrgSyncHandler orgSyncHandler;
     private final AdminPermissionValidator permissionValidator;
+    private final SyncRetryService syncRetryService;
+    private final ObjectMapper objectMapper;
 
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
-                          OrgSyncHandler orgSyncHandler, AdminPermissionValidator permissionValidator) {
+                          OrgSyncHandler orgSyncHandler, AdminPermissionValidator permissionValidator,
+                          SyncRetryService syncRetryService, ObjectMapper objectMapper) {
         this.orgMapper = orgMapper;
         this.orgDomainService = orgDomainService;
         this.orgSyncHandler = orgSyncHandler;
         this.permissionValidator = permissionValidator;
+        this.syncRetryService = syncRetryService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -94,12 +101,30 @@ public class OrgServiceImpl implements OrgService {
         org.setDeleteFlag(0L);
         orgMapper.insert(org);
 
-        // 同步到权限中心
-        Long permResourceId = orgSyncHandler.syncOrgToPermissionCenter(tenantId, org);
-        if (permResourceId != null) {
-            org.setPermRoleId(permResourceId); // 复用 permRoleId 字段存储资源ID
-            orgMapper.update(org);
-            log.info("Org synced to permission-center: orgId={}, permResourceId={}", org.getId(), permResourceId);
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
+        // 记录同步任务，异步同步到权限中心
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "orgId", org.getId(),
+                "orgName", org.getName(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "org:create:" + org.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(org.getId()),
+                "create",
+                payload,
+                null  // 不记录错误，只是记录待同步任务
+            );
+            log.info("Recorded sync task for org creation: orgId={}", org.getId());
+        } catch (Exception e) {
+            log.error("Failed to record sync task for org creation: orgId={}, error={}", org.getId(), e.getMessage());
         }
 
         return org.getId();
@@ -146,6 +171,33 @@ public class OrgServiceImpl implements OrgService {
         org.setStatus(req.status());
         org.setUpdatedAt(LocalDateTime.now());
         orgMapper.update(org);
+
+        // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
+        // 同步更新到权限中心 - 记录同步任务
+        if (org.getPermOrgId() != null) {
+            try {
+                String payload = objectMapper.writeValueAsString(Map.of(
+                    "permOrgId", org.getPermOrgId(),
+                    "name", org.getName(),
+                    "code", org.getCode(),
+                    "parentId", org.getParentId(),
+                    "level", org.getLevel(),
+                    "sortOrder", org.getSortOrder()
+                ));
+                syncRetryService.recordSyncFailure(
+                    "org:update:" + org.getId(),
+                    "permission-center",
+                    "abstract_org",
+                    String.valueOf(org.getPermOrgId()),
+                    "update",
+                    payload,
+                    null
+                );
+                log.info("Recorded update sync task for org: orgId={}", org.getId());
+            } catch (Exception e) {
+                log.error("Failed to record update sync task for org: orgId={}", org.getId(), e);
+            }
+        }
     }
 
     @Override
@@ -171,13 +223,29 @@ public class OrgServiceImpl implements OrgService {
             throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(), AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
         }
 
-        // 从权限中心删除
-        if (org.getPermRoleId() != null) {
-            orgSyncHandler.deleteOrgFromPermissionCenter(tenantId, org.getPermRoleId());
-        }
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
 
-        // 使用 DomainService 批量软删除（包含自身）
+        // 1. 先执行本地软删除
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
+
+        // 2. 记录删除同步任务
+        try {
+            syncRetryService.recordSyncFailure(
+                "org:delete:" + id,
+                "permission-center",
+                "abstract_user",
+                String.valueOf(id),
+                "delete",
+                null,
+                null
+            );
+            log.info("Recorded delete sync task for org: orgId={}", id);
+        } catch (Exception e) {
+            log.error("Failed to record delete sync task for org: orgId={}, error={}", id, e.getMessage());
+        }
     }
 
     @Override
@@ -236,6 +304,12 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional
     public BatchResultResp batchCreateOrgs(OrgBatchCreateReq req) {
+        // TODO: 跨服务数据一致性风险
+        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
+        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
+        // 参考：plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
 
@@ -278,8 +352,26 @@ public class OrgServiceImpl implements OrgService {
                 org.setDeleteFlag(0L);
                 orgMapper.insert(org);
 
-                // 同步到权限中心
-                orgSyncHandler.syncOrgToPermissionCenter(tenantId, org);
+                // 记录同步任务，异步同步到权限中心
+                try {
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "orgId", org.getId(),
+                        "orgName", org.getName(),
+                        "tenantId", tenantId
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "org:create:" + org.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(org.getId()),
+                        "create",
+                        payload,
+                        null
+                    );
+                } catch (Exception syncEx) {
+                    log.error("Failed to record sync task for batch org creation: orgId={}, error={}",
+                        org.getId(), syncEx.getMessage());
+                }
 
                 successIds.add(org.getId());
             } catch (Exception e) {
@@ -294,6 +386,11 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional
     public void batchDeleteOrgs(IdsReq req) {
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
@@ -318,16 +415,29 @@ public class OrgServiceImpl implements OrgService {
             // Add descendants
             List<Long> descendants = descendantMap.getOrDefault(orgId, List.of());
             allIdsToDelete.addAll(descendants);
-
-            // Delete from permission center
-            if (org.getPermRoleId() != null) {
-                orgSyncHandler.deleteOrgFromPermissionCenter(tenantId, org.getPermRoleId());
-            }
         }
 
-        // Batch soft delete
+        // 1. 先执行本地批量软删除
         if (!allIdsToDelete.isEmpty()) {
             orgDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
+        }
+
+        // 2. 记录删除同步任务
+        for (SysOrg org : orgs) {
+            try {
+                syncRetryService.recordSyncFailure(
+                    "org:delete:" + org.getId(),
+                    "permission-center",
+                    "abstract_user",
+                    String.valueOf(org.getId()),
+                    "delete",
+                    null,
+                    null
+                );
+                log.info("Recorded delete sync task for org: orgId={}", org.getId());
+            } catch (Exception e) {
+                log.error("Failed to record delete sync task for org: orgId={}, error={}", org.getId(), e.getMessage());
+            }
         }
     }
 

@@ -112,35 +112,30 @@ public class UserServiceImpl implements UserService {
             userMapper.insert(user);
         });
 
-        // Feign调用在事务外 - 同步到权限中心
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
+        // 记录同步任务，异步同步到权限中心
         try {
-            Long permUserId = userSyncHandler.syncUserToPermissionCenter(tenantId, user);
-            if (permUserId != null) {
-                user.setPermUserId(permUserId);
-                userMapper.update(user);
-                log.info("User synced to permission-center: userId={}, permUserId={}", user.getId(), permUserId);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to sync user to permission-center: userId={}, error={}", user.getId(), e.getMessage());
-            // 记录到 SysSyncRetry 表待重试
-            try {
-                String payload = objectMapper.writeValueAsString(Map.of(
-                    "userId", user.getId(),
-                    "username", user.getUsername(),
-                    "tenantId", tenantId
-                ));
-                syncRetryService.recordSyncFailure(
-                    "user-sync-" + user.getId(),
-                    "permission-center",
-                    "user",
-                    String.valueOf(user.getId()),
-                    "sync",
-                    payload,
-                    e.getMessage()
-                );
-            } catch (Exception jsonEx) {
-                log.error("Failed to record sync retry: {}", jsonEx.getMessage());
-            }
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "userId", user.getId(),
+                "username", user.getUsername(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "user:create:" + user.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(user.getId()),
+                "create",
+                payload,
+                null  // 不记录错误，只是记录待同步任务
+            );
+            log.info("Recorded sync task for user creation: userId={}", user.getId());
+        } catch (Exception jsonEx) {
+            log.error("Failed to record sync task for user creation: userId={}, error={}", user.getId(), jsonEx.getMessage());
         }
 
         return user.getId();
@@ -182,9 +177,31 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
 
-        // 同步更新到权限中心
+        // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
+        // 同步更新到权限中心 - 记录同步任务
         if (user.getPermUserId() != null) {
-            userSyncHandler.syncUserToPermissionCenter(tenantId, user);
+            try {
+                String payload = objectMapper.writeValueAsString(Map.of(
+                    "permUserId", user.getPermUserId(),
+                    "name", user.getName(),
+                    "phone", user.getPhone(),
+                    "email", user.getEmail(),
+                    "status", user.getStatus(),
+                    "enabled", user.getStatus() != null && user.getStatus() == 1
+                ));
+                syncRetryService.recordSyncFailure(
+                    "user:update:" + user.getId(),
+                    "permission-center",
+                    "abstract_user",
+                    String.valueOf(user.getPermUserId()),
+                    "update",
+                    payload,
+                    null
+                );
+                log.info("Recorded update sync task for user: userId={}", user.getId());
+            } catch (Exception e) {
+                log.error("Failed to record update sync task for user: userId={}", user.getId(), e);
+            }
         }
     }
 
@@ -207,16 +224,34 @@ public class UserServiceImpl implements UserService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.DELETE);
 
-        // 批量获取用户，先删除权限中心数据
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
+        // 批量获取用户
         List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
+
+        // 1. 先执行本地软删除
+        userDomainService.softDeleteBatch(tenantId, req.ids());
+
+        // 2. 记录删除同步任务
         for (SysUser user : users) {
-            if (user.getPermUserId() != null) {
-                userSyncHandler.deleteUserFromPermissionCenter(tenantId, user.getPermUserId());
+            try {
+                syncRetryService.recordSyncFailure(
+                    "user:delete:" + user.getId(),
+                    "permission-center",
+                    "abstract_user",
+                    String.valueOf(user.getId()),
+                    "delete",
+                    null,
+                    null
+                );
+                log.info("Recorded delete sync task for user: userId={}", user.getId());
+            } catch (Exception e) {
+                log.error("Failed to record delete sync task for user: userId={}, error={}", user.getId(), e.getMessage());
             }
         }
-
-        // 使用 DomainService 批量软删除（解决 N+1 问题）
-        userDomainService.softDeleteBatch(tenantId, req.ids());
     }
 
     @Override
@@ -236,6 +271,31 @@ public class UserServiceImpl implements UserService {
 
         if (!validIds.isEmpty()) {
             userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 1);
+
+            // TODO: 跨服务数据一致性改进 - 状态变更需同步到权限中心
+            // 同步启用状态到权限中心 - 记录同步任务
+            for (SysUser user : existingUsers) {
+                if (user.getPermUserId() != null) {
+                    try {
+                        String payload = objectMapper.writeValueAsString(Map.of(
+                            "permUserId", user.getPermUserId(),
+                            "enabled", true
+                        ));
+                        syncRetryService.recordSyncFailure(
+                            "user:enable:" + user.getId(),
+                            "permission-center",
+                            "abstract_user",
+                            String.valueOf(user.getPermUserId()),
+                            "update",
+                            payload,
+                            null
+                        );
+                        log.info("Recorded enable sync task for user: userId={}", user.getId());
+                    } catch (Exception e) {
+                        log.error("Failed to record enable sync task for user: userId={}", user.getId(), e);
+                    }
+                }
+            }
         }
     }
 
@@ -341,6 +401,12 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public BatchResultResp batchCreateUsers(UserBatchCreateReq req) {
+        // TODO: 跨服务数据一致性风险
+        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
+        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
+        // 参考：plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         Long tenantId = TenantContextHolder.getTenantId();
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
@@ -374,8 +440,26 @@ public class UserServiceImpl implements UserService {
                 user.setDeleteFlag(0L);
                 userMapper.insert(user);
 
-                // 同步到权限中心
-                userSyncHandler.syncUserToPermissionCenter(tenantId, user);
+                // 记录同步任务，异步同步到权限中心
+                try {
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "userId", user.getId(),
+                        "username", user.getUsername(),
+                        "tenantId", tenantId
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "user:create:" + user.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(user.getId()),
+                        "create",
+                        payload,
+                        null
+                    );
+                } catch (Exception syncEx) {
+                    log.error("Failed to record sync task for batch user creation: userId={}, error={}",
+                        user.getId(), syncEx.getMessage());
+                }
 
                 successIds.add(user.getId());
             } catch (Exception e) {
@@ -404,6 +488,31 @@ public class UserServiceImpl implements UserService {
 
         if (!validIds.isEmpty()) {
             userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 0);
+
+            // TODO: 跨服务数据一致性改进 - 状态变更需同步到权限中心
+            // 同步禁用状态到权限中心 - 记录同步任务
+            for (SysUser user : existingUsers) {
+                if (user.getPermUserId() != null) {
+                    try {
+                        String payload = objectMapper.writeValueAsString(Map.of(
+                            "permUserId", user.getPermUserId(),
+                            "enabled", false
+                        ));
+                        syncRetryService.recordSyncFailure(
+                            "user:disable:" + user.getId(),
+                            "permission-center",
+                            "abstract_user",
+                            String.valueOf(user.getPermUserId()),
+                            "update",
+                            payload,
+                            null
+                        );
+                        log.info("Recorded disable sync task for user: userId={}", user.getId());
+                    } catch (Exception e) {
+                        log.error("Failed to record disable sync task for user: userId={}", user.getId(), e);
+                    }
+                }
+            }
         }
     }
 

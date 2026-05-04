@@ -14,9 +14,11 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.MenuService;
+import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuSyncHandler;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,17 +44,23 @@ public class MenuServiceImpl implements MenuService {
     private final MenuDomainService menuDomainService;
     private final MenuSyncHandler menuSyncHandler;
     private final AdminPermissionValidator permissionValidator;
+    private final SyncRetryService syncRetryService;
+    private final ObjectMapper objectMapper;
 
     public MenuServiceImpl(SysMenuMapper menuMapper,
                            cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService,
                            MenuDomainService menuDomainService,
                            MenuSyncHandler menuSyncHandler,
-                           AdminPermissionValidator permissionValidator) {
+                           AdminPermissionValidator permissionValidator,
+                           SyncRetryService syncRetryService,
+                           ObjectMapper objectMapper) {
         this.menuMapper = menuMapper;
         this.roleProxyService = roleProxyService;
         this.menuDomainService = menuDomainService;
         this.menuSyncHandler = menuSyncHandler;
         this.permissionValidator = permissionValidator;
+        this.syncRetryService = syncRetryService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -96,12 +104,30 @@ public class MenuServiceImpl implements MenuService {
         menu.setDeleteFlag(0L);
         menuMapper.insert(menu);
 
-        // 使用 SyncHandler 同步到权限中心
-        Long permResourceId = menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
-        if (permResourceId != null) {
-            menu.setPermResourceId(permResourceId);
-            menuMapper.update(menu);
-            log.info("Menu synced to permission-center: menuId={}, permResourceId={}", menu.getId(), permResourceId);
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
+        // 记录同步任务，异步同步到权限中心
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "menuId", menu.getId(),
+                "menuName", menu.getName(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "menu:create:" + menu.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(menu.getId()),
+                "create",
+                payload,
+                null  // 不记录错误，只是记录待同步任务
+            );
+            log.info("Recorded sync task for menu creation: menuId={}", menu.getId());
+        } catch (Exception e) {
+            log.error("Failed to record sync task for menu creation: menuId={}, error={}", menu.getId(), e.getMessage());
         }
 
         return menu.getId();
@@ -156,6 +182,12 @@ public class MenuServiceImpl implements MenuService {
         menu.setUpdatedAt(LocalDateTime.now());
         menuMapper.update(menu);
 
+        // TODO: 跨服务数据一致性风险
+        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
+        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
+        // 参考：plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         // 使用 SyncHandler 同步更新到权限中心
         if (menu.getPermResourceId() != null || (req.perms() != null && !req.perms().isBlank())) {
             menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
@@ -185,13 +217,29 @@ public class MenuServiceImpl implements MenuService {
             throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(), AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
 
-        // 使用 SyncHandler 从权限中心删除
-        if (menu.getPermResourceId() != null) {
-            menuSyncHandler.deleteMenuFromPermissionCenter(tenantId, menu.getPermResourceId());
-        }
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
 
-        // 使用 DomainService 批量软删除
+        // 1. 先执行本地软删除
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
+
+        // 2. 记录删除同步任务
+        try {
+            syncRetryService.recordSyncFailure(
+                "menu:delete:" + id,
+                "permission-center",
+                "abstract_user",
+                String.valueOf(id),
+                "delete",
+                null,
+                null
+            );
+            log.info("Recorded delete sync task for menu: menuId={}", id);
+        } catch (Exception e) {
+            log.error("Failed to record delete sync task for menu: menuId={}, error={}", id, e.getMessage());
+        }
     }
 
     @Override
@@ -228,6 +276,12 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional
     public BatchResultResp batchCreateMenus(MenuBatchCreateReq req) {
+        // TODO: 跨服务数据一致性风险
+        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
+        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
+        // 参考：plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
 
@@ -270,8 +324,26 @@ public class MenuServiceImpl implements MenuService {
                 menu.setDeleteFlag(0L);
                 menuMapper.insert(menu);
 
-                // 同步到权限中心
-                menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
+                // 记录同步任务，异步同步到权限中心
+                try {
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "menuId", menu.getId(),
+                        "menuName", menu.getName(),
+                        "tenantId", tenantId
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "menu:create:" + menu.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(menu.getId()),
+                        "create",
+                        payload,
+                        null
+                    );
+                } catch (Exception syncEx) {
+                    log.error("Failed to record sync task for batch menu creation: menuId={}, error={}",
+                        menu.getId(), syncEx.getMessage());
+                }
 
                 successIds.add(menu.getId());
             } catch (Exception e) {
@@ -286,6 +358,11 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional
     public void batchDeleteMenus(IdsReq req) {
+        // TODO: 跨服务数据一致性改进
+        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
+        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
+        // 优先级：P1（架构债务）
+
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
@@ -310,16 +387,29 @@ public class MenuServiceImpl implements MenuService {
             // Add descendants
             List<Long> descendants = descendantMap.getOrDefault(menuId, List.of());
             allIdsToDelete.addAll(descendants);
-
-            // Delete from permission center
-            if (menu.getPermResourceId() != null) {
-                menuSyncHandler.deleteMenuFromPermissionCenter(tenantId, menu.getPermResourceId());
-            }
         }
 
-        // Batch soft delete
+        // 1. 先执行本地批量软删除
         if (!allIdsToDelete.isEmpty()) {
             menuDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
+        }
+
+        // 2. 记录删除同步任务
+        for (SysMenu menu : menus) {
+            try {
+                syncRetryService.recordSyncFailure(
+                    "menu:delete:" + menu.getId(),
+                    "permission-center",
+                    "abstract_user",
+                    String.valueOf(menu.getId()),
+                    "delete",
+                    null,
+                    null
+                );
+                log.info("Recorded delete sync task for menu: menuId={}", menu.getId());
+            } catch (Exception e) {
+                log.error("Failed to record delete sync task for menu: menuId={}, error={}", menu.getId(), e.getMessage());
+            }
         }
     }
 
