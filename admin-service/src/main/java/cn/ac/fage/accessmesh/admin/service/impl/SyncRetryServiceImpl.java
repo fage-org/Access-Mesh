@@ -141,6 +141,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     /**
      * Scheduled task that retries pending sync failures.
      * Runs every 30 seconds.
+     *
+     * TODO: 多租户支持 - 当前定时任务无租户上下文，需要遍历所有租户分别处理
+     * 后续方案：查询所有租户列表，每个租户独立设置 TenantContextHolder 后执行
      */
     @Scheduled(fixedDelay = 30000, initialDelay = 60000)
     public void processRetries() {

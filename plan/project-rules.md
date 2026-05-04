@@ -835,7 +835,12 @@ deleted_at  TIMESTAMPTZ
 - **无物理外键**：所有表关联为逻辑 ID，由应用层保证数据一致性。
 - **软删除**：统一使用 `delete_flag`（删除时设为本行 id 值），所有唯一约束必须附加 `WHERE delete_flag = 0`。
 - **无 ENUM 类型**：枚举值使用 `INT` 或 `VARCHAR`，枚举含义在代码枚举类中维护。
-- **租户隔离**：所有多租户数据表必须包含 `tenant_id`，查询时必须带租户条件。
+- **租户隔离（MyBatis-Flex TenantFactory 自动处理）**：
+  - 所有多租户数据表必须包含 `tenant_id` 列。
+  - **已全局配置 TenantFactory**：`MybatisFlexTenantConfig` 通过 `TenantManager.setTenantFactory()` 自动为所有 SQL 查询添加 `tenant_id = ?` 条件。
+  - **开发者无需手动添加 tenant_id 条件**：`selectOneById(id)`、`selectListByQuery()` 等方法会自动注入租户过滤。
+  - **前提条件**：请求入口必须通过 `TenantInterceptor` 设置 `TenantContextHolder.setTenantId()`，否则租户过滤不生效。
+  - **特殊场景**：如需跨租户查询（仅限系统管理场景），使用 `TenantManager.ignore()` 临时绕过，但必须在代码中添加注释说明原因。
 - **禁止存储明文密码**。
 - 大字段（JSON 配置等）使用 PostgreSQL `JSONB` 类型。
 - 时间字段统一使用 `TIMESTAMPTZ`（带时区）。

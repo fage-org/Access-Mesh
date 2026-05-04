@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.admin.service.OAuth2Service;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
@@ -100,6 +101,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         AuthCodeData codeData = new AuthCodeData();
         codeData.setClientId(req.clientId());
         codeData.setUserId(userId);
+        codeData.setTenantId(TenantContextHolder.getTenantId());
         codeData.setRedirectUri(req.redirectUri());
         codeData.setCodeChallenge(req.codeChallenge());
         codeData.setCodeChallengeMethod(codeChallengeMethod);
@@ -117,73 +119,85 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     @Override
     public TokenResp token(TokenReq req) {
-        if ("authorization_code".equals(req.grantType())) {
-            return tokenByAuthorizationCode(req);
-        } else {
-            throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+        try {
+            if ("authorization_code".equals(req.grantType())) {
+                return tokenByAuthorizationCode(req);
+            } else {
+                throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                    AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+            }
+        } finally {
+            TenantContextHolder.clear();
         }
     }
 
     @Override
     public TokenResp refreshToken(String refreshToken, String clientId, String clientSecret) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
-        }
-
-        // Validate client
-        SysOauth2Client client = getValidClient(clientId);
-        if (!BCrypt.checkpw(clientSecret, client.getClientSecret())) {
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
-        }
-
-        // Look up refresh token
-        String refreshTokenDataJson = redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + refreshToken);
-        if (refreshTokenDataJson == null) {
-            throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
-        }
-
-        RefreshTokenData refreshTokenData;
         try {
-            refreshTokenData = objectMapper.readValue(refreshTokenDataJson, RefreshTokenData.class);
-        } catch (JsonProcessingException e) {
-            throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            if (refreshToken == null || refreshToken.isBlank()) {
+                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+
+            // Validate client
+            SysOauth2Client client = getValidClient(clientId);
+            if (!BCrypt.checkpw(clientSecret, client.getClientSecret())) {
+                throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                    AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+            }
+
+            // Look up refresh token
+            String refreshTokenDataJson = redisTemplate.opsForValue().get(REFRESH_TOKEN_PREFIX + refreshToken);
+            if (refreshTokenDataJson == null) {
+                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+
+            RefreshTokenData refreshTokenData;
+            try {
+                refreshTokenData = objectMapper.readValue(refreshTokenDataJson, RefreshTokenData.class);
+            } catch (JsonProcessingException e) {
+                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+
+            // Set tenant context from refresh token
+            TenantContextHolder.setTenantId(refreshTokenData.getTenantId());
+
+            // Verify client_id matches
+            if (!refreshTokenData.getClientId().equals(clientId)) {
+                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+            }
+
+            // Delete old refresh token (rotation)
+            redisTemplate.delete(REFRESH_TOKEN_PREFIX + refreshToken);
+
+            // Generate new access token
+            String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId, refreshTokenData.getScope());
+            int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
+            int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
+
+            // Generate new refresh token
+            String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
+            RefreshTokenData newRefreshTokenData = new RefreshTokenData();
+            newRefreshTokenData.setUserId(refreshTokenData.getUserId());
+            newRefreshTokenData.setTenantId(refreshTokenData.getTenantId());
+            newRefreshTokenData.setClientId(clientId);
+            newRefreshTokenData.setScope(refreshTokenData.getScope());
+            try {
+                redisTemplate.opsForValue().set(REFRESH_TOKEN_PREFIX + newRefreshToken,
+                    objectMapper.writeValueAsString(newRefreshTokenData),
+                    refreshTokenTtl, TimeUnit.SECONDS);
+            } catch (JsonProcessingException e) {
+                log.error("Failed to serialize refresh token data", e);
+                throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
+            }
+
+            return new TokenResp(accessToken, "Bearer", accessTokenTtl, newRefreshToken, refreshTokenData.getScope());
+        } finally {
+            TenantContextHolder.clear();
         }
-
-        // Verify client_id matches
-        if (!refreshTokenData.getClientId().equals(clientId)) {
-            throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
-        }
-
-        // Delete old refresh token (rotation)
-        redisTemplate.delete(REFRESH_TOKEN_PREFIX + refreshToken);
-
-        // Generate new access token
-        String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId, refreshTokenData.getScope());
-        int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
-        int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
-
-        // Generate new refresh token
-        String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
-        RefreshTokenData newRefreshTokenData = new RefreshTokenData();
-        newRefreshTokenData.setUserId(refreshTokenData.getUserId());
-        newRefreshTokenData.setClientId(clientId);
-        newRefreshTokenData.setScope(refreshTokenData.getScope());
-        try {
-            redisTemplate.opsForValue().set(REFRESH_TOKEN_PREFIX + newRefreshToken,
-                objectMapper.writeValueAsString(newRefreshTokenData),
-                refreshTokenTtl, TimeUnit.SECONDS);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize refresh token data", e);
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
-        }
-
-        return new TokenResp(accessToken, "Bearer", accessTokenTtl, newRefreshToken, refreshTokenData.getScope());
     }
 
     @Override
@@ -250,6 +264,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 AdminErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
 
+        // Set tenant context from auth code
+        TenantContextHolder.setTenantId(codeData.getTenantId());
+
         // 5. Validate redirect_uri matches
         if (!codeData.getRedirectUri().equals(req.redirectUri())) {
             throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
@@ -282,6 +299,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         // Store refresh token
         RefreshTokenData refreshData = new RefreshTokenData();
         refreshData.setUserId(codeData.getUserId());
+        refreshData.setTenantId(codeData.getTenantId());
         refreshData.setClientId(req.clientId());
         refreshData.setScope(scope);
         try {
@@ -299,7 +317,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private String generateAccessToken(long userId, String clientId, String scope) {
         Map<String, Object> extraData = new LinkedHashMap<>();
         extraData.put("client_id", clientId);
-        extraData.put("tenant_id", "0");
+        // 从 TenantContextHolder 获取实际的 tenantId
+        Long tenantId = TenantContextHolder.getTenantId();
+        extraData.put("tenant_id", tenantId != null ? String.valueOf(tenantId) : "0");
         if (scope != null && !scope.isBlank()) {
             extraData.put("scope", scope);
         }
@@ -426,6 +446,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     public static class AuthCodeData {
         private String clientId;
         private long userId;
+        private long tenantId;
         private String redirectUri;
         private String codeChallenge;
         private String codeChallengeMethod;
@@ -435,6 +456,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         public void setClientId(String clientId) { this.clientId = clientId; }
         public long getUserId() { return userId; }
         public void setUserId(long userId) { this.userId = userId; }
+        public long getTenantId() { return tenantId; }
+        public void setTenantId(long tenantId) { this.tenantId = tenantId; }
         public String getRedirectUri() { return redirectUri; }
         public void setRedirectUri(String redirectUri) { this.redirectUri = redirectUri; }
         public String getCodeChallenge() { return codeChallenge; }
@@ -447,11 +470,14 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     public static class RefreshTokenData {
         private long userId;
+        private long tenantId;
         private String clientId;
         private String scope;
 
         public long getUserId() { return userId; }
         public void setUserId(long userId) { this.userId = userId; }
+        public long getTenantId() { return tenantId; }
+        public void setTenantId(long tenantId) { this.tenantId = tenantId; }
         public String getClientId() { return clientId; }
         public void setClientId(String clientId) { this.clientId = clientId; }
         public String getScope() { return scope; }
