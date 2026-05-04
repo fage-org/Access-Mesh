@@ -5,7 +5,7 @@
 
     <update id="softDeleteBatch">
         UPDATE sys_notice
-        SET delete_flag = 1, deleted_at = #{deletedAt}
+        SET delete_flag = id, deleted_at = #{deletedAt}
         WHERE id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}

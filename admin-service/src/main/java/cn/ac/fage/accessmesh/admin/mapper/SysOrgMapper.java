@@ -14,7 +14,7 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
 
     /**
      * Batch soft delete organizations.
-     * Sets delete_flag = 1 and deleted_at for each organization.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each organization.
      *
      * @param tenantId  the tenant ID
      * @param ids       the list of organization IDs to delete

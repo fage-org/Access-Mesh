@@ -119,7 +119,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     public void deleteProcessed(Long id) {
         SysSyncRetry record = syncRetryMapper.selectOneById(id);
         if (record != null) {
-            record.setDeleteFlag(1L);
+            record.setDeleteFlag(record.getId());
             record.setDeletedAt(LocalDateTime.now());
             syncRetryMapper.update(record);
         }

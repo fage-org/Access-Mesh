@@ -13,7 +13,7 @@ public interface SysJobMapper extends BaseMapper<SysJob> {
 
     /**
      * Batch soft delete jobs.
-     * Sets delete_flag = 1 and deleted_at for each job.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each job.
      *
      * @param tenantId   the tenant ID for isolation
      * @param ids        the list of job IDs to delete

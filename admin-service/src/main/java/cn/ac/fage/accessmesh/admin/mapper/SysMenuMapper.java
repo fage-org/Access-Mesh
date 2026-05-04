@@ -14,7 +14,7 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
 
     /**
      * Batch soft delete menus.
-     * Sets delete_flag = 1 and deleted_at for each menu.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each menu.
      *
      * @param tenantId  the tenant ID
      * @param ids       the list of menu IDs to delete

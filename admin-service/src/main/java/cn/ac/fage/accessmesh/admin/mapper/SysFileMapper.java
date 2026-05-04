@@ -13,7 +13,7 @@ public interface SysFileMapper extends BaseMapper<SysFile> {
 
     /**
      * Batch soft delete files.
-     * Sets delete_flag = 1 and deleted_at for each file.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each file.
      *
      * @param tenantId   the tenant ID for isolation
      * @param ids        the list of file IDs to delete

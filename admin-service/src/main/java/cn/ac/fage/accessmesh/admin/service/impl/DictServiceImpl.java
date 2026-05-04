@@ -204,7 +204,7 @@ public class DictServiceImpl implements DictService {
 
         SysDictData data = dictDataMapper.selectOneById(req.id());
         if (data == null || data.getDeleteFlag() != 0L) return;
-        data.setDeleteFlag(1L);
+        data.setDeleteFlag(data.getId());
         data.setDeletedAt(LocalDateTime.now());
         dictDataMapper.update(data);
     }

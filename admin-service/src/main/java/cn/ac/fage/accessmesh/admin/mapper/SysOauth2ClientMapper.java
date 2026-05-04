@@ -13,7 +13,7 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
 
     /**
      * Batch soft delete OAuth2 clients.
-     * Sets delete_flag = 1 and deleted_at for each client.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each client.
      *
      * @param ids        the list of client IDs to delete
      * @param deletedAt  the timestamp of deletion

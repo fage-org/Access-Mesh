@@ -13,7 +13,7 @@ public interface SysOrgTreeConfigMapper extends BaseMapper<SysOrgTreeConfig> {
 
     /**
      * Batch soft delete org tree configs.
-     * Sets delete_flag = 1 and deleted_at for each config.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each config.
      *
      * @param tenantId   the tenant ID (optional, may be null for global configs)
      * @param ids        the list of config IDs to delete

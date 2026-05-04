@@ -13,7 +13,7 @@ public interface SysNoticeMapper extends BaseMapper<SysNotice> {
 
     /**
      * Batch soft delete notices.
-     * Sets delete_flag = 1 and deleted_at for each notice.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each notice.
      *
      * @param tenantId   the tenant ID for isolation
      * @param ids        the list of notice IDs to delete

@@ -13,7 +13,7 @@ public interface SysDictTypeMapper extends BaseMapper<SysDictType> {
 
     /**
      * Batch soft delete dict types.
-     * Sets delete_flag = 1 and deleted_at for each dict type.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each dict type.
      *
      * @param ids        the list of dict type IDs to delete
      * @param deletedAt  the timestamp of deletion

@@ -13,7 +13,7 @@ public interface SysConfigMapper extends BaseMapper<SysConfig> {
 
     /**
      * Batch soft delete configs.
-     * Sets delete_flag = 1 and deleted_at for each config.
+     * Sets delete_flag = id (row's own ID) and deleted_at for each config.
      *
      * @param ids        the list of config IDs to delete
      * @param deletedAt  the timestamp of deletion
