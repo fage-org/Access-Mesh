@@ -361,12 +361,25 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         );
 
         Set<Long> roleIds = new HashSet<>();
-        Set<Long> visited = new HashSet<>();
+        Set<Long> groupRoleIds = new HashSet<>();
+
+        // 收集所有 GROUP_ROLE 的 ID，使用批量方法一次性展开
         for (UserRole ur : userRoles) {
             if ("GROUP_ROLE".equals(ur.getTargetType())) {
-                resolveGroupRole(tenantId, ur.getTargetId(), roleIds, visited);
+                groupRoleIds.add(ur.getTargetId());
             } else {
                 roleIds.add(ur.getTargetId());
+            }
+        }
+
+        // 使用批量方法一次性展开所有 GROUP_ROLE（避免 N+1 递归查询）
+        if (!groupRoleIds.isEmpty()) {
+            Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesBatch(tenantId, groupRoleIds);
+            for (Long groupRoleId : groupRoleIds) {
+                Set<Long> expandedRoles = groupRoleExpandCache.get(groupRoleId);
+                if (expandedRoles != null) {
+                    roleIds.addAll(expandedRoles);
+                }
             }
         }
 
@@ -384,52 +397,5 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         }
 
         return roleIds;
-    }
-
-    private void resolveGroupRole(Long tenantId, Long groupId, Set<Long> roleIds, Set<Long> visited) {
-        // 防止循环引用：检查是否已访问
-        if (visited.contains(groupId)) {
-            return;
-        }
-        visited.add(groupId);
-
-        // Query the group role itself to get extra.basicRoleIds
-        AbstractRole groupRole = abstractRoleMapper.selectOneById(groupId);
-        if (groupRole == null || !groupRole.getTenantId().equals(tenantId) || groupRole.getDeleteFlag() != 0L) {
-            return;
-        }
-
-        // Parse extra.basicRoleIds from JSON
-        if (StringUtils.isNotEmpty(groupRole.getExtra())) {
-            try {
-                JsonNode extraNode = objectMapper.readTree(groupRole.getExtra());
-                JsonNode basicRoleIdsNode = extraNode.get("basicRoleIds");
-                if (basicRoleIdsNode != null && basicRoleIdsNode.isArray()) {
-                    for (JsonNode idNode : basicRoleIdsNode) {
-                        Long basicRoleId = idNode.asLong();
-                        if (basicRoleId != null && basicRoleId > 0) {
-                            roleIds.add(basicRoleId);
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse extra.basicRoleIds for group role {}: {}", groupId, e.getMessage());
-            }
-        }
-
-        // Recursive: resolve children (roles with parent_id = groupId)
-        List<AbstractRole> children = abstractRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ABSTRACT_ROLE.PARENT_ID.eq(groupId))
-                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
-        for (AbstractRole child : children) {
-            if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                resolveGroupRole(tenantId, child.getId(), roleIds, visited);
-            } else {
-                roleIds.add(child.getId());
-            }
-        }
     }
 }

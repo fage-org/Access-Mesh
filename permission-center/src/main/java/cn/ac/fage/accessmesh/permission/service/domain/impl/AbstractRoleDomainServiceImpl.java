@@ -11,8 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 
@@ -84,28 +82,9 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
 
     @Override
     public List<Long> resolveDescendantIds(Long tenantId, Long roleId) {
-        Set<Long> result = new java.util.HashSet<>();
-        Set<Long> visited = new java.util.HashSet<>();
-        collectDescendants(tenantId, roleId, result, visited);
-        return new ArrayList<>(result);
-    }
-
-    private void collectDescendants(Long tenantId, Long roleId, Set<Long> result, Set<Long> visited) {
-        // 防止循环引用：检查是否已访问
-        if (visited.contains(roleId)) {
-            return;
-        }
-        visited.add(roleId);
-
-        List<AbstractRole> children = listChildren(tenantId, roleId);
-        for (AbstractRole child : children) {
-            result.add(child.getId());
-            if (child.getRoleType() != null
-                && (child.getRoleType() == RoleType.GROUP_ROLE.getValue()
-                    || child.getRoleType() == RoleType.ORG.getValue())) {
-                collectDescendants(tenantId, child.getId(), result, visited);
-            }
-        }
+        // 使用 CTE 递归查询一次性获取所有子孙角色ID，避免 N+1 问题
+        List<Long> descendantIds = abstractRoleMapper.selectDescendantIds(tenantId, roleId);
+        return descendantIds != null ? descendantIds : new ArrayList<>();
     }
 
     private void softDeleteRole(Long roleId, LocalDateTime now) {

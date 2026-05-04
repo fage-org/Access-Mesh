@@ -402,6 +402,47 @@ public class UserManageServiceImpl implements UserManageService {
         // Batch permission check - avoid N+1 queries
         Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationType.MANAGE);
 
+        // Batch load roles to avoid N+1 query in loop
+        Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
+            : abstractRoleMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(ABSTRACT_ROLE.ID.in(targetRoleIds))
+                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+            ).stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
+
+        // ===== Batch query user_role relations to avoid N+1 query in loop =====
+        // Collect all (userId, roleId) pairs for batch query
+        Set<Long> allUserIds = new LinkedHashSet<>();
+        Set<Long> allRoleIds = new LinkedHashSet<>();
+        for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
+            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            Long abstractUserId = userIdMap.get(userKey);
+            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            Long targetRoleId = roleIdMap.get(roleKey);
+            if (abstractUserId != null && targetRoleId != null) {
+                allUserIds.add(abstractUserId);
+                allRoleIds.add(targetRoleId);
+            }
+        }
+
+        // Batch query all relevant user_role relations
+        Map<String, UserRole> userRoleMap = new HashMap<>();
+        if (!allUserIds.isEmpty() && !allRoleIds.isEmpty()) {
+            List<UserRole> userRoles = userRoleMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
+                    .and(USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
+                    .and(USER_ROLE.TARGET_ID.in(allRoleIds))
+                    .and(USER_ROLE.DELETE_FLAG.eq(0))
+            );
+            for (UserRole ur : userRoles) {
+                // Key format: userId:roleId:relationId (use "null" for null relationId)
+                String key = ur.getAbstractUserId() + ":" + ur.getTargetId() + ":" + (ur.getRelationId() != null ? ur.getRelationId() : "null");
+                userRoleMap.put(key, ur);
+            }
+        }
+
         List<Long> affectedUserIds = new ArrayList<>();
         List<Long> affectedRoleIds = new ArrayList<>();
         ArrayNode itemsJson = objectMapper.createArrayNode();
@@ -426,18 +467,9 @@ public class UserManageServiceImpl implements UserManageService {
                 continue;  // Skip this item, no permission to revoke
             }
 
-            QueryWrapper qw = QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
-                .and(USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                .and(USER_ROLE.TARGET_ID.eq(targetRoleId))
-                .and(USER_ROLE.DELETE_FLAG.eq(0));
-            if (item.relationId() == null) {
-                qw.and(USER_ROLE.RELATION_ID.isNull());
-            } else {
-                qw.and(USER_ROLE.RELATION_ID.eq(item.relationId()));
-            }
-            UserRole ur = userRoleMapper.selectOneByQuery(qw);
+            // Look up user_role from pre-loaded map
+            String urKey = abstractUserId + ":" + targetRoleId + ":" + (item.relationId() != null ? item.relationId() : "null");
+            UserRole ur = userRoleMap.get(urKey);
             if (ur == null) {
                 throw new IllegalArgumentException("User-role relation not found for item");
             }
@@ -447,7 +479,7 @@ public class UserManageServiceImpl implements UserManageService {
             revoked++;
             affectedUserIds.add(abstractUserId);
             affectedRoleIds.add(targetRoleId);
-            AbstractRole role = abstractRoleMapper.selectOneById(targetRoleId);
+            AbstractRole role = roleMap.get(targetRoleId);
             ObjectNode it = objectMapper.createObjectNode();
             it.put("changeType", "REMOVE");
             ObjectNode roleNode = it.putObject("role");

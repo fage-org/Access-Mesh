@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.permission.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyUpdateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceDependencyResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceDependency;
@@ -293,23 +295,66 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             }
         }
 
+        // ===== Batch resolution to avoid N+1 queries =====
+        // 1. Collect all unique resource requests from items
+        List<ResourceResolveRequest> resourceRequests = items.stream()
+            .flatMap(item -> Stream.of(
+                new ResourceResolveRequest(item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null),
+                new ResourceResolveRequest(item.targetResourceTypeCode(), item.targetResourceCode(), item.targetCodeType(), null)
+            ))
+            .filter(r -> r.resourceCode() != null && !r.resourceCode().isBlank())
+            .distinct()
+            .collect(Collectors.toList());
+
+        // 2. Batch resolve all resource IDs
+        Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
+
+        // 3. Process each item with pre-resolved IDs
+        // 4. Batch query existing dependencies to avoid N+1 query in loop
+        Set<Long> sourceResourceIds = new HashSet<>();
+        Set<Long> targetResourceIds = new HashSet<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
-            Long sourceResourceId = typeResolutionService.resolveResourceId(
-                tenantId, item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
-            Long targetResourceId = typeResolutionService.resolveResourceId(
-                tenantId, item.targetResourceTypeCode(), item.targetResourceCode(), item.targetCodeType(), null);
+            ResourceResolveKey sourceKey = new ResourceResolveKey(
+                item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
+            ResourceResolveKey targetKey = new ResourceResolveKey(
+                item.targetResourceTypeCode(), item.targetResourceCode(), item.targetCodeType(), null);
+            Long sourceResourceId = resourceIdMap.get(sourceKey);
+            Long targetResourceId = resourceIdMap.get(targetKey);
+            if (sourceResourceId != null) sourceResourceIds.add(sourceResourceId);
+            if (targetResourceId != null) targetResourceIds.add(targetResourceId);
+        }
+
+        // Build a composite key for existing dependency lookup
+        Map<String, ResourceDependency> existingDepMap = new HashMap<>();
+        if (!sourceResourceIds.isEmpty() || !targetResourceIds.isEmpty()) {
+            List<ResourceDependency> existingDeps = dependencyMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+                    .and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.in(sourceResourceIds))
+                    .and(RESOURCE_DEPENDENCY.DEPENDS_ON_RESOURCE_ENTITY_ID.in(targetResourceIds))
+                    .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
+            );
+            for (ResourceDependency dep : existingDeps) {
+                String key = dep.getResourceEntityId() + ":" + dep.getDependsOnResourceEntityId();
+                existingDepMap.put(key, dep);
+            }
+        }
+
+        for (DependencyBatchSyncReq.DependencySyncItem item : items) {
+            ResourceResolveKey sourceKey = new ResourceResolveKey(
+                item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
+            ResourceResolveKey targetKey = new ResourceResolveKey(
+                item.targetResourceTypeCode(), item.targetResourceCode(), item.targetCodeType(), null);
+
+            Long sourceResourceId = resourceIdMap.get(sourceKey);
+            Long targetResourceId = resourceIdMap.get(targetKey);
             if (sourceResourceId == null || targetResourceId == null) continue;
 
             Long sourceOperationBits = resolveOperationBits(tenantId, item.sourceOperationCodes(), item.sourceResourceTypeCode());
             Long requiredOperationBits = resolveOperationBits(tenantId, item.requiredOperationCodes(), item.targetResourceTypeCode());
 
-            ResourceDependency existing = dependencyMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(sourceResourceId))
-                    .and(RESOURCE_DEPENDENCY.DEPENDS_ON_RESOURCE_ENTITY_ID.eq(targetResourceId))
-                    .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-            );
+            String depKey = sourceResourceId + ":" + targetResourceId;
+            ResourceDependency existing = existingDepMap.get(depKey);
 
             if (existing != null) {
                 if (sourceOperationBits != null) existing.setSourceOperationBits(sourceOperationBits);

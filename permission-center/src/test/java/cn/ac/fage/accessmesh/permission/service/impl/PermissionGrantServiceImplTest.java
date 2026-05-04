@@ -22,6 +22,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -55,6 +56,7 @@ class PermissionGrantServiceImplTest {
     @Mock private AuthorizationService authorizationService;
     @Mock private OperationPermissionDomainService operationPermissionDomainService;
     @Mock private AbstractRoleDomainService abstractRoleDomainService;
+    @Mock private ResourcePermissionValidator permissionValidator;
 
     private PermissionGrantServiceImpl service;
 
@@ -64,7 +66,7 @@ class PermissionGrantServiceImplTest {
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
             operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
-            authorizationService, operationPermissionDomainService, abstractRoleDomainService
+            authorizationService, operationPermissionDomainService, abstractRoleDomainService, permissionValidator
         );
     }
 

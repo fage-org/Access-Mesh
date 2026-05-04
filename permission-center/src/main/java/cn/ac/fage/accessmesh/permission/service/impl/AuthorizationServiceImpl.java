@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
@@ -86,12 +88,14 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             .map(GrantCheckKey::operationCode)
             .collect(Collectors.toSet());
 
-        // 2. Batch resolve resource types
+        // 2. Batch resolve resource types to avoid N+1 query
+        Map<String, Integer> rawResourceTypeByCode = typeResolutionService.batchResolveTypeValues(
+            tenantId, "resource_type", resourceTypeCodes);
+        // Convert keys to uppercase for consistent lookup
         Map<String, Integer> resourceTypeByCode = new HashMap<>();
-        for (String code : resourceTypeCodes) {
-            Integer value = typeResolutionService.resolveTypeValue(tenantId, "resource_type", code);
-            if (value != null) {
-                resourceTypeByCode.put(code.toUpperCase(), value);
+        for (Map.Entry<String, Integer> entry : rawResourceTypeByCode.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                resourceTypeByCode.put(entry.getKey().toUpperCase(), entry.getValue());
             }
         }
 
@@ -114,15 +118,17 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         }
 
         // 4. Batch resolve resource entity IDs
+        List<ResourceResolveRequest> resourceRequests = permissions.stream()
+            .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
+            .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), "default", domainCode))
+            .distinct()
+            .collect(Collectors.toList());
+        Map<ResourceResolveKey, Long> resolvedResourceIds = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
+
         Map<String, Long> resourceEntityIdByCode = new HashMap<>();
-        for (GrantCheckKey key : permissions) {
-            if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-                Long entityId = typeResolutionService.resolveResourceId(
-                    tenantId, key.resourceTypeCode(), key.resourceCode(), "default", domainCode);
-                if (entityId != null) {
-                    resourceEntityIdByCode.put(key.resourceTypeCode().toUpperCase() + ":" + key.resourceCode(), entityId);
-                }
-            }
+        for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
+            ResourceResolveKey key = entry.getKey();
+            resourceEntityIdByCode.put(key.resourceTypeCode().toUpperCase() + ":" + key.resourceCode(), entry.getValue());
         }
 
         // 5. Batch query role_resource_permissions

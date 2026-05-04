@@ -85,28 +85,12 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
 
     @Override
     public List<Long> getAncestorIds(Long tenantId, Long resourceEntityId) {
-        List<Long> ids = new ArrayList<>();
-        Set<Long> visited = new HashSet<>();
-        Long current = resourceEntityId;
-        while (current != null) {
-            // 防止循环引用：检查是否已访问
-            if (visited.contains(current)) {
-                break;
-            }
-            visited.add(current);
-
-            ResourceEntity e = resourceEntityMapper.selectOneById(current);
-            if (e == null || e.getDeleteFlag() != 0L || !e.getTenantId().equals(tenantId)) {
-                break;
-            }
-            if (e.getParentId() != null) {
-                ids.add(e.getParentId());
-                current = e.getParentId();
-            } else {
-                break;
-            }
+        if (resourceEntityId == null) {
+            return List.of();
         }
-        return ids;
+        // 使用 CTE 递归查询一次性获取所有祖先ID
+        List<Long> ancestorIds = resourceEntityMapper.selectAncestorIds(tenantId, resourceEntityId);
+        return ancestorIds != null ? ancestorIds : List.of();
     }
 
     @Override
@@ -115,62 +99,19 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
             return Collections.emptyMap();
         }
 
-        // Batch load all entities that might be needed (initial + ancestors)
-        // First, load the initial set
-        Map<Long, ResourceEntity> entityMap = new HashMap<>();
-        Set<Long> toLoad = new HashSet<>(resourceIds);
-        Set<Long> visited = new HashSet<>();
+        // 使用 CTE 递归查询一次性获取所有资源的祖先ID
+        List<ResourceEntityMapper.AncestorResult> results = resourceEntityMapper.selectAncestorIdsBatch(tenantId, resourceIds);
 
-        while (!toLoad.isEmpty()) {
-            // 防止循环引用：过滤已加载的实体
-            toLoad.removeAll(visited);
-
-            if (toLoad.isEmpty()) {
-                break;
-            }
-
-            List<ResourceEntity> loaded = resourceEntityMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.ID.in(toLoad))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            );
-            visited.addAll(toLoad);
-            toLoad.clear();
-            for (ResourceEntity e : loaded) {
-                entityMap.put(e.getId(), e);
-                if (e.getParentId() != null && !entityMap.containsKey(e.getParentId()) && !visited.contains(e.getParentId())) {
-                    toLoad.add(e.getParentId());
-                }
-            }
-        }
-
-        // Now compute ancestors for each input resourceId
+        // 按 resourceId 分组
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long resourceId : resourceIds) {
-            List<Long> ancestors = new ArrayList<>();
-            Set<Long> pathVisited = new HashSet<>();
-            Long current = resourceId;
-            while (current != null) {
-                // 防止循环引用：检查是否已访问
-                if (pathVisited.contains(current)) {
-                    break;
-                }
-                pathVisited.add(current);
-
-                ResourceEntity e = entityMap.get(current);
-                if (e == null) {
-                    break;
-                }
-                if (e.getParentId() != null) {
-                    ancestors.add(e.getParentId());
-                    current = e.getParentId();
-                } else {
-                    break;
-                }
-            }
-            result.put(resourceId, ancestors);
+            result.put(resourceId, new ArrayList<>());
         }
+
+        for (ResourceEntityMapper.AncestorResult ar : results) {
+            result.computeIfAbsent(ar.getResourceId(), k -> new ArrayList<>()).add(ar.getAncestorId());
+        }
+
         return result;
     }
 
@@ -206,13 +147,12 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
             result.put(id, new ArrayList<>());
         }
 
-        // Process each resource ID individually using CTE
-        // This is efficient because each CTE query is a single database round-trip
-        for (Long resourceEntityId : resourceEntityIds) {
-            List<Long> descendants = resourceEntityMapper.selectDescendantIds(tenantId, resourceEntityId);
-            if (descendants != null && !descendants.isEmpty()) {
-                result.get(resourceEntityId).addAll(descendants);
-            }
+        // Use batch CTE recursive query for efficient single-query retrieval of all descendants
+        List<ResourceEntityMapper.DescendantResult> descendants = resourceEntityMapper.selectDescendantIdsBatch(tenantId, resourceEntityIds);
+
+        // Group by resourceId
+        for (ResourceEntityMapper.DescendantResult dr : descendants) {
+            result.computeIfAbsent(dr.getResourceId(), k -> new ArrayList<>()).add(dr.getDescendantId());
         }
 
         return result;
