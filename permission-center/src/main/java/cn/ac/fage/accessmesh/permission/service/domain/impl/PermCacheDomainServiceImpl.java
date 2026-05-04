@@ -58,6 +58,7 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     @Override
     public void evictEffectiveRoles(Long tenantId, Long userId) {
         String key = EFFECTIVE_ROLES_KEY + tenantId + ":" + userId;
+        redisTemplate.delete(key);
         l1Cache.invalidate(key);
     }
 
@@ -84,8 +85,8 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     @Override
     public void evictRolePermSnapshot(Long tenantId, Long roleId) {
         String key = ROLE_PERMS_KEY + tenantId + ":" + roleId;
-        l1Cache.invalidate(key);
         redisTemplate.delete(key);
+        l1Cache.invalidate(key);
     }
 
     @Override
@@ -120,7 +121,7 @@ public class PermCacheDomainServiceImpl implements PermCacheDomainService {
     @Override
     public void evictInterfaceSnapshot(Long tenantId, String serviceCode) {
         String key = INTERFACE_SNAPSHOT_KEY + tenantId + ":" + serviceCode;
-        l1Cache.invalidate(key);
         redisTemplate.delete(key);
+        l1Cache.invalidate(key);
     }
 }

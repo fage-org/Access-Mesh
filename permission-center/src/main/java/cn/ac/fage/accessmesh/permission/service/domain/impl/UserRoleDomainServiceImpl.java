@@ -317,9 +317,9 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     @Override
     public void invalidateRoleCache(Long tenantId, Long userId) {
-        permCacheDomainService.evictEffectiveRoles(tenantId, userId);
         String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
         redisTemplate.delete(l2Key);
+        permCacheDomainService.evictEffectiveRoles(tenantId, userId);
     }
 
     @Override
