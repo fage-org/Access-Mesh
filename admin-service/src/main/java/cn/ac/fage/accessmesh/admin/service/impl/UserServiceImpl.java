@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -55,28 +54,27 @@ public class UserServiceImpl implements UserService {
     private final SysUserOrgMapper userOrgMapper;
     private final UserDomainService userDomainService;
     private final UserSyncHandler userSyncHandler;
-    private final TransactionTemplate transactionTemplate;
     private final SyncRetryService syncRetryService;
     private final ObjectMapper objectMapper;
     private final AdminPermissionValidator permissionValidator;
 
-    // TODO: 构造函数依赖过多(8个)，建议抽离同步和重试逻辑到独立服务
+    // TODO: 构造函数依赖过多(7个)，建议抽离同步和重试逻辑到独立服务
     // 优先级：P3（低优先级，可关注但不强制整改）
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
                            UserDomainService userDomainService, UserSyncHandler userSyncHandler,
-                           TransactionTemplate transactionTemplate, SyncRetryService syncRetryService,
+                           SyncRetryService syncRetryService,
                            ObjectMapper objectMapper, AdminPermissionValidator permissionValidator) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
         this.userSyncHandler = userSyncHandler;
-        this.transactionTemplate = transactionTemplate;
         this.syncRetryService = syncRetryService;
         this.objectMapper = objectMapper;
         this.permissionValidator = permissionValidator;
     }
 
     @Override
+    @Transactional
     public Long createUser(UserCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
@@ -107,36 +105,25 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(LocalDateTime.now());
         user.setDeleteFlag(0L);
 
-        // DB操作在事务内
-        transactionTemplate.executeWithoutResult(status -> {
-            userMapper.insert(user);
-        });
+        // 事务内：插入用户 + 记录同步任务（原子性，Outbox Pattern）
+        userMapper.insert(user);
 
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
-        // 记录同步任务，异步同步到权限中心
-        try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "userId", user.getId(),
-                "username", user.getUsername(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "user:create:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getId()),
-                "create",
-                payload,
-                null  // 不记录错误，只是记录待同步任务
-            );
-            log.info("Recorded sync task for user creation: userId={}", user.getId());
-        } catch (Exception jsonEx) {
-            log.error("Failed to record sync task for user creation: userId={}, error={}", user.getId(), jsonEx.getMessage());
-        }
+        // 同一事务内记录同步任务，确保用户创建与任务记录原子性
+        String payload = objectMapper.writeValueAsString(Map.of(
+            "userId", user.getId(),
+            "username", user.getUsername(),
+            "tenantId", tenantId
+        ));
+        syncRetryService.recordSyncFailure(
+            "user:create:" + user.getId(),
+            "permission-center",
+            "abstract_user",
+            String.valueOf(user.getId()),
+            "create",
+            payload,
+            null
+        );
+        log.info("Recorded sync task for user creation: userId={}", user.getId());
 
         return user.getId();
     }
@@ -180,28 +167,24 @@ public class UserServiceImpl implements UserService {
         // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
         // 同步更新到权限中心 - 记录同步任务
         if (user.getPermUserId() != null) {
-            try {
-                String payload = objectMapper.writeValueAsString(Map.of(
-                    "permUserId", user.getPermUserId(),
-                    "name", user.getName(),
-                    "phone", user.getPhone(),
-                    "email", user.getEmail(),
-                    "status", user.getStatus(),
-                    "enabled", user.getStatus() != null && user.getStatus() == 1
-                ));
-                syncRetryService.recordSyncFailure(
-                    "user:update:" + user.getId(),
-                    "permission-center",
-                    "abstract_user",
-                    String.valueOf(user.getPermUserId()),
-                    "update",
-                    payload,
-                    null
-                );
-                log.info("Recorded update sync task for user: userId={}", user.getId());
-            } catch (Exception e) {
-                log.error("Failed to record update sync task for user: userId={}", user.getId(), e);
-            }
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "permUserId", user.getPermUserId(),
+                "name", user.getName(),
+                "phone", user.getPhone(),
+                "email", user.getEmail(),
+                "status", user.getStatus(),
+                "enabled", user.getStatus() != null && user.getStatus() == 1
+            ));
+            syncRetryService.recordSyncFailure(
+                "user:update:" + user.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(user.getPermUserId()),
+                "update",
+                payload,
+                null
+            );
+            log.info("Recorded update sync task for user: userId={}", user.getId());
         }
     }
 
@@ -237,20 +220,16 @@ public class UserServiceImpl implements UserService {
 
         // 2. 记录删除同步任务
         for (SysUser user : users) {
-            try {
-                syncRetryService.recordSyncFailure(
-                    "user:delete:" + user.getId(),
-                    "permission-center",
-                    "abstract_user",
-                    String.valueOf(user.getId()),
-                    "delete",
-                    null,
-                    null
-                );
-                log.info("Recorded delete sync task for user: userId={}", user.getId());
-            } catch (Exception e) {
-                log.error("Failed to record delete sync task for user: userId={}, error={}", user.getId(), e.getMessage());
-            }
+            syncRetryService.recordSyncFailure(
+                "user:delete:" + user.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(user.getId()),
+                "delete",
+                null,
+                null
+            );
+            log.info("Recorded delete sync task for user: userId={}", user.getId());
         }
     }
 
@@ -276,24 +255,20 @@ public class UserServiceImpl implements UserService {
             // 同步启用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
-                    try {
-                        String payload = objectMapper.writeValueAsString(Map.of(
-                            "permUserId", user.getPermUserId(),
-                            "enabled", true
-                        ));
-                        syncRetryService.recordSyncFailure(
-                            "user:enable:" + user.getId(),
-                            "permission-center",
-                            "abstract_user",
-                            String.valueOf(user.getPermUserId()),
-                            "update",
-                            payload,
-                            null
-                        );
-                        log.info("Recorded enable sync task for user: userId={}", user.getId());
-                    } catch (Exception e) {
-                        log.error("Failed to record enable sync task for user: userId={}", user.getId(), e);
-                    }
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "permUserId", user.getPermUserId(),
+                        "enabled", true
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "user:enable:" + user.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(user.getPermUserId()),
+                        "update",
+                        payload,
+                        null
+                    );
+                    log.info("Recorded enable sync task for user: userId={}", user.getId());
                 }
             }
         }
@@ -412,60 +387,50 @@ public class UserServiceImpl implements UserService {
         List<String> failedMessages = new ArrayList<>();
 
         for (UserCreateReq userReq : req.users()) {
-            try {
-                // 检查用户名重复
-                if (userDomainService.existsByUsername(tenantId, userReq.username())) {
-                    failedMessages.add("用户名已存在: " + userReq.username());
-                    continue;
-                }
-
-                // 检查手机号重复
-                if (userReq.phone() != null && userDomainService.existsByPhone(tenantId, userReq.phone())) {
-                    failedMessages.add("手机号已存在: " + userReq.phone());
-                    continue;
-                }
-
-                SysUser user = new SysUser();
-                user.setTenantId(tenantId);
-                user.setUsername(userReq.username());
-                user.setName(userReq.name());
-                user.setPhone(userReq.phone());
-                user.setEmail(userReq.email());
-                String initialPassword = generateRandomPassword();
-                user.setPassword(BCrypt.hashpw(initialPassword));
-                log.info("Generated initial password for batch user: username={}", userReq.username());
-                user.setStatus(userReq.status() != null ? userReq.status() : 1);
-                user.setCreatedAt(LocalDateTime.now());
-                user.setUpdatedAt(LocalDateTime.now());
-                user.setDeleteFlag(0L);
-                userMapper.insert(user);
-
-                // 记录同步任务，异步同步到权限中心
-                try {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "userId", user.getId(),
-                        "username", user.getUsername(),
-                        "tenantId", tenantId
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "user:create:" + user.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(user.getId()),
-                        "create",
-                        payload,
-                        null
-                    );
-                } catch (Exception syncEx) {
-                    log.error("Failed to record sync task for batch user creation: userId={}, error={}",
-                        user.getId(), syncEx.getMessage());
-                }
-
-                successIds.add(user.getId());
-            } catch (Exception e) {
-                log.error("Failed to create user: username={}", userReq.username(), e);
-                failedMessages.add("创建失败: " + userReq.username() + " - " + e.getMessage());
+            // 检查用户名重复
+            if (userDomainService.existsByUsername(tenantId, userReq.username())) {
+                failedMessages.add("用户名已存在: " + userReq.username());
+                continue;
             }
+
+            // 检查手机号重复
+            if (userReq.phone() != null && userDomainService.existsByPhone(tenantId, userReq.phone())) {
+                failedMessages.add("手机号已存在: " + userReq.phone());
+                continue;
+            }
+
+            SysUser user = new SysUser();
+            user.setTenantId(tenantId);
+            user.setUsername(userReq.username());
+            user.setName(userReq.name());
+            user.setPhone(userReq.phone());
+            user.setEmail(userReq.email());
+            String initialPassword = generateRandomPassword();
+            user.setPassword(BCrypt.hashpw(initialPassword));
+            log.info("Generated initial password for batch user: username={}", userReq.username());
+            user.setStatus(userReq.status() != null ? userReq.status() : 1);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now());
+            user.setDeleteFlag(0L);
+            userMapper.insert(user);
+
+            // 记录同步任务，异步同步到权限中心（严格 Outbox Pattern：失败触发事务回滚）
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "userId", user.getId(),
+                "username", user.getUsername(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "user:create:" + user.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(user.getId()),
+                "create",
+                payload,
+                null
+            );
+
+            successIds.add(user.getId());
         }
 
         return BatchResultResp.partial(req.users().size(), successIds.size(), successIds, failedMessages);
@@ -493,24 +458,20 @@ public class UserServiceImpl implements UserService {
             // 同步禁用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
-                    try {
-                        String payload = objectMapper.writeValueAsString(Map.of(
-                            "permUserId", user.getPermUserId(),
-                            "enabled", false
-                        ));
-                        syncRetryService.recordSyncFailure(
-                            "user:disable:" + user.getId(),
-                            "permission-center",
-                            "abstract_user",
-                            String.valueOf(user.getPermUserId()),
-                            "update",
-                            payload,
-                            null
-                        );
-                        log.info("Recorded disable sync task for user: userId={}", user.getId());
-                    } catch (Exception e) {
-                        log.error("Failed to record disable sync task for user: userId={}", user.getId(), e);
-                    }
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "permUserId", user.getPermUserId(),
+                        "enabled", false
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "user:disable:" + user.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(user.getPermUserId()),
+                        "update",
+                        payload,
+                        null
+                    );
+                    log.info("Recorded disable sync task for user: userId={}", user.getId());
                 }
             }
         }

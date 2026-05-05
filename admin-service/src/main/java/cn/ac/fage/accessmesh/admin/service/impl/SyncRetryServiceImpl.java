@@ -38,7 +38,6 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     }
 
     @Override
-    @Transactional
     public void recordSyncFailure(String messageKey, String targetService, String entityType,
                                    String externalId, String operationType, String payload, String error) {
         LocalDateTime now = LocalDateTime.now();
@@ -49,6 +48,15 @@ public class SyncRetryServiceImpl implements SyncRetryService {
             );
         }
         if (existing != null) {
+            // 更新现有记录
+            existing.setRetryCount(existing.getRetryCount() + 1);
+            existing.setLastError(truncate(error, 500));
+            existing.setNextRetryAt(now.plusMinutes(Math.min(existing.getRetryCount() * 5, 60)));
+            existing.setStatus(existing.getRetryCount() >= existing.getMaxRetries() ? "exhausted" : "pending");
+            existing.setUpdatedAt(now);
+            syncRetryMapper.update(existing);
+        } else {
+            // 创建新记录
             SysSyncRetry record = new SysSyncRetry();
             record.setMessageKey(messageKey);
             record.setTargetService(targetService);
@@ -64,13 +72,6 @@ public class SyncRetryServiceImpl implements SyncRetryService {
             record.setUpdatedAt(now);
             record.setDeleteFlag(0L);
             syncRetryMapper.insert(record);
-        } else {
-            existing.setRetryCount(existing.getRetryCount() + 1);
-            existing.setLastError(truncate(error, 500));
-            existing.setNextRetryAt(now.plusMinutes(Math.min(existing.getRetryCount() * 5, 60)));
-            existing.setStatus(existing.getRetryCount() >= existing.getMaxRetries() ? "exhausted" : "pending");
-            existing.setUpdatedAt(now);
-            syncRetryMapper.update(existing);
         }
     }
 
@@ -88,16 +89,14 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional
     public void markFailed(Long id, String error) {
-        recordSyncFailure(
-            null, null, null, null, null, null, error
-        );
         SysSyncRetry record = syncRetryMapper.selectOneById(id);
         if (record != null) {
+            LocalDateTime now = LocalDateTime.now();
             record.setRetryCount(record.getRetryCount() + 1);
             record.setLastError(truncate(error, 500));
-            record.setNextRetryAt(LocalDateTime.now().plusMinutes(Math.min(record.getRetryCount() * 5, 60)));
+            record.setNextRetryAt(now.plusMinutes(Math.min(record.getRetryCount() * 5, 60)));
             record.setStatus(record.getRetryCount() >= record.getMaxRetries() ? "exhausted" : "pending");
-            record.setUpdatedAt(LocalDateTime.now());
+            record.setUpdatedAt(now);
             syncRetryMapper.update(record);
         }
     }

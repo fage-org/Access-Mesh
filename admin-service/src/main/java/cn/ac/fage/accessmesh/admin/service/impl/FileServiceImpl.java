@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -208,7 +209,7 @@ public class FileServiceImpl implements FileService {
     @Transactional
     public void deleteFiles(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
-        // Batch query valid files (performance fix: avoid N+1 queries for SELECT)
+        // Batch query valid files
         List<SysFile> files = fileMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SYS_FILE.ID.in(req.ids()))
@@ -222,17 +223,26 @@ public class FileServiceImpl implements FileService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Delete physical files (must remain as loop - file system operation)
+        // 先尝试删除所有物理文件，失败仅记录（不抛异常）
+        List<String> failedFiles = new ArrayList<>();
         for (SysFile f : files) {
             try {
                 Path path = Paths.get(storagePath, f.getFilePath());
                 Files.deleteIfExists(path);
-            } catch (IOException ignored) {
+            } catch (IOException e) {
+                log.error("Failed to delete physical file: filePath={}, error={}", f.getFilePath(), e.getMessage());
+                failedFiles.add(f.getFilePath());
             }
         }
 
-        // Batch soft delete in database (performance fix: use single SQL instead of loop)
-        List<Long> validIds = files.stream().map(SysFile::getId).collect(java.util.stream.Collectors.toList());
+        // 如果有任何物理文件删除失败，抛异常但不执行数据库软删除
+        if (!failedFiles.isEmpty()) {
+            throw new BizException(AdminErrorCode.FILE_DELETE_FAILED.getCode(),
+                "文件删除失败: " + String.join(", ", failedFiles));
+        }
+
+        // 只有全部物理文件删除成功，才执行数据库软删除
+        List<Long> validIds = files.stream().map(SysFile::getId).collect(Collectors.toList());
         fileMapper.softDeleteBatch(tenantId, validIds, now);
     }
 

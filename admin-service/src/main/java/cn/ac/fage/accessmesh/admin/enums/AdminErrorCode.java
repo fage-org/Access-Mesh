@@ -27,6 +27,7 @@ public enum AdminErrorCode {
     FILE_UPLOAD_FAILED(10502, "文件上传失败"),
     FILE_TOO_LARGE(10503, "文件大小超出限制"),
     FILE_TYPE_NOT_ALLOWED(10504, "文件类型不允许"),
+    FILE_DELETE_FAILED(10505, "文件删除失败"),
     CLIENT_NOT_FOUND(10802, "OAuth2客户端不存在"),
     EXTERNAL_SERVICE_ERROR(10900, "外部服务调用失败"),
     JOB_NOT_FOUND(10601, "定时任务不存在"),

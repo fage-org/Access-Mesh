@@ -60,7 +60,9 @@ public class TenantInterceptor implements HandlerInterceptor {
                 Long userId = StpUtil.getLoginIdAsLong();
                 log.debug("Tenant ID not found in session for user {}", userId);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Failed to get tenant context from session: {}", e.getMessage());
+            // 继续处理，但记录警告（租户上下文获取失败不阻止请求）
         }
 
         // Auth endpoints and public endpoints don't require tenant

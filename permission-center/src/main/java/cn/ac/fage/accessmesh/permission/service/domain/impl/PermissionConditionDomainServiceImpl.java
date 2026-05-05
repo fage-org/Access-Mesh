@@ -80,10 +80,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             try {
                 return objectMapper.readTree(condition.getConditionRules());
             } catch (Exception e) {
-                log.warn("Failed to parse conditionRules JSON, conditionId: {}, error: {}",
-                    cid, e.getMessage());
-                // 问题11：返回特殊标记表示解析失败，避免重复解析
-                return null;
+                log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", cid, e);
+                // fail-close: 不缓存失败结果，抛异常阻止缓存
+                throw new RuntimeException("Condition rules JSON parse failed for conditionId: " + cid, e);
             }
         });
 
@@ -105,7 +104,8 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             }
             return allMatch;
         } catch (Exception e) {
-            log.error("Unexpected error evaluating condition, conditionId: {}", conditionId, e);
+            log.error("CRITICAL: Unexpected error evaluating condition, conditionId: {}", conditionId, e);
+            // fail-close: 异常时拒绝权限
             return false;
         }
     }
@@ -134,11 +134,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             LocalDate end = LocalDate.parse(endDate);
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
-            log.warn("Invalid date range format, startDate: {}, endDate: {}, error: {}",
-                startDate, endDate, e.getMessage());
+            log.error("CRITICAL: Invalid date range format, startDate: {}, endDate: {}", startDate, endDate, e);
             return false;
         } catch (Exception e) {
-            log.error("Unexpected error evaluating date range, startDate: {}, endDate: {}", startDate, endDate, e);
+            log.error("CRITICAL: Unexpected error evaluating date range, startDate: {}, endDate: {}", startDate, endDate, e);
             return false;
         }
     }
@@ -153,11 +152,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             LocalTime end = LocalTime.parse(endTime);
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
-            log.warn("Invalid time range format, startTime: {}, endTime: {}, error: {}",
-                startTime, endTime, e.getMessage());
+            log.error("CRITICAL: Invalid time range format, startTime: {}, endTime: {}", startTime, endTime, e);
             return false;
         } catch (Exception e) {
-            log.error("Unexpected error evaluating time range, startTime: {}, endTime: {}", startTime, endTime, e);
+            log.error("CRITICAL: Unexpected error evaluating time range, startTime: {}, endTime: {}", startTime, endTime, e);
             return false;
         }
     }

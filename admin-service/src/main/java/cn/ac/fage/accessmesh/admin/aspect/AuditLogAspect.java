@@ -52,7 +52,8 @@ public class AuditLogAspect {
                 entry.setUserId(StpUtil.getLoginIdAsLong());
                 entry.setUsername(StpUtil.getLoginIdAsString());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("Failed to get login info for audit log: {}", e.getMessage());
         }
 
         Object result = null;

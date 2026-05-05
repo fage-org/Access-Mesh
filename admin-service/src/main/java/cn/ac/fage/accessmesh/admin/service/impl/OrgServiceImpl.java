@@ -99,33 +99,25 @@ public class OrgServiceImpl implements OrgService {
         org.setCreatedAt(LocalDateTime.now());
         org.setUpdatedAt(LocalDateTime.now());
         org.setDeleteFlag(0L);
+        // 事务内：插入组织 + 记录同步任务（原子性，Outbox Pattern）
         orgMapper.insert(org);
 
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
-        // 记录同步任务，异步同步到权限中心
-        try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "orgId", org.getId(),
-                "orgName", org.getName(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "org:create:" + org.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(org.getId()),
-                "create",
-                payload,
-                null  // 不记录错误，只是记录待同步任务
-            );
-            log.info("Recorded sync task for org creation: orgId={}", org.getId());
-        } catch (Exception e) {
-            log.error("Failed to record sync task for org creation: orgId={}, error={}", org.getId(), e.getMessage());
-        }
+        // 同一事务内记录同步任务，确保组织创建与任务记录原子性
+        String payload = objectMapper.writeValueAsString(Map.of(
+            "orgId", org.getId(),
+            "orgName", org.getName(),
+            "tenantId", tenantId
+        ));
+        syncRetryService.recordSyncFailure(
+            "org:create:" + org.getId(),
+            "permission-center",
+            "abstract_org",
+            String.valueOf(org.getId()),
+            "create",
+            payload,
+            null
+        );
+        log.info("Recorded sync task for org creation: orgId={}", org.getId());
 
         return org.getId();
     }
@@ -172,31 +164,26 @@ public class OrgServiceImpl implements OrgService {
         org.setUpdatedAt(LocalDateTime.now());
         orgMapper.update(org);
 
-        // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
-        // 同步更新到权限中心 - 记录同步任务
+        // 同步更新到权限中心 - 同一事务内记录同步任务（Outbox Pattern）
         if (org.getPermOrgId() != null) {
-            try {
-                String payload = objectMapper.writeValueAsString(Map.of(
-                    "permOrgId", org.getPermOrgId(),
-                    "name", org.getName(),
-                    "code", org.getCode(),
-                    "parentId", org.getParentId(),
-                    "level", org.getLevel(),
-                    "sortOrder", org.getSortOrder()
-                ));
-                syncRetryService.recordSyncFailure(
-                    "org:update:" + org.getId(),
-                    "permission-center",
-                    "abstract_org",
-                    String.valueOf(org.getPermOrgId()),
-                    "update",
-                    payload,
-                    null
-                );
-                log.info("Recorded update sync task for org: orgId={}", org.getId());
-            } catch (Exception e) {
-                log.error("Failed to record update sync task for org: orgId={}", org.getId(), e);
-            }
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "permOrgId", org.getPermOrgId(),
+                "name", org.getName(),
+                "code", org.getCode(),
+                "parentId", org.getParentId(),
+                "level", org.getLevel(),
+                "sortOrder", org.getSortOrder()
+            ));
+            syncRetryService.recordSyncFailure(
+                "org:update:" + org.getId(),
+                "permission-center",
+                "abstract_org",
+                String.valueOf(org.getPermOrgId()),
+                "update",
+                payload,
+                null
+            );
+            log.info("Recorded update sync task for org: orgId={}", org.getId());
         }
     }
 
@@ -223,29 +210,20 @@ public class OrgServiceImpl implements OrgService {
             throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(), AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
         }
 
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
-        // 1. 先执行本地软删除
+        // 事务内：软删除组织 + 记录同步任务（原子性，Outbox Pattern）
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
 
-        // 2. 记录删除同步任务
-        try {
-            syncRetryService.recordSyncFailure(
-                "org:delete:" + id,
-                "permission-center",
-                "abstract_user",
-                String.valueOf(id),
-                "delete",
-                null,
-                null
-            );
-            log.info("Recorded delete sync task for org: orgId={}", id);
-        } catch (Exception e) {
-            log.error("Failed to record delete sync task for org: orgId={}, error={}", id, e.getMessage());
-        }
+        // 同一事务内记录同步任务，确保删除与任务记录原子性
+        syncRetryService.recordSyncFailure(
+            "org:delete:" + id,
+            "permission-center",
+            "abstract_org",
+            String.valueOf(id),
+            "delete",
+            null,
+            null
+        );
+        log.info("Recorded delete sync task for org: orgId={}", id);
     }
 
     @Override
@@ -304,12 +282,6 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional
     public BatchResultResp batchCreateOrgs(OrgBatchCreateReq req) {
-        // TODO: 跨服务数据一致性风险
-        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
-        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
-        // 参考：plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
 
@@ -318,66 +290,56 @@ public class OrgServiceImpl implements OrgService {
         List<String> failedMessages = new ArrayList<>();
 
         for (OrgCreateReq orgReq : req.orgs()) {
-            try {
-                // 检查编码重复
-                if (orgReq.code() != null && orgDomainService.findByCode(tenantId, orgReq.code()) != null) {
-                    failedMessages.add("组织编码已存在: " + orgReq.code());
-                    continue;
-                }
-
-                int level = 1;
-                if (orgReq.parentOrgId() != null) {
-                    Long parentId = Long.parseLong(orgReq.parentOrgId());
-                    SysOrg parent = orgDomainService.selectValidById(tenantId, parentId);
-                    if (parent != null) {
-                        level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
-                    }
-                }
-                if (level > 10) {
-                    failedMessages.add("组织层级超过限制: " + orgReq.orgName());
-                    continue;
-                }
-
-                SysOrg org = new SysOrg();
-                org.setTenantId(tenantId);
-                org.setParentId(orgReq.parentOrgId() != null ? Long.parseLong(orgReq.parentOrgId()) : 0L);
-                org.setOrgType(String.valueOf(orgReq.orgType()));
-                org.setCode(orgReq.code());
-                org.setName(orgReq.orgName());
-                org.setStatus(orgReq.status() != null ? orgReq.status() : 1);
-                org.setSortOrder(orgReq.sort());
-                org.setLevel(level);
-                org.setCreatedAt(LocalDateTime.now());
-                org.setUpdatedAt(LocalDateTime.now());
-                org.setDeleteFlag(0L);
-                orgMapper.insert(org);
-
-                // 记录同步任务，异步同步到权限中心
-                try {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "orgId", org.getId(),
-                        "orgName", org.getName(),
-                        "tenantId", tenantId
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "org:create:" + org.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(org.getId()),
-                        "create",
-                        payload,
-                        null
-                    );
-                } catch (Exception syncEx) {
-                    log.error("Failed to record sync task for batch org creation: orgId={}, error={}",
-                        org.getId(), syncEx.getMessage());
-                }
-
-                successIds.add(org.getId());
-            } catch (Exception e) {
-                log.error("Failed to create org: orgName={}", orgReq.orgName(), e);
-                failedMessages.add("创建失败: " + orgReq.orgName() + " - " + e.getMessage());
+            // 检查编码重复
+            if (orgReq.code() != null && orgDomainService.findByCode(tenantId, orgReq.code()) != null) {
+                failedMessages.add("组织编码已存在: " + orgReq.code());
+                continue;
             }
+
+            int level = 1;
+            if (orgReq.parentOrgId() != null) {
+                Long parentId = Long.parseLong(orgReq.parentOrgId());
+                SysOrg parent = orgDomainService.selectValidById(tenantId, parentId);
+                if (parent != null) {
+                    level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
+                }
+            }
+            if (level > 10) {
+                failedMessages.add("组织层级超过限制: " + orgReq.orgName());
+                continue;
+            }
+
+            SysOrg org = new SysOrg();
+            org.setTenantId(tenantId);
+            org.setParentId(orgReq.parentOrgId() != null ? Long.parseLong(orgReq.parentOrgId()) : 0L);
+            org.setOrgType(String.valueOf(orgReq.orgType()));
+            org.setCode(orgReq.code());
+            org.setName(orgReq.orgName());
+            org.setStatus(orgReq.status() != null ? orgReq.status() : 1);
+            org.setSortOrder(orgReq.sort());
+            org.setLevel(level);
+            org.setCreatedAt(LocalDateTime.now());
+            org.setUpdatedAt(LocalDateTime.now());
+            org.setDeleteFlag(0L);
+            orgMapper.insert(org);
+
+            // 同一事务内记录同步任务（严格 Outbox Pattern：失败触发事务回滚）
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "orgId", org.getId(),
+                "orgName", org.getName(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "org:create:" + org.getId(),
+                "permission-center",
+                "abstract_org",
+                String.valueOf(org.getId()),
+                "create",
+                payload,
+                null
+            );
+
+            successIds.add(org.getId());
         }
 
         return BatchResultResp.partial(req.orgs().size(), successIds.size(), successIds, failedMessages);
@@ -386,11 +348,6 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional
     public void batchDeleteOrgs(IdsReq req) {
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
@@ -417,27 +374,23 @@ public class OrgServiceImpl implements OrgService {
             allIdsToDelete.addAll(descendants);
         }
 
-        // 1. 先执行本地批量软删除
+        // 事务内：批量软删除 + 记录同步任务（原子性，Outbox Pattern）
         if (!allIdsToDelete.isEmpty()) {
             orgDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
         }
 
-        // 2. 记录删除同步任务
+        // 同一事务内记录同步任务，确保删除与任务记录原子性
         for (SysOrg org : orgs) {
-            try {
-                syncRetryService.recordSyncFailure(
-                    "org:delete:" + org.getId(),
-                    "permission-center",
-                    "abstract_user",
-                    String.valueOf(org.getId()),
-                    "delete",
-                    null,
-                    null
-                );
-                log.info("Recorded delete sync task for org: orgId={}", org.getId());
-            } catch (Exception e) {
-                log.error("Failed to record delete sync task for org: orgId={}, error={}", org.getId(), e.getMessage());
-            }
+            syncRetryService.recordSyncFailure(
+                "org:delete:" + org.getId(),
+                "permission-center",
+                "abstract_org",
+                String.valueOf(org.getId()),
+                "delete",
+                null,
+                null
+            );
+            log.info("Recorded delete sync task for org: orgId={}", org.getId());
         }
     }
 
