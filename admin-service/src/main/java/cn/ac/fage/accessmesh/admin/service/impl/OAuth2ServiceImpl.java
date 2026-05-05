@@ -26,6 +26,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -377,6 +379,11 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     private void validateRedirectUri(SysOauth2Client client, String redirectUri) {
+        // 添加 redirectUri 的 null/空校验
+        if (redirectUri == null || redirectUri.isBlank()) {
+            throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
+                AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
+        }
         if (client.getRedirectUris() == null || client.getRedirectUris().isBlank()) {
             throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
                 AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
@@ -385,15 +392,65 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         boolean matched = false;
         for (String uri : uris) {
             String trimmed = uri.trim();
-            if (trimmed.equals(redirectUri) || redirectUri.startsWith(trimmed)) {
-                matched = true;
-                break;
+            try {
+                URI registered = new URI(trimmed);
+                URI requested = new URI(redirectUri);
+                // RFC 8252: scheme + authority 必须完全一致，路径需满足段匹配规则
+                if (registered.getScheme().equals(requested.getScheme()) &&
+                    registered.getAuthority().equals(requested.getAuthority()) &&
+                    isPathAllowed(registered.getPath(), requested.getPath())) {
+                    matched = true;
+                    break;
+                }
+            } catch (URISyntaxException e) {
+                // 记录警告日志（可能是攻击行为）
+                log.warn("Invalid URI syntax in redirect_uri validation: registered={}, requested={}",
+                         trimmed, redirectUri);
+                continue;
             }
         }
         if (!matched) {
             throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
                 AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
+    }
+
+    /**
+     * 验证请求路径是否允许（RFC 8252 路径匹配规则）
+     * 规则：请求路径必须以注册路径开头，且必须是完整路径段匹配
+     * 例如：注册路径 /app，允许 /app/callback，但拒绝 /app-evil
+     */
+    private boolean isPathAllowed(String registeredPath, String requestedPath) {
+        if (requestedPath == null || requestedPath.isEmpty()) {
+            return false;
+        }
+
+        // 注册路径为空或根路径，允许任何请求路径
+        if (registeredPath == null || registeredPath.isEmpty() || "/".equals(registeredPath)) {
+            return true;
+        }
+
+        // 完全匹配
+        if (registeredPath.equals(requestedPath)) {
+            return true;
+        }
+
+        // 前缀匹配：必须确保是完整的路径段
+        if (requestedPath.startsWith(registeredPath)) {
+            // 完全匹配
+            if (registeredPath.length() == requestedPath.length()) {
+                return true;
+            }
+            // 检查注册路径是否以 / 结尾
+            if (registeredPath.endsWith("/")) {
+                return true; // 例如 /app/ 允许 /app/callback
+            }
+            // 检查请求路径在注册路径后是否紧跟着 /、? 或 #
+            char nextChar = requestedPath.charAt(registeredPath.length());
+            return nextChar == '/' || nextChar == '?' || nextChar == '#';
+        }
+
+        return false;
     }
 
     private void validateScope(SysOauth2Client client, String scope) {

@@ -7,6 +7,9 @@ import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgTreeConfigMapper;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.OrgTreeConfigService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
@@ -25,14 +28,19 @@ import java.util.List;
 public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
 
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
+    private final AdminPermissionValidator permissionValidator;
 
-    public OrgTreeConfigServiceImpl(SysOrgTreeConfigMapper orgTreeConfigMapper) {
+    public OrgTreeConfigServiceImpl(SysOrgTreeConfigMapper orgTreeConfigMapper, AdminPermissionValidator permissionValidator) {
         this.orgTreeConfigMapper = orgTreeConfigMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional
     public Long createOrgTreeConfig(SysOrgTreeConfig config) {
+        // Permission check - type-level CREATE on ORG_TREE_CONFIG
+        permissionValidator.checkTypeLevel(AdminResourceType.ORG_TREE_CONFIG, AdminOperationCode.CREATE);
+
         if (Boolean.TRUE.equals(config.getIsDefault())) {
             clearDefault();
         }
@@ -46,6 +54,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional
     public void updateOrgTreeConfig(SysOrgTreeConfig config) {
+        // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
+        permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, config.getId().toString(), AdminOperationCode.UPDATE);
+
         SysOrgTreeConfig existing = TenantSafeQuery.selectOneByIdSafe(
             orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), config.getId());
@@ -65,6 +76,10 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         if (req.ids() == null || req.ids().isEmpty()) {
             return;
         }
+        // Permission check - batch instance-level DELETE on ORG_TREE_CONFIG
+        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, resourceCodes, AdminOperationCode.DELETE);
+
         // Performance fix: use batch soft delete instead of loop updates
         LocalDateTime now = LocalDateTime.now();
         orgTreeConfigMapper.softDeleteBatch(null, req.ids(), now);
@@ -73,6 +88,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional
     public void setDefault(Long id) {
+        // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
+        permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
+
         SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
             orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);

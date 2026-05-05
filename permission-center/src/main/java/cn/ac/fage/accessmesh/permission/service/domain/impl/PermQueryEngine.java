@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
@@ -168,15 +170,131 @@ public class PermQueryEngine {
             throw new SecurityException("Permission denied: " + operationCode + " on " + resourceTypeCode + ":" + denied);
     }
 
+    /**
+     * Batch permission check - optimized to minimize database queries.
+     * <p>
+     * Instead of N separate queries for N resourceIds, this method:
+     * <ol>
+     *   <li>Resolves user roles once (1 query)</li>
+     *   <li>Queries type-level permissions (scopeAll=true) once (1 query)</li>
+     *   <li>If type-level match, all resources are allowed</li>
+     *   <li>Otherwise, queries instance-level permissions in batch (1 query)</li>
+     *   <li>Computes denied IDs in memory</li>
+     * </ol>
+     */
     public <ID> Set<ID> getDeniedIds(Long tenantId, Long operatorId, String resourceTypeCode,
                                       Set<ID> resourceIds, String operationCode) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Set.of();
+        }
+
+        // 1. Resolve user roles (1 query)
+        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
+        if (roleIds.isEmpty()) {
+            return new LinkedHashSet<>(resourceIds); // No roles = all denied
+        }
+
+        // 2. Resolve type and operation IDs (batch)
+        Integer resourceTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        if (resourceTypeValue == null) {
+            return new LinkedHashSet<>(resourceIds); // Unknown type = all denied
+        }
+        Long operationId = typeResolutionService.resolveOperationId(tenantId, resourceTypeCode, operationCode);
+        if (operationId == null) {
+            return new LinkedHashSet<>(resourceIds); // Unknown operation = all denied
+        }
+
+        // 3. Query type-level permissions (scopeAll=true) - 1 query
+        List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds,
+            Set.of(resourceTypeValue), Set.of(operationId));
+
+        // 4. If scopeAll matched, all resources are allowed
+        if (!scopeAllEntries.isEmpty()) {
+            // Evaluate conditions if needed
+            List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, Map.of());
+            if (!evaluated.isEmpty()) {
+                evaluated = conflictDomainService.filterPermMutex(tenantId, evaluated);
+                if (!evaluated.isEmpty()) {
+                    return Set.of(); // All allowed via scopeAll
+                }
+            }
+        }
+
+        // 5. Convert resourceIds to Long for batch query
+        Set<Long> resourceEntityIds = new HashSet<>();
+        Map<Long, ID> entityIdToOriginalId = new HashMap<>();
+        for (ID id : resourceIds) {
+            Long entityId = toLongId(id);
+            if (entityId != null) {
+                resourceEntityIds.add(entityId);
+                entityIdToOriginalId.put(entityId, id);
+            }
+        }
+        if (resourceEntityIds.isEmpty()) {
+            return new LinkedHashSet<>(resourceIds); // No valid IDs = all denied
+        }
+
+        // 6. Query instance-level permissions in batch (1 query)
+        List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, resourceEntityIds, Set.of(operationId));
+
+        // 7. Filter by operation permission bits
+        if (!instanceEntries.isEmpty()) {
+            Map<Long, OperationPermission> opCache = entityBatchLoadService.batchLoadOperations(
+                tenantId, Set.of(operationId));
+            OperationPermission targetOp = opCache.get(operationId);
+            if (targetOp != null) {
+                instanceEntries = OperationPermissionUtils.filterByOperation(instanceEntries, opCache, targetOp);
+            }
+        }
+
+        // 8. Evaluate conditions and conflicts on instance entries
+        if (!instanceEntries.isEmpty()) {
+            instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, Map.of());
+        }
+        if (!instanceEntries.isEmpty()) {
+            instanceEntries = conflictDomainService.filterPermMutex(tenantId, instanceEntries);
+        }
+
+        // 9. Collect allowed resource IDs
+        Set<Long> allowedEntityIds = new HashSet<>();
+        for (RolePermEntry entry : instanceEntries) {
+            if (entry.resourceEntityId() != null) {
+                allowedEntityIds.add(entry.resourceEntityId());
+            }
+        }
+
+        // 10. Compute denied IDs (memory operation)
         Set<ID> denied = new LinkedHashSet<>();
         for (ID id : resourceIds) {
-            PermQuery q = PermQuery.forValidate(tenantId, operatorId,
-                resourceTypeCode, id != null ? String.valueOf(id) : null, operationCode);
-            if (!query(q).allowed()) denied.add(id);
+            Long entityId = toLongId(id);
+            if (entityId == null || !allowedEntityIds.contains(entityId)) {
+                denied.add(id);
+            }
         }
         return denied;
+    }
+
+    /**
+     * Convert ID to Long. Supports Long, Integer, String, and Number types.
+     */
+    private <ID> Long toLongId(ID id) {
+        if (id == null) {
+            return null;
+        }
+        if (id instanceof Long) {
+            return (Long) id;
+        }
+        if (id instanceof Integer) {
+            return ((Integer) id).longValue();
+        }
+        if (id instanceof Number) {
+            return ((Number) id).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(id));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     // ===== public convenience (for callers with pre-resolved IDs) =====
@@ -262,14 +380,16 @@ public class PermQueryEngine {
         String rtCode = q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()
             ? q.resourceTypeCodes().iterator().next() : null;
         if (rtCode == null) return Set.of();
-        Set<Long> ids = new HashSet<>();
-        for (String code : q.resourceCodes()) {
-            Long id = typeResolutionService.resolveResourceId(
-                q.tenantId(), rtCode, code, q.codeType(),
-                null); // domainCode inferred
-            if (id != null) ids.add(id);
-        }
-        return ids;
+
+        // Build batch resolve requests (1 SQL query instead of N)
+        List<ResourceResolveRequest> requests = q.resourceCodes().stream()
+            .map(code -> new ResourceResolveRequest(rtCode, code, q.codeType(), null))
+            .toList();
+
+        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(q.tenantId(), requests);
+
+        // Return resolved IDs (in-memory operation)
+        return new HashSet<>(resolved.values());
     }
 
     private List<RolePermEntry> queryScopeAll(Long tenantId, Set<Long> roleIds,

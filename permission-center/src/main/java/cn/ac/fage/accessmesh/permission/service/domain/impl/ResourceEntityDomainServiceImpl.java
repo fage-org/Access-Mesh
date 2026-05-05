@@ -172,6 +172,65 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     }
 
     @Override
+    public Map<Long, ResourceEntity> batchSelectByIdsMap(Long tenantId, Set<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        Map<Long, ResourceEntity> result = new HashMap<>();
+        for (ResourceEntity entity : entities) {
+            result.put(entity.getId(), entity);
+        }
+        return result;
+    }
+
+    @Override
+    public List<ResourceEntity> selectValidByIds(Long tenantId, Set<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+    }
+
+    @Override
+    public Set<String> findExistingCodes(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.in(codes))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        Set<String> existingCodes = new HashSet<>();
+        for (ResourceEntity entity : entities) {
+            if (entity.getCode() != null) {
+                existingCodes.add(entity.getCode());
+            }
+        }
+        return existingCodes;
+    }
+
+    @Override
+    public int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return resourceEntityMapper.softDeleteBatch(tenantId, ids, deletedAt);
+    }
+
+    @Override
     public Long findByTypeAndCode(Long tenantId, Integer resourceType, String code) {
         if (tenantId == null || resourceType == null || code == null || code.isBlank()) {
             return null;

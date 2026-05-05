@@ -13,14 +13,14 @@ spring:
         file-extension: yml
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/example_db?useSSL=false&serverTimezone=Asia/Shanghai
-    username: postgres
-    password: postgres
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
       host: 127.0.0.1
       port: 6379
-      password:
+      password: ${REDIS_PASSWORD:}
       database: 2
 
 mybatis-flex:

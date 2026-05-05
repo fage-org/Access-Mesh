@@ -6,6 +6,9 @@ import cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysSyncRetryMapper;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -34,10 +37,12 @@ public class SyncRetryServiceImpl implements SyncRetryService {
 
     private final SysSyncRetryMapper syncRetryMapper;
     private final RestTemplate restTemplate;
+    private final AdminPermissionValidator permissionValidator;
 
-    public SyncRetryServiceImpl(SysSyncRetryMapper syncRetryMapper, RestTemplate restTemplate) {
+    public SyncRetryServiceImpl(SysSyncRetryMapper syncRetryMapper, RestTemplate restTemplate, AdminPermissionValidator permissionValidator) {
         this.syncRetryMapper = syncRetryMapper;
         this.restTemplate = restTemplate;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
@@ -83,6 +88,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional
     public void markSuccess(Long id) {
+        // Permission check - instance-level UPDATE on SYNC_RETRY
+        permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
+
         SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
             syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
@@ -96,6 +104,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional
     public void markFailed(Long id, String error) {
+        // Permission check - instance-level UPDATE on SYNC_RETRY
+        permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
+
         recordSyncFailure(
             null, null, null, null, null, null, error
         );
@@ -128,6 +139,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional
     public void deleteProcessed(Long id) {
+        // Permission check - instance-level DELETE on SYNC_RETRY
+        permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.DELETE);
+
         SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
             syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);

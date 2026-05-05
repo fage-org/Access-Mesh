@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.TaskScheduler;
@@ -28,11 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
-
-import java.util.List;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -51,6 +51,29 @@ public class JobServiceImpl implements JobService {
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
         this.permissionValidator = permissionValidator;
+    }
+
+    /**
+     * Initialize scheduled tasks on startup.
+     * Load all enabled jobs from database and schedule them.
+     */
+    @PostConstruct
+    public void initScheduledTasks() {
+        log.info("Initializing scheduled tasks from database...");
+        List<SysJob> enabledJobs = jobMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysJobTableDef.SYS_JOB.STATUS.eq(1))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
+        );
+        for (SysJob job : enabledJobs) {
+            try {
+                scheduleJob(job);
+                log.info("Loaded job on startup: id={}, name={}", job.getId(), job.getJobName());
+            } catch (Exception e) {
+                log.error("Failed to schedule job on startup: id={}", job.getId(), e);
+            }
+        }
+        log.info("Initialized {} scheduled tasks", enabledJobs.size());
     }
 
     @Override
@@ -162,6 +185,9 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public void triggerJob(Long id) {
+        // Permission check - instance-level TRIGGER
+        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), AdminOperationCode.TRIGGER);
+
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectOneByQuery(
             QueryWrapper.create()

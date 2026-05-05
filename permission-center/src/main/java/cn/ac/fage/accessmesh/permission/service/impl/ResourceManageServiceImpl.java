@@ -22,11 +22,15 @@ import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 
+import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
+
+import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 
@@ -68,6 +72,8 @@ import java.util.ArrayList;
 
 import java.util.HashMap;
 
+import java.util.HashSet;
+
 import java.util.List;
 
 import java.util.Map;
@@ -79,6 +85,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 
@@ -102,7 +109,10 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖过多(8个)，建议拆分资源实体管理和API映射管理职责
+    private final RoleResourcePermissionMapper rolePermMapper;
+
+    // TODO: 构造函数依赖过多(9个)，建议拆分资源实体管理和API映射管理职责
+
     // 优先级：P3（低优先级，可关注但不强制整改）
 
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
@@ -119,7 +129,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
                                      AuthorizationService authorizationService,
 
-                                     PermQueryEngine engine) {
+                                     PermQueryEngine engine,
+
+                                     RoleResourcePermissionMapper rolePermMapper) {
 
         this.resourceEntityMapper = resourceEntityMapper;
 
@@ -136,6 +148,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         this.authorizationService = authorizationService;
 
         this.engine = engine;
+
+        this.rolePermMapper = rolePermMapper;
 
     }
 
@@ -219,15 +233,149 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         }
 
-        List<ResourceResp> created = new ArrayList<>();
+        if (reqs == null || reqs.isEmpty()) {
 
-        for (ResourceCreateReq req : reqs) {
-
-            created.add(createResource(tenantId, req, operatorId));
+            return List.of();
 
         }
 
-        return created;
+        // 1. Batch collect all parent IDs and codes
+
+        Set<Long> allParentIds = reqs.stream()
+
+            .map(ResourceCreateReq::parentId)
+
+            .filter(id -> id != null && id > 0)
+
+            .collect(Collectors.toSet());
+
+        Set<String> allCodes = reqs.stream()
+
+            .map(ResourceCreateReq::code)
+
+            .filter(c -> c != null && !c.isBlank())
+
+            .collect(Collectors.toSet());
+
+        // 2. Batch query parent resources and existing codes (2 queries, avoid N+1)
+
+        Map<Long, ResourceEntity> parentMap = resourceEntityDomainService.batchSelectByIdsMap(tenantId, allParentIds);
+
+        Set<String> existingCodes = resourceEntityDomainService.findExistingCodes(tenantId, allCodes);
+
+        // 3. Batch resolve resource type codes (avoid N+1)
+
+        Set<String> typeCodes = reqs.stream()
+
+            .map(ResourceCreateReq::resourceTypeCode)
+
+            .filter(c -> c != null && !c.isBlank())
+
+            .collect(Collectors.toSet());
+
+        Map<String, Integer> typeValueMap = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typeCodes);
+
+        // 4. Build entities to insert (in-memory validation and construction)
+
+        LocalDateTime now = LocalDateTime.now();
+
+        List<ResourceEntity> toInsert = new ArrayList<>();
+
+        List<String> errors = new ArrayList<>();
+
+        for (int i = 0; i < reqs.size(); i++) {
+
+            ResourceCreateReq req = reqs.get(i);
+
+            // Validate parent exists
+
+            if (req.parentId() != null && req.parentId() > 0 && !parentMap.containsKey(req.parentId())) {
+
+                errors.add("req[" + i + "]: parent resource not found: " + req.parentId());
+
+                continue;
+
+            }
+
+            // Validate code uniqueness
+
+            if (req.code() != null && !req.code().isBlank() && existingCodes.contains(req.code())) {
+
+                errors.add("req[" + i + "]: code already exists: " + req.code());
+
+                continue;
+
+            }
+
+            // Resolve resource type
+
+            Integer resourceType = typeValueMap.get(req.resourceTypeCode());
+
+            if (resourceType == null) {
+
+                errors.add("req[" + i + "]: unknown resourceTypeCode: " + req.resourceTypeCode());
+
+                continue;
+
+            }
+
+            // Build entity
+
+            ResourceEntity entity = new ResourceEntity();
+
+            entity.setTenantId(tenantId);
+
+            entity.setBizDomainId(req.bizDomainId());
+
+            entity.setParentId(req.parentId());
+
+            entity.setResourceType(resourceType);
+
+            entity.setCode(req.code());
+
+            entity.setCodeType(req.codeType());
+
+            entity.setName(req.name());
+
+            entity.setPath(req.path());
+
+            entity.setStatus(req.status() != null ? req.status() : 1);
+
+            entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
+
+            entity.setExtra(req.extra());
+
+            entity.setCreatedBy(operatorId);
+
+            entity.setCreatedAt(now);
+
+            entity.setUpdatedAt(now);
+
+            entity.setDeleteFlag(0L);
+
+            toInsert.add(entity);
+
+        }
+
+        // Report validation errors
+
+        if (!errors.isEmpty()) {
+
+            log.warn("batchCreateResources validation errors: {}", errors);
+
+        }
+
+        // 5. Batch insert (single operation, avoid N+1)
+
+        if (!toInsert.isEmpty()) {
+
+            resourceEntityMapper.insertBatch(toInsert);
+
+        }
+
+        // 6. Return results
+
+        return toInsert.stream().map(this::toResourceResp).collect(Collectors.toList());
 
     }
 
@@ -387,19 +535,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         }
 
-        // Batch query resources to validate existence
+        // Batch query resources to validate existence (1 query, avoid N+1)
 
-        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
-
-            QueryWrapper.create()
-
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(validResourceIds))
-
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-
-        );
+        List<ResourceEntity> entities = resourceEntityDomainService.selectValidByIds(tenantId, validResourceIds);
 
         if (entities.isEmpty()) {
 
@@ -407,67 +545,99 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         }
 
-        // Build map of existing resources
+        // Build set of existing resource IDs
 
-        Map<Long, ResourceEntity> existingResources = entities.stream()
+        Set<Long> existingResourceIds = entities.stream()
 
-            .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+            .map(ResourceEntity::getId)
 
-        // Batch permission check - avoid N+1 queries
+            .collect(Collectors.toSet());
 
-        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, existingResources.keySet(), OperationCodeConstants.MANAGE);
+        // Batch permission check (1 query, avoid N+1)
+
+        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, existingResourceIds, OperationCodeConstants.MANAGE);
 
         // Filter resources that operator has permission to delete
 
-        List<Long> permittedIds = new ArrayList<>();
+        Set<Long> permittedIds = existingResourceIds.stream()
 
-        for (Long resourceId : existingResources.keySet()) {
+            .filter(id -> !deniedIds.contains(id))
 
-            if (!deniedIds.contains(resourceId)) {
+            .collect(Collectors.toSet());
 
-                permittedIds.add(resourceId);
+        if (permittedIds.isEmpty()) {
 
-            } else {
+            log.info("Operator {} denied to delete all requested resources: denied={}", operatorId, deniedIds.size());
 
-                log.info("Operator {} denied to delete resource: {}", operatorId, resourceId);
-
-            }
+            return;
 
         }
 
-        // Execute batch delete for permitted resources
+        // Batch get all descendant IDs including self (1 CTE query, avoid N+1)
 
-        for (Long resourceId : permittedIds) {
+        Map<Long, List<Long>> descendantsMap = resourceEntityDomainService.batchGetDescendantIds(tenantId, permittedIds);
 
-            resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
+        // Collect all IDs to delete (including descendants)
+
+        Set<Long> allIdsToDelete = new HashSet<>(permittedIds);
+
+        for (List<Long> descendants : descendantsMap.values()) {
+
+            allIdsToDelete.addAll(descendants);
+
+        }
+
+        // Batch query associated role permissions (1 query, avoid N+1)
+
+        List<Long> permIds = rolePermMapper.selectListByQuery(
+
+            QueryWrapper.create()
+
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIdsToDelete))
+
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+
+        ).stream().map(RoleResourcePermission::getId).toList();
+
+        // Batch soft delete all resources (1 update, avoid N+1)
+
+        LocalDateTime now = LocalDateTime.now();
+
+        resourceEntityDomainService.softDeleteBatch(tenantId, new ArrayList<>(allIdsToDelete), now);
+
+        // Batch soft delete associated role permissions (1 update, avoid N+1)
+
+        if (!permIds.isEmpty()) {
+
+            rolePermMapper.softDeleteBatch(tenantId, permIds, now);
 
         }
 
-        if (!permittedIds.isEmpty()) {
+        // Log operation
 
-            operationLogDomainService.asyncRecord(
+        operationLogDomainService.asyncRecord(
 
-                "perm",
+            "perm",
 
-                "resource-entity-remove",
+            "resource-entity-remove",
 
-                "BATCH",
+            "BATCH",
 
-                tenantId,
+            tenantId,
 
-                "soft-deleted " + permittedIds.size() + " resource(s), ids=" + permittedIds + ", denied=" + deniedIds.size(),
+            "soft-deleted " + allIdsToDelete.size() + " resource(s) (including descendants), roots=" + permittedIds.size() + ", denied=" + deniedIds.size(),
 
-                operatorId,
+            operatorId,
 
-                null,
+            null,
 
-                null,
+            null,
 
-                tenantId
+            tenantId
 
-            );
-
-        }
+        );
 
     }
 

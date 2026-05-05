@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.permission.service.domain;
 
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +66,45 @@ public interface ResourceEntityDomainService {
      * Returns null if resource not found, deleted, or doesn't belong to the tenant.
      */
     ResourceEntity selectValidById(Long tenantId, Long resourceId);
+
+    /**
+     * Batch select valid resource entities by IDs.
+     * Returns a map of resourceId -> ResourceEntity for found and valid resources.
+     *
+     * @param tenantId    tenant ID
+     * @param resourceIds set of resource entity IDs to query
+     * @return map of resourceId -> ResourceEntity (only valid, non-deleted resources)
+     */
+    Map<Long, ResourceEntity> batchSelectByIdsMap(Long tenantId, Set<Long> resourceIds);
+
+    /**
+     * Batch select valid resource entities by IDs, returning a list.
+     *
+     * @param tenantId    tenant ID
+     * @param resourceIds set of resource entity IDs to query
+     * @return list of valid ResourceEntity objects
+     */
+    List<ResourceEntity> selectValidByIds(Long tenantId, Set<Long> resourceIds);
+
+    /**
+     * Find resource codes that already exist in the tenant.
+     *
+     * @param tenantId tenant ID
+     * @param codes    set of codes to check
+     * @return set of existing codes
+     */
+    Set<String> findExistingCodes(Long tenantId, Set<String> codes);
+
+    /**
+     * Batch soft delete resources by IDs.
+     *
+     * @param tenantId   tenant ID
+     * @param ids        list of resource IDs to delete
+     * @param deletedAt  deletion timestamp
+     * @return number of rows affected
+     */
+    int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt);
+
     /**
      * Find a resource entity by resource type and code.
      * Used for looking up SERVICE resources by service code.

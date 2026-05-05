@@ -399,7 +399,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateUsers(UserBatchCreateReq req) {
         // TODO: 跨服务数据一致性风险
         // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
@@ -411,36 +411,58 @@ public class UserServiceImpl implements UserService {
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
 
+        // 1. 批量收集所有用户名和手机号
+        Set<String> allUsernames = req.users().stream()
+            .map(UserCreateReq::username)
+            .collect(Collectors.toSet());
+        Set<String> allPhones = req.users().stream()
+            .map(UserCreateReq::phone)
+            .filter(p -> p != null && !p.isBlank())
+            .collect(Collectors.toSet());
+
+        // 2. 批量查询已存在的用户名和手机号（优化：2次数据库查询替代N次）
+        Set<String> existingUsernames = userDomainService.findExistingUsernames(tenantId, allUsernames);
+        Set<String> existingPhones = userDomainService.findExistingPhones(tenantId, allPhones);
+
+        // 3. 构建待插入的用户列表
+        List<SysUser> usersToInsert = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
         for (UserCreateReq userReq : req.users()) {
-            try {
-                // 检查用户名重复
-                if (userDomainService.existsByUsername(tenantId, userReq.username())) {
-                    failedMessages.add("用户名已存在: " + userReq.username());
-                    continue;
-                }
+            // 检查用户名重复
+            if (existingUsernames.contains(userReq.username())) {
+                failedMessages.add("用户名已存在: " + userReq.username());
+                continue;
+            }
+            // 检查手机号重复
+            if (userReq.phone() != null && !userReq.phone().isBlank() && existingPhones.contains(userReq.phone())) {
+                failedMessages.add("手机号已存在: " + userReq.phone());
+                continue;
+            }
 
-                // 检查手机号重复
-                if (userReq.phone() != null && userDomainService.existsByPhone(tenantId, userReq.phone())) {
-                    failedMessages.add("手机号已存在: " + userReq.phone());
-                    continue;
-                }
+            // 构建用户实体
+            SysUser user = new SysUser();
+            user.setTenantId(tenantId);
+            user.setUsername(userReq.username());
+            user.setName(userReq.name());
+            user.setPhone(userReq.phone());
+            user.setEmail(userReq.email());
+            String initialPassword = generateRandomPassword();
+            user.setPassword(BCrypt.hashpw(initialPassword));
+            log.info("Generated initial password for batch user: username={}", userReq.username());
+            user.setStatus(userReq.status() != null ? userReq.status() : 1);
+            user.setCreatedAt(now);
+            user.setUpdatedAt(now);
+            user.setDeleteFlag(0L);
+            usersToInsert.add(user);
+        }
 
-                SysUser user = new SysUser();
-                user.setTenantId(tenantId);
-                user.setUsername(userReq.username());
-                user.setName(userReq.name());
-                user.setPhone(userReq.phone());
-                user.setEmail(userReq.email());
-                String initialPassword = generateRandomPassword();
-                user.setPassword(BCrypt.hashpw(initialPassword));
-                log.info("Generated initial password for batch user: username={}", userReq.username());
-                user.setStatus(userReq.status() != null ? userReq.status() : 1);
-                user.setCreatedAt(LocalDateTime.now());
-                user.setUpdatedAt(LocalDateTime.now());
-                user.setDeleteFlag(0L);
-                userMapper.insert(user);
+        // 4. 批量插入（优化：1次数据库操作替代N次）
+        if (!usersToInsert.isEmpty()) {
+            userDomainService.insertBatch(usersToInsert);
 
-                // 记录同步任务，异步同步到权限中心
+            // 5. 记录同步任务
+            for (SysUser user : usersToInsert) {
                 try {
                     String payload = objectMapper.writeValueAsString(Map.of(
                         "userId", user.getId(),
@@ -456,15 +478,12 @@ public class UserServiceImpl implements UserService {
                         payload,
                         null
                     );
+                    successIds.add(user.getId());
                 } catch (Exception syncEx) {
                     log.error("Failed to record sync task for batch user creation: userId={}, error={}",
                         user.getId(), syncEx.getMessage());
+                    failedMessages.add("同步任务记录失败: " + user.getUsername());
                 }
-
-                successIds.add(user.getId());
-            } catch (Exception e) {
-                log.error("Failed to create user: username={}", userReq.username(), e);
-                failedMessages.add("创建失败: " + userReq.username() + " - " + e.getMessage());
             }
         }
 

@@ -8,6 +8,9 @@ import cn.ac.fage.accessmesh.admin.entity.SysFile;
 import cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysFileMapper;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -99,14 +102,19 @@ public class FileServiceImpl implements FileService {
     private long maxFileSize;
 
     private final SysFileMapper fileMapper;
+    private final AdminPermissionValidator permissionValidator;
 
-    public FileServiceImpl(SysFileMapper fileMapper) {
+    public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator) {
         this.fileMapper = fileMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long uploadFile(MultipartFile file, String bizType) {
+        // Permission check - type-level CREATE on FILE
+        permissionValidator.checkTypeLevel(AdminResourceType.FILE, AdminOperationCode.CREATE);
+
         // 1. 检查文件是否为空
         if (file == null || file.isEmpty()) {
             throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "上传文件不能为空");
@@ -205,6 +213,10 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public void deleteFiles(IdsReq req) {
+        // Permission check - batch instance-level DELETE on FILE
+        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.FILE, resourceCodes, AdminOperationCode.DELETE);
+
         Long tenantId = TenantContextHolder.getTenantId();
         // Batch query valid files (performance fix: avoid N+1 queries for SELECT)
         List<SysFile> files = fileMapper.selectListByQuery(

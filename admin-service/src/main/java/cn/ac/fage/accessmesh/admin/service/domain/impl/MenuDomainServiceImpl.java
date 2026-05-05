@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
@@ -226,5 +227,58 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         // Depth = number of ancestors + 1 (for self)
         // ancestors includes all parent IDs up the tree
         return ancestors.size() + 1;
+    }
+
+    @Override
+    public Set<String> findExistingPermCodes(Long tenantId, Set<String> permCodes) {
+        if (permCodes == null || permCodes.isEmpty()) {
+            return Set.of();
+        }
+        List<SysMenu> existingMenus = menuMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
+                .and(SysMenuTableDef.SYS_MENU.PERM_CODE.in(permCodes))
+                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
+        );
+        return existingMenus.stream()
+            .map(SysMenu::getPermCode)
+            .filter(p -> p != null && !p.isBlank())
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    public Map<Long, Integer> batchCalculateDepth(Long tenantId, Set<Long> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return Map.of();
+        }
+        // Filter out null and 0 (root level)
+        Set<Long> validParentIds = parentIds.stream()
+            .filter(id -> id != null && id > 0)
+            .collect(Collectors.toSet());
+
+        if (validParentIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // Use batchGetAncestorIds to get all ancestors for all parent IDs
+        Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, validParentIds);
+
+        // Build parentId -> depth mapping
+        Map<Long, Integer> result = new HashMap<>();
+        for (Long parentId : validParentIds) {
+            List<Long> ancestors = ancestorMap.getOrDefault(parentId, List.of());
+            // Depth = number of ancestors + 1 (for self)
+            result.put(parentId, ancestors.size() + 1);
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void insertBatch(List<SysMenu> menus) {
+        if (menus == null || menus.isEmpty()) {
+            return;
+        }
+        menuMapper.insertBatch(menus);
     }
 }

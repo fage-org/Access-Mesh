@@ -144,23 +144,27 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Query all user-org associations
-        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
+        // 批量更新：将该用户在目标组织的主组织状态设为 true
+        SysUserOrg updatePrimary = new SysUserOrg();
+        updatePrimary.setIsPrimary(true);
+        updatePrimary.setUpdatedAt(now);
+        userOrgMapper.updateByQuery(updatePrimary, QueryWrapper.create()
+            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.eq(orgId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
-        // Performance optimization opportunity: could use custom batch update SQL
-        // For now, loop update is used due to MyBatis-Flex API limitations
-        for (SysUserOrg uo : userOrgs) {
-            SysUserOrg update = new SysUserOrg();
-            update.setId(uo.getId());
-            update.setIsPrimary(uo.getOrgId().equals(orgId));
-            update.setUpdatedAt(now);
-            userOrgMapper.update(update);
-        }
+        // 批量更新：将该用户在其他组织的主组织状态设为 false
+        SysUserOrg updateNonPrimary = new SysUserOrg();
+        updateNonPrimary.setIsPrimary(false);
+        updateNonPrimary.setUpdatedAt(now);
+        userOrgMapper.updateByQuery(updateNonPrimary, QueryWrapper.create()
+            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.ne(orgId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
+        );
     }
 
     @Override

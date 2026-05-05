@@ -208,13 +208,8 @@ public class RoleManageServiceImpl implements RoleManageService {
             return;
         }
 
-        // Batch query roles to validate existence
-        List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(validRoleIds))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        // Batch query roles to validate existence (use domain service, avoid N+1)
+        List<AbstractRole> roles = abstractRoleDomainService.selectValidByIds(tenantId, validRoleIds);
 
         if (roles.isEmpty()) {
             return;
@@ -228,7 +223,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationCodeConstants.MANAGE);
 
         // Filter roles that operator has permission to delete
-        List<Long> permittedIds = new ArrayList<>();
+        Set<Long> permittedIds = new LinkedHashSet<>();
         for (Long roleId : existingRoles.keySet()) {
             if (!deniedIds.contains(roleId)) {
                 permittedIds.add(roleId);
@@ -241,15 +236,32 @@ public class RoleManageServiceImpl implements RoleManageService {
             return;
         }
 
-        // Execute batch delete for permitted roles
-        List<Long> doneIds = new ArrayList<>();
+        // Collect all IDs to delete (including descendants of group roles)
+        Set<Long> allIdsToDelete = new LinkedHashSet<>(permittedIds);
+
+        // Find group roles and collect their descendants in batch
+        Set<Long> groupRoleIds = permittedIds.stream()
+            .filter(id -> {
+                AbstractRole role = existingRoles.get(id);
+                return role != null && role.getRoleType() != null
+                    && (role.getRoleType() == RoleType.GROUP_ROLE.getValue()
+                        || role.getRoleType() == RoleType.ORG.getValue());
+            })
+            .collect(Collectors.toSet());
+
+        if (!groupRoleIds.isEmpty()) {
+            // Batch resolve all descendant IDs for group roles (1 query instead of N queries)
+            List<Long> descendantIds = abstractRoleDomainService.resolveDescendantIdsBatch(tenantId, groupRoleIds);
+            allIdsToDelete.addAll(descendantIds);
+        }
+
+        // Batch soft delete all roles (including descendants) - 1 UPDATE statement
+        abstractRoleDomainService.softDeleteBatch(tenantId, allIdsToDelete);
+
+        // Build audit log entries for permitted roles
         ArrayNode itemsJson = objectMapper.createArrayNode();
-        Set<Long> roleIdsToEvict = new LinkedHashSet<>();
         for (Long roleId : permittedIds) {
             AbstractRole role = existingRoles.get(roleId);
-            abstractRoleDomainService.deleteRole(tenantId, roleId);
-            roleIdsToEvict.add(roleId);
-            doneIds.add(roleId);
             ObjectNode it = objectMapper.createObjectNode();
             it.put("changeType", "REMOVE");
             ObjectNode roleNode = it.putObject("role");
@@ -258,8 +270,9 @@ public class RoleManageServiceImpl implements RoleManageService {
             roleNode.put("roleName", role.getName() != null ? role.getName() : "");
             itemsJson.add(it);
         }
-        // 批量失效缓存（事务提交后执行）
-        final Set<Long> roleIdsToEvictForCache = roleIdsToEvict;
+
+        // Batch invalidate caches after transaction commit
+        final Set<Long> roleIdsToEvictForCache = allIdsToDelete;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -280,8 +293,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         } catch (Exception e) {
             diffSnapshot = "{}";
         }
-        Set<Long> uniqueRoleIds = new LinkedHashSet<>(doneIds);
-        Long[] roleArr = uniqueRoleIds.toArray(Long[]::new);
+        Long[] roleArr = permittedIds.toArray(Long[]::new);
         permissionChangeDomainService.record(
             new PermissionChangeDomainService.ChangeLogContext(
                 tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
@@ -301,7 +313,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             "abstract-role-remove",
             "BATCH",
             tenantId,
-            "soft-deleted " + doneIds.size() + " role(s), ids=" + doneIds + ", denied=" + deniedIds.size(),
+            "soft-deleted " + allIdsToDelete.size() + " role(s) (including " + (allIdsToDelete.size() - permittedIds.size()) + " descendants), ids=" + permittedIds + ", denied=" + deniedIds.size(),
             operatorId,
             null,
             null,

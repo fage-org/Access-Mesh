@@ -529,22 +529,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // Convert to RolePermEntry without matchesBit filtering
-        return perms.stream()
-            .map(perm -> new RolePermEntry(
-                perm.getId(),
-                perm.getAbstractRoleId(),
-                perm.getResourceEntityId(),
-                null,
-                perm.getResourceType(),
-                perm.getOperationPermissionId(),
-                null,  // opCode will be loaded by caller if needed
-                null,
-                perm.getGrantSource(),
-                perm.getCanGrant(),
-                perm.getConditionId(),
-                perm.getConditionId() != null,
-                perm.getDependOn()))
-            .toList();
+        return rolePermEntryMapper.toEntryList(perms);
     }
 
     private static final class ScopeAccumulator {

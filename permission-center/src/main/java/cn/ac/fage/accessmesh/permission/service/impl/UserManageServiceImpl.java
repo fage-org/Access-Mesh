@@ -319,36 +319,281 @@ public class UserManageServiceImpl implements UserManageService {
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        // Note: Type-level permission check removed - instance-level check is performed in assignRoleSingle
-        // via authorizationService.canManageRole(tenantId, operatorId, targetRoleId)
-
         if (req.items() == null || req.items().isEmpty()) {
             throw new IllegalArgumentException("items must not be empty");
         }
+
+        // ===== Batch processing to avoid N+1 queries =====
+        // 1. Group items by subjectTypeCode and roleTypeCode+domainCode for batch resolution
+        Map<String, Set<String>> userExternalIdsByType = req.items().stream()
+            .collect(Collectors.groupingBy(
+                UserAssignRoleReq.AssignItem::subjectTypeCode,
+                Collectors.mapping(UserAssignRoleReq.AssignItem::subjectExternalId, Collectors.toSet())
+            ));
+        Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
+            .collect(Collectors.groupingBy(
+                item -> item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : ""),
+                Collectors.mapping(UserAssignRoleReq.AssignItem::roleExternalId, Collectors.toSet())
+            ));
+
+        // 2. Batch resolve user IDs
+        Map<String, Long> userIdMap = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : userExternalIdsByType.entrySet()) {
+            Map<String, Long> partialMap = typeResolutionService.batchResolveUserIds(
+                tenantId, entry.getKey(), entry.getValue());
+            userIdMap.putAll(partialMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                    e -> entry.getKey() + ":" + e.getKey(),
+                    Map.Entry::getValue
+                )));
+        }
+
+        // 3. Batch resolve role IDs
+        Map<String, Long> roleIdMap = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
+            String[] parts = entry.getKey().split(":");
+            String roleTypeCode = parts[0];
+            String domainCode = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : null;
+            Map<String, Long> partialMap = typeResolutionService.batchResolveRoleIds(
+                tenantId, roleTypeCode, entry.getValue(), domainCode);
+            roleIdMap.putAll(partialMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                    e -> roleTypeCode + ":" + (domainCode != null ? domainCode : "") + ":" + e.getKey(),
+                    Map.Entry::getValue
+                )));
+        }
+
+        // 4. Collect all target role IDs for batch permission check
+        Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            assignRoleSingle(tenantId, operatorId, item);
+            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            Long targetRoleId = roleIdMap.get(roleKey);
+            if (targetRoleId != null) {
+                targetRoleIds.add(targetRoleId);
+            }
+        }
+
+        // 5. Batch permission check - avoid N+1 queries
+        Set<Long> deniedRoleIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
+
+        // 6. Batch query existing user_role relations to avoid N+1 query in loop
+        Set<Long> allUserIds = new LinkedHashSet<>();
+        for (UserAssignRoleReq.AssignItem item : req.items()) {
+            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            Long userId = userIdMap.get(userKey);
+            if (userId != null) {
+                allUserIds.add(userId);
+            }
+        }
+
+        // Build key format for existing relation check: userId:roleId
+        Map<String, UserRole> existingRelationMap = new HashMap<>();
+        if (!allUserIds.isEmpty() && !targetRoleIds.isEmpty()) {
+            List<UserRole> existingRelations = userRoleMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(targetRoleIds))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
+                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+            );
+            for (UserRole ur : existingRelations) {
+                String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
+                existingRelationMap.put(key, ur);
+            }
+        }
+
+        // 7. Build list of relations to insert (skip existing and denied roles)
+        List<UserRole> toInsert = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        Set<Long> affectedUserIds = new LinkedHashSet<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (UserAssignRoleReq.AssignItem item : req.items()) {
+            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            Long abstractUserId = userIdMap.get(userKey);
+            if (abstractUserId == null) {
+                errors.add("User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
+                continue;
+            }
+
+            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            Long targetRoleId = roleIdMap.get(roleKey);
+            if (targetRoleId == null) {
+                errors.add("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
+                continue;
+            }
+
+            // Check permission using pre-checked result
+            if (deniedRoleIds.contains(targetRoleId)) {
+                errors.add("No permission to manage role: " + item.roleTypeCode() + "/" + item.roleExternalId());
+                continue;
+            }
+
+            // Check if relation already exists
+            String relationKey = abstractUserId + ":" + targetRoleId;
+            if (existingRelationMap.containsKey(relationKey)) {
+                // Already exists, skip
+                continue;
+            }
+
+            // Create new relation
+            UserRole ur = new UserRole();
+            ur.setTenantId(tenantId);
+            ur.setAbstractUserId(abstractUserId);
+            ur.setTargetType(ResourceTypeCode.ROLE);
+            ur.setTargetId(targetRoleId);
+            ur.setRelationId(item.relationId());
+            ur.setValidFrom(item.validFrom());
+            ur.setValidTo(item.validTo());
+            ur.setCreatedAt(now);
+            ur.setUpdatedAt(now);
+            ur.setDeleteFlag(0L);
+            toInsert.add(ur);
+            affectedUserIds.add(abstractUserId);
+        }
+
+        // 8. Throw error if any validation failed
+        if (!errors.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", errors));
+        }
+
+        // 9. Batch insert
+        if (!toInsert.isEmpty()) {
+            userRoleMapper.insertBatch(toInsert);
+        }
+
+        // 10. Invalidate cache for affected users (after transaction commit)
+        if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+            final Set<Long> userIdsForCache = affectedUserIds;
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (Long uid : userIdsForCache) {
+                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
+                    }
+                }
+            });
         }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
+        if (req.subjectExternalIds() == null || req.subjectExternalIds().isEmpty()) {
+            return;
+        }
+
         Long operatorId = OperatorContext.getOperatorId();
 
-        // Note: Type-level permission check removed - instance-level check is performed in assignRoleSingle
-        // via authorizationService.canManageRole(tenantId, operatorId, targetRoleId)
+        // ===== Batch processing to avoid N+1 queries =====
+        // 1. Batch resolve user IDs (all users share the same subjectTypeCode)
+        Map<String, Long> userIdMap = typeResolutionService.batchResolveUserIds(
+            tenantId, req.subjectTypeCode(), new LinkedHashSet<>(req.subjectExternalIds()));
+        Map<String, Long> fullUserIdMap = userIdMap.entrySet().stream()
+            .collect(Collectors.toMap(
+                e -> req.subjectTypeCode() + ":" + e.getKey(),
+                Map.Entry::getValue
+            ));
+
+        // 2. Resolve the single target role ID
+        Long targetRoleId = typeResolutionService.resolveRoleId(
+            tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
+        if (targetRoleId == null) {
+            throw new IllegalArgumentException("Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
+        }
+
+        // 3. Batch permission check
+        Set<Long> deniedRoleIds = engine.getDeniedIds(
+            tenantId, operatorId, ResourceTypeCode.ROLE, Set.of(targetRoleId), OperationCodeConstants.MANAGE);
+        if (deniedRoleIds.contains(targetRoleId)) {
+            throw new SecurityException("No permission to manage role: " + req.roleTypeCode() + "/" + req.roleExternalId());
+        }
+
+        // 4. Collect all user IDs
+        Set<Long> allUserIds = new LinkedHashSet<>();
+        List<String> userNotFoundErrors = new ArrayList<>();
+        for (String subjectExternalId : req.subjectExternalIds()) {
+            String userKey = req.subjectTypeCode() + ":" + subjectExternalId;
+            Long userId = fullUserIdMap.get(userKey);
+            if (userId == null) {
+                userNotFoundErrors.add("User not found: " + req.subjectTypeCode() + "/" + subjectExternalId);
+            } else {
+                allUserIds.add(userId);
+            }
+        }
+
+        if (!userNotFoundErrors.isEmpty()) {
+            throw new IllegalArgumentException(String.join("; ", userNotFoundErrors));
+        }
+
+        // 5. Batch query existing user_role relations
+        Map<String, UserRole> existingRelationMap = new HashMap<>();
+        if (!allUserIds.isEmpty()) {
+            List<UserRole> existingRelations = userRoleMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(targetRoleId))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
+                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+            );
+            for (UserRole ur : existingRelations) {
+                String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
+                existingRelationMap.put(key, ur);
+            }
+        }
+
+        // 6. Build list of relations to insert
+        List<UserRole> toInsert = new ArrayList<>();
+        Set<Long> affectedUserIds = new LinkedHashSet<>();
+        LocalDateTime now = LocalDateTime.now();
 
         for (String subjectExternalId : req.subjectExternalIds()) {
-            assignRoleSingle(tenantId, operatorId, new UserAssignRoleReq.AssignItem(
-                req.subjectTypeCode(),
-                subjectExternalId,
-                req.domainCode(),
-                req.roleTypeCode(),
-                req.roleExternalId(),
-                req.relationId(),
-                null,
-                null
-            ));
+            String userKey = req.subjectTypeCode() + ":" + subjectExternalId;
+            Long abstractUserId = fullUserIdMap.get(userKey);
+            if (abstractUserId == null) {
+                continue; // Already validated above
+            }
+
+            // Check if relation already exists
+            String relationKey = abstractUserId + ":" + targetRoleId;
+            if (existingRelationMap.containsKey(relationKey)) {
+                continue; // Already exists, skip
+            }
+
+            // Create new relation
+            UserRole ur = new UserRole();
+            ur.setTenantId(tenantId);
+            ur.setAbstractUserId(abstractUserId);
+            ur.setTargetType(ResourceTypeCode.ROLE);
+            ur.setTargetId(targetRoleId);
+            ur.setRelationId(req.relationId());
+            ur.setValidFrom(null); // UserRoleBatchAssignReq doesn't have validFrom/validTo
+            ur.setValidTo(null);
+            ur.setCreatedAt(now);
+            ur.setUpdatedAt(now);
+            ur.setDeleteFlag(0L);
+            toInsert.add(ur);
+            affectedUserIds.add(abstractUserId);
+        }
+
+        // 7. Batch insert
+        if (!toInsert.isEmpty()) {
+            userRoleMapper.insertBatch(toInsert);
+        }
+
+        // 8. Invalidate cache for affected users (after transaction commit)
+        if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
+            final Set<Long> userIdsForCache = affectedUserIds;
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    for (Long uid : userIdsForCache) {
+                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
+                    }
+                }
+            });
         }
     }
 
@@ -680,55 +925,6 @@ public class UserManageServiceImpl implements UserManageService {
             queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.in(userIds));
         }
         return queryWrapper;
-    }
-
-    private void assignRoleSingle(Long tenantId, Long operatorId, UserAssignRoleReq.AssignItem req) {
-        Long abstractUserId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (abstractUserId == null) {
-            throw new IllegalArgumentException("User not found by business key");
-        }
-        Long targetRoleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
-        if (targetRoleId == null) {
-            throw new IllegalArgumentException("Role not found by business key");
-        }
-
-        // Check if operator has permission to manage the target role
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleId, OperationCodeConstants.MANAGE);
-
-        Long existing = userRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
-                .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(targetRoleId))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        ) != null ? 1L : null;
-        if (existing != null) {
-            throw new IllegalArgumentException("Role already assigned to user");
-        }
-        UserRole ur = new UserRole();
-        ur.setTenantId(tenantId);
-        ur.setAbstractUserId(abstractUserId);
-        ur.setTargetType(ResourceTypeCode.ROLE);
-        ur.setTargetId(targetRoleId);
-        ur.setRelationId(req.relationId());
-        ur.setValidFrom(req.validFrom());
-        ur.setValidTo(req.validTo());
-        LocalDateTime now = LocalDateTime.now();
-        ur.setCreatedAt(now);
-        ur.setUpdatedAt(now);
-        ur.setDeleteFlag(0L);
-        userRoleMapper.insert(ur);
-        // 缓存失效（事务提交后执行）
-        final Long abstractUserIdForCache = abstractUserId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCache(tenantId, abstractUserIdForCache);
-                }
-            });
-        }
     }
 
     private UserResp toUserResp(AbstractUser user) {

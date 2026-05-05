@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
@@ -192,5 +193,45 @@ public class OrgDomainServiceImpl implements OrgDomainService {
                 .and(SysOrgTableDef.SYS_ORG.CODE.eq(code))
                 .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
+    }
+
+    @Override
+    public Set<String> findExistingCodes(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Set.of();
+        }
+        List<SysOrg> existingOrgs = orgMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.CODE.in(codes))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
+        );
+        return existingOrgs.stream()
+            .map(SysOrg::getCode)
+            .filter(c -> c != null && !c.isBlank())
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    public Map<Long, SysOrg> batchSelectValidByIdsMap(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        List<SysOrg> orgs = orgMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.ID.in(ids))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
+        );
+        return orgs.stream().collect(Collectors.toMap(SysOrg::getId, o -> o));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void insertBatch(List<SysOrg> orgs) {
+        if (orgs == null || orgs.isEmpty()) {
+            return;
+        }
+        orgMapper.insertBatch(orgs);
     }
 }

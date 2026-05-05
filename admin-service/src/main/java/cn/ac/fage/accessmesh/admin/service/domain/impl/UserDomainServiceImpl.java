@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 
@@ -100,5 +101,49 @@ public class UserDomainServiceImpl implements UserDomainService {
     @Override
     public boolean existsByPhone(Long tenantId, String phone) {
         return findByPhone(tenantId, phone) != null;
+    }
+
+    @Override
+    public Set<String> findExistingUsernames(Long tenantId, Set<String> usernames) {
+        if (usernames == null || usernames.isEmpty()) {
+            return Set.of();
+        }
+        List<SysUser> existingUsers = userMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.USERNAME.in(usernames))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
+        );
+        return existingUsers.stream().map(SysUser::getUsername).collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<String> findExistingPhones(Long tenantId, Set<String> phones) {
+        if (phones == null || phones.isEmpty()) {
+            return Set.of();
+        }
+        // 过滤 null 和空字符串
+        Set<String> validPhones = phones.stream()
+            .filter(p -> p != null && !p.isBlank())
+            .collect(Collectors.toSet());
+        if (validPhones.isEmpty()) {
+            return Set.of();
+        }
+        List<SysUser> existingUsers = userMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.PHONE.in(validPhones))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
+        );
+        return existingUsers.stream().map(SysUser::getPhone).collect(Collectors.toSet());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void insertBatch(List<SysUser> users) {
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+        userMapper.insertBatch(users);
     }
 }

@@ -10,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 
 @Service
@@ -104,5 +106,37 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
+    }
+
+    @Override
+    public List<AbstractRole> selectValidByIds(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return abstractRoleMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(roleIds))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+        );
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void softDeleteBatch(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        abstractRoleMapper.softDeleteBatch(tenantId, new ArrayList<>(roleIds), now);
+    }
+
+    @Override
+    public List<Long> resolveDescendantIdsBatch(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> descendantIds = abstractRoleMapper.selectDescendantIdsBatch(tenantId, roleIds);
+        return descendantIds != null ? descendantIds : Collections.emptyList();
     }
 }

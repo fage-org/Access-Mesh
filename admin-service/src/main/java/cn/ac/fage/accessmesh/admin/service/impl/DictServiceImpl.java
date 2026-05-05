@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -116,15 +117,45 @@ public class DictServiceImpl implements DictService {
     @Override
     @Cacheable(value = "dictTypes", key = "'all'")
     public List<DictTypeResp> listDictTypes() {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 1. Query all dict types
         List<SysDictType> types = dictTypeMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .where(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(tenantId))
                 .and(SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG.eq(0))
                 .orderBy(SysDictTypeTableDef.SYS_DICT_TYPE.CREATED_AT.asc())
         );
+
+        if (types.isEmpty()) {
+            return List.of();
+        }
+
+        // 2. Batch query all dict data (1 query instead of N queries)
+        List<String> dictTypeStrings = types.stream()
+            .map(SysDictType::getDictType)
+            .collect(Collectors.toList());
+
+        List<SysDictData> allData = dictDataMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID.eq(tenantId))
+                .and(SysDictDataTableDef.SYS_DICT_DATA.DICT_TYPE.in(dictTypeStrings))
+                .and(SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG.eq(0))
+                .orderBy(SysDictDataTableDef.SYS_DICT_DATA.SORT_ORDER.asc())
+        );
+
+        // 3. Group by dictType string (in-memory operation)
+        Map<String, List<SysDictData>> dataByDictType = allData.stream()
+            .collect(Collectors.groupingBy(SysDictData::getDictType));
+
+        // 4. Build response (in-memory operation)
         return types.stream().map(t -> {
-            List<DictDataResp> data = listDictData(t.getId());
-            return new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), data);
+            List<SysDictData> dataList = dataByDictType.getOrDefault(t.getDictType(), List.of());
+            List<DictDataResp> dataRespList = dataList.stream()
+                .map(d -> new DictDataResp(d.getId(), t.getId(), d.getDictLabel(), d.getDictValue(),
+                    d.getSortOrder(), d.getStatus(), d.getRemark()))
+                .collect(Collectors.toList());
+            return new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), dataRespList);
         }).collect(Collectors.toList());
     }
 
