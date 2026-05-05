@@ -27,13 +27,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
-import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
 
 /**
  * Resolves external stable business keys to internal database IDs.
@@ -96,10 +95,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         // Cache miss, query database
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
-                .and(TYPE_DEFINITION.TYPE_CODE.eq(typeCode))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_CODE.eq(typeCode))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
 
         Integer result = td != null ? td.getTypeValue() : null;
@@ -121,10 +120,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
         return typeDefinitionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
-                .and(TYPE_DEFINITION.TYPE_CODE.in(codes))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_CODE.in(codes))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(
             TypeDefinition::getTypeCode,
             TypeDefinition::getTypeValue,
@@ -154,10 +153,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         // Cache miss, query database
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
-                .and(TYPE_DEFINITION.TYPE_VALUE.eq(typeValue))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_VALUE.eq(typeValue))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
 
         String result = td != null ? td.getTypeCode() : null;
@@ -179,10 +178,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
         return typeDefinitionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
-                .and(TYPE_DEFINITION.TYPE_VALUE.in(values))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_KEY.eq(typeKey))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_VALUE.in(values))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(
             TypeDefinition::getTypeValue,
             TypeDefinition::getTypeCode,
@@ -197,10 +196,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         AbstractUser user = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(ABSTRACT_USER.EXTERNAL_ID.eq(subjectExternalId))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
+                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(subjectExternalId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
         return user != null ? user.getId() : null;
     }
@@ -214,18 +213,18 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         String effectiveCodeType = (codeType != null && !codeType.isBlank()) ? codeType : PermConstants.CodeType.DEFAULT;
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-            .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
-            .and(RESOURCE_ENTITY.CODE.eq(resourceCode))
-            .and(RESOURCE_ENTITY.CODE_TYPE.eq(effectiveCodeType))
-            .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0));
+            .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+            .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+            .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.eq(resourceCode))
+            .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE_TYPE.eq(effectiveCodeType))
+            .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0));
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
                 return null;
             }
-            qw.and(RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(domainId));
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(domainId));
         }
 
         ResourceEntity resource = resourceEntityMapper.selectOneByQuery(qw);
@@ -237,12 +236,12 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(OPERATION_PERMISSION.CODE.eq(operationCode))
-            .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0));
+            .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+            .and(OperationPermissionTableDef.OPERATION_PERMISSION.CODE.eq(operationCode))
+            .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0));
 
         if (resourceType != null) {
-            qw.and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
+            qw.and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
         }
 
         OperationPermission op = operationPermissionMapper.selectOneByQuery(qw);
@@ -255,9 +254,9 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.CODE.eq(domainCode))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.CODE.eq(domainCode))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         );
         return domain != null ? domain.getId() : null;
     }
@@ -268,17 +267,17 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (roleType == null) return null;
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-            .and(ABSTRACT_ROLE.ROLE_TYPE.eq(roleType))
-            .and(ABSTRACT_ROLE.EXTERNAL_ID.eq(roleExternalId))
-            .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
+            .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleType))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.eq(roleExternalId))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
                 return null;
             }
-            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
+            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
         }
 
         AbstractRole role = abstractRoleMapper.selectOneByQuery(qw);
@@ -301,9 +300,9 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
         return bizDomainMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.CODE.in(validCodes))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.CODE.in(validCodes))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(
             BizDomain::getCode,
             BizDomain::getId,
@@ -325,11 +324,11 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
         Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         QueryWrapper qw = QueryWrapper.create()
-            .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(OPERATION_PERMISSION.CODE.in(validCodes))
-            .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0));
+            .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+            .and(OperationPermissionTableDef.OPERATION_PERMISSION.CODE.in(validCodes))
+            .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0));
         if (resourceType != null) {
-            qw.and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
+            qw.and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
         }
         return operationPermissionMapper.selectListByQuery(qw).stream().collect(Collectors.toMap(
             OperationPermission::getCode,
@@ -384,10 +383,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             // Query all resources of this type with matching codes
             List<ResourceEntity> resources = resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
-                    .and(RESOURCE_ENTITY.CODE.in(codes))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.in(codes))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
 
             // Build lookup map by code+codeType+domainId
@@ -434,10 +433,10 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         }
         return abstractUserMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(ABSTRACT_USER.EXTERNAL_ID.in(validIds))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
+                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.in(validIds))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(
             AbstractUser::getExternalId,
             AbstractUser::getId,
@@ -465,19 +464,30 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             ? resolveDomainId(tenantId, domainCode) : null;
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-            .and(ABSTRACT_ROLE.ROLE_TYPE.eq(roleType))
-            .and(ABSTRACT_ROLE.EXTERNAL_ID.in(validIds))
-            .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
+            .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleType))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.in(validIds))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
         if (domainId != null) {
-            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
+            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
         } else {
-            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
+            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
         }
         return abstractRoleMapper.selectListByQuery(qw).stream().collect(Collectors.toMap(
             AbstractRole::getExternalId,
             AbstractRole::getId,
             (a, b) -> a
         ));
+    }
+
+    @Override
+    public boolean isSystemType(Long tenantId, Long typeDefId) {
+        if (typeDefId == null) return false;
+        TypeDefinition typeDef = typeDefinitionMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(typeDefId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0)));
+        return typeDef != null && Boolean.TRUE.equals(typeDef.getIsSystem());
     }
 }

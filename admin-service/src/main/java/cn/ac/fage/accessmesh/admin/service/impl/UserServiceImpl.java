@@ -42,8 +42,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -321,16 +321,16 @@ public class UserServiceImpl implements UserService {
         // FIX #4: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_USER.TENANT_ID.eq(tenantId))
-            .and(SYS_USER.DELETE_FLAG.eq(0));
+            .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+            .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0));
 
-        if (req.username() != null) qw.and(SYS_USER.USERNAME.like(req.username()));
-        if (req.name() != null) qw.and(SYS_USER.NAME.like(req.name()));
-        if (req.phone() != null) qw.and(SYS_USER.PHONE.eq(req.phone()));
-        if (req.email() != null) qw.and(SYS_USER.EMAIL.eq(req.email()));
-        if (req.status() != null) qw.and(SYS_USER.STATUS.eq(req.status()));
+        if (req.username() != null) qw.and(SysUserTableDef.SYS_USER.USERNAME.like(req.username()));
+        if (req.name() != null) qw.and(SysUserTableDef.SYS_USER.NAME.like(req.name()));
+        if (req.phone() != null) qw.and(SysUserTableDef.SYS_USER.PHONE.eq(req.phone()));
+        if (req.email() != null) qw.and(SysUserTableDef.SYS_USER.EMAIL.eq(req.email()));
+        if (req.status() != null) qw.and(SysUserTableDef.SYS_USER.STATUS.eq(req.status()));
 
-        qw.orderBy(SYS_USER.CREATED_AT.desc());
+        qw.orderBy(SysUserTableDef.SYS_USER.CREATED_AT.desc());
 
         Page<SysUser> page = Page.of(req.getPageNum(), req.getPageSize());
         Page<SysUser> result = userMapper.paginate(page, qw);
@@ -343,8 +343,8 @@ public class UserServiceImpl implements UserService {
         // 批量查询用户组织关系
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.in(userIds))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.in(userIds))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
         // 按 userId 分组
@@ -544,9 +544,9 @@ public class UserServiceImpl implements UserService {
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         ).stream()
             .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());

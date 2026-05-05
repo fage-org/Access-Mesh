@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
@@ -24,13 +26,11 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -44,13 +44,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef.DOMAIN_CONFIG;
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef.PERMISSION_CONDITION;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 public class PermissionGrantServiceImpl implements PermissionGrantService {
@@ -73,7 +72,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final AuthorizationService authorizationService;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final AbstractRoleDomainService abstractRoleDomainService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     // TODO: 构造函数依赖过多(17个)，违反单一职责原则
     // 建议：拆分为 GrantValidationService/GrantExecutionService/GrantCascadeService
@@ -94,7 +93,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       AuthorizationService authorizationService,
                                       OperationPermissionDomainService operationPermissionDomainService,
                                       AbstractRoleDomainService abstractRoleDomainService,
-                                      ResourcePermissionValidator permissionValidator) {
+                                      PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -111,7 +110,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.authorizationService = authorizationService;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.abstractRoleDomainService = abstractRoleDomainService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
@@ -126,7 +125,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - MANAGE permission on role
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         boolean hasChanges = (req.add() != null && !req.add().isEmpty())
             || (req.update() != null && !req.update().isEmpty())
@@ -137,9 +136,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         AbstractRole role = abstractRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.eq(roleId))
-                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
         if (role == null) {
             throw new IllegalArgumentException("Role not found: " + roleId);
@@ -197,10 +196,10 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             // Batch query existing permissions
             List<RoleResourcePermission> existingPerms = rolePermMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                    .and(ROLE_RESOURCE_PERMISSION.ID.in(updatePermIds))
-                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(updatePermIds))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
             );
             Map<Long, RoleResourcePermission> existingPermMap = existingPerms.stream()
                 .collect(Collectors.toMap(RoleResourcePermission::getId, p -> p));
@@ -213,8 +212,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of()
                 : resourceEntityMapper.selectListByQuery(
                     QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.ID.in(resourceIds))
-                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                        .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
             // Batch query operation permissions
@@ -225,7 +224,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of()
                 : operationPermissionMapper.selectListByQuery(
                     QueryWrapper.create()
-                        .where(OPERATION_PERMISSION.ID.in(operationIds))
+                        .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
                 ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
 
             // Batch resolve resource type codes
@@ -312,9 +311,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         Map<Long, ResourceEntity> resourceById = resourceIds.isEmpty() ? Map.of()
             : resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.ID.in(resourceIds))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
         // Validate all resources exist
@@ -349,9 +348,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             if (item.conditionCode() != null && !item.conditionCode().isBlank()) {
                 PermissionCondition condition = permissionConditionMapper.selectOneByQuery(
                     QueryWrapper.create()
-                        .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                        .and(PERMISSION_CONDITION.CODE.eq(item.conditionCode()))
-                        .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                        .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.CODE.eq(item.conditionCode()))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
                 );
                 if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
                     throw new IllegalArgumentException("conditionCode not found: " + item.conditionCode());
@@ -400,10 +399,10 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             // Batch query existing permissions
             List<RoleResourcePermission> existingPerms = rolePermMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                    .and(ROLE_RESOURCE_PERMISSION.ID.in(updateIds))
-                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(updateIds))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
             );
             Map<Long, RoleResourcePermission> existingPermMap = existingPerms.stream()
                 .collect(Collectors.toMap(RoleResourcePermission::getId, p -> p));
@@ -416,9 +415,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<String, PermissionCondition> conditionMap = conditionCodes.isEmpty() ? Map.of()
                 : permissionConditionMapper.selectListByQuery(
                     QueryWrapper.create()
-                        .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                        .and(PERMISSION_CONDITION.CODE.in(conditionCodes))
-                        .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                        .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.CODE.in(conditionCodes))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(PermissionCondition::getCode, c -> c));
 
             // Process each update item with pre-loaded data
@@ -471,9 +470,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         return toItemRespList(tenantId, allPerms);
     }
@@ -490,7 +489,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
 
@@ -528,15 +527,15 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - VIEW permission required
         Long operatorId = OperatorContext.getOperatorId();
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.VIEW)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         return toItemRespList(tenantId, perms);
     }
@@ -551,16 +550,16 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check - VIEW permission required
         Long operatorId = OperatorContext.getOperatorId();
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationType.VIEW)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(parent.getAbstractRoleId()))
-                .and(ROLE_RESOURCE_PERMISSION.DEPEND_ON.eq(req.permissionId()))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(parent.getAbstractRoleId()))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DEPEND_ON.eq(req.permissionId()))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         return toItemRespList(tenantId, perms);
     }
@@ -575,7 +574,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE);
 
         if (parent.getDependOn() != null) {
             throw new IllegalArgumentException("parentPermissionId must be a top-level permission");
@@ -585,10 +584,10 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         if (parentResource != null && parentResource.getBizDomainId() != null) {
             subPermConfig = domainConfigMapper.selectOneByQuery(
                 QueryWrapper.create()
-                    .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                    .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(parentResource.getBizDomainId()))
-                    .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.SUB_PERM.getValue()))
-                    .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+                    .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                    .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(parentResource.getBizDomainId()))
+                    .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.SUB_PERM.getValue()))
+                    .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
             );
         }
 
@@ -635,9 +634,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         Map<String, PermissionCondition> conditionMap = conditionCodes.isEmpty() ? Map.of()
             : permissionConditionMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                    .and(PERMISSION_CONDITION.CODE.in(conditionCodes))
-                    .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                    .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                    .and(PermissionConditionTableDef.PERMISSION_CONDITION.CODE.in(conditionCodes))
+                    .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(PermissionCondition::getCode, c -> c));
 
         List<RoleResourcePermission> inserted = new ArrayList<>();
@@ -729,7 +728,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // Operator authorization check
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE);
 
         if (child.getDependOn() == null) {
             throw new IllegalArgumentException("permission is not a child");
@@ -768,9 +767,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of() :
             resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.ID.in(resourceIds))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(java.util.stream.Collectors.toMap(ResourceEntity::getId, r -> r));
 
         // Batch load operation permissions to avoid N+1 queries
@@ -780,7 +779,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .collect(java.util.stream.Collectors.toSet());
         Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of() :
             operationPermissionMapper.selectListByQuery(
-                QueryWrapper.create().where(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
+                QueryWrapper.create().where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
             ).stream().collect(java.util.stream.Collectors.toMap(OperationPermission::getId, op -> op));
 
         // Batch load permission conditions to avoid N+1 queries
@@ -790,7 +789,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .collect(java.util.stream.Collectors.toSet());
         Map<Long, PermissionCondition> conditionMap = conditionIds.isEmpty() ? Map.of() :
             permissionConditionMapper.selectListByQuery(
-                QueryWrapper.create().where(PERMISSION_CONDITION.ID.in(conditionIds))
+                QueryWrapper.create().where(PermissionConditionTableDef.PERMISSION_CONDITION.ID.in(conditionIds))
             ).stream().collect(java.util.stream.Collectors.toMap(PermissionCondition::getId, c -> c));
 
         // Batch resolve resource type codes (avoid N+1)

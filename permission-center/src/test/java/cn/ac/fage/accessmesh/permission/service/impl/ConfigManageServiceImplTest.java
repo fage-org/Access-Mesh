@@ -15,8 +15,7 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.TypeDefPermissionStrategy;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -47,8 +46,7 @@ class ConfigManageServiceImplTest {
     @Mock private OperationLogDomainService operationLogDomainService;
     @Mock private AuthorizationService authorizationService;
     @Mock private ServiceInterfaceSyncService serviceInterfaceSyncService;
-    @Mock private ResourcePermissionValidator permissionValidator;
-    @Mock private TypeDefPermissionStrategy typeDefPermissionStrategy;
+    @Mock private PermQueryEngine engine;
 
     private ConfigManageServiceImpl service;
 
@@ -57,7 +55,7 @@ class ConfigManageServiceImplTest {
         service = new ConfigManageServiceImpl(
             typeDefinitionMapper, bizDomainMapper, domainConfigMapper, serviceConfigMapper, systemConfigMapper,
             resourceEntityMapper, resourceApiMappingMapper, typeResolutionService, operationLogDomainService,
-            authorizationService, serviceInterfaceSyncService, permissionValidator, typeDefPermissionStrategy
+            authorizationService, serviceInterfaceSyncService, engine
         );
     }
 

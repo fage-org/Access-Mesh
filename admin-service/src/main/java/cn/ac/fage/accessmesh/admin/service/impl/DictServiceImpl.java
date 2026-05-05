@@ -33,8 +33,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysDictDataTableDef.SYS_DICT_DATA;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysDictTypeTableDef.SYS_DICT_TYPE;
 
 @Service
 public class DictServiceImpl implements DictService {
@@ -82,9 +80,9 @@ public class DictServiceImpl implements DictService {
         // Batch query to check for data and filter valid IDs (performance fix: avoid N+1 queries)
         List<SysDictType> types = dictTypeMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_DICT_TYPE.ID.in(req.ids()))
-                .and(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+                .where(SysDictTypeTableDef.SYS_DICT_TYPE.ID.in(req.ids()))
+                .and(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG.eq(0))
         );
         
         // Batch check if any type has associated data (performance fix: single query with GROUP BY)
@@ -95,11 +93,11 @@ public class DictServiceImpl implements DictService {
 
             List<SysDictData> dataWithTypes = dictDataMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .select(SYS_DICT_DATA.DICT_TYPE)
-                    .where(SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                    .and(SYS_DICT_DATA.DICT_TYPE.in(dictTypes))
-                    .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
-                    .groupBy(SYS_DICT_DATA.DICT_TYPE)
+                    .select(SysDictDataTableDef.SYS_DICT_DATA.DICT_TYPE)
+                    .where(SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                    .and(SysDictDataTableDef.SYS_DICT_DATA.DICT_TYPE.in(dictTypes))
+                    .and(SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG.eq(0))
+                    .groupBy(SysDictDataTableDef.SYS_DICT_DATA.DICT_TYPE)
             );
 
             if (!dataWithTypes.isEmpty()) {
@@ -120,9 +118,9 @@ public class DictServiceImpl implements DictService {
     public List<DictTypeResp> listDictTypes() {
         List<SysDictType> types = dictTypeMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
-                .orderBy(SYS_DICT_TYPE.CREATED_AT.asc())
+                .where(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+                .orderBy(SysDictTypeTableDef.SYS_DICT_TYPE.CREATED_AT.asc())
         );
         return types.stream().map(t -> {
             List<DictDataResp> data = listDictData(t.getId());
@@ -135,9 +133,9 @@ public class DictServiceImpl implements DictService {
         Page<SysDictType> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysDictType> result = dictTypeMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_DICT_TYPE.DELETE_FLAG.eq(0))
-                .orderBy(SYS_DICT_TYPE.CREATED_AT.asc()));
+                .where(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG.eq(0))
+                .orderBy(SysDictTypeTableDef.SYS_DICT_TYPE.CREATED_AT.asc()));
 
         List<DictTypeResp> items = result.getRecords().stream()
             .map(t -> new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), List.of()))
@@ -156,7 +154,7 @@ public class DictServiceImpl implements DictService {
         permissionValidator.checkTypeLevel(AdminResourceType.DICT_DATA, AdminOperationCode.CREATE);
 
         SysDictType type = TenantSafeQuery.selectOneByIdSafe(
-            dictTypeMapper, SYS_DICT_TYPE.ID, SYS_DICT_TYPE.TENANT_ID, SYS_DICT_TYPE.DELETE_FLAG,
+            dictTypeMapper, SysDictTypeTableDef.SYS_DICT_TYPE.ID, SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID, SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG,
             TenantContextHolder.getTenantId(), req.dictTypeId());
         if (type == null) {
             throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
@@ -187,7 +185,7 @@ public class DictServiceImpl implements DictService {
         );
 
         SysDictData data = TenantSafeQuery.selectOneByIdSafe(
-            dictDataMapper, SYS_DICT_DATA.ID, SYS_DICT_DATA.TENANT_ID, SYS_DICT_DATA.DELETE_FLAG,
+            dictDataMapper, SysDictDataTableDef.SYS_DICT_DATA.ID, SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID, SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG,
             TenantContextHolder.getTenantId(), req.dictTypeId());
         if (data == null) {
             throw new BizException(AdminErrorCode.DICT_DATA_NOT_FOUND.getCode(), AdminErrorCode.DICT_DATA_NOT_FOUND.getMessage());
@@ -213,7 +211,7 @@ public class DictServiceImpl implements DictService {
         );
 
         SysDictData data = TenantSafeQuery.selectOneByIdSafe(
-            dictDataMapper, SYS_DICT_DATA.ID, SYS_DICT_DATA.TENANT_ID, SYS_DICT_DATA.DELETE_FLAG,
+            dictDataMapper, SysDictDataTableDef.SYS_DICT_DATA.ID, SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID, SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG,
             TenantContextHolder.getTenantId(), req.id());
         if (data == null) return;
         data.setDeleteFlag(data.getId());
@@ -224,15 +222,15 @@ public class DictServiceImpl implements DictService {
     @Override
     public List<DictDataResp> listDictData(Long dictTypeId) {
         SysDictType type = TenantSafeQuery.selectOneByIdSafe(
-            dictTypeMapper, SYS_DICT_TYPE.ID, SYS_DICT_TYPE.TENANT_ID, SYS_DICT_TYPE.DELETE_FLAG,
+            dictTypeMapper, SysDictTypeTableDef.SYS_DICT_TYPE.ID, SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID, SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG,
             TenantContextHolder.getTenantId(), dictTypeId);
         if (type == null) return List.of();
         return dictDataMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_DICT_DATA.DICT_TYPE.eq(type.getDictType()))
-                .and(SYS_DICT_DATA.DELETE_FLAG.eq(0))
-                .orderBy(SYS_DICT_DATA.SORT_ORDER.asc())
+                .where(SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysDictDataTableDef.SYS_DICT_DATA.DICT_TYPE.eq(type.getDictType()))
+                .and(SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG.eq(0))
+                .orderBy(SysDictDataTableDef.SYS_DICT_DATA.SORT_ORDER.asc())
         ).stream().map(d -> new DictDataResp(
             d.getId(), dictTypeId, d.getDictLabel(), d.getDictValue(),
             d.getSortOrder(), d.getStatus(), d.getRemark()

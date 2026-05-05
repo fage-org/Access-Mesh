@@ -20,9 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
 
 /**
  * Implementation of MappingSyncHandler.
@@ -58,11 +57,11 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 // Get the resource entity
                 ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
                     QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
-                        .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(context.apiType()))
-                        .and(RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
-                        .and(RESOURCE_ENTITY.CODE_TYPE.eq(PermConstants.CodeType.DEFAULT))
-                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                        .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(context.apiType()))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE_TYPE.eq(PermConstants.CodeType.DEFAULT))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 );
 
                 if (resource == null) {
@@ -74,12 +73,12 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 // Find existing mapping
                 ResourceApiMapping mapping = resourceApiMappingMapper.selectOneByQuery(
                     QueryWrapper.create()
-                        .where(RESOURCE_API_MAPPING.TENANT_ID.eq(context.tenantId()))
-                        .and(RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
-                        .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(context.req().serviceCode()))
-                        .and(RESOURCE_API_MAPPING.HTTP_METHOD.eq(api.httpMethod().toUpperCase()))
-                        .and(RESOURCE_API_MAPPING.PATH_PATTERN.eq(fullPath))
-                        .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                        .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(context.tenantId()))
+                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
+                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(context.req().serviceCode()))
+                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.HTTP_METHOD.eq(api.httpMethod().toUpperCase()))
+                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.PATH_PATTERN.eq(fullPath))
+                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
                 );
 
                 if (mapping == null) {
@@ -121,9 +120,9 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         // Get all existing mappings for this service
         List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
-                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
         );
 
         if (existingMappings.isEmpty()) {
@@ -139,8 +138,8 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         Map<Long, ResourceEntity> resourceMap = mappingResourceIds.isEmpty() ? Map.of()
             : resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.ID.in(mappingResourceIds))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(mappingResourceIds))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
         // Performance fix: collect IDs and batch soft delete

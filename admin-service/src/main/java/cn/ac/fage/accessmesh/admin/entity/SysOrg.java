@@ -23,6 +23,7 @@ public class SysOrg {
     private Long leaderId;
     private Integer status;
     private Long permRoleId;
+    private Long permOrgId;
     private Long createdBy;
     private Long updatedBy;
     private Long deletedBy;
@@ -55,6 +56,8 @@ public class SysOrg {
     public void setStatus(Integer status) { this.status = status; }
     public Long getPermRoleId() { return permRoleId; }
     public void setPermRoleId(Long permRoleId) { this.permRoleId = permRoleId; }
+    public Long getPermOrgId() { return permOrgId; }
+    public void setPermOrgId(Long permOrgId) { this.permOrgId = permOrgId; }
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     public Long getUpdatedBy() { return updatedBy; }

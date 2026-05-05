@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp;
@@ -11,9 +13,7 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.RoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
@@ -41,8 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 
 @Service
 public class RoleManageServiceImpl implements RoleManageService {
@@ -57,7 +56,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final AuthorizationService authorizationService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     // TODO: 构造函数依赖过多(9个)，建议拆分角色CRUD和树形结构构建职责
     // 优先级：P3（低优先级，可关注但不强制整改）
@@ -69,7 +68,7 @@ public class RoleManageServiceImpl implements RoleManageService {
                                  OperationLogDomainService operationLogDomainService,
                                  PermissionChangeDomainService permissionChangeDomainService,
                                  AuthorizationService authorizationService,
-                                 ResourcePermissionValidator permissionValidator) {
+                                 PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.abstractRoleDomainService = abstractRoleDomainService;
         this.permCacheDomainService = permCacheDomainService;
@@ -78,7 +77,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.authorizationService = authorizationService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
@@ -87,7 +86,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationType.CREATE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create role");
         }
 
@@ -108,9 +107,9 @@ public class RoleManageServiceImpl implements RoleManageService {
     public RoleResp getRole(Long tenantId, Long roleId) {
         AbstractRole role = abstractRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.eq(roleId))
-                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
         return role != null ? toRoleResp(role) : null;
     }
@@ -126,7 +125,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         if (name != null) role.setName(name);
         if (status != null) role.setStatus(status);
@@ -150,7 +149,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         if (parentId != null) {
             AbstractRole parent = abstractRoleDomainService.selectValidById(tenantId, parentId);
@@ -175,7 +174,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         // Instance-level permission check: operator must have MANAGE permission on this specific role
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         abstractRoleDomainService.deleteRole(tenantId, roleId);
 
@@ -212,9 +211,9 @@ public class RoleManageServiceImpl implements RoleManageService {
         // Batch query roles to validate existence
         List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.ID.in(validRoleIds))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(validRoleIds))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
 
         if (roles.isEmpty()) {
@@ -226,7 +225,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
         // Batch permission check - avoid N+1 queries
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationType.MANAGE);
+        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationCodeConstants.MANAGE);
 
         // Filter roles that operator has permission to delete
         List<Long> permittedIds = new ArrayList<>();
@@ -320,13 +319,13 @@ public class RoleManageServiceImpl implements RoleManageService {
             }
         }
         QueryWrapper qw = QueryWrapper.create()
-            .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-            .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            .and(ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS));
+            .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS));
         if (bizDomainId != null) {
-            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
+            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
         } else {
-            qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
+            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
         }
 
         List<AbstractRole> allRoles = abstractRoleMapper.selectListByQuery(qw);
@@ -370,27 +369,27 @@ public class RoleManageServiceImpl implements RoleManageService {
 
     private QueryWrapper buildRoleListQuery(Long tenantId, String domainCode, String roleTypeCode, String keyword) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-            .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
+            .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+            .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
-                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            queryWrapper.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
+            queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
         }
         if (roleTypeCode != null && !roleTypeCode.isBlank()) {
             Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
             if (roleType == null) {
-                return queryWrapper.and(ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            queryWrapper.and(ABSTRACT_ROLE.ROLE_TYPE.eq(roleType));
+            queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleType));
         }
         if (keyword != null && !keyword.isBlank()) {
             String pattern = SqlUtil.likePattern(keyword);
             queryWrapper.and(
-                ABSTRACT_ROLE.NAME.like(pattern)
-                    .or(ABSTRACT_ROLE.EXTERNAL_ID.like(pattern))
+                AbstractRoleTableDef.ABSTRACT_ROLE.NAME.like(pattern)
+                    .or(AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.like(pattern))
             );
         }
         return queryWrapper;

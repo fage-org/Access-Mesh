@@ -29,10 +29,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef.RESOURCE_DEPENDENCY;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDomainService {
@@ -62,9 +61,9 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     public void processDependencies(Long tenantId, Long roleId, Long resourceEntityId, Long operationBits) {
         List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
+                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(resourceEntityId))
+                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
         );
 
         for (ResourceDependency dep : deps) {
@@ -80,11 +79,11 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     public void cleanupDependencies(Long tenantId, Long roleId, Long resourceEntityId) {
         List<RoleResourcePermission> autoGrants = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceEntityId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         Set<Long> affectedRoles = new HashSet<>();
@@ -149,10 +148,10 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         // Find dependency rules where source resource is in the granted resources
         List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.in(resourceIds))
-                .and(RESOURCE_DEPENDENCY.AUTO_GRANT.eq(true))
-                .and(RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
+                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
+                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.in(resourceIds))
+                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.AUTO_GRANT.eq(true))
+                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
         );
 
         // Pre-load all existing auto-grant permissions for this role and dependency targets
@@ -169,12 +168,12 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         Map<Long, Map<Long, RoleResourcePermission>> existingAutoGrants = targetResourceIds.isEmpty() ? Map.of()
             : rolePermMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                    .and(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
-                    .and(ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                    .and(ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
-                    .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.groupingBy(
                 RoleResourcePermission::getResourceEntityId,
                 Collectors.toMap(RoleResourcePermission::getGrantDepId, Function.identity(), (a, b) -> a)
@@ -281,9 +280,9 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         if (resourceEntityId != null) {
             ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
                 QueryWrapper.create()
-                    .where(RESOURCE_ENTITY.ID.eq(resourceEntityId))
-                    .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.eq(resourceEntityId))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
             if (resource != null) {
                 resourceType = resource.getResourceType();

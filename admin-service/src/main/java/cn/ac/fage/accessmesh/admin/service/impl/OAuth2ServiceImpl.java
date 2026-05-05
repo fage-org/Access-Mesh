@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.admin.dto.oauth2.*;
 import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
+
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
@@ -30,8 +32,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
 
 @Service
 public class OAuth2ServiceImpl implements OAuth2Service {
@@ -228,8 +228,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
         SysUser user = userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.ID.eq(userId))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
@@ -365,9 +365,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private SysOauth2Client getValidClient(String clientId) {
         SysOauth2Client client = oauth2ClientMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
-                .and(SYS_OAUTH2_CLIENT.STATUS.eq(1))
-                .and(SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
+                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
+                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.STATUS.eq(1))
+                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
         );
         if (client == null) {
             throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),

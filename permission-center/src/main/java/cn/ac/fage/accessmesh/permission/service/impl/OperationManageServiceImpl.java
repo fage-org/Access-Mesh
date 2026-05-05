@@ -6,22 +6,21 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
 
 @Service
 public class OperationManageServiceImpl implements OperationManageService {
@@ -30,18 +29,18 @@ public class OperationManageServiceImpl implements OperationManageService {
     private final TypeResolutionService typeResolutionService;
     private final AuthorizationService authorizationService;
     private final OperationLogDomainService operationLogDomainService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
                                       AuthorizationService authorizationService,
                                       OperationLogDomainService operationLogDomainService,
-                                      ResourcePermissionValidator permissionValidator) {
+                                      PermQueryEngine engine) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.authorizationService = authorizationService;
         this.operationLogDomainService = operationLogDomainService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
@@ -50,7 +49,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.CREATE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
 
@@ -78,9 +77,9 @@ public class OperationManageServiceImpl implements OperationManageService {
     public OperationPermissionResp getOperation(Long tenantId, Long operationId) {
         OperationPermission op = operationPermissionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(OPERATION_PERMISSION.ID.eq(operationId))
-                .and(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.eq(operationId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         );
         return op != null ? toResp(op) : null;
     }
@@ -92,10 +91,10 @@ public class OperationManageServiceImpl implements OperationManageService {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         }
         QueryWrapper qw = QueryWrapper.create()
-            .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0));
+            .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+            .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0));
         if (resourceType != null) {
-            qw.and(OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
+            qw.and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
         }
         return operationPermissionMapper.selectListByQuery(qw)
             .stream().map(this::toResp).collect(Collectors.toList());
@@ -107,7 +106,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
 
@@ -130,7 +129,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete operation");
         }
 
@@ -148,7 +147,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (added - was missing)
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 
@@ -168,9 +167,9 @@ public class OperationManageServiceImpl implements OperationManageService {
         // Batch query (avoid N+1)
         List<OperationPermission> entities = operationPermissionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OPERATION_PERMISSION.ID.in(validInputIds))
-                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(validInputIds))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         if (entities.isEmpty()) {

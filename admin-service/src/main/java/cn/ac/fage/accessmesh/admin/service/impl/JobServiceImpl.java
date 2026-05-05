@@ -32,9 +32,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysJobLogTableDef.SYS_JOB_LOG;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef.SYS_JOB;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef.SYS_JOB;
 import java.util.List;
 
 @Service
@@ -81,9 +78,9 @@ public class JobServiceImpl implements JobService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob existing = jobMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_JOB.ID.eq(job.getId()))
-                .and(SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SYS_JOB.DELETE_FLAG.eq(0))
+                .where(SysJobTableDef.SYS_JOB.ID.eq(job.getId()))
+                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
         if (existing == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
@@ -122,9 +119,9 @@ public class JobServiceImpl implements JobService {
         // Batch query valid jobs (performance fix: avoid N+1 queries for SELECT)
         List<SysJob> jobs = jobMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_JOB.ID.in(req.ids()))
-                .and(SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SYS_JOB.DELETE_FLAG.eq(0))
+                .where(SysJobTableDef.SYS_JOB.ID.in(req.ids()))
+                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
 
         // Batch soft delete (performance fix: use single SQL instead of loop)
@@ -141,9 +138,9 @@ public class JobServiceImpl implements JobService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_JOB.ID.eq(id))
-                .and(SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SYS_JOB.DELETE_FLAG.eq(0))
+                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
+                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
         if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
@@ -168,9 +165,9 @@ public class JobServiceImpl implements JobService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_JOB.ID.eq(id))
-                .and(SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SYS_JOB.DELETE_FLAG.eq(0))
+                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
+                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
         if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
@@ -183,9 +180,9 @@ public class JobServiceImpl implements JobService {
         Long tenantId = TenantContextHolder.getTenantId();
         return jobMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_JOB.ID.eq(id))
-                .and(SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SYS_JOB.DELETE_FLAG.eq(0))
+                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
+                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
     }
 
@@ -193,10 +190,10 @@ public class JobServiceImpl implements JobService {
     public PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_JOB.TENANT_ID.eq(tenantId))
-            .and(SYS_JOB.DELETE_FLAG.eq(0));
-        if (jobGroup != null) qw.and(SYS_JOB.JOB_GROUP.eq(jobGroup));
-        qw.orderBy(SYS_JOB.CREATED_AT.desc());
+            .where(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+            .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0));
+        if (jobGroup != null) qw.and(SysJobTableDef.SYS_JOB.JOB_GROUP.eq(jobGroup));
+        qw.orderBy(SysJobTableDef.SYS_JOB.CREATED_AT.desc());
 
         Page<SysJob> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysJob> result = jobMapper.paginate(page, qw);
@@ -210,10 +207,10 @@ public class JobServiceImpl implements JobService {
     public PaginatedResult<SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_JOB_LOG.TENANT_ID.eq(tenantId))
-            .orderBy(SYS_JOB_LOG.CREATED_AT.desc());
+            .where(SysJobLogTableDef.SYS_JOB_LOG.TENANT_ID.eq(tenantId))
+            .orderBy(SysJobLogTableDef.SYS_JOB_LOG.CREATED_AT.desc());
         if (jobId != null) {
-            qw.and(SYS_JOB_LOG.JOB_ID.eq(jobId));
+            qw.and(SysJobLogTableDef.SYS_JOB_LOG.JOB_ID.eq(jobId));
         }
 
         Page<SysJobLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());

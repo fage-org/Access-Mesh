@@ -32,8 +32,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
 
 @Service
 public class FileServiceImpl implements FileService {
@@ -211,9 +209,9 @@ public class FileServiceImpl implements FileService {
         // Batch query valid files (performance fix: avoid N+1 queries for SELECT)
         List<SysFile> files = fileMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.in(req.ids()))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.in(req.ids()))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
 
         if (files.isEmpty()) {
@@ -241,9 +239,9 @@ public class FileServiceImpl implements FileService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.eq(id))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
@@ -255,10 +253,10 @@ public class FileServiceImpl implements FileService {
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_FILE.TENANT_ID.eq(tenantId))
-            .and(SYS_FILE.DELETE_FLAG.eq(0));
-        if (bizType != null) qw.and(SYS_FILE.BUCKET_NAME.eq(bizType));
-        qw.orderBy(SYS_FILE.CREATED_AT.desc());
+            .where(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+            .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0));
+        if (bizType != null) qw.and(SysFileTableDef.SYS_FILE.BUCKET_NAME.eq(bizType));
+        qw.orderBy(SysFileTableDef.SYS_FILE.CREATED_AT.desc());
 
         Page<SysFile> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysFile> result = fileMapper.paginate(page, qw);
@@ -286,9 +284,9 @@ public class FileServiceImpl implements FileService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.eq(id))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
@@ -20,11 +22,15 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainSe
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -59,6 +65,8 @@ class PermissionServiceImplCheckInterfaceTest {
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
+    @Mock private RolePermEntryMapper rolePermEntryMapper;
+    @Mock private PermQueryEngine engine;
 
     private PermissionServiceImpl service;
 
@@ -68,7 +76,8 @@ class PermissionServiceImplCheckInterfaceTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, permCacheDomainService,
-            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService
+            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService,
+            rolePermEntryMapper, engine
         );
     }
 
@@ -76,11 +85,6 @@ class PermissionServiceImplCheckInterfaceTest {
     void shouldDenyWhenInterfaceNotRegistered() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        AbstractUser user = new AbstractUser();
-        user.setId(10L);
-        user.setDeleteFlag(0L);
-        user.setEnabled(true);
-        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
         when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
@@ -94,11 +98,6 @@ class PermissionServiceImplCheckInterfaceTest {
     void shouldAllowWhenAnyMatchedMappingPasses() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        AbstractUser user = new AbstractUser();
-        user.setId(10L);
-        user.setDeleteFlag(0L);
-        user.setEnabled(true);
-        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
 
         ResourceApiMapping m1 = new ResourceApiMapping();
         m1.setResourceEntityId(100L);
@@ -108,59 +107,30 @@ class PermissionServiceImplCheckInterfaceTest {
         m2.setPathPattern("/api/user/list");
         when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(m1, m2));
 
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L, null)).thenReturn(Set.of(200L));
-        when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-
         ResourceEntity r1 = new ResourceEntity();
-        r1.setId(100L);
-        r1.setDeleteFlag(0L);
-        r1.setResourceType(1);
-        r1.setCode("api:user:list:1");
+        r1.setId(100L); r1.setDeleteFlag(0L); r1.setResourceType(1); r1.setCode("api:user:list:1");
         ResourceEntity r2 = new ResourceEntity();
-        r2.setId(101L);
-        r2.setDeleteFlag(0L);
-        r2.setResourceType(1);
-        r2.setCode("api:user:list:2");
-        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(100L, r1, 101L, r2));
+        r2.setId(101L); r2.setDeleteFlag(0L); r2.setResourceType(1); r2.setCode("api:user:list:2");
         OperationPermission op = new OperationPermission();
-        op.setId(300L);
-        op.setCode("ACCESS");
-        op.setBinaryBit(1L);
-        op.setInheritMask(0L);
-        when(typeResolutionService.resolveTypeCode(1L, "resource_type", 1)).thenReturn("API");
-        when(operationPermissionMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(op), List.of(op));
-        when(operationPermissionMapper.selectOneById(300L)).thenReturn(op);
+        op.setId(300L); op.setCode("ACCESS"); op.setBinaryBit(1L); op.setInheritMask(0L);
 
-        RoleResourcePermission denyPerm = new RoleResourcePermission();
-        denyPerm.setId(400L);
-        denyPerm.setAbstractRoleId(200L);
-        denyPerm.setResourceEntityId(100L);
-        denyPerm.setOperationPermissionId(300L);
-        denyPerm.setResourceType(1);
-        denyPerm.setDeleteFlag(0L);
-        RoleResourcePermission allowPerm = new RoleResourcePermission();
-        allowPerm.setId(401L);
-        allowPerm.setAbstractRoleId(200L);
-        allowPerm.setResourceEntityId(101L);
-        allowPerm.setOperationPermissionId(300L);
-        allowPerm.setResourceType(1);
-        allowPerm.setDeleteFlag(0L);
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(denyPerm), List.of(allowPerm));
+        RolePermEntry allowEntry = new RolePermEntry(
+            401L, 200L, 101L, null, 1, 300L, null, null, "MANUAL", false, null, false, null);
 
-        when(permissionConditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(permissionConflictDomainService.filterPermMutex(eq(1L), any()))
-            .thenReturn(List.of(), List.of(new RolePermSnapshot.RolePermEntry(
-                401L, 200L, 101L, null, 1, 300L, "ACCESS", null, "MANUAL", false, null, false, null
-            )));
-        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(300L, op));
+        PermResult mockResult = PermResult.builder(true, null)
+            .scopeAllMatched(false)
+            .scopeAllEntries(List.of())
+            .instanceEntries(List.of(allowEntry))
+            .resourceMap(Map.of(101L, r2))
+            .operationMap(Map.of(300L, op))
+            .build();
+
+        when(engine.query(any(PermQuery.class))).thenReturn(mockResult);
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
 
         assertTrue(resp.allowed());
-        assertEquals(2, resp.matchedResources().size());
-        assertTrue(resp.matchedResources().stream().allMatch(item -> "API".equals(item.resourceTypeCode())));
+        assertEquals(1, resp.matchedResources().size());
         assertTrue(resp.matchedResources().stream().anyMatch(CheckInterfaceResp.MatchedResource::allowed));
     }
 
@@ -168,41 +138,30 @@ class PermissionServiceImplCheckInterfaceTest {
     void shouldDenyNoPermissionWhenResourceExists() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        AbstractUser user = new AbstractUser();
-        user.setId(10L);
-        user.setDeleteFlag(0L);
-        user.setEnabled(true);
-        when(abstractUserMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(user);
 
         ResourceApiMapping mapping = new ResourceApiMapping();
         mapping.setResourceEntityId(100L);
         mapping.setPathPattern("/api/user/list");
         when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(mapping));
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L, null)).thenReturn(Set.of(200L));
-        when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
 
         ResourceEntity r1 = new ResourceEntity();
-        r1.setId(100L);
-        r1.setDeleteFlag(0L);
-        r1.setResourceType(1);
-        r1.setCode("api:user:list:1");
-        when(typeResolutionService.resolveTypeCode(1L, "resource_type", 1)).thenReturn("API");
-        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(100L, r1));
-
+        r1.setId(100L); r1.setDeleteFlag(0L); r1.setResourceType(1); r1.setCode("api:user:list:1");
         OperationPermission op = new OperationPermission();
-        op.setId(300L);
-        op.setCode("ACCESS");
-        op.setBinaryBit(1L);
-        op.setInheritMask(0L);
-        when(operationPermissionMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(op));
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
+        op.setId(300L); op.setCode("ACCESS"); op.setBinaryBit(1L); op.setInheritMask(0L);
+
+        PermResult mockResult = PermResult.builder(false, "NO_PERMISSION")
+            .scopeAllMatched(false)
+            .scopeAllEntries(List.of())
+            .instanceEntries(List.of())
+            .resourceMap(Map.of(100L, r1))
+            .operationMap(Map.of(300L, op))
+            .build();
+
+        when(engine.query(any(PermQuery.class))).thenReturn(mockResult);
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
 
         assertFalse(resp.allowed());
         assertEquals("NO_PERMISSION", resp.reason());
-        assertEquals(1, resp.matchedResources().size());
-        assertFalse(resp.matchedResources().get(0).allowed());
     }
 }

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.admin.config;
 
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -8,8 +9,6 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
 
 /**
  * Provides the set of active tenant IDs for admin-service by querying
@@ -28,8 +27,8 @@ public class AdminTenantIdProvider implements TenantIdProvider {
     public Set<Long> getTenantIds() {
         return sysUserMapper.selectListByQuery(
             QueryWrapper.create()
-                .select("DISTINCT " + SYS_USER.TENANT_ID.getName())
-                .where(SYS_USER.DELETE_FLAG.eq(0))
+                .select("DISTINCT " + SysUserTableDef.SYS_USER.TENANT_ID.getName())
+                .where(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         ).stream()
             .map(u -> u.getTenantId())
             .collect(Collectors.toSet());

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
@@ -19,9 +21,7 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractUserDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
@@ -50,10 +50,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
-import static cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef.USER_ROLE;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 @Service
 public class UserManageServiceImpl implements UserManageService {
@@ -70,7 +69,7 @@ public class UserManageServiceImpl implements UserManageService {
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final ObjectMapper objectMapper;
     private final AuthorizationService authorizationService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     // TODO: 构造函数依赖过多(11个)，违反单一职责原则
     // 建议：拆分为 UserSyncService/UserRoleAssignService/UserQueryService
@@ -85,7 +84,7 @@ public class UserManageServiceImpl implements UserManageService {
                                  PermissionChangeDomainService permissionChangeDomainService,
                                  ObjectMapper objectMapper,
                                  AuthorizationService authorizationService,
-                                 ResourcePermissionValidator permissionValidator) {
+                                 PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -96,7 +95,7 @@ public class UserManageServiceImpl implements UserManageService {
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.objectMapper = objectMapper;
         this.authorizationService = authorizationService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
@@ -104,7 +103,7 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp syncUser(Long tenantId, UserSyncReq req) {
         // Permission check - sync user requires USER_SYNC permission
         Long operatorId = OperatorContext.getOperatorId();
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationType.SYNC)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.SYNC)) {
             throw new SecurityException("No permission to sync user");
         }
 
@@ -114,10 +113,10 @@ public class UserManageServiceImpl implements UserManageService {
         }
         AbstractUser existing = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
+                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
 
         if (existing != null) {
@@ -149,7 +148,7 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp createUser(Long tenantId, UserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationType.CREATE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
 
@@ -159,10 +158,10 @@ public class UserManageServiceImpl implements UserManageService {
         }
         AbstractUser existing = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
+                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
         if (existing != null) {
             throw new IllegalArgumentException("User already exists");
@@ -194,7 +193,7 @@ public class UserManageServiceImpl implements UserManageService {
 
         // Self-modification is always allowed, otherwise requires MANAGE permission on USER
         if (!operatorId.equals(req.userId())) {
-            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationType.MANAGE);
+            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
         }
 
         if (req.name() != null) {
@@ -215,9 +214,9 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp getUser(Long tenantId, Long userId) {
         AbstractUser user = abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.ID.eq(userId))
-                .and(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.ID.eq(userId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
         return user != null ? toUserResp(user) : null;
     }
@@ -234,7 +233,7 @@ public class UserManageServiceImpl implements UserManageService {
 
         // Self-modification is always allowed, otherwise requires MANAGE permission on USER
         if (!operatorId.equals(userId)) {
-            permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationType.MANAGE);
+            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
         }
 
         user.setDeleteFlag(user.getId());
@@ -255,9 +254,9 @@ public class UserManageServiceImpl implements UserManageService {
         // Batch query users to validate existence
         List<AbstractUser> users = abstractUserMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.ID.in(userIds))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.ID.in(userIds))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
 
         if (users.isEmpty()) {
@@ -273,7 +272,7 @@ public class UserManageServiceImpl implements UserManageService {
             .collect(Collectors.toSet());
 
         if (!nonSelfUserIds.isEmpty()) {
-            Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.USER, nonSelfUserIds, OperationType.MANAGE);
+            Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.USER, nonSelfUserIds, OperationCodeConstants.MANAGE);
             if (!deniedIds.isEmpty()) {
                 throw new SecurityException("No permission to delete users: " + deniedIds);
             }
@@ -285,9 +284,9 @@ public class UserManageServiceImpl implements UserManageService {
         // Batch soft delete user_role associations
         List<Long> userRoleIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.ABSTRACT_USER_ID.in(existingUserIds))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
+                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(existingUserIds))
+                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
         ).stream().map(UserRole::getId).toList();
         if (!userRoleIds.isEmpty()) {
             userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
@@ -416,15 +415,15 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         // Batch permission check - avoid N+1 queries
-        Set<Long> deniedIds = permissionValidator.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationType.MANAGE);
+        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
 
         // Batch load roles to avoid N+1 query in loop
         Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
             : abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(ABSTRACT_ROLE.ID.in(targetRoleIds))
-                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(targetRoleIds))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
         // ===== Batch query user_role relations to avoid N+1 query in loop =====
@@ -447,11 +446,11 @@ public class UserManageServiceImpl implements UserManageService {
         if (!allUserIds.isEmpty() && !allRoleIds.isEmpty()) {
             List<UserRole> userRoles = userRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
-                    .and(USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                    .and(USER_ROLE.TARGET_ID.in(allRoleIds))
-                    .and(USER_ROLE.DELETE_FLAG.eq(0))
+                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(allRoleIds))
+                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
             );
             for (UserRole ur : userRoles) {
                 // Key format: userId:roleId:relationId (use "null" for null relationId)
@@ -576,11 +575,11 @@ public class UserManageServiceImpl implements UserManageService {
         LocalDateTime now = LocalDateTime.now();
         List<UserRole> userRoles = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
-                .and(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
-                .and(USER_ROLE.VALID_FROM.le(now).or(USER_ROLE.VALID_FROM.isNull()))
-                .and(USER_ROLE.VALID_TO.ge(now).or(USER_ROLE.VALID_TO.isNull()))
+                .where(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.eq(userId))
+                .and(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+                .and(UserRoleTableDef.USER_ROLE.VALID_FROM.le(now).or(UserRoleTableDef.USER_ROLE.VALID_FROM.isNull()))
+                .and(UserRoleTableDef.USER_ROLE.VALID_TO.ge(now).or(UserRoleTableDef.USER_ROLE.VALID_TO.isNull()))
         );
 
         // 批量预加载角色，避免 N+1 查询
@@ -594,9 +593,9 @@ public class UserManageServiceImpl implements UserManageService {
 
             List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.ID.in(targetIds))
-                    .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(targetIds))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
             );
 
             Map<Long, AbstractRole> roleMap = roles.stream()
@@ -639,46 +638,46 @@ public class UserManageServiceImpl implements UserManageService {
 
     private QueryWrapper buildUserListQuery(Long tenantId, String subjectTypeCode, String domainCode, String keyword) {
         QueryWrapper queryWrapper = QueryWrapper.create()
-            .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-            .and(ABSTRACT_USER.DELETE_FLAG.eq(0));
+            .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+            .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0));
         if (subjectTypeCode != null && !subjectTypeCode.isBlank()) {
             Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", subjectTypeCode);
             if (userType == null) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            queryWrapper.and(ABSTRACT_USER.USER_TYPE.eq(userType));
+            queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType));
         }
         if (keyword != null && !keyword.isBlank()) {
             String pattern = SqlUtil.likePattern(keyword);
             queryWrapper.and(
-                ABSTRACT_USER.NAME.like(pattern)
-                    .or(ABSTRACT_USER.EXTERNAL_ID.like(pattern))
+                AbstractUserTableDef.ABSTRACT_USER.NAME.like(pattern)
+                    .or(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.like(pattern))
             );
         }
         if (domainCode != null && !domainCode.isBlank()) {
             Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (domainId == null) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             List<Long> roleIds = abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-                    .and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()))
+                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()))
             ).stream().map(AbstractRole::getId).toList();
             if (roleIds.isEmpty()) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
             List<Long> userIds = userRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(USER_ROLE.DELETE_FLAG.eq(0))
-                    .and(USER_ROLE.TARGET_ID.in(roleIds))
+                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(roleIds))
             ).stream().map(UserRole::getAbstractUserId).distinct().toList();
             if (userIds.isEmpty()) {
-                return queryWrapper.and(ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
+                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            queryWrapper.and(ABSTRACT_USER.ID.in(userIds));
+            queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.in(userIds));
         }
         return queryWrapper;
     }
@@ -694,15 +693,15 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         // Check if operator has permission to manage the target role
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleId, OperationCodeConstants.MANAGE);
 
         Long existing = userRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
-                .and(USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                .and(USER_ROLE.TARGET_ID.eq(targetRoleId))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
+                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.eq(abstractUserId))
+                .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
+                .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(targetRoleId))
+                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
         ) != null ? 1L : null;
         if (existing != null) {
             throw new IllegalArgumentException("Role already assigned to user");

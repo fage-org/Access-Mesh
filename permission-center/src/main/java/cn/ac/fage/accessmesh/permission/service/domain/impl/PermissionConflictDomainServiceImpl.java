@@ -16,8 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef;
 
 @Service
 public class PermissionConflictDomainServiceImpl implements PermissionConflictDomainService {
@@ -55,9 +54,9 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         } else {
             List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                    .and(PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.ROLE_MUTEX.getValue()))
-                    .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                    .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                    .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.ROLE_MUTEX.getValue()))
+                    .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
             );
             mutexPairs = rules.stream()
                 .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
@@ -79,9 +78,9 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     public List<RolePermSnapshot.RolePermEntry> filterPermMutex(Long tenantId, List<RolePermSnapshot.RolePermEntry> passedEntries) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.PERM_MUTEX.getValue()))
-                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.PERM_MUTEX.getValue()))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
         );
 
         Set<Long> opIds = passedEntries.stream()

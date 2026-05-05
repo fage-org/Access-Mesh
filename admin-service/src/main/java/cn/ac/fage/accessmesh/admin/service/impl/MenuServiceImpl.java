@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
+import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
 @Service
 public class MenuServiceImpl implements MenuService {
@@ -260,9 +260,9 @@ public class MenuServiceImpl implements MenuService {
         Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SYS_MENU.DELETE_FLAG.eq(0))
-                .orderBy(SYS_MENU.SORT_ORDER.asc(), SYS_MENU.CREATED_AT.asc())
+                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
+                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
+                .orderBy(SysMenuTableDef.SYS_MENU.SORT_ORDER.asc(), SysMenuTableDef.SYS_MENU.CREATED_AT.asc())
         );
         return buildTree(all, 0L);
     }

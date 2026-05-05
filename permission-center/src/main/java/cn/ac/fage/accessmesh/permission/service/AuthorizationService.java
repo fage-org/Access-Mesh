@@ -6,10 +6,10 @@ import java.util.Set;
 /**
  * Service for specialized authorization checks.
  *
- * <p>General permission checks should use {@link ResourcePermissionValidator} directly:
+ * <p>General permission checks should use {@link cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine} directly:
  * <pre>
- * permissionValidator.hasPermission(tenantId, operatorId, "ROLE", roleId, OperationType.MANAGE);
- * permissionValidator.validate(tenantId, operatorId, "RESOURCE", resourceId, OperationType.MANAGE);
+ * engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+ * engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE);
  * </pre>
  *
  * <p>This service only provides canGrant permission checks for delegation validation.

@@ -25,7 +25,6 @@ import java.util.List;
 import cn.ac.fage.accessmesh.common.mybatis.TenantAwareScheduled;
 import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef.SYS_SYNC_RETRY;
 
 @Service
 public class SyncRetryServiceImpl implements SyncRetryService {
@@ -50,9 +49,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         if (messageKey != null) {
             existing = syncRetryMapper.selectOneByQuery(
                 QueryWrapper.create()
-                    .where(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                    .and(SYS_SYNC_RETRY.MESSAGE_KEY.eq(messageKey))
-                    .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                    .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                    .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.MESSAGE_KEY.eq(messageKey))
+                    .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
             );
         }
         if (existing != null) {
@@ -85,7 +84,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Transactional
     public void markSuccess(Long id) {
         SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setStatus("success");
@@ -101,7 +100,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
             null, null, null, null, null, null, error
         );
         SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setRetryCount(record.getRetryCount() + 1);
@@ -117,12 +116,12 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     public List<SysSyncRetry> getPendingRetries() {
         return syncRetryMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_SYNC_RETRY.STATUS.eq("pending"))
-                .and(SYS_SYNC_RETRY.RETRY_COUNT.lt(SYS_SYNC_RETRY.MAX_RETRIES))
-                .and(SYS_SYNC_RETRY.NEXT_RETRY_AT.le(LocalDateTime.now()))
-                .and(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
-                .orderBy(SYS_SYNC_RETRY.CREATED_AT.asc())
+                .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.STATUS.eq("pending"))
+                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.RETRY_COUNT.lt(SysSyncRetryTableDef.SYS_SYNC_RETRY.MAX_RETRIES))
+                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.NEXT_RETRY_AT.le(LocalDateTime.now()))
+                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                .orderBy(SysSyncRetryTableDef.SYS_SYNC_RETRY.CREATED_AT.asc())
         );
     }
 
@@ -130,7 +129,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Transactional
     public void deleteProcessed(Long id) {
         SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SYS_SYNC_RETRY.ID, SYS_SYNC_RETRY.TENANT_ID, SYS_SYNC_RETRY.DELETE_FLAG,
+            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
         if (record != null) {
             record.setDeleteFlag(record.getId());
@@ -144,9 +143,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         Page<SysSyncRetry> page = syncRetryMapper.paginate(
             Page.of(pageReq.getPageNum(), pageReq.getPageSize()),
             QueryWrapper.create()
-                .where(SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
-                .orderBy(SYS_SYNC_RETRY.CREATED_AT.desc())
+                .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
+                .orderBy(SysSyncRetryTableDef.SYS_SYNC_RETRY.CREATED_AT.desc())
         );
         long totalPages = (page.getTotalRow() + pageReq.getPageSize() - 1) / pageReq.getPageSize();
         return new PaginatedResult<>(page.getRecords(),

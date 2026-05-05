@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
 
 /**
  * Proxy between admin-service and permission-center.
@@ -205,7 +204,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     @Override
     public UserInfoResp loadUserRolesAndPermissions(Long userId) {
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create().where(SYS_USER_ORG.USER_ID.eq(userId)).and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+            QueryWrapper.create().where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId)).and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()

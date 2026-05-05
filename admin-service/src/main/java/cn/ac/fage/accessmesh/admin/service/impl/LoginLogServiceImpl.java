@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysLoginLogTableDef.SYS_LOGIN_LOG;
 
 @Service
 public class LoginLogServiceImpl implements LoginLogService {
@@ -30,8 +29,8 @@ public class LoginLogServiceImpl implements LoginLogService {
         Page<SysLoginLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysLoginLog> result = loginLogMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_LOGIN_LOG.TENANT_ID.eq(tenantId))
-                .orderBy(SYS_LOGIN_LOG.LOGIN_AT.desc()));
+                .where(SysLoginLogTableDef.SYS_LOGIN_LOG.TENANT_ID.eq(tenantId))
+                .orderBy(SysLoginLogTableDef.SYS_LOGIN_LOG.LOGIN_AT.desc()));
 
         List<SysLoginLog> items = result.getRecords();
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();

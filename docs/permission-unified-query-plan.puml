@@ -1,0 +1,187 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam defaultFontSize 9
+
+title 统一权限查询引擎 v2 — PermQueryEngine.query(PermQuery) → PermResult
+
+actor "所有调用方" as Caller
+
+box "调用方 (3-15行)" #LightYellow
+    collections "PermServiceImpl\n.check()\n.batchCheck()\n.checkInterface()\n.queryResources()" as Svc
+    collections "ResourcePermValidator\n.validate()\n.hasPermission()" as Val
+    collections "AuthorizationService\n.checkGrantBatch()" as Auth
+    collections "PermViewService\n.getRolePermissions()" as View
+end box
+
+box "统一查询引擎" #LightGreen
+    participant "PermQueryEngine\n.query(PermQuery)" as Engine
+    control "PermQueryConditions\n(MyBatis条件SQL)" as Cond
+    collections "PermResult\n(统一返回)" as Result
+    collections "PermResultUtils\n(DTO转换)" as Utils
+    collections "OperationPermissionUtils\n(位运算/过滤)" as OpUtils
+    collections "ConditionEvalUtils\n(条件子项评估)" as CondUtils
+end box
+
+box "已有服务 (复用)" #LightCyan
+    participant "UserRoleDomainService\n(角色解析+缓存)" as RoleSvc
+    participant "TypeResolutionService\n(编码→ID)" as TypeSvc
+    participant "GenericCacheManager\n(L1+L2, common模块)" as Cache
+    participant "EntityBatchLoadService" as BatchLoad
+end box
+
+box "DB" #LightGray
+    database "role_resource_permission" as DB
+    database "resource_entity" as RE
+    database "operation_permission" as OP
+end box
+
+== 调用方构造 PermQuery (工厂方法) ==
+
+Caller -> Svc : check(tenantId, AuthCheckReq)
+Svc -> Svc : resolveUserId() / resolveDomainId()
+
+note right #E0FFE0
+    <b>PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode)</b>
+    预设: type级✅ instance级✅ scopeAll短路✅ 评估条件✅ 最少返回
+end note
+
+Svc -> Engine : query(permQuery)
+
+== Engine.query() 内部 ==
+
+group Step1: 角色解析 (走缓存)
+    Engine -> RoleSvc : resolveEffectiveRoles(tenantId, userId, bizDomainId)
+    RoleSvc -> Cache : get(userId) → L1 miss → L2 miss → DB
+    RoleSvc --> Engine : Set<Long> roleIds
+end
+
+group Step2: ID解析 (批量, 仅调用方未预解析时)
+    Engine -> TypeSvc : batchResolveTypeValues(resource_type, codes)
+    TypeSvc --> Engine : Map<String, Integer>
+    Engine -> TypeSvc : batchResolveResourceIds(requests)
+    TypeSvc --> Engine : Map<Key, Long>
+    Engine -> TypeSvc : batchResolveOperationIds(typeCode, opCodes)
+    TypeSvc --> Engine : Map<String, Long>
+end
+
+group Step3: 查Type-level (1条SQL)
+    alt queryScopeAll == true
+        Engine -> Cond : buildTypeLevelQuery(q, roleIds, types, opIds)
+        Cond --> Engine : QueryWrapper (角色+类型+操作+scopeAll+未删)
+        Engine -> DB : SELECT FROM role_resource_permission\nWHERE ...
+
+        alt scopeAll有结果 且 earlyReturnOnScopeAll == true
+            Engine -> Engine : ✅ 短路! 跳过Step4
+            note right #90EE90
+                <b>提前返回</b>
+                不查instance-level
+            end note
+        end
+    end
+end
+
+group Step4: 查Instance-level (1条SQL, 仅需时)
+    alt queryInstance == true 且 resourceEntityIds非空
+        Engine -> Cond : buildInstanceQuery(q, roleIds, entityIds, opIds)
+        Cond --> Engine : QueryWrapper
+        Engine -> DB : SELECT FROM role_resource_permission\nWHERE ...
+    end
+end
+
+group Step5: 批量加载附属实体 (1-3条SQL, 按include*)
+    Engine -> BatchLoad : batchLoadResources(ids) → includeResources
+    Engine -> BatchLoad : batchLoadOperations(ids) → includeOperations
+    Engine -> BatchLoad : batchLoadRoles(ids) → includeRoles
+end
+
+group Step6: 评估 (按标志)
+    Engine -> Engine : evaluateConditions → evaluateConditions==true
+    Engine -> Engine : evaluateConflicts → evaluateConflicts==true
+end
+
+group Step7: 构建 PermResult
+    Engine -> Result : new PermResult(allowed, entries, resources, ops, roles, ...)
+end
+
+Engine --> Svc : PermResult
+
+== 调用方使用 PermResult ==
+
+Svc -> Utils : PermResultUtils.toAuthCheckResp(result)
+note right #FFFACD
+    <b>PermResultUtils 静态方法:</b>
+    toAuthCheckResp()
+    toCheckInterfaceResp()
+    toQueryResourcesResp()
+    toQueryScopesResp()
+    toGrantCheckResult()
+    toRolePermissionViewResp()
+    validateOrThrow()
+end note
+Utils --> Svc : AuthCheckResp
+
+Svc --> Caller : 返回给客户端
+
+== 各调用方完整示例 ==
+
+note over Caller, Utils #F0F0FF
+    <b>──────────── 所有调用方只写 3-10 行 ────────────</b>
+
+    <b>check():</b>
+    PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
+        "SERVICE", serviceCode, "VIEW");
+    return PermResultUtils.toAuthCheckResp(engine.query(q));
+
+    <b>batchCheck():</b>
+    List<PermQuery> qs = PermQuery.forBatchCheck(tenantId, userId,
+        resourceTypeCode, resourceCodes, operationCode);
+    Map<PermQuery, PermResult> rs = engine.batchQuery(qs);
+
+    <b>checkInterface() (独有:路径匹配保留):</b>
+    Set<Long> entityIds = matchApiPaths(tenantId, path, method);
+    PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId,
+        Set.of("API"), entityIds, "ACCESS");
+    return PermResultUtils.toCheckInterfaceResp(engine.query(q), path);
+
+    <b>queryResources():</b>
+    PermQuery q = PermQuery.forResourceQuery(tenantId, userId,
+        Set.of("MENU","BUTTON"), Set.of("VIEW"));
+    return PermResultUtils.toQueryResourcesResp(engine.query(q));
+
+    <b>hasPermission() (Validator):</b>
+    PermQuery q = PermQuery.forValidate(tenantId, operatorId,
+        "ROLE", roleCode, "MANAGE");
+    return engine.query(q).isAllowed();
+
+    <b>canGrant():</b>
+    PermQuery q = PermQuery.forCanGrant(tenantId, operatorId,
+        Set.of("SERVICE","ROLE"), Set.of("MANAGE"));
+    return PermResultUtils.toGrantCheckResult(engine.query(q), items);
+
+    <b>View查询:</b>
+    PermQuery q = PermQuery.forPermissionView(tenantId, null,
+        Set.of(roleId), Set.of("SERVICE","MENU"));
+    return PermResultUtils.toRolePermissionViewResp(engine.query(q));
+end note
+
+note over Engine, CondUtils #FFE0E0
+    <b>====== 新建文件清单 (7个) ======</b>
+    PermQuery.java .......................... 入参DTO + 8个工厂方法
+    PermResult.java ......................... 统一返回对象
+    PermQueryConditions.java ................ MyBatis条件SQL构建器
+    OperationPermissionUtils.java ........... 位运算/批量过滤工具
+    ConditionEvalUtils.java ................. 条件子项静态评估
+    PermResultUtils.java .................... DTO转换工具
+    PermQueryEngine.java .................... 核心引擎 query()
+
+    <b>====== 执行阶段 ======</b>
+    Phase A: 新建7个文件 (无行为变更)
+    Phase B: 新建 PermQueryEngine
+    Phase C: 改造6个调用方
+    Phase D: 删除重复代码
+    Phase E: 更新 docs + .claude/skills + .claude/rules
+end note
+
+@enduml

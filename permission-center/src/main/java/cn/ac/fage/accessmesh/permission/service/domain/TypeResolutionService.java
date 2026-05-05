@@ -152,4 +152,10 @@ public interface TypeResolutionService {
      * @return map of externalId -> roleId, empty map if input is empty
      */
     Map<String, Long> batchResolveRoleIds(Long tenantId, String roleTypeCode, Set<String> externalIds, String domainCode);
+
+    /**
+     * Check if a type definition is system-preset (cannot be deleted).
+     * Moved from TypeDefPermissionStrategy.isSystemType().
+     */
+    boolean isSystemType(Long tenantId, Long typeDefId);
 }

@@ -11,8 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 
 @Service
 public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService {
@@ -73,9 +72,9 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     public List<AbstractRole> listChildren(Long tenantId, Long parentId) {
         return abstractRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.PARENT_ID.eq(parentId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.PARENT_ID.eq(parentId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
     }
 
@@ -101,9 +100,9 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
         }
         return abstractRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.eq(roleId))
-                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
     }
 }

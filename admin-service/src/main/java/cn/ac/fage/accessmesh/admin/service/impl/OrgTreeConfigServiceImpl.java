@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG;
 
 @Service
 public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
@@ -48,7 +47,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Transactional
     public void updateOrgTreeConfig(SysOrgTreeConfig config) {
         SysOrgTreeConfig existing = TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SYS_ORG_TREE_CONFIG.ID, SYS_ORG_TREE_CONFIG.TENANT_ID, SYS_ORG_TREE_CONFIG.DELETE_FLAG,
+            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), config.getId());
         if (existing == null) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
@@ -75,7 +74,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Transactional
     public void setDefault(Long id) {
         SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SYS_ORG_TREE_CONFIG.ID, SYS_ORG_TREE_CONFIG.TENANT_ID, SYS_ORG_TREE_CONFIG.DELETE_FLAG,
+            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
         if (config == null) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
@@ -89,7 +88,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     public SysOrgTreeConfig getOrgTreeConfig(Long id) {
         return TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SYS_ORG_TREE_CONFIG.ID, SYS_ORG_TREE_CONFIG.TENANT_ID, SYS_ORG_TREE_CONFIG.DELETE_FLAG,
+            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
     }
 
@@ -98,9 +97,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         Page<SysOrgTreeConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysOrgTreeConfig> result = orgTreeConfigMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
-                .orderBy(SYS_ORG_TREE_CONFIG.CREATED_AT.desc()));
+                .where(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
+                .orderBy(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.CREATED_AT.desc()));
 
         List<SysOrgTreeConfig> items = result.getRecords();
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
@@ -113,9 +112,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         // For now, loop update is used due to MyBatis-Flex API limitations
         List<SysOrgTreeConfig> configs = orgTreeConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
-                .and(SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
+                .where(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
+                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
+                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
         );
         LocalDateTime now = LocalDateTime.now();
         for (SysOrgTreeConfig config : configs) {

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 
 @Service
 public class UserDomainServiceImpl implements UserDomainService {
@@ -29,9 +29,9 @@ public class UserDomainServiceImpl implements UserDomainService {
         }
         return userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.ID.eq(userId))
-                .and(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
+                .and(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 
@@ -42,9 +42,9 @@ public class UserDomainServiceImpl implements UserDomainService {
         }
         return userMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.ID.in(userIds))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.ID.in(userIds))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 
@@ -73,9 +73,9 @@ public class UserDomainServiceImpl implements UserDomainService {
         }
         return userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.USERNAME.eq(username))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.USERNAME.eq(username))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 
@@ -86,9 +86,9 @@ public class UserDomainServiceImpl implements UserDomainService {
         }
         return userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.PHONE.eq(phone))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.PHONE.eq(phone))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 

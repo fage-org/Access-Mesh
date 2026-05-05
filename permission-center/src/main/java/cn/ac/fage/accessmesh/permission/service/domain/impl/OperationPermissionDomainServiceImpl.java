@@ -7,8 +7,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
 
 @Service
 public class OperationPermissionDomainServiceImpl implements OperationPermissionDomainService {
@@ -56,9 +55,9 @@ public class OperationPermissionDomainServiceImpl implements OperationPermission
         }
         return operationPermissionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(OPERATION_PERMISSION.ID.eq(operationId))
-                .and(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.eq(operationId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         );
     }
 }

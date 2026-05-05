@@ -4,33 +4,32 @@ import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermissionConditionDomainServiceImpl;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef.PERMISSION_CONDITION;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef;
 
 @Service
 public class ConditionManageServiceImpl implements ConditionManageService {
 
     private final PermissionConditionMapper conditionMapper;
     private final OperationLogDomainService operationLogDomainService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     /**
      * 问题6：注入 PermissionConditionDomainServiceImpl 用于缓存失效
@@ -39,11 +38,11 @@ public class ConditionManageServiceImpl implements ConditionManageService {
 
     public ConditionManageServiceImpl(PermissionConditionMapper conditionMapper,
                                        OperationLogDomainService operationLogDomainService,
-                                       ResourcePermissionValidator permissionValidator,
+                                       PermQueryEngine engine,
                                        PermissionConditionDomainServiceImpl conditionDomainService) {
         this.conditionMapper = conditionMapper;
         this.operationLogDomainService = operationLogDomainService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
         this.conditionDomainService = conditionDomainService;
     }
 
@@ -51,7 +50,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationType.CREATE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE);
 
         PermissionCondition condition = new PermissionCondition();
         condition.setTenantId(tenantId);
@@ -73,9 +72,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     public ConditionResp getCondition(Long tenantId, Long conditionId) {
         PermissionCondition condition = conditionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONDITION.ID.eq(conditionId))
-                .and(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                .where(PermissionConditionTableDef.PERMISSION_CONDITION.ID.eq(conditionId))
+                .and(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
         );
         return condition != null ? toConditionResp(condition) : null;
     }
@@ -84,7 +83,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationType.UPDATE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE);
 
         PermissionCondition condition = conditionMapper.selectOneById(req.conditionId());
         if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
@@ -114,8 +113,8 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     public List<ConditionResp> listConditions(Long tenantId) {
         return conditionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
         ).stream().map(this::toConditionResp).collect(Collectors.toList());
     }
 
@@ -123,7 +122,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationType.DELETE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE);
 
         PermissionCondition condition = conditionMapper.selectOneById(conditionId);
         if (condition != null && condition.getDeleteFlag() == 0L && condition.getTenantId().equals(tenantId)) {
@@ -155,13 +154,13 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         Set<Long> validInputIds = ids.stream().filter(id -> id != null).collect(Collectors.toSet());
         if (validInputIds.isEmpty()) return;
 
-        permissionValidator.validateBatch(tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationType.DELETE);
+        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
 
         List<PermissionCondition> entities = conditionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONDITION.ID.in(validInputIds))
-                .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                .and(PermissionConditionTableDef.PERMISSION_CONDITION.ID.in(validInputIds))
+                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
         );
         if (entities.isEmpty()) return;
 

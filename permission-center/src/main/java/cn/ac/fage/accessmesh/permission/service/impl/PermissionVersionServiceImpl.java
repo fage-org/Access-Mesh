@@ -13,9 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 public class PermissionVersionServiceImpl implements PermissionVersionService {
@@ -42,9 +41,9 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
 
         AbstractRole role = abstractRoleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.eq(roleId))
-                .and(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         );
         String roleTypeCode = req.roleTypeCode();
         String roleExternalId = req.roleExternalId();
@@ -53,9 +52,9 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
         // Fallback to 0 if no permissions.
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         long version = perms.stream()

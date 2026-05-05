@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef.SYS_ORG;
+import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
 @Service
 public class OrgDomainServiceImpl implements OrgDomainService {
@@ -90,9 +90,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         while (!toLoad.isEmpty()) {
             List<SysOrg> loaded = orgMapper.selectListByQuery(
                 QueryWrapper.create()
-                    .where(SYS_ORG.TENANT_ID.eq(tenantId))
-                    .and(SYS_ORG.ID.in(toLoad))
-                    .and(SYS_ORG.DELETE_FLAG.eq(0))
+                    .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                    .and(SysOrgTableDef.SYS_ORG.ID.in(toLoad))
+                    .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
             );
             toLoad.clear();
             for (SysOrg org : loaded) {
@@ -132,9 +132,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         }
         return orgMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.ID.eq(orgId))
-                .and(SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG.DELETE_FLAG.eq(0))
+                .where(SysOrgTableDef.SYS_ORG.ID.eq(orgId))
+                .and(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
     }
 
@@ -145,9 +145,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         }
         return orgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG.ID.in(orgIds))
-                .and(SYS_ORG.DELETE_FLAG.eq(0))
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.ID.in(orgIds))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
     }
 
@@ -174,9 +174,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
     public boolean hasChildren(Long tenantId, Long orgId) {
         long count = orgMapper.selectCountByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG.PARENT_ID.eq(orgId))
-                .and(SYS_ORG.DELETE_FLAG.eq(0))
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.PARENT_ID.eq(orgId))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
         return count > 0;
     }
@@ -188,9 +188,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         }
         return orgMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG.CODE.eq(code))
-                .and(SYS_ORG.DELETE_FLAG.eq(0))
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.CODE.eq(code))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
     }
 }

@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef.SYS_ORG;
+import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
 @Service
 public class OrgServiceImpl implements OrgService {
@@ -265,12 +265,12 @@ public class OrgServiceImpl implements OrgService {
         // FIX #7: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SYS_ORG.DELETE_FLAG.eq(0));
-        if (req.orgName() != null) qw.and(SYS_ORG.NAME.like(req.orgName()));
-        if (req.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
-        if (req.status() != null) qw.and(SYS_ORG.STATUS.eq(req.status()));
-        qw.orderBy(SYS_ORG.SORT_ORDER.asc(), SYS_ORG.CREATED_AT.asc());
+            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
+        if (req.orgName() != null) qw.and(SysOrgTableDef.SYS_ORG.NAME.like(req.orgName()));
+        if (req.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
+        if (req.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(req.status()));
+        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
 
         Page<SysOrg> page = Page.of(req.getPageNum(), req.getPageSize());
         Page<SysOrg> result = orgMapper.paginate(page, qw);
@@ -289,13 +289,13 @@ public class OrgServiceImpl implements OrgService {
         // FIX #8: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SYS_ORG.DELETE_FLAG.eq(0));
+            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
         if (query != null) {
-            if (query.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
-            if (query.status() != null) qw.and(SYS_ORG.STATUS.eq(query.status()));
+            if (query.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
+            if (query.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(query.status()));
         }
-        qw.orderBy(SYS_ORG.SORT_ORDER.asc(), SYS_ORG.CREATED_AT.asc());
+        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
 
         List<SysOrg> all = orgMapper.selectListByQuery(qw);
         return buildTree(all, 0L);
