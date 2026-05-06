@@ -2,8 +2,9 @@ package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.SyncRetryMarkFailedReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.SyncRetryResp;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysSyncRetry;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -34,16 +35,21 @@ public class SyncRetryController {
      * Paginated list of sync retry records.
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<SysSyncRetry>> page(@RequestBody PageReq pageReq) {
-        return PermResult.success(syncRetryService.page(pageReq));
+    public PermResult<PaginatedResult<SyncRetryResp>> page(@RequestBody PageReq pageReq) {
+        PaginatedResult<SysSyncRetry> result = syncRetryService.page(pageReq);
+        List<SyncRetryResp> items = result.items().stream()
+            .map(SyncRetryResp::from)
+            .toList();
+        return PermResult.success(new PaginatedResult<>(items, result.pagination()));
     }
 
     /**
      * List pending retry records (status = pending).
      */
     @PostMapping("/pending")
-    public PermResult<List<SysSyncRetry>> listPending() {
-        return PermResult.success(syncRetryService.getPendingRetries());
+    public PermResult<List<SyncRetryResp>> listPending() {
+        List<SysSyncRetry> retries = syncRetryService.getPendingRetries();
+        return PermResult.success(retries.stream().map(SyncRetryResp::from).toList());
     }
 
     /**

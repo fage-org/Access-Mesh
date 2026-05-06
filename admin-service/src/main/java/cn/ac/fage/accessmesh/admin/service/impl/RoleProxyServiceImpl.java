@@ -16,10 +16,12 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserPermissionViewResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.perm.common.enums.DefaultOpCode;
@@ -28,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,9 +167,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         }
 
         // 调用 permission-center 撤销权限
-        // 注意：需要先查询权限ID，再调用批量撤销接口
         try {
-            // 查询用户权限视图获取权限ID
+            // 1. 查询角色的现有权限
             UserPermissionViewReq viewReq = new UserPermissionViewReq(
                 "ROLE",            // targetType
                 "ORG_ROLE",        // subjectTypeCode
@@ -186,12 +188,64 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 100                // pageSize
             );
 
-            // 暂时记录日志，后续需要实现完整的撤销逻辑
-            log.info("Revoke menu from role: roleId={}, menuId={}, resourceId={}", roleId, menuId, resourceId);
+            PermResult<PermissionEffectivePermissionsResp<Map<String, Object>>> viewResult = 
+                permissionFeignClient.getEffectivePermissions(viewReq);
+            
+            if (viewResult == null || viewResult.data() == null) {
+                log.warn("Failed to query permissions for role: roleId={}, menuId={}", roleId, menuId);
+                throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                    "Failed to query existing permissions");
+            }
 
-            // TODO: 调用 permission-center 的撤销接口
-            // permissionFeignClient.batchRevoke(...)
+            // 2. 从结果中过滤出匹配 menuId 的权限项，并提取 permissionIds
+            List<Long> permissionIds = new ArrayList<>();
+            String targetResourceCode = String.valueOf(menuId);
+            
+            PermissionEffectivePermissionsResp<Map<String, Object>> respData = viewResult.data();
+            if (respData.items() != null) {
+                for (Map<String, Object> item : respData.items()) {
+                    Object resourceCodeObj = item.get("resourceCode");
+                    if (resourceCodeObj != null && targetResourceCode.equals(resourceCodeObj.toString())) {
+                        Object permissionIdsObj = item.get("matchedPermissionIds");
+                        if (permissionIdsObj instanceof List<?> ids) {
+                            for (Object idObj : ids) {
+                                if (idObj != null) {
+                                    permissionIds.add(Long.valueOf(idObj.toString()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
+            // 3. 如果没有权限需要撤销，直接返回
+            if (permissionIds.isEmpty()) {
+                log.info("No permissions found to revoke for menu: roleId={}, menuId={}", roleId, menuId);
+                return;
+            }
+
+            // 4. 调用 permission-center 的批量撤销接口
+            BatchRevokeReq revokeReq = new BatchRevokeReq(
+                null,                      // domainCode
+                "ORG_ROLE",                // roleTypeCode
+                String.valueOf(roleId),    // roleExternalId
+                permissionIds              // permissionIds
+            );
+
+            PermResult<Void> result = permissionFeignClient.batchRevoke(revokeReq);
+            if (result == null || result.code() != 200) {
+                log.warn("Failed to revoke menu from role: roleId={}, menuId={}, permissionCount={}", 
+                    roleId, menuId, permissionIds.size());
+                throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                    "Failed to revoke menu permission");
+            }
+            
+            log.info("Revoked menu from role: roleId={}, menuId={}, permissionCount={}", 
+                roleId, menuId, permissionIds.size());
+
+        } catch (BizException | SystemException e) {
+            // 重新抛出已知异常
+            throw e;
         } catch (Exception e) {
             log.error("Error revoking menu from role: roleId={}, menuId={}, error={}", roleId, menuId, e.getMessage());
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),

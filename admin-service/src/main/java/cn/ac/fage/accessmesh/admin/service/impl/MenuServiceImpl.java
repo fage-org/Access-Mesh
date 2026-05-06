@@ -64,7 +64,7 @@ public class MenuServiceImpl implements MenuService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Long createMenu(MenuCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
@@ -134,7 +134,7 @@ public class MenuServiceImpl implements MenuService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateMenu(MenuUpdateReq req) {
         // Permission check - instance-level UPDATE
         permissionValidator.checkInstanceLevel(
@@ -195,7 +195,7 @@ public class MenuServiceImpl implements MenuService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteMenu(Long id) {
         // Permission check - instance-level DELETE
         permissionValidator.checkInstanceLevel(
@@ -274,7 +274,7 @@ public class MenuServiceImpl implements MenuService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateMenus(MenuBatchCreateReq req) {
         // TODO: 跨服务数据一致性风险
         // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
@@ -380,6 +380,7 @@ public class MenuServiceImpl implements MenuService {
                 } catch (Exception syncEx) {
                     log.error("Failed to record sync task for batch menu creation: menuId={}, error={}",
                         menu.getId(), syncEx.getMessage());
+                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
                 }
             }
         }
@@ -388,7 +389,7 @@ public class MenuServiceImpl implements MenuService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void batchDeleteMenus(IdsReq req) {
         // TODO: 跨服务数据一致性改进
         // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除

@@ -62,7 +62,7 @@ public class OrgServiceImpl implements OrgService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
@@ -103,27 +103,32 @@ public class OrgServiceImpl implements OrgService {
         orgMapper.insert(org);
 
         // 同一事务内记录同步任务，确保组织创建与任务记录原子性
-        String payload = objectMapper.writeValueAsString(Map.of(
-            "orgId", org.getId(),
-            "orgName", org.getName(),
-            "tenantId", tenantId
-        ));
-        syncRetryService.recordSyncFailure(
-            "org:create:" + org.getId(),
-            "permission-center",
-            "abstract_org",
-            String.valueOf(org.getId()),
-            "create",
-            payload,
-            null
-        );
-        log.info("Recorded sync task for org creation: orgId={}", org.getId());
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "orgId", org.getId(),
+                "orgName", org.getName(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "org:create:" + org.getId(),
+                "permission-center",
+                "abstract_org",
+                String.valueOf(org.getId()),
+                "create",
+                payload,
+                null
+            );
+            log.info("Recorded sync task for org creation: orgId={}", org.getId());
+        } catch (Exception e) {
+            log.error("Failed to serialize sync payload for org creation: orgId={}", org.getId(), e);
+            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "组织同步任务记录失败");
+        }
 
         return org.getId();
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
         // Permission check - instance-level UPDATE
         permissionValidator.checkInstanceLevel(
@@ -140,12 +145,15 @@ public class OrgServiceImpl implements OrgService {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        long newParentId = Long.parseLong(req.parentOrgId());
-        if (newParentId != org.getParentId()) {
-            SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
-            int newLevel = newParent != null ? (newParent.getLevel() != null ? newParent.getLevel() + 1 : 1) : 1;
-            if (newLevel > 10) {
-                throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(), AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+        // Validate parent change only if a new parent is specified
+        if (req.parentOrgId() != null && !req.parentOrgId().isBlank()) {
+            long newParentId = Long.parseLong(req.parentOrgId());
+            if (newParentId != org.getParentId()) {
+                SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
+                int newLevel = newParent != null ? (newParent.getLevel() != null ? newParent.getLevel() + 1 : 1) : 1;
+                if (newLevel > 10) {
+                    throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(), AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+                }
             }
         }
 
@@ -166,29 +174,34 @@ public class OrgServiceImpl implements OrgService {
 
         // 同步更新到权限中心 - 同一事务内记录同步任务（Outbox Pattern）
         if (org.getPermOrgId() != null) {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "permOrgId", org.getPermOrgId(),
-                "name", org.getName(),
-                "code", org.getCode(),
-                "parentId", org.getParentId(),
-                "level", org.getLevel(),
-                "sortOrder", org.getSortOrder()
-            ));
-            syncRetryService.recordSyncFailure(
-                "org:update:" + org.getId(),
-                "permission-center",
-                "abstract_org",
-                String.valueOf(org.getPermOrgId()),
-                "update",
-                payload,
-                null
-            );
-            log.info("Recorded update sync task for org: orgId={}", org.getId());
+            try {
+                String payload = objectMapper.writeValueAsString(Map.of(
+                    "permOrgId", org.getPermOrgId(),
+                    "name", org.getName(),
+                    "code", org.getCode(),
+                    "parentId", org.getParentId(),
+                    "level", org.getLevel(),
+                    "sortOrder", org.getSortOrder()
+                ));
+                syncRetryService.recordSyncFailure(
+                    "org:update:" + org.getId(),
+                    "permission-center",
+                    "abstract_org",
+                    String.valueOf(org.getPermOrgId()),
+                    "update",
+                    payload,
+                    null
+                );
+                log.info("Recorded update sync task for org: orgId={}", org.getId());
+            } catch (Exception e) {
+                log.error("Failed to serialize sync payload for org update: orgId={}", org.getId(), e);
+                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "组织同步任务记录失败");
+            }
         }
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
         // Permission check - instance-level DELETE
         permissionValidator.checkInstanceLevel(
@@ -280,7 +293,7 @@ public class OrgServiceImpl implements OrgService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateOrgs(OrgBatchCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
@@ -378,6 +391,7 @@ public class OrgServiceImpl implements OrgService {
                     log.error("Failed to record sync task for batch org creation: orgId={}, error={}",
                         org.getId(), syncEx.getMessage());
                     failedMessages.add("同步任务记录失败: " + org.getName());
+                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "组织同步任务记录失败");
                 }
             }
         }
@@ -386,7 +400,7 @@ public class OrgServiceImpl implements OrgService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void batchDeleteOrgs(IdsReq req) {
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()

@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobLogResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 
@@ -19,9 +21,9 @@ public interface JobService {
 
     void triggerJob(Long id);
 
-    SysJob getJob(Long id);
+    JobResp getJob(Long id);
 
-    PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup);
+    PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup);
 
-    PaginatedResult<cn.ac.fage.accessmesh.admin.entity.SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId);
+    PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId);
 }

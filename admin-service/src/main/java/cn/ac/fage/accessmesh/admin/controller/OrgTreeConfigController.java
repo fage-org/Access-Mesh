@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
+import cn.ac.fage.accessmesh.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
@@ -52,12 +53,12 @@ public class OrgTreeConfigController {
     }
 
     @PostMapping("/detail")
-    public PermResult<SysOrgTreeConfig> getOrgTreeConfig(@Valid @RequestBody IdReq req) {
+    public PermResult<OrgTreeConfigResp> getOrgTreeConfig(@Valid @RequestBody IdReq req) {
         return PermResult.success(orgTreeConfigService.getOrgTreeConfig(req.id()));
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<SysOrgTreeConfig>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
+    public PermResult<PaginatedResult<OrgTreeConfigResp>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
         return PermResult.success(orgTreeConfigService.pageOrgTreeConfigs(req));
     }
 }

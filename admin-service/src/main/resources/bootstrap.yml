@@ -31,7 +31,7 @@ sa-token:
   is-share: false
   token-style: jwt
   is-log: false
-  jwt-secret-key: ${JWT_SECRET_KEY:}
+  jwt-secret-key: ${JWT_SECRET_KEY}
 
 mybatis-flex:
   mapper-locations: classpath*:/mapper/**/*.xml

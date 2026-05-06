@@ -102,19 +102,18 @@ public class AuthServiceImpl implements AuthService {
 
         Long tenantId = Long.parseLong(req.tenantId());
         SysUser user = findUser(tenantId, req.username());
-        checkAccountLocked(tenantId, req.username());
         if (user == null) {
             recordLoginFail(tenantId, req.username());
             recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
+        
+        // FIX: 以DB状态为准检查账号锁定，修复竞态条件
+        checkAccountLocked(tenantId, req.username(), user.getStatus());
+        
         if (user.getStatus() != null && user.getStatus() == 0) {
             recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
-        }
-        if (user.getStatus() != null && user.getStatus() == 2) {
-            recordLoginLog(tenantId, req.username(), req.clientId(), 0, "账号已锁定");
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), AdminErrorCode.USER_LOCKED.getMessage());
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
@@ -159,6 +158,9 @@ public class AuthServiceImpl implements AuthService {
             recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
         }
+
+        // FIX: 以DB状态为准检查账号锁定，修复竞态条件
+        checkAccountLocked(tenantId, req.phone(), user.getStatus());
 
         StpUtil.login(user.getId());
         // FIX #1: Store tenantId in session for security validation (sms login)
@@ -283,13 +285,23 @@ public class AuthServiceImpl implements AuthService {
         loginLogMapper.insert(log);
     }
 
-    private void checkAccountLocked(Long tenantId, String username) {
-        String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        Long failCount = redisTemplate.opsForValue().increment(key, 0);
-        if (failCount != null && failCount >= MAX_LOGIN_FAIL_COUNT) {
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
-                "登录失败次数过多，账号已锁定" + LOCK_DURATION_MINUTES + "分钟");
+    /**
+     * 检查账号是否锁定（以DB状态为准，修复竞态条件）
+     * 
+     * @param tenantId 租户ID
+     * @param username 用户名
+     * @param userStatus 用户状态（从DB查询）
+     */
+    private void checkAccountLocked(Long tenantId, String username, Integer userStatus) {
+        // 以DB状态为准：如果status=2，账号已锁定
+        if (userStatus != null && userStatus == 2) {
+            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), "账号已锁定");
         }
+        
+        // Redis计数仅用于日志/显示，不作为锁定判定依据
+        // 保留Redis检查用于记录失败次数，但不抛异常（DB状态才是准）
+        String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
+        redisTemplate.opsForValue().increment(key, 0);  // 仅检查，不抛异常
     }
 
     private void recordLoginFail(Long tenantId, String username) {

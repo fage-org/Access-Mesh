@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.admin.service;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.NoticeCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.NoticeUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.NoticeResp;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -11,7 +12,7 @@ public interface NoticeService {
 
     Long createNotice(NoticeCreateReq req);
 
-    void updateNotice(NoticeCreateReq req);
+    void updateNotice(NoticeUpdateReq req);
 
     void deleteNotice(IdsReq req);
 

@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import jakarta.annotation.PostConstruct;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -68,6 +69,20 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         this.userMapper = userMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    public void validateJwtSecretKey() {
+        if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
+            throw new IllegalStateException(
+                "JWT secret key must be configured via JWT_SECRET_KEY environment variable");
+        }
+        if (jwtSecretKey.length() < 32) {
+            throw new IllegalStateException(
+                "JWT secret key must be at least 32 characters for security. Current length: " 
+                + jwtSecretKey.length());
+        }
+        log.info("JWT secret key validated successfully, length: {}", jwtSecretKey.length());
     }
 
     @Override

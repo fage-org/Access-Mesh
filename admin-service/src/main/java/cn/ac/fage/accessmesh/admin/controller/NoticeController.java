@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.admin.controller;
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.NoticeCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.NoticeUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.NoticeResp;
 import cn.ac.fage.accessmesh.admin.service.NoticeService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
@@ -34,7 +35,7 @@ public class NoticeController {
 
     @PostMapping("/update")
     @AuditLog(module = "公告管理", action = "修改", targetType = "NOTICE")
-    public PermResult<Void> updateNotice(@Valid @RequestBody NoticeCreateReq req) {
+    public PermResult<Void> updateNotice(@Valid @RequestBody NoticeUpdateReq req) {
         noticeService.updateNotice(req);
         return PermResult.success();
     }

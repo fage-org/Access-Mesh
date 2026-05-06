@@ -109,21 +109,26 @@ public class UserServiceImpl implements UserService {
         userMapper.insert(user);
 
         // 同一事务内记录同步任务，确保用户创建与任务记录原子性
-        String payload = objectMapper.writeValueAsString(Map.of(
-            "userId", user.getId(),
-            "username", user.getUsername(),
-            "tenantId", tenantId
-        ));
-        syncRetryService.recordSyncFailure(
-            "user:create:" + user.getId(),
-            "permission-center",
-            "abstract_user",
-            String.valueOf(user.getId()),
-            "create",
-            payload,
-            null
-        );
-        log.info("Recorded sync task for user creation: userId={}", user.getId());
+        try {
+            String payload = objectMapper.writeValueAsString(Map.of(
+                "userId", user.getId(),
+                "username", user.getUsername(),
+                "tenantId", tenantId
+            ));
+            syncRetryService.recordSyncFailure(
+                "user:create:" + user.getId(),
+                "permission-center",
+                "abstract_user",
+                String.valueOf(user.getId()),
+                "create",
+                payload,
+                null
+            );
+            log.info("Recorded sync task for user creation: userId={}", user.getId());
+        } catch (Exception e) {
+            log.error("Failed to record sync task for user creation: userId={}, error={}", user.getId(), e.getMessage());
+            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
+        }
 
         return user.getId();
     }
@@ -167,24 +172,29 @@ public class UserServiceImpl implements UserService {
         // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
         // 同步更新到权限中心 - 记录同步任务
         if (user.getPermUserId() != null) {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "permUserId", user.getPermUserId(),
-                "name", user.getName(),
-                "phone", user.getPhone(),
-                "email", user.getEmail(),
-                "status", user.getStatus(),
-                "enabled", user.getStatus() != null && user.getStatus() == 1
-            ));
-            syncRetryService.recordSyncFailure(
-                "user:update:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getPermUserId()),
-                "update",
-                payload,
-                null
-            );
-            log.info("Recorded update sync task for user: userId={}", user.getId());
+            try {
+                String payload = objectMapper.writeValueAsString(Map.of(
+                    "permUserId", user.getPermUserId(),
+                    "name", user.getName(),
+                    "phone", user.getPhone(),
+                    "email", user.getEmail(),
+                    "status", user.getStatus(),
+                    "enabled", user.getStatus() != null && user.getStatus() == 1
+                ));
+                syncRetryService.recordSyncFailure(
+                    "user:update:" + user.getId(),
+                    "permission-center",
+                    "abstract_user",
+                    String.valueOf(user.getPermUserId()),
+                    "update",
+                    payload,
+                    null
+                );
+                log.info("Recorded update sync task for user: userId={}", user.getId());
+            } catch (Exception e) {
+                log.error("Failed to record update sync task for user: userId={}, error={}", user.getId(), e.getMessage());
+                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
+            }
         }
     }
 
@@ -255,20 +265,25 @@ public class UserServiceImpl implements UserService {
             // 同步启用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "permUserId", user.getPermUserId(),
-                        "enabled", true
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "user:enable:" + user.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(user.getPermUserId()),
-                        "update",
-                        payload,
-                        null
-                    );
-                    log.info("Recorded enable sync task for user: userId={}", user.getId());
+                    try {
+                        String payload = objectMapper.writeValueAsString(Map.of(
+                            "permUserId", user.getPermUserId(),
+                            "enabled", true
+                        ));
+                        syncRetryService.recordSyncFailure(
+                            "user:enable:" + user.getId(),
+                            "permission-center",
+                            "abstract_user",
+                            String.valueOf(user.getPermUserId()),
+                            "update",
+                            payload,
+                            null
+                        );
+                        log.info("Recorded enable sync task for user: userId={}", user.getId());
+                    } catch (Exception e) {
+                        log.error("Failed to record enable sync task for user: userId={}, error={}", user.getId(), e.getMessage());
+                        throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
+                    }
                 }
             }
         }
@@ -458,6 +473,7 @@ public class UserServiceImpl implements UserService {
                     log.error("Failed to record sync task for batch user creation: userId={}, error={}",
                         user.getId(), syncEx.getMessage());
                     failedMessages.add("同步任务记录失败: " + user.getUsername());
+                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
                 }
             }
         }
@@ -487,20 +503,25 @@ public class UserServiceImpl implements UserService {
             // 同步禁用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "permUserId", user.getPermUserId(),
-                        "enabled", false
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "user:disable:" + user.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(user.getPermUserId()),
-                        "update",
-                        payload,
-                        null
-                    );
-                    log.info("Recorded disable sync task for user: userId={}", user.getId());
+                    try {
+                        String payload = objectMapper.writeValueAsString(Map.of(
+                            "permUserId", user.getPermUserId(),
+                            "enabled", false
+                        ));
+                        syncRetryService.recordSyncFailure(
+                            "user:disable:" + user.getId(),
+                            "permission-center",
+                            "abstract_user",
+                            String.valueOf(user.getPermUserId()),
+                            "update",
+                            payload,
+                            null
+                        );
+                        log.info("Recorded disable sync task for user: userId={}", user.getId());
+                    } catch (Exception e) {
+                        log.error("Failed to record disable sync task for user: userId={}, error={}", user.getId(), e.getMessage());
+                        throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
+                    }
                 }
             }
         }

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobLogResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class JobServiceImpl implements JobService {
@@ -44,6 +47,9 @@ public class JobServiceImpl implements JobService {
     private final TaskScheduler taskScheduler;
     private final AdminPermissionValidator permissionValidator;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
+    
+    // FIX: 细粒度锁池，按jobId分组，避免全局锁竞争
+    private final ConcurrentHashMap<Long, ReentrantLock> jobLocks = new ConcurrentHashMap<>();
 
     public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler,
                           AdminPermissionValidator permissionValidator) {
@@ -51,6 +57,13 @@ public class JobServiceImpl implements JobService {
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
         this.permissionValidator = permissionValidator;
+    }
+
+    /**
+     * 获取指定jobId对应的锁（懒加载）
+     */
+    private ReentrantLock getLockForJob(Long jobId) {
+        return jobLocks.computeIfAbsent(jobId, id -> new ReentrantLock());
     }
 
     /**
@@ -77,7 +90,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Long createJob(SysJob job) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.JOB, AdminOperationCode.CREATE);
@@ -96,7 +109,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateJob(SysJob job) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob existing = jobMapper.selectOneByQuery(
@@ -126,7 +139,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteJobs(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -156,7 +169,7 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void toggleJobStatus(Long id, Integer status) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectOneByQuery(
@@ -202,18 +215,19 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public SysJob getJob(Long id) {
+    public JobResp getJob(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return jobMapper.selectOneByQuery(
+        SysJob job = jobMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(SysJobTableDef.SYS_JOB.ID.eq(id))
                 .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
                 .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
+        return JobResp.from(job);
     }
 
     @Override
-    public PaginatedResult<SysJob> pageJobs(PageReq pageReq, String jobGroup) {
+    public PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
             .where(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
@@ -224,13 +238,17 @@ public class JobServiceImpl implements JobService {
         Page<SysJob> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysJob> result = jobMapper.paginate(page, qw);
 
+        List<JobResp> items = result.getRecords().stream()
+            .map(JobResp::from)
+            .toList();
+
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(result.getRecords(),
+        return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
     @Override
-    public PaginatedResult<SysJobLog> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
+    public PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
             .where(SysJobLogTableDef.SYS_JOB_LOG.TENANT_ID.eq(tenantId))
@@ -242,30 +260,59 @@ public class JobServiceImpl implements JobService {
         Page<SysJobLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysJobLog> result = jobLogMapper.paginate(page, qw);
 
+        List<JobLogResp> items = result.getRecords().stream()
+            .map(JobLogResp::from)
+            .toList();
+
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(result.getRecords(),
+        return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * FIX: 使用ReentrantLock保护scheduleJob的check-then-act操作
+     * 解决并发场景下任务重复调度和ScheduledFuture泄漏问题
+     */
     private void scheduleJob(SysJob job) {
-        if (scheduledTasks.containsKey(job.getId())) {
-            unscheduleJob(job.getId());
-        }
+        ReentrantLock lock = getLockForJob(job.getId());
+        lock.lock();
         try {
+            if (scheduledTasks.containsKey(job.getId())) {
+                unscheduleJobInternal(job.getId());
+            }
             CronTrigger trigger = new CronTrigger(job.getCronExpression());
             ScheduledFuture<?> future = taskScheduler.schedule(() -> executeJob(job), trigger);
             scheduledTasks.put(job.getId(), future);
             log.info("Scheduled job: id={}, cron={}", job.getId(), job.getCronExpression());
         } catch (Exception e) {
             log.error("Failed to schedule job: id={}", job.getId(), e);
+        } finally {
+            lock.unlock();
         }
     }
 
+    /**
+     * FIX: 使用ReentrantLock保护unscheduleJob操作
+     */
     private void unscheduleJob(Long jobId) {
+        ReentrantLock lock = getLockForJob(jobId);
+        lock.lock();
+        try {
+            unscheduleJobInternal(jobId);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * FIX: 内部方法，不加锁（在锁保护下调用）
+     * 避免锁嵌套，减少死锁风险
+     */
+    private void unscheduleJobInternal(Long jobId) {
         ScheduledFuture<?> future = scheduledTasks.remove(jobId);
         if (future != null) {
             future.cancel(false);
-            log.info("Unscheduling job: id={}", jobId);
+            log.info("Unscheduled job: id={}", jobId);
         }
     }
 
@@ -279,9 +326,11 @@ public class JobServiceImpl implements JobService {
         jobLog.setCreatedAt(LocalDateTime.now());
 
         try {
-            // TODO: In production, use reflection or a bean invocation mechanism
-            // to dynamically invoke the method specified in invokeTarget.
-            // For now, log the invocation.
+            // ARCH-DEBT-001: Job执行机制待完善 - 当前仅记录日志，未实际调用invokeTarget
+            // 理想方案: 通过反射或Spring Bean机制动态调用目标方法
+            // 优先级: P2（功能完善，非阻塞）
+            // 状态: 待后续迭代处理
+            // 影响: Job任务不执行，仅记录日志
             log.info("Executing job: id={}, target={}", job.getId(), job.getInvokeTarget());
             jobLog.setStatus(1);
             jobLog.setMessage("Executed successfully");

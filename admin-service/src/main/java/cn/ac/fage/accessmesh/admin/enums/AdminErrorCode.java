@@ -9,6 +9,7 @@ public enum AdminErrorCode {
     PASSWORD_INCORRECT(10005, "账号或密码错误"),
     PHONE_ALREADY_EXISTS(10006, "手机号已存在"),
     CANNOT_DELETE_SELF(10007, "不能删除当前登录用户"),
+    INVALID_PARAM(10008, "参数格式错误"),
     ORG_NOT_FOUND(10101, "组织不存在"),
     ORG_CODE_EXISTS(10102, "组织编码已存在"),
     ORG_HAS_CHILDREN(10103, "存在子节点，请先删除子节点"),

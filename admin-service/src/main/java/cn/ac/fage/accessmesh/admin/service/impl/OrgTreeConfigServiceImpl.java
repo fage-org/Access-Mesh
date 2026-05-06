@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
@@ -104,14 +105,15 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     }
 
     @Override
-    public SysOrgTreeConfig getOrgTreeConfig(Long id) {
-        return TenantSafeQuery.selectOneByIdSafe(
+    public OrgTreeConfigResp getOrgTreeConfig(Long id) {
+        SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
             orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
             TenantContextHolder.getTenantId(), id);
+        return OrgTreeConfigResp.from(config);
     }
 
     @Override
-    public PaginatedResult<SysOrgTreeConfig> pageOrgTreeConfigs(PageReq pageReq) {
+    public PaginatedResult<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
         Page<SysOrgTreeConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysOrgTreeConfig> result = orgTreeConfigMapper.paginate(page,
             QueryWrapper.create()
@@ -119,7 +121,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
                 .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
                 .orderBy(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.CREATED_AT.desc()));
 
-        List<SysOrgTreeConfig> items = result.getRecords();
+        List<OrgTreeConfigResp> items = result.getRecords().stream()
+            .map(OrgTreeConfigResp::from)
+            .toList();
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
         return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));

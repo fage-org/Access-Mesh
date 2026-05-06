@@ -2,11 +2,12 @@ package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobLogResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
-import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
 import cn.ac.fage.accessmesh.admin.service.JobService;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -64,17 +65,17 @@ public class JobController {
     }
 
     @PostMapping("/detail")
-    public PermResult<SysJob> getJob(@Valid @RequestBody IdReq req) {
+    public PermResult<JobResp> getJob(@Valid @RequestBody IdReq req) {
         return PermResult.success(jobService.getJob(req.id()));
     }
 
     @PostMapping("/page")
-    public PermResult<PaginatedResult<SysJob>> pageJobs(@Valid @RequestBody PageReq req) {
+    public PermResult<PaginatedResult<JobResp>> pageJobs(@Valid @RequestBody PageReq req) {
         return PermResult.success(jobService.pageJobs(req, null));
     }
 
     @PostMapping("/log/page")
-    public PermResult<PaginatedResult<SysJobLog>> pageJobLogs(
+    public PermResult<PaginatedResult<JobLogResp>> pageJobLogs(
             @Valid @RequestBody JobLogPageReq req) {
         return PermResult.success(jobService.pageJobLogs(req, req.jobId()));
     }
