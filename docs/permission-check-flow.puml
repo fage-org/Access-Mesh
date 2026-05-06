@@ -1,0 +1,312 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+skinparam defaultFontSize 10
+
+title Permission Center — 权限查询校验全部调用链\n(5条入口 → 3条查询路径 → 各自的DB层)
+
+' ============================================================
+' ENTRY POINTS
+' ============================================================
+actor "外部调用方" as Caller
+box "Controller" #LightYellow
+    participant "AuthController" as Ctrl
+end box
+
+' ============================================================
+' PATH A: AuthCheck (check / batchCheck)
+' ============================================================
+box "Service Impl" #LightBlue
+    participant "PermissionServiceImpl\n(路径A: check)" as PermSvc_A
+    participant "PermissionServiceImpl\n(路径D: queryResources)" as PermSvc_D
+    participant "PermissionServiceImpl\n(路径E: checkInterface)" as PermSvc_E
+end box
+
+box "Domain Service" #LightGreen
+    participant "PermissionQueryPipeline\n(checkInternal / checkTypeLevel)" as Pipeline
+    participant "ResourcePermissionValidator\n(hasPermission / validate)" as Validator
+    participant "UserRoleDomainService" as UserRoleSvc
+    participant "PermissionConflictDomainService" as ConflictSvc
+    participant "PermissionConditionDomainService" as ConditionSvc
+end box
+
+box "View Service" #Lavender
+    participant "PermissionViewServiceImpl\n(路径C: 视图查询)" as ViewSvc
+end box
+
+box "Authorization Service" #LightCoral
+    participant "AuthorizationServiceImpl\n(路径B: canGrant检查)" as AuthSvc
+end box
+
+box "Mappers (DB)" #LightGray
+    participant "RoleResourcePermissionMapper" as RRPMapper
+    participant "OperationPermissionMapper" as OPMapper
+    participant "ResourceEntityMapper" as REMapper
+    participant "AbstractUserMapper" as UserMapper
+end box
+
+' ============================================================
+' PATH A: check / batchCheck via Pipeline
+' ============================================================
+== 路径A: AuthCheck (check + batchCheck) — 单次+批量权限判定 ==
+
+Caller -> Ctrl : POST /auth/check\nPOST /auth/batchCheck
+Ctrl -> PermSvc_A : check(tenantId, AuthCheckReq)
+
+group resolve
+    PermSvc_A -> PermSvc_A : resolveUserId()
+    PermSvc_A -> PermSvc_A : resolveResourceId()
+    PermSvc_A -> PermSvc_A : resolveOperationId()
+end
+
+alt resourceCode == null (type-level)
+    PermSvc_A -> Pipeline : checkTypeLevel()
+    Pipeline -> UserMapper : selectOneByQuery
+    Pipeline -> UserRoleSvc : resolveEffectiveRoles
+    UserRoleSvc -> UserRoleSvc : L1→L2→resolveEffectiveRolesBatch→DB
+    Pipeline -> ConflictSvc : filterRoleMutex
+    Pipeline -> Pipeline : queryTypeLevelPerms() scopeAll=true
+    Pipeline -> RRPMapper : selectListByQuery
+    Pipeline -> ConditionSvc : evaluate
+    Pipeline -> ConflictSvc : filterPermMutex
+    Pipeline --> PermSvc_A : AuthCheckResp
+else resourceCode != null (instance-level)
+    PermSvc_A -> Pipeline : checkInternal()
+
+    group Step 1: 用户+角色解析
+        Pipeline -> UserMapper : selectOneByQuery
+        Pipeline -> UserRoleSvc : resolveEffectiveRoles
+        UserRoleSvc -> UserRoleSvc : L1→L2→resolveEffectiveRolesBatch→DB
+        Pipeline -> ConflictSvc : filterRoleMutex
+    end
+
+    group Step 2: Type-level先查
+        Pipeline -> Pipeline : queryTypeLevelPerms() scopeAll=true
+        Pipeline -> RRPMapper : selectListByQuery\n(roleIds + resourceType + opId + scopeAll)
+        Pipeline -> ConditionSvc : evaluate
+        Pipeline -> ConflictSvc : filterPermMutex
+    end
+
+    alt type-level 未命中
+        group Step 3: Instance-level + 继承查
+            Pipeline -> Pipeline : queryInstancePerms()
+            Pipeline -> RRPMapper : selectListByQuery\n(roleIds + resourceEntityId + opId)
+            Pipeline -> OPMapper : selectOneById (for matchesBit)
+            loop 每个perm
+                Pipeline -> OPMapper : matchesBit
+            end
+            Pipeline -> ConditionSvc : evaluate
+            Pipeline -> ConflictSvc : filterPermMutex
+        end
+    end
+
+    Pipeline --> PermSvc_A : AuthCheckResp
+end
+PermSvc_A --> Ctrl : AuthCheckResp
+
+' ============================================================
+' PATH B: canGrant via AuthorizationService (独立路径!)
+' ============================================================
+== 路径B: canGrant授权检查 — 权限委托(独立查询链路!) ==
+
+Caller -> AuthSvc : canGrantPermission()
+AuthSvc -> AuthSvc : checkGrantPermissionsBatch()
+
+group 角色解析(与Pipeline重复!)
+    AuthSvc -> UserRoleSvc : resolveEffectiveRoles
+end
+
+group 批量预解析(与Pipeline的typeResolution重复!)
+    AuthSvc -> AuthSvc : batchResolveTypeValues
+    AuthSvc -> OPMapper : selectListByQuery (所有op)
+    AuthSvc -> AuthSvc : batchResolveResourceIds
+end
+
+group 查DB(与Pipeline queryTypeLevelPerms重复!)
+    AuthSvc -> RRPMapper : selectListByQuery\n(roleIds + resourceTypes + opIds + scopeAll/entityId)
+end
+
+group 独立评估逻辑(与Pipeline evaluate重复!)
+    AuthSvc -> AuthSvc : evaluateGrantPermission (逐个判断canGrant)
+end
+
+AuthSvc --> Caller : GrantCheckResult
+
+' ============================================================
+' PATH C: View queries (独立查询链路!)
+' ============================================================
+
+== 路径C: 视图查询 — getRolePermissions / getUserPermissions(独立查询链路!) ==
+
+Caller -> Ctrl : GET /permission/role/{id}\nGET /permission/user/{id}
+Ctrl -> ViewSvc : getRolePermissions() / getUserPermissions()
+
+group 权限校验(调了Validator)
+    ViewSvc -> Validator : validate(ResourceTypeCode.ROLE, VIEW)
+    Validator -> UserRoleSvc : resolveEffectiveRoles
+    Validator -> Pipeline : queryTypeLevelPerms()
+    Pipeline -> RRPMapper : selectListByQuery
+    Validator --> ViewSvc : ok/throws
+end
+
+group 查DB — 绕过Pipeline! 直接调Mapper!!
+    ViewSvc -> RRPMapper : selectListByQuery\n(tenantId + abstractRoleId)
+end
+
+group 批量加载实体(EntityBatchLoadDomainService)
+    ViewSvc -> REMapper : selectListByQuery (resources)
+    ViewSvc -> OPMapper : selectListByQuery (operations)
+    ViewSvc -> ViewSvc : batchResolveTypeCodes
+end
+
+group 组装DTO(与Grant.toItemRespList重复!)
+    ViewSvc -> ViewSvc : 遍历perm → 组装PermissionItem / ResourcePermissionView
+end
+
+ViewSvc --> Ctrl : RolePermissionViewResp / UserPermissionViewResp
+
+' ============================================================
+' PATH D: queryResources — 资源查询(又一条独立链路!)
+' ============================================================
+
+== 路径D: queryResources — 按权限过滤资源(独立查询链路!) ==
+
+Caller -> Ctrl : POST /auth/queryResources
+Ctrl -> PermSvc_D : queryResources()
+
+group 角色解析
+    PermSvc_D -> UserRoleSvc : resolveEffectiveRoles
+    PermSvc_D -> ConflictSvc : filterRoleMutex
+end
+
+group 查DB (绕过Pipeline!)
+    PermSvc_D -> RRPMapper : selectListByQuery\n(roleIds + resourceTypes + scopeAll)
+end
+
+group 批量加载+过滤
+    PermSvc_D -> REMapper : batchLoadResources
+    PermSvc_D -> OPMapper : batchLoadOperations
+    PermSvc_D -> PermSvc_D : batchResolveTypeCodes
+    PermSvc_D -> PermSvc_D : 过滤codeType/children/prefix
+end
+
+group scopeAll处理
+    PermSvc_D -> REMapper : selectListByQuery (该type所有资源)
+end
+
+PermSvc_D --> Ctrl : QueryResourcesResp
+
+' ============================================================
+' PATH E: checkInterface — 接口权限(最复杂,内联Pipeline逻辑!)
+' ============================================================
+
+== 路径E: checkInterface — API接口权限检查(最复杂!==内联Pipeline全流程!) ==
+
+Caller -> Ctrl : POST /auth/checkInterface
+Ctrl -> PermSvc_E : checkInterface()
+
+group 用户+请求解析
+    PermSvc_E -> PermSvc_E : resolveUserId
+    PermSvc_E -> UserMapper : selectOneByQuery
+    PermSvc_E -> PermSvc_E : 匹配API Path (AntPathMatcher)
+end
+
+group 角色解析(与Pipeline重复!)
+    PermSvc_E -> UserRoleSvc : resolveEffectiveRoles
+    PermSvc_E -> ConflictSvc : filterRoleMutex
+end
+
+group 批量预加载Operation(与Pipeline重复!)
+    loop 每个resourceType
+        PermSvc_E -> OPMapper : selectListByQuery (ACCESS ops)
+    end
+end
+
+group Type-level批量查询(调Pipeline)
+    PermSvc_E -> Pipeline : queryTypeLevelPerms()
+    Pipeline -> RRPMapper : selectListByQuery (scopeAll)
+end
+
+group Instance-level批量查询(调Pipeline)
+    PermSvc_E -> Pipeline : queryInstancePermsBatch()
+    Pipeline -> RRPMapper : selectListByQuery (resourceIds)
+end
+
+group 内联matchesBit+条件+冲突(与Pipeline evaluate重复!)
+    PermSvc_E -> OPMapper : batchLoadOperations
+    loop 每个mapping
+        PermSvc_E -> OPMapper : matchesBit
+        PermSvc_E -> ConditionSvc : evaluate (内联!)
+        PermSvc_E -> ConflictSvc : filterPermMutex (内联!)
+    end
+end
+
+PermSvc_E --> Ctrl : CheckInterfaceResp
+
+' ============================================================
+' Validator (used by Manage services)
+' ============================================================
+
+== Validator External: hasPermission (管理服务调用) ==
+
+Caller -> Validator : hasPermission(tenantId, operatorId,\nresourceTypeCode, resourceId, OperationType)
+
+group Type解析
+    Validator -> Validator : resolveTypeValue
+end
+
+group 角色解析
+    Validator -> UserRoleSvc : resolveEffectiveRoles
+end
+
+alt type-level operation
+    Validator -> Validator : checkPermission(type-level)
+    Validator -> OPMapper : selectOneByQuery (findOperationPermission)
+    Validator -> Pipeline : queryTypeLevelPerms()
+    Pipeline -> RRPMapper : selectListByQuery (scopeAll)
+else instance-level
+    Validator -> Validator : resolveResourceEntityId (via Strategy)
+    Validator -> Validator : checkPermission(instance-level)
+    Validator -> OPMapper : selectOneByQuery (findOperationPermission)
+    Validator -> RRPMapper : selectListByQuery\n(roleIds + resourceEntityId + opId)
+end
+
+Validator --> Caller : boolean
+
+' ============================================================
+' LEGEND: 重复问题标注
+' ============================================================
+
+note over Caller, RRPMapper #FFB6C1
+    <b>=== 当前架构问题 ===</b>
+
+    <b>重复1: 角色解析链路</b>
+    路径A/B/C/D/E — 5条路径都各自调 resolveEffectiveRoles + 不同级别的冲突过滤
+    → Pipeline.resolveRoles() 已存在但未被统一使用
+
+    <b>重复2: DB查询</b>
+    · Pipeline.queryTypeLevelPerms() → 调 RRPMapper.selectListByQuery
+    · AuthSvc.checkGrantPermissionsBatch() → 调 RRPMapper.selectListByQuery (独立SQL!)
+    · ViewSvc.getRolePermissions() → 调 RRPMapper.selectListByQuery (独立SQL!)
+    · PermSvc_D.queryResources() → 调 RRPMapper.selectListByQuery (独立SQL!)
+    → 4个不同地方跑几乎相同的SQL!
+
+    <b>重复3: 评估管道</b>
+    · Pipeline.evaluateAndBuildResponse() → conditions → conflicts → AuthCheckResp
+    · checkInterface() → 内联conditions → conflicts (在PermSvc_E里!)
+    · AuthSvc.evaluateGrantPermission() → 独立评估(仅canGrant)
+    → 3套评估逻辑!
+
+    <b>重复4: DTO组装</b>
+    · GrantSvc.toItemRespList() → RolePermissionItemResp
+    · ViewSvc.getRolePermissions() → PermissionItem
+    · PermSvc_D.buildResourceEntry() → ResourceEntry
+    → 3种DTO, 组装逻辑80%相同
+
+    <b>核心矛盾</b>
+    Pipeline定位是"查询管道", 但 checkInterface/queryResources/
+    ViewSvc/AuthSvc 都绕过它直接查DB — Pipeline 成了短板!
+end note
+
+@enduml

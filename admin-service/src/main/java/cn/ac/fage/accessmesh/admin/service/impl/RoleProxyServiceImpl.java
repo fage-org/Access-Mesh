@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
+import cn.ac.fage.accessmesh.admin.cache.OperationCodeCacheManager;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
@@ -27,12 +28,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
 
 /**
  * Proxy between admin-service and permission-center.
@@ -46,25 +46,22 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
     private static final int RESOURCE_TYPE_MENU = 1;
 
-    /**
-     * Cache: tenantId -> (opCode -> operationPermissionId).
-     * Populated lazily on first grant for each tenant.
-     */
-    private final Map<Long, Map<String, Long>> opCodeCache = new ConcurrentHashMap<>();
-
     private final PermissionFeignClient permissionFeignClient;
     private final SysUserOrgMapper userOrgMapper;
     private final MenuDomainService menuDomainService;
     private final AdminPermissionValidator permissionValidator;
+    private final OperationCodeCacheManager opCodeCacheManager;
 
     public RoleProxyServiceImpl(PermissionFeignClient permissionFeignClient,
                                 SysUserOrgMapper userOrgMapper,
                                 MenuDomainService menuDomainService,
-                                AdminPermissionValidator permissionValidator) {
+                                AdminPermissionValidator permissionValidator,
+                                OperationCodeCacheManager opCodeCacheManager) {
         this.permissionFeignClient = permissionFeignClient;
         this.userOrgMapper = userOrgMapper;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
+        this.opCodeCacheManager = opCodeCacheManager;
     }
 
     @Override
@@ -205,7 +202,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     @Override
     public UserInfoResp loadUserRolesAndPermissions(Long userId) {
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create().where(SYS_USER_ORG.USER_ID.eq(userId)).and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+            QueryWrapper.create().where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId)).and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()
@@ -226,18 +223,22 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
     /**
      * Resolve opCode (e.g. "VIEW") to operationPermissionId for a given tenant.
-     * Cached per tenant to avoid repeated Feign calls.
+     * Uses dual-layer cache (L1 Caffeine + L2 Redis) for multi-instance consistency.
      */
     private Long resolveOperationPermissionId(Long tenantId, String opCode) {
-        Map<String, Long> tenantOps = opCodeCache.computeIfAbsent(tenantId, this::loadOperations);
-        Long opId = tenantOps.get(opCode);
+        Map<String, Long> ops = opCodeCacheManager.get(tenantId, tenantId, this::loadOperations);
+        Long opId = ops.get(opCode);
         if (opId == null) {
             throw new IllegalStateException("Operation code '" + opCode + "' not found for tenant " + tenantId);
         }
         return opId;
     }
 
-    private Map<String, Long> loadOperations(Long tenantId) {
+    /**
+     * Load operations from permission-center.
+     * BiFunction signature: (tenantId, key) -> Map<String, Long>
+     */
+    private Map<String, Long> loadOperations(Long tenantId, Long key) {
         OperationListReq req = new OperationListReq("MENU"); // resourceTypeCode
         PermResult<Map<String, Object>> result = permissionFeignClient.listOperations(req);
         if (result == null || result.data() == null) {
@@ -246,7 +247,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         // The response is a Map, extract operation list from it
         Object itemsObj = result.data().get("items");
         if (itemsObj instanceof List<?> items) {
-            Map<String, Long> ops = new ConcurrentHashMap<>();
+            Map<String, Long> ops = new HashMap<>();
             for (Object item : items) {
                 if (item instanceof Map<?, ?> map) {
                     Object codeObj = map.get("code");
@@ -258,6 +259,6 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             }
             return ops;
         }
-        return new ConcurrentHashMap<>();
+        return Map.of();
     }
 }

@@ -118,4 +118,29 @@ public interface MenuDomainService {
      * @return 深度值
      */
     int calculateDepth(Long tenantId, Long parentId);
+
+    /**
+     * 批量查询已存在的权限标识
+     *
+     * @param tenantId  租户ID
+     * @param permCodes 权限标识集合
+     * @return 已存在的权限标识集合
+     */
+    Set<String> findExistingPermCodes(Long tenantId, Set<String> permCodes);
+
+    /**
+     * 批量计算菜单深度（返回 parentId -> depth 的映射）
+     *
+     * @param tenantId  租户ID
+     * @param parentIds 父菜单ID集合
+     * @return parentId -> depth 的映射
+     */
+    Map<Long, Integer> batchCalculateDepth(Long tenantId, Set<Long> parentIds);
+
+    /**
+     * 批量插入菜单
+     *
+     * @param menus 菜单列表
+     */
+    void insertBatch(List<SysMenu> menus);
 }

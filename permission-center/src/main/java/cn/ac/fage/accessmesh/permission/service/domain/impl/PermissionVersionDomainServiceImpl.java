@@ -19,8 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionVersionTableDef.PERMISSION_VERSION;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionVersionTableDef;
 
 @Service
 public class PermissionVersionDomainServiceImpl implements PermissionVersionDomainService {
@@ -55,9 +54,9 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
 
         PermissionVersion latest = versionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_VERSION.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_VERSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .orderBy(PERMISSION_VERSION.VERSION_NO.desc())
+                .where(PermissionVersionTableDef.PERMISSION_VERSION.TENANT_ID.eq(tenantId))
+                .and(PermissionVersionTableDef.PERMISSION_VERSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .orderBy(PermissionVersionTableDef.PERMISSION_VERSION.VERSION_NO.desc())
                 .limit(1)
         );
         long version = latest != null ? latest.getVersionNo() : 1L;
@@ -113,9 +112,9 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         // 1. 批量查询所有 roleId 的版本记录（按版本号降序，便于取最大值）
         List<PermissionVersion> allVersions = versionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_VERSION.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_VERSION.ABSTRACT_ROLE_ID.in(roleIds))
-                .orderBy(PERMISSION_VERSION.VERSION_NO.desc())
+                .where(PermissionVersionTableDef.PERMISSION_VERSION.TENANT_ID.eq(tenantId))
+                .and(PermissionVersionTableDef.PERMISSION_VERSION.ABSTRACT_ROLE_ID.in(roleIds))
+                .orderBy(PermissionVersionTableDef.PERMISSION_VERSION.VERSION_NO.desc())
         );
 
         // 构建 roleId -> 最大版本号 Map（利用排序，每个 roleId 第一次出现即为最大值）

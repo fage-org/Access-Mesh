@@ -17,9 +17,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainService {
@@ -36,12 +35,12 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     @Override
     public List<ResourceEntity> listByParentId(Long tenantId, Long parentId) {
         QueryWrapper qw = QueryWrapper.create()
-            .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-            .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0));
+            .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+            .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0));
         if (parentId != null) {
-            qw.and(RESOURCE_ENTITY.PARENT_ID.eq(parentId));
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.PARENT_ID.eq(parentId));
         } else {
-            qw.and(RESOURCE_ENTITY.PARENT_ID.isNull());
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.PARENT_ID.isNull());
         }
         return resourceEntityMapper.selectListByQuery(qw);
     }
@@ -50,9 +49,9 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     public List<ResourceEntity> listByType(Long tenantId, Integer resourceType) {
         return resourceEntityMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
-                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
     }
 
@@ -70,8 +69,9 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         // Get all role permissions for the entire subtree
         List<Long> permIds = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIds))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(allIds))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         ).stream().map(RoleResourcePermission::getId).toList();
 
         // Batch soft delete all descendants (including self)
@@ -165,10 +165,69 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         }
         return resourceEntityMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_ENTITY.ID.eq(resourceId))
-                .and(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.eq(resourceId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
+    }
+
+    @Override
+    public Map<Long, ResourceEntity> batchSelectByIdsMap(Long tenantId, Set<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        Map<Long, ResourceEntity> result = new HashMap<>();
+        for (ResourceEntity entity : entities) {
+            result.put(entity.getId(), entity);
+        }
+        return result;
+    }
+
+    @Override
+    public List<ResourceEntity> selectValidByIds(Long tenantId, Set<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+    }
+
+    @Override
+    public Set<String> findExistingCodes(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Collections.emptySet();
+        }
+        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.in(codes))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+        );
+        Set<String> existingCodes = new HashSet<>();
+        for (ResourceEntity entity : entities) {
+            if (entity.getCode() != null) {
+                existingCodes.add(entity.getCode());
+            }
+        }
+        return existingCodes;
+    }
+
+    @Override
+    public int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return resourceEntityMapper.softDeleteBatch(tenantId, ids, deletedAt);
     }
 
     @Override
@@ -178,10 +237,10 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         }
         ResourceEntity entity = resourceEntityMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
-                .and(RESOURCE_ENTITY.CODE.eq(code))
-                .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.eq(code))
+                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
         return entity != null ? entity.getId() : null;
     }

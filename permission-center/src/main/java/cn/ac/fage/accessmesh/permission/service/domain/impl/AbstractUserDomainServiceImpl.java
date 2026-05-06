@@ -9,8 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef.ABSTRACT_USER;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
 
 @Service
 public class AbstractUserDomainServiceImpl implements AbstractUserDomainService {
@@ -42,8 +41,8 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long tenantId, Long userId) {
-        AbstractUser user = abstractUserMapper.selectOneById(userId);
-        if (user != null && user.getDeleteFlag() == 0L) {
+        AbstractUser user = selectValidById(tenantId, userId);
+        if (user != null) {
             user.setDeleteFlag(user.getId());
             user.setDeletedAt(LocalDateTime.now());
             abstractUserMapper.update(user);
@@ -66,10 +65,10 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     public AbstractUser findByExternalId(Long tenantId, Integer userType, String externalId) {
         return abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(ABSTRACT_USER.EXTERNAL_ID.eq(externalId))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
+                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(externalId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
     }
 
@@ -88,9 +87,9 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
         }
         return abstractUserMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(ABSTRACT_USER.ID.eq(userId))
-                .and(ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(ABSTRACT_USER.DELETE_FLAG.eq(0))
+                .where(AbstractUserTableDef.ABSTRACT_USER.ID.eq(userId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
+                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
         );
     }
 }

@@ -7,18 +7,14 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.cache.impl.ConditionRulesCacheManager;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.net.InetAddress;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.format.DateTimeParseException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,10 +27,6 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
-
-    /**
-     * 问题7：使用 GenericCacheManager 替代本地 ConcurrentHashMap 缓存
-     */
     private final GenericCacheManager<Long, JsonNode> rulesCacheManager;
 
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
@@ -73,7 +65,8 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         JsonNode rules = rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
             // loader: 从数据库加载条件规则
             PermissionCondition condition = conditionMapper.selectOneById(cid);
-            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())) {
+            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
+                || !tid.equals(condition.getTenantId())) {
                 return null; // 返回 null 会被缓存为空值
             }
 
@@ -111,106 +104,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     private boolean evaluateItem(JsonNode item, Map<String, Object> context) {
-        String type = item.has("type") ? item.get("type").asText() : "";
-        JsonNode params = item.get("params");
-        if (params == null) return false;
-
-        return switch (type) {
-            case PermConstants.ConditionType.DATE_RANGE -> evaluateDateRange(params);
-            case PermConstants.ConditionType.TIME_RANGE -> evaluateTimeRange(params);
-            case PermConstants.ConditionType.IP_WHITELIST -> evaluateIpWhitelist(params, context);
-            case PermConstants.ConditionType.IP_BLACKLIST -> !evaluateIpWhitelist(params, context);
-            default -> false;
-        };
-    }
-
-    private boolean evaluateDateRange(JsonNode params) {
-        if (!params.has("start") || !params.has("end")) return false;
-        String startDate = params.get("start").asText();
-        String endDate = params.get("end").asText();
-        try {
-            LocalDate now = LocalDate.now();
-            LocalDate start = LocalDate.parse(startDate);
-            LocalDate end = LocalDate.parse(endDate);
-            return !now.isBefore(start) && !now.isAfter(end);
-        } catch (DateTimeParseException e) {
-            log.error("CRITICAL: Invalid date range format, startDate: {}, endDate: {}", startDate, endDate, e);
-            return false;
-        } catch (Exception e) {
-            log.error("CRITICAL: Unexpected error evaluating date range, startDate: {}, endDate: {}", startDate, endDate, e);
-            return false;
-        }
-    }
-
-    private boolean evaluateTimeRange(JsonNode params) {
-        if (!params.has("start") || !params.has("end")) return false;
-        String startTime = params.get("start").asText();
-        String endTime = params.get("end").asText();
-        try {
-            LocalTime now = LocalTime.now();
-            LocalTime start = LocalTime.parse(startTime);
-            LocalTime end = LocalTime.parse(endTime);
-            return !now.isBefore(start) && !now.isAfter(end);
-        } catch (DateTimeParseException e) {
-            log.error("CRITICAL: Invalid time range format, startTime: {}, endTime: {}", startTime, endTime, e);
-            return false;
-        } catch (Exception e) {
-            log.error("CRITICAL: Unexpected error evaluating time range, startTime: {}, endTime: {}", startTime, endTime, e);
-            return false;
-        }
-    }
-
-    private boolean evaluateIpWhitelist(JsonNode params, Map<String, Object> context) {
-        String clientIp = (String) context.get("clientIp");
-        if (clientIp == null) return false;
-        JsonNode cidrs = params.get("cidrs");
-        if (cidrs == null || !cidrs.isArray()) return false;
-        for (JsonNode cidr : cidrs) {
-            if (ipMatchesCidr(clientIp, cidr.asText())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean ipMatchesCidr(String ip, String cidr) {
-        try {
-            if (!cidr.contains("/")) {
-                // Plain IP — exact match
-                return cidr.equals(ip);
-            }
-            String[] parts = cidr.split("/");
-            String networkIp = parts[0];
-            int prefixLength = Integer.parseInt(parts[1]);
-
-            InetAddress clientAddr = InetAddress.getByName(ip);
-            InetAddress networkAddr = InetAddress.getByName(networkIp);
-
-            byte[] clientBytes = clientAddr.getAddress();
-            byte[] networkBytes = networkAddr.getAddress();
-
-            // Only compare same-family addresses (both IPv4 or both IPv6)
-            if (clientBytes.length != networkBytes.length) return false;
-
-            int totalBits = clientBytes.length * 8;
-            if (prefixLength > totalBits) return false;
-
-            // Compare bit-by-bit up to prefix length
-            for (int i = 0; i < prefixLength; i++) {
-                int byteIndex = i / 8;
-                int bitIndex = 7 - (i % 8);
-                int clientBit = (clientBytes[byteIndex] >> bitIndex) & 1;
-                int networkBit = (networkBytes[byteIndex] >> bitIndex) & 1;
-                if (clientBit != networkBit) return false;
-            }
-            return true;
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid CIDR format: {}, error: {}", cidr, e.getMessage());
-            return false;
-        } catch (Exception e) {
-            log.error("Unexpected error matching IP against CIDR: {}", cidr, e);
-            return false;
-        }
+        return ConditionEvalUtils.evalItem(item, context,
+            PermConstants.ConditionType.DATE_RANGE,
+            PermConstants.ConditionType.TIME_RANGE,
+            PermConstants.ConditionType.IP_WHITELIST,
+            PermConstants.ConditionType.IP_BLACKLIST);
     }
 
     /**

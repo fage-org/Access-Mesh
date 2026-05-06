@@ -41,10 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysLoginLogTableDef.SYS_LOGIN_LOG;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -195,16 +191,16 @@ public class AuthServiceImpl implements AuthService {
         Long currentTenantId = TenantContextHolder.getTenantId();
         SysUser user = userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.ID.eq(userId))
-                .and(SYS_USER.TENANT_ID.eq(currentTenantId))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
+                .and(SysUserTableDef.SYS_USER.TENANT_ID.eq(currentTenantId))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create().where(SYS_USER_ORG.USER_ID.eq(userId))
+            QueryWrapper.create().where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
         );
 
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()
@@ -246,9 +242,9 @@ public class AuthServiceImpl implements AuthService {
         if (clientId == null) return null;
         SysOauth2Client client = oauth2ClientMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
-                .and(SYS_OAUTH2_CLIENT.STATUS.eq(1))
-                .and(SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
+                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
+                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.STATUS.eq(1))
+                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
         );
         if (client == null) return null;
         if (!containsGrantType(client.getGrantTypes(), "password")) {
@@ -269,9 +265,9 @@ public class AuthServiceImpl implements AuthService {
     private SysUser findUser(Long tenantId, String username) {
         return userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.USERNAME.eq(username))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.USERNAME.eq(username))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 
@@ -342,9 +338,9 @@ public class AuthServiceImpl implements AuthService {
     private SysUser findUserByPhone(Long tenantId, String phone) {
         return userMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SYS_USER.PHONE.eq(phone))
-                .and(SYS_USER.DELETE_FLAG.eq(0))
+                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+                .and(SysUserTableDef.SYS_USER.PHONE.eq(phone))
+                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
         );
     }
 

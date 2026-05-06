@@ -8,6 +8,9 @@ import cn.ac.fage.accessmesh.admin.entity.SysFile;
 import cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysFileMapper;
+import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -33,8 +36,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef.SYS_FILE;
 
 @Service
 public class FileServiceImpl implements FileService {
@@ -102,14 +103,19 @@ public class FileServiceImpl implements FileService {
     private long maxFileSize;
 
     private final SysFileMapper fileMapper;
+    private final AdminPermissionValidator permissionValidator;
 
-    public FileServiceImpl(SysFileMapper fileMapper) {
+    public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator) {
         this.fileMapper = fileMapper;
+        this.permissionValidator = permissionValidator;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long uploadFile(MultipartFile file, String bizType) {
+        // Permission check - type-level CREATE on FILE
+        permissionValidator.checkTypeLevel(AdminResourceType.FILE, AdminOperationCode.CREATE);
+
         // 1. 检查文件是否为空
         if (file == null || file.isEmpty()) {
             throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "上传文件不能为空");
@@ -208,13 +214,17 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public void deleteFiles(IdsReq req) {
+        // Permission check - batch instance-level DELETE on FILE
+        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.FILE, resourceCodes, AdminOperationCode.DELETE);
+
         Long tenantId = TenantContextHolder.getTenantId();
         // Batch query valid files
         List<SysFile> files = fileMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.in(req.ids()))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.in(req.ids()))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
 
         if (files.isEmpty()) {
@@ -251,9 +261,9 @@ public class FileServiceImpl implements FileService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.eq(id))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
@@ -265,10 +275,10 @@ public class FileServiceImpl implements FileService {
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_FILE.TENANT_ID.eq(tenantId))
-            .and(SYS_FILE.DELETE_FLAG.eq(0));
-        if (bizType != null) qw.and(SYS_FILE.BUCKET_NAME.eq(bizType));
-        qw.orderBy(SYS_FILE.CREATED_AT.desc());
+            .where(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+            .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0));
+        if (bizType != null) qw.and(SysFileTableDef.SYS_FILE.BUCKET_NAME.eq(bizType));
+        qw.orderBy(SysFileTableDef.SYS_FILE.CREATED_AT.desc());
 
         Page<SysFile> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysFile> result = fileMapper.paginate(page, qw);
@@ -296,9 +306,9 @@ public class FileServiceImpl implements FileService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYS_FILE.ID.eq(id))
-                .and(SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SYS_FILE.DELETE_FLAG.eq(0))
+                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
+                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
+                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
         );
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());

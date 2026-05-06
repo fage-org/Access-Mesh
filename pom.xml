@@ -13,6 +13,7 @@
 
     <modules>
         <module>common</module>
+        <module>perm-entity</module>
         <module>gateway</module>
         <module>permission-center</module>
         <module>admin-service</module>
@@ -32,7 +33,7 @@
         <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
 
         <!-- Database -->
-        <mybatis-flex.version>1.9.7</mybatis-flex.version>
+        <mybatis-flex.version>1.11.7</mybatis-flex.version>
         <postgresql.version>42.7.3</postgresql.version>
 
         <!-- Auth -->
@@ -91,6 +92,11 @@
             </dependency>
             <dependency>
                 <groupId>cn.ac.fage.accessmesh</groupId>
+                <artifactId>perm-entity</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.ac.fage.accessmesh</groupId>
                 <artifactId>perm-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -137,6 +143,25 @@
                     </executions>
                 </plugin>
                 <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>3.6.0</version>
+                    <executions>
+                        <execution>
+                            <id>add-generated-sources</id>
+                            <phase>generate-sources</phase>
+                            <goals>
+                                <goal>add-source</goal>
+                            </goals>
+                            <configuration>
+                                <sources>
+                                    <source>${project.build.directory}/generated-sources/annotations</source>
+                                </sources>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.12.1</version>
@@ -160,5 +185,12 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <!-- 全局启用 build-helper，确保所有模块的 generated-sources 被 IDEA/CI 识别 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 </project>

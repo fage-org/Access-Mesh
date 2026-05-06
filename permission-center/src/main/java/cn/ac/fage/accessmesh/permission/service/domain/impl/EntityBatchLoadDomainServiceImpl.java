@@ -18,12 +18,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef.PERMISSION_CONDITION;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef.RESOURCE_ENTITY;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 
 /**
  * Implementation of EntityBatchLoadDomainService.
@@ -58,9 +57,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return operationPermissionMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                        .and(OPERATION_PERMISSION.ID.in(ids))
-                        .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                        .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                        .and(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(ids))
+                        .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 
@@ -71,9 +70,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                        .and(RESOURCE_ENTITY.ID.in(ids))
-                        .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
+                        .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(ids))
+                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
     }
 
@@ -84,9 +83,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return abstractRoleMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                        .and(ABSTRACT_ROLE.ID.in(ids))
-                        .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0))
+                        .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
+                        .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(ids))
+                        .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
     }
 
@@ -97,9 +96,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return permissionConditionMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                        .and(PERMISSION_CONDITION.ID.in(ids))
-                        .and(PERMISSION_CONDITION.DELETE_FLAG.eq(0))
+                        .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.ID.in(ids))
+                        .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(PermissionCondition::getId, c -> c, (a, b) -> a));
     }
 
@@ -110,9 +109,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return bizDomainMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                        .and(BIZ_DOMAIN.ID.in(ids))
-                        .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                        .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                        .and(BizDomainTableDef.BIZ_DOMAIN.ID.in(ids))
+                        .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(BizDomain::getId, BizDomain::getCode, (a, b) -> a));
     }
 
@@ -123,9 +122,9 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return bizDomainMapper.selectListByQuery(
                 QueryWrapper.create()
-                        .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                        .and(BIZ_DOMAIN.ID.in(ids))
-                        .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                        .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                        .and(BizDomainTableDef.BIZ_DOMAIN.ID.in(ids))
+                        .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         ).stream().collect(Collectors.toMap(BizDomain::getId, d -> d, (a, b) -> a));
     }
 }

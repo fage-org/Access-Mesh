@@ -21,27 +21,25 @@ import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.TypeDefPermissionStrategy;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef.BIZ_DOMAIN;
-import static cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef.DOMAIN_CONFIG;
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
-import static cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef.SERVICE_CONFIG;
-import static cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef.SYSTEM_CONFIG;
-import static cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef.TYPE_DEFINITION;
+import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef;
 
 @Service
 public class ConfigManageServiceImpl implements ConfigManageService {
@@ -57,10 +55,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final AuthorizationService authorizationService;
     private final ServiceInterfaceSyncService serviceInterfaceSyncService;
-    private final ResourcePermissionValidator permissionValidator;
-    private final TypeDefPermissionStrategy typeDefPermissionStrategy;
+    private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖过多(13个)，违反单一职责原则
+    // TODO: 构造函数依赖过多(12个)，违反单一职责原则
     // 建议：拆分配置查询/配置管理/配置同步职责
     // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
@@ -74,8 +71,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                                    OperationLogDomainService operationLogDomainService,
                                    AuthorizationService authorizationService,
                                    ServiceInterfaceSyncService serviceInterfaceSyncService,
-                                   ResourcePermissionValidator permissionValidator,
-                                   TypeDefPermissionStrategy typeDefPermissionStrategy) {
+                                   PermQueryEngine engine) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -87,8 +83,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
         this.serviceInterfaceSyncService = serviceInterfaceSyncService;
-        this.permissionValidator = permissionValidator;
-        this.typeDefPermissionStrategy = typeDefPermissionStrategy;
+        this.engine = engine;
     }
 
     // ===== TypeDefinition =====
@@ -99,7 +94,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check - instance-level for TYPE_DEFINITION resource
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationType.CREATE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE);
 
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
@@ -124,13 +119,13 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
         // Permission check - VIEW operation on TYPE_DEFINITION
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW);
 
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.ID.eq(typeId))
-                .and(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(typeId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
         return type != null ? toTypeResp(type) : null;
     }
@@ -139,17 +134,17 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
         // Permission check - VIEW operation on TYPE_DEFINITION (type-level)
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW);
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-            .and(TYPE_DEFINITION.DELETE_FLAG.eq(0));
+            .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+            .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0));
         if (domainCode != null && !domainCode.isBlank()) {
             Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (bizDomainId == null) {
                 return List.of();
             }
-            qw.and(TYPE_DEFINITION.BIZ_DOMAIN_ID.eq(bizDomainId).or(TYPE_DEFINITION.BIZ_DOMAIN_ID.isNull()));
+            qw.and(TypeDefinitionTableDef.TYPE_DEFINITION.BIZ_DOMAIN_ID.eq(bizDomainId).or(TypeDefinitionTableDef.TYPE_DEFINITION.BIZ_DOMAIN_ID.isNull()));
         }
         return typeDefinitionMapper.selectListByQuery(qw)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
@@ -160,13 +155,17 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public void deleteType(Long tenantId, Long typeId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-
-
         // Permission check - instance-level for TYPE_DEFINITION resource
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE);
 
         // Check if system type - cannot be deleted
-        if (typeDefPermissionStrategy.isSystemType(tenantId, typeId)) {
+        TypeDefinition typeDef = typeDefinitionMapper.selectOneByQuery(
+            QueryWrapper.create()
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(typeId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
+        );
+        if (typeDef != null && Boolean.TRUE.equals(typeDef.getIsSystem())) {
             throw new IllegalStateException("Cannot delete system type: " + typeId);
         }
 
@@ -197,14 +196,14 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
 
         // Permission check - instance-level batch validation for TYPE_DEFINITION resources
-        permissionValidator.validateBatch(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationType.MANAGE);
+        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
 
         // Batch query (avoid N+1)
         List<TypeDefinition> entities = typeDefinitionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.ID.in(validInputIds))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.ID.in(validInputIds))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
 
         if (entities.isEmpty()) {
@@ -245,13 +244,13 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check - instance-level for TYPE_DEFINITION resource
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationType.MANAGE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE);
 
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(TYPE_DEFINITION.ID.eq(req.typeId()))
-                .and(TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TYPE_DEFINITION.DELETE_FLAG.eq(0))
+                .where(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(req.typeId()))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
+                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
         if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
         if (req.bizDomainId() != null) type.setBizDomainId(req.bizDomainId());
@@ -272,7 +271,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
 
@@ -294,13 +293,13 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
         // Permission check - VIEW operation on DOMAIN
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW);
 
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.ID.eq(domainId))
-                .and(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.ID.eq(domainId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         );
         return domain != null ? toBizDomainResp(domain) : null;
     }
@@ -309,12 +308,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<BizDomainResp> listBizDomains(Long tenantId) {
         // Permission check - VIEW operation on DOMAIN (type-level)
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW);
 
         return bizDomainMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         ).stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
 
@@ -324,7 +323,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domain");
         }
 
@@ -342,7 +341,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (entry-level)
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
 
@@ -362,9 +361,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         // Batch query (avoid N+1)
         List<BizDomain> entities = bizDomainMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.ID.in(validInputIds))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.ID.in(validInputIds))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         );
 
         if (entities.isEmpty()) {
@@ -400,15 +399,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
 
         BizDomain domain = bizDomainMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(BIZ_DOMAIN.ID.eq(req.domainId()))
-                .and(BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BIZ_DOMAIN.DELETE_FLAG.eq(0))
+                .where(BizDomainTableDef.BIZ_DOMAIN.ID.eq(req.domainId()))
+                .and(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
+                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
         );
         if (domain == null) throw new IllegalArgumentException("BizDomain not found: " + req.domainId());
         if (req.name() != null) domain.setName(req.name());
@@ -425,7 +424,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         // Permission check for config operations
         Long operatorId = OperatorContext.getOperatorId();
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
 
@@ -435,10 +434,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
         DomainConfig existing = domainConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(req.configType()))
-                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(req.configType()))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
         );
 
         if (existing != null) {
@@ -465,7 +464,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
         // Permission check - VIEW operation on SYSTEM_CONFIG
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
         if (bizDomainId == null) {
@@ -473,10 +472,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
         DomainConfig config = domainConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DOMAIN_CONFIG.CONFIG_TYPE.eq(configType))
-                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(configType))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
         );
         return config != null ? toDomainConfigResp(config) : null;
     }
@@ -485,17 +484,17 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
         // Permission check - VIEW operation on SYSTEM_CONFIG
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         QueryWrapper qw = QueryWrapper.create()
-            .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-            .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0));
+            .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+            .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0));
         if (domainCode != null && !domainCode.isBlank()) {
             Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (bizDomainId == null) {
                 return List.of();
             }
-            qw.and(DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId));
+            qw.and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId));
         }
         return domainConfigMapper.selectListByQuery(qw)
             .stream().map(this::toDomainConfigResp).collect(Collectors.toList());
@@ -507,7 +506,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (added - was missing)
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
 
@@ -527,9 +526,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         // Batch query (avoid N+1)
         List<DomainConfig> entities = domainConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DOMAIN_CONFIG.ID.in(validInputIds))
-                .and(DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.ID.in(validInputIds))
+                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
         );
 
         if (entities.isEmpty()) {
@@ -567,7 +566,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to save service config");
         }
 
@@ -577,9 +576,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
         ServiceConfig config = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .where(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
         if (config == null) {
             throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
@@ -600,7 +599,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create service config");
         }
         ServiceConfig config = new ServiceConfig();
@@ -624,13 +623,13 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
         // Permission check - VIEW operation on SERVICE
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW);
 
         ServiceConfig config = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.SERVICE_CODE.eq(serviceCode))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(serviceCode))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
         return config != null ? toServiceConfigResp(config) : null;
     }
@@ -639,12 +638,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         // Permission check - VIEW operation on SERVICE (type-level)
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW);
 
         return serviceConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
         ).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
     }
 
@@ -654,7 +653,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // Permission check (entry-level)
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete service configs");
         }
 
@@ -674,9 +673,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         // Batch query (avoid N+1)
         List<ServiceConfig> entities = serviceConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.ID.in(validInputIds))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.ID.in(validInputIds))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
 
         if (entities.isEmpty()) {
@@ -712,7 +711,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         
         // Permission validation: check SYNC_INTERFACE permission on SERVICE resource
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationType.SYNC_INTERFACE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE);
         
         return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }
@@ -721,9 +720,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
         return resourceApiMappingMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
-                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
         ).stream().map(mapping -> new ApiMappingResp(
             mapping.getId(),
             mapping.getTenantId(),
@@ -747,15 +746,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         // Permission check for config operations
         Long operatorId = OperatorContext.getOperatorId();
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
         }
 
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SYSTEM_CONFIG.CONFIG_KEY.eq(req.configKey()))
-                .and(SYSTEM_CONFIG.DELETE_FLAG.eq(0))
+                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SystemConfigTableDef.SYSTEM_CONFIG.CONFIG_KEY.eq(req.configKey()))
+                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
         );
 
         if (existing != null) {
@@ -783,13 +782,13 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
         // Permission check - VIEW operation on SYSTEM_CONFIG
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         SystemConfig config = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SYSTEM_CONFIG.CONFIG_KEY.eq(configKey))
-                .and(SYSTEM_CONFIG.DELETE_FLAG.eq(0))
+                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SystemConfigTableDef.SYSTEM_CONFIG.CONFIG_KEY.eq(configKey))
+                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
         );
         return config != null ? toSystemConfigResp(config) : null;
     }
@@ -798,12 +797,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
         // Permission check - VIEW operation on SYSTEM_CONFIG
         Long operatorId = OperatorContext.getOperatorId();
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.VIEW);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         return systemConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SYSTEM_CONFIG.DELETE_FLAG.eq(0))
+                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
         ).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
     }
 

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysAuditLogTableDef.SYS_AUDIT_LOG;
 
 @Service
 public class AuditLogServiceImpl implements AuditLogService {
@@ -30,8 +29,8 @@ public class AuditLogServiceImpl implements AuditLogService {
         Page<SysAuditLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysAuditLog> result = auditLogMapper.paginate(page,
             QueryWrapper.create()
-                .where(SYS_AUDIT_LOG.TENANT_ID.eq(tenantId))
-                .orderBy(SYS_AUDIT_LOG.CREATED_AT.desc()));
+                .where(SysAuditLogTableDef.SYS_AUDIT_LOG.TENANT_ID.eq(tenantId))
+                .orderBy(SysAuditLogTableDef.SYS_AUDIT_LOG.CREATED_AT.desc()));
 
         List<SysAuditLog> items = result.getRecords();
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();

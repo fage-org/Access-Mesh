@@ -38,4 +38,12 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * Use PostgreSQL recursive CTE to query all descendant role IDs for multiple roles.
+     * @param tenantId tenant ID
+     * @param roleIds starting role IDs
+     * @return all descendant role IDs (excluding the starting roles)
+     */
+    List<Long> selectDescendantIdsBatch(@Param("tenantId") Long tenantId, @Param("roleIds") Set<Long> roleIds);
 }

@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionAddChildReq;
-import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
@@ -22,7 +21,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -56,7 +55,7 @@ class PermissionGrantServiceImplTest {
     @Mock private AuthorizationService authorizationService;
     @Mock private OperationPermissionDomainService operationPermissionDomainService;
     @Mock private AbstractRoleDomainService abstractRoleDomainService;
-    @Mock private ResourcePermissionValidator permissionValidator;
+    @Mock private PermQueryEngine engine;
 
     private PermissionGrantServiceImpl service;
 
@@ -66,7 +65,7 @@ class PermissionGrantServiceImplTest {
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
             operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
-            authorizationService, operationPermissionDomainService, abstractRoleDomainService, permissionValidator
+            authorizationService, operationPermissionDomainService, abstractRoleDomainService, engine
         );
     }
 

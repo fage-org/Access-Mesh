@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef.SYS_ORG;
+import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
 @Service
 public class OrgServiceImpl implements OrgService {
@@ -243,12 +243,12 @@ public class OrgServiceImpl implements OrgService {
         // FIX #7: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SYS_ORG.DELETE_FLAG.eq(0));
-        if (req.orgName() != null) qw.and(SYS_ORG.NAME.like(req.orgName()));
-        if (req.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
-        if (req.status() != null) qw.and(SYS_ORG.STATUS.eq(req.status()));
-        qw.orderBy(SYS_ORG.SORT_ORDER.asc(), SYS_ORG.CREATED_AT.asc());
+            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
+        if (req.orgName() != null) qw.and(SysOrgTableDef.SYS_ORG.NAME.like(req.orgName()));
+        if (req.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
+        if (req.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(req.status()));
+        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
 
         Page<SysOrg> page = Page.of(req.getPageNum(), req.getPageSize());
         Page<SysOrg> result = orgMapper.paginate(page, qw);
@@ -267,13 +267,13 @@ public class OrgServiceImpl implements OrgService {
         // FIX #8: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SYS_ORG.DELETE_FLAG.eq(0));
+            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
         if (query != null) {
-            if (query.orgType() != null) qw.and(SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
-            if (query.status() != null) qw.and(SYS_ORG.STATUS.eq(query.status()));
+            if (query.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
+            if (query.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(query.status()));
         }
-        qw.orderBy(SYS_ORG.SORT_ORDER.asc(), SYS_ORG.CREATED_AT.asc());
+        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
 
         List<SysOrg> all = orgMapper.selectListByQuery(qw);
         return buildTree(all, 0L);
@@ -289,57 +289,97 @@ public class OrgServiceImpl implements OrgService {
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
 
+        // 批量优化：收集所有需要查询的编码和父组织ID
+        Set<String> allCodes = req.orgs().stream()
+            .map(OrgCreateReq::code)
+            .filter(c -> c != null && !c.isBlank())
+            .collect(Collectors.toSet());
+        Set<Long> allParentIds = req.orgs().stream()
+            .map(OrgCreateReq::parentOrgId)
+            .filter(id -> id != null && !id.isBlank())
+            .map(Long::parseLong)
+            .collect(Collectors.toSet());
+
+        // 批量查询：1次查询编码 + 1次查询父组织（优化前需要 N 次查询）
+        Set<String> existingCodes = orgDomainService.findExistingCodes(tenantId, allCodes);
+        Map<Long, SysOrg> parentOrgMap = orgDomainService.batchSelectValidByIdsMap(tenantId, allParentIds);
+
+        // 构建待插入的组织列表
+        List<SysOrg> orgsToInsert = new ArrayList<>();
+        List<OrgCreateReq> validOrgReqs = new ArrayList<>();  // 记录有效的请求，用于后续同步任务
+        LocalDateTime now = LocalDateTime.now();
+
         for (OrgCreateReq orgReq : req.orgs()) {
-            // 检查编码重复
-            if (orgReq.code() != null && orgDomainService.findByCode(tenantId, orgReq.code()) != null) {
+            // 检查编码重复（使用批量查询结果）
+            if (orgReq.code() != null && !orgReq.code().isBlank() && existingCodes.contains(orgReq.code())) {
                 failedMessages.add("组织编码已存在: " + orgReq.code());
                 continue;
             }
 
+            // 检查父组织并计算层级
             int level = 1;
-            if (orgReq.parentOrgId() != null) {
-                Long parentId = Long.parseLong(orgReq.parentOrgId());
-                SysOrg parent = orgDomainService.selectValidById(tenantId, parentId);
-                if (parent != null) {
-                    level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
+            Long parentId = 0L;
+            if (orgReq.parentOrgId() != null && !orgReq.parentOrgId().isBlank()) {
+                Long parsedParentId = Long.parseLong(orgReq.parentOrgId());
+                SysOrg parent = parentOrgMap.get(parsedParentId);
+                if (parent == null) {
+                    failedMessages.add("父组织不存在: " + orgReq.parentOrgId());
+                    continue;
                 }
+                level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
+                parentId = parent.getId();
             }
             if (level > 10) {
                 failedMessages.add("组织层级超过限制: " + orgReq.orgName());
                 continue;
             }
 
+            // 构建组织实体
             SysOrg org = new SysOrg();
             org.setTenantId(tenantId);
-            org.setParentId(orgReq.parentOrgId() != null ? Long.parseLong(orgReq.parentOrgId()) : 0L);
+            org.setParentId(parentId);
             org.setOrgType(String.valueOf(orgReq.orgType()));
             org.setCode(orgReq.code());
             org.setName(orgReq.orgName());
             org.setStatus(orgReq.status() != null ? orgReq.status() : 1);
             org.setSortOrder(orgReq.sort());
             org.setLevel(level);
-            org.setCreatedAt(LocalDateTime.now());
-            org.setUpdatedAt(LocalDateTime.now());
+            org.setCreatedAt(now);
+            org.setUpdatedAt(now);
             org.setDeleteFlag(0L);
-            orgMapper.insert(org);
+            orgsToInsert.add(org);
+            validOrgReqs.add(orgReq);
+        }
 
-            // 同一事务内记录同步任务（严格 Outbox Pattern：失败触发事务回滚）
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "orgId", org.getId(),
-                "orgName", org.getName(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "org:create:" + org.getId(),
-                "permission-center",
-                "abstract_org",
-                String.valueOf(org.getId()),
-                "create",
-                payload,
-                null
-            );
+        // 批量插入：1次数据库操作（优化前需要 N 次插入）
+        if (!orgsToInsert.isEmpty()) {
+            orgDomainService.insertBatch(orgsToInsert);
 
-            successIds.add(org.getId());
+            // 记录同步任务（Outbox Pattern：确保原子性）
+            for (int i = 0; i < orgsToInsert.size(); i++) {
+                SysOrg org = orgsToInsert.get(i);
+                try {
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "orgId", org.getId(),
+                        "orgName", org.getName(),
+                        "tenantId", tenantId
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "org:create:" + org.getId(),
+                        "permission-center",
+                        "abstract_org",
+                        String.valueOf(org.getId()),
+                        "create",
+                        payload,
+                        null
+                    );
+                    successIds.add(org.getId());
+                } catch (Exception syncEx) {
+                    log.error("Failed to record sync task for batch org creation: orgId={}, error={}",
+                        org.getId(), syncEx.getMessage());
+                    failedMessages.add("同步任务记录失败: " + org.getName());
+                }
+            }
         }
 
         return BatchResultResp.partial(req.orgs().size(), successIds.size(), successIds, failedMessages);

@@ -8,8 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef.RESOURCE_API_MAPPING;
+import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
 
 @Service
 public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDomainService {
@@ -57,9 +56,9 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
         }
         return resourceApiMappingMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(RESOURCE_API_MAPPING.ID.eq(mappingId))
-                .and(RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
+                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ID.eq(mappingId))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
+                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
         );
     }
 

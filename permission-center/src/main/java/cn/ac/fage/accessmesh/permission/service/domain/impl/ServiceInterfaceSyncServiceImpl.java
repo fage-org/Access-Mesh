@@ -1,15 +1,15 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
@@ -24,8 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef.SERVICE_CONFIG;
+import cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef;
 
 /**
  * Implementation of ServiceInterfaceSyncService.
@@ -41,7 +40,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
     private final OperationLogDomainService operationLogDomainService;
     private final TypeResolutionService typeResolutionService;
     private final SyncModeStrategyFactory strategyFactory;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     // TODO: 构造函数依赖过多(8个)，违反单一职责原则
     // 建议：拆分接口同步/批量处理职责
@@ -54,7 +53,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
             OperationLogDomainService operationLogDomainService,
             TypeResolutionService typeResolutionService,
             SyncModeStrategyFactory strategyFactory,
-            ResourcePermissionValidator permissionValidator) {
+            PermQueryEngine engine) {
         this.resourceSyncHandler = resourceSyncHandler;
         this.mappingSyncHandler = mappingSyncHandler;
         this.serviceConfigMapper = serviceConfigMapper;
@@ -62,7 +61,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
         this.operationLogDomainService = operationLogDomainService;
         this.typeResolutionService = typeResolutionService;
         this.strategyFactory = strategyFactory;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
@@ -104,7 +103,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
      * Validate permission for sync operation.
      */
     private void validatePermission(Long tenantId, Long operatorId) {
-        if (!permissionValidator.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationType.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to sync service interfaces");
         }
     }
@@ -115,9 +114,9 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
     private ServiceConfig prepareServiceConfig(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
         ServiceConfig config = serviceConfigMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
-                .and(SERVICE_CONFIG.DELETE_FLAG.eq(0))
+                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
+                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
         );
 
         if (config == null) {

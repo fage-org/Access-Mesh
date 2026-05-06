@@ -25,6 +25,7 @@ public final class AdminResourceType {
     public static final String FILE = "ADMIN_FILE";
     public static final String JOB = "ADMIN_JOB";
     public static final String ORG_TREE_CONFIG = "ADMIN_ORG_TREE_CONFIG";
+    public static final String SYNC_RETRY = "ADMIN_SYNC_RETRY";
 
     private AdminResourceType() {}
 }

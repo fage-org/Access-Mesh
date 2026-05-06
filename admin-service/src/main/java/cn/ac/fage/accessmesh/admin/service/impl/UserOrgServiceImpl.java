@@ -30,9 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef.SYS_ORG;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
 
 @Service
 public class UserOrgServiceImpl implements UserOrgService {
@@ -69,9 +66,9 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG_TREE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
-                .and(SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
+                .where(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
+                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
         );
         for (SysOrgTreeConfig config : defaultConfigs) {
             if (Boolean.TRUE.equals(config.getSingleAssoc()) && req.orgIds().size() > 1) {
@@ -82,8 +79,8 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         userOrgMapper.deleteByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(req.userId()))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(req.userId()))
         );
 
         LocalDateTime now = LocalDateTime.now();
@@ -123,9 +120,9 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         userOrgMapper.deleteByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SYS_USER_ORG.ORG_ID.eq(orgId))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.eq(orgId))
         );
     }
 
@@ -147,23 +144,27 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Query all user-org associations
-        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+        // 批量更新：将该用户在目标组织的主组织状态设为 true
+        SysUserOrg updatePrimary = new SysUserOrg();
+        updatePrimary.setIsPrimary(true);
+        updatePrimary.setUpdatedAt(now);
+        userOrgMapper.updateByQuery(updatePrimary, QueryWrapper.create()
+            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.eq(orgId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
-        // Performance optimization opportunity: could use custom batch update SQL
-        // For now, loop update is used due to MyBatis-Flex API limitations
-        for (SysUserOrg uo : userOrgs) {
-            SysUserOrg update = new SysUserOrg();
-            update.setId(uo.getId());
-            update.setIsPrimary(uo.getOrgId().equals(orgId));
-            update.setUpdatedAt(now);
-            userOrgMapper.update(update);
-        }
+        // 批量更新：将该用户在其他组织的主组织状态设为 false
+        SysUserOrg updateNonPrimary = new SysUserOrg();
+        updateNonPrimary.setIsPrimary(false);
+        updateNonPrimary.setUpdatedAt(now);
+        userOrgMapper.updateByQuery(updateNonPrimary, QueryWrapper.create()
+            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.ne(orgId))
+            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
+        );
     }
 
     @Override
@@ -173,9 +174,9 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
         if (userOrgs.isEmpty()) {
@@ -186,9 +187,9 @@ public class UserOrgServiceImpl implements UserOrgService {
         Set<Long> orgIds = userOrgs.stream().map(SysUserOrg::getOrgId).collect(Collectors.toSet());
         List<SysOrg> orgs = orgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_ORG.ID.in(orgIds))
-                .and(SYS_ORG.DELETE_FLAG.eq(0))
+                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
+                .and(SysOrgTableDef.SYS_ORG.ID.in(orgIds))
+                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
         );
         Map<Long, SysOrg> orgMap = orgs.stream()
             .collect(Collectors.toMap(SysOrg::getId, o -> o));

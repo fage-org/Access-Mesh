@@ -110,4 +110,30 @@ public interface OrgDomainService {
      * @return 组织实体
      */
     SysOrg findByCode(Long tenantId, String code);
+
+    /**
+     * 批量查询已存在的组织编码
+     *
+     * @param tenantId 租户ID
+     * @param codes    组织编码集合
+     * @return 已存在的编码集合
+     */
+    Set<String> findExistingCodes(Long tenantId, Set<String> codes);
+
+    /**
+     * 批量查询组织实体（用于批量获取父组织）
+     * 返回 Map 形式便于快速查找
+     *
+     * @param tenantId 租户ID
+     * @param ids      组织ID集合
+     * @return 组织ID -> 组织实体的映射
+     */
+    Map<Long, SysOrg> batchSelectValidByIdsMap(Long tenantId, Set<Long> ids);
+
+    /**
+     * 批量插入组织
+     *
+     * @param orgs 组织列表
+     */
+    void insertBatch(List<SysOrg> orgs);
 }

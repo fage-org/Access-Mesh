@@ -81,4 +81,29 @@ public interface UserDomainService {
      * @return 是否存在
      */
     boolean existsByPhone(Long tenantId, String phone);
+
+    /**
+     * 批量查询已存在的用户名
+     *
+     * @param tenantId  租户ID
+     * @param usernames 用户名集合
+     * @return 已存在的用户名集合
+     */
+    Set<String> findExistingUsernames(Long tenantId, Set<String> usernames);
+
+    /**
+     * 批量查询已存在的手机号
+     *
+     * @param tenantId 租户ID
+     * @param phones   手机号集合
+     * @return 已存在的手机号集合
+     */
+    Set<String> findExistingPhones(Long tenantId, Set<String> phones);
+
+    /**
+     * 批量插入用户
+     *
+     * @param users 用户列表
+     */
+    void insertBatch(List<SysUser> users);
 }

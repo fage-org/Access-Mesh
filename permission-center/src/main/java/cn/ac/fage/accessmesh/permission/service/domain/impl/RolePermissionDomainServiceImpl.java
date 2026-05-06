@@ -19,8 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 @Service
 public class RolePermissionDomainServiceImpl implements RolePermissionDomainService {
@@ -40,9 +39,9 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     public RolePermSnapshot getRolePermissions(Long tenantId, Long roleId) {
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         long version = permissionVersionDomainService.getCurrentVersion(tenantId, roleId);
@@ -110,10 +109,10 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         // Validate permissions belong to the role
         long validCount = rolePermMapper.selectCountByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
         if (validCount == 0) {
             return;
@@ -159,11 +158,11 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             return null;
         }
         QueryWrapper qw = QueryWrapper.create()
-            .where(ROLE_RESOURCE_PERMISSION.ID.eq(permissionId))
-            .and(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
+            .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.eq(permissionId))
+            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
         if (roleId != null) {
-            qw.and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId));
+            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId));
         }
         return rolePermMapper.selectOneByQuery(qw);
     }

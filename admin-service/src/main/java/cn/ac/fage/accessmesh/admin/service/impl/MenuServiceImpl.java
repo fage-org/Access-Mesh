@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef.SYS_MENU;
+import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
 @Service
 public class MenuServiceImpl implements MenuService {
@@ -260,9 +260,9 @@ public class MenuServiceImpl implements MenuService {
         Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SYS_MENU.DELETE_FLAG.eq(0))
-                .orderBy(SYS_MENU.SORT_ORDER.asc(), SYS_MENU.CREATED_AT.asc())
+                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
+                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
+                .orderBy(SysMenuTableDef.SYS_MENU.SORT_ORDER.asc(), SysMenuTableDef.SYS_MENU.CREATED_AT.asc())
         );
         return buildTree(all, 0L);
     }
@@ -289,42 +289,79 @@ public class MenuServiceImpl implements MenuService {
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
 
-        for (MenuCreateReq menuReq : req.menus()) {
-            try {
-                // 检查权限标识重复
-                if (menuReq.perms() != null && !menuReq.perms().isBlank()) {
-                    SysMenu existing = menuDomainService.findByPermCode(tenantId, menuReq.perms());
-                    if (existing != null) {
-                        failedMessages.add("权限标识已存在: " + menuReq.perms());
-                        continue;
-                    }
-                }
+        // Performance fix: Batch collect all permCodes and parentIds
+        Set<String> allPermCodes = req.menus().stream()
+            .map(MenuCreateReq::perms)
+            .filter(p -> p != null && !p.isBlank())
+            .collect(Collectors.toSet());
+        Set<Long> allParentIds = req.menus().stream()
+            .map(MenuCreateReq::parentId)
+            .filter(id -> id != null && id > 0)
+            .collect(Collectors.toSet());
 
-                // 计算深度
-                int depth = menuDomainService.calculateDepth(tenantId, menuReq.parentId());
-                if (depth > 5) {
-                    failedMessages.add("菜单层级超过限制: " + menuReq.menuName());
+        // Batch query existing permCodes and parent depths
+        Set<String> existingPermCodes = menuDomainService.findExistingPermCodes(tenantId, allPermCodes);
+        Map<Long, Integer> parentDepthMap = menuDomainService.batchCalculateDepth(tenantId, allParentIds);
+
+        // Build menus to insert
+        List<SysMenu> menusToInsert = new ArrayList<>();
+        List<MenuCreateReq> validMenuReqs = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        for (MenuCreateReq menuReq : req.menus()) {
+            // Check permCode duplicate
+            if (menuReq.perms() != null && !menuReq.perms().isBlank()
+                && existingPermCodes.contains(menuReq.perms())) {
+                failedMessages.add("权限标识已存在: " + menuReq.perms());
+                continue;
+            }
+
+            // Calculate depth
+            int depth = 1;
+            if (menuReq.parentId() != null && menuReq.parentId() > 0) {
+                Integer parentDepth = parentDepthMap.get(menuReq.parentId());
+                if (parentDepth == null) {
+                    failedMessages.add("父菜单不存在: " + menuReq.parentId());
                     continue;
                 }
+                depth = parentDepth + 1;
+            }
 
-                SysMenu menu = new SysMenu();
-                menu.setTenantId(tenantId);
-                menu.setParentId(menuReq.parentId() != null ? menuReq.parentId() : 0L);
-                menu.setMenuType(String.valueOf(menuReq.menuType()));
-                menu.setName(menuReq.menuName());
-                menu.setPath(menuReq.path());
-                menu.setComponent(menuReq.component());
-                menu.setPermCode(menuReq.perms());
-                menu.setIcon(menuReq.icon());
-                menu.setSortOrder(menuReq.sort());
-                menu.setVisible(menuReq.visible() != null && menuReq.visible() == 1);
-                menu.setStatus(menuReq.status() != null ? menuReq.status() : 1);
-                menu.setCreatedAt(LocalDateTime.now());
-                menu.setUpdatedAt(LocalDateTime.now());
-                menu.setDeleteFlag(0L);
-                menuMapper.insert(menu);
+            if (depth > 5) {
+                failedMessages.add("菜单层级超过限制: " + menuReq.menuName());
+                continue;
+            }
 
-                // 记录同步任务，异步同步到权限中心
+            // Build menu entity
+            SysMenu menu = new SysMenu();
+            menu.setTenantId(tenantId);
+            menu.setParentId(menuReq.parentId() != null && menuReq.parentId() > 0 ? menuReq.parentId() : 0L);
+            menu.setMenuType(String.valueOf(menuReq.menuType()));
+            menu.setName(menuReq.menuName());
+            menu.setPath(menuReq.path());
+            menu.setComponent(menuReq.component());
+            menu.setPermCode(menuReq.perms());
+            menu.setIcon(menuReq.icon());
+            menu.setSortOrder(menuReq.sort());
+            menu.setVisible(menuReq.visible() != null && menuReq.visible() == 1);
+            menu.setStatus(menuReq.status() != null ? menuReq.status() : 1);
+            menu.setCreatedAt(now);
+            menu.setUpdatedAt(now);
+            menu.setDeleteFlag(0L);
+
+            menusToInsert.add(menu);
+            validMenuReqs.add(menuReq);
+        }
+
+        // Batch insert
+        if (!menusToInsert.isEmpty()) {
+            menuDomainService.insertBatch(menusToInsert);
+
+            // Record sync tasks for inserted menus
+            for (int i = 0; i < menusToInsert.size(); i++) {
+                SysMenu menu = menusToInsert.get(i);
+                successIds.add(menu.getId());
+
                 try {
                     String payload = objectMapper.writeValueAsString(Map.of(
                         "menuId", menu.getId(),
@@ -344,11 +381,6 @@ public class MenuServiceImpl implements MenuService {
                     log.error("Failed to record sync task for batch menu creation: menuId={}, error={}",
                         menu.getId(), syncEx.getMessage());
                 }
-
-                successIds.add(menu.getId());
-            } catch (Exception e) {
-                log.error("Failed to create menu: menuName={}", menuReq.menuName(), e);
-                failedMessages.add("创建失败: " + menuReq.menuName() + " - " + e.getMessage());
             }
         }
 

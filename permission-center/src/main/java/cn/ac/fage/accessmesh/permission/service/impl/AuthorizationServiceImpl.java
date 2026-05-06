@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
@@ -10,6 +11,7 @@ import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,14 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION;
-import static cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION;
+import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
  * Implementation of canGrant authorization checks.
  *
- * <p>General permission checks should use ResourcePermissionValidator.
+ * <p>General permission checks should use PermQueryEngine.
  * This service only handles canGrant validation for permission delegation.
  */
 @Service
@@ -41,15 +42,18 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     private final UserRoleDomainService userRoleDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
+    private final PermQueryEngine engine;
 
     public AuthorizationServiceImpl(TypeResolutionService typeResolutionService,
                                      UserRoleDomainService userRoleDomainService,
                                      OperationPermissionMapper operationPermissionMapper,
-                                     RoleResourcePermissionMapper roleResourcePermissionMapper) {
+                                     RoleResourcePermissionMapper roleResourcePermissionMapper,
+                                     PermQueryEngine engine) {
         this.typeResolutionService = typeResolutionService;
         this.userRoleDomainService = userRoleDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
+        this.engine = engine;
     }
 
     @Override
@@ -104,10 +108,10 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
         List<OperationPermission> allOpPerms = operationPermissionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OPERATION_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
-                .and(OPERATION_PERMISSION.CODE.in(operationCodes.stream().map(String::toUpperCase).collect(Collectors.toSet())))
-                .and(OPERATION_PERMISSION.DELETE_FLAG.eq(0))
+                .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.CODE.in(operationCodes.stream().map(String::toUpperCase).collect(Collectors.toSet())))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         Map<String, OperationPermission> opPermByKey = new HashMap<>();
@@ -139,11 +143,11 @@ public class AuthorizationServiceImpl implements AuthorizationService {
 
         List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(operatorRoleIds))
-                .and(ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
-                .and(ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(opPermIds))
-                .and(ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(operatorRoleIds))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(opPermIds))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
         // 6. Build lookup maps

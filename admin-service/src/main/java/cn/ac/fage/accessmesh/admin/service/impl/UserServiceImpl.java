@@ -41,8 +41,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef.SYS_USER;
-import static cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
+import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -296,16 +296,16 @@ public class UserServiceImpl implements UserService {
         // FIX #4: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
-            .where(SYS_USER.TENANT_ID.eq(tenantId))
-            .and(SYS_USER.DELETE_FLAG.eq(0));
+            .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
+            .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0));
 
-        if (req.username() != null) qw.and(SYS_USER.USERNAME.like(req.username()));
-        if (req.name() != null) qw.and(SYS_USER.NAME.like(req.name()));
-        if (req.phone() != null) qw.and(SYS_USER.PHONE.eq(req.phone()));
-        if (req.email() != null) qw.and(SYS_USER.EMAIL.eq(req.email()));
-        if (req.status() != null) qw.and(SYS_USER.STATUS.eq(req.status()));
+        if (req.username() != null) qw.and(SysUserTableDef.SYS_USER.USERNAME.like(req.username()));
+        if (req.name() != null) qw.and(SysUserTableDef.SYS_USER.NAME.like(req.name()));
+        if (req.phone() != null) qw.and(SysUserTableDef.SYS_USER.PHONE.eq(req.phone()));
+        if (req.email() != null) qw.and(SysUserTableDef.SYS_USER.EMAIL.eq(req.email()));
+        if (req.status() != null) qw.and(SysUserTableDef.SYS_USER.STATUS.eq(req.status()));
 
-        qw.orderBy(SYS_USER.CREATED_AT.desc());
+        qw.orderBy(SysUserTableDef.SYS_USER.CREATED_AT.desc());
 
         Page<SysUser> page = Page.of(req.getPageNum(), req.getPageSize());
         Page<SysUser> result = userMapper.paginate(page, qw);
@@ -318,8 +318,8 @@ public class UserServiceImpl implements UserService {
         // 批量查询用户组织关系
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.USER_ID.in(userIds))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.in(userIds))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
         // 按 userId 分组
@@ -374,7 +374,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateUsers(UserBatchCreateReq req) {
         // TODO: 跨服务数据一致性风险
         // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
@@ -386,19 +386,36 @@ public class UserServiceImpl implements UserService {
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
 
+        // 1. 批量收集所有用户名和手机号
+        Set<String> allUsernames = req.users().stream()
+            .map(UserCreateReq::username)
+            .collect(Collectors.toSet());
+        Set<String> allPhones = req.users().stream()
+            .map(UserCreateReq::phone)
+            .filter(p -> p != null && !p.isBlank())
+            .collect(Collectors.toSet());
+
+        // 2. 批量查询已存在的用户名和手机号（优化：2次数据库查询替代N次）
+        Set<String> existingUsernames = userDomainService.findExistingUsernames(tenantId, allUsernames);
+        Set<String> existingPhones = userDomainService.findExistingPhones(tenantId, allPhones);
+
+        // 3. 构建待插入的用户列表
+        List<SysUser> usersToInsert = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+
         for (UserCreateReq userReq : req.users()) {
-            // 检查用户名重复
-            if (userDomainService.existsByUsername(tenantId, userReq.username())) {
+            // 检查用户名重复（使用批量查询结果）
+            if (existingUsernames.contains(userReq.username())) {
                 failedMessages.add("用户名已存在: " + userReq.username());
                 continue;
             }
-
-            // 检查手机号重复
-            if (userReq.phone() != null && userDomainService.existsByPhone(tenantId, userReq.phone())) {
+            // 检查手机号重复（使用批量查询结果）
+            if (userReq.phone() != null && !userReq.phone().isBlank() && existingPhones.contains(userReq.phone())) {
                 failedMessages.add("手机号已存在: " + userReq.phone());
                 continue;
             }
 
+            // 构建用户实体
             SysUser user = new SysUser();
             user.setTenantId(tenantId);
             user.setUsername(userReq.username());
@@ -409,28 +426,40 @@ public class UserServiceImpl implements UserService {
             user.setPassword(BCrypt.hashpw(initialPassword));
             log.info("Generated initial password for batch user: username={}", userReq.username());
             user.setStatus(userReq.status() != null ? userReq.status() : 1);
-            user.setCreatedAt(LocalDateTime.now());
-            user.setUpdatedAt(LocalDateTime.now());
+            user.setCreatedAt(now);
+            user.setUpdatedAt(now);
             user.setDeleteFlag(0L);
-            userMapper.insert(user);
+            usersToInsert.add(user);
+        }
 
-            // 记录同步任务，异步同步到权限中心（严格 Outbox Pattern：失败触发事务回滚）
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "userId", user.getId(),
-                "username", user.getUsername(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "user:create:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getId()),
-                "create",
-                payload,
-                null
-            );
+        // 4. 批量插入（优化：1次数据库操作替代N次）
+        if (!usersToInsert.isEmpty()) {
+            userDomainService.insertBatch(usersToInsert);
 
-            successIds.add(user.getId());
+            // 5. 记录同步任务（Outbox Pattern：确保原子性）
+            for (SysUser user : usersToInsert) {
+                try {
+                    String payload = objectMapper.writeValueAsString(Map.of(
+                        "userId", user.getId(),
+                        "username", user.getUsername(),
+                        "tenantId", tenantId
+                    ));
+                    syncRetryService.recordSyncFailure(
+                        "user:create:" + user.getId(),
+                        "permission-center",
+                        "abstract_user",
+                        String.valueOf(user.getId()),
+                        "create",
+                        payload,
+                        null
+                    );
+                    successIds.add(user.getId());
+                } catch (Exception syncEx) {
+                    log.error("Failed to record sync task for batch user creation: userId={}, error={}",
+                        user.getId(), syncEx.getMessage());
+                    failedMessages.add("同步任务记录失败: " + user.getUsername());
+                }
+            }
         }
 
         return BatchResultResp.partial(req.users().size(), successIds.size(), successIds, failedMessages);
@@ -505,9 +534,9 @@ public class UserServiceImpl implements UserService {
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SYS_USER_ORG.DELETE_FLAG.eq(0))
+                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         ).stream()
             .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());
@@ -515,7 +544,7 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 生成随机强密码（12位，包含大小写字母、数字和特殊字符）
-     * 使用 SecureRandom 确保密码学安全。
+     * 使用 SecureRandom 硋保密码学安全。
      */
     private String generateRandomPassword() {
         String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

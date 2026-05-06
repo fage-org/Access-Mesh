@@ -18,6 +18,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainSe
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -57,6 +59,8 @@ class PermissionServiceImplQueryScopesTest {
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
+    @Mock private RolePermEntryMapper rolePermEntryMapper;
+    @Mock private PermQueryEngine engine;
 
     private PermissionServiceImpl service;
 
@@ -82,7 +86,8 @@ class PermissionServiceImplQueryScopesTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, permCacheDomainService,
-            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService
+            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService,
+            rolePermEntryMapper, engine
         );
     }
 

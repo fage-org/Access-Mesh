@@ -22,9 +22,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-import static cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef.USER_ROLE;
+import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 @Service
 public class UserRoleDomainServiceImpl implements UserRoleDomainService {
@@ -69,17 +68,9 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             return roles;
         }
 
-        // DB resolution
-        Set<Long> effectiveRoles = resolveFromDb(tenantId, userId, bizDomainId);
-
-        // TODO: Redis 操作竞态条件风险
-        // 问题：当前 L2 + L1 写入顺序可能导致短暂不一致，并发请求可能读到旧值
-        // 建议：使用分布式锁或 write-through 策略保证一致性
-        // 优先级：P2（性能优化，可关注但不强制整改）
-        // Write to L2 and L1
-        redisTemplate.opsForValue().set(l2Key, effectiveRoles, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
-        permCacheDomainService.setEffectiveRoles(tenantId, userId, effectiveRoles);
-        return effectiveRoles;
+        // Delegate to batch method (handles DB query + cache write)
+        Map<Long, Set<Long>> batchResult = resolveEffectiveRolesBatch(tenantId, Set.of(userId), bizDomainId);
+        return batchResult.getOrDefault(userId, Collections.emptySet());
     }
 
     @Override
@@ -131,11 +122,11 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         LocalDateTime now = LocalDateTime.now();
         List<UserRole> allUserRoles = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.ABSTRACT_USER_ID.in(uncachedUserIds))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
-                .and(USER_ROLE.VALID_FROM.le(now).or(USER_ROLE.VALID_FROM.isNull()))
-                .and(USER_ROLE.VALID_TO.ge(now).or(USER_ROLE.VALID_TO.isNull()))
+                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(uncachedUserIds))
+                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+                .and(UserRoleTableDef.USER_ROLE.VALID_FROM.le(now).or(UserRoleTableDef.USER_ROLE.VALID_FROM.isNull()))
+                .and(UserRoleTableDef.USER_ROLE.VALID_TO.ge(now).or(UserRoleTableDef.USER_ROLE.VALID_TO.isNull()))
         );
 
         // 3. 按 userId 分组，收集所有涉及的 roleId 和 groupId
@@ -183,11 +174,11 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         Set<Long> enabledRoleIds = new HashSet<>();
         if (!allCandidateRoleIds.isEmpty()) {
             QueryWrapper qw = QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.in(allCandidateRoleIds))
-                .and(ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
+                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(allCandidateRoleIds))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
             if (bizDomainId != null) {
-                qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
+                qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
             }
             List<AbstractRole> enabledRoles = abstractRoleMapper.selectListByQuery(qw);
             enabledRoleIds = enabledRoles.stream().map(AbstractRole::getId).collect(Collectors.toSet());
@@ -331,9 +322,9 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     public void invalidateRoleCacheByRole(Long tenantId, Long roleId) {
         List<Long> userIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.TARGET_ID.eq(roleId))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
+                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(roleId))
+                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
         ).stream().map(UserRole::getAbstractUserId).distinct().collect(Collectors.toList());
 
         if (userIds.isEmpty()) {
@@ -355,53 +346,4 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         }
     }
 
-    private Set<Long> resolveFromDb(Long tenantId, Long userId, Long bizDomainId) {
-        LocalDateTime now = LocalDateTime.now();
-        List<UserRole> userRoles = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(USER_ROLE.ABSTRACT_USER_ID.eq(userId))
-                .and(USER_ROLE.DELETE_FLAG.eq(0))
-                .and(USER_ROLE.VALID_FROM.le(now).or(USER_ROLE.VALID_FROM.isNull()))
-                .and(USER_ROLE.VALID_TO.ge(now).or(USER_ROLE.VALID_TO.isNull()))
-        );
-
-        Set<Long> roleIds = new HashSet<>();
-        Set<Long> groupRoleIds = new HashSet<>();
-
-        // 收集所有 GROUP_ROLE 的 ID，使用批量方法一次性展开
-        for (UserRole ur : userRoles) {
-            if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
-                groupRoleIds.add(ur.getTargetId());
-            } else {
-                roleIds.add(ur.getTargetId());
-            }
-        }
-
-        // 使用批量方法一次性展开所有 GROUP_ROLE（避免 N+1 递归查询）
-        if (!groupRoleIds.isEmpty()) {
-            Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesBatch(tenantId, groupRoleIds);
-            for (Long groupRoleId : groupRoleIds) {
-                Set<Long> expandedRoles = groupRoleExpandCache.get(groupRoleId);
-                if (expandedRoles != null) {
-                    roleIds.addAll(expandedRoles);
-                }
-            }
-        }
-
-        // Filter by status=1 (enabled)
-        if (!roleIds.isEmpty()) {
-            QueryWrapper qw = QueryWrapper.create()
-                .where(ABSTRACT_ROLE.ID.in(roleIds))
-                .and(ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
-                .and(ABSTRACT_ROLE.DELETE_FLAG.eq(0));
-            if (bizDomainId != null) {
-                qw.and(ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
-            }
-            List<AbstractRole> enabledRoles = abstractRoleMapper.selectListByQuery(qw);
-            roleIds = enabledRoles.stream().map(AbstractRole::getId).collect(Collectors.toSet());
-        }
-
-        return roleIds;
-    }
 }

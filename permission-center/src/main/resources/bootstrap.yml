@@ -13,7 +13,7 @@ spring:
         file-extension: yml
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/perm_db?useSSL=false&serverTimezone=Asia/Shanghai
-    username: postgres
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   data:

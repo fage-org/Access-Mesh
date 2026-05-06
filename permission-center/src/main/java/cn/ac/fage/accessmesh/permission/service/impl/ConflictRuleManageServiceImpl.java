@@ -6,45 +6,44 @@ import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.permission.enums.OperationType;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.ConflictRuleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.ResourcePermissionValidator;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE;
+import cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef;
 
 @Service
 public class ConflictRuleManageServiceImpl implements ConflictRuleManageService {
 
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final OperationLogDomainService operationLogDomainService;
-    private final ResourcePermissionValidator permissionValidator;
+    private final PermQueryEngine engine;
 
     public ConflictRuleManageServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                           OperationLogDomainService operationLogDomainService,
-                                          ResourcePermissionValidator permissionValidator) {
+                                          PermQueryEngine engine) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.operationLogDomainService = operationLogDomainService;
-        this.permissionValidator = permissionValidator;
+        this.engine = engine;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationType.CREATE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE);
 
         PermissionConflictRule rule = new PermissionConflictRule();
         rule.setTenantId(tenantId);
@@ -69,9 +68,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     public ConflictRuleResp getConflictRule(Long tenantId, Long ruleId) {
         PermissionConflictRule rule = conflictRuleMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONFLICT_RULE.ID.eq(ruleId))
-                .and(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.eq(ruleId))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
         );
         return rule != null ? toConflictRuleResp(rule) : null;
     }
@@ -80,8 +79,8 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     public List<ConflictRuleResp> listConflictRules(Long tenantId) {
         return conflictRuleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
         ).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
     }
 
@@ -89,7 +88,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationType.UPDATE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE);
 
         PermissionConflictRule rule = conflictRuleMapper.selectOneById(req.id());
         if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
@@ -112,11 +111,11 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
                 .and(req.resourceTypeValue() == null
-                    ? PERMISSION_CONFLICT_RULE.ID.isNotNull()
-                    : PERMISSION_CONFLICT_RULE.RESOURCE_TYPE_VALUE.eq(req.resourceTypeValue()))
-                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                    ? PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.isNotNull()
+                    : PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.RESOURCE_TYPE_VALUE.eq(req.resourceTypeValue()))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
         );
         List<ConflictRuleResp> matched = rules.stream().filter(rule ->
             (Objects.equals(rule.getFirstOperationPermissionId(), req.firstOperationPermissionId())
@@ -131,7 +130,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationType.DELETE);
+        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE);
 
         PermissionConflictRule rule = conflictRuleMapper.selectOneById(ruleId);
         if (rule != null && rule.getDeleteFlag() == 0L && rule.getTenantId().equals(tenantId)) {
@@ -151,13 +150,13 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         Set<Long> validInputIds = ids.stream().filter(id -> id != null).collect(Collectors.toSet());
         if (validInputIds.isEmpty()) return;
 
-        permissionValidator.validateBatch(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationType.DELETE);
+        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
 
         List<PermissionConflictRule> entities = conflictRuleMapper.selectListByQuery(
             QueryWrapper.create()
-                .where(PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PERMISSION_CONFLICT_RULE.ID.in(validInputIds))
-                .and(PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
+                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.in(validInputIds))
+                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
         );
         if (entities.isEmpty()) return;
 
