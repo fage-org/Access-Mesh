@@ -34,6 +34,29 @@ credentials.properties
 node_modules/
 dist/
 .nuxt/
+.pnpm-debug.log
+.pnpm-error.log
+npm-debug.log*
+yarn.lock
+*.local
+
+# Frontend build artifacts
+frontend/dist/
+frontend/dist-ssr/
+frontend/.eslintcache
+frontend/report.html
+frontend/vite.config.*.timestamp*
+frontend/tsconfig.tsbuildinfo
+
+# Editor (frontend)
+frontend/.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Frontend tests coverage
+frontend/tests/**/coverage/
 
 # OpenCode / Claude Code
 .claude/worktrees/

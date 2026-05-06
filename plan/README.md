@@ -13,6 +13,7 @@
 | 权限中心核心调用链路 | [permission-center/core-flows.md](permission-center/core-flows.md) |
 | 权限中心实现设计 | [permission-center/implementation.md](permission-center/implementation.md) |
 | PostgreSQL 表结构 | [schema/](schema/) |
+| 前端集成计划 | [frontend-integration.md](frontend-integration.md) |
 
 ## 推荐阅读顺序
 
