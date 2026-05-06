@@ -128,6 +128,7 @@ public class MenuServiceImpl implements MenuService {
             log.info("Recorded sync task for menu creation: menuId={}", menu.getId());
         } catch (Exception e) {
             log.error("Failed to record sync task for menu creation: menuId={}, error={}", menu.getId(), e.getMessage());
+            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
         }
 
         return menu.getId();
@@ -239,6 +240,7 @@ public class MenuServiceImpl implements MenuService {
             log.info("Recorded delete sync task for menu: menuId={}", id);
         } catch (Exception e) {
             log.error("Failed to record delete sync task for menu: menuId={}, error={}", id, e.getMessage());
+            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
         }
     }
 
@@ -442,6 +444,7 @@ public class MenuServiceImpl implements MenuService {
                 log.info("Recorded delete sync task for menu: menuId={}", menu.getId());
             } catch (Exception e) {
                 log.error("Failed to record delete sync task for menu: menuId={}, error={}", menu.getId(), e.getMessage());
+                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
             }
         }
     }

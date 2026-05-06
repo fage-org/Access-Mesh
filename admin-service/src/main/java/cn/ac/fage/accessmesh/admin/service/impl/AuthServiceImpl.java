@@ -5,25 +5,20 @@ import cn.ac.fage.accessmesh.admin.dto.auth.LoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
-import cn.ac.fage.accessmesh.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.admin.entity.table.SysLoginLogTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.admin.mapper.*;
-import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.service.AuthService;
+import cn.ac.fage.accessmesh.admin.service.domain.LoginLogDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
-import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -32,7 +27,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
@@ -68,21 +62,21 @@ public class AuthServiceImpl implements AuthService {
         "end " +
         "return value";
 
-    private final SysUserMapper userMapper;
-    private final SysUserOrgMapper userOrgMapper;
-    private final SysOauth2ClientMapper oauth2ClientMapper;
-    private final SysLoginLogMapper loginLogMapper;
+    private final UserDomainService userDomainService;
+    private final UserOrgDomainService userOrgDomainService;
+    private final OAuth2ClientDomainService oauth2ClientDomainService;
+    private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
 
-    public AuthServiceImpl(SysUserMapper userMapper,
-                           SysUserOrgMapper userOrgMapper,
-                           SysOauth2ClientMapper oauth2ClientMapper,
-                           SysLoginLogMapper loginLogMapper,
+    public AuthServiceImpl(UserDomainService userDomainService,
+                           UserOrgDomainService userOrgDomainService,
+                           OAuth2ClientDomainService oauth2ClientDomainService,
+                           LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate) {
-        this.userMapper = userMapper;
-        this.userOrgMapper = userOrgMapper;
-        this.oauth2ClientMapper = oauth2ClientMapper;
-        this.loginLogMapper = loginLogMapper;
+        this.userDomainService = userDomainService;
+        this.userOrgDomainService = userOrgDomainService;
+        this.oauth2ClientDomainService = oauth2ClientDomainService;
+        this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
     }
 
@@ -101,23 +95,24 @@ public class AuthServiceImpl implements AuthService {
         SysOauth2Client client = validateClient(req.clientId());
 
         Long tenantId = Long.parseLong(req.tenantId());
-        SysUser user = findUser(tenantId, req.username());
+        SysUser user = userDomainService.findByUsername(tenantId, req.username());
+        checkAccountLocked(tenantId, req.username());
         if (user == null) {
             recordLoginFail(tenantId, req.username());
-            recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户不存在");
+            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
-        
-        // FIX: 以DB状态为准检查账号锁定，修复竞态条件
-        checkAccountLocked(tenantId, req.username(), user.getStatus());
-        
         if (user.getStatus() != null && user.getStatus() == 0) {
-            recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户已停用");
+            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
+        }
+        if (user.getStatus() != null && user.getStatus() == 2) {
+            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "账号已锁定");
+            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), AdminErrorCode.USER_LOCKED.getMessage());
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
-            recordLoginLog(tenantId, req.username(), req.clientId(), 0, "密码错误");
+            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "密码错误");
             throw new BizException(AdminErrorCode.PASSWORD_INCORRECT.getCode(), AdminErrorCode.PASSWORD_INCORRECT.getMessage());
         }
 
@@ -128,7 +123,7 @@ public class AuthServiceImpl implements AuthService {
         session.set("tenantId", user.getTenantId());
         String token = StpUtil.getTokenValue();
 
-        recordLoginLog(tenantId, req.username(), req.clientId(), 1, null);
+        loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 1, null);
 
         return new LoginResp(
             token,
@@ -149,18 +144,15 @@ public class AuthServiceImpl implements AuthService {
 
         validateSmsCode(req.phone(), req.smsCode());
 
-        SysUser user = findUserByPhone(tenantId, req.phone());
+        SysUser user = userDomainService.findByPhone(tenantId, req.phone());
         if (user == null) {
-            recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户不存在");
+            loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
         if (user.getStatus() != null && user.getStatus() == 0) {
-            recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户已停用");
+            loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
         }
-
-        // FIX: 以DB状态为准检查账号锁定，修复竞态条件
-        checkAccountLocked(tenantId, req.phone(), user.getStatus());
 
         StpUtil.login(user.getId());
         // FIX #1: Store tenantId in session for security validation (sms login)
@@ -168,7 +160,7 @@ public class AuthServiceImpl implements AuthService {
         session.set("tenantId", user.getTenantId());
         String token = StpUtil.getTokenValue();
 
-        recordLoginLog(tenantId, req.phone(), req.clientId(), 1, null);
+        loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 1, null);
 
         return new LoginResp(
             token,
@@ -191,19 +183,12 @@ public class AuthServiceImpl implements AuthService {
     public UserInfoResp getUserInfo(Long userId) {
         // FIX #13: Validate userId belongs to current tenant
         Long currentTenantId = TenantContextHolder.getTenantId();
-        SysUser user = userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
-                .and(SysUserTableDef.SYS_USER.TENANT_ID.eq(currentTenantId))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        SysUser user = userDomainService.selectValidById(currentTenantId, userId);
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create().where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-        );
+        List<SysUserOrg> userOrgs = userOrgDomainService.findByUserId(currentTenantId, userId);
 
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()
             .map(uo -> new UserInfoResp.OrgInfo(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
@@ -242,12 +227,7 @@ public class AuthServiceImpl implements AuthService {
 
     private SysOauth2Client validateClient(String clientId) {
         if (clientId == null) return null;
-        SysOauth2Client client = oauth2ClientMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.STATUS.eq(1))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
-        );
+        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) return null;
         if (!containsGrantType(client.getGrantTypes(), "password")) {
             throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
@@ -264,44 +244,13 @@ public class AuthServiceImpl implements AuthService {
         return false;
     }
 
-    private SysUser findUser(Long tenantId, String username) {
-        return userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.USERNAME.eq(username))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
-    }
-
-    private void recordLoginLog(Long tenantId, String username, String clientId, int status, String failReason) {
-        SysLoginLog log = new SysLoginLog();
-        log.setTenantId(tenantId);
-        log.setUsername(username);
-        log.setLoginType("password");
-        log.setClientId(clientId);
-        log.setStatus(status);
-        log.setFailReason(failReason);
-        log.setLoginAt(LocalDateTime.now());
-        loginLogMapper.insert(log);
-    }
-
-    /**
-     * 检查账号是否锁定（以DB状态为准，修复竞态条件）
-     * 
-     * @param tenantId 租户ID
-     * @param username 用户名
-     * @param userStatus 用户状态（从DB查询）
-     */
-    private void checkAccountLocked(Long tenantId, String username, Integer userStatus) {
-        // 以DB状态为准：如果status=2，账号已锁定
-        if (userStatus != null && userStatus == 2) {
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), "账号已锁定");
-        }
-        
-        // Redis计数仅用于日志/显示，不作为锁定判定依据
-        // 保留Redis检查用于记录失败次数，但不抛异常（DB状态才是准）
+    private void checkAccountLocked(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        redisTemplate.opsForValue().increment(key, 0);  // 仅检查，不抛异常
+        Long failCount = redisTemplate.opsForValue().increment(key, 0);
+        if (failCount != null && failCount >= MAX_LOGIN_FAIL_COUNT) {
+            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
+                "登录失败次数过多，账号已锁定" + LOCK_DURATION_MINUTES + "分钟");
+        }
     }
 
     private void recordLoginFail(Long tenantId, String username) {
@@ -315,12 +264,9 @@ public class AuthServiceImpl implements AuthService {
 
         if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
             // Mark user status as locked in DB
-            SysUser user = findUser(tenantId, username);
+            SysUser user = userDomainService.findByUsername(tenantId, username);
             if (user != null) {
-                SysUser update = new SysUser();
-                update.setId(user.getId());
-                update.setStatus(2);
-                userMapper.update(update);
+                userDomainService.batchUpdateStatus(tenantId, List.of(user.getId()), 2);
             }
         }
     }
@@ -345,15 +291,6 @@ public class AuthServiceImpl implements AuthService {
         if (stored == null || !stored.equals(smsCode)) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码错误或已过期");
         }
-    }
-
-    private SysUser findUserByPhone(Long tenantId, String phone) {
-        return userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.PHONE.eq(phone))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
     }
 
     private String generateRandomCode(int length) {

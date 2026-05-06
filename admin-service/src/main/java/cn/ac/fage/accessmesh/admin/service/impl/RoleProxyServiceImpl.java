@@ -1,17 +1,17 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.cache.OperationCodeCacheManager;
+import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -22,10 +22,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.UserPermissionViewResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
-import cn.ac.fage.accessmesh.perm.common.enums.DefaultOpCode;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -50,18 +46,18 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     private static final int RESOURCE_TYPE_MENU = 1;
 
     private final PermissionFeignClient permissionFeignClient;
-    private final SysUserOrgMapper userOrgMapper;
+    private final UserOrgDomainService userOrgDomainService;
     private final MenuDomainService menuDomainService;
     private final AdminPermissionValidator permissionValidator;
     private final OperationCodeCacheManager opCodeCacheManager;
 
     public RoleProxyServiceImpl(PermissionFeignClient permissionFeignClient,
-                                SysUserOrgMapper userOrgMapper,
-                                MenuDomainService menuDomainService,
-                                AdminPermissionValidator permissionValidator,
-                                OperationCodeCacheManager opCodeCacheManager) {
+                            UserOrgDomainService userOrgDomainService,
+                            MenuDomainService menuDomainService,
+                            AdminPermissionValidator permissionValidator,
+                            OperationCodeCacheManager opCodeCacheManager) {
         this.permissionFeignClient = permissionFeignClient;
-        this.userOrgMapper = userOrgMapper;
+        this.userOrgDomainService = userOrgDomainService;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
         this.opCodeCacheManager = opCodeCacheManager;
@@ -255,21 +251,17 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
     @Override
     public UserInfoResp loadUserRolesAndPermissions(Long userId) {
-        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create().where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId)).and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
-        );
+        Long tenantId = TenantContextHolder.getTenantId();
+        List<SysUserOrg> userOrgs = userOrgDomainService.findByUserId(tenantId, userId);
 
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()
             .map(uo -> new UserInfoResp.OrgInfo(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());
 
         // Fetch roles from permission-center via /api/user/roles
-        // The userId here needs to match the externalId used during user sync.
-        // For now, return empty roles until user sync is properly wired.
         List<UserInfoResp.RoleInfo> roles = List.of();
 
         // Fetch permissions from permission-center via /api/permission-view/user
-        // Also needs tenantId — derive from first org or skip if not available
         List<String> permissions = List.of();
 
         return new UserInfoResp(userId, null, null, null, null, null, null, roles, permissions, orgInfos);

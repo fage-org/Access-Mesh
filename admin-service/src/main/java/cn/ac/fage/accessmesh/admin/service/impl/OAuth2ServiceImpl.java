@@ -3,14 +3,11 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 import cn.ac.fage.accessmesh.admin.dto.oauth2.*;
 import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
-import cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
-
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.admin.mapper.SysOauth2ClientMapper;
-import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 
 import cn.dev33.satoken.jwt.SaJwtUtil;
@@ -18,20 +15,17 @@ import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import jakarta.annotation.PostConstruct;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -53,36 +47,22 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         "end " +
         "return value";
 
-    private final SysOauth2ClientMapper oauth2ClientMapper;
-    private final SysUserMapper userMapper;
+    private final OAuth2ClientDomainService oauth2ClientDomainService;
+    private final UserDomainService userDomainService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     @Value("${sa-token.jwt-secret-key}")
     private String jwtSecretKey;
 
-    public OAuth2ServiceImpl(SysOauth2ClientMapper oauth2ClientMapper,
-                             SysUserMapper userMapper,
+    public OAuth2ServiceImpl(OAuth2ClientDomainService oauth2ClientDomainService,
+                             UserDomainService userDomainService,
                              StringRedisTemplate redisTemplate,
                              ObjectMapper objectMapper) {
-        this.oauth2ClientMapper = oauth2ClientMapper;
-        this.userMapper = userMapper;
+        this.oauth2ClientDomainService = oauth2ClientDomainService;
+        this.userDomainService = userDomainService;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-    }
-
-    @PostConstruct
-    public void validateJwtSecretKey() {
-        if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
-            throw new IllegalStateException(
-                "JWT secret key must be configured via JWT_SECRET_KEY environment variable");
-        }
-        if (jwtSecretKey.length() < 32) {
-            throw new IllegalStateException(
-                "JWT secret key must be at least 32 characters for security. Current length: " 
-                + jwtSecretKey.length());
-        }
-        log.info("JWT secret key validated successfully, length: {}", jwtSecretKey.length());
     }
 
     @Override
@@ -243,11 +223,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
-        SysUser user = userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        SysUser user = userDomainService.selectValidById(null, userId);
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
                 AdminErrorCode.USER_NOT_FOUND.getMessage());
@@ -380,12 +356,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     private SysOauth2Client getValidClient(String clientId) {
-        SysOauth2Client client = oauth2ClientMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.STATUS.eq(1))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
-        );
+        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) {
             throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
                 AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
