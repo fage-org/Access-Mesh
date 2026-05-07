@@ -56,8 +56,8 @@ const loadUserList = async () => {
     if (res.success) {
       userList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载用户列表失败:", error);
   }
 };
 
@@ -67,8 +67,8 @@ const loadDomainList = async () => {
     if (res.success) {
       domainList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载业务域列表失败:", error);
   }
 };
 
@@ -78,8 +78,8 @@ const loadResourceTypeList = async () => {
     if (res.success) {
       resourceTypeList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载资源类型列表失败:", error);
   }
 };
 
@@ -94,8 +94,8 @@ const loadResourceTree = async () => {
       // 转换响应格式
       resourceTree.value = transformResourceTreeResponse(res);
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载资源树失败:", error);
   }
 };
 
@@ -108,8 +108,8 @@ const loadOperationList = async () => {
     if (res.success) {
       operationList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载操作列表失败:", error);
   }
 };
 
@@ -168,7 +168,8 @@ const handleExplain = async () => {
       explainResult.value = res;
       recentChanges.value = res.data.recentChanges || [];
     }
-  } catch {
+  } catch (error) {
+    console.error("权限解释失败:", error);
     ElMessage.error("权限解释失败");
   } finally {
     loading.value = false;

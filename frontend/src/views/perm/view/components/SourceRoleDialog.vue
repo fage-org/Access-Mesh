@@ -10,6 +10,12 @@ defineOptions({
   name: "SourceRoleDialog"
 });
 
+// ========== 组件暴露接口类型 ==========
+
+export interface SourceRoleDialogExpose {
+  openDialog: (item: EffectivePermissionItem) => void;
+}
+
 // ========== 状态定义 ==========
 
 const dialogVisible = ref(false);

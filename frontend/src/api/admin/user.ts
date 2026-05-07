@@ -133,9 +133,11 @@ export interface UserListResult {
   };
 }
 
-export const getUserList = (data?: UserListRequest) => {
+export const getUserList = (
+  data: UserListRequest = { pageNum: 1, pageSize: 100 }
+) => {
   return http.request<UserListResult>("post", "/admin/api/user/list", {
-    data: data || { pageNum: 1, pageSize: 100 }
+    data
   });
 };
 

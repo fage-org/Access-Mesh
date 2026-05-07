@@ -61,8 +61,8 @@ const loadRoleDetail = async () => {
     if (res.success) {
       roleDetail.value = res.data;
     }
-  } catch {
-    ElMessage.error("加载角色详情失败");
+  } catch (error) {
+    console.error("加载角色详情失败:", error);
   }
 };
 
@@ -75,8 +75,8 @@ const loadResourceTree = async () => {
     if (res.success) {
       resourceTreeData.value = transformResourceTreeResponse(res);
     }
-  } catch {
-    ElMessage.error("加载资源树失败");
+  } catch (error) {
+    console.error("加载资源树失败:", error);
   }
 };
 
@@ -90,8 +90,8 @@ const loadOperations = async () => {
     if (res.success) {
       operationList.value = res.data.items || [];
     }
-  } catch {
-    ElMessage.error("加载操作权限失败");
+  } catch (error) {
+    console.error("加载操作权限失败:", error);
   }
 };
 
@@ -106,8 +106,8 @@ const loadExistingPermissions = async () => {
     if (res.success) {
       existingPermissions.value = res.data.items || [];
     }
-  } catch {
-    ElMessage.error("加载已配置权限失败");
+  } catch (error) {
+    console.error("加载已配置权限失败:", error);
   }
 };
 

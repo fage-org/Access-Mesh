@@ -12,7 +12,9 @@ import { getUserList, type UserListItem } from "@/api/admin/user";
 import { getRoleTree, type RoleTreeNode } from "@/api/perm/role";
 import { transformResourceTreeResponse } from "@/api/perm/resource";
 import PermissionResultTable from "./components/PermissionResultTable.vue";
-import SourceRoleDialog from "./components/SourceRoleDialog.vue";
+import SourceRoleDialog, {
+  type SourceRoleDialogExpose
+} from "./components/SourceRoleDialog.vue";
 
 defineOptions({
   name: "PermView"
@@ -54,9 +56,7 @@ const resultItems = ref<Array<EffectivePermissionItem>>([]);
 const total = ref(0);
 
 // 来源角色弹窗
-const sourceRoleDialogRef = ref<InstanceType<typeof SourceRoleDialog> | null>(
-  null
-);
+const sourceRoleDialogRef = ref<SourceRoleDialogExpose | null>(null);
 
 // ========== 下拉数据加载 ==========
 
@@ -66,8 +66,8 @@ const loadUserList = async () => {
     if (res.success) {
       userList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理，下拉数据加载失败不影响主要功能
+  } catch (error) {
+    console.error("加载用户列表失败:", error);
   }
 };
 
@@ -77,8 +77,8 @@ const loadDomainList = async () => {
     if (res.success) {
       domainList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载业务域列表失败:", error);
   }
 };
 
@@ -88,8 +88,8 @@ const loadResourceTypeList = async () => {
     if (res.success) {
       resourceTypeList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载资源类型列表失败:", error);
   }
 };
 
@@ -100,8 +100,8 @@ const loadRoleTree = async () => {
       // 转换响应格式
       roleTree.value = res.data.items?.map(item => item.root) || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.error("加载角色树失败:", error);
   }
 };
 
@@ -149,7 +149,8 @@ const queryUserPermissions = async () => {
       resultItems.value = res.data.items || [];
       total.value = res.data.total;
     }
-  } catch {
+  } catch (error) {
+    console.error("查询用户权限失败:", error);
     ElMessage.error("查询用户权限失败");
   } finally {
     loading.value = false;
@@ -175,7 +176,8 @@ const queryRolePermissions = async () => {
       resultItems.value = res.data.items || [];
       total.value = res.data.total;
     }
-  } catch {
+  } catch (error) {
+    console.error("查询角色权限失败:", error);
     ElMessage.error("查询角色权限失败");
   } finally {
     loading.value = false;
