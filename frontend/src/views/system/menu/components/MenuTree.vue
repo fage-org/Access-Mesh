@@ -10,6 +10,8 @@ const props = defineProps<{
   data: Array<MenuNode>;
   loading: boolean;
   selectedMenuId: number | null;
+  canCreate: boolean;
+  canDelete: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +24,7 @@ const emit = defineEmits<{
 
 const filterText = ref("");
 const treeRef = ref();
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ========== 树属性配置 ==========
 
@@ -31,10 +34,15 @@ const defaultProps = {
   value: "id"
 };
 
-// ========== 监听筛选文本 ==========
+// ========== Debounced 筛选 ==========
 
 watch(filterText, val => {
-  treeRef.value?.filter(val);
+  if (filterTimer) {
+    clearTimeout(filterTimer);
+  }
+  filterTimer = setTimeout(() => {
+    treeRef.value?.filter(val);
+  }, 300);
 });
 
 // ========== 树筛选方法 ==========
@@ -46,24 +54,24 @@ const filterNode = (value: string, data: MenuNode) => {
 
 // ========== 类型标签 ==========
 
+const MENU_TYPE_TAG = {
+  0: { text: "目录", type: "primary" as const },
+  1: { text: "菜单", type: "success" as const },
+  2: { text: "按钮", type: "warning" as const }
+};
+
 const getTypeTag = (
   type: number
 ): {
   text: string;
   type: "primary" | "success" | "warning" | "danger" | "info";
 } => {
-  const tags: Record<
-    number,
-    {
-      text: string;
-      type: "primary" | "success" | "warning" | "danger" | "info";
+  return (
+    MENU_TYPE_TAG[type as keyof typeof MENU_TYPE_TAG] || {
+      text: "未知",
+      type: "info" as const
     }
-  > = {
-    0: { text: "目录", type: "primary" },
-    1: { text: "菜单", type: "success" },
-    2: { text: "按钮", type: "warning" }
-  };
-  return tags[type] || { text: "未知", type: "info" };
+  );
 };
 
 // ========== 树节点点击 ==========
@@ -133,7 +141,7 @@ const handleDelete = (data: MenuNode) => {
             </div>
             <div class="tree-node-actions">
               <el-button
-                v-if="data.type !== 2"
+                v-if="data.type !== 2 && props.canCreate"
                 type="primary"
                 link
                 size="small"
@@ -142,6 +150,7 @@ const handleDelete = (data: MenuNode) => {
                 新增
               </el-button>
               <el-button
+                v-if="props.canDelete"
                 type="danger"
                 link
                 size="small"

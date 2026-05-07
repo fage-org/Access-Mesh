@@ -38,8 +38,7 @@ const loadMenuTree = async () => {
     if (res.success) {
       treeData.value = res.data;
     }
-  } catch (error) {
-    console.error("[MenuManagement] Load menu tree failed:", error);
+  } catch {
     ElMessage.error("加载菜单树失败");
   } finally {
     loading.value = false;
@@ -52,10 +51,25 @@ const loadMenuDetail = async (menuId: number) => {
     if (res.success) {
       selectedMenuDetail.value = res.data;
     }
-  } catch (error) {
-    console.error("[MenuManagement] Load menu detail failed:", error);
+  } catch {
     ElMessage.error("加载菜单详情失败");
   }
+};
+
+// ========== 递归查找菜单 ==========
+
+const findMenuInTree = (
+  nodes: Array<MenuNode>,
+  targetId: number
+): MenuNode | null => {
+  for (const node of nodes) {
+    if (node.id === targetId) return node;
+    if (node.children) {
+      const found = findMenuInTree(node.children, targetId);
+      if (found) return found;
+    }
+  }
+  return null;
 };
 
 // ========== 菜单树交互 ==========
@@ -91,13 +105,15 @@ const handleDeleteMenu = async (menuId: number) => {
     if (res.success) {
       ElMessage.success("删除成功");
       await loadMenuTree();
-      selectedMenuId.value = null;
-      selectedMenuDetail.value = null;
+      // 如果删除的是当前选中的菜单，清空选中状态
+      if (selectedMenuId.value === menuId) {
+        selectedMenuId.value = null;
+        selectedMenuDetail.value = null;
+      }
     }
   } catch (error) {
     // 区分用户取消和API错误
     if (error !== "cancel") {
-      console.error("[MenuManagement] Delete menu failed:", error);
       ElMessage.error("删除菜单失败");
     }
   }
@@ -106,9 +122,19 @@ const handleDeleteMenu = async (menuId: number) => {
 // ========== 表单成功回调 ==========
 
 const handleFormSuccess = async () => {
+  // 捕获当前选中的菜单ID
+  const currentMenuId = selectedMenuId.value;
   await loadMenuTree();
-  if (selectedMenuId.value) {
-    await loadMenuDetail(selectedMenuId.value);
+  // 验证菜单是否仍然存在
+  if (currentMenuId) {
+    const menuExists = findMenuInTree(treeData.value, currentMenuId);
+    if (menuExists) {
+      await loadMenuDetail(currentMenuId);
+    } else {
+      // 菜单不存在，清空选中状态
+      selectedMenuId.value = null;
+      selectedMenuDetail.value = null;
+    }
   }
 };
 
@@ -138,6 +164,8 @@ onMounted(() => {
           :data="treeData"
           :loading="loading"
           :selected-menu-id="selectedMenuId"
+          :can-create="canCreate"
+          :can-delete="canDelete"
           @node-click="handleMenuNodeClick"
           @create-child="handleCreateChild"
           @delete="handleDeleteMenu"

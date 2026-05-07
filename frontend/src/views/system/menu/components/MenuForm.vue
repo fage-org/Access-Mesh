@@ -208,8 +208,7 @@ const handleSubmit = async () => {
         ElMessage.error("创建失败");
       }
     }
-  } catch (error) {
-    console.error("[MenuForm] Submit failed:", error);
+  } catch {
     ElMessage.error(isEdit.value ? "更新失败" : "创建失败");
   } finally {
     loading.value = false;
