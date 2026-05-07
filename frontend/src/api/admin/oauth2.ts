@@ -133,14 +133,26 @@ export const exchangeToken = async (params: TokenExchangeRequest) => {
 };
 
 /**
- * 刷新 Token
+ * 刷新 Token(POST application/x-www-form-urlencoded)
+ * OAuth2 RFC 6749 Section 6 要求使用 form-urlencoded 格式
  */
-export const refreshToken = (refreshTokenValue: string) => {
-  return http.request<OAuth2TokenResponse>("post", "/oauth2/token", {
-    data: {
-      grant_type: "refresh_token",
-      refresh_token: refreshTokenValue,
-      client_id: import.meta.env.VITE_OAUTH2_CLIENT_ID
-    }
+export const refreshToken = async (refreshTokenValue: string) => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
+  const formData = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshTokenValue,
+    client_id: import.meta.env.VITE_OAUTH2_CLIENT_ID
   });
+
+  const response = await Axios.post<OAuth2TokenResponse>(
+    `${baseUrl}/oauth2/token`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      }
+    }
+  );
+
+  return response.data;
 };
