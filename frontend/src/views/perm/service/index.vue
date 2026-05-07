@@ -20,8 +20,8 @@ defineOptions({
 const serviceList = ref<Array<ServiceConfigItem>>([]);
 const selectedServiceCode = ref<string | null>(null);
 const loading = ref(false);
-const serviceFormRef = ref();
-const syncResultRef = ref();
+const serviceFormRef = ref<InstanceType<typeof ServiceForm> | null>(null);
+const syncResultRef = ref<InstanceType<typeof SyncResultDialog> | null>(null);
 
 // ========== 权限计算 ==========
 
@@ -39,7 +39,8 @@ const loadServiceList = async () => {
     if (res.success) {
       serviceList.value = res.data.items || [];
     }
-  } catch {
+  } catch (error) {
+    console.error("加载服务列表失败:", error);
     ElMessage.error("加载服务列表失败");
   } finally {
     loading.value = false;
@@ -82,6 +83,7 @@ const handleDeleteService = async (service: ServiceConfigItem) => {
     }
   } catch (error) {
     if (error !== "cancel") {
+      console.error("删除服务失败:", error);
       ElMessage.error("删除服务失败");
     }
   }

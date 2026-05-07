@@ -35,7 +35,9 @@ const loading = ref(false);
 const syncLoading = ref(false);
 const serviceDetail = ref<ServiceConfigItem | null>(null);
 const apiList = ref<Array<ApiMappingItem>>([]);
-const syncResultDialogRef = ref();
+const syncResultDialogRef = ref<InstanceType<typeof SyncResultDialog> | null>(
+  null
+);
 
 // ========== 数据加载 ==========
 
@@ -48,7 +50,8 @@ const loadServiceDetail = async () => {
     if (res.success) {
       serviceDetail.value = res.data;
     }
-  } catch {
+  } catch (error) {
+    console.error("加载服务详情失败:", error);
     ElMessage.error("加载服务详情失败");
   } finally {
     loading.value = false;
@@ -61,8 +64,8 @@ const loadApiList = async () => {
     if (res.success) {
       apiList.value = res.data.items || [];
     }
-  } catch {
-    // 静默处理
+  } catch (error) {
+    console.warn("加载接口列表失败:", error);
   }
 };
 
@@ -104,13 +107,14 @@ const handleSync = async () => {
     if (res.success) {
       const result = res.data;
       // 显示同步结果弹窗
-      syncResultDialogRef.value.openDialog(result);
+      syncResultDialogRef.value?.openDialog(result);
       // 刷新API列表
       await loadApiList();
       // 触发完成事件
       emit("syncComplete", result);
     }
-  } catch {
+  } catch (error) {
+    console.error("同步接口失败:", error);
     ElMessage.error("同步接口失败");
   } finally {
     syncLoading.value = false;
