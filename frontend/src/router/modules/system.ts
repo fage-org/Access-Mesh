@@ -39,6 +39,51 @@ export default {
         title: "菜单管理",
         auths: [PERM_CODES.SYS_MENU_VIEW]
       }
+    },
+    {
+      path: "/system/dict",
+      name: "DictManagement",
+      component: () => import("@/views/system/dict/index.vue"),
+      meta: {
+        title: "字典管理",
+        auths: [PERM_CODES.SYS_DICT_VIEW]
+      }
+    },
+    {
+      path: "/system/notice",
+      name: "NoticeManagement",
+      component: () => import("@/views/system/notice/index.vue"),
+      meta: {
+        title: "系统通知",
+        auths: [PERM_CODES.SYS_NOTICE_VIEW]
+      }
+    },
+    {
+      path: "/system/file",
+      name: "FileManagement",
+      component: () => import("@/views/system/file/index.vue"),
+      meta: {
+        title: "文件管理",
+        auths: [PERM_CODES.SYS_FILE_VIEW]
+      }
+    },
+    {
+      path: "/system/job",
+      name: "JobManagement",
+      component: () => import("@/views/system/job/index.vue"),
+      meta: {
+        title: "定时任务",
+        auths: [PERM_CODES.SYS_JOB_VIEW]
+      }
+    },
+    {
+      path: "/system/config",
+      name: "ConfigManagement",
+      component: () => import("@/views/system/config/index.vue"),
+      meta: {
+        title: "系统配置",
+        auths: [PERM_CODES.SYS_CONFIG_VIEW]
+      }
     }
   ]
 } satisfies RouteConfigsTable;

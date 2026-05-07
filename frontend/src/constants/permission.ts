@@ -53,6 +53,41 @@ export const PERM_SERVICE_SYNC = "perm:service:sync";
 export const PERM_VIEW = "perm:view";
 export const PERM_EXPLAIN = "perm:explain";
 
+// ========== 字典管理权限码 ==========
+
+export const SYS_DICT_VIEW = "sys:dict:view";
+export const SYS_DICT_CREATE = "sys:dict:create";
+export const SYS_DICT_UPDATE = "sys:dict:update";
+export const SYS_DICT_DELETE = "sys:dict:delete";
+
+// ========== 系统通知权限码 ==========
+
+export const SYS_NOTICE_VIEW = "sys:notice:view";
+export const SYS_NOTICE_CREATE = "sys:notice:create";
+export const SYS_NOTICE_UPDATE = "sys:notice:update";
+export const SYS_NOTICE_DELETE = "sys:notice:delete";
+export const SYS_NOTICE_PUBLISH = "sys:notice:publish";
+
+// ========== 文件管理权限码 ==========
+
+export const SYS_FILE_VIEW = "sys:file:view";
+export const SYS_FILE_UPLOAD = "sys:file:upload";
+export const SYS_FILE_DELETE = "sys:file:delete";
+
+// ========== 定时任务权限码 ==========
+
+export const SYS_JOB_VIEW = "sys:job:view";
+export const SYS_JOB_CREATE = "sys:job:create";
+export const SYS_JOB_UPDATE = "sys:job:update";
+export const SYS_JOB_DELETE = "sys:job:delete";
+export const SYS_JOB_TRIGGER = "sys:job:trigger";
+
+// ========== 系统配置权限码 ==========
+
+export const SYS_CONFIG_VIEW = "sys:config:view";
+export const SYS_CONFIG_UPDATE = "sys:config:update";
+export const SYS_CONFIG_DELETE = "sys:config:delete";
+
 // ========== 权限码映射对象(便于批量使用) ==========
 
 export const PERM_CODES = {
@@ -92,5 +127,30 @@ export const PERM_CODES = {
   PERM_SERVICE_DELETE,
   PERM_SERVICE_SYNC,
   PERM_VIEW,
-  PERM_EXPLAIN
+  PERM_EXPLAIN,
+  // 字典管理
+  SYS_DICT_VIEW,
+  SYS_DICT_CREATE,
+  SYS_DICT_UPDATE,
+  SYS_DICT_DELETE,
+  // 系统通知
+  SYS_NOTICE_VIEW,
+  SYS_NOTICE_CREATE,
+  SYS_NOTICE_UPDATE,
+  SYS_NOTICE_DELETE,
+  SYS_NOTICE_PUBLISH,
+  // 文件管理
+  SYS_FILE_VIEW,
+  SYS_FILE_UPLOAD,
+  SYS_FILE_DELETE,
+  // 定时任务
+  SYS_JOB_VIEW,
+  SYS_JOB_CREATE,
+  SYS_JOB_UPDATE,
+  SYS_JOB_DELETE,
+  SYS_JOB_TRIGGER,
+  // 系统配置
+  SYS_CONFIG_VIEW,
+  SYS_CONFIG_UPDATE,
+  SYS_CONFIG_DELETE
 };
