@@ -58,6 +58,24 @@ export default {
         title: "服务配置",
         auths: [PERM_CODES.PERM_SERVICE_VIEW]
       }
+    },
+    {
+      path: "/perm/view",
+      name: "PermView",
+      component: () => import("@/views/perm/view/index.vue"),
+      meta: {
+        title: "权限视图",
+        auths: [PERM_CODES.PERM_VIEW]
+      }
+    },
+    {
+      path: "/perm/explain",
+      name: "PermExplain",
+      component: () => import("@/views/perm/explain/index.vue"),
+      meta: {
+        title: "权限排查",
+        auths: [PERM_CODES.PERM_EXPLAIN]
+      }
     }
   ]
 } satisfies RouteConfigsTable;

@@ -50,6 +50,9 @@ export const PERM_SERVICE_UPDATE = "perm:service:update";
 export const PERM_SERVICE_DELETE = "perm:service:delete";
 export const PERM_SERVICE_SYNC = "perm:service:sync";
 
+export const PERM_VIEW = "perm:view";
+export const PERM_EXPLAIN = "perm:explain";
+
 // ========== 权限码映射对象(便于批量使用) ==========
 
 export const PERM_CODES = {
@@ -87,5 +90,7 @@ export const PERM_CODES = {
   PERM_SERVICE_CREATE,
   PERM_SERVICE_UPDATE,
   PERM_SERVICE_DELETE,
-  PERM_SERVICE_SYNC
+  PERM_SERVICE_SYNC,
+  PERM_VIEW,
+  PERM_EXPLAIN
 };

@@ -16,7 +16,7 @@ import {
 } from "@/api/perm/resource";
 import {
   getOperationList,
-  type OperationPermission
+  type OperationPermissionItem
 } from "@/api/perm/operation";
 import { type ResourceDetail } from "@/api/perm/resource";
 
@@ -35,7 +35,7 @@ const loading = ref(false);
 const saving = ref(false);
 const dependencies = ref<Array<ResourceDependencyItem>>([]);
 const resourceTreeData = ref<Array<ResourceTreeNode>>([]);
-const operationList = ref<Array<OperationPermission>>([]);
+const operationList = ref<Array<OperationPermissionItem>>([]);
 const showAddDialog = ref(false);
 
 // ========== 添加表单 ==========

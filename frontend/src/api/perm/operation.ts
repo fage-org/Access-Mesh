@@ -3,7 +3,7 @@ import { http } from "@/utils/http";
 // ========== 类型定义 ==========
 
 /** 操作权限 */
-export interface OperationPermission {
+export interface OperationPermissionItem {
   id: number;
   tenantId: number;
   resourceTypeCode: string;
@@ -20,7 +20,7 @@ export interface OperationPermission {
 export interface OperationListResult {
   success: boolean;
   data: {
-    items: Array<OperationPermission>;
+    items: Array<OperationPermissionItem>;
   };
 }
 

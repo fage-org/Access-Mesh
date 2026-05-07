@@ -6,7 +6,7 @@ import {
   getResourceStatusTag
 } from "@/api/perm/resource";
 import {
-  type OperationPermission,
+  type OperationPermissionItem,
   getOperationTagType
 } from "@/api/perm/operation";
 import {
@@ -21,7 +21,7 @@ defineOptions({
 
 const props = defineProps<{
   resource: ResourceTreeNode;
-  operations: Array<OperationPermission>;
+  operations: Array<OperationPermissionItem>;
   existingPermissions: Array<RolePermissionItem>;
   saving: boolean;
   canAssign: boolean;

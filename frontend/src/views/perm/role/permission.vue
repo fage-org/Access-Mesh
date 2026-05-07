@@ -18,7 +18,7 @@ import {
 } from "@/api/perm/rolePermission";
 import {
   getOperationList,
-  type OperationPermission
+  type OperationPermissionItem
 } from "@/api/perm/operation";
 import ResourceTree from "./components/ResourceTree.vue";
 import OperationConfig from "./components/OperationConfig.vue";
@@ -39,7 +39,7 @@ const saving = ref(false);
 // ========== 资源和权限数据 ==========
 
 const resourceTreeData = ref<Array<ResourceTreeNode>>([]);
-const operationList = ref<Array<OperationPermission>>([]);
+const operationList = ref<Array<OperationPermissionItem>>([]);
 const existingPermissions = ref<Array<RolePermissionItem>>([]);
 const selectedResource = ref<ResourceTreeNode | null>(null);
 const selectedResourceTypeCode = ref<string>("");
@@ -342,8 +342,8 @@ watch(roleId, newId => {
 
 <style scoped lang="scss">
 .role-permission {
-  padding: 20px;
   height: calc(100vh - 100px);
+  padding: 20px;
   background: #f5f7fa;
 }
 </style>

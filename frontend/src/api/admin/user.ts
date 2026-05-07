@@ -27,6 +27,16 @@ export interface UserPageItem {
   createdAt: string;
 }
 
+/** 用户列表项（简化版） */
+export interface UserListItem {
+  id: number;
+  username: string;
+  nickname: string;
+  phone?: string;
+  email?: string;
+  status: number;
+}
+
 /** 组织简要信息 */
 export interface OrgBrief {
   orgId: number;
@@ -105,6 +115,28 @@ export interface UserStatusRequest {
 /** 用户分页查询 */
 export const getUserPage = (data: UserPageRequest) => {
   return http.request<UserPageResult>("post", "/admin/api/user/page", { data });
+};
+
+/** 用户列表查询（简化版） */
+export interface UserListRequest {
+  pageNum?: number;
+  pageSize?: number;
+  username?: string;
+  name?: string;
+}
+
+export interface UserListResult {
+  success: boolean;
+  data: {
+    items: Array<UserListItem>;
+    total?: number;
+  };
+}
+
+export const getUserList = (data?: UserListRequest) => {
+  return http.request<UserListResult>("post", "/admin/api/user/list", {
+    data: data || { pageNum: 1, pageSize: 100 }
+  });
 };
 
 /** 获取用户详情 */
