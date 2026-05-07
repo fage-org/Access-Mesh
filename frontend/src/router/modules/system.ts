@@ -30,6 +30,15 @@ export default {
         title: "组织管理",
         auths: [PERM_CODES.SYS_ORG_VIEW]
       }
+    },
+    {
+      path: "/system/menu",
+      name: "MenuManagement",
+      component: () => import("@/views/system/menu/index.vue"),
+      meta: {
+        title: "菜单管理",
+        auths: [PERM_CODES.SYS_MENU_VIEW]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
