@@ -16,6 +16,12 @@ import { initRouter, getTopMenu } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
+import {
+  startOAuth2Flow,
+  isOAuth2Callback,
+  handleOAuth2Callback
+} from "@/utils/oauth2";
+import Captcha from "./components/Captcha.vue";
 
 import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
@@ -33,6 +39,10 @@ const ruleFormRef = ref<FormInstance>();
 const tenantStore = useTenantStoreHook();
 const tenantLoading = ref(false);
 const selectedTenantId = ref<number>();
+const captchaRef = ref();
+
+// OAuth2 是否启用
+const oauth2Enabled = import.meta.env.VITE_OAUTH2_ENABLED === "true";
 
 const { initStorage } = useLayout();
 initStorage();
@@ -49,6 +59,15 @@ const ruleForm = reactive({
 
 // 初始化租户列表
 onMounted(async () => {
+  // OAuth2 模式: 检查是否是回调
+  if (oauth2Enabled && isOAuth2Callback()) {
+    loading.value = true;
+    await handleOAuth2Callback();
+    loading.value = false;
+    return;
+  }
+
+  // 加载租户列表
   tenantLoading.value = true;
   try {
     const res = await getTenantList();
@@ -58,6 +77,7 @@ onMounted(async () => {
       if (res.data.items.length > 0) {
         selectedTenantId.value = res.data.items[0].id;
         ruleForm.tenantId = res.data.items[0].id;
+        tenantStore.SET_CURRENT_TENANT(res.data.items[0].id);
       }
     }
   } catch (error) {
@@ -67,11 +87,31 @@ onMounted(async () => {
   }
 });
 
-const onLogin = async (formEl: FormInstance | undefined) => {
+// OAuth2 登录: 启动授权码流程
+const onOAuth2Login = async () => {
+  if (!ruleForm.tenantId) {
+    message("请选择租户", { type: "warning" });
+    return;
+  }
+
+  loading.value = true;
+  tenantStore.SET_CURRENT_TENANT(ruleForm.tenantId);
+
+  try {
+    await startOAuth2Flow(ruleForm.tenantId);
+  } catch (error) {
+    console.error("OAuth2 flow start failed:", error);
+    message("登录失败", { type: "error" });
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 简化登录: 直接 POST 登录接口
+const onSimpleLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
   await formEl.validate(valid => {
     if (valid) {
-      // 验证租户是否选择
       if (!ruleForm.tenantId) {
         message("请选择租户", { type: "warning" });
         return;
@@ -85,7 +125,6 @@ const onLogin = async (formEl: FormInstance | undefined) => {
         })
         .then(res => {
           if (res?.success) {
-            // 获取后端路由
             return initRouter().then(() => {
               disabled.value = true;
               router
@@ -102,6 +141,23 @@ const onLogin = async (formEl: FormInstance | undefined) => {
         .finally(() => (loading.value = false));
     }
   });
+};
+
+// 登录按钮处理
+const onLogin = async (formEl: FormInstance | undefined) => {
+  if (oauth2Enabled) {
+    await onOAuth2Login();
+  } else {
+    await onSimpleLogin(formEl);
+  }
+};
+
+// 租户切换
+const onTenantChange = (tenantId: number) => {
+  ruleForm.tenantId = tenantId;
+  tenantStore.SET_CURRENT_TENANT(tenantId);
+  // 切换租户时重新加载验证码
+  captchaRef.value?.loadCaptcha();
 };
 
 const immediateDebounce: any = debounce(
@@ -167,7 +223,7 @@ useEventListener(document, "keydown", ({ code }) => {
                   size="large"
                   :loading="tenantLoading"
                   clearable
-                  @change="ruleForm.tenantId = selectedTenantId"
+                  @change="onTenantChange"
                 >
                   <el-option
                     v-for="tenant in tenantStore.tenantList"
@@ -208,6 +264,13 @@ useEventListener(document, "keydown", ({ code }) => {
                   placeholder="密码"
                   :prefix-icon="useRenderIcon(Lock)"
                 />
+              </el-form-item>
+            </Motion>
+
+            <!-- OAuth2 模式下显示验证码 -->
+            <Motion v-if="oauth2Enabled" :delay="200">
+              <el-form-item prop="captcha">
+                <Captcha ref="captchaRef" />
               </el-form-item>
             </Motion>
 

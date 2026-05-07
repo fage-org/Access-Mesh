@@ -22,6 +22,8 @@ export interface DataInfo<T> {
   permissions?: Array<string>;
   /** 租户 ID */
   tenantId?: number;
+  /** OAuth2 登录标识 */
+  isOAuth2?: boolean;
 }
 
 export const userKey = "user-info";
@@ -50,10 +52,15 @@ export function getToken(): DataInfo<number> {
  */
 export function setToken(data: DataInfo<Date>) {
   let expires = 0;
-  const { accessToken, refreshToken, tenantId } = data;
+  const { accessToken, refreshToken, tenantId, isOAuth2 } = data;
   const { isRemembered, loginDay } = useUserStoreHook();
   expires = new Date(data.expires).getTime(); // 如果后端直接设置时间戳，将此处代码改为expires = data.expires，然后把上面的DataInfo<Date>改成DataInfo<number>即可
-  const cookieString = JSON.stringify({ accessToken, expires, refreshToken });
+  const cookieString = JSON.stringify({
+    accessToken,
+    expires,
+    refreshToken,
+    isOAuth2
+  });
 
   expires > 0
     ? Cookies.set(TokenKey, cookieString, {
@@ -77,7 +84,8 @@ export function setToken(data: DataInfo<Date>) {
     nickname,
     roles,
     permissions,
-    tenantId
+    tenantId,
+    isOAuth2
   }) {
     useUserStoreHook().SET_AVATAR(avatar);
     useUserStoreHook().SET_USERNAME(username);
@@ -98,7 +106,8 @@ export function setToken(data: DataInfo<Date>) {
       nickname,
       roles,
       permissions,
-      tenantId
+      tenantId,
+      isOAuth2
     });
   }
 
@@ -110,7 +119,8 @@ export function setToken(data: DataInfo<Date>) {
       nickname: data?.nickname ?? "",
       roles,
       permissions: data?.permissions ?? [],
-      tenantId: tenantId ?? null
+      tenantId: tenantId ?? null,
+      isOAuth2: isOAuth2 ?? false
     });
   } else {
     const avatar =
@@ -125,13 +135,16 @@ export function setToken(data: DataInfo<Date>) {
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
     const savedTenantId =
       storageLocal().getItem<DataInfo<number>>(userKey)?.tenantId ?? null;
+    const savedIsOAuth2 =
+      storageLocal().getItem<DataInfo<number>>(userKey)?.isOAuth2 ?? false;
     setUserKey({
       avatar,
       username,
       nickname,
       roles,
       permissions,
-      tenantId: savedTenantId
+      tenantId: savedTenantId,
+      isOAuth2: savedIsOAuth2
     });
   }
 }
