@@ -51,7 +51,28 @@ const canCreate = hasPerms(PERM_CODES.SYS_ORG_CREATE);
 
 const rules: FormRules = {
   orgName: [{ required: true, message: "请输入组织名称", trigger: "blur" }],
-  orgType: [{ required: true, message: "请选择组织类型", trigger: "change" }]
+  orgType: [{ required: true, message: "请选择组织类型", trigger: "change" }],
+  code: [
+    {
+      pattern: /^[A-Z0-9_]+$/,
+      message: "组织编码只能包含大写字母、数字和下划线",
+      trigger: "blur"
+    }
+  ],
+  phone: [
+    {
+      pattern: /^1[3-9]\d{9}$|^$/,
+      message: "请输入正确的手机号",
+      trigger: "blur"
+    }
+  ],
+  email: [
+    {
+      type: "email",
+      message: "请输入正确的邮箱地址",
+      trigger: "blur"
+    }
+  ]
 };
 
 // ========== 监听 orgDetail 变化 ==========
@@ -240,7 +261,7 @@ const handleCancel = () => {
         <el-button
           type="primary"
           :loading="loading"
-          :disabled="!canCreate && !canUpdate"
+          :disabled="isEdit ? !canUpdate : !canCreate"
           @click="handleSubmit"
         >
           保存

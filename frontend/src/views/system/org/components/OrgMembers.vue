@@ -16,6 +16,8 @@ const props = defineProps<{
 const loading = ref(false);
 const tableData = ref<Array<UserPageItem>>([]);
 const total = ref(0);
+const currentPage = ref(1);
+const pageSize = ref(20);
 
 // ========== 加载组织成员 ==========
 
@@ -25,8 +27,8 @@ const loadMembers = async () => {
   loading.value = true;
   try {
     const res = await getUserPage({
-      pageNum: 1,
-      pageSize: 100,
+      pageNum: currentPage.value,
+      pageSize: pageSize.value,
       orgId: props.orgId
     });
     if (res.success) {
@@ -41,11 +43,25 @@ const loadMembers = async () => {
   }
 };
 
+// ========== 分页 ==========
+
+const handlePageChange = (val: number) => {
+  currentPage.value = val;
+  loadMembers();
+};
+
+const handleSizeChange = (val: number) => {
+  pageSize.value = val;
+  currentPage.value = 1;
+  loadMembers();
+};
+
 // ========== 监听 orgId 变化 ==========
 
 watch(
   () => props.orgId,
   () => {
+    currentPage.value = 1;
     loadMembers();
   },
   { immediate: true }
@@ -82,6 +98,18 @@ watch(
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 分页 -->
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      class="mt-4"
+      :page-sizes="[10, 20, 50, 100]"
+      :total="total"
+      layout="total, sizes, prev, pager, next"
+      @size-change="handleSizeChange"
+      @current-change="handlePageChange"
+    />
 
     <div v-if="total === 0 && !loading" class="text-center py-10 text-gray-500">
       该组织暂无成员

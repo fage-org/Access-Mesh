@@ -1,3 +1,5 @@
+import { PERM_CODES } from "@/constants/permission";
+
 const Layout = () => import("@/layout/index.vue");
 
 export default {
@@ -16,7 +18,8 @@ export default {
       name: "UserManagement",
       component: () => import("@/views/system/user/index.vue"),
       meta: {
-        title: "用户管理"
+        title: "用户管理",
+        auths: [PERM_CODES.SYS_USER_VIEW]
       }
     },
     {
@@ -24,7 +27,8 @@ export default {
       name: "OrgManagement",
       component: () => import("@/views/system/org/index.vue"),
       meta: {
-        title: "组织管理"
+        title: "组织管理",
+        auths: [PERM_CODES.SYS_ORG_VIEW]
       }
     }
   ]
