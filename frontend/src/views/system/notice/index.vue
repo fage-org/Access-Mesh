@@ -24,13 +24,6 @@ const total = ref(0);
 const pageNum = ref(1);
 const pageSize = ref(20);
 
-// 搜索条件
-const searchForm = reactive({
-  title: "",
-  type: null as number | null,
-  status: null as number | null
-});
-
 // 表单
 const dialogVisible = ref(false);
 const form = reactive({
@@ -189,26 +182,7 @@ onMounted(() => {
   <div class="notice-management">
     <!-- 搜索栏 -->
     <el-card class="mb-4">
-      <el-form :model="searchForm" inline>
-        <el-form-item label="标题">
-          <el-input
-            v-model="searchForm.title"
-            placeholder="请输入标题"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="searchForm.type" placeholder="全部" clearable>
-            <el-option label="系统通知" :value="1" />
-            <el-option label="公告" :value="2" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.status" placeholder="全部" clearable>
-            <el-option label="未发布" :value="0" />
-            <el-option label="已发布" :value="1" />
-          </el-select>
-        </el-form-item>
+      <el-form inline>
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
           <el-button

@@ -38,12 +38,6 @@ const dataTotal = ref(0);
 const dataPageNum = ref(1);
 const dataPageSize = ref(20);
 
-// 类型搜索
-const typeSearch = reactive({
-  code: "",
-  name: ""
-});
-
 // 类型表单
 const typeDialogVisible = ref(false);
 const typeForm = reactive({

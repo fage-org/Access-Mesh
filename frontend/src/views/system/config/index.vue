@@ -22,12 +22,6 @@ const total = ref(0);
 const pageNum = ref(1);
 const pageSize = ref(20);
 
-// 搜索条件
-const searchForm = reactive({
-  configKey: "",
-  configName: ""
-});
-
 // 编辑表单
 const dialogVisible = ref(false);
 const form = reactive({
@@ -95,13 +89,17 @@ const handleDelete = async (row: ConfigItem) => {
 };
 
 const handleSubmit = async () => {
+  if (!form.id) {
+    ElMessage.warning("无效的配置ID");
+    return;
+  }
   if (!form.configValue) {
     ElMessage.warning("请填写配置值");
     return;
   }
   try {
     const res = await updateConfig({
-      id: form.id!,
+      id: form.id,
       configValue: form.configValue,
       remark: form.remark
     });
@@ -140,21 +138,7 @@ onMounted(() => {
   <div class="config-management">
     <!-- 搜索栏 -->
     <el-card class="mb-4">
-      <el-form :model="searchForm" inline>
-        <el-form-item label="配置键">
-          <el-input
-            v-model="searchForm.configKey"
-            placeholder="请输入配置键"
-            clearable
-          />
-        </el-form-item>
-        <el-form-item label="配置名称">
-          <el-input
-            v-model="searchForm.configName"
-            placeholder="请输入配置名称"
-            clearable
-          />
-        </el-form-item>
+      <el-form inline>
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
         </el-form-item>

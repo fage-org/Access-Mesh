@@ -9,6 +9,7 @@ import {
 } from "@/api/system/file";
 import { PERM_CODES } from "@/constants/permission";
 import { hasPerms, getToken } from "@/utils/auth";
+import type { UploadInstance } from "element-plus";
 
 defineOptions({
   name: "FileManagement"
@@ -30,8 +31,8 @@ const searchForm = reactive({
 
 // 上传
 const uploadDialogVisible = ref(false);
-const uploadRef = ref();
-const fileList = ref<Array<any>>([]);
+const uploadRef = ref<UploadInstance>();
+const fileList = ref<Array<UploadInstance>>([]);
 const uploadBizType = ref("default");
 
 // 权限
@@ -282,11 +283,11 @@ onMounted(() => {
             :on-success="
               () => {
                 ElMessage.success('上传成功');
-                loadData();
+                void loadData(); // Intentionally not awaited in event callback
               }
             "
             :on-error="
-              (err: any) => {
+              (err: unknown) => {
                 console.error(err);
                 ElMessage.error('上传失败');
               }

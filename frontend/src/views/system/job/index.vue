@@ -193,6 +193,13 @@ const handleViewLogs = (row: JobItem) => {
   loadLogs();
 };
 
+const handleViewException = (exceptionInfo: string) => {
+  ElMessageBox.alert(exceptionInfo, "异常信息", {
+    confirmButtonText: "关闭",
+    customClass: "exception-dialog"
+  });
+};
+
 const handleSubmit = async () => {
   if (!form.jobName || !form.invokeTarget || !form.cronExpression) {
     ElMessage.warning("请填写完整信息");
@@ -439,6 +446,7 @@ onMounted(() => {
               type="primary"
               link
               size="small"
+              @click="handleViewException(row.exceptionInfo)"
             >
               查看
             </el-button>
