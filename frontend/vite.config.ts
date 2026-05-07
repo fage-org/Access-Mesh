@@ -60,7 +60,7 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
             // 图表库
             echarts: ["echarts"],
             // 工具库
-            utils: ["@pureadmin/utils", "@vueuse/core", "dayjs", "axios", "qs"],
+            utils: ["@pureadmin/utils", "@vueuse/core", "axios", "qs"],
             // 其他依赖
             other: ["animate.css", "mitt", "nprogress", "sortablejs"]
           }
