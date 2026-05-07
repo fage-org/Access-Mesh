@@ -14,7 +14,12 @@ RUN pnpm build
 
 FROM nginx:stable-alpine as production-stage
 
+# Copy custom nginx config for SPA routing and API proxy
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built files
 COPY --from=build-stage /app/dist /usr/share/nginx/html
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

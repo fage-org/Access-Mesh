@@ -50,9 +50,24 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
         output: {
           chunkFileNames: "static/js/[name]-[hash].js",
           entryFileNames: "static/js/[name]-[hash].js",
-          assetFileNames: "static/[ext]/[name]-[hash].[ext]"
+          assetFileNames: "static/[ext]/[name]-[hash].[ext]",
+          // 手动分包策略 - 减少首屏加载资源大小
+          manualChunks: {
+            // Vue 核心框架
+            vue: ["vue", "vue-router", "pinia"],
+            // Element Plus UI库
+            elementPlus: ["element-plus"],
+            // 图表库
+            echarts: ["echarts"],
+            // 工具库
+            utils: ["@pureadmin/utils", "@vueuse/core", "dayjs", "axios", "qs"],
+            // 其他依赖
+            other: ["animate.css", "mitt", "nprogress", "sortablejs"]
+          }
         }
-      }
+      },
+      // 启用 CSS 代码拆分
+      cssCodeSplit: true
     },
     define: {
       __INTLIFY_PROD_DEVTOOLS__: false,
