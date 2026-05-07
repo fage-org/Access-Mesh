@@ -49,6 +49,15 @@ export default {
         title: "资源管理",
         auths: [PERM_CODES.PERM_RESOURCE_VIEW]
       }
+    },
+    {
+      path: "/perm/service",
+      name: "PermService",
+      component: () => import("@/views/perm/service/index.vue"),
+      meta: {
+        title: "服务配置",
+        auths: [PERM_CODES.PERM_SERVICE_VIEW]
+      }
     }
   ]
 } satisfies RouteConfigsTable;

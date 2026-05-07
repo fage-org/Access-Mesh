@@ -44,6 +44,12 @@ export const PERM_RESOURCE_CREATE = "perm:resource:create";
 export const PERM_RESOURCE_UPDATE = "perm:resource:update";
 export const PERM_RESOURCE_DELETE = "perm:resource:delete";
 
+export const PERM_SERVICE_VIEW = "perm:service:view";
+export const PERM_SERVICE_CREATE = "perm:service:create";
+export const PERM_SERVICE_UPDATE = "perm:service:update";
+export const PERM_SERVICE_DELETE = "perm:service:delete";
+export const PERM_SERVICE_SYNC = "perm:service:sync";
+
 // ========== 权限码映射对象(便于批量使用) ==========
 
 export const PERM_CODES = {
@@ -76,5 +82,10 @@ export const PERM_CODES = {
   PERM_RESOURCE_VIEW,
   PERM_RESOURCE_CREATE,
   PERM_RESOURCE_UPDATE,
-  PERM_RESOURCE_DELETE
+  PERM_RESOURCE_DELETE,
+  PERM_SERVICE_VIEW,
+  PERM_SERVICE_CREATE,
+  PERM_SERVICE_UPDATE,
+  PERM_SERVICE_DELETE,
+  PERM_SERVICE_SYNC
 };
