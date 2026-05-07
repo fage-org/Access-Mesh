@@ -281,4 +281,14 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         }
         menuMapper.insertBatch(menus);
     }
+
+    @Override
+    public List<SysMenu> selectAllValid(Long tenantId) {
+        return menuMapper.selectListByQuery(
+            QueryWrapper.create()
+                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
+                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
+                .orderBy(SysMenuTableDef.SYS_MENU.SORT_ORDER.asc())
+        );
+    }
 }

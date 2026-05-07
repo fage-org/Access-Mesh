@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.admin.dto.auth.LoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
+import cn.ac.fage.accessmesh.admin.dto.auth.UserMenuResp;
 import cn.ac.fage.accessmesh.admin.service.AuthService;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.dev33.satoken.stp.StpUtil;
@@ -49,5 +50,11 @@ public class AuthController {
     public PermResult<UserInfoResp> getUserInfo() {
         Long userId = StpUtil.getLoginIdAsLong();
         return PermResult.success(authService.getUserInfo(userId));
+    }
+
+    @PostMapping("/user-menu")
+    public PermResult<UserMenuResp> getUserMenu() {
+        Long userId = StpUtil.getLoginIdAsLong();
+        return PermResult.success(authService.getUserMenu(userId));
     }
 }

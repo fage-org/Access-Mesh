@@ -5,17 +5,28 @@ import cn.ac.fage.accessmesh.admin.dto.auth.LoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
+import cn.ac.fage.accessmesh.admin.dto.auth.UserMenuResp;
+import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.AuthService;
 import cn.ac.fage.accessmesh.admin.service.domain.LoginLogDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
+import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
@@ -27,18 +38,25 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String CAPTCHA_KEY_PREFIX = "captcha:";
     private static final String LOGIN_FAIL_PREFIX = "login:fail:";
@@ -67,17 +85,26 @@ public class AuthServiceImpl implements AuthService {
     private final OAuth2ClientDomainService oauth2ClientDomainService;
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
+    private final MenuDomainService menuDomainService;
+    private final PermissionFeignClient permissionFeignClient;
+
+    private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
+    private static final String OPERATION_VIEW = "VIEW";
 
     public AuthServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
                            OAuth2ClientDomainService oauth2ClientDomainService,
                            LoginLogDomainService loginLogDomainService,
-                           StringRedisTemplate redisTemplate) {
+                           StringRedisTemplate redisTemplate,
+                           MenuDomainService menuDomainService,
+                           PermissionFeignClient permissionFeignClient) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
+        this.menuDomainService = menuDomainService;
+        this.permissionFeignClient = permissionFeignClient;
     }
 
     @Override
@@ -376,5 +403,242 @@ public class AuthServiceImpl implements AuthService {
             // 图片生成失败时返回空白图片（不应影响正常流程）
             return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
         }
+    }
+
+    @Override
+    public UserMenuResp getUserMenu(Long userId) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 1. 获取用户信息
+        SysUser user = userDomainService.selectValidById(tenantId, userId);
+        if (user == null) {
+            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+        }
+
+        // 2. 获取用户角色（通过 permission-center）
+        List<String> roles = getUserRoles(tenantId, userId);
+
+        // 3. 获取用户按钮级权限（通过 permission-center）
+        List<String> permissions = getUserPermissions(tenantId, userId);
+
+        // 4. 获取所有菜单
+        List<SysMenu> allMenus = menuDomainService.selectAllValid(tenantId);
+
+        // 5. 过滤用户有权限的菜单
+        Set<Long> allowedMenuIds = filterAllowedMenus(tenantId, userId, allMenus);
+
+        // 6. 构建菜单树
+        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, allowedMenuIds, 0L);
+
+        return new UserMenuResp(menus, roles, permissions);
+    }
+
+    /**
+     * 获取用户角色列表
+     */
+    private List<String> getUserRoles(Long tenantId, Long userId) {
+        try {
+            cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq(
+                    SUBJECT_TYPE_ADMIN_USER,
+                    String.valueOf(userId),
+                    null
+                );
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
+                permissionFeignClient.getUserRoles(req);
+            if (result != null && result.data() != null && result.data().roles() != null) {
+                return result.data().roles().stream()
+                    .map(cn.ac.fage.accessmesh.perm.common.dto.resp.RoleInfo::roleName)
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get user roles for tenant={}, userId={}", tenantId, userId, e);
+        }
+        return List.of();
+    }
+
+    /**
+     * 获取用户按钮级权限列表
+     */
+    private List<String> getUserPermissions(Long tenantId, Long userId) {
+        try {
+            cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq(
+                    "USER",
+                    SUBJECT_TYPE_ADMIN_USER,
+                    String.valueOf(userId),
+                    null,
+                    null,
+                    null,
+                    List.of("MENU"),
+                    null,
+                    null,
+                    null,
+                    Boolean.FALSE,
+                    Boolean.FALSE,
+                    Boolean.FALSE,
+                    null,
+                    1,
+                    100
+                );
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp<Map<String, Object>>> result =
+                permissionFeignClient.getEffectivePermissions(req);
+            if (result != null && result.data() != null && result.data().items() != null) {
+                Set<String> permCodes = new HashSet<>();
+                for (Map<String, Object> item : result.data().items()) {
+                    Object opCodeObj = item.get("operationCode");
+                    Object resourceCodeObj = item.get("resourceCode");
+                    if (opCodeObj != null && resourceCodeObj != null) {
+                        permCodes.add(resourceCodeObj.toString() + ":" + opCodeObj.toString());
+                    }
+                }
+                return new ArrayList<>(permCodes);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get user permissions for tenant={}, userId={}", tenantId, userId, e);
+        }
+        return List.of();
+    }
+
+    /**
+     * 过滤用户有权限访问的菜单
+     */
+    private Set<Long> filterAllowedMenus(Long tenantId, Long userId, List<SysMenu> allMenus) {
+        if (allMenus.isEmpty()) {
+            return Set.of();
+        }
+
+        // 构建批量权限检查请求
+        List<cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.BatchAuthCheckItem> items = allMenus.stream()
+            .filter(m -> m.getMenuType() != null && !"3".equals(m.getMenuType())) // 排除按钮类型
+            .map(m -> new cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.BatchAuthCheckItem(
+                AdminResourceType.MENU.getCode(),
+                String.valueOf(m.getId()),
+                OPERATION_VIEW
+            ))
+            .collect(Collectors.toList());
+
+        if (items.isEmpty()) {
+            return Set.of();
+        }
+
+        try {
+            cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq(
+                    SUBJECT_TYPE_ADMIN_USER,
+                    String.valueOf(userId),
+                    null,
+                    items
+                );
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp> result =
+                permissionFeignClient.batchCheckAuth(req);
+            if (result != null && result.data() != null && result.data().results() != null) {
+                Set<Long> allowed = new HashSet<>();
+                for (cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp check : result.data().results()) {
+                    if (check.allowed() != null && check.allowed()) {
+                        try {
+                            allowed.add(Long.valueOf(check.resourceCode()));
+                        } catch (NumberFormatException e) {
+                            // 忽略无效的 resourceCode
+                        }
+                    }
+                }
+                // 补充父菜单（即使父菜单没有权限，只要子菜单有权限就显示）
+                Set<Long> withParents = new HashSet<>(allowed);
+                for (SysMenu menu : allMenus) {
+                    if (allowed.contains(menu.getId()) && menu.getParentId() != null && menu.getParentId() > 0) {
+                        addParentMenus(allMenus, menu.getParentId(), withParents);
+                    }
+                }
+                return withParents;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to filter allowed menus for tenant={}, userId={}", tenantId, userId, e);
+        }
+        return Set.of();
+    }
+
+    /**
+     * 递归添加父菜单
+     */
+    private void addParentMenus(List<SysMenu> allMenus, Long parentId, Set<Long> withParents) {
+        for (SysMenu menu : allMenus) {
+            if (menu.getId().equals(parentId)) {
+                withParents.add(menu.getId());
+                if (menu.getParentId() != null && menu.getParentId() > 0) {
+                    addParentMenus(allMenus, menu.getParentId(), withParents);
+                }
+                break;
+            }
+        }
+    }
+
+    /**
+     * 构建菜单树（转换为前端路由格式）
+     */
+    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<SysMenu> allMenus, Set<Long> allowedIds, Long parentId) {
+        return allMenus.stream()
+            .filter(m -> parentId.equals(m.getParentId() != null ? m.getParentId() : 0L))
+            .filter(m -> allowedIds.contains(m.getId()))
+            .filter(m -> m.getVisible() != null && m.getVisible()) // 只显示可见菜单
+            .filter(m -> m.getStatus() != null && m.getStatus() == 1) // 只显示启用菜单
+            .sorted((a, b) -> {
+                int orderA = a.getSortOrder() != null ? a.getSortOrder() : 0;
+                int orderB = b.getSortOrder() != null ? b.getSortOrder() : 0;
+                return Integer.compare(orderA, orderB);
+            })
+            .map(m -> {
+                List<UserMenuResp.MenuRouteItem> children = buildMenuTree(allMenus, allowedIds, m.getId());
+                UserMenuResp.MetaInfo meta = new UserMenuResp.MetaInfo(
+                    m.getName(),
+                    m.getIcon(),
+                    m.getSortOrder(),
+                    m.getVisible(),
+                    m.getIsCache() != null ? m.getIsCache() : false,
+                    m.getIsExternal() != null && m.getIsExternal() ? m.getPath() : null,
+                    null, // roles 由前端根据用户角色判断
+                    m.getPermCode() != null ? List.of(m.getPermCode()) : null
+                );
+                return new UserMenuResp.MenuRouteItem(
+                    m.getPath(),
+                    generateRouteName(m),
+                    m.getComponent(),
+                    !children.isEmpty() ? children.get(0).path() : null,
+                    meta,
+                    children
+                );
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 生成路由名称
+     */
+    private String generateRouteName(SysMenu menu) {
+        if (menu.getMenuType() != null && "1".equals(menu.getMenuType())) {
+            // 目录类型：自动生成名称
+            return menu.getPath().replace("/", "_").replaceAll("^_", "") + "Parent";
+        }
+        // 菜单类型：使用路径生成名称
+        String path = menu.getPath();
+        if (path == null || path.isBlank()) {
+            return "Menu" + menu.getId();
+        }
+        // 将路径转换为驼峰命名
+        String[] parts = path.split("/");
+        StringBuilder name = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isBlank()) {
+                if (name.isEmpty()) {
+                    name.append(part);
+                } else {
+                    name.append(Character.toUpperCase(part.charAt(0)));
+                    if (part.length() > 1) {
+                        name.append(part.substring(1));
+                    }
+                }
+            }
+        }
+        return name.toString();
     }
 }

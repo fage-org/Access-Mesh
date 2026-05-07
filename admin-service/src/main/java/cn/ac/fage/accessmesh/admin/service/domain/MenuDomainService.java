@@ -143,4 +143,12 @@ public interface MenuDomainService {
      * @param menus 菜单列表
      */
     void insertBatch(List<SysMenu> menus);
+
+    /**
+     * 查询租户下所有有效菜单（用于动态路由）
+     *
+     * @param tenantId 租户ID
+     * @return 所有有效菜单列表
+     */
+    List<SysMenu> selectAllValid(Long tenantId);
 }

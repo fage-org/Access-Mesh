@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.admin.dto.auth.LoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
+import cn.ac.fage.accessmesh.admin.dto.auth.UserMenuResp;
 
 public interface AuthService {
 
@@ -17,4 +18,7 @@ public interface AuthService {
     void logout();
 
     UserInfoResp getUserInfo(Long userId);
+
+    /** 获取用户菜单（动态路由 + 角色 + 按钮权限） */
+    UserMenuResp getUserMenu(Long userId);
 }

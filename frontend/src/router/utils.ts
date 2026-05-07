@@ -22,6 +22,7 @@ import { userKey, type DataInfo } from "@/utils/auth";
 import { type menuType, routerArrays } from "@/layout/types";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import { useUserStoreHook } from "@/store/modules/user";
 const IFrame = () => import("@/layout/frame.vue");
 // https://cn.vitejs.dev/guide/features.html#glob-import
 const modulesRoutes = import.meta.glob("/src/views/**/*.{vue,tsx}");
@@ -201,17 +202,28 @@ function initRouter() {
   if (getConfig()?.CachingAsyncRoutes) {
     // 开启动态路由缓存本地localStorage
     const key = "async-routes";
-    const asyncRouteList = storageLocal().getItem(key) as any;
-    if (asyncRouteList && asyncRouteList?.length > 0) {
+    const userMenuKey = "user-menu-data";
+    const cachedRouteList = storageLocal().getItem(key) as any;
+    const cachedMenuData = storageLocal().getItem(userMenuKey) as any;
+    if (cachedRouteList && cachedRouteList?.length > 0 && cachedMenuData) {
+      // 从缓存恢复 roles 和 permissions
+      updateUserMenuData(cachedMenuData);
       return new Promise(resolve => {
-        handleAsyncRoutes(asyncRouteList);
+        handleAsyncRoutes(cachedRouteList);
         resolve(router);
       });
     } else {
       return new Promise(resolve => {
         getAsyncRoutes().then(({ data }) => {
-          handleAsyncRoutes(cloneDeep(data));
-          storageLocal().setItem(key, data);
+          // 存储用户菜单数据（roles + permissions）
+          updateUserMenuData(data);
+          // 缓存菜单树
+          storageLocal().setItem(key, data.menus);
+          storageLocal().setItem(userMenuKey, {
+            roles: data.roles,
+            permissions: data.permissions
+          });
+          handleAsyncRoutes(cloneDeep(data.menus));
           resolve(router);
         });
       });
@@ -219,11 +231,28 @@ function initRouter() {
   } else {
     return new Promise(resolve => {
       getAsyncRoutes().then(({ data }) => {
-        handleAsyncRoutes(cloneDeep(data));
+        // 存储用户菜单数据（roles + permissions）
+        updateUserMenuData(data);
+        handleAsyncRoutes(cloneDeep(data.menus));
         resolve(router);
       });
     });
   }
+}
+
+/** 更新用户菜单数据（roles + permissions）到用户状态和 localStorage */
+function updateUserMenuData(data: { roles: string[]; permissions: string[] }) {
+  const { roles, permissions } = data;
+  // 更新 Pinia store
+  useUserStoreHook().SET_ROLES(roles ?? []);
+  useUserStoreHook().SET_PERMS(permissions ?? []);
+  // 同步更新 localStorage（保持与 auth.ts 中的 setUserKey 一致）
+  const userInfo = storageLocal().getItem<DataInfo<number>>(userKey) ?? {};
+  storageLocal().setItem(userKey, {
+    ...userInfo,
+    roles: roles ?? [],
+    permissions: permissions ?? []
+  });
 }
 
 /**
