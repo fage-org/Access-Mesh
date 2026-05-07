@@ -3,13 +3,15 @@ import Motion from "./utils/motion";
 import { useRouter } from "vue-router";
 import { message } from "@/utils/message";
 import { loginRules } from "./utils/rule";
-import { ref, reactive, toRaw } from "vue";
+import { ref, reactive, toRaw, onMounted } from "vue";
 import { debounce } from "@pureadmin/utils";
 import { useNav } from "@/layout/hooks/useNav";
 import { useEventListener } from "@vueuse/core";
 import type { FormInstance } from "element-plus";
 import { useLayout } from "@/layout/hooks/useLayout";
 import { useUserStoreHook } from "@/store/modules/user";
+import { useTenantStoreHook } from "@/store/modules/tenant";
+import { getTenantList } from "@/api/admin/tenant";
 import { initRouter, getTopMenu } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -28,6 +30,9 @@ const router = useRouter();
 const loading = ref(false);
 const disabled = ref(false);
 const ruleFormRef = ref<FormInstance>();
+const tenantStore = useTenantStoreHook();
+const tenantLoading = ref(false);
+const selectedTenantId = ref<number>();
 
 const { initStorage } = useLayout();
 initStorage();
@@ -38,21 +43,48 @@ const { title } = useNav();
 
 const ruleForm = reactive({
   username: "admin",
-  password: "admin123"
+  password: "admin123",
+  tenantId: null as number | null
+});
+
+// 初始化租户列表
+onMounted(async () => {
+  tenantLoading.value = true;
+  try {
+    const res = await getTenantList();
+    if (res?.success) {
+      tenantStore.SET_TENANT_LIST(res.data.items);
+      // 默认选择第一个租户
+      if (res.data.items.length > 0) {
+        selectedTenantId.value = res.data.items[0].id;
+        ruleForm.tenantId = res.data.items[0].id;
+      }
+    }
+  } catch (error) {
+    message("获取租户列表失败", { type: "error" });
+  } finally {
+    tenantLoading.value = false;
+  }
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
   await formEl.validate(valid => {
     if (valid) {
+      // 验证租户是否选择
+      if (!ruleForm.tenantId) {
+        message("请选择租户", { type: "warning" });
+        return;
+      }
       loading.value = true;
       useUserStoreHook()
         .loginByUsername({
           username: ruleForm.username,
-          password: ruleForm.password
+          password: ruleForm.password,
+          tenantId: ruleForm.tenantId!
         })
         .then(res => {
-          if (res.success) {
+          if (res?.success) {
             // 获取后端路由
             return initRouter().then(() => {
               disabled.value = true;
@@ -118,6 +150,35 @@ useEventListener(document, "keydown", ({ code }) => {
             :rules="loginRules"
             size="large"
           >
+            <Motion :delay="50">
+              <el-form-item
+                :rules="[
+                  {
+                    required: true,
+                    message: '请选择租户',
+                    trigger: 'change'
+                  }
+                ]"
+                prop="tenantId"
+              >
+                <el-select
+                  v-model="selectedTenantId"
+                  placeholder="选择租户"
+                  size="large"
+                  :loading="tenantLoading"
+                  clearable
+                  @change="ruleForm.tenantId = selectedTenantId"
+                >
+                  <el-option
+                    v-for="tenant in tenantStore.tenantList"
+                    :key="tenant.id"
+                    :label="tenant.name"
+                    :value="tenant.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </Motion>
+
             <Motion :delay="100">
               <el-form-item
                 :rules="[

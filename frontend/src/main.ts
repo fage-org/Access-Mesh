@@ -7,6 +7,7 @@ import { MotionPlugin } from "@vueuse/motion";
 import { createApp, type Directive } from "vue";
 import { useElementPlus } from "@/plugins/elementPlus";
 import { injectResponsiveStorage } from "@/utils/responsive";
+import { useTenantStoreHook } from "@/store/modules/tenant";
 
 import Table from "@pureadmin/table";
 // import PureDescriptions from "@pureadmin/descriptions";
@@ -54,6 +55,8 @@ app.use(VueTippy);
 
 getPlatformConfig(app).then(async config => {
   setupStore(app);
+  // 初始化租户状态（从 localStorage 恢复）
+  useTenantStoreHook().INIT_TENANT();
   app.use(router);
   await router.isReady();
   injectResponsiveStorage(app, config);

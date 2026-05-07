@@ -7,20 +7,27 @@ import type {
   PureHttpError,
   RequestMethods,
   PureHttpResponse,
-  PureHttpRequestConfig
+  PureHttpRequestConfig,
+  ApiResponse
 } from "./types.d";
 import { stringify } from "qs";
-import { getToken, formatToken } from "@/utils/auth";
+import { getToken, formatToken, removeToken } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
+import { useTenantStoreHook } from "@/store/modules/tenant";
+import { message } from "@/utils/message";
+import { router } from "@/router";
 
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
+  // 后端 API 基础地址
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   // 请求超时时间
   timeout: 10000,
   headers: {
     Accept: "application/json, text/plain, */*",
     "Content-Type": "application/json",
-    "X-Requested-With": "XMLHttpRequest"
+    "X-Requested-With": "XMLHttpRequest",
+    "X-Api-Version": import.meta.env.VITE_API_VERSION
   },
   // 数组格式参数序列化（https://github.com/axios/axios/issues/5142）
   paramsSerializer: {
@@ -70,11 +77,23 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/refresh-token", "/login"];
-        return whiteList.some(url => config.url.endsWith(url))
+        const whiteList = [
+          "/admin/api/auth/login",
+          "/admin/api/auth/refresh-token",
+          "/admin/api/tenant/query"
+        ];
+        return whiteList.some(url => config.url?.endsWith(url))
           ? config
           : new Promise(resolve => {
               const data = getToken();
+              const tenantStore = useTenantStoreHook();
+              const tenantId = tenantStore.currentTenantId;
+
+              // 注入租户 Header
+              if (tenantId) {
+                config.headers["X-Tenant-Id"] = String(tenantId);
+              }
+
               if (data) {
                 const now = new Date().getTime();
                 const expired = parseInt(data.expires) - now <= 0;
@@ -116,23 +135,71 @@ class PureHttp {
   private httpInterceptorsResponse(): void {
     const instance = PureHttp.axiosInstance;
     instance.interceptors.response.use(
-      (response: PureHttpResponse) => {
+      (response: PureHttpResponse): any => {
         const $config = response.config;
-        // 优先判断post/get等方法是否传入回调，否则执行初始化设置等回调
+
+        // 提取统一响应体
+        const apiResponse = response.data as ApiResponse;
+
+        // 检查业务错误码
+        if (apiResponse.code !== 200) {
+          const businessError = {
+            code: apiResponse.code,
+            message: apiResponse.message,
+            requestId: apiResponse.requestId,
+            traceId: apiResponse.traceId
+          };
+
+          // 按错误码范围分类处理
+          if (apiResponse.code >= 10001 && apiResponse.code <= 19999) {
+            message(`管理员服务错误: ${apiResponse.message}`, {
+              type: "error"
+            });
+          } else if (apiResponse.code >= 20001 && apiResponse.code <= 29999) {
+            message(`权限中心错误: ${apiResponse.message}`, {
+              type: "error"
+            });
+          } else if (apiResponse.code >= 90001) {
+            message(`系统错误: ${apiResponse.message}`, { type: "error" });
+          }
+
+          return Promise.reject(businessError);
+        }
+
+        // 成功响应,返回 data 部分
+        const successData = {
+          success: true,
+          data: apiResponse.data
+        };
+
         if (typeof $config.beforeResponseCallback === "function") {
           $config.beforeResponseCallback(response);
-          return response.data;
+          return successData;
         }
         if (PureHttp.initConfig.beforeResponseCallback) {
           PureHttp.initConfig.beforeResponseCallback(response);
-          return response.data;
+          return successData;
         }
-        return response.data;
+
+        return successData;
       },
       (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
-        // 所有的响应异常 区分来源为取消请求/非取消请求
+
+        // HTTP 网络错误处理
+        if ($error.response?.status === 401) {
+          message("未授权,请重新登录", { type: "error" });
+          removeToken();
+          router.push("/login");
+        } else if ($error.response?.status === 403) {
+          message("无访问权限", { type: "error" });
+        } else if ($error.response?.status === 404) {
+          message("请求资源不存在", { type: "error" });
+        } else if ($error.response?.status >= 500) {
+          message("服务器错误", { type: "error" });
+        }
+
         return Promise.reject($error);
       }
     );

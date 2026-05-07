@@ -8,13 +8,15 @@ import {
   storageLocal
 } from "../utils";
 import {
-  type UserResult,
+  type LoginResult,
   type RefreshTokenResult,
-  getLogin,
-  refreshTokenApi
-} from "@/api/user";
+  type LoginRequest,
+  login,
+  refreshToken as refreshTokenApi
+} from "@/api/admin/auth";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+import { useTenantStoreHook } from "@/store/modules/tenant";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -64,12 +66,22 @@ export const useUserStore = defineStore("pure-user", {
       this.loginDay = Number(value);
     },
     /** 登入 */
-    async loginByUsername(data) {
-      return new Promise<UserResult>((resolve, reject) => {
-        getLogin(data)
-          .then(data => {
-            if (data?.success) setToken(data.data);
-            resolve(data);
+    async loginByUsername(data: LoginRequest) {
+      return new Promise<LoginResult>((resolve, reject) => {
+        login(data)
+          .then(res => {
+            if (res?.success) {
+              // 转换 expires 格式
+              const tokenData = {
+                ...res.data,
+                expires: new Date(res.data.expires)
+              };
+              setToken(tokenData);
+
+              // 更新租户状态
+              useTenantStoreHook().SET_CURRENT_TENANT(res.data.tenantId);
+            }
+            resolve(res);
           })
           .catch(error => {
             reject(error);
@@ -87,13 +99,18 @@ export const useUserStore = defineStore("pure-user", {
       router.push("/login");
     },
     /** 刷新`token` */
-    async handRefreshToken(data) {
+    async handRefreshToken(data: { refreshToken: string }) {
       return new Promise<RefreshTokenResult>((resolve, reject) => {
         refreshTokenApi(data)
-          .then(data => {
-            if (data) {
-              setToken(data.data);
-              resolve(data);
+          .then(res => {
+            if (res?.success) {
+              // 转换 expires 格式
+              const tokenData = {
+                ...res.data,
+                expires: new Date(res.data.expires)
+              };
+              setToken(tokenData);
+              resolve(res);
             }
           })
           .catch(error => {

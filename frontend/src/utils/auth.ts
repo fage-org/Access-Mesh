@@ -1,5 +1,6 @@
 import Cookies from "js-cookie";
 import { useUserStoreHook } from "@/store/modules/user";
+import { useTenantStoreHook } from "@/store/modules/tenant";
 import { storageLocal, isString, isIncludeAllChildren } from "@pureadmin/utils";
 
 export interface DataInfo<T> {
@@ -19,6 +20,8 @@ export interface DataInfo<T> {
   roles?: Array<string>;
   /** 当前登录用户的按钮级别权限 */
   permissions?: Array<string>;
+  /** 租户 ID */
+  tenantId?: number;
 }
 
 export const userKey = "user-info";
@@ -47,7 +50,7 @@ export function getToken(): DataInfo<number> {
  */
 export function setToken(data: DataInfo<Date>) {
   let expires = 0;
-  const { accessToken, refreshToken } = data;
+  const { accessToken, refreshToken, tenantId } = data;
   const { isRemembered, loginDay } = useUserStoreHook();
   expires = new Date(data.expires).getTime(); // 如果后端直接设置时间戳，将此处代码改为expires = data.expires，然后把上面的DataInfo<Date>改成DataInfo<number>即可
   const cookieString = JSON.stringify({ accessToken, expires, refreshToken });
@@ -68,12 +71,25 @@ export function setToken(data: DataInfo<Date>) {
       : {}
   );
 
-  function setUserKey({ avatar, username, nickname, roles, permissions }) {
+  function setUserKey({
+    avatar,
+    username,
+    nickname,
+    roles,
+    permissions,
+    tenantId
+  }) {
     useUserStoreHook().SET_AVATAR(avatar);
     useUserStoreHook().SET_USERNAME(username);
     useUserStoreHook().SET_NICKNAME(nickname);
     useUserStoreHook().SET_ROLES(roles);
     useUserStoreHook().SET_PERMS(permissions);
+
+    // 同步更新租户状态
+    if (tenantId) {
+      useTenantStoreHook().SET_CURRENT_TENANT(tenantId);
+    }
+
     storageLocal().setItem(userKey, {
       refreshToken,
       expires,
@@ -81,7 +97,8 @@ export function setToken(data: DataInfo<Date>) {
       username,
       nickname,
       roles,
-      permissions
+      permissions,
+      tenantId
     });
   }
 
@@ -92,7 +109,8 @@ export function setToken(data: DataInfo<Date>) {
       username,
       nickname: data?.nickname ?? "",
       roles,
-      permissions: data?.permissions ?? []
+      permissions: data?.permissions ?? [],
+      tenantId: tenantId ?? null
     });
   } else {
     const avatar =
@@ -105,12 +123,15 @@ export function setToken(data: DataInfo<Date>) {
       storageLocal().getItem<DataInfo<number>>(userKey)?.roles ?? [];
     const permissions =
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [];
+    const savedTenantId =
+      storageLocal().getItem<DataInfo<number>>(userKey)?.tenantId ?? null;
     setUserKey({
       avatar,
       username,
       nickname,
       roles,
-      permissions
+      permissions,
+      tenantId: savedTenantId
     });
   }
 }

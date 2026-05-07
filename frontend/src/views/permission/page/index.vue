@@ -4,6 +4,7 @@ import { storageLocal } from "@pureadmin/utils";
 import { type CSSProperties, ref, computed } from "vue";
 import { useUserStoreHook } from "@/store/modules/user";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import { useTenantStoreHook } from "@/store/modules/tenant";
 
 defineOptions({
   name: "PermissionPage"
@@ -17,6 +18,7 @@ const elStyle = computed((): CSSProperties => {
 });
 
 const username = ref(useUserStoreHook()?.username);
+const tenantStore = useTenantStoreHook();
 
 const options = [
   {
@@ -30,10 +32,18 @@ const options = [
 ];
 
 function onChange() {
+  // 验证租户是否已选择
+  if (!tenantStore.currentTenantId) {
+    return;
+  }
   useUserStoreHook()
-    .loginByUsername({ username: username.value, password: "admin123" })
+    .loginByUsername({
+      username: username.value,
+      password: "admin123",
+      tenantId: tenantStore.currentTenantId
+    })
     .then(res => {
-      if (res.success) {
+      if (res?.success) {
         storageLocal().removeItem("async-routes");
         usePermissionStoreHook().clearAllCachePage();
         initRouter();

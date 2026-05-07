@@ -14,6 +14,16 @@ export type RequestMethods = Extract<
   "get" | "post" | "put" | "delete" | "patch" | "option" | "head"
 >;
 
+// ========== 统一响应体类型 ==========
+
+export interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  data: T;
+  requestId: string;
+  traceId: string;
+}
+
 export interface PureHttpError extends AxiosError {
   isCancelRequest?: boolean;
 }
@@ -25,6 +35,7 @@ export interface PureHttpResponse extends AxiosResponse {
 export interface PureHttpRequestConfig extends AxiosRequestConfig {
   beforeRequestCallback?: (request: PureHttpRequestConfig) => void;
   beforeResponseCallback?: (response: PureHttpResponse) => void;
+  tenantId?: number; // 租户 ID 配置(可选)
 }
 
 export default class PureHttp {
