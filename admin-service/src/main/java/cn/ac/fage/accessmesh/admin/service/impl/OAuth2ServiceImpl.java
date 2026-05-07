@@ -140,19 +140,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     @Override
-    public TokenResp refreshToken(String refreshToken, String clientId, String clientSecret) {
+    public TokenResp refreshToken(String refreshToken, String clientId) {
         try {
             if (refreshToken == null || refreshToken.isBlank()) {
                 throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // Validate client
+            // Validate client exists and is active
             SysOauth2Client client = getValidClient(clientId);
-            if (!BCrypt.checkpw(clientSecret, client.getClientSecret())) {
-                throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
-            }
 
             // 使用 Lua 脚本原子性地获取并删除 refresh token，防止重复使用
             String refreshTokenDataJson = redisTemplate.execute(
@@ -176,7 +172,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             // Set tenant context from refresh token
             TenantContextHolder.setTenantId(refreshTokenData.getTenantId());
 
-            // Verify client_id matches
+            // Verify client_id matches (refreshToken bound to specific client)
             if (!refreshTokenData.getClientId().equals(clientId)) {
                 throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());

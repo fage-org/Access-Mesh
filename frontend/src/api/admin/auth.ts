@@ -55,5 +55,5 @@ export const refreshToken = (data: RefreshTokenRequest) => {
 
 /** 登出 */
 export const logout = () => {
-  return http.request("post", "/admin/api/auth/logout", { data: {} });
+  return http.request("post", "/auth/logout");
 };

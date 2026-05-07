@@ -7,6 +7,7 @@ import {
 } from "@/api/admin/oauth2";
 import { setToken } from "@/utils/auth";
 import { router } from "@/router";
+import { startTokenRefreshScheduler } from "@/utils/http/tokenRefreshScheduler";
 
 /**
  * 启动 OAuth2 授权码流程
@@ -113,6 +114,9 @@ export async function handleOAuth2Callback(): Promise<void> {
       tenantId: tenantStore.currentTenantId ?? undefined,
       isOAuth2: true // 标识 OAuth2 登录
     });
+
+    // 启动定时刷新调度器
+    startTokenRefreshScheduler();
 
     // 6. 清理 OAuth2 状态
     oauth2Store.CLEAR();

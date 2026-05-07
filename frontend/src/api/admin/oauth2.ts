@@ -133,23 +133,23 @@ export const exchangeToken = async (params: TokenExchangeRequest) => {
 };
 
 /**
- * 刷新 Token(POST application/x-www-form-urlencoded)
- * OAuth2 RFC 6749 Section 6 要求使用 form-urlencoded 格式
+ * 刷新 Token(POST JSON)
+ * 后端端点: POST /auth/oauth2/refresh
+ * PKCE 公开客户端: 仅需要 clientId + refreshToken (无 clientSecret)
+ * 注意: refreshToken 为一次性使用,刷新后返回新的 refreshToken
  */
 export const refreshToken = async (refreshTokenValue: string) => {
   const baseUrl = import.meta.env.VITE_API_BASE_URL;
-  const formData = new URLSearchParams({
-    grant_type: "refresh_token",
-    refresh_token: refreshTokenValue,
-    client_id: import.meta.env.VITE_OAUTH2_CLIENT_ID
-  });
 
   const response = await Axios.post<OAuth2TokenResponse>(
-    `${baseUrl}/oauth2/token`,
-    formData,
+    `${baseUrl}/auth/oauth2/refresh`,
+    {
+      clientId: import.meta.env.VITE_OAUTH2_CLIENT_ID,
+      refreshToken: refreshTokenValue
+    },
     {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/json"
       }
     }
   );

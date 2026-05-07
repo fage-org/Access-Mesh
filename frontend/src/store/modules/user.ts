@@ -12,11 +12,13 @@ import {
   type RefreshTokenResult,
   type LoginRequest,
   login,
-  refreshToken as refreshTokenApi
+  refreshToken as refreshTokenApi,
+  logout as logoutApi
 } from "@/api/admin/auth";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
 import { useTenantStoreHook } from "@/store/modules/tenant";
+import { stopTokenRefreshScheduler } from "@/utils/http/tokenRefreshScheduler";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -88,14 +90,34 @@ export const useUserStore = defineStore("pure-user", {
           });
       });
     },
-    /** 前端登出（不调用接口） */
-    logOut() {
+    /** 登出 */
+    async logOut() {
+      // 1. 停止定时刷新调度器
+      stopTokenRefreshScheduler();
+
+      // 2. 调用后端登出接口
+      try {
+        await logoutApi();
+      } catch {
+        // 后端登出失败不影响前端登出流程
+        // 静默处理，避免阻塞
+      }
+
+      // 3. 清除前端 Token
+      removeToken();
+
+      // 4. 清除用户状态
       this.username = "";
+      this.nickname = "";
+      this.avatar = "";
       this.roles = [];
       this.permissions = [];
-      removeToken();
+
+      // 5. 重置标签页和路由
       useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();
+
+      // 6. 跳转登录页
       router.push("/login");
     },
     /** 刷新`token` */

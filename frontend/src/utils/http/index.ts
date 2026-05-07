@@ -11,11 +11,23 @@ import type {
   ApiResponse
 } from "./types.d";
 import { stringify } from "qs";
-import { getToken, formatToken, removeToken } from "@/utils/auth";
+import { getToken, formatToken, removeToken, setToken } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { useTenantStoreHook } from "@/store/modules/tenant";
 import { message } from "@/utils/message";
 import { router } from "@/router";
+import {
+  refreshToken as refreshTokenApi,
+  type OAuth2TokenResponse
+} from "@/api/admin/oauth2";
+import {
+  startTokenRefreshScheduler,
+  stopTokenRefreshScheduler
+} from "@/utils/http/tokenRefreshScheduler";
+import {
+  isTokenRefreshing,
+  setTokenRefreshing
+} from "@/utils/http/refreshLock";
 
 // 相关配置请参考：www.axios-js.com/zh-cn/docs/#axios-request-config-1
 const defaultConfig: AxiosRequestConfig = {
@@ -42,10 +54,7 @@ class PureHttp {
   }
 
   /** `token`过期后，暂存待执行的请求 */
-  private static requests = [];
-
-  /** 防止重复刷新`token` */
-  private static isRefreshing = false;
+  private static requests: Array<(token: string) => void> = [];
 
   /** 初始化配置对象 */
   private static initConfig: PureHttpRequestConfig = {};
@@ -78,6 +87,11 @@ class PureHttp {
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
         const whiteList = [
+          "/auth/oauth2/refresh",
+          "/auth/oauth2/token",
+          "/auth/logout",
+          "/oauth2/authorize",
+          "/admin/api/auth/captcha",
           "/admin/api/auth/login",
           "/admin/api/auth/refresh-token",
           "/admin/api/tenant/query"
@@ -98,20 +112,73 @@ class PureHttp {
                 const now = new Date().getTime();
                 const expired = parseInt(data.expires) - now <= 0;
                 if (expired) {
-                  if (!PureHttp.isRefreshing) {
-                    PureHttp.isRefreshing = true;
-                    // token过期刷新
-                    useUserStoreHook()
-                      .handRefreshToken({ refreshToken: data.refreshToken })
-                      .then(res => {
-                        const token = res.data.accessToken;
-                        config.headers["Authorization"] = formatToken(token);
-                        PureHttp.requests.forEach(cb => cb(token));
-                        PureHttp.requests = [];
-                      })
-                      .finally(() => {
-                        PureHttp.isRefreshing = false;
-                      });
+                  if (!isTokenRefreshing()) {
+                    setTokenRefreshing(true);
+                    // token过期刷新 - 区分 OAuth2 和普通登录
+                    if (data.isOAuth2) {
+                      // OAuth2 模式: 使用 OAuth2 刷新接口
+                      refreshTokenApi(data.refreshToken)
+                        .then((res: OAuth2TokenResponse) => {
+                          if (res.code === 200 && res.data) {
+                            const newExpires = new Date(
+                              Date.now() + res.data.expires_in * 1000
+                            );
+                            const tokenData = {
+                              accessToken: res.data.access_token,
+                              refreshToken: res.data.refresh_token,
+                              expires: newExpires,
+                              isOAuth2: data.isOAuth2,
+                              username: data.username,
+                              nickname: data.nickname,
+                              avatar: data.avatar,
+                              roles: data.roles,
+                              permissions: data.permissions,
+                              tenantId: data.tenantId
+                            };
+                            setToken(tokenData);
+                            // 重启定时刷新
+                            startTokenRefreshScheduler();
+                            const token = res.data.access_token;
+                            config.headers["Authorization"] =
+                              formatToken(token);
+                            PureHttp.requests.forEach(cb => cb(token));
+                            PureHttp.requests = [];
+                          } else {
+                            // 刷新失败,跳转登录页
+                            message("会话已过期，请重新登录", {
+                              type: "warning"
+                            });
+                            stopTokenRefreshScheduler();
+                            removeToken();
+                            router.push("/login");
+                          }
+                        })
+                        .catch(error => {
+                          console.error("[HTTP] Token refresh failed:", error);
+                          message("会话已过期，请重新登录", {
+                            type: "warning"
+                          });
+                          stopTokenRefreshScheduler();
+                          removeToken();
+                          router.push("/login");
+                        })
+                        .finally(() => {
+                          setTokenRefreshing(false);
+                        });
+                    } else {
+                      // 普通登录模式: 使用原有刷新接口
+                      useUserStoreHook()
+                        .handRefreshToken({ refreshToken: data.refreshToken })
+                        .then(res => {
+                          const token = res.data.accessToken;
+                          config.headers["Authorization"] = formatToken(token);
+                          PureHttp.requests.forEach(cb => cb(token));
+                          PureHttp.requests = [];
+                        })
+                        .finally(() => {
+                          setTokenRefreshing(false);
+                        });
+                    }
                   }
                   resolve(PureHttp.retryOriginalRequest(config));
                 } else {

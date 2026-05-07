@@ -42,11 +42,12 @@ public class OAuth2Controller {
 
     /**
      * Refresh token — exchanges a refresh token for a new access token.
+     * PKCE public client: only requires clientId + refreshToken (no clientSecret).
      */
     @PostMapping("/refresh")
     public PermResult<TokenResp> refresh(@RequestBody RefreshTokenReq req) {
         return PermResult.success(
-            oauth2Service.refreshToken(req.refreshToken(), req.clientId(), req.clientSecret())
+            oauth2Service.refreshToken(req.refreshToken(), req.clientId())
         );
     }
 
@@ -69,7 +70,7 @@ public class OAuth2Controller {
         return PermResult.success(oauth2Service.getClientUserInfo(userId));
     }
 
-    public record RefreshTokenReq(String clientId, String clientSecret, String refreshToken) {}
+    public record RefreshTokenReq(String clientId, String refreshToken) {}
 
     public record RevokeTokenReq(String accessToken) {}
 }

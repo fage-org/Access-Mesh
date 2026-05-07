@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useTenantStoreHook } from "@/store/modules/tenant";
 import { removeToken } from "@/utils/auth";
 import { startOAuth2Flow } from "@/utils/oauth2";
+import { stopTokenRefreshScheduler } from "@/utils/http/tokenRefreshScheduler";
 import { ArrowDown } from "@element-plus/icons-vue";
 
 defineOptions({
@@ -28,13 +29,16 @@ const currentTenantName = computed(() => {
 const handleSwitchTenant = async (tenantId: number) => {
   loading.value = true;
 
-  // 1. 清除当前 Token
+  // 1. 停止定时刷新调度器
+  stopTokenRefreshScheduler();
+
+  // 2. 清除当前 Token
   removeToken();
 
-  // 2. 更新租户 ID
+  // 3. 更新租户 ID
   tenantStore.SET_CURRENT_TENANT(tenantId);
 
-  // 3. OAuth2 模式: 启动新的 OAuth2 流程
+  // 4. OAuth2 模式: 启动新的 OAuth2 流程
   if (oauth2Enabled) {
     try {
       await startOAuth2Flow(tenantId);
@@ -52,6 +56,7 @@ const handleSwitchTenant = async (tenantId: number) => {
 
 // 跳转到登录页(选择其他租户)
 const goToLogin = () => {
+  stopTokenRefreshScheduler();
   removeToken();
   router.push("/login");
 };

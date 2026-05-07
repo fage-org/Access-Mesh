@@ -8,7 +8,7 @@ public interface OAuth2Service {
 
     TokenResp token(TokenReq req);
 
-    TokenResp refreshToken(String refreshToken, String clientId, String clientSecret);
+    TokenResp refreshToken(String refreshToken, String clientId);
 
     void revokeToken(String accessToken);
 
