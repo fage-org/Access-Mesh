@@ -120,3 +120,95 @@ export const getResourceStatusTag = (
     ? RESOURCE_STATUS_TAG.ENABLED
     : RESOURCE_STATUS_TAG.DISABLED;
 };
+
+// ========== 资源类型常量 ==========
+
+export const RESOURCE_TYPE_CODES = {
+  MENU: "MENU",
+  API: "API",
+  BUTTON: "BUTTON",
+  DATA: "DATA"
+} as const;
+
+export const RESOURCE_TYPE_TAG = {
+  MENU: { text: "菜单", type: "primary" as const },
+  API: { text: "API", type: "warning" as const },
+  BUTTON: { text: "按钮", type: "success" as const },
+  DATA: { text: "数据", type: "info" as const }
+} as const;
+
+export const getResourceTypeTag = (
+  type: string
+): {
+  text: string;
+  type: "primary" | "success" | "warning" | "danger" | "info";
+} => {
+  return (
+    RESOURCE_TYPE_TAG[type as keyof typeof RESOURCE_TYPE_TAG] || {
+      text: type,
+      type: "info" as const
+    }
+  );
+};
+
+// ========== CRUD 请求类型 ==========
+
+/** 创建资源请求 */
+export interface ResourceCreateRequest {
+  bizDomainId?: number;
+  parentId?: number;
+  resourceTypeCode: string;
+  code: string;
+  codeType?: string;
+  name: string;
+  path?: string;
+  status?: number;
+  sortOrder?: number;
+  extra?: string;
+}
+
+/** 更新资源请求 */
+export interface ResourceUpdateRequest {
+  id: number;
+  code?: string;
+  name?: string;
+  path?: string;
+  status?: number;
+  sortOrder?: number;
+  extra?: string;
+}
+
+/** 资源创建/更新响应 */
+export interface ResourceActionResult {
+  success: boolean;
+  data: ResourceDetail;
+}
+
+// ========== CRUD API 函数 ==========
+
+/** 创建资源 */
+export const createResource = (data: ResourceCreateRequest) => {
+  return http.request<ResourceActionResult>(
+    "post",
+    "/api/perm/resource-entity/create",
+    { data }
+  );
+};
+
+/** 更新资源 */
+export const updateResource = (data: ResourceUpdateRequest) => {
+  return http.request<ResourceActionResult>(
+    "post",
+    "/api/perm/resource-entity/update",
+    { data }
+  );
+};
+
+/** 删除资源 */
+export const deleteResource = (data: { ids: Array<number> }) => {
+  return http.request<{ success: boolean }>(
+    "post",
+    "/api/perm/resource-entity/remove",
+    { data }
+  );
+};

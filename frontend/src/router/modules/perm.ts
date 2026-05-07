@@ -40,6 +40,15 @@ export default {
         title: "用户角色分配",
         auths: [PERM_CODES.SYS_USER_ASSIGN_ROLE]
       }
+    },
+    {
+      path: "/perm/resource",
+      name: "PermResource",
+      component: () => import("@/views/perm/resource/index.vue"),
+      meta: {
+        title: "资源管理",
+        auths: [PERM_CODES.PERM_RESOURCE_VIEW]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
