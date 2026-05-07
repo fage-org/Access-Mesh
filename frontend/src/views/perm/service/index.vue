@@ -170,7 +170,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .service-config {
-  padding: 20px;
   height: calc(100vh - 100px);
+  padding: 20px;
 }
 </style>

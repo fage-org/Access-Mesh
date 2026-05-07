@@ -186,7 +186,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .menu-management {
-  padding: 20px;
   height: calc(100vh - 100px);
+  padding: 20px;
 }
 </style>

@@ -104,20 +104,20 @@ const goToLogin = () => {
 .tenant-dropdown-link {
   display: flex;
   align-items: center;
-  cursor: pointer;
-  padding: 0 10px;
   height: 40px;
+  padding: 0 10px;
+  cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.3s;
 
   &:hover {
-    background-color: rgba(0, 0, 0, 0.025);
+    background-color: rgb(0 0 0 / 2.5%);
   }
 }
 
 .tenant-name {
+  margin-right: 5px;
   font-size: 14px;
   color: #333;
-  margin-right: 5px;
 }
 </style>

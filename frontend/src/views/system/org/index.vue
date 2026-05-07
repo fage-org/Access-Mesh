@@ -180,7 +180,7 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .org-management {
-  padding: 20px;
   height: calc(100vh - 100px);
+  padding: 20px;
 }
 </style>

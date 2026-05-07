@@ -179,8 +179,8 @@ const handleDelete = (data: RoleTreeNode) => {
 
   .node-content {
     display: flex;
-    align-items: center;
     flex: 1;
+    align-items: center;
   }
 
   .tree-node-actions {

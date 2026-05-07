@@ -79,8 +79,8 @@ onMounted(() => {
 <style scoped lang="scss">
 .captcha-container {
   display: flex;
-  align-items: center;
   gap: 10px;
+  align-items: center;
 }
 
 .captcha-input {
@@ -88,12 +88,12 @@ onMounted(() => {
 }
 
 .captcha-image-wrapper {
-  width: 120px;
-  height: 40px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 120px;
+  height: 40px;
+  cursor: pointer;
   background-color: #f5f5f5;
   border-radius: 4px;
 }
