@@ -1,0 +1,36 @@
+import { PERM_CODES } from "@/constants/permission";
+
+const Layout = () => import("@/layout/index.vue");
+
+export default {
+  path: "/perm",
+  name: "Perm",
+  component: Layout,
+  redirect: "/perm/role",
+  meta: {
+    icon: "ri/shield-keyhole-fill",
+    title: "权限中心",
+    rank: 2
+  },
+  children: [
+    {
+      path: "/perm/role",
+      name: "PermRole",
+      component: () => import("@/views/perm/role/index.vue"),
+      meta: {
+        title: "角色管理",
+        auths: [PERM_CODES.SYS_ROLE_VIEW]
+      }
+    },
+    {
+      path: "/perm/role/permission",
+      name: "PermRolePermission",
+      component: () => import("@/views/perm/role/permission.vue"),
+      meta: {
+        title: "角色权限配置",
+        auths: [PERM_CODES.SYS_ROLE_ASSIGN_PERM],
+        showLink: false
+      }
+    }
+  ]
+} satisfies RouteConfigsTable;

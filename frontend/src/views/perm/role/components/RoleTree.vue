@@ -1,23 +1,27 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from "vue";
-import { type MenuNode } from "@/api/admin/menu";
+import {
+  type RoleTreeNode,
+  getRoleTypeTag,
+  getStatusTag
+} from "@/api/perm/role";
 
 defineOptions({
-  name: "MenuTree"
+  name: "RoleTree"
 });
 
 const props = defineProps<{
-  data: Array<MenuNode>;
+  data: Array<RoleTreeNode>;
   loading: boolean;
-  selectedMenuId: number | null;
+  selectedRoleId: number | null;
   canCreate: boolean;
   canDelete: boolean;
 }>();
 
 const emit = defineEmits<{
-  nodeClick: [menuId: number];
+  nodeClick: [roleId: number];
   createChild: [parentId: number];
-  delete: [menuId: number];
+  delete: [roleId: number];
 }>();
 
 // ========== 状态定义 ==========
@@ -55,63 +59,41 @@ onUnmounted(() => {
 
 // ========== 树筛选方法 ==========
 
-const filterNode = (value: string, data: MenuNode) => {
+const filterNode = (value: string, data: RoleTreeNode) => {
   if (!value) return true;
   return data.name.toLowerCase().includes(value.toLowerCase());
 };
 
-// ========== 类型标签 ==========
-
-const MENU_TYPE_TAG = {
-  0: { text: "目录", type: "primary" as const },
-  1: { text: "菜单", type: "success" as const },
-  2: { text: "按钮", type: "warning" as const }
-};
-
-const getTypeTag = (
-  type: number
-): {
-  text: string;
-  type: "primary" | "success" | "warning" | "danger" | "info";
-} => {
-  return (
-    MENU_TYPE_TAG[type as keyof typeof MENU_TYPE_TAG] || {
-      text: "未知",
-      type: "info" as const
-    }
-  );
-};
-
 // ========== 树节点点击 ==========
 
-const handleNodeClick = (data: MenuNode) => {
+const handleNodeClick = (data: RoleTreeNode) => {
   emit("nodeClick", data.id);
 };
 
 // ========== 新增子节点 ==========
 
-const handleCreateChild = (data: MenuNode) => {
+const handleCreateChild = (data: RoleTreeNode) => {
   emit("createChild", data.id);
 };
 
 // ========== 删除节点 ==========
 
-const handleDelete = (data: MenuNode) => {
+const handleDelete = (data: RoleTreeNode) => {
   emit("delete", data.id);
 };
 </script>
 
 <template>
-  <div class="menu-tree-container">
+  <div class="role-tree-container">
     <!-- 搜索框 -->
     <el-input
       v-model="filterText"
-      placeholder="搜索菜单名称"
+      placeholder="搜索角色名称"
       clearable
       class="mb-4"
     />
 
-    <!-- 菜单树 -->
+    <!-- 角色树 -->
     <el-scrollbar class="flex-1">
       <el-tree
         ref="treeRef"
@@ -119,12 +101,12 @@ const handleDelete = (data: MenuNode) => {
         :data="props.data"
         :props="defaultProps"
         node-key="id"
-        :current-node-key="props.selectedMenuId"
+        :current-node-key="props.selectedRoleId"
         highlight-current
         default-expand-all
         :expand-on-click-node="false"
         :filter-node-method="filterNode"
-        class="menu-tree"
+        class="role-tree"
         @node-click="handleNodeClick"
       >
         <template #default="{ data }">
@@ -132,24 +114,24 @@ const handleDelete = (data: MenuNode) => {
             <div class="node-content">
               <span class="truncate">{{ data.name }}</span>
               <el-tag
-                :type="getTypeTag(data.type).type"
+                :type="getRoleTypeTag(data.roleTypeCode).type"
                 size="small"
                 class="ml-2"
               >
-                {{ getTypeTag(data.type).text }}
+                {{ getRoleTypeTag(data.roleTypeCode).text }}
               </el-tag>
               <el-tag
                 v-if="data.status === 0"
-                type="danger"
+                :type="getStatusTag(data.status).type"
                 size="small"
                 class="ml-2"
               >
-                停用
+                {{ getStatusTag(data.status).text }}
               </el-tag>
             </div>
             <div class="tree-node-actions">
               <el-button
-                v-if="data.type !== 2 && props.canCreate"
+                v-if="props.canCreate"
                 type="primary"
                 link
                 size="small"
@@ -175,14 +157,14 @@ const handleDelete = (data: MenuNode) => {
 </template>
 
 <style scoped lang="scss">
-.menu-tree-container {
+.role-tree-container {
   display: flex;
   flex-direction: column;
   height: 100%;
   padding: 16px;
 }
 
-.menu-tree {
+.role-tree {
   :deep(.el-tree-node__content) {
     height: 36px;
   }
