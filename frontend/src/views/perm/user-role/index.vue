@@ -116,8 +116,7 @@ const handleAssignRoles = async (
       ElMessage.success("分配成功");
       await loadAssignedRoles();
     }
-  } catch (error) {
-    console.error("[PermUserRole] 分配角色失败:", error);
+  } catch {
     ElMessage.error("分配失败");
   } finally {
     assigning.value = false;

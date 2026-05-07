@@ -36,8 +36,8 @@ const loadOrgTree = async () => {
     if (res.success) {
       orgTreeData.value = res.data;
     }
-  } catch (error) {
-    console.error("[OrgContextSelector] 加载组织树失败:", error);
+  } catch {
+    // 加载组织树失败，静默处理，不影响用户操作
   } finally {
     loading.value = false;
   }

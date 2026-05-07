@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
 import { getUserPage, type UserPageItem } from "@/api/admin/user";
+import { STATUS_ENABLED } from "@/constants/common";
 
 defineOptions({
   name: "UserSelector"
@@ -33,13 +34,13 @@ const loadUsers = async () => {
       pageSize: 100,
       username: searchForm.username,
       name: searchForm.name,
-      status: 1 // 只加载启用用户
+      status: STATUS_ENABLED // 只加载启用用户
     });
     if (res.success) {
       userList.value = res.data.list;
     }
-  } catch (error) {
-    console.error("[UserSelector] 加载用户列表失败:", error);
+  } catch {
+    // 加载用户列表失败，静默处理，不影响用户操作
   } finally {
     loading.value = false;
   }
