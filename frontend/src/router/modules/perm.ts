@@ -31,6 +31,15 @@ export default {
         auths: [PERM_CODES.SYS_ROLE_ASSIGN_PERM],
         showLink: false
       }
+    },
+    {
+      path: "/perm/user-role",
+      name: "PermUserRole",
+      component: () => import("@/views/perm/user-role/index.vue"),
+      meta: {
+        title: "用户角色分配",
+        auths: [PERM_CODES.SYS_USER_ASSIGN_ROLE]
+      }
     }
   ]
 } satisfies RouteConfigsTable;
