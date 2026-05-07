@@ -151,7 +151,29 @@ export const resetPassword = (data: ResetPasswordRequest) => {
   );
 };
 
+/** 用户菜单响应 */
+export interface UserMenusResult {
+  success: boolean;
+  data: {
+    menus: Array<{
+      id: number;
+      name: string;
+      path?: string;
+      icon?: string;
+      children?: Array<{
+        id: number;
+        name: string;
+        path?: string;
+        icon?: string;
+      }>;
+    }>;
+    permissions: Array<string>;
+  };
+}
+
 /** 获取用户菜单和权限 */
 export const getUserMenus = (data: { id: number }) => {
-  return http.request("post", "/admin/api/user/user-menus", { data });
+  return http.request<UserMenusResult>("post", "/admin/api/user/user-menus", {
+    data
+  });
 };

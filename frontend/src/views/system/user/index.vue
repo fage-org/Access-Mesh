@@ -100,6 +100,7 @@ const loadOrgTree = async () => {
       orgTreeData.value = res.data;
     }
   } catch (error) {
+    console.error("[UserManagement] Load org tree failed:", error);
     ElMessage.error("加载组织树失败");
   }
 };
@@ -123,6 +124,7 @@ const loadData = async () => {
       total.value = res.data.total;
     }
   } catch (error) {
+    console.error("[UserManagement] Load user list failed:", error);
     ElMessage.error("加载用户列表失败");
   } finally {
     loading.value = false;
@@ -201,8 +203,12 @@ const handleDelete = async (row: UserPageItem) => {
       ElMessage.success("删除成功");
       loadData();
     }
-  } catch {
-    // 用户取消
+  } catch (error) {
+    // 区分用户取消和API错误
+    if (error !== "cancel") {
+      console.error("[UserManagement] Delete user failed:", error);
+      ElMessage.error("删除用户失败");
+    }
   }
 };
 
@@ -224,15 +230,19 @@ const handleToggleStatus = async (row: UserPageItem) => {
       ElMessage.success(`${action}成功`);
       loadData();
     }
-  } catch {
-    // 用户取消
+  } catch (error) {
+    // 区分用户取消和API错误
+    if (error !== "cancel") {
+      console.error("[UserManagement] Toggle user status failed:", error);
+      ElMessage.error(`${action}用户失败`);
+    }
   }
 };
 
 const handleResetPassword = async (row: UserPageItem) => {
   try {
     await ElMessageBox.confirm(
-      `确定要重置用户 "${row.username}" 的密码吗? 新密码将显示在页面上。`,
+      `确定要重置用户 "${row.username}" 的密码吗?`,
       "提示",
       {
         confirmButtonText: "确定",
@@ -241,30 +251,38 @@ const handleResetPassword = async (row: UserPageItem) => {
       }
     );
 
-    // 生成随机密码
+    // 生成随机密码(使用 crypto.getRandomValues 确保安全)
     const newPassword = generateRandomPassword();
     const res = await resetPassword({ userId: row.id, newPassword });
     if (res.success) {
-      ElMessageBox.alert(`新密码: ${newPassword}`, "密码已重置", {
-        confirmButtonText: "复制并关闭",
-        callback: () => {
-          // 用户可手动复制
-        }
-      });
+      // 复制密码到剪贴板，不直接显示明文
+      try {
+        await navigator.clipboard.writeText(newPassword);
+        ElMessage.success("密码已重置并复制到剪贴板");
+      } catch {
+        // 剪贴板不可用时显示密码
+        ElMessageBox.alert(
+          `新密码: ${newPassword}\n\n请立即保存此密码`,
+          "密码已重置",
+          { confirmButtonText: "确定" }
+        );
+      }
     }
-  } catch {
-    // 用户取消
+  } catch (error) {
+    // 区分用户取消和API错误
+    if (error !== "cancel") {
+      console.error("[UserManagement] Reset password failed:", error);
+    }
   }
 };
 
-const generateRandomPassword = () => {
+/** 生成随机密码(使用 crypto.getRandomValues 确保安全) */
+const generateRandomPassword = (): string => {
   const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let password = "";
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
+  const array = new Uint8Array(12);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => chars.charAt(byte % chars.length)).join("");
 };
 
 // ========== 组织配置 ==========

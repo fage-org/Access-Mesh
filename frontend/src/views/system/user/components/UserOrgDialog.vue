@@ -23,6 +23,7 @@ const dialogVisible = ref(false);
 const loading = ref(false);
 const orgTreeData = ref<Array<OrgNode>>([]);
 const userId = ref<number | null>(null);
+const formRef = ref<FormInstance>();
 
 const form = reactive({
   primaryOrgId: null as number | null,
@@ -46,6 +47,7 @@ const loadOrgTree = async () => {
       orgTreeData.value = res.data;
     }
   } catch (error) {
+    console.error("[UserOrgDialog] Load org tree failed:", error);
     ElMessage.error("加载组织树失败");
   }
 };
@@ -66,6 +68,7 @@ const loadUserOrg = async () => {
       form.assignedOrgIds = orgs.map(o => o.orgId);
     }
   } catch (error) {
+    console.error("[UserOrgDialog] Load user org failed:", error);
     ElMessage.error("加载用户组织信息失败");
   } finally {
     loading.value = false;
@@ -87,33 +90,61 @@ const resetForm = () => {
   form.assignedOrgIds = [];
 };
 
+// ========== 表单验证 ==========
+
+const validateForm = () => {
+  // 主组织必须在已分配组织中
+  if (
+    form.primaryOrgId &&
+    form.assignedOrgIds.length > 0 &&
+    !form.assignedOrgIds.includes(form.primaryOrgId)
+  ) {
+    ElMessage.warning("主组织必须在已分配的组织中");
+    return false;
+  }
+  return true;
+};
+
 // ========== 提交 ==========
 
 const handleSubmit = async () => {
   if (!userId.value) return;
 
+  if (!validateForm()) {
+    return;
+  }
+
   loading.value = true;
   try {
     // 1. 分配用户到组织
     if (form.assignedOrgIds.length > 0) {
-      await assignUserToOrgs({
+      const assignRes = await assignUserToOrgs({
         userId: userId.value,
         orgIds: form.assignedOrgIds
       });
+      if (!assignRes.success) {
+        ElMessage.error("分配组织失败");
+        return;
+      }
     }
 
-    // 2. 设置主组织
+    // 2. 设置主组织（仅在分配成功后）
     if (form.primaryOrgId) {
-      await setPrimaryOrg({
+      const primaryRes = await setPrimaryOrg({
         userId: userId.value,
         orgId: form.primaryOrgId
       });
+      if (!primaryRes.success) {
+        ElMessage.error("设置主组织失败");
+        return;
+      }
     }
 
     ElMessage.success("组织配置成功");
     dialogVisible.value = false;
     emit("success");
   } catch (error) {
+    console.error("[UserOrgDialog] Submit failed:", error);
     ElMessage.error("组织配置失败");
   } finally {
     loading.value = false;

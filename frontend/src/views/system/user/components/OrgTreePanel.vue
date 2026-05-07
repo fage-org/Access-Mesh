@@ -40,7 +40,7 @@ watch(filterText, val => {
 
 const filterNode = (value: string, data: OrgNode) => {
   if (!value) return true;
-  return data.orgName.includes(value);
+  return data.orgName.toLowerCase().includes(value.toLowerCase());
 };
 
 // ========== 树节点点击 ==========
