@@ -182,6 +182,13 @@ class PermissionServiceImplCheckInterfaceTest {
         assertTrue(resp.matchedResources().stream().anyMatch(CheckInterfaceResp.MatchedResource::allowed));
     }
 
+    /**
+     * 测试资源存在但无权限时的拒绝逻辑
+     * <p>
+     * 当API映射存在且关联的资源实体存在，但用户对该资源无权限时，
+     * checkInterface应返回拒绝结果，拒绝原因为"NO_PERMISSION"。
+     * </p>
+     */
     @Test
     void shouldDenyNoPermissionWhenResourceExists() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
