@@ -74,10 +74,32 @@ public class PermCacheProperties {
          */
         private int expireMinutes = 10;
 
+        /**
+         * 获取最大缓存条目数量
+         *
+         * @return 最大缓存条目数量
+         */
         public int getMaximumSize() { return maximumSize; }
+
+        /**
+         * 设置最大缓存条目数量
+         *
+         * @param maximumSize 最大缓存条目数量
+         */
         public void setMaximumSize(int maximumSize) { this.maximumSize = maximumSize; }
 
+        /**
+         * 获取缓存过期时间
+         *
+         * @return 缓存过期时间（分钟）
+         */
         public int getExpireMinutes() { return expireMinutes; }
+
+        /**
+         * 设置缓存过期时间
+         *
+         * @param expireMinutes 缓存过期时间（分钟）
+         */
         public void setExpireMinutes(int expireMinutes) { this.expireMinutes = expireMinutes; }
     }
 
@@ -96,7 +118,18 @@ public class PermCacheProperties {
          */
         private int ttlMinutes = 30;
 
+        /**
+         * 获取缓存存活时间
+         *
+         * @return 缓存存活时间（分钟）
+         */
         public int getTtlMinutes() { return ttlMinutes; }
+
+        /**
+         * 设置缓存存活时间
+         *
+         * @param ttlMinutes 缓存存活时间（分钟）
+         */
         public void setTtlMinutes(int ttlMinutes) { this.ttlMinutes = ttlMinutes; }
     }
 }

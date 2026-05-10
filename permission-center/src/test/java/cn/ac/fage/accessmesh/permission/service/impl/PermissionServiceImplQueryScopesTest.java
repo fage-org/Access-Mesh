@@ -41,29 +41,65 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+/**
+ * 权限服务范围查询测试类
+ * <p>
+ * 测试PermissionServiceImpl的queryScopes方法的各项功能：
+ * - 全局作用域权限的返回逻辑
+ * - 条件不满足时的过滤逻辑
+ * - 冲突规则过滤时的处理逻辑
+ * - 直接权限和依赖权限的合并逻辑
+ * </p>
+ */
 @ExtendWith(MockitoExtension.class)
 class PermissionServiceImplQueryScopesTest {
 
+    /** 抽象用户Mapper Mock */
     @Mock private AbstractUserMapper abstractUserMapper;
+    /** 资源实体Mapper Mock */
     @Mock private ResourceEntityMapper resourceEntityMapper;
+    /** API映射Mapper Mock */
     @Mock private ResourceApiMappingMapper apiMappingMapper;
+    /** 操作权限Mapper Mock */
     @Mock private OperationPermissionMapper operationPermissionMapper;
+    /** 角色资源权限Mapper Mock */
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    /** 资源依赖Mapper Mock */
     @Mock private ResourceDependencyMapper resourceDependencyMapper;
+    /** 用户角色领域服务Mock */
     @Mock private UserRoleDomainService userRoleDomainService;
+    /** 权限冲突领域服务Mock */
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
+    /** 权限条件领域服务Mock */
     @Mock private PermissionConditionDomainService permissionConditionDomainService;
+    /** 角色权限领域服务Mock */
     @Mock private RolePermissionDomainService rolePermissionDomainService;
+    /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
+    /** 权限缓存领域服务Mock */
     @Mock private PermCacheDomainService permCacheDomainService;
+    /** 权限版本领域服务Mock */
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
+    /** 资源实体领域服务Mock */
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
+    /** 实体批量加载领域服务Mock */
     @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
+    /** 角色权限条目Mapper Mock */
     @Mock private RolePermEntryMapper rolePermEntryMapper;
+    /** 权限查询引擎Mock */
     @Mock private PermQueryEngine engine;
 
+    /** 待测试的权限服务实例 */
     private PermissionServiceImpl service;
 
+    /**
+     * 构建测试请求对象
+     * <p>
+     * 创建标准的QueryScopesReq请求对象，用于测试范围查询功能。
+     * </p>
+     *
+     * @return 范围查询请求对象
+     */
     private QueryScopesReq buildReq() {
         return new QueryScopesReq(
             "USER",
@@ -80,6 +116,13 @@ class PermissionServiceImplQueryScopesTest {
         );
     }
 
+    /**
+     * 测试前置初始化
+     * <p>
+     * 在每个测试方法执行前初始化PermissionServiceImpl实例，
+     * 注入所有Mock依赖对象。
+     * </p>
+     */
     @BeforeEach
     void setUp() {
         service = new PermissionServiceImpl(
@@ -91,6 +134,13 @@ class PermissionServiceImplQueryScopesTest {
         );
     }
 
+    /**
+     * 测试角色拥有全局作用域权限时的返回逻辑
+     * <p>
+     * 当用户通过角色拥有scopeAll=true的权限时，
+     * queryScopes应返回允许结果，且范围列表中包含scopeAll=true的条目。
+     * </p>
+     */
     @Test
     @Disabled("Test needs update for refactored implementation")
     void shouldReturnScopeAllWhenRoleHasGlobalScopePermission() {
@@ -138,6 +188,13 @@ class PermissionServiceImplQueryScopesTest {
         assertTrue(resp.items().stream().anyMatch(QueryScopesResp.ScopeEntry::scopeAll));
     }
 
+    /**
+     * 测试条件不满足时的过滤逻辑
+     * <p>
+     * 当scopeAll权限绑定的条件不满足时，
+     * queryScopes应返回拒绝结果，且范围列表中不包含scopeAll=true的条目。
+     * </p>
+     */
     @Test
     @Disabled("Test needs update for refactored implementation")
     void shouldNotReturnScopeAllWhenConditionNotMet() {
@@ -184,6 +241,13 @@ class PermissionServiceImplQueryScopesTest {
         assertFalse(resp.items().stream().anyMatch(QueryScopesResp.ScopeEntry::scopeAll));
     }
 
+    /**
+     * 测试冲突规则过滤时的处理逻辑
+     * <p>
+     * 当scopeAll权限被冲突规则过滤掉时，
+     * queryScopes应返回拒绝结果，且范围列表中不包含scopeAll=true的条目。
+     * </p>
+     */
     @Test
     @Disabled("Test needs update for refactored implementation")
     void shouldNotReturnScopeAllWhenConflictFiltered() {
@@ -229,6 +293,13 @@ class PermissionServiceImplQueryScopesTest {
         assertFalse(resp.items().stream().anyMatch(QueryScopesResp.ScopeEntry::scopeAll));
     }
 
+    /**
+     * 测试直接权限和依赖权限的合并逻辑
+     * <p>
+     * 当用户同时拥有直接权限（dependOn=null）和依赖权限（dependOn指向父权限）时，
+     * queryScopes应返回两者的合并结果，并正确标注来源类型。
+     * </p>
+     */
     @Test
     @Disabled("Test needs update for refactored implementation")
     void shouldReturnDirectAndDependentUnionItems() {

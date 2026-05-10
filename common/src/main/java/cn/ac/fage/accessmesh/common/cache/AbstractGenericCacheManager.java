@@ -87,17 +87,42 @@ public abstract class AbstractGenericCacheManager<K, V> implements GenericCacheM
 
     /**
      * 缓存条目，包装实际值和空值标记
+     * <p>
+     * 用于区分缓存中的实际值和空值缓存。
+     * </p>
      */
     protected record CacheEntry(Object value, boolean isNull) {
+        /**
+         * 创建空值缓存条目
+         *
+         * @return 空值缓存条目实例
+         */
         public static CacheEntry ofNull() {
             return new CacheEntry(null, true);
         }
 
+        /**
+         * 创建实际值缓存条目
+         *
+         * @param value 实际缓存值
+         * @return 实际值缓存条目实例
+         */
         public static CacheEntry of(Object value) {
             return new CacheEntry(value, false);
         }
     }
 
+    /**
+     * 构造通用缓存管理器
+     * <p>
+     * 注入Redis模板、JSON序列化器和指标注册器。
+     * 子类需要调用此构造函数并实现必要的抽象方法。
+     * </p>
+     *
+     * @param redisTemplate  Redis字符串操作模板
+     * @param objectMapper   JSON序列化工具
+     * @param meterRegistry  Micrometer指标注册器
+     */
     protected AbstractGenericCacheManager(StringRedisTemplate redisTemplate,
                                           ObjectMapper objectMapper,
                                           MeterRegistry meterRegistry) {
@@ -106,6 +131,15 @@ public abstract class AbstractGenericCacheManager<K, V> implements GenericCacheM
         this.meterRegistry = meterRegistry;
     }
 
+    /**
+     * 初始化缓存管理器
+     * <p>
+     * 在Bean构造完成后执行初始化：
+     * 1. 构建值类型信息用于JSON反序列化
+     * 2. 创建L1 Caffeine缓存实例
+     * 3. 注册Micrometer监控指标
+     * </p>
+     */
     @PostConstruct
     public void init() {
         // 问题2：保存值类型信息用于反序列化

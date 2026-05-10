@@ -32,24 +32,51 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
+/**
+ * 配置管理服务测试类
+ * <p>
+ * 测试ConfigManageServiceImpl的各项功能：
+ * - 服务接口同步时的basePath处理逻辑
+ * </p>
+ */
 @ExtendWith(MockitoExtension.class)
 class ConfigManageServiceImplTest {
 
+    /** 类型定义Mapper Mock */
     @Mock private TypeDefinitionMapper typeDefinitionMapper;
+    /** 业务域Mapper Mock */
     @Mock private BizDomainMapper bizDomainMapper;
+    /** 域配置Mapper Mock */
     @Mock private DomainConfigMapper domainConfigMapper;
+    /** 服务配置Mapper Mock */
     @Mock private ServiceConfigMapper serviceConfigMapper;
+    /** 系统配置Mapper Mock */
     @Mock private SystemConfigMapper systemConfigMapper;
+    /** 资源实体Mapper Mock */
     @Mock private ResourceEntityMapper resourceEntityMapper;
+    /** API映射Mapper Mock */
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
+    /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
+    /** 操作日志领域服务Mock */
     @Mock private OperationLogDomainService operationLogDomainService;
+    /** 授权服务Mock */
     @Mock private AuthorizationService authorizationService;
+    /** 服务接口同步服务Mock */
     @Mock private ServiceInterfaceSyncService serviceInterfaceSyncService;
+    /** 权限查询引擎Mock */
     @Mock private PermQueryEngine engine;
 
+    /** 待测试的配置管理服务实例 */
     private ConfigManageServiceImpl service;
 
+    /**
+     * 测试前置初始化
+     * <p>
+     * 在每个测试方法执行前初始化ConfigManageServiceImpl实例，
+     * 注入所有Mock依赖对象。
+     * </p>
+     */
     @BeforeEach
     void setUp() {
         service = new ConfigManageServiceImpl(
@@ -59,6 +86,14 @@ class ConfigManageServiceImplTest {
         );
     }
 
+    /**
+     * 测试请求basePath为空时使用已保存的basePath
+     * <p>
+     * 当同步请求中的basePath为空字符串时，
+     * syncServiceInterfaces应使用数据库中已保存的服务配置的basePath，
+     * 并正确拼接完整路径（如"/admin/api/user/list"）。
+     * </p>
+     */
     @Test
     @Disabled("Test needs update for new insert logic")
     void shouldUseSavedBasePathWhenRequestBasePathBlank() {
