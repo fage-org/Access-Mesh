@@ -16,6 +16,14 @@ import java.util.List;
 import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
+/**
+ * 权限版本服务实现类
+ * <p>
+ * 提供权限版本查询功能。权限版本用于实现权限缓存失效策略，
+ * 通过计算角色权限的最后更新时间戳作为版本号。
+ * 版本号用于判断客户端缓存的权限数据是否过期，需要重新获取。
+ * </p>
+ */
 @Service
 public class PermissionVersionServiceImpl implements PermissionVersionService {
 
@@ -23,6 +31,13 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
     private final AbstractRoleMapper abstractRoleMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param typeResolutionService 类型解析服务
+     * @param abstractRoleMapper    抽象角色数据访问层
+     * @param rolePermMapper        角色资源权限数据访问层
+     */
     public PermissionVersionServiceImpl(TypeResolutionService typeResolutionService,
                                         AbstractRoleMapper abstractRoleMapper,
                                         RoleResourcePermissionMapper rolePermMapper) {
@@ -31,6 +46,19 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
         this.rolePermMapper = rolePermMapper;
     }
 
+    /**
+     * 查询权限版本
+     * <p>
+     * 查询指定角色的权限版本号。版本号基于角色所有权限的最后更新时间戳计算，
+     * 取所有权限记录中updatedAt字段的最大值转换为Unix时间戳。
+     * 如果角色无权限记录，版本号为0。
+     * 用于客户端缓存校验，判断权限数据是否需要更新。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限版本查询请求，包含角色类型编码、角色外部ID、业务域编码
+     * @return 权限版本响应，包含角色ID、角色标识和版本号
+     */
     @Override
     @Transactional(readOnly = true)
     public PermissionVersionResp queryVersion(Long tenantId, PermissionVersionQueryReq req) {
@@ -48,8 +76,8 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
         String roleTypeCode = req.roleTypeCode();
         String roleExternalId = req.roleExternalId();
 
-        // Compute version as max(updatedAt epoch millis) of active permissions for this role.
-        // Fallback to 0 if no permissions.
+        // 计算版本号：取该角色所有活跃权限的updatedAt的最大值转换为Unix时间戳
+        // 如果没有权限记录，版本号为0
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))

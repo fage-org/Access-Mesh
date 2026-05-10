@@ -21,8 +21,12 @@ import cn.ac.fage.accessmesh.permission.entity.table.OperationLogTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.PermissionChangeLogTableDef;
 
 /**
- * Log query service implementation.
- * Read-only service for change log and operation log retrieval.
+ * 日志查询服务实现类
+ * <p>
+ * 提供变更日志和操作日志的只读查询功能。
+ * 所有查询均需要SYSTEM_CONFIG_VIEW权限。
+ * 支持按实体类型、用户、角色、时间范围、事件类型等多维度过滤查询。
+ * </p>
  */
 @Service
 public class LogQueryServiceImpl implements LogQueryService {
@@ -31,6 +35,13 @@ public class LogQueryServiceImpl implements LogQueryService {
     private final OperationLogMapper operationLogMapper;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param changeLogMapper      权限变更日志数据访问层
+     * @param operationLogMapper   操作日志数据访问层
+     * @param engine               权限查询引擎
+     */
     public LogQueryServiceImpl(PermissionChangeLogMapper changeLogMapper,
                                 OperationLogMapper operationLogMapper,
                                 PermQueryEngine engine) {
@@ -39,11 +50,26 @@ public class LogQueryServiceImpl implements LogQueryService {
         this.engine = engine;
     }
 
-    // ===== ChangeLog =====
+    // ===== 变更日志查询 =====
 
+    /**
+     * 查询变更日志列表
+     * <p>
+     * 根据实体类型和实体ID过滤查询变更日志。
+     * 按创建时间倒序排列。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型，可选过滤条件
+     * @param entityId   实体ID，可选过滤条件
+     * @param offset     分页偏移量
+     * @param limit      分页大小
+     * @return 变更日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -55,18 +81,45 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计变更日志数量
+     * <p>
+     * 根据实体类型和实体ID过滤统计变更日志数量。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型，可选过滤条件
+     * @param entityId   实体ID，可选过滤条件
+     * @return 变更日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         return changeLogMapper.selectCountByQuery(changeLogBaseQuery(tenantId, entityType, entityId));
     }
 
+    /**
+     * 查询用户相关的变更日志
+     * <p>
+     * 查询影响指定用户的权限变更日志。
+     * 用于用户查看自己的权限变更历史。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @param offset   分页偏移量
+     * @param limit    分页大小
+     * @return 变更日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ChangeLogResp> listChangeLogsForUser(Long tenantId, Long userId, int offset, int limit) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -74,20 +127,50 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计用户相关的变更日志数量
+     * <p>
+     * 统计影响指定用户的权限变更日志数量。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @return 变更日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countChangeLogsForUser(Long tenantId, Long userId) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         return changeLogMapper.countByAffectedUser(tenantId, userId);
     }
 
+    /**
+     * 多条件过滤查询变更日志
+     * <p>
+     * 支持按用户、角色、时间范围、事件类型等多维度过滤查询。
+     * 用于权限变更历史的高级查询。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param userId     用户ID，可选过滤条件
+     * @param roleId     角色ID，可选过滤条件
+     * @param since      开始时间，可选过滤条件
+     * @param until      结束时间，可选过滤条件
+     * @param eventTypes 事件类型列表，可选过滤条件
+     * @param offset     分页偏移量
+     * @param limit      分页大小
+     * @return 变更日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                                        LocalDateTime since, LocalDateTime until,
                                                        List<String> eventTypes, int offset, int limit) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -95,17 +178,44 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 多条件过滤统计变更日志数量
+     * <p>
+     * 支持按用户、角色、时间范围、事件类型等多维度过滤统计。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param userId     用户ID，可选过滤条件
+     * @param roleId     角色ID，可选过滤条件
+     * @param since      开始时间，可选过滤条件
+     * @param until      结束时间，可选过滤条件
+     * @param eventTypes 事件类型列表，可选过滤条件
+     * @return 变更日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                          LocalDateTime since, LocalDateTime until,
                                          List<String> eventTypes) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
     }
 
+    /**
+     * 构建变更日志基础查询条件
+     * <p>
+     * 根据租户ID、实体类型、实体ID构建QueryWrapper。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型，可选
+     * @param entityId   实体ID，可选
+     * @return QueryWrapper查询条件
+     */
     private QueryWrapper changeLogBaseQuery(Long tenantId, String entityType, Long entityId) {
         QueryWrapper qw = QueryWrapper.create()
             .where(PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG.TENANT_ID.eq(tenantId));
@@ -118,11 +228,26 @@ public class LogQueryServiceImpl implements LogQueryService {
         return qw;
     }
 
-    // ===== OperationLog =====
+    // ===== 操作日志查询 =====
 
+    /**
+     * 查询操作日志列表
+     * <p>
+     * 根据模块和操作类型过滤查询操作日志。
+     * 按创建时间倒序排列。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块名称，可选过滤条件
+     * @param action   操作类型，可选过滤条件
+     * @param offset   分页偏移量
+     * @param limit    分页大小
+     * @return 操作日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -134,15 +259,39 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计操作日志数量
+     * <p>
+     * 根据模块和操作类型过滤统计操作日志数量。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块名称，可选过滤条件
+     * @param action   操作类型，可选过滤条件
+     * @return 操作日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countOperationLogs(Long tenantId, String module, String action) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
         return operationLogMapper.selectCountByQuery(operationLogBaseQuery(tenantId, module, action));
     }
 
+    /**
+     * 构建操作日志基础查询条件
+     * <p>
+     * 根据租户ID、模块、操作类型构建QueryWrapper。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块名称，可选
+     * @param action   操作类型，可选
+     * @return QueryWrapper查询条件
+     */
     private QueryWrapper operationLogBaseQuery(Long tenantId, String module, String action) {
         QueryWrapper qw = QueryWrapper.create()
             .where(OperationLogTableDef.OPERATION_LOG.TENANT_ID.eq(tenantId));
@@ -155,8 +304,14 @@ public class LogQueryServiceImpl implements LogQueryService {
         return qw;
     }
 
-    // ===== Converters =====
+    // ===== 实体转换方法 =====
 
+    /**
+     * 将PermissionChangeLog实体转换为响应对象
+     *
+     * @param c 权限变更日志实体
+     * @return 变更日志响应对象
+     */
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getBizDomainId(), c.getEntityType(),
@@ -166,6 +321,12 @@ public class LogQueryServiceImpl implements LogQueryService {
         );
     }
 
+    /**
+     * 将OperationLog实体转换为响应对象
+     *
+     * @param l 操作日志实体
+     * @return 操作日志响应对象
+     */
     private OperationLogResp toOperationLogResp(OperationLog l) {
         return new OperationLogResp(
             l.getId(), l.getTenantId(), l.getModule(), l.getAction(),

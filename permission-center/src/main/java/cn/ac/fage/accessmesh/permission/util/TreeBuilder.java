@@ -9,10 +9,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Generic tree builder utility for constructing hierarchical tree structures from flat lists.
+ * 通用树结构构建工具类
+ * <p>
+ * 提供从扁平列表构建层级树结构的通用方法。
+ * 支持自定义的ID提取、父ID提取和节点构建逻辑。
+ * 用于角色树、资源树等层级结构的构建。
+ * </p>
  *
- * @param <E> Entity type
- * @param <N> Node type
+ * @param <E> 实体类型
+ * @param <N> 节点类型
  */
 public class TreeBuilder<E, N> {
 
@@ -21,11 +26,14 @@ public class TreeBuilder<E, N> {
     private final BiFunction<E, List<N>, N> nodeBuilder;
 
     /**
-     * Creates a TreeBuilder with the required extractors.
+     * 创建树结构构建器
+     * <p>
+     * 需要提供三个函数：ID提取、父ID提取和节点构建。
+     * </p>
      *
-     * @param idExtractor Function to extract entity ID
-     * @param parentIdExtractor Function to extract parent ID (may return null for root)
-     * @param nodeBuilder Function to build a node from entity and its children
+     * @param idExtractor       实体ID提取函数
+     * @param parentIdExtractor 父ID提取函数（根节点可返回null）
+     * @param nodeBuilder       从实体和子节点列表构建节点的函数
      */
     public TreeBuilder(Function<E, Long> idExtractor,
                         Function<E, Long> parentIdExtractor,
@@ -36,14 +44,18 @@ public class TreeBuilder<E, N> {
     }
 
     /**
-     * Builds a tree from a flat list of entities, starting from the specified root.
+     * 从指定根节点构建树结构
+     * <p>
+     * 以指定的实体为根，从所有实体列表中递归构建完整的树结构。
+     * 使用预分组优化查询效率，实现O(1)的子节点查找。
+     * </p>
      *
-     * @param root The root entity
-     * @param allEntities All entities including root and descendants
-     * @return The tree node representing the root with all descendants
+     * @param root        根实体
+     * @param allEntities 所有实体列表（包含根节点和所有子孙节点）
+     * @return 包含所有子孙节点的树节点
      */
     public N buildTree(E root, List<E> allEntities) {
-        // Pre-group entities by parentId for O(1) lookup
+        // 按parentId预分组，实现O(1)查找
         Map<Long, List<E>> byParentId = allEntities.stream()
             .collect(Collectors.groupingBy(
                 e -> parentIdExtractor.apply(e) != null ? parentIdExtractor.apply(e) : -1L
@@ -54,11 +66,15 @@ public class TreeBuilder<E, N> {
     }
 
     /**
-     * Builds a list of trees from multiple root entities.
+     * 从多个根节点构建树结构列表
+     * <p>
+     * 以多个实体为根，从所有实体列表中递归构建多个树结构。
+     * 用于构建森林结构的场景。
+     * </p>
      *
-     * @param roots List of root entities
-     * @param allEntities All entities including roots and descendants
-     * @return List of tree nodes
+     * @param roots       根实体列表
+     * @param allEntities 所有实体列表（包含根节点和所有子孙节点）
+     * @return 树节点列表
      */
     public List<N> buildTrees(List<E> roots, List<E> allEntities) {
         Map<Long, List<E>> byParentId = allEntities.stream()
@@ -72,6 +88,18 @@ public class TreeBuilder<E, N> {
             .collect(Collectors.toList());
     }
 
+    /**
+     * 递归构建单个节点及其子孙节点
+     * <p>
+     * 从指定实体开始，递归构建完整的节点结构。
+     * 使用visited集合防止循环引用导致的无限递归。
+     * </p>
+     *
+     * @param entity     当前实体
+     * @param byParentId 按父ID分组的实体映射
+     * @param visited    已访问的实体ID集合
+     * @return 构建的节点及其所有子孙节点
+     */
     private N buildNode(E entity, Map<Long, List<E>> byParentId, Set<Long> visited) {
         Long entityId = idExtractor.apply(entity);
 
@@ -83,7 +111,7 @@ public class TreeBuilder<E, N> {
 
         List<E> childEntities = byParentId.getOrDefault(entityId, List.of());
 
-        // Recursively build children first
+        // 递归构建子节点
         List<N> children = childEntities.stream()
             .map(child -> buildNode(child, byParentId, visited))
             .collect(Collectors.toList());

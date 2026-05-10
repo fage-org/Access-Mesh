@@ -18,9 +18,13 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * Validates Sa-Token and extracts user info into exchange attributes.
- * Uses getLoginIdByToken(token) which is thread-safe in reactive context.
- * Order: -70
+ * 认证令牌过滤器
+ * <p>
+ * 验证Sa-Token并提取用户信息到exchange attributes。
+ * 使用getLoginIdByToken(token)方法，该方法在WebFlux响应式环境中线程安全，
+ * 不依赖ThreadLocal。
+ * 执行顺序：-70
+ * </p>
  */
 @Component
 public class AuthTokenFilter implements GlobalFilter, Ordered {
@@ -32,10 +36,28 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
 
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数注入JSON映射器
+     *
+     * @param objectMapper JSON序列化工具
+     */
     public AuthTokenFilter(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 过滤器执行逻辑
+     * <p>
+     * 1. 检查是否跳过认证（白名单路径）
+     * 2. 从请求中提取Token
+     * 3. 使用Token验证登录状态
+     * 4. 提取用户信息并存入exchange attributes
+     * </p>
+     *
+     * @param exchange 服务器Web交换对象
+     * @param chain    过滤器链
+     * @return Mono<Void> 处理结果
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         Boolean skipAuth = exchange.getAttribute(SKIP_AUTH_ATTR);
@@ -49,11 +71,11 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
         }
 
         try {
-            // Use getLoginIdByToken — does NOT rely on ThreadLocal, safe for WebFlux
+            // 使用getLoginIdByToken — 不依赖ThreadLocal，WebFlux环境安全
             Object loginId = StpUtil.getLoginIdByToken(token);
             exchange.getAttributes().put(USER_ID_ATTR, loginId);
 
-            // Read extra data from Sa-Token session using token-based API
+            // 使用基于Token的API从Sa-Token session读取额外数据
             String loginIdStr = loginId.toString();
             try {
                 Object tenantId = StpUtil.getExtra(loginIdStr, "tenantId");
@@ -61,7 +83,7 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
                     exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
                 }
             } catch (Exception e) {
-                // Extra data may not be set — tenant info will be missing but user is still authenticated
+                // 额外数据可能未设置 — 租户信息缺失但用户仍认证通过
             }
 
             try {
@@ -70,7 +92,7 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
                     exchange.getAttributes().put(USER_NAME_ATTR, username.toString());
                 }
             } catch (Exception e) {
-                // Username may not be set
+                // 用户名可能未设置
             }
 
         } catch (NotLoginException e) {
@@ -80,22 +102,48 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange);
     }
 
+    /**
+     * 获取过滤器执行顺序
+     * <p>
+     * 顺序为-70，在白名单过滤器之后执行
+     * </p>
+     *
+     * @return 顺序值
+     */
     @Override
     public int getOrder() {
         return -70;
     }
 
+    /**
+     * 从请求中提取Token
+     * <p>
+     * 优先从Authorization Header提取Bearer Token，
+     * 备选方案从Cookie中提取。
+     * </p>
+     *
+     * @param exchange 服务器Web交换对象
+     * @return Token字符串，不存在时返回null
+     */
     private String extractToken(ServerWebExchange exchange) {
         HttpHeaders headers = exchange.getRequest().getHeaders();
         String authHeader = headers.getFirst("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
-        // Fallback: check cookie
+        // 备选方案：从Cookie提取
         var cookie = exchange.getRequest().getCookies().getFirst("Authorization");
         return cookie != null ? cookie.getValue() : null;
     }
 
+    /**
+     * 写入未授权响应
+     *
+     * @param exchange 服务器Web交换对象
+     * @param code     错误码
+     * @param message  错误消息
+     * @return Mono<Void> 响应结果
+     */
     private Mono<Void> writeUnauthorized(ServerWebExchange exchange, int code, String message) {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(HttpStatus.UNAUTHORIZED);

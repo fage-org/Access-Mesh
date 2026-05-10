@@ -4,53 +4,65 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Service for specialized authorization checks.
- *
- * <p>General permission checks should use {@link cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine} directly:
+ * 授权检查服务接口
+ * <p>
+ * 提供专门的授权检查功能，主要用于委托授权验证。
+ * 一般权限检查应直接使用PermQueryEngine：
  * <pre>
  * engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
  * engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE);
  * </pre>
- *
- * <p>This service only provides canGrant permission checks for delegation validation.
+ * 本服务仅提供canGrant权限检查，用于权限授予流程中的委托验证。
+ * </p>
  */
 public interface AuthorizationService {
 
     /**
-     * Check if operator can grant a specific permission to others.
-     * Operator must:
-     * 1. Have the same permission (resourceType + resource/scopeAll + operation)
-     * 2. Have canGrant=true on that permission
+     * 检查操作者是否可以授予指定权限给他人
+     * <p>
+     * 操作者必须满足以下条件：
+     * 1. 拥有相同权限（资源类型+资源/范围全部+操作）
+     * 2. 该权限配置的canGrant=true
+     * 用于权限授予流程中的委托验证。
+     * </p>
      *
-     * This is used in the permission granting flow to validate delegation.
-     *
-     * @param tenantId the tenant ID
-     * @param operatorId the operator's user ID
-     * @param resourceTypeCode the resource type code
-     * @param resourceCode the resource code (null for scopeAll=true)
-     * @param operationCode the operation code
-     * @param scopeAll whether the permission is for all resources of this type
-     * @param domainCode the domain code (optional, for resource resolution)
-     * @return true if operator has the permission AND canGrant=true
+     * @param tenantId         租户ID
+     * @param operatorId       操作者用户ID
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceCode     资源编码（scopeAll=true时为null）
+     * @param operationCode    操作编码
+     * @param scopeAll         是否范围全部
+     * @param domainCode       业务域编码，可选
+     * @return 是否有权限且canGrant=true
      */
     boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
                                String resourceCode, String operationCode, boolean scopeAll, String domainCode);
 
     /**
-     * Batch check if operator can grant multiple permissions.
-     * Returns detailed results for each permission key.
+     * 批量检查操作者是否可以授予多个权限
+     * <p>
+     * 返回每个权限键的详细检查结果。
+     * </p>
      *
-     * @param tenantId the tenant ID
-     * @param operatorId the operator's user ID
-     * @param permissions the permissions to check (resourceTypeCode, resourceCode, operationCode, scopeAll)
-     * @param domainCode the domain code (optional)
-     * @return Map of permission key to GrantCheckResult (canGrant, reason if not)
+     * @param tenantId    租户ID
+     * @param operatorId  操作者用户ID
+     * @param permissions 待检查的权限集合
+     * @param domainCode  业务域编码，可选
+     * @return 权限键到检查结果的映射
      */
     Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
                                                               Set<GrantCheckKey> permissions, String domainCode);
 
     /**
-     * Key for grant permission check.
+     * 授权检查键
+     * <p>
+     * 表示单次授权检查的参数组合。
+     * </p>
+     *
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceCode     资源编码
+     * @param operationCode    操作编码
+     * @param scopeAll         是否范围全部
      */
     record GrantCheckKey(
         String resourceTypeCode,
@@ -60,10 +72,16 @@ public interface AuthorizationService {
     ) {}
 
     /**
-     * Result of grant permission check.
+     * 授权检查结果
+     * <p>
+     * 表示单次授权检查的结果，包含是否可授予和拒绝原因。
+     * </p>
+     *
+     * @param canGrant 是否可以授予
+     * @param reason   拒绝原因，可授予时为null
      */
     record GrantCheckResult(
         boolean canGrant,
-        String reason  // null if canGrant=true, otherwise explains why not
+        String reason
     ) {}
 }

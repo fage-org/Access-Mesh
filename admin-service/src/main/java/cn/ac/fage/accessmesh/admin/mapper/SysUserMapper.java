@@ -8,6 +8,13 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 系统用户数据访问接口
+ * <p>
+ * 提供用户表的基础CRUD操作和自定义查询方法。
+ * 支持批量软删除、批量更新状态、批量更新密码等操作。
+ * </p>
+ */
 @Mapper
 public interface SysUserMapper extends BaseMapper<SysUser> {
 

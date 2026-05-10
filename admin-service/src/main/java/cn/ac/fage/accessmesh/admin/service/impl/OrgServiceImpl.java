@@ -38,6 +38,16 @@ import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
+/**
+ * 组织管理服务实现类
+ * <p>
+ * 提供组织的CRUD操作、树形查询、批量操作等功能。
+ * 实现跨服务数据同步机制，通过Outbox Pattern确保组织创建与同步任务记录原子性。
+ * 支持组织层级深度限制（最多10级）、组织编码唯一性校验。
+ * 使用OrgDomainService处理组织数据查询和批量操作。
+ * 批量删除时自动删除所有子组织。
+ * </p>
+ */
 @Service
 public class OrgServiceImpl implements OrgService {
 
@@ -50,6 +60,16 @@ public class OrgServiceImpl implements OrgService {
     private final SyncRetryService syncRetryService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param orgMapper 组织数据访问Mapper
+     * @param orgDomainService 组织领域服务，处理组织数据查询和批量操作
+     * @param orgSyncHandler 组织同步处理器，同步组织数据到permission-center
+     * @param permissionValidator 权限校验器，校验组织操作权限
+     * @param syncRetryService 同步重试服务，记录同步失败任务
+     * @param objectMapper JSON序列化工具
+     */
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
                           OrgSyncHandler orgSyncHandler, AdminPermissionValidator permissionValidator,
                           SyncRetryService syncRetryService, ObjectMapper objectMapper) {
@@ -61,6 +81,18 @@ public class OrgServiceImpl implements OrgService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 创建组织
+     * <p>
+     * 创建新组织，校验编码唯一性和组织层级深度（不超过10级）。
+     * 创建成功后记录同步任务，异步同步到permission-center（Outbox Pattern）。
+     * 执行类型级权限校验(CREATE)。
+     * </p>
+     *
+     * @param req 组织创建请求，包含组织名称、编码、类型、父组织ID等
+     * @return 新组织ID
+     * @throws BizException 组织编码已存在、组织层级超限、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
@@ -127,6 +159,18 @@ public class OrgServiceImpl implements OrgService {
         return org.getId();
     }
 
+    /**
+     * 更新组织
+     * <p>
+     * 更新组织的名称、编码、父组织、状态等属性。
+     * 执行实例级权限校验(UPDATE)。
+     * 校验编码唯一性和组织层级深度。
+     * 如果组织已同步到permission-center，记录更新同步任务（Outbox Pattern）。
+     * </p>
+     *
+     * @param req 组织更新请求，包含组织ID和新属性值
+     * @throws BizException 组织不存在、编码已存在、层级超限、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
@@ -200,6 +244,17 @@ public class OrgServiceImpl implements OrgService {
         }
     }
 
+    /**
+     * 删除组织
+     * <p>
+     * 软删除组织，不允许删除有子组织的组织。
+     * 执行实例级权限校验(DELETE)。
+     * 先本地软删除再记录同步任务（Outbox Pattern）。
+     * </p>
+     *
+     * @param id 组织ID
+     * @throws BizException 组织不存在、有子组织、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
@@ -239,6 +294,16 @@ public class OrgServiceImpl implements OrgService {
         log.info("Recorded delete sync task for org: orgId={}", id);
     }
 
+    /**
+     * 获取组织详情
+     * <p>
+     * 根据组织ID查询组织完整信息。
+     * </p>
+     *
+     * @param id 组织ID
+     * @return 组织详情响应
+     * @throws BizException 组织不存在
+     */
     @Override
     public OrgResp getOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -251,9 +316,18 @@ public class OrgServiceImpl implements OrgService {
         return toResp(org, List.of());
     }
 
+    /**
+     * 分页查询组织列表
+     * <p>
+     * 支持按组织名称、类型、状态过滤。
+     * 按排序字段和创建时间排序。
+     * </p>
+     *
+     * @param req 分页查询请求，包含分页参数和过滤条件
+     * @return 分页组织列表结果
+     */
     @Override
     public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
-        // FIX #7: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
             .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
@@ -275,9 +349,19 @@ public class OrgServiceImpl implements OrgService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), req.getPageNum(), req.getPageSize(), (int) totalPages));
     }
 
+    /**
+     * 查询组织树
+     * <p>
+     * 获取当前租户的所有组织，构建树形结构返回。
+     * 支持按组织类型和状态过滤。
+     * 按排序字段和创建时间排序。
+     * </p>
+     *
+     * @param query 组织查询条件，可选
+     * @return 组织树列表
+     */
     @Override
     public List<OrgResp> treeOrgs(OrgQuery query) {
-        // FIX #8: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
             .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
@@ -292,6 +376,19 @@ public class OrgServiceImpl implements OrgService {
         return buildTree(all, 0L);
     }
 
+    /**
+     * 批量创建组织
+     * <p>
+     * 批量创建多个组织，校验编码唯一性和组织层级深度。
+     * 使用批量查询检查编码和父组织（优化性能）。
+     * 返回部分成功结果，包含成功ID列表和失败消息列表。
+     * 创建成功后记录同步任务（Outbox Pattern）。
+     * </p>
+     *
+     * @param req 批量创建请求，包含多个组织创建请求
+     * @return 批量操作结果，包含成功ID列表和失败消息列表
+     * @throws BizException 同步任务记录失败
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateOrgs(OrgBatchCreateReq req) {
@@ -399,6 +496,17 @@ public class OrgServiceImpl implements OrgService {
         return BatchResultResp.partial(req.orgs().size(), successIds.size(), successIds, failedMessages);
     }
 
+    /**
+     * 批量删除组织
+     * <p>
+     * 批量软删除组织及其所有子组织。
+     * 执行批量实例级权限校验，使用批量查询获取子组织ID。
+     * 先本地软删除再记录同步任务（Outbox Pattern）。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的组织ID列表
+     * @throws BizException 同步任务记录失败
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeleteOrgs(IdsReq req) {
@@ -448,12 +556,31 @@ public class OrgServiceImpl implements OrgService {
         }
     }
 
+    /**
+     * 获取组织所有子组织ID（包含自身）
+     * <p>
+     * 递归查询组织的所有后代组织ID，用于级联删除等操作。
+     * </p>
+     *
+     * @param orgId 组织ID
+     * @return 子组织ID列表（包含自身）
+     */
     @Override
     public List<Long> getDescendantOrgIds(Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
         return orgDomainService.getDescendantIdsIncludingSelf(tenantId, orgId);
     }
 
+    /**
+     * 将组织实体转换为响应对象
+     * <p>
+     * 转换组织实体为API响应格式，包含子组织列表。
+     * </p>
+     *
+     * @param org 组织实体
+     * @param children 子组织响应列表
+     * @return 组织响应对象
+     */
     private OrgResp toResp(SysOrg org, List<OrgResp> children) {
         return new OrgResp(
             org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
@@ -462,6 +589,16 @@ public class OrgServiceImpl implements OrgService {
         );
     }
 
+    /**
+     * 构建组织树
+     * <p>
+     * 将组织列表转换为树形结构，递归构建子组织。
+     * </p>
+     *
+     * @param all 所有组织列表
+     * @param parentId 当前层级父组织ID（0表示根级）
+     * @return 组织树列表
+     */
     private List<OrgResp> buildTree(List<SysOrg> all, Long parentId) {
         return all.stream()
             .filter(o -> parentId.equals(o.getParentId()))

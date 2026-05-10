@@ -11,45 +11,64 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 /**
- * Extracts tenant ID from request header (X-Tenant-Id) or from
- * the authenticated user context, and stores it in TenantContextHolder
- * for MyBatis-Flex auto-tenant filtering.
+ * 租户拦截器
+ * <p>
+ * 从请求头（X-Tenant-Id）或已认证用户上下文中提取租户ID，
+ * 存储到TenantContextHolder供MyBatis-Flex自动租户过滤使用。
+ * </p>
  *
- * <p>Security: X-Tenant-Id header is mandatory for all non-auth requests.
- * Missing or invalid header will result in 400 Bad Request.
- * Auth endpoints (/auth/) are exempt from tenant isolation.
+ * <p>安全要求：所有非认证请求必须携带X-Tenant-Id请求头。
+ * 缺少或无效的请求头将返回400错误。
+ * 认证端点（/auth/）免除租户隔离。
+ * </p>
  *
- * <p>FIX #2: Added security validation to verify header tenantId matches user session.
- * <p>Plan B: Made interceptor strict — requires X-Tenant-Id on all non-auth requests.
+ * <p>安全验证：验证请求头租户ID与用户会话租户ID是否匹配。
+ * </p>
  */
 public class TenantInterceptor implements HandlerInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(TenantInterceptor.class);
     private static final String HEADER_TENANT_ID = "X-Tenant-Id";
 
+    /**
+     * 请求预处理
+     * <p>
+     * 提取并验证租户ID：
+     * 1. 认证端点跳过租户隔离
+     * 2. 优先使用显式请求头租户ID
+     * 3. 安全验证请求头租户ID与会话租户ID匹配
+     * 4. 其次从已登录用户会话获取租户ID
+     * 5. 严格模式：非认证请求必须携带租户ID
+     * </p>
+     *
+     * @param request  HTTP请求对象
+     * @param response HTTP响应对象
+     * @param handler  处理器对象
+     * @return 验证通过返回true，否则返回false
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // Auth endpoints and public endpoints don't require tenant isolation
+        // 认证端点和公共端点不需要租户隔离
         String uri = request.getRequestURI();
         if (uri.startsWith("/auth/")) {
             return true;
         }
 
-        // Priority 1: explicit header
+        // 优先级1：显式请求头
         String tenantHeader = request.getHeader(HEADER_TENANT_ID);
         if (tenantHeader != null && !tenantHeader.isBlank()) {
             try {
                 Long tenantIdFromHeader = Long.parseLong(tenantHeader.trim());
 
-                // Security validation - verify header tenantId matches user session
+                // 安全验证 - 验证请求头租户ID与用户会话匹配
                 if (StpUtil.isLogin()) {
                     SaSession session = StpUtil.getSession();
                     Long userTenantId = (Long) session.get("tenantId");
                     if (userTenantId != null && !userTenantId.equals(tenantIdFromHeader)) {
-                        log.warn("Tenant ID mismatch: header={}, session={}, userId={}",
+                        log.warn("租户ID不匹配: 请求头={}, 会话={}, 用户ID={}",
                             tenantIdFromHeader, userTenantId, StpUtil.getLoginIdAsLong());
                         writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
-                            "Tenant ID mismatch with user session");
+                            "租户ID与用户会话不匹配");
                         return false;
                     }
                 }
@@ -57,14 +76,14 @@ public class TenantInterceptor implements HandlerInterceptor {
                 TenantContextHolder.setTenantId(tenantIdFromHeader);
                 return true;
             } catch (NumberFormatException e) {
-                log.warn("Invalid X-Tenant-Id header: {}", tenantHeader);
+                log.warn("无效的X-Tenant-Id请求头: {}", tenantHeader);
                 writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "Invalid X-Tenant-Id header format");
+                    "无效的X-Tenant-Id请求头格式");
                 return false;
             }
         }
 
-        // Priority 2: resolve from logged-in user session tenant
+        // 优先级2：从已登录用户会话租户解析
         try {
             if (StpUtil.isLogin()) {
                 SaSession session = StpUtil.getSession();
@@ -74,28 +93,46 @@ public class TenantInterceptor implements HandlerInterceptor {
                     return true;
                 }
                 Long userId = StpUtil.getLoginIdAsLong();
-                log.debug("Tenant ID not found in session for user {}", userId);
+                log.debug("用户 {} 会话中未找到租户ID", userId);
             }
         } catch (Exception e) {
-            log.warn("Failed to get tenant context from session: {}", e.getMessage());
+            log.warn("从会话获取租户上下文失败: {}", e.getMessage());
             // 继续处理，但记录警告（租户上下文获取失败不阻止请求）
         }
 
-        // Plan B: Strict enforcement — require X-Tenant-Id on all non-auth requests
-        log.warn("Missing X-Tenant-Id header for non-auth request: {} {}",
+        // 严格模式：所有非认证请求必须携带X-Tenant-Id
+        log.warn("非认证请求缺少X-Tenant-Id请求头: {} {}",
             request.getMethod(), request.getRequestURI());
         writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-            "Missing required header: X-Tenant-Id");
+            "缺少必要请求头: X-Tenant-Id");
         return false;
     }
 
+    /**
+     * 请求完成后清理
+     * <p>
+     * 清理租户上下文，防止线程池环境下的租户ID泄漏。
+     * </p>
+     *
+     * @param request  HTTP请求对象
+     * @param response HTTP响应对象
+     * @param handler  处理器对象
+     * @param ex       异常对象
+     */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         TenantContextHolder.clear();
     }
 
     /**
-     * Write error response in unified JSON format.
+     * 写入错误响应
+     * <p>
+     * 以统一的JSON格式写入错误响应。
+     * </p>
+     *
+     * @param response HTTP响应对象
+     * @param status   HTTP状态码
+     * @param message  错误消息
      */
     private void writeErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);

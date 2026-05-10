@@ -33,6 +33,20 @@ import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
+/**
+ * 资源依赖领域服务实现类
+ * <p>
+ * 提供资源依赖关系的自动授权和清理功能。
+ * 资源依赖定义了权限级联规则：当用户对源资源执行某操作时，
+ * 如果触发依赖条件，系统自动授予目标资源的相应权限。
+ * 自动授予的权限标记grantSource为AUTO_DEP，便于追踪和清理。
+ * 核心功能包括：
+ * - processDependencies：处理单个权限授予的依赖触发
+ * - cleanupDependencies：清理权限撤销时的级联权限
+ * - autoGrantForInsert：批量插入时预计算自动授权
+ * 版本递增在事务提交后执行，防止缓存被回滚数据污染。
+ * </p>
+ */
 @Service
 public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDomainService {
 
@@ -44,6 +58,15 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionVersionDomainService permissionVersionDomainService;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param dependencyMapper            资源依赖数据访问层
+     * @param rolePermMapper              角色权限数据访问层
+     * @param resourceEntityMapper        资源实体数据访问层
+     * @param operationPermissionMapper   操作权限数据访问层
+     * @param permissionVersionDomainService 权限版本领域服务
+     */
     public ResourceDependencyDomainServiceImpl(ResourceDependencyMapper dependencyMapper,
                                                 RoleResourcePermissionMapper rolePermMapper,
                                                 ResourceEntityMapper resourceEntityMapper,
@@ -56,6 +79,19 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         this.permissionVersionDomainService = permissionVersionDomainService;
     }
 
+    /**
+     * 处理资源依赖触发
+     * <p>
+     * 当授予某资源的权限时，检查是否存在依赖规则需要自动授权。
+     * 遍历源资源的所有依赖规则，如果操作位触发条件满足且autoGrant为true，
+     * 自动授予目标资源的相应权限。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param roleId          角色ID
+     * @param resourceEntityId 源资源实体ID
+     * @param operationBits   授予的操作位掩码
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void processDependencies(Long tenantId, Long roleId, Long resourceEntityId, Long operationBits) {
@@ -74,6 +110,19 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
     }
 
+    /**
+     * 清理资源依赖级联权限
+     * <p>
+     * 当撤销某资源的权限时，清理所有由此资源自动授权的级联权限。
+     * 查询grantSource为AUTO_DEP且源资源匹配的权限记录，批量软删除。
+     * 使用批量软删除优化性能，避免逐条更新。
+     * 版本递增在事务提交后执行。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param roleId          角色ID
+     * @param resourceEntityId 源资源实体ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cleanupDependencies(Long tenantId, Long roleId, Long resourceEntityId) {
@@ -87,7 +136,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         );
 
         Set<Long> affectedRoles = new HashSet<>();
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         if (!autoGrants.isEmpty()) {
             List<Long> idsToDelete = autoGrants.stream()
@@ -111,12 +160,28 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
     }
 
+    /**
+     * 批量插入时预计算自动授权
+     * <p>
+     * 在批量授予权限前，预先计算需要自动授权的依赖权限。
+     * 使用批量查询和缓存优化，避免嵌套循环中的N+1查询问题：
+     * 1. 预加载操作权限缓存用于O(1)查找
+     * 2. 批量查询所有相关依赖规则
+     * 3. 预加载现有自动授权记录避免重复授权
+     * 返回需要额外插入的自动授权权限列表。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleId   角色ID
+     * @param toInsert 待插入的权限列表
+     * @return 需要自动授权的权限列表
+     */
     @Override
     public List<RoleResourcePermission> autoGrantForInsert(Long tenantId, Long roleId, List<RoleResourcePermission> toInsert) {
         List<RoleResourcePermission> autoGranted = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
-        // Collect all resourceEntityIds being granted
+        // 收集所有待授权的资源ID
         Set<Long> resourceIds = new HashSet<>();
         for (RoleResourcePermission rp : toInsert) {
             if (rp.getResourceEntityId() != null) {
@@ -127,7 +192,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             return autoGranted;
         }
 
-        // Performance fix: Pre-load all operation permissions for O(1) lookup in nested loop
+        // 性能优化：预加载操作权限缓存用于嵌套循环O(1)查找
         Set<Long> opIds = new HashSet<>();
         for (RoleResourcePermission rp : toInsert) {
             if (rp.getOperationPermissionId() != null) {
@@ -145,7 +210,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             }
         }
 
-        // Find dependency rules where source resource is in the granted resources
+        // 查找源资源在待授权资源中的依赖规则
         List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
@@ -154,8 +219,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                 .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
         );
 
-        // Pre-load all existing auto-grant permissions for this role and dependency targets
-        // to avoid N+1 query in nested loop
+        // 预加载所有现有自动授权记录，避免嵌套循环中的N+1查询
         Set<Long> targetResourceIds = deps.stream()
             .map(ResourceDependency::getDependsOnResourceEntityId)
             .filter(Objects::nonNull)
@@ -183,7 +247,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             for (RoleResourcePermission rp : toInsert) {
                 if (Objects.equals(rp.getResourceEntityId(), dep.getResourceEntityId())
                     && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBitsFromCache(rp.getOperationPermissionId(), opPermCache))) {
-                    // Check if already granted using pre-loaded cache (no query)
+                    // 使用预加载缓存检查是否已授权（无查询）
                     Map<Long, RoleResourcePermission> resourceGrants = existingAutoGrants.get(dep.getDependsOnResourceEntityId());
                     boolean alreadyGranted = resourceGrants != null && resourceGrants.containsKey(dep.getId());
 
@@ -217,11 +281,32 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         return autoGranted;
     }
 
+    /**
+     * 判断操作位是否触发依赖条件
+     * <p>
+     * 使用位运算检查授予的操作位是否包含依赖规则要求的操作位。
+     * 如果sourceBits为null，默认触发所有依赖。
+     * </p>
+     *
+     * @param sourceBits   依赖规则要求的源操作位
+     * @param operationBits 授予的操作位掩码
+     * @return 是否触发依赖
+     */
     private boolean isTriggered(Long sourceBits, Long operationBits) {
         if (sourceBits == null) return true;
         return (sourceBits & operationBits) != 0;
     }
 
+    /**
+     * 获取操作权限的有效操作位
+     * <p>
+     * 查询操作权限实体并返回其effectiveBits值。
+     * 用于判断依赖触发条件。
+     * </p>
+     *
+     * @param opId 操作权限ID
+     * @return 有效操作位，不存在返回0
+     */
     private Long getEffectiveOpBits(Long opId) {
         if (opId == null) return 0L;
         OperationPermission op = operationPermissionMapper.selectOneById(opId);
@@ -230,8 +315,15 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     /**
-     * Get effective operation bits from pre-loaded cache (performance optimization).
-     * Used in nested loops to avoid N+1 queries.
+     * 从预加载缓存获取有效操作位（性能优化）
+     * <p>
+     * 用于嵌套循环中避免N+1查询。
+     * 直接从缓存Map中获取操作权限实体。
+     * </p>
+     *
+     * @param opId  操作权限ID
+     * @param cache 预加载的操作权限缓存
+     * @return 有效操作位，不存在返回0
      */
     private Long getEffectiveOpBitsFromCache(Long opId, Map<Long, OperationPermission> cache) {
         if (opId == null) return 0L;
@@ -240,6 +332,18 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         return op.getEffectiveBits();
     }
 
+    /**
+     * 自动授权依赖权限
+     * <p>
+     * 当依赖触发条件满足时，自动授予目标资源的权限。
+     * 创建的权限记录标记grantSource为AUTO_DEP，grantDepId为依赖规则ID。
+     * 版本递增在事务提交后执行。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleId   角色ID
+     * @param dep      触发的依赖规则
+     */
     private void autoGrantDependency(Long tenantId, Long roleId, ResourceDependency dep) {
         Long requiredOpId = resolveOperationPermissionId(tenantId, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationBits(), null);
         if (requiredOpId == null) {
@@ -272,6 +376,20 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         log.info("Auto-granted dependency: role={}, resource={}", roleId, dep.getDependsOnResourceEntityId());
     }
 
+    /**
+     * 解析操作权限ID
+     * <p>
+     * 根据资源类型和操作位掩码查找匹配的操作权限。
+     * 使用SQL位运算过滤，避免全表加载。
+     * 如果requiredBits为空或零，返回fallbackOperationId。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param resourceEntityId 资源实体ID
+     * @param requiredBits    要求的操作位掩码
+     * @param fallbackOperationId 失败时的回退操作权限ID
+     * @return 操作权限ID，未找到返回fallback
+     */
     private Long resolveOperationPermissionId(Long tenantId, Long resourceEntityId, Long requiredBits, Long fallbackOperationId) {
         if (requiredBits == null || requiredBits == 0L) {
             return fallbackOperationId;
@@ -288,7 +406,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                 resourceType = resource.getResourceType();
             }
         }
-        // Use SQL bitwise filtering to avoid full table load
+        // 使用SQL位运算过滤避免全表加载
         List<OperationPermission> matchingOps = operationPermissionMapper.selectByEffectiveBitsMatch(
             tenantId, resourceType, requiredBits);
         if (!matchingOps.isEmpty()) {

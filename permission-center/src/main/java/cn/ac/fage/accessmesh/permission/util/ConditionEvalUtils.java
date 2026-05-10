@@ -11,20 +11,38 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 /**
- * Static utilities for evaluating individual permission condition items.
- *
- * <p>Extracted from {@code PermissionConditionDomainServiceImpl} to eliminate
- * inline evaluation logic and provide reusable static methods.
+ * 权限条件评估工具类
+ * <p>
+ * 提供权限条件项评估的静态工具方法。
+ * 从 PermissionConditionDomainServiceImpl 中提取，提供可复用的评估逻辑。
+ * 支持日期范围、时间范围、IP白名单/黑名单等条件类型的评估。
+ * </p>
  */
 public final class ConditionEvalUtils {
 
     private static final Logger log = LoggerFactory.getLogger(ConditionEvalUtils.class);
 
+    /**
+     * 私有构造函数
+     * <p>
+     * 工具类不允许实例化。
+     * </p>
+     */
     private ConditionEvalUtils() {}
 
-    // ===== Date / Time ranges =====
+    // ===== 日期 / 时间范围评估 =====
 
-    /** Returns true if today's date falls in [start, end] inclusive. */
+    /**
+     * 评估日期范围条件
+     * <p>
+     * 判断当前日期是否在指定的日期范围内（包含边界）。
+     * 日期格式为 ISO 8601 格式（yyyy-MM-dd）。
+     * </p>
+     *
+     * @param startDate 开始日期字符串
+     * @param endDate   结束日期字符串
+     * @return 当前日期在范围内返回true，否则返回false
+     */
     public static boolean evalDateRange(String startDate, String endDate) {
         if (startDate == null || endDate == null) return false;
         try {
@@ -33,12 +51,22 @@ public final class ConditionEvalUtils {
             LocalDate end = LocalDate.parse(endDate);
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
-            log.warn("Invalid date range: [{}, {}] — {}", startDate, endDate, e.getMessage());
+            log.warn("无效的日期范围: [{}, {}] — {}", startDate, endDate, e.getMessage());
             return false;
         }
     }
 
-    /** Returns true if current time falls in [start, end] inclusive. */
+    /**
+     * 评估时间范围条件
+     * <p>
+     * 判断当前时间是否在指定的时间范围内（包含边界）。
+     * 时间格式为 ISO 8601 格式（HH:mm:ss）。
+     * </p>
+     *
+     * @param startTime 开始时间字符串
+     * @param endTime   结束时间字符串
+     * @return 当前时间在范围内返回true，否则返回false
+     */
     public static boolean evalTimeRange(String startTime, String endTime) {
         if (startTime == null || endTime == null) return false;
         try {
@@ -47,14 +75,25 @@ public final class ConditionEvalUtils {
             LocalTime end = LocalTime.parse(endTime);
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
-            log.warn("Invalid time range: [{}, {}] — {}", startTime, endTime, e.getMessage());
+            log.warn("无效的时间范围: [{}, {}] — {}", startTime, endTime, e.getMessage());
             return false;
         }
     }
 
-    // ===== IP / CIDR =====
+    // ===== IP / CIDR 评估 =====
 
-    /** Returns true if clientIp matches any CIDR in the list. */
+    /**
+     * 评估IP列表条件
+     * <p>
+     * 判断客户端IP是否匹配CIDR列表中的任一地址。
+     * 支持IPv4和IPv6地址格式。
+     * </p>
+     *
+     * @param cidrs     CIDR地址列表（JSON数组）
+     * @param clientIp  客户端IP地址
+     * @param whitelist 是否为白名单模式（true：白名单匹配返回true，false：黑名单匹配返回false）
+     * @return 评估结果
+     */
     public static boolean evalIpList(JsonNode cidrs, String clientIp, boolean whitelist) {
         if (clientIp == null) return false;
         if (cidrs == null || !cidrs.isArray()) return false;
@@ -66,7 +105,17 @@ public final class ConditionEvalUtils {
         return !whitelist;
     }
 
-    /** Check if an IP falls within a CIDR range. Supports both IPv4 and IPv6. */
+    /**
+     * 判断IP是否在CIDR范围内
+     * <p>
+     * 支持IPv4和IPv6地址的CIDR匹配。
+     * CIDR格式为 network/prefixLength，如 192.168.1.0/24。
+     * </p>
+     *
+     * @param ip   IP地址
+     * @param cidr CIDR范围
+     * @return IP在范围内返回true，否则返回false
+     */
     public static boolean ipMatchesCidr(String ip, String cidr) {
         try {
             if (!cidr.contains("/")) {
@@ -95,16 +144,27 @@ public final class ConditionEvalUtils {
             }
             return true;
         } catch (Exception e) {
-            log.warn("CIDR match failed: ip={} cidr={} — {}", ip, cidr, e.getMessage());
+            log.warn("CIDR匹配失败: ip={} cidr={} — {}", ip, cidr, e.getMessage());
             return false;
         }
     }
 
-    // ===== item evaluation =====
+    // ===== 条件项评估 =====
 
     /**
-     * Evaluate a single condition item JSON node against a context map.
-     * Supported types: DATE_RANGE, TIME_RANGE, IP_WHITELIST, IP_BLACKLIST.
+     * 评估单个条件项
+     * <p>
+     * 根据条件类型评估单个条件项JSON节点。
+     * 支持的类型：DATE_RANGE、TIME_RANGE、IP_WHITELIST、IP_BLACKLIST。
+     * </p>
+     *
+     * @param item             条件项JSON节点
+     * @param context          评估上下文（包含clientIp等信息）
+     * @param dateRangeType    日期范围类型标识
+     * @param timeRangeType    时间范围类型标识
+     * @param ipWhitelistType  IP白名单类型标识
+     * @param ipBlacklistType  IP黑名单类型标识
+     * @return 条件满足返回true，否则返回false
      */
     public static boolean evalItem(JsonNode item, Map<String, Object> context,
                                    String dateRangeType, String timeRangeType,

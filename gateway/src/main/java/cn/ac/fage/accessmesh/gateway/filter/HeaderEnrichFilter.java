@@ -10,9 +10,12 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * Injects standardized headers (X-Request-Id, X-User-Id, X-Tenant-Id, etc.)
- * into downstream requests for services to consume.
- * Order: -50
+ * 请求头增强过滤器
+ * <p>
+ * 将标准化的请求头（X-Request-Id、X-User-Id、X-Tenant-Id等）注入到下游请求中，
+ * 供后端服务使用。
+ * 执行顺序：-50
+ * </p>
  */
 @Component
 public class HeaderEnrichFilter implements GlobalFilter, Ordered {
@@ -29,11 +32,22 @@ public class HeaderEnrichFilter implements GlobalFilter, Ordered {
         this.headerConfig = gatewayProperties.getHeader().getEnrich();
     }
 
+    /**
+     * 执行过滤器逻辑
+     * <p>
+     * 从交换对象的属性中提取用户身份信息，注入到请求头中。
+     * 白名单请求仅注入请求ID，不注入用户身份信息。
+     * </p>
+     *
+     * @param exchange 服务器Web交换对象
+     * @param chain    过滤器链
+     * @return Mono完成信号
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
             .headers(headers -> {
-                // Always inject X-Request-Id
+                // 始终注入X-Request-Id
                 Object requestId = exchange.getAttribute(REQUEST_ID_ATTR);
                 if (requestId != null) {
                     headers.set(headerConfig.getRequestId(), requestId.toString());
@@ -41,11 +55,11 @@ public class HeaderEnrichFilter implements GlobalFilter, Ordered {
 
                 Boolean skipAuth = exchange.getAttribute(SKIP_AUTH_ATTR);
                 if (Boolean.TRUE.equals(skipAuth)) {
-                    // Whitelist requests only get X-Request-Id
+                    // 白名单请求仅注入请求ID
                     return;
                 }
 
-                // Inject user-related headers from exchange attributes
+                // 从交换属性注入用户相关请求头
                 Object userId = exchange.getAttribute(USER_ID_ATTR);
                 if (userId != null) {
                     headers.set(headerConfig.getUserId(), userId.toString());
@@ -66,6 +80,14 @@ public class HeaderEnrichFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
     }
 
+    /**
+     * 获取过滤器执行顺序
+     * <p>
+     * 返回-50，确保在权限校验之后、内部密钥注入之前执行。
+     * </p>
+     *
+     * @return 过滤器顺序值
+     */
     @Override
     public int getOrder() {
         return -50;

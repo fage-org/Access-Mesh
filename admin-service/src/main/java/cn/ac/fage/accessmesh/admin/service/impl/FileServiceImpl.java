@@ -37,6 +37,21 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 
+/**
+ * 文件管理服务实现类
+ * <p>
+ * 提供文件的上传、下载、删除、分页查询等功能。
+ * 支持多业务类型（bizType）的文件分类存储，如头像、文档、图片等。
+ * 实现了完整的文件安全校验机制：
+ * - 文件大小限制（默认10MB）
+ * - 文件类型白名单（按bizType配置）
+ * - 文件扩展名白名单和黑名单
+ * - Content-Type校验
+ * - 文件名安全化处理（移除路径遍历字符）
+ * - UUID随机文件名防止路径泄露
+ * 使用日期目录结构存储文件（yyyy/MM/dd），便于管理和归档。
+ * </p>
+ */
 @Service
 public class FileServiceImpl implements FileService {
 
@@ -49,6 +64,9 @@ public class FileServiceImpl implements FileService {
 
     /**
      * 默认允许的文件类型（白名单）
+     * <p>
+     * 包含图片、文档、压缩包等常见类型。
+     * </p>
      */
     private static final Set<String> DEFAULT_ALLOWED_TYPES = Set.of(
         // 图片
@@ -68,6 +86,9 @@ public class FileServiceImpl implements FileService {
 
     /**
      * 默认允许的文件扩展名（白名单）
+     * <p>
+     * 包含图片、文档、压缩包等常见扩展名。
+     * </p>
      */
     private static final Set<String> DEFAULT_ALLOWED_EXTENSIONS = Set.of(
         // 图片
@@ -80,6 +101,9 @@ public class FileServiceImpl implements FileService {
 
     /**
      * 危险文件扩展名（黑名单，禁止上传）
+     * <p>
+     * 包含可执行文件、脚本文件、动态库等危险类型。
+     * </p>
      */
     private static final Set<String> DANGEROUS_EXTENSIONS = Set.of(
         ".exe", ".bat", ".cmd", ".sh", ".ps1", ".vbs", ".js", ".jar",
@@ -88,7 +112,10 @@ public class FileServiceImpl implements FileService {
     );
 
     /**
-     * 按 bizType 配置的允许类型（可扩展）
+     * 按业务类型配置的允许扩展名
+     * <p>
+     * 不同业务场景允许不同的文件类型，如头像只允许图片。
+     * </p>
      */
     private static final Map<String, Set<String>> BIZ_TYPE_ALLOWED_EXTENSIONS = Map.of(
         "avatar", Set.of(".jpg", ".jpeg", ".png", ".gif", ".webp"),
@@ -105,11 +132,40 @@ public class FileServiceImpl implements FileService {
     private final SysFileMapper fileMapper;
     private final AdminPermissionValidator permissionValidator;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param fileMapper 文件数据访问Mapper
+     * @param permissionValidator 权限校验器，校验文件操作权限
+     */
     public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator) {
         this.fileMapper = fileMapper;
         this.permissionValidator = permissionValidator;
     }
 
+    /**
+     * 上传文件
+     * <p>
+     * 执行完整的文件安全校验流程：
+     * 1. 检查文件是否为空
+     * 2. 检查文件大小是否超限
+     * 3. 安全化文件名（移除路径遍历字符）
+     * 4. 获取并验证文件扩展名
+     * 5. 检查危险扩展名黑名单
+     * 6. 检查扩展名白名单（按bizType）
+     * 7. 检查Content-Type
+     * 8. 生成UUID随机文件名
+     * 9. 构建日期目录结构存储路径
+     * 10. 确保目标路径在允许目录内（防路径遍历）
+     * 11. 保存物理文件
+     * 12. 记录文件信息到数据库
+     * </p>
+     *
+     * @param file 上传的文件
+     * @param bizType 业务类型（如avatar、document、image）
+     * @return 文件记录ID
+     * @throws BizException 文件为空、文件超限、文件类型不允许、文件保存失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long uploadFile(MultipartFile file, String bizType) {
@@ -211,6 +267,18 @@ public class FileServiceImpl implements FileService {
         return sysFile.getId();
     }
 
+    /**
+     * 批量删除文件
+     * <p>
+     * 执行批量实例级权限校验后删除文件。
+     * 先尝试删除所有物理文件，失败仅记录（不抛异常）。
+     * 如果有任何物理文件删除失败，抛异常但不执行数据库软删除。
+     * 只有全部物理文件删除成功，才执行数据库软删除。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的文件ID列表
+     * @throws BizException 文件删除失败
+     */
     @Override
     @Transactional
     public void deleteFiles(IdsReq req) {
@@ -256,6 +324,16 @@ public class FileServiceImpl implements FileService {
         fileMapper.softDeleteBatch(tenantId, validIds, now);
     }
 
+    /**
+     * 获取文件详情
+     * <p>
+     * 根据文件ID查询文件完整信息，包含文件名、URL、大小等。
+     * </p>
+     *
+     * @param id 文件ID
+     * @return 文件详情响应
+     * @throws BizException 文件不存在
+     */
     @Override
     public FileResp getFile(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -271,6 +349,16 @@ public class FileServiceImpl implements FileService {
         return toResp(f);
     }
 
+    /**
+     * 分页查询文件列表
+     * <p>
+     * 支持按业务类型过滤，按创建时间倒序排列。
+     * </p>
+     *
+     * @param pageReq 分页查询请求，包含分页参数
+     * @param bizType 业务类型过滤条件，可选
+     * @return 分页文件列表结果
+     */
     @Override
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -292,6 +380,15 @@ public class FileServiceImpl implements FileService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * 将文件实体转换为响应对象
+     * <p>
+     * 转换文件实体为API响应格式。
+     * </p>
+     *
+     * @param f 文件实体
+     * @return 文件响应对象
+     */
     private FileResp toResp(SysFile f) {
         return new FileResp(
             f.getId(), f.getFileName(), f.getOriginalName(),
@@ -301,6 +398,18 @@ public class FileServiceImpl implements FileService {
         );
     }
 
+    /**
+     * 下载文件
+     * <p>
+     * 根据文件ID读取物理文件并返回内容。
+     * 设置HTTP响应头Content-Disposition和Content-Type。
+     * </p>
+     *
+     * @param id 文件ID
+     * @param response HTTP响应对象，用于设置下载头
+     * @return 文件内容字节数组
+     * @throws BizException 文件不存在、物理文件不存在、文件读取失败
+     */
     @Override
     public byte[] downloadFile(Long id, jakarta.servlet.http.HttpServletResponse response) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -328,7 +437,14 @@ public class FileServiceImpl implements FileService {
     }
 
     /**
-     * Sanitize 文件名，移除路径遍历字符和危险字符
+     * 安全化文件名
+     * <p>
+     * 移除路径遍历字符和危险字符，防止路径遍历攻击。
+     * 限制文件名长度（最大200字符），保留扩展名。
+     * </p>
+     *
+     * @param fileName 原始文件名
+     * @return 安全化后的文件名
      */
     private String sanitizeFileName(String fileName) {
         if (fileName == null) return null;
@@ -358,7 +474,13 @@ public class FileServiceImpl implements FileService {
     }
 
     /**
-     * 获取文件扩展名（包含点号，如 ".jpg"）
+     * 获取文件扩展名
+     * <p>
+     * 从文件名中提取扩展名，包含点号（如".jpg"）。
+     * </p>
+     *
+     * @param fileName 文件名
+     * @return 文件扩展名（包含点号），无扩展名返回null
      */
     private String getFileExtension(String fileName) {
         if (fileName == null || !fileName.contains(".")) {

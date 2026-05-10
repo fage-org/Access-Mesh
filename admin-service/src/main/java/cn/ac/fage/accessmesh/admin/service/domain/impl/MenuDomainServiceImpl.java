@@ -20,15 +20,37 @@ import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
+/**
+ * 菜单领域服务实现类
+ * <p>
+ * 封装菜单树遍历、批量查询等核心领域逻辑。
+ * 使用PostgreSQL CTE递归查询实现高效的树结构操作。
+ * </p>
+ */
 @Service
 public class MenuDomainServiceImpl implements MenuDomainService {
 
     private final SysMenuMapper menuMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param menuMapper 菜单数据访问层
+     */
     public MenuDomainServiceImpl(SysMenuMapper menuMapper) {
         this.menuMapper = menuMapper;
     }
 
+    /**
+     * 获取指定菜单的所有子孙菜单ID（不包括自身）
+     * <p>
+     * 使用PostgreSQL CTE递归查询，性能高效
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 子孙菜单ID列表
+     */
     @Override
     public List<Long> getDescendantIds(Long tenantId, Long menuId) {
         if (menuId == null) {
@@ -38,6 +60,13 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         return ids != null ? ids : List.of();
     }
 
+    /**
+     * 获取指定菜单的所有子孙菜单ID（包括自身）
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 子孙菜单ID列表（包含自身）
+     */
     @Override
     public List<Long> getDescendantIdsIncludingSelf(Long tenantId, Long menuId) {
         if (menuId == null) {
@@ -47,19 +76,29 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         return ids != null ? ids : List.of();
     }
 
+    /**
+     * 批量获取多个菜单的子孙ID
+     * <p>
+     * 使用单次批量CTE查询替代N+1查询，性能优化
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID集合
+     * @return menuId到子孙ID列表的映射
+     */
     @Override
     public Map<Long, List<Long>> batchGetDescendantIds(Long tenantId, Set<Long> menuIds) {
         if (menuIds == null || menuIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        // Initialize result with empty lists for each input ID
+        // 为每个输入ID初始化空列表
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long id : menuIds) {
             result.put(id, new ArrayList<>());
         }
 
-        // Performance fix: Use single batch CTE query instead of N+1 queries
+        // 性能优化：使用单次批量CTE查询替代N+1查询
         List<DescendantResult> descendants = menuMapper.selectBatchDescendantIds(tenantId, menuIds);
         for (DescendantResult dr : descendants) {
             Long rootId = dr.getMenuId();
@@ -72,23 +111,40 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         return result;
     }
 
+    /**
+     * 获取指定菜单的祖先菜单ID
+     * <p>
+     * 使用批量加载模式避免N+1查询
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 祖先菜单ID列表
+     */
     @Override
     public List<Long> getAncestorIds(Long tenantId, Long menuId) {
-        // Performance fix: Use batch loading pattern (same as OrgDomainServiceImpl.batchGetAncestorIds)
+        // 性能优化：使用批量加载模式（与OrgDomainServiceImpl.batchGetAncestorIds相同）
         Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, Set.of(menuId));
         return ancestorMap.getOrDefault(menuId, List.of());
     }
 
     /**
-     * Batch get ancestor IDs for multiple menu IDs.
-     * Uses batch loading pattern to avoid N+1 queries.
+     * 批量获取多个菜单的祖先ID
+     * <p>
+     * 使用批量加载模式，一次性加载所有菜单及其祖先链。
+     * 避免递归调用导致的N+1查询问题。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID集合
+     * @return menuId到祖先ID列表的映射
      */
     public Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> menuIds) {
         if (menuIds == null || menuIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        // Batch load all menus and their ancestors
+        // 批量加载所有菜单及其祖先
         Map<Long, SysMenu> entityMap = new HashMap<>();
         Set<Long> toLoad = new HashSet<>(menuIds);
 
@@ -109,7 +165,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
             }
         }
 
-        // Build ancestor chains for each input menuId
+        // 为每个输入menuId构建祖先链
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long menuId : menuIds) {
             List<Long> ancestors = new ArrayList<>();
@@ -131,6 +187,16 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         return result;
     }
 
+    /**
+     * 查询有效的菜单
+     * <p>
+     * 未删除、属于指定租户
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 菜单实体，不存在返回null
+     */
     @Override
     public SysMenu selectValidById(Long tenantId, Long menuId) {
         if (menuId == null) {
@@ -144,6 +210,13 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         );
     }
 
+    /**
+     * 批量查询有效的菜单
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID集合
+     * @return 菜单实体列表
+     */
     @Override
     public List<SysMenu> selectValidByIds(Long tenantId, Set<Long> menuIds) {
         if (menuIds == null || menuIds.isEmpty()) {
@@ -157,6 +230,12 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         );
     }
 
+    /**
+     * 批量软删除菜单
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void softDeleteBatch(Long tenantId, List<Long> menuIds) {
@@ -166,6 +245,15 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         menuMapper.softDeleteBatch(tenantId, menuIds, LocalDateTime.now());
     }
 
+    /**
+     * 删除菜单及其所有子孙菜单
+     * <p>
+     * 先查询所有子孙ID（包括自身），然后批量软删除
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteWithChildren(Long tenantId, Long menuId) {
@@ -176,6 +264,13 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         menuMapper.softDeleteBatch(tenantId, allIds, LocalDateTime.now());
     }
 
+    /**
+     * 检查菜单是否有子菜单
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 是否有子菜单
+     */
     @Override
     public boolean hasChildren(Long tenantId, Long menuId) {
         long count = menuMapper.selectCountByQuery(
@@ -187,6 +282,13 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         return count > 0;
     }
 
+    /**
+     * 根据权限标识查询菜单
+     *
+     * @param tenantId 租户ID
+     * @param permCode 权限标识
+     * @return 菜单实体
+     */
     @Override
     public SysMenu findByPermCode(Long tenantId, String permCode) {
         if (permCode == null || permCode.isBlank()) {
@@ -200,6 +302,13 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         );
     }
 
+    /**
+     * 批量根据权限标识查询菜单
+     *
+     * @param tenantId  租户ID
+     * @param permCodes 权限标识集合
+     * @return 菜单实体列表
+     */
     @Override
     public List<SysMenu> findByPermCodes(Long tenantId, Set<String> permCodes) {
         if (permCodes == null || permCodes.isEmpty()) {
@@ -213,22 +322,38 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         );
     }
 
+    /**
+     * 计算菜单深度
+     * <p>
+     * 从根到指定菜单的层级数。使用批量祖先加载优化性能。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param parentId 父菜单ID
+     * @return 深度值
+     */
     @Override
     public int calculateDepth(Long tenantId, Long parentId) {
         if (parentId == null || parentId == 0L) {
             return 1;
         }
 
-        // Performance fix: Pre-load ancestors and compute depth
-        // Use batchGetAncestorIds to load all ancestors in batch
+        // 性能优化：预加载祖先并计算深度
+        // 使用batchGetAncestorIds批量加载所有祖先
         Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, Set.of(parentId));
         List<Long> ancestors = ancestorMap.getOrDefault(parentId, List.of());
 
-        // Depth = number of ancestors + 1 (for self)
-        // ancestors includes all parent IDs up the tree
+        // 深度 = 祖先数量 + 1（自身）
         return ancestors.size() + 1;
     }
 
+    /**
+     * 批量查询已存在的权限标识
+     *
+     * @param tenantId  租户ID
+     * @param permCodes 权限标识集合
+     * @return 已存在的权限标识集合
+     */
     @Override
     public Set<String> findExistingPermCodes(Long tenantId, Set<String> permCodes) {
         if (permCodes == null || permCodes.isEmpty()) {
@@ -246,12 +371,22 @@ public class MenuDomainServiceImpl implements MenuDomainService {
             .collect(Collectors.toSet());
     }
 
+    /**
+     * 批量计算菜单深度
+     * <p>
+     * 返回parentId到depth的映射，使用批量祖先加载优化性能
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param parentIds 父菜单ID集合
+     * @return parentId到depth的映射
+     */
     @Override
     public Map<Long, Integer> batchCalculateDepth(Long tenantId, Set<Long> parentIds) {
         if (parentIds == null || parentIds.isEmpty()) {
             return Map.of();
         }
-        // Filter out null and 0 (root level)
+        // 过滤null和0（根级）
         Set<Long> validParentIds = parentIds.stream()
             .filter(id -> id != null && id > 0)
             .collect(Collectors.toSet());
@@ -260,19 +395,24 @@ public class MenuDomainServiceImpl implements MenuDomainService {
             return Map.of();
         }
 
-        // Use batchGetAncestorIds to get all ancestors for all parent IDs
+        // 使用batchGetAncestorIds获取所有父ID的所有祖先
         Map<Long, List<Long>> ancestorMap = batchGetAncestorIds(tenantId, validParentIds);
 
-        // Build parentId -> depth mapping
+        // 构建parentId到depth的映射
         Map<Long, Integer> result = new HashMap<>();
         for (Long parentId : validParentIds) {
             List<Long> ancestors = ancestorMap.getOrDefault(parentId, List.of());
-            // Depth = number of ancestors + 1 (for self)
+            // 深度 = 祖先数量 + 1（自身）
             result.put(parentId, ancestors.size() + 1);
         }
         return result;
     }
 
+    /**
+     * 批量插入菜单
+     *
+     * @param menus 菜单列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void insertBatch(List<SysMenu> menus) {
@@ -282,6 +422,15 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         menuMapper.insertBatch(menus);
     }
 
+    /**
+     * 查询租户下所有有效菜单
+     * <p>
+     * 用于动态路由生成，按排序字段升序排列
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 所有有效菜单列表
+     */
     @Override
     public List<SysMenu> selectAllValid(Long tenantId) {
         return menuMapper.selectListByQuery(

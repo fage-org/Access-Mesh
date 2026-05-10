@@ -21,6 +21,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
+/**
+ * 角色权限领域服务实现类
+ * <p>
+ * 管理角色的权限配置，包括查询、授予、撤销等操作。
+ * 权限变更后自动递增版本号，确保缓存一致性。
+ * </p>
+ */
 @Service
 public class RolePermissionDomainServiceImpl implements RolePermissionDomainService {
 
@@ -29,12 +36,28 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
     private final RoleResourcePermissionMapper rolePermMapper;
     private final PermissionVersionDomainService permissionVersionDomainService;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param rolePermMapper              角色权限数据访问层
+     * @param permissionVersionDomainService 权限版本领域服务
+     */
     public RolePermissionDomainServiceImpl(RoleResourcePermissionMapper rolePermMapper,
                                             PermissionVersionDomainService permissionVersionDomainService) {
         this.rolePermMapper = rolePermMapper;
         this.permissionVersionDomainService = permissionVersionDomainService;
     }
 
+    /**
+     * 获取角色的权限快照
+     * <p>
+     * 查询角色的所有权限配置，包含版本号，用于权限校验
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleId   角色ID
+     * @return 角色权限快照
+     */
     @Override
     public RolePermSnapshot getRolePermissions(Long tenantId, Long roleId) {
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
@@ -60,6 +83,18 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         return new RolePermSnapshot(tenantId, roleId, version, entries);
     }
 
+    /**
+     * 批量授予角色权限
+     * <p>
+     * 批量插入权限记录，事务提交后递增版本号。
+     * 版本递增使用TransactionSynchronization确保在事务提交后执行。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param roleId       角色ID
+     * @param entries      待授予的权限条目列表
+     * @param changeSource 变更来源
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void grantPermissions(Long tenantId, Long roleId, List<RolePermSnapshot.RolePermEntry> entries, String changeSource) {
@@ -86,7 +121,8 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             toInsert.add(rp);
         }
         rolePermMapper.insertBatch(toInsert);
-        // 版本递增（事务提交后执行）
+
+        // 版本递增（事务提交后执行，避免缓存被回滚数据污染）
         final Long roleIdForCache = roleId;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -98,6 +134,17 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         }
     }
 
+    /**
+     * 批量撤销角色权限
+     * <p>
+     * 先验证权限归属，然后批量软删除。
+     * 同时级联删除依赖该权限的子权限。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param roleId       角色ID
+     * @param permissionIds 待撤销的权限ID列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds) {
@@ -106,7 +153,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         }
         LocalDateTime now = LocalDateTime.now();
 
-        // Validate permissions belong to the role
+        // 验证权限归属该角色
         long validCount = rolePermMapper.selectCountByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
@@ -118,10 +165,10 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             return;
         }
 
-        // Batch soft delete the permissions (single SQL, avoid N+1)
+        // 批量软删除权限（单条SQL，避免N+1）
         rolePermMapper.softDeleteBatch(tenantId, permissionIds, now);
 
-        // Batch cascade delete all children (single SQL, avoid N+1)
+        // 批量级联删除子权限（单条SQL，避免N+1）
         rolePermMapper.cascadeSoftDeleteChildren(tenantId, permissionIds, now);
 
         // 版本递增（事务提交后执行）
@@ -136,22 +183,41 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         }
     }
 
+    /**
+     * 撤销单个权限并级联删除子权限
+     * <p>
+     * 软删除指定权限，同时删除所有依赖该权限的子权限
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param roleId     角色ID
+     * @param permissionId 权限ID
+     * @param deletedAt  删除时间
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokePermissionWithCascade(Long tenantId, Long roleId, Long permissionId, LocalDateTime deletedAt) {
         RoleResourcePermission rp = rolePermMapper.selectOneById(permissionId);
         if (rp != null && rp.getDeleteFlag() == 0L && rp.getAbstractRoleId().equals(roleId)
             && rp.getTenantId().equals(tenantId)) {
-            // Soft delete the permission
+            // 软删除权限
             rp.setDeleteFlag(rp.getId());
             rp.setDeletedAt(deletedAt);
             rolePermMapper.update(rp);
 
-            // Cascade soft delete sub-permissions using batch SQL (avoid N+1)
+            // 级联软删除子权限（批量SQL，避免N+1）
             rolePermMapper.cascadeSoftDeleteChildren(tenantId, List.of(permissionId), deletedAt);
         }
     }
 
+    /**
+     * 根据ID查询有效的权限记录
+     *
+     * @param tenantId     租户ID
+     * @param roleId       角色ID（可选过滤条件）
+     * @param permissionId 权限ID
+     * @return 权限实体，不存在时返回null
+     */
     @Override
     public RoleResourcePermission selectValidById(Long tenantId, Long roleId, Long permissionId) {
         if (permissionId == null) {

@@ -37,6 +37,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * 定时任务管理服务实现类
+ * <p>
+ * 提供定时任务的CRUD操作、启停控制、手动触发、执行日志查询等功能。
+ * 使用Spring TaskScheduler实现任务调度，支持Cron表达式配置。
+ * 应用启动时自动加载并调度所有启用的任务。
+ * 使用细粒度锁池（按jobId分组）保护调度操作，避免全局锁竞争和并发问题。
+ * 任务执行目前仅记录日志（待完善：通过反射或Spring Bean机制动态调用目标方法）。
+ * </p>
+ */
 @Service
 public class JobServiceImpl implements JobService {
 
@@ -47,10 +57,24 @@ public class JobServiceImpl implements JobService {
     private final TaskScheduler taskScheduler;
     private final AdminPermissionValidator permissionValidator;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
-    
-    // FIX: 细粒度锁池，按jobId分组，避免全局锁竞争
+
+    /**
+     * 细粒度锁池
+     * <p>
+     * 按jobId分组，避免全局锁竞争。
+     * 解决并发场景下任务重复调度和ScheduledFuture泄漏问题。
+     * </p>
+     */
     private final ConcurrentHashMap<Long, ReentrantLock> jobLocks = new ConcurrentHashMap<>();
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param jobMapper 任务数据访问Mapper
+     * @param jobLogMapper 任务日志数据访问Mapper
+     * @param taskScheduler Spring任务调度器
+     * @param permissionValidator 权限校验器
+     */
     public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler,
                           AdminPermissionValidator permissionValidator) {
         this.jobMapper = jobMapper;
@@ -60,15 +84,24 @@ public class JobServiceImpl implements JobService {
     }
 
     /**
-     * 获取指定jobId对应的锁（懒加载）
+     * 获取指定jobId对应的锁
+     * <p>
+     * 懒加载锁对象，按jobId分组避免全局锁竞争。
+     * </p>
+     *
+     * @param jobId 任务ID
+     * @return 该任务对应的锁对象
      */
     private ReentrantLock getLockForJob(Long jobId) {
         return jobLocks.computeIfAbsent(jobId, id -> new ReentrantLock());
     }
 
     /**
-     * Initialize scheduled tasks on startup.
-     * Load all enabled jobs from database and schedule them.
+     * 初始化任务调度
+     * <p>
+     * 应用启动时自动加载所有启用的任务并调度。
+     * 通过@PostConstruct注解在Bean初始化后执行。
+     * </p>
      */
     @PostConstruct
     public void initScheduledTasks() {
@@ -89,6 +122,17 @@ public class JobServiceImpl implements JobService {
         log.info("Initialized {} scheduled tasks", enabledJobs.size());
     }
 
+    /**
+     * 创建定时任务
+     * <p>
+     * 创建新的定时任务，设置任务名称、Cron表达式、调用目标等。
+     * 执行类型级权限校验(CREATE)。
+     * 如果任务状态为启用，创建后立即调度。
+     * </p>
+     *
+     * @param job 任务实体，包含任务配置信息
+     * @return 新任务ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createJob(SysJob job) {
@@ -108,6 +152,18 @@ public class JobServiceImpl implements JobService {
         return job.getId();
     }
 
+    /**
+     * 更新定时任务
+     * <p>
+     * 更新任务的配置信息，如Cron表达式、调用目标等。
+     * 执行实例级权限校验(UPDATE)。
+     * 如果任务原状态为启用，先取消调度再更新。
+     * 如果新状态为启用，更新后重新调度。
+     * </p>
+     *
+     * @param job 任务实体，包含任务ID和新配置信息
+     * @throws BizException 任务不存在
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateJob(SysJob job) {
@@ -138,6 +194,16 @@ public class JobServiceImpl implements JobService {
         }
     }
 
+    /**
+     * 批量删除定时任务
+     * <p>
+     * 执行批量实例级权限校验后软删除任务。
+     * 删除前先取消任务调度，防止已删除任务继续执行。
+     * 使用批量查询和批量软删除优化性能。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的任务ID列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteJobs(IdsReq req) {
@@ -168,6 +234,18 @@ public class JobServiceImpl implements JobService {
         }
     }
 
+    /**
+     * 切换任务状态（启用/停用）
+     * <p>
+     * 启用或停用指定任务。
+     * 执行实例级权限校验(ENABLE/DISABLE)。
+     * 启用时立即调度，停用时取消调度。
+     * </p>
+     *
+     * @param id 任务ID
+     * @param status 新状态（1启用，0停用）
+     * @throws BizException 任务不存在
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void toggleJobStatus(Long id, Integer status) {
@@ -196,6 +274,16 @@ public class JobServiceImpl implements JobService {
         }
     }
 
+    /**
+     * 手动触发任务执行
+     * <p>
+     * 立即执行指定任务，不受调度时间限制。
+     * 执行实例级权限校验(TRIGGER)。
+     * </p>
+     *
+     * @param id 任务ID
+     * @throws BizException 任务不存在
+     */
     @Override
     public void triggerJob(Long id) {
         // Permission check - instance-level TRIGGER
@@ -214,6 +302,15 @@ public class JobServiceImpl implements JobService {
         executeJob(job);
     }
 
+    /**
+     * 获取任务详情
+     * <p>
+     * 根据任务ID查询任务完整信息。
+     * </p>
+     *
+     * @param id 任务ID
+     * @return 任务详情响应
+     */
     @Override
     public JobResp getJob(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -226,6 +323,16 @@ public class JobServiceImpl implements JobService {
         return JobResp.from(job);
     }
 
+    /**
+     * 分页查询任务列表
+     * <p>
+     * 支持按任务组过滤，按创建时间倒序排列。
+     * </p>
+     *
+     * @param pageReq 分页查询请求，包含分页参数
+     * @param jobGroup 任务组过滤条件，可选
+     * @return 分页任务列表结果
+     */
     @Override
     public PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -247,6 +354,17 @@ public class JobServiceImpl implements JobService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * 分页查询任务执行日志
+     * <p>
+     * 查询任务的执行历史记录，支持按任务ID过滤。
+     * 按创建时间倒序排列，最新的执行记录在前。
+     * </p>
+     *
+     * @param pageReq 分页查询请求，包含分页参数
+     * @param jobId 任务ID过滤条件，可选
+     * @return 分页任务日志列表结果
+     */
     @Override
     public PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -270,8 +388,14 @@ public class JobServiceImpl implements JobService {
     }
 
     /**
-     * FIX: 使用ReentrantLock保护scheduleJob的check-then-act操作
-     * 解决并发场景下任务重复调度和ScheduledFuture泄漏问题
+     * 调度任务
+     * <p>
+     * 使用ReentrantLock保护调度操作，解决并发问题。
+     * 使用Spring TaskScheduler根据Cron表达式调度任务。
+     * 如果已有调度，先取消再重新调度。
+     * </p>
+     *
+     * @param job 任务实体
      */
     private void scheduleJob(SysJob job) {
         ReentrantLock lock = getLockForJob(job.getId());
@@ -292,7 +416,13 @@ public class JobServiceImpl implements JobService {
     }
 
     /**
-     * FIX: 使用ReentrantLock保护unscheduleJob操作
+     * 取消任务调度
+     * <p>
+     * 使用ReentrantLock保护取消操作。
+     * 从调度表中移除并取消ScheduledFuture。
+     * </p>
+     *
+     * @param jobId 任务ID
      */
     private void unscheduleJob(Long jobId) {
         ReentrantLock lock = getLockForJob(jobId);
@@ -305,8 +435,13 @@ public class JobServiceImpl implements JobService {
     }
 
     /**
-     * FIX: 内部方法，不加锁（在锁保护下调用）
-     * 避免锁嵌套，减少死锁风险
+     * 取消任务调度（内部方法）
+     * <p>
+     * 不加锁，在锁保护下调用。
+     * 避免锁嵌套，减少死锁风险。
+     * </p>
+     *
+     * @param jobId 任务ID
      */
     private void unscheduleJobInternal(Long jobId) {
         ScheduledFuture<?> future = scheduledTasks.remove(jobId);
@@ -316,6 +451,16 @@ public class JobServiceImpl implements JobService {
         }
     }
 
+    /**
+     * 执行任务
+     * <p>
+     * 执行指定任务并记录执行日志。
+     * 当前仅记录日志，未实际调用invokeTarget（待完善）。
+     * 记录执行状态、消息、耗时等信息。
+     * </p>
+     *
+     * @param job 任务实体
+     */
     void executeJob(SysJob job) {
         long start = System.currentTimeMillis();
         SysJobLog jobLog = new SysJobLog();

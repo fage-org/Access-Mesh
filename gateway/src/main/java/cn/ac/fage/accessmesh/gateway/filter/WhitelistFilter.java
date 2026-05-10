@@ -12,9 +12,12 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * Matches request path against whitelist. If matched, sets skipAuth=true
- * to bypass subsequent auth and permission filters.
- * Order: -80
+ * 白名单过滤器
+ * <p>
+ * 匹配请求路径与白名单配置。如果匹配成功，设置skipAuth=true，
+ * 跳过后续的认证和权限校验过滤器。
+ * 执行顺序：-80
+ * </p>
  */
 @Component
 public class WhitelistFilter implements GlobalFilter, Ordered {
@@ -27,6 +30,17 @@ public class WhitelistFilter implements GlobalFilter, Ordered {
         this.whitelistPaths = gatewayProperties.getWhitelist().getPaths();
     }
 
+    /**
+     * 执行过滤器逻辑
+     * <p>
+     * 检查请求路径是否匹配白名单配置。匹配时设置skipAuth属性，
+     * 允许后续认证过滤器跳过权限校验。
+     * </p>
+     *
+     * @param exchange 服务器Web交换对象
+     * @param chain    过滤器链
+     * @return Mono完成信号
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
@@ -39,6 +53,14 @@ public class WhitelistFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange);
     }
 
+    /**
+     * 获取过滤器执行顺序
+     * <p>
+     * 返回-80，确保在请求头清理之后、认证过滤器之前执行。
+     * </p>
+     *
+     * @return 过滤器顺序值
+     */
     @Override
     public int getOrder() {
         return -80;

@@ -3,12 +3,20 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 import java.util.Set;
 
 /**
- * Request for unified permission check (internal use).
- * Used by permission-center internal services to check if operator has permissions on a target.
+ * 权限检查请求体
+ * <p>
+ * 用于内部权限检查，验证操作者是否对目标拥有指定权限。
+ * 用于permission-center内部服务调用。
+ * </p>
+ *
+ * @param operatorId    操作者ID
+ * @param targetType    目标类型（USER/ROLE/RESOURCE等）
+ * @param targetId      目标ID
+ * @param operationCodes 操作编码集合（VIEW/CREATE/EDIT/DELETE/MANAGE等）
  */
 public record PermissionCheckReq(
     Long operatorId,
-    String targetType,           // USER / ROLE / RESOURCE
+    String targetType,
     Long targetId,
-    Set<String> operationCodes   // VIEW / CREATE / EDIT / DELETE / MANAGE etc.
+    Set<String> operationCodes
 ) {}

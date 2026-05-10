@@ -25,8 +25,11 @@ import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 
 /**
- * Implementation of EntityBatchLoadDomainService.
- * Provides unified batch loading methods with tenant isolation and soft-delete filtering.
+ * 实体批量加载领域服务实现类
+ * <p>
+ * 提供统一的实体批量加载方法，避免N+1查询问题，减少代码重复。
+ * 所有方法均强制执行租户隔离和软删除过滤。
+ * </p>
  */
 @Service
 public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainService {
@@ -37,6 +40,15 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
     private final PermissionConditionMapper permissionConditionMapper;
     private final BizDomainMapper bizDomainMapper;
 
+    /**
+     * 构造函数注入所有Mapper依赖
+     *
+     * @param operationPermissionMapper 操作权限数据访问层
+     * @param resourceEntityMapper      资源实体数据访问层
+     * @param abstractRoleMapper        抽象角色数据访问层
+     * @param permissionConditionMapper 权限条件数据访问层
+     * @param bizDomainMapper           业务域数据访问层
+     */
     public EntityBatchLoadDomainServiceImpl(
             OperationPermissionMapper operationPermissionMapper,
             ResourceEntityMapper resourceEntityMapper,
@@ -50,6 +62,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         this.bizDomainMapper = bizDomainMapper;
     }
 
+    /**
+     * 批量加载操作权限
+     * <p>
+     * 根据ID集合批量查询操作权限，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      操作权限ID集合
+     * @return ID到OperationPermission的映射
+     */
     @Override
     public Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -63,6 +85,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 
+    /**
+     * 批量加载资源实体
+     * <p>
+     * 根据ID集合批量查询资源实体，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      资源实体ID集合
+     * @return ID到ResourceEntity的映射
+     */
     @Override
     public Map<Long, ResourceEntity> batchLoadResources(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -76,6 +108,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
     }
 
+    /**
+     * 批量加载抽象角色
+     * <p>
+     * 根据ID集合批量查询角色，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      角色ID集合
+     * @return ID到AbstractRole的映射
+     */
     @Override
     public Map<Long, AbstractRole> batchLoadRoles(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -89,6 +131,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         ).stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
     }
 
+    /**
+     * 批量加载权限条件
+     * <p>
+     * 根据ID集合批量查询权限条件，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      条件ID集合
+     * @return ID到PermissionCondition的映射
+     */
     @Override
     public Map<Long, PermissionCondition> batchLoadConditions(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -102,6 +154,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         ).stream().collect(Collectors.toMap(PermissionCondition::getId, c -> c, (a, b) -> a));
     }
 
+    /**
+     * 批量加载业务域编码
+     * <p>
+     * 根据ID集合批量查询业务域编码，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      业务域ID集合
+     * @return ID到业务域编码的映射
+     */
     @Override
     public Map<Long, String> batchLoadDomainCodes(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
@@ -115,6 +177,16 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         ).stream().collect(Collectors.toMap(BizDomain::getId, BizDomain::getCode, (a, b) -> a));
     }
 
+    /**
+     * 批量加载业务域
+     * <p>
+     * 根据ID集合批量查询业务域实体，自动过滤租户和软删除记录
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      业务域ID集合
+     * @return ID到BizDomain的映射
+     */
     @Override
     public Map<Long, BizDomain> batchLoadDomains(Long tenantId, Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {

@@ -20,6 +20,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 权限条件领域服务实现类
+ * <p>
+ * 负责权限条件的评估与缓存管理，支持日期范围、时间范围、IP黑白名单等条件类型
+ * </p>
+ */
 @Service
 public class PermissionConditionDomainServiceImpl implements PermissionConditionDomainService {
 
@@ -29,6 +35,13 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     private final ObjectMapper objectMapper;
     private final GenericCacheManager<Long, JsonNode> rulesCacheManager;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param conditionMapper   条件数据访问层
+     * @param objectMapper      JSON解析器
+     * @param rulesCacheManager 条件规则缓存管理器
+     */
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
                                                  ObjectMapper objectMapper,
                                                  ConditionRulesCacheManager rulesCacheManager) {
@@ -37,6 +50,18 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         this.rulesCacheManager = rulesCacheManager;
     }
 
+    /**
+     * 评估权限条目的条件
+     * <p>
+     * 根据条件规则过滤权限条目，返回满足条件的条目列表。
+     * 使用本地缓存避免重复评估同一条件
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param entries  待评估的权限条目列表
+     * @param context  评估上下文，包含日期、时间、IP等环境信息
+     * @return 满足条件的权限条目列表
+     */
     @Override
     public List<RolePermSnapshot.RolePermEntry> evaluate(Long tenantId, List<RolePermSnapshot.RolePermEntry> entries,
                                                           Map<String, Object> context) {
@@ -54,20 +79,25 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     /**
-     * 评估条件
+     * 评估单个条件
      * <p>
-     * 问题7：使用闭包/lambda 传递 tenantId 给缓存 loader
-     * 问题11：处理 JSON 解析失败的情况
+     * 从缓存或数据库加载条件规则，并根据逻辑类型（AND/OR）评估各项条件。
+     * 采用fail-close策略：解析失败或异常时返回false，拒绝权限
      * </p>
+     *
+     * @param tenantId    租户ID
+     * @param conditionId 条件ID
+     * @param context     评估上下文
+     * @return 条件评估结果，true表示条件满足
      */
     private boolean evaluateCondition(Long tenantId, Long conditionId, Map<String, Object> context) {
-        // 问题7：使用缓存管理器，通过 BiFunction 传递 tenantId
+        // 使用缓存管理器，通过BiFunction传递tenantId
         JsonNode rules = rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
-            // loader: 从数据库加载条件规则
+            // 从数据库加载条件规则
             PermissionCondition condition = conditionMapper.selectOneById(cid);
             if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
                 || !tid.equals(condition.getTenantId())) {
-                return null; // 返回 null 会被缓存为空值
+                return null; // 返回null会被缓存为空值
             }
 
             try {
@@ -79,7 +109,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             }
         });
 
-        // 如果规则为空（条件不存在、禁用或解析失败），返回 false
+        // 如果规则为空（条件不存在、禁用或解析失败），返回false
         if (rules == null) {
             return false;
         }
@@ -103,6 +133,16 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         }
     }
 
+    /**
+     * 评估单个条件项
+     * <p>
+     * 根据条件类型调用对应的评估方法，支持日期范围、时间范围、IP黑白名单等类型
+     * </p>
+     *
+     * @param item   条件项JSON节点
+     * @param context 评估上下文
+     * @return 条件项评估结果
+     */
     private boolean evaluateItem(JsonNode item, Map<String, Object> context) {
         return ConditionEvalUtils.evalItem(item, context,
             PermConstants.ConditionType.DATE_RANGE,
@@ -114,11 +154,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     /**
      * 使指定条件的缓存失效
      * <p>
-     * 当条件更新或删除时调用此方法
+     * 当条件更新或删除时调用此方法清除缓存，确保下次评估使用最新数据
      * </p>
      *
-     * @param tenantId    租户 ID
-     * @param conditionId 条件 ID
+     * @param tenantId    租户ID
+     * @param conditionId 条件ID
      */
     public void evictConditionCache(Long tenantId, Long conditionId) {
         rulesCacheManager.evict(tenantId, conditionId);
@@ -126,9 +166,12 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     /**
      * 批量使条件缓存失效
+     * <p>
+     * 批量清除多个条件的缓存，用于批量更新或删除场景
+     * </p>
      *
-     * @param tenantId     租户 ID
-     * @param conditionIds 条件 ID 集合
+     * @param tenantId     租户ID
+     * @param conditionIds 条件ID集合
      */
     public void evictConditionCacheBatch(Long tenantId, Set<Long> conditionIds) {
         if (conditionIds == null || conditionIds.isEmpty()) {
@@ -138,7 +181,12 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     /**
-     * 获取缓存管理器（供外部调用）
+     * 获取缓存管理器
+     * <p>
+     * 供外部调用，用于直接操作缓存
+     * </p>
+     *
+     * @return 条件规则缓存管理器实例
      */
     public GenericCacheManager<Long, JsonNode> getRulesCacheManager() {
         return rulesCacheManager;

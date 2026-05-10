@@ -23,8 +23,11 @@ import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
 
 /**
- * Implementation of ResourceSyncHandler.
- * Handles the synchronization of resource entities.
+ * 资源同步处理器实现类
+ * <p>
+ * 处理资源实体的同步逻辑，将服务配置中的API资源持久化到数据库。
+ * 支持增量同步和孤立资源清理。
+ * </p>
  */
 @Service
 public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
@@ -32,12 +35,28 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
     private final ResourceEntityMapper resourceEntityMapper;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
 
+    /**
+     * 构造函数
+     *
+     * @param resourceEntityMapper     资源实体Mapper
+     * @param resourceApiMappingMapper API映射Mapper
+     */
     public ResourceSyncHandlerImpl(ResourceEntityMapper resourceEntityMapper,
                                     ResourceApiMappingMapper resourceApiMappingMapper) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
     }
 
+    /**
+     * 同步资源实体
+     * <p>
+     * 根据服务配置同步API资源实体。创建不存在的新资源，
+     * 更新已有的资源，并验证所有权归属。
+     * </p>
+     *
+     * @param context 同步上下文
+     * @return 同步结果，包含创建数、更新数和活跃资源ID集合
+     */
     @Override
     public SyncResourcesResult syncResources(SyncContext context) {
         int createdCount = 0;
@@ -49,7 +68,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                 String fullPath = joinPath(context.basePath(), api.path());
                 String syncKey = context.req().serviceCode() + "|" + api.resourceCode();
 
-                // Find existing resource
+                // 查找已有资源
                 ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
                     QueryWrapper.create()
                         .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
@@ -60,7 +79,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                 );
 
                 if (resource == null) {
-                    // Create new resource
+                    // 创建新资源
                     resource = new ResourceEntity();
                     resource.setTenantId(context.tenantId());
                     resource.setResourceType(context.apiType());
@@ -82,14 +101,14 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resourceEntityMapper.insert(resource);
                     createdCount++;
                 } else {
-                    // Validate ownership
+                    // 验证所有权
                     if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                         || resource.getOwnerServiceCode() == null
                         || !context.req().serviceCode().equals(resource.getOwnerServiceCode())) {
                         throw new IllegalStateException(
-                            "resourceCode already maintained by non-sync source: " + api.resourceCode());
+                            "资源编码已由非同步源维护: " + api.resourceCode());
                     }
-                    // Update existing resource
+                    // 更新已有资源
                     resource.setName(api.name());
                     resource.setPath(fullPath);
                     resource.setStatus(1);
@@ -106,12 +125,25 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
         return new SyncResourcesResult(createdCount, updatedCount, activeResourceIds);
     }
 
+    /**
+     * 清理孤立资源
+     * <p>
+     * 删除没有剩余API映射的资源实体。
+     * 仅清理由服务同步维护且属于当前服务的资源。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param serviceCode     服务编码
+     * @param apiType         API资源类型
+     * @param activeResourceIds 活跃的资源ID集合
+     * @return 删除数量
+     */
     @Override
     public int cleanupOrphanedResources(Long tenantId, String serviceCode, Integer apiType,
                                          Set<Long> activeResourceIds) {
         int deletedCount = 0;
 
-        // Get all API resources for this service
+        // 获取该服务的所有API资源
         List<ResourceEntity> apiResources = resourceEntityMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
@@ -119,7 +151,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                 .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
         );
 
-        // Filter synced resources for this service
+        // 过滤由当前服务同步的资源
         List<ResourceEntity> syncedResources = apiResources.stream()
             .filter(resource -> PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                 && serviceCode.equals(resource.getOwnerServiceCode()))
@@ -129,7 +161,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
             return 0;
         }
 
-        // Batch load mappings to avoid N+1
+        // 批量加载映射以避免N+1问题
         Set<Long> syncedResourceIds = syncedResources.stream()
             .map(ResourceEntity::getId)
             .filter(id -> id != null)
@@ -143,8 +175,8 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.groupingBy(ResourceApiMapping::getResourceEntityId));
 
-        // Delete orphaned resources (those without remaining mappings)
-        // Performance fix: collect IDs and batch soft delete
+        // 删除孤立资源（没有剩余映射的资源）
+        // 性能优化：收集ID并批量软删除
         LocalDateTime now = LocalDateTime.now();
         List<Long> idsToDelete = new ArrayList<>();
         for (ResourceEntity resource : syncedResources) {
@@ -163,7 +195,14 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
     }
 
     /**
-     * Join base path and path to form full path.
+     * 合并基础路径和路径形成完整路径
+     * <p>
+     * 将基础路径和API路径合并，处理斜杠拼接。
+     * </p>
+     *
+     * @param basePath 基础路径
+     * @param path     API路径
+     * @return 完整路径
      */
     private String joinPath(String basePath, String path) {
         String bp = basePath == null ? "" : basePath;

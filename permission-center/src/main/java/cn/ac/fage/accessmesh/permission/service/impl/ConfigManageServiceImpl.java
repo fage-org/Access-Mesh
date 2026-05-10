@@ -41,6 +41,19 @@ import cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef;
 
+/**
+ * 配置管理服务实现类
+ * <p>
+ * 提供类型定义、业务域、域配置、服务配置、系统配置的CRUD操作。
+ * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 批量删除操作采用批量软删除策略，避免N+1查询问题。
+ * 服务接口同步通过ServiceInterfaceSyncService处理。
+ * </p>
+ *
+ * TODO: 构造函数依赖过多(12个)，违反单一职责原则
+ * 建议：拆分配置查询/配置管理/配置同步职责
+ * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+ */
 @Service
 public class ConfigManageServiceImpl implements ConfigManageService {
 
@@ -57,9 +70,22 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     private final ServiceInterfaceSyncService serviceInterfaceSyncService;
     private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖过多(12个)，违反单一职责原则
-    // 建议：拆分配置查询/配置管理/配置同步职责
-    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+    /**
+     * 构造函数注入依赖
+     *
+     * @param typeDefinitionMapper        类型定义数据访问层
+     * @param bizDomainMapper             业务域数据访问层
+     * @param domainConfigMapper          域配置数据访问层
+     * @param serviceConfigMapper         服务配置数据访问层
+     * @param systemConfigMapper          系统配置数据访问层
+     * @param resourceEntityMapper        资源实体数据访问层
+     * @param resourceApiMappingMapper    资源API映射数据访问层
+     * @param typeResolutionService       类型解析服务
+     * @param operationLogDomainService   操作日志领域服务
+     * @param authorizationService        授权服务
+     * @param serviceInterfaceSyncService 服务接口同步服务
+     * @param engine                      权限查询引擎
+     */
     public ConfigManageServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                    BizDomainMapper bizDomainMapper,
                                    DomainConfigMapper domainConfigMapper,
@@ -86,14 +112,27 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         this.engine = engine;
     }
 
-    // ===== TypeDefinition =====
+    // ===== 类型定义管理 =====
 
+    /**
+     * 创建类型定义
+     * <p>
+     * 在指定租户下创建新的类型定义。类型定义用于系统中的各种枚举值，
+     * 如用户类型、角色类型、资源类型等。需要TYPE_DEFINITION_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        类型创建请求，包含类型键、类型值、名称、描述等
+     * @param operatorId 操作者ID，可选
+     * @return 创建的类型定义响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check - instance-level for TYPE_DEFINITION resource
+        // 权限校验：创建类型定义需要TYPE_DEFINITION_CREATE权限
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE);
 
         TypeDefinition type = new TypeDefinition();
@@ -115,9 +154,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toTypeResp(type);
     }
 
+    /**
+     * 获取类型定义详情
+     * <p>
+     * 根据类型ID查询类型定义的完整信息。需要TYPE_DEFINITION_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeId   类型定义ID
+     * @return 类型定义响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
-        // Permission check - VIEW operation on TYPE_DEFINITION
+        // 权限校验：查看类型定义需要TYPE_DEFINITION_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW);
 
@@ -130,9 +180,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return type != null ? toTypeResp(type) : null;
     }
 
+    /**
+     * 查询类型定义列表
+     * <p>
+     * 根据业务域过滤查询类型定义列表。需要TYPE_DEFINITION_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 业务域编码，可选过滤条件
+     * @return 类型定义响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
-        // Permission check - VIEW operation on TYPE_DEFINITION (type-level)
+        // 权限校验：查看类型定义需要TYPE_DEFINITION_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW);
 
@@ -150,15 +211,28 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .stream().map(this::toTypeResp).collect(Collectors.toList());
     }
 
+    /**
+     * 删除单个类型定义
+     * <p>
+     * 软删除指定的类型定义。系统类型（isSystem=true）不可删除。
+     * 需要TYPE_DEFINITION_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param typeId     类型定义ID
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalStateException  尝试删除系统类型时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteType(Long tenantId, Long typeId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check - instance-level for TYPE_DEFINITION resource
+        // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE);
 
-        // Check if system type - cannot be deleted
+        // 检查是否为系统类型，系统类型不可删除
         TypeDefinition typeDef = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -177,6 +251,18 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
     }
 
+    /**
+     * 批量删除类型定义
+     * <p>
+     * 批量软删除类型定义。系统类型会被过滤掉不删除。
+     * 使用批量查询和批量软删除避免N+1问题。需要TYPE_DEFINITION_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        类型定义ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
@@ -186,7 +272,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Filter out null IDs
+        // 过滤null值ID
         Set<Long> validInputIds = ids.stream()
             .filter(id -> id != null)
             .collect(Collectors.toSet());
@@ -195,10 +281,10 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Permission check - instance-level batch validation for TYPE_DEFINITION resources
+        // 权限校验：批量管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别批量校验）
         engine.validateBatch(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
 
-        // Batch query (avoid N+1)
+        // 批量查询（避免N+1）
         List<TypeDefinition> entities = typeDefinitionMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -210,7 +296,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Filter non-system types and collect valid IDs
+        // 过滤非系统类型并收集有效ID
         Set<Long> validIds = entities.stream()
             .filter(e -> !Boolean.TRUE.equals(e.getIsSystem()))
             .map(TypeDefinition::getId)
@@ -220,11 +306,11 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Batch soft delete using mapper method
+        // 使用Mapper批量软删除方法
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
-        // Log record
+        // 记录操作日志
         operationLogDomainService.asyncRecord(
             "perm",
             "type-definition-remove",
@@ -238,12 +324,26 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 更新类型定义
+     * <p>
+     * 更新类型定义的名称、描述、排序顺序等属性。
+     * 需要TYPE_DEFINITION_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        类型更新请求
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的类型定义响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 类型不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check - instance-level for TYPE_DEFINITION resource
+        // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE);
 
         TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
@@ -263,14 +363,27 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toTypeResp(type);
     }
 
-    // ===== BizDomain =====
+    // ===== 业务域管理 =====
 
+    /**
+     * 创建业务域
+     * <p>
+     * 创建新的业务域。业务域用于隔离不同业务场景的配置。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        业务域创建请求，包含编码、名称、描述
+     * @param operatorId 操作者ID，可选
+     * @return 创建的业务域响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
@@ -289,9 +402,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toBizDomainResp(domain);
     }
 
+    /**
+     * 获取业务域详情
+     * <p>
+     * 根据业务域ID查询业务域信息。需要DOMAIN_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param domainId 业务域ID
+     * @return 业务域响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
-        // Permission check - VIEW operation on DOMAIN
+        // 权限校验：查看业务域需要DOMAIN_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW);
 
@@ -304,9 +428,19 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return domain != null ? toBizDomainResp(domain) : null;
     }
 
+    /**
+     * 查询业务域列表
+     * <p>
+     * 查询租户下所有业务域。需要DOMAIN_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 业务域响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<BizDomainResp> listBizDomains(Long tenantId) {
-        // Permission check - VIEW operation on DOMAIN (type-level)
+        // 权限校验：查看业务域需要DOMAIN_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW);
 
@@ -317,12 +451,23 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         ).stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
 
+    /**
+     * 删除单个业务域
+     * <p>
+     * 软删除指定的业务域。需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param domainId   业务域ID
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomain(Long tenantId, Long domainId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domain");
         }
@@ -335,12 +480,24 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
     }
 
+    /**
+     * 批量删除业务域
+     * <p>
+     * 批量软删除业务域。使用批量查询和批量软删除避免N+1问题。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        业务域ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check (entry-level)
+        // 权限校验（入口级别）
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
@@ -349,7 +506,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Filter out null IDs
+        // 过滤null值ID
         Set<Long> validInputIds = ids.stream()
             .filter(id -> id != null)
             .collect(Collectors.toSet());
@@ -358,7 +515,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Batch query (avoid N+1)
+        // 批量查询（避免N+1）
         List<BizDomain> entities = bizDomainMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
@@ -370,16 +527,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Collect valid IDs
+        // 收集有效ID
         Set<Long> validIds = entities.stream()
             .map(BizDomain::getId)
             .collect(Collectors.toSet());
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         bizDomainMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
-        // Log record
+        // 记录操作日志
         operationLogDomainService.asyncRecord(
             "perm",
             "biz-domain-remove",
@@ -393,12 +550,25 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 更新业务域
+     * <p>
+     * 更新业务域的名称和描述。需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        业务域更新请求
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的业务域响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 业务域不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
@@ -417,12 +587,25 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toBizDomainResp(domain);
     }
 
-    // ===== DomainConfig =====
+    // ===== 域配置管理 =====
 
+    /**
+     * 创建或更新域配置
+     * <p>
+     * 如果配置已存在则更新，否则创建新配置。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      域配置请求，包含业务域编码、配置类型、扩展信息
+     * @return 域配置响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 业务域不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
-        // Permission check for config operations
+        // 权限校验：配置操作需要SYSTEM_CONFIG_MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
@@ -460,9 +643,21 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
     }
 
+    /**
+     * 获取域配置详情
+     * <p>
+     * 根据业务域编码和配置类型查询域配置。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 业务域编码
+     * @param configType 配置类型
+     * @return 域配置响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -480,9 +675,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return config != null ? toDomainConfigResp(config) : null;
     }
 
+    /**
+     * 查询域配置列表
+     * <p>
+     * 根据业务域过滤查询域配置列表。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 业务域编码，可选过滤条件
+     * @return 域配置响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -500,12 +706,24 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             .stream().map(this::toDomainConfigResp).collect(Collectors.toList());
     }
 
+    /**
+     * 批量删除域配置
+     * <p>
+     * 批量软删除域配置。使用批量查询和批量软删除避免N+1问题。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        域配置ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check (added - was missing)
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
@@ -514,7 +732,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Filter out null IDs
+        // 过滤null值ID
         Set<Long> validInputIds = ids.stream()
             .filter(id -> id != null)
             .collect(Collectors.toSet());
@@ -523,7 +741,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Batch query (avoid N+1)
+        // 批量查询（避免N+1）
         List<DomainConfig> entities = domainConfigMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
@@ -535,16 +753,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Collect valid IDs
+        // 收集有效ID
         Set<Long> validIds = entities.stream()
             .map(DomainConfig::getId)
             .collect(Collectors.toSet());
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         domainConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
-        // Log record
+        // 记录操作日志
         operationLogDomainService.asyncRecord(
             "perm",
             "domain-config-remove",
@@ -558,14 +776,27 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
-    // ===== ServiceConfig =====
+    // ===== 服务配置管理 =====
 
+    /**
+     * 保存服务配置
+     * <p>
+     * 如果配置已存在则更新，否则创建新配置。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        服务配置请求
+     * @param operatorId 操作者ID，可选
+     * @return 服务配置响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to save service config");
         }
@@ -593,12 +824,25 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toServiceConfigResp(config);
     }
 
+    /**
+     * 创建服务配置
+     * <p>
+     * 创建新的服务配置。服务配置用于定义服务的API接口映射等。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        服务配置请求
+     * @param operatorId 操作者ID，可选
+     * @return 服务配置响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check
+        // 权限校验
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create service config");
         }
@@ -619,9 +863,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return toServiceConfigResp(config);
     }
 
+    /**
+     * 获取服务配置详情
+     * <p>
+     * 根据服务编码查询服务配置。需要SERVICE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param serviceCode 服务编码
+     * @return 服务配置响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
-        // Permission check - VIEW operation on SERVICE
+        // 权限校验：查看服务需要SERVICE_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW);
 
@@ -634,9 +889,19 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return config != null ? toServiceConfigResp(config) : null;
     }
 
+    /**
+     * 查询服务配置列表
+     * <p>
+     * 查询租户下所有服务配置。需要SERVICE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 服务配置响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
-        // Permission check - VIEW operation on SERVICE (type-level)
+        // 权限校验：查看服务需要SERVICE_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW);
 
@@ -647,12 +912,24 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         ).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
     }
 
+    /**
+     * 批量删除服务配置
+     * <p>
+     * 批量软删除服务配置。使用批量查询和批量软删除避免N+1问题。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        服务配置ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // Permission check (entry-level)
+        // 权限校验（入口级别）
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete service configs");
         }
@@ -661,7 +938,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Filter out null IDs
+        // 过滤null值ID
         Set<Long> validInputIds = ids.stream()
             .filter(id -> id != null)
             .collect(Collectors.toSet());
@@ -670,7 +947,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Batch query (avoid N+1)
+        // 批量查询（避免N+1）
         List<ServiceConfig> entities = serviceConfigMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
@@ -682,16 +959,16 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             return;
         }
 
-        // Collect valid IDs
+        // 收集有效ID
         Set<Long> validIds = entities.stream()
             .map(ServiceConfig::getId)
             .collect(Collectors.toSet());
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         serviceConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
-        // Log record
+        // 记录操作日志
         operationLogDomainService.asyncRecord(
             "perm",
             "service-config-remove",
@@ -705,17 +982,40 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 同步服务接口
+     * <p>
+     * 从服务同步API接口定义，自动创建资源实体和API映射。
+     * 需要SERVICE_SYNC_INTERFACE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        服务配置同步请求
+     * @param operatorId 操作者ID，可选
+     * @return 服务配置同步响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ServiceConfigSyncResp syncServiceInterfaces(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        
-        // Permission validation: check SYNC_INTERFACE permission on SERVICE resource
+
+        // 权限校验：检查SERVICE资源的SYNC_INTERFACE权限
         engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE);
-        
+
         return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }
 
+    /**
+     * 查询服务的API映射列表
+     * <p>
+     * 查询指定服务的所有API映射配置。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param serviceCode 服务编码
+     * @return API映射响应列表
+     */
     @Override
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
         return resourceApiMappingMapper.selectListByQuery(
@@ -739,12 +1039,24 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         )).collect(Collectors.toList());
     }
 
-    // ===== SystemConfig =====
+    // ===== 系统配置管理 =====
 
+    /**
+     * 创建或更新系统配置
+     * <p>
+     * 如果配置已存在则更新，否则创建新配置。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      系统配置请求，包含配置键、配置值、描述
+     * @return 系统配置响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
-        // Permission check for config operations
+        // 权限校验：配置操作需要SYSTEM_CONFIG_MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
@@ -778,9 +1090,20 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
     }
 
+    /**
+     * 获取系统配置详情
+     * <p>
+     * 根据配置键查询系统配置。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param configKey 配置键
+     * @return 系统配置响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -793,9 +1116,19 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         return config != null ? toSystemConfigResp(config) : null;
     }
 
+    /**
+     * 查询系统配置列表
+     * <p>
+     * 查询租户下所有系统配置。需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 系统配置响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
-        // Permission check - VIEW operation on SYSTEM_CONFIG
+        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
@@ -806,8 +1139,14 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         ).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
     }
 
-    // ===== Converters =====
+    // ===== 实体转换方法 =====
 
+    /**
+     * 将TypeDefinition实体转换为响应对象
+     *
+     * @param t 类型定义实体
+     * @return 类型定义响应对象
+     */
     private TypeDefinitionResp toTypeResp(TypeDefinition t) {
         return new TypeDefinitionResp(
             t.getId(), t.getTenantId(), t.getBizDomainId(),
@@ -817,6 +1156,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 将BizDomain实体转换为响应对象
+     *
+     * @param d 业务域实体
+     * @return 业务域响应对象
+     */
     private BizDomainResp toBizDomainResp(BizDomain d) {
         return new BizDomainResp(
             d.getId(), d.getTenantId(), d.getCode(),
@@ -824,6 +1169,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 将DomainConfig实体转换为响应对象
+     *
+     * @param c 域配置实体
+     * @return 域配置响应对象
+     */
     private DomainConfigResp toDomainConfigResp(DomainConfig c) {
         return new DomainConfigResp(
             c.getId(), c.getTenantId(), c.getBizDomainId(),
@@ -831,6 +1182,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 将ServiceConfig实体转换为响应对象
+     *
+     * @param c 服务配置实体
+     * @return 服务配置响应对象
+     */
     private ServiceConfigResp toServiceConfigResp(ServiceConfig c) {
         return new ServiceConfigResp(
             c.getId(), c.getTenantId(), c.getServiceCode(),
@@ -839,6 +1196,12 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         );
     }
 
+    /**
+     * 将SystemConfig实体转换为响应对象
+     *
+     * @param c 系统配置实体
+     * @return 系统配置响应对象
+     */
     private SystemConfigResp toSystemConfigResp(SystemConfig c) {
         return new SystemConfigResp(
             c.getId(), c.getTenantId(), c.getConfigKey(),

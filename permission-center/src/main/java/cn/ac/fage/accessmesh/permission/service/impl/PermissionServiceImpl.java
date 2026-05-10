@@ -76,6 +76,17 @@ import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
 
+/**
+ * 权限服务实现类
+ * <p>
+ * 提供权限校验、资源查询、范围查询、权限树查询、接口快照等核心功能。
+ * 使用PermQueryEngine作为统一查询入口，支持条件评估、冲突解决等高级功能。
+ * </p>
+ * <p>
+ * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+ * 建议：拆分为PermissionQueryService/PermissionCheckService/PermissionTreeService
+ * </p>
+ */
 @Service
 public class PermissionServiceImpl implements PermissionService {
 
@@ -100,9 +111,9 @@ public class PermissionServiceImpl implements PermissionService {
     private final RolePermEntryMapper rolePermEntryMapper;
     private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖过多(17个)，违反单一职责原则
-    // 建议：拆分为 PermissionQueryService/PermissionCheckService/PermissionTreeService
-    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+    /**
+     * 构造函数注入所有依赖
+     */
     public PermissionServiceImpl(AbstractUserMapper abstractUserMapper,
                                  ResourceEntityMapper resourceEntityMapper,
                                  ResourceApiMappingMapper apiMappingMapper,
@@ -139,6 +150,17 @@ public class PermissionServiceImpl implements PermissionService {
         this.engine = engine;
     }
 
+    /**
+     * 单次权限校验
+     * <p>
+     * 检查用户对指定资源是否有指定操作的权限。
+     * 使用PermQueryEngine作为统一查询入口。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限校验请求，包含用户、资源、操作等参数
+     * @return 权限校验响应，包含是否允许、拒绝原因、匹配的权限等信息
+     */
     @Override
     @Transactional(readOnly = true)
     public AuthCheckResp check(Long tenantId, AuthCheckReq req) {
@@ -156,6 +178,16 @@ public class PermissionServiceImpl implements PermissionService {
         return PermResultUtils.toAuthCheckResp(engine.query(q));
     }
 
+    /**
+     * 批量权限校验
+     * <p>
+     * 批量检查用户对多个资源的权限，返回每个资源的校验结果。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      批量权限校验请求，包含多个校验项
+     * @return 批量权限校验响应，包含每个项的结果
+     */
     @Override
     @Transactional(readOnly = true)
     public BatchAuthCheckResp batchCheck(Long tenantId, BatchAuthCheckReq req) {
@@ -181,12 +213,24 @@ public class PermissionServiceImpl implements PermissionService {
         return PermResultUtils.toBatchAuthCheckResp(resultsByKey);
     }
 
+    /**
+     * 接口级权限校验
+     * <p>
+     * 检查用户是否有访问指定API接口的权限。
+     * 根据服务编码、HTTP方法、路径匹配API映射配置。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      接口校验请求，包含服务编码、HTTP方法、路径等
+     * @return 接口校验响应，包含是否允许、拒绝原因
+     */
     @Override
     @Transactional(readOnly = true)
     public CheckInterfaceResp checkInterface(Long tenantId, CheckInterfaceReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return CheckInterfaceResp.deny("USER_NOT_FOUND");
 
+        // 查询API映射配置
         List<ResourceApiMapping> mappings = apiMappingMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
@@ -195,17 +239,32 @@ public class PermissionServiceImpl implements PermissionService {
                 .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
                 .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ENABLED.eq(true)));
         if (mappings.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
+
+        // 匹配路径模式
         List<ResourceApiMapping> matched = mappings.stream()
             .filter(m -> pathMatches(m.getPathPattern(), req.path())).toList();
         if (matched.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
+
+        // 提取资源实体ID集合
         Set<Long> entityIds = matched.stream()
             .map(ResourceApiMapping::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
 
+        // 使用PermQueryEngine进行权限校验
         PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
         q.setContext(req.context());
         return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
     }
 
+    /**
+     * 查询用户可访问的资源列表
+     * <p>
+     * 根据用户角色和权限配置，返回用户有权限访问的资源。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      资源查询请求，包含资源类型、操作等参数
+     * @return 资源查询响应，包含资源列表
+     */
     public QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new QueryResourcesResp(List.of(), "", 60);
@@ -219,6 +278,17 @@ public class PermissionServiceImpl implements PermissionService {
         return PermResultUtils.toQueryResourcesResp(r, 60);
     }
 
+    /**
+     * 查询用户的数据范围
+     * <p>
+     * 基于父资源的权限，查询用户在子资源类型上的数据范围。
+     * 支持条件评估和冲突解决。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      范围查询请求
+     * @return 范围查询响应，包含可访问的范围列表
+     */
     public QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req) {
         // 1. 参数验证
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
@@ -233,18 +303,27 @@ public class PermissionServiceImpl implements PermissionService {
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
         Map<String, Object> ctx = req.context() != null ? req.context() : Map.of();
 
+        // 2. 验证父资源权限
         ParentPermissionsResult parentResult = validateParentPermissions(tenantId, userId,
             req, parentResourceEntityId, bizDomainId, ctx);
         if (parentResult == null) {
             return new QueryScopesResp(false, "NO_PERMISSION", List.of(), List.of(), List.of(), "UNION", "", 60);
         }
 
+        // 3. 处理范围权限
         Map<String, ScopeAccumulator> merged = processScopePermissions(tenantId, userId,
             bizDomainId, req, parentResult.parentPermissionIds, ctx);
 
+        // 4. 构建响应
         return buildQueryScopesResponse(merged, userId, tenantId, parentResult);
     }
 
+    /**
+     * 构建范围累加器
+     * <p>
+     * 根据权限条目构建范围累加器对象，用于合并相同范围的操作
+     * </p>
+     */
     private ScopeAccumulator buildScopeAccumulator(RolePermEntry entry, String scopeTypeCode,
                                                     Map<Long, ResourceEntity> scopeResourceMap,
                                                     Map<String, ScopeAccumulator> merged) {
@@ -268,6 +347,9 @@ public class PermissionServiceImpl implements PermissionService {
         );
     }
 
+    /**
+     * 构建范围查询响应
+     */
     private QueryScopesResp buildQueryScopesResponse(Map<String, ScopeAccumulator> merged,
                                                       Long userId, Long tenantId,
                                                       ParentPermissionsResult parentResult) {
@@ -298,6 +380,12 @@ public class PermissionServiceImpl implements PermissionService {
         );
     }
 
+    /**
+     * 验证父资源权限
+     * <p>
+     * 检查用户对父资源是否有任一操作的权限
+     * </p>
+     */
     private ParentPermissionsResult validateParentPermissions(Long tenantId, Long userId,
                                                                QueryScopesReq req, Long parentResourceEntityId,
                                                                Long bizDomainId, Map<String, Object> ctx) {
@@ -318,6 +406,12 @@ public class PermissionServiceImpl implements PermissionService {
         return new ParentPermissionsResult(matchedParentOps, parentPermissionIds);
     }
 
+    /**
+     * 处理范围权限
+     * <p>
+     * 查询用户在子资源类型上的权限，应用条件评估和冲突解决
+     * </p>
+     */
     private Map<String, ScopeAccumulator> processScopePermissions(Long tenantId, Long userId,
                                                                    Long bizDomainId, QueryScopesReq req,
                                                                    Set<Long> parentPermissionIds,
@@ -355,6 +449,12 @@ public class PermissionServiceImpl implements PermissionService {
         return merged;
     }
 
+    /**
+     * 处理范围操作权限
+     * <p>
+     * 对每个操作进行条件评估和冲突解决，然后累加结果
+     * </p>
+     */
     private void processScopeOperations(Long tenantId, Map<String, Object> ctx,
                                          QueryScopesReq req, String scopeTypeCode,
                                          Map<String, Long> scopeOpIdMap,
@@ -379,6 +479,9 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
+    /**
+     * 父资源权限验证结果
+     */
     private static class ParentPermissionsResult {
         final Set<String> matchedParentOps;
         final Set<Long> parentPermissionIds;
@@ -388,12 +491,24 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
+    /**
+     * 获取接口权限快照
+     * <p>
+     * 获取用户在指定服务下所有可访问的API列表。
+     * 使用缓存提升性能，支持版本号判断是否需要更新。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      接口快照请求，包含用户、服务编码、版本号等
+     * @return 接口快照响应，包含可访问的API列表和版本号
+     */
     @Override
     @Transactional(readOnly = true)
     public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new InterfaceSnapshotResp(false, 0, List.of());
 
+        // 检查缓存
         var cached = permCacheDomainService.getInterfaceSnapshot(tenantId, req.serviceCode());
         if (cached.isPresent()) {
             long cachedVersion = cached.get().version();
@@ -407,15 +522,19 @@ public class PermissionServiceImpl implements PermissionService {
             return new InterfaceSnapshotResp(false, cachedVersion, entries);
         }
 
+        // 解析用户有效角色
         Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, null);
         if (effectiveRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
+
+        // 计算当前版本
         long currentVersion = permissionVersionDomainService.calculateMaxVersion(tenantId, validRoleIds);
         if (req.permissionVersion() != null && req.permissionVersion().equals(currentVersion)) {
             return new InterfaceSnapshotResp(true, currentVersion, List.of());
         }
 
+        // 查询所有角色权限
         List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
@@ -423,7 +542,7 @@ public class PermissionServiceImpl implements PermissionService {
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
-        // 1. Get resource types with type-level permission (scopeAll=true)
+        // 1. 获取类型级权限的资源类型（scopeAll=true）
         Set<Integer> scopeAllResourceTypes = allPerms.stream()
             .filter(p -> Boolean.TRUE.equals(p.getScopeAll()))
             .map(RoleResourcePermission::getResourceType)
@@ -432,7 +551,7 @@ public class PermissionServiceImpl implements PermissionService {
 
         Set<Long> allowedResourceIds = new HashSet<>();
 
-        // 2. For scopeAll=true resource types, batch query all resources using IN clause
+        // 2. 对scopeAll=true的资源类型，批量查询所有资源
         if (!scopeAllResourceTypes.isEmpty()) {
             List<ResourceEntity> allTypeResources = resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -445,12 +564,13 @@ public class PermissionServiceImpl implements PermissionService {
                 .toList());
         }
 
-        // 3. Add instance-level permission resource IDs
+        // 3. 添加实例级权限的资源ID
         allowedResourceIds.addAll(allPerms.stream()
             .filter(p -> p.getResourceEntityId() != null && !Boolean.TRUE.equals(p.getScopeAll()))
             .map(RoleResourcePermission::getResourceEntityId)
             .collect(Collectors.toSet()));
 
+        // 查询API映射并构建响应
         List<ApiPermissionEntry> entries = new ArrayList<>();
         if (!allowedResourceIds.isEmpty()) {
             List<ResourceApiMapping> apiMappings = apiMappingMapper.selectListByQuery(
@@ -471,6 +591,8 @@ public class PermissionServiceImpl implements PermissionService {
                     mapping.getPathPattern(), hasCondition, conditionId));
             }
         }
+
+        // 去重处理
         List<ApiPermissionEntry> dedupedEntries = entries.stream()
             .collect(Collectors.toMap(
                 item -> item.serviceCode() + "|" + item.httpMethod() + "|" + item.pathPattern(),
@@ -481,6 +603,8 @@ public class PermissionServiceImpl implements PermissionService {
             .values()
             .stream()
             .toList();
+
+        // 缓存结果
         InterfaceSnapshot snapshot = new InterfaceSnapshot(
             tenantId,
             req.serviceCode(),
@@ -495,17 +619,13 @@ public class PermissionServiceImpl implements PermissionService {
         return new InterfaceSnapshotResp(false, currentVersion, dedupedEntries);
     }
 
-    // =========== Internal helpers ===========
+    // =========== 内部辅助方法 ==========
 
     /**
-     * Query type-level permissions (scopeAll=true) for a resource type + operation.
-     * Type-level permission means the user has permission on ALL instances of this resource type.
-     *
-     * @param tenantId tenant ID
-     * @param roleIds valid role IDs (after mutex filtering)
-     * @param resourceType resource type value
-     * @param operationPermissionId operation permission ID
-     * @return list of matching RolePermEntry, empty if no type-level permission found
+     * 批量查询匹配的权限条目
+     * <p>
+     * 查询指定角色集合和资源集合的实例级权限
+     * </p>
      */
     private List<RolePermEntry> queryMatchedEntriesBatch(Long tenantId, Set<Long> roleIds,
                                                           Set<Long> resourceEntityIds) {
@@ -513,14 +633,13 @@ public class PermissionServiceImpl implements PermissionService {
             return List.of();
         }
 
-        // Query ALL instance-level permissions for these resources
-        // Caller will filter by matchesBit to preserve original behavior
+        // 查询所有实例级权限
         List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceEntityIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.ne(true))  // Instance-level only
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.ne(true))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
@@ -528,10 +647,15 @@ public class PermissionServiceImpl implements PermissionService {
             return List.of();
         }
 
-        // Convert to RolePermEntry without matchesBit filtering
         return rolePermEntryMapper.toEntryList(perms);
     }
 
+    /**
+     * 范围累加器
+     * <p>
+     * 用于合并相同范围的操作权限
+     * </p>
+     */
     private static final class ScopeAccumulator {
         private final String resourceTypeCode;
         private final String resourceCode;
@@ -559,16 +683,32 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
+    /**
+     * 路径匹配
+     * <p>
+     * 使用AntPathMatcher进行路径模式匹配，支持*、**、{xxx}通配符
+     * </p>
+     */
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
-        // AntPathMatcher 支持 *、**、{xxx} 三种通配符
         return PATH_MATCHER.match(pattern, path);
     }
 
+    /**
+     * 查询权限树
+     * <p>
+     * 从指定资源开始，向上/向下遍历资源树，返回有权限的节点。
+     * 支持祖先、子孙、双向三种遍历方向。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限树查询请求
+     * @return 权限树响应，包含根节点、祖先列表、子孙列表
+     */
     @Override
     @Transactional(readOnly = true)
     public PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req) {
-        // 1. 参数验证和上下文准备
+        // 1. 准备上下文
         TreeContext context = prepareTreeContext(tenantId, req);
         if (context.userId == null) {
             return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
@@ -616,14 +756,17 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
+    /**
+     * 准备权限树查询上下文
+     */
     private TreeContext prepareTreeContext(Long tenantId, PermissionTreeReq req) {
-        // 1. Resolve subject to internal user ID
+        // 1. 解析用户ID
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
             return new TreeContext(null, null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
-        // 2. Resolve starting resource
+        // 2. 解析根资源ID
         Long rootResourceId = typeResolutionService.resolveResourceId(
             tenantId, req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.domainCode()
         );
@@ -631,10 +774,10 @@ public class PermissionServiceImpl implements PermissionService {
             return new TreeContext(userId, null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
-        // 3. Resolve bizDomainId from domainCode
+        // 3. 解析业务域ID
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
 
-        // 4. Get effective roles
+        // 4. 获取有效角色
         Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);
         if (effectiveRoleIds.isEmpty()) {
             return new TreeContext(userId, rootResourceId, bizDomainId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
@@ -644,10 +787,10 @@ public class PermissionServiceImpl implements PermissionService {
             return new TreeContext(userId, rootResourceId, bizDomainId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
-        // 5. Resolve operation permission IDs for requested operation codes
+        // 5. 解析操作ID
         Set<Long> operationIds = resolveOperationIds(tenantId, req);
 
-        // Batch load operation permissions for getOperationsForResource calls
+        // 批量加载操作权限
         Map<Long, OperationPermission> operationMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
 
         int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
@@ -656,15 +799,22 @@ public class PermissionServiceImpl implements PermissionService {
         return new TreeContext(userId, rootResourceId, bizDomainId, validRoleIds, operationIds, operationMap, maxDepth, direction);
     }
 
+    /**
+     * 解析操作ID集合
+     */
     private Set<Long> resolveOperationIds(Long tenantId, PermissionTreeReq req) {
-        // Batch resolve operation codes (avoid N+1)
         Set<String> opCodes = new HashSet<>(req.operationCodes());
         Map<String, Long> opIdMap = typeResolutionService.batchResolveOperationIds(tenantId, req.resourceTypeCode(), opCodes);
         return new HashSet<>(opIdMap.values());
     }
 
+    /**
+     * 构建权限映射
+     * <p>
+     * 查询所有角色权限并按资源ID分组
+     * </p>
+     */
     private Map<Long, List<RoleResourcePermission>> buildPermissionMap(Long tenantId, TreeContext context) {
-        // Get all permissions for valid roles
         List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
@@ -672,15 +822,17 @@ public class PermissionServiceImpl implements PermissionService {
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
-        // Build permission map by resource entity ID
         return allPerms.stream()
             .filter(p -> p.getResourceEntityId() != null)
             .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
     }
 
+    /**
+     * 构建权限树响应
+     */
     private PermissionTreeResp buildPermissionTreeResponse(Long tenantId, TreeContext context,
                                                             Map<Long, List<RoleResourcePermission>> permsByResource) {
-        // Batch load all related resources for tree traversal (avoid N+1)
+        // 批量加载所有资源
         List<ResourceEntity> allResources = resourceEntityMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
@@ -689,14 +841,14 @@ public class PermissionServiceImpl implements PermissionService {
         Map<Long, ResourceEntity> allResourceMap = allResources.stream()
             .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-        // Batch resolve all resource type codes (avoid N+1)
+        // 批量解析资源类型编码
         Set<Integer> allResourceTypes = allResources.stream()
             .map(ResourceEntity::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", allResourceTypes);
 
-        // Build root node
+        // 构建根节点
         ResourceEntity rootResource = allResourceMap.get(context.rootResourceId);
         TreeNode root = buildNode(context.rootResourceId, 0,
             getOperationsForResource(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
@@ -704,7 +856,7 @@ public class PermissionServiceImpl implements PermissionService {
             rootResource != null ? rootResource.getName() : null,
             rootResource, resourceTypeCodeMap);
 
-        // Traverse based on direction
+        // 遍历祖先和子孙
         List<TreeNode> ancestors = List.of();
         List<TreeNode> descendants = List.of();
 
@@ -717,12 +869,14 @@ public class PermissionServiceImpl implements PermissionService {
                 context.operationIds, context.operationMap, context.maxDepth, allResourceMap, resourceTypeCodeMap);
         }
 
-        // Build permission version
         String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(context.userId, tenantId, context.validRoleIds);
 
         return new PermissionTreeResp(root, ancestors, descendants, permissionVersion, 60);
     }
 
+    /**
+     * 构建树节点
+     */
     private TreeNode buildNode(Long resourceId, int depth,
                                Set<String> operations, boolean canGrant, String name,
                                ResourceEntity resource, Map<Integer, String> resourceTypeCodeMap) {
@@ -733,6 +887,9 @@ public class PermissionServiceImpl implements PermissionService {
         return new TreeNode(resourceId, typeCode, resource.getCode(), resource.getName(), depth, operations, canGrant, null);
     }
 
+    /**
+     * 获取资源的操作列表
+     */
     private Set<String> getOperationsForResource(List<RoleResourcePermission> perms, Set<Long> operationIds,
                                                   Map<Long, OperationPermission> operationMap) {
         if (perms == null || perms.isEmpty()) return Set.of();
@@ -746,6 +903,9 @@ public class PermissionServiceImpl implements PermissionService {
             .collect(Collectors.toSet());
     }
 
+    /**
+     * 检查是否有授权传递权限
+     */
     private boolean hasCanGrant(List<RoleResourcePermission> perms, Set<Long> operationIds) {
         if (perms == null || perms.isEmpty()) return false;
         return perms.stream()
@@ -753,6 +913,9 @@ public class PermissionServiceImpl implements PermissionService {
             .anyMatch(p -> Boolean.TRUE.equals(p.getCanGrant()));
     }
 
+    /**
+     * 向上遍历祖先节点
+     */
     private List<TreeNode> traverseAncestors(Long tenantId, Long startResourceId,
                                               Map<Long, List<RoleResourcePermission>> permsByResource,
                                               Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
@@ -785,6 +948,9 @@ public class PermissionServiceImpl implements PermissionService {
         return ancestors;
     }
 
+    /**
+     * 向下遍历子孙节点
+     */
     private List<TreeNode> traverseDescendants(Long tenantId, Long startResourceId,
                                                 Map<Long, List<RoleResourcePermission>> permsByResource,
                                                 Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
@@ -796,6 +962,9 @@ public class PermissionServiceImpl implements PermissionService {
         return descendants;
     }
 
+    /**
+     * 递归收集有权限的子孙节点
+     */
     private void collectDescendantsWithPermission(Long tenantId, Long parentId,
                                                    Map<Long, List<RoleResourcePermission>> permsByResource,
                                                    Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
@@ -805,7 +974,7 @@ public class PermissionServiceImpl implements PermissionService {
                                                    Map<Integer, String> resourceTypeCodeMap) {
         if (currentDepth > maxDepth) return;
 
-        // Filter children from pre-loaded resources
+        // 从预加载资源中过滤子节点
         List<ResourceEntity> children = allResourceMap.values().stream()
             .filter(r -> Objects.equals(r.getParentId(), parentId) && r.getDeleteFlag() == 0L && r.getTenantId().equals(tenantId))
             .collect(Collectors.toList());

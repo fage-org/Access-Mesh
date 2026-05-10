@@ -5,29 +5,39 @@ import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
 import java.util.List;
 
 /**
- * Operation log query service.
+ * 操作日志查询服务接口
+ * <p>
+ * 提供操作日志的查询功能，用于审计和追踪。
+ * 操作日志记录用户的操作行为，包括模块、操作、目标等。
+ * </p>
  */
 public interface OperationLogQueryService {
 
     /**
-     * List operation logs with pagination.
+     * 查询操作日志列表（分页）
+     * <p>
+     * 查询指定租户的操作日志，支持按模块和操作过滤，支持分页。
+     * </p>
      *
-     * @param tenantId tenant ID
-     * @param module   module filter (optional)
-     * @param action   action filter (optional)
-     * @param offset   pagination offset
-     * @param limit    pagination limit
-     * @return list of operation logs
+     * @param tenantId 租户ID
+     * @param module   模块过滤，可选
+     * @param action   操作过滤，可选
+     * @param offset   分页偏移量
+     * @param limit    每页条数
+     * @return 操作日志列表
      */
     List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit);
 
     /**
-     * Count operation logs.
+     * 统计操作日志数量
+     * <p>
+     * 统计满足条件的操作日志总数，用于分页计算。
+     * </p>
      *
-     * @param tenantId tenant ID
-     * @param module   module filter (optional)
-     * @param action   action filter (optional)
-     * @return total count
+     * @param tenantId 租户ID
+     * @param module   模块过滤，可选
+     * @param action   操作过滤，可选
+     * @return 操作日志数量
      */
     long countOperationLogs(Long tenantId, String module, String action);
 }

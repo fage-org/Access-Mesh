@@ -24,6 +24,17 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef;
 
+/**
+ * 权限冲突规则管理服务实现类
+ * <p>
+ * 提供权限冲突规则的CRUD操作和冲突检测功能。
+ * 权限冲突规则定义了哪些操作权限组合被视为冲突，
+ * 用于权限分配时检测和预警潜在的权限冲突。
+ * 冲突检测支持双向匹配（A-B和B-A都视为冲突）。
+ * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 批量删除采用批量软删除策略，避免N+1查询问题。
+ * </p>
+ */
 @Service
 public class ConflictRuleManageServiceImpl implements ConflictRuleManageService {
 
@@ -31,6 +42,13 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     private final OperationLogDomainService operationLogDomainService;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param conflictRuleMapper       权限冲突规则数据访问层
+     * @param operationLogDomainService 操作日志领域服务
+     * @param engine                    权限查询引擎
+     */
     public ConflictRuleManageServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                           OperationLogDomainService operationLogDomainService,
                                           PermQueryEngine engine) {
@@ -39,6 +57,21 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         this.engine = engine;
     }
 
+    /**
+     * 创建权限冲突规则
+     * <p>
+     * 创建新的权限冲突规则定义。
+     * 冲突规则指定两个操作权限的组合被视为冲突，
+     * 可限定于特定业务域、资源类型或角色。
+     * 需要CONFLICT_RULE_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含冲突类型、两个操作权限ID等
+     * @param operatorId 操作者ID，可选
+     * @return 创建的冲突规则响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
@@ -64,6 +97,16 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         return toConflictRuleResp(rule);
     }
 
+    /**
+     * 获取权限冲突规则详情
+     * <p>
+     * 根据规则ID查询权限冲突规则的完整信息。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ruleId   冲突规则ID
+     * @return 冲突规则响应，不存在返回null
+     */
     @Override
     public ConflictRuleResp getConflictRule(Long tenantId, Long ruleId) {
         PermissionConflictRule rule = conflictRuleMapper.selectOneByQuery(
@@ -75,6 +118,15 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         return rule != null ? toConflictRuleResp(rule) : null;
     }
 
+    /**
+     * 查询权限冲突规则列表
+     * <p>
+     * 查询租户下所有活跃的权限冲突规则。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 冲突规则响应列表
+     */
     @Override
     public List<ConflictRuleResp> listConflictRules(Long tenantId) {
         return conflictRuleMapper.selectListByQuery(
@@ -84,6 +136,20 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         ).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
     }
 
+    /**
+     * 更新权限冲突规则
+     * <p>
+     * 更新权限冲突规则的各项属性。
+     * 需要CONFLICT_RULE_UPDATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        更新请求，包含规则ID和要更新的属性
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的冲突规则响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 规则不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
@@ -107,6 +173,18 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         return toConflictRuleResp(rule);
     }
 
+    /**
+     * 检测权限冲突
+     * <p>
+     * 根据给定的两个操作权限ID检测是否存在冲突规则。
+     * 支持双向匹配：如果规则定义了(A,B)冲突，则(A,B)和(B,A)都视为冲突。
+     * 可按资源类型过滤冲突规则。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      冲突检测请求，包含两个操作权限ID和可选的资源类型
+     * @return 冲突检测结果，包含是否冲突和匹配的冲突规则列表
+     */
     @Override
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
@@ -126,6 +204,18 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         return new ConflictDetectResp(!matched.isEmpty(), matched);
     }
 
+    /**
+     * 删除单个权限冲突规则
+     * <p>
+     * 软删除指定的权限冲突规则。
+     * 需要CONFLICT_RULE_DELETE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ruleId     冲突规则ID
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
@@ -140,6 +230,19 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         }
     }
 
+    /**
+     * 批量删除权限冲突规则
+     * <p>
+     * 批量软删除权限冲突规则。
+     * 使用批量查询和批量软删除避免N+1问题。
+     * 需要CONFLICT_RULE_DELETE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        冲突规则ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRulesByIds(Long tenantId, List<Long> ids, Long operatorId) {
@@ -161,7 +264,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(PermissionConflictRule::getId).collect(Collectors.toSet());
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         conflictRuleMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
@@ -172,6 +275,12 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         );
     }
 
+    /**
+     * 将PermissionConflictRule实体转换为响应对象
+     *
+     * @param r 权限冲突规则实体
+     * @return 冲突规则响应对象
+     */
     private ConflictRuleResp toConflictRuleResp(PermissionConflictRule r) {
         return new ConflictRuleResp(
             r.getId(), r.getTenantId(), r.getBizDomainId(), r.getConflictType(),

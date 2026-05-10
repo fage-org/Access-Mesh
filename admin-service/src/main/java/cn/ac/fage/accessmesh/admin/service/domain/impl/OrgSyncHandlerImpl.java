@@ -13,6 +13,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 组织同步处理器实现类
+ * <p>
+ * 将admin-service的组织同步到permission-center的resource_entity表。
+ * 使用组织编码作为资源编码。
+ * </p>
+ */
 @Service
 public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
@@ -21,10 +28,25 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
     private final PermissionFeignClient permissionFeignClient;
 
+    /**
+     * 构造函数
+     *
+     * @param permissionFeignClient 权限中心Feign客户端
+     */
     public OrgSyncHandlerImpl(PermissionFeignClient permissionFeignClient) {
         this.permissionFeignClient = permissionFeignClient;
     }
 
+    /**
+     * 同步组织到权限中心
+     * <p>
+     * 在权限中心创建组织资源实体（资源类型ORG）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param org      组织实体
+     * @return permission-center的resource_entity.id，失败返回null
+     */
     @Override
     public Long syncOrgToPermissionCenter(Long tenantId, SysOrg org) {
         if (org == null || org.getId() == null) {
@@ -47,7 +69,7 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
         PermResult<Map<String, Object>> result = permissionFeignClient.createResource(req);
         if (result == null || result.code() != 200 || result.data() == null) {
-            log.warn("Failed to sync org to permission-center: orgId={}, orgName={}",
+            log.warn("同步组织到权限中心失败: orgId={}, orgName={}",
                 org.getId(), org.getName());
             return null;
         }
@@ -55,13 +77,20 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
         Object idObj = result.data().get("id");
         if (idObj != null) {
             Long permResourceId = Long.valueOf(idObj.toString());
-            log.info("Synced org to permission-center: orgId={}, permResourceId={}",
+            log.info("同步组织到权限中心成功: orgId={}, permResourceId={}",
                 org.getId(), permResourceId);
             return permResourceId;
         }
         return null;
     }
 
+    /**
+     * 批量同步组织到权限中心
+     *
+     * @param tenantId 租户ID
+     * @param orgs     组织列表
+     * @return 同步成功数量
+     */
     @Override
     public int batchSyncOrgs(Long tenantId, Iterable<SysOrg> orgs) {
         int successCount = 0;
@@ -74,6 +103,16 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
         return successCount;
     }
 
+    /**
+     * 从权限中心删除组织资源
+     * <p>
+     * 通过Feign调用权限中心删除指定的资源实体。
+     * </p>
+     *
+     * @param tenantId       租户ID
+     * @param permResourceId 权限中心的资源ID
+     * @return 是否成功
+     */
     @Override
     public boolean deleteOrgFromPermissionCenter(Long tenantId, Long permResourceId) {
         if (permResourceId == null) {
@@ -83,22 +122,38 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
         IdsReq req = new IdsReq(List.of(permResourceId));
         PermResult<Void> result = permissionFeignClient.deleteResources(req);
         if (result == null || result.code() != 200) {
-            log.warn("Failed to delete org from permission-center: permResourceId={}", permResourceId);
+            log.warn("从权限中心删除组织失败: permResourceId={}", permResourceId);
             return false;
         }
 
-        log.info("Deleted org from permission-center: permResourceId={}", permResourceId);
+        log.info("从权限中心删除组织成功: permResourceId={}", permResourceId);
         return true;
     }
 
+    /**
+     * 生成组织资源编码
+     * <p>
+     * 使用组织编码作为资源编码，如果没有编码则使用ID生成。
+     * </p>
+     *
+     * @param org 组织实体
+     * @return 资源编码
+     */
     @Override
     public String generateResourceCode(SysOrg org) {
-        // 使用组织编码作为资源编码
         return org.getCode() != null ? org.getCode() : "ORG_" + org.getId();
     }
 
+    /**
+     * 构建组织扩展信息JSON
+     * <p>
+     * 将组织的额外信息打包为JSON字符串格式。
+     * </p>
+     *
+     * @param org 组织实体
+     * @return JSON字符串
+     */
     private String buildOrgExtra(SysOrg org) {
-        // 将额外信息打包为 JSON 字符串
         return String.format("{\"orgType\":\"%s\",\"level\":%d,\"leaderId\":%s}",
             org.getOrgType() != null ? org.getOrgType() : "",
             org.getLevel() != null ? org.getLevel() : 0,

@@ -3,7 +3,21 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
 import java.util.List;
 
 /**
- * Tree node for user resource permission tree view.
+ * 资源权限树响应体
+ * <p>
+ * 用于用户资源权限树视图的树节点。
+ * 表示单个资源节点及其子节点的权限信息。
+ * </p>
+ *
+ * @param resourceEntityId 资源实体ID
+ * @param domainCode       业务域编码
+ * @param resourceCode     资源编码
+ * @param resourceName     资源名称
+ * @param resourceTypeCode 资源类型编码
+ * @param codeType         编码类型
+ * @param scopeAll         是否范围全部
+ * @param operationCodes   操作权限编码列表
+ * @param children         子节点列表
  */
 public record ResourcePermissionTreeResp(
     Long resourceEntityId,

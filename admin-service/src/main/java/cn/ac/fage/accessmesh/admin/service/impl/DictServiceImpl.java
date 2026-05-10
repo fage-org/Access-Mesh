@@ -35,6 +35,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 
+/**
+ * 字典管理服务实现类
+ * <p>
+ * 提供字典类型和字典数据的CRUD操作、分页查询、列表查询等功能。
+ * 字典类型定义字典分类，字典数据定义具体选项值。
+ * 使用Spring Cache缓存字典类型列表，修改时自动清除缓存。
+ * 支持批量操作和层级校验（删除类型前检查是否有关联数据）。
+ * </p>
+ */
 @Service
 public class DictServiceImpl implements DictService {
 
@@ -42,6 +51,13 @@ public class DictServiceImpl implements DictService {
     private final SysDictDataMapper dictDataMapper;
     private final AdminPermissionValidator permissionValidator;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param dictTypeMapper 字典类型数据访问Mapper
+     * @param dictDataMapper 字典数据数据访问Mapper
+     * @param permissionValidator 权限校验器，校验字典操作权限
+     */
     public DictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper,
                            AdminPermissionValidator permissionValidator) {
         this.dictTypeMapper = dictTypeMapper;
@@ -49,6 +65,17 @@ public class DictServiceImpl implements DictService {
         this.permissionValidator = permissionValidator;
     }
 
+    /**
+     * 创建字典类型
+     * <p>
+     * 创建新的字典分类，设置类型名称、类型编码、状态等。
+     * 执行类型级权限校验(CREATE)。
+     * 创建成功后清除字典类型缓存。
+     * </p>
+     *
+     * @param req 字典类型创建请求，包含类型名称、类型编码、状态、备注
+     * @return 新字典类型ID
+     */
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
@@ -68,6 +95,18 @@ public class DictServiceImpl implements DictService {
         return type.getId();
     }
 
+    /**
+     * 批量删除字典类型
+     * <p>
+     * 执行批量实例级权限校验后软删除字典类型。
+     * 删除前检查是否有关联的字典数据，有则拒绝删除。
+     * 使用批量查询优化性能，避免N+1问题。
+     * 删除成功后清除字典类型缓存。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的字典类型ID列表
+     * @throws BizException 字典类型有关联数据
+     */
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
@@ -85,7 +124,7 @@ public class DictServiceImpl implements DictService {
                 .and(SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
                 .and(SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG.eq(0))
         );
-        
+
         // Batch check if any type has associated data (performance fix: single query with GROUP BY)
         if (!types.isEmpty()) {
             List<String> dictTypes = types.stream()
@@ -105,7 +144,7 @@ public class DictServiceImpl implements DictService {
                 throw new BizException(AdminErrorCode.DICT_TYPE_HAS_DATA.getCode(), AdminErrorCode.DICT_TYPE_HAS_DATA.getMessage());
             }
         }
-        
+
         // Batch soft delete (performance fix: use single SQL instead of loop)
         if (!types.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
@@ -114,6 +153,16 @@ public class DictServiceImpl implements DictService {
         }
     }
 
+    /**
+     * 获取所有字典类型列表（含字典数据）
+     * <p>
+     * 查询所有字典类型及其关联的字典数据，构建完整字典结构。
+     * 使用Spring Cache缓存，避免重复查询。
+     * 使用批量查询优化：1次查询类型 + 1次查询数据（优化前需要N次查询）。
+     * </p>
+     *
+     * @return 字典类型响应列表，每个类型包含其下的字典数据列表
+     */
     @Override
     @Cacheable(value = "dictTypes", key = "'all'")
     public List<DictTypeResp> listDictTypes() {
@@ -159,6 +208,16 @@ public class DictServiceImpl implements DictService {
         }).collect(Collectors.toList());
     }
 
+    /**
+     * 分页查询字典类型列表
+     * <p>
+     * 获取字典类型的分页列表，不含字典数据。
+     * 按创建时间正序排列。
+     * </p>
+     *
+     * @param pageReq 分页查询请求，包含分页参数
+     * @return 分页字典类型列表结果
+     */
     @Override
     public PaginatedResult<DictTypeResp> pageDictTypes(PageReq pageReq) {
         Page<SysDictType> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
@@ -177,6 +236,19 @@ public class DictServiceImpl implements DictService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * 创建字典数据
+     * <p>
+     * 在指定字典类型下创建新的字典选项值。
+     * 执行类型级权限校验(CREATE)。
+     * 验证字典类型存在后创建数据。
+     * 创建成功后清除字典类型缓存。
+     * </p>
+     *
+     * @param req 字典数据创建请求，包含字典类型ID、标签、值、排序、状态
+     * @return 新字典数据ID
+     * @throws BizException 字典类型不存在
+     */
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
@@ -204,6 +276,17 @@ public class DictServiceImpl implements DictService {
         return data.getId();
     }
 
+    /**
+     * 更新字典数据
+     * <p>
+     * 更新字典数据的标签、值、排序、状态等属性。
+     * 执行实例级权限校验(UPDATE)。
+     * 更新成功后清除字典类型缓存。
+     * </p>
+     *
+     * @param req 字典数据创建请求（复用），包含字典数据ID和新属性值
+     * @throws BizException 字典数据不存在
+     */
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
@@ -230,6 +313,16 @@ public class DictServiceImpl implements DictService {
         dictDataMapper.update(data);
     }
 
+    /**
+     * 删除字典数据
+     * <p>
+     * 软删除单个字典数据项。
+     * 执行实例级权限校验(DELETE)。
+     * 删除成功后清除字典类型缓存。
+     * </p>
+     *
+     * @param req ID请求，包含字典数据ID
+     */
     @Override
     @Transactional
     @CacheEvict(value = "dictTypes", allEntries = true)
@@ -250,6 +343,16 @@ public class DictServiceImpl implements DictService {
         dictDataMapper.update(data);
     }
 
+    /**
+     * 获取字典类型下的字典数据列表
+     * <p>
+     * 根据字典类型ID查询该类型下所有字典数据。
+     * 按排序字段正序排列。
+     * </p>
+     *
+     * @param dictTypeId 字典类型ID
+     * @return 字典数据响应列表
+     */
     @Override
     public List<DictDataResp> listDictData(Long dictTypeId) {
         SysDictType type = TenantSafeQuery.selectOneByIdSafe(

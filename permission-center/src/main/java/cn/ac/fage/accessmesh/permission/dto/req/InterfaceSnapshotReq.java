@@ -3,8 +3,16 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * Interface snapshot request for Gateway \u2014 returns all allowed API entries for a subject.
- * tenantId is NOT in the body; it is read from X-Tenant-Id header.
+ * 接口快照请求体
+ * <p>
+ * 用于Gateway获取用户允许访问的API接口列表。
+ * 租户ID不在请求体中，从X-Tenant-Id请求头获取。
+ * </p>
+ *
+ * @param subjectTypeCode   用户类型编码，必填
+ * @param subjectExternalId 用户外部标识，必填
+ * @param serviceCode       服务编码，必填
+ * @param permissionVersion 权限版本号，用于缓存一致性检查，可选
  */
 public record InterfaceSnapshotReq(
     @NotBlank String subjectTypeCode,

@@ -28,10 +28,12 @@ import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
- * Implementation of canGrant authorization checks.
- *
- * <p>General permission checks should use PermQueryEngine.
- * This service only handles canGrant validation for permission delegation.
+ * 授权服务实现类
+ * <p>
+ * 实现canGrant授权检查功能。仅用于权限委托（授权传递）场景的校验。
+ * 一般权限检查应使用PermQueryEngine，本服务仅处理canGrant验证。
+ * 采用批量处理策略避免N+1查询问题。
+ * </p>
  */
 @Service
 public class AuthorizationServiceImpl implements AuthorizationService {
@@ -44,6 +46,15 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param typeResolutionService       类型解析服务
+     * @param userRoleDomainService       用户角色领域服务
+     * @param operationPermissionMapper   操作权限数据访问层
+     * @param roleResourcePermissionMapper 角色资源权限数据访问层
+     * @param engine                      权限查询引擎
+     */
     public AuthorizationServiceImpl(TypeResolutionService typeResolutionService,
                                      UserRoleDomainService userRoleDomainService,
                                      OperationPermissionMapper operationPermissionMapper,
@@ -56,6 +67,22 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         this.engine = engine;
     }
 
+    /**
+     * 检查是否有权限授予指定权限
+     * <p>
+     * 检查操作者是否有canGrant权限来授予指定的资源操作权限。
+     * 这是权限委托的核心检查方法。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param operatorId      操作者ID
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceCode    资源编码
+     * @param operationCode   操作码
+     * @param scopeAll        是否全局作用域
+     * @param domainCode      业务域编码，可选
+     * @return 是否有权限授予
+     */
     @Override
     public boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
                                        String resourceCode, String operationCode, boolean scopeAll, String domainCode) {
@@ -66,6 +93,24 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         return result != null && result.canGrant();
     }
 
+    /**
+     * 批量检查授权权限
+     * <p>
+     * 批量检查操作者是否有canGrant权限来授予多个权限。
+     * 采用批量处理策略避免N+1查询：
+     * 1. 批量解析资源类型值
+     * 2. 批量查询操作权限
+     * 3. 批量解析资源实体ID
+     * 4. 批量查询角色资源权限
+     * 5. 构建查找映射并逐个评估
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param operatorId 操作者ID
+     * @param permissions 待检查的权限键集合
+     * @param domainCode 业务域编码，可选
+     * @return 权限键到检查结果的映射
+     */
     @Override
     public Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
                                                                       Set<GrantCheckKey> permissions, String domainCode) {
@@ -83,9 +128,9 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             return results;
         }
 
-        // ===== Batch optimization =====
+        // ===== 批量优化策略 =====
 
-        // 1. Collect resource type codes and operation codes
+        // 1. 收集资源类型编码和操作码
         Set<String> resourceTypeCodes = permissions.stream()
             .map(GrantCheckKey::resourceTypeCode)
             .collect(Collectors.toSet());
@@ -93,10 +138,10 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             .map(GrantCheckKey::operationCode)
             .collect(Collectors.toSet());
 
-        // 2. Batch resolve resource types to avoid N+1 query
+        // 2. 批量解析资源类型，避免N+1查询
         Map<String, Integer> rawResourceTypeByCode = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type", resourceTypeCodes);
-        // Convert keys to uppercase for consistent lookup
+        // 键转大写以保持一致的查找
         Map<String, Integer> resourceTypeByCode = new HashMap<>();
         for (Map.Entry<String, Integer> entry : rawResourceTypeByCode.entrySet()) {
             if (entry.getKey() != null && entry.getValue() != null) {
@@ -104,7 +149,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             }
         }
 
-        // 3. Batch query operation permissions
+        // 3. 批量查询操作权限
         Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
         List<OperationPermission> allOpPerms = operationPermissionMapper.selectListByQuery(
             QueryWrapper.create()
@@ -122,7 +167,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             opPermById.put(op.getId(), op);
         }
 
-        // 4. Batch resolve resource entity IDs
+        // 4. 批量解析资源实体ID
         List<ResourceResolveRequest> resourceRequests = permissions.stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
             .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), PermConstants.CodeType.DEFAULT, domainCode))
@@ -136,7 +181,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             resourceEntityIdByCode.put(key.resourceTypeCode().toUpperCase() + ":" + key.resourceCode(), entry.getValue());
         }
 
-        // 5. Batch query role_resource_permissions
+        // 5. 批量查询角色资源权限
         Set<Long> opPermIds = allOpPerms.stream()
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
@@ -150,7 +195,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
 
-        // 6. Build lookup maps
+        // 6. 构建查找映射
         Map<String, List<RoleResourcePermission>> permsBySpecificResource = new HashMap<>();
         Map<String, List<RoleResourcePermission>> permsByScopeAll = new HashMap<>();
 
@@ -169,7 +214,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             }
         }
 
-        // ===== Evaluate each permission =====
+        // ===== 逐个评估权限 =====
         Map<String, GrantCheckResult> results = new HashMap<>();
         for (GrantCheckKey key : permissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, opPermByKey,
@@ -179,6 +224,26 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         return results;
     }
 
+    /**
+     * 评估单个权限的授权资格
+     * <p>
+     * 根据预加载的数据评估操作者是否有canGrant权限。
+     * 检查步骤：
+     * 1. 验证资源类型有效性
+     * 2. 验证操作权限有效性
+     * 3. 解析资源实体ID（非scopeAll时）
+     * 4. 查找匹配的权限记录
+     * 5. 检查canGrant标记
+     * </p>
+     *
+     * @param key                    待检查的权限键
+     * @param resourceTypeByCode     资源类型编码到值的映射
+     * @param opPermByKey            操作权限查找映射
+     * @param resourceEntityIdByCode 资源实体ID查找映射
+     * @param permsBySpecificResource 特定资源权限映射
+     * @param permsByScopeAll        全局作用域权限映射
+     * @return 授权检查结果
+     */
     private GrantCheckResult evaluateGrantPermission(GrantCheckKey key,
                                                       Map<String, Integer> resourceTypeByCode,
                                                       Map<String, OperationPermission> opPermByKey,
@@ -238,6 +303,16 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         return new GrantCheckResult(false, "NO_GRANT_RIGHT");
     }
 
+    /**
+     * 构建权限键字符串
+     * <p>
+     * 将GrantCheckKey转换为字符串格式用于结果映射查找。
+     * 格式：resourceTypeCode:resourceCode:operationCode:scopeType
+     * </p>
+     *
+     * @param key 权限检查键
+     * @return 权限键字符串
+     */
     private String buildPermissionKey(GrantCheckKey key) {
         return String.format("%s:%s:%s:%s",
             key.resourceTypeCode(),

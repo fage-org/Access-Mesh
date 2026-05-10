@@ -30,6 +30,16 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 
+/**
+ * OAuth2认证服务实现类
+ * <p>
+ * 提供OAuth2授权码流程的授权、令牌交换、刷新、撤销等功能。
+ * 支持第三方应用通过OAuth2协议接入系统，获取用户授权后的访问令牌。
+ * 支持PKCE扩展（code_challenge/code_verifier），增强公开客户端安全性。
+ * 使用Redis存储授权码和刷新令牌，使用Lua脚本确保原子性操作。
+ * 访问令牌为JWT格式，撤销时添加到Redis黑名单。
+ * </p>
+ */
 @Service
 public class OAuth2ServiceImpl implements OAuth2Service {
 
@@ -39,7 +49,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private static final String REFRESH_TOKEN_PREFIX = "oauth2:refresh:";
     private static final int AUTH_CODE_TTL_SECONDS = 300;
 
-    // Lua脚本：GET + DEL 合并为原子操作，确保授权码/刷新令牌一次性使用
+    /**
+     * Lua脚本：GET + DEL 合并为原子操作
+     * <p>
+     * 确保授权码和刷新令牌一次性使用，防止重复兑换。
+     * </p>
+     */
     private static final String LUA_GET_AND_DELETE =
         "local value = redis.call('GET', KEYS[1]) " +
         "if value then " +
@@ -55,6 +70,14 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     @Value("${sa-token.jwt-secret-key}")
     private String jwtSecretKey;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param oauth2ClientDomainService OAuth2客户端领域服务
+     * @param userDomainService 用户领域服务
+     * @param redisTemplate Redis操作模板，用于存储授权码和刷新令牌
+     * @param objectMapper JSON序列化工具
+     */
     public OAuth2ServiceImpl(OAuth2ClientDomainService oauth2ClientDomainService,
                              UserDomainService userDomainService,
                              StringRedisTemplate redisTemplate,
@@ -65,6 +88,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * OAuth2授权接口
+     * <p>
+     * 用户登录后调用此接口授权第三方应用访问。
+     * 校验客户端、授权类型、回调地址、授权范围、PKCE参数。
+     * 生成授权码并存储到Redis（5分钟有效期）。
+     * </p>
+     *
+     * @param req 授权请求，包含客户端ID、重定向URI、授权范围、PKCE参数
+     * @return 授权响应，包含授权码和状态
+     * @throws BizException 客户端无效、授权类型不支持、回调地址不匹配等
+     */
     @Override
     public AuthorizeResp authorize(AuthorizeReq req) {
         // 1. Validate client
@@ -125,6 +160,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return new AuthorizeResp(code, req.state());
     }
 
+    /**
+     * OAuth2令牌接口
+     * <p>
+     * 第三方应用使用授权码换取访问令牌。
+     * 目前仅支持authorization_code授权类型。
+     * 执行完成后清除租户上下文。
+     * </p>
+     *
+     * @param req 令牌请求，包含授权码、客户端ID、客户端密钥、重定向URI、PKCE验证器
+     * @return 令牌响应，包含访问令牌、刷新令牌、过期时间
+     * @throws BizException 授权类型不支持
+     */
     @Override
     public TokenResp token(TokenReq req) {
         try {
@@ -139,6 +186,19 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * OAuth2刷新令牌接口
+     * <p>
+     * 使用刷新令牌获取新的访问令牌。
+     * 刷新令牌使用后立即删除（一次性），生成新的刷新令牌。
+     * PKCE公开客户端只需客户端ID和刷新令牌，无需客户端密钥。
+     * </p>
+     *
+     * @param refreshToken 刷新令牌
+     * @param clientId 客户端ID
+     * @return 令牌响应，包含新的访问令牌和刷新令牌
+     * @throws BizException 刷新令牌无效、客户端不匹配等
+     */
     @Override
     public TokenResp refreshToken(String refreshToken, String clientId) {
         try {
@@ -205,6 +265,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * OAuth2撤销令牌接口
+     * <p>
+     * 撤销访问令牌，使令牌失效。
+     * 将JWT的jti添加到Redis黑名单，剩余有效期后自动过期。
+     * </p>
+     *
+     * @param accessToken 访问令牌
+     */
     @Override
     public void revokeToken(String accessToken) {
         if (accessToken != null && !accessToken.isBlank()) {
@@ -217,6 +286,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * OAuth2用户信息接口
+     * <p>
+     * 第三方应用使用访问令牌获取用户基本信息。
+     * 返回用户ID、用户名、姓名、手机号、邮箱等信息。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 用户信息响应
+     * @throws BizException 用户不存在
+     */
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
         SysUser user = userDomainService.selectValidById(null, userId);
@@ -233,6 +313,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         );
     }
 
+    /**
+     * 通过授权码换取令牌
+     * <p>
+     * 校验客户端密钥，使用Lua脚本原子性地获取并删除授权码。
+     * 校验回调地址和PKCE验证器。
+     * 生成JWT访问令牌和刷新令牌。
+     * </p>
+     *
+     * @param req 令牌请求
+     * @return 令牌响应
+     * @throws BizException 授权码无效、客户端密钥错误、回调地址不匹配、PKCE验证失败等
+     */
     private TokenResp tokenByAuthorizationCode(TokenReq req) {
         // 1. Validate client
         if (req.clientId() == null || req.clientId().isBlank()) {
@@ -320,6 +412,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return new TokenResp(accessToken, "Bearer", accessTokenTtl, refreshToken, scope);
     }
 
+    /**
+     * 生成JWT访问令牌
+     * <p>
+     * 使用SaJwtUtil创建JWT令牌，包含用户ID、客户端ID、租户ID、授权范围、jti等额外数据。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @param clientId 客户端ID
+     * @param scope 授权范围
+     * @return JWT访问令牌字符串
+     */
     private String generateAccessToken(long userId, String clientId, String scope) {
         Map<String, Object> extraData = new LinkedHashMap<>();
         extraData.put("client_id", clientId);
@@ -335,6 +438,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return SaJwtUtil.createToken(jwtSecretKey, userId, extraData, "Bearer");
     }
 
+    /**
+     * 验证PKCE码挑战
+     * <p>
+     * 支持plain和S256两种方法。
+     * S256方法使用SHA-256哈希后Base64 URL安全编码。
+     * </p>
+     *
+     * @param codeChallenge 码挑战（授权请求中的值）
+     * @param codeVerifier 码验证器（令牌请求中的值）
+     * @param method 方法（plain或S256）
+     * @return 是否验证通过
+     */
     private boolean verifyPkce(String codeChallenge, String codeVerifier, String method) {
         if ("plain".equals(method)) {
             return codeChallenge.equals(codeVerifier);
@@ -351,6 +466,16 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * 获取有效的OAuth2客户端
+     * <p>
+     * 查询客户端并验证是否存在且激活状态。
+     * </p>
+     *
+     * @param clientId 客户端ID
+     * @return 客户端实体
+     * @throws BizException 客户端无效或不存在
+     */
     private SysOauth2Client getValidClient(String clientId) {
         SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) {
@@ -360,6 +485,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return client;
     }
 
+    /**
+     * 验证回调地址
+     * <p>
+     * 检查请求的回调地址是否在客户端注册的回调地址列表中。
+     * 按RFC 8252规范验证：scheme + authority必须完全一致，路径需满足段匹配规则。
+     * </p>
+     *
+     * @param client OAuth2客户端实体
+     * @param redirectUri 请求的回调地址
+     * @throws BizException 回调地址不匹配
+     */
     private void validateRedirectUri(SysOauth2Client client, String redirectUri) {
         // 添加 redirectUri 的 null/空校验
         if (redirectUri == null || redirectUri.isBlank()) {
@@ -398,9 +534,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     /**
-     * 验证请求路径是否允许（RFC 8252 路径匹配规则）
-     * 规则：请求路径必须以注册路径开头，且必须是完整路径段匹配
-     * 例如：注册路径 /app，允许 /app/callback，但拒绝 /app-evil
+     * 验证请求路径是否允许
+     * <p>
+     * RFC 8252路径匹配规则：请求路径必须以注册路径开头，且必须是完整路径段匹配。
+     * 例如：注册路径/app，允许/app/callback，但拒绝/app-evil。
+     * </p>
+     *
+     * @param registeredPath 注册路径
+     * @param requestedPath 请求路径
+     * @return 是否允许
      */
     private boolean isPathAllowed(String registeredPath, String requestedPath) {
         if (requestedPath == null || requestedPath.isEmpty()) {
@@ -435,6 +577,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return false;
     }
 
+    /**
+     * 验证授权范围
+     * <p>
+     * 检查请求的授权范围是否在客户端注册的授权范围内。
+     * 授权范围以空格分隔。
+     * </p>
+     *
+     * @param client OAuth2客户端实体
+     * @param scope 请求的授权范围（空格分隔）
+     * @throws BizException 授权范围无效
+     */
     private void validateScope(SysOauth2Client client, String scope) {
         if (client.getScopes() == null || client.getScopes().isBlank()) {
             return; // no scope restriction
@@ -453,6 +606,16 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * 检查授权类型列表是否包含目标类型
+     * <p>
+     * 解析逗号分隔的授权类型字符串，检查是否包含指定类型。
+     * </p>
+     *
+     * @param grantTypes 授权类型字符串（逗号分隔）
+     * @param targetType 目标授权类型
+     * @return 是否包含目标类型
+     */
     private boolean containsGrantType(String grantTypes, String targetType) {
         if (grantTypes == null || grantTypes.isBlank()) return false;
         for (String gt : grantTypes.split(",")) {
@@ -461,6 +624,15 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return false;
     }
 
+    /**
+     * 从JWT令牌提取jti
+     * <p>
+     * 解析JWT payload获取jti（JWT ID），用于撤销令牌黑名单。
+     * </p>
+     *
+     * @param token JWT令牌
+     * @return jti字符串，解析失败返回原令牌
+     */
     private String extractJti(String token) {
         try {
             // JWT format: header.payload.signature
@@ -478,6 +650,16 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
+    /**
+     * 获取令牌剩余有效时间
+     * <p>
+     * 解析JWT payload获取exp（过期时间），计算剩余秒数。
+     * 用于设置黑名单过期时间。
+     * </p>
+     *
+     * @param token JWT令牌
+     * @return 剩余有效秒数，解析失败返回86400
+     */
     private long getTokenRemainingTtl(String token) {
         try {
             // JWT format: header.payload.signature
@@ -498,7 +680,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
     }
 
-    // Internal classes for serialization
+    /**
+     * 授权码数据类
+     * <p>
+     * 存储授权码关联的用户ID、租户ID、回调地址、PKCE参数等信息。
+     * </p>
+     */
     public static class AuthCodeData {
         private String clientId;
         private long userId;
@@ -524,6 +711,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         public void setScope(String scope) { this.scope = scope; }
     }
 
+    /**
+     * 刷新令牌数据类
+     * <p>
+     * 存储刷新令牌关联的用户ID、租户ID、客户端ID、授权范围等信息。
+     * </p>
+     */
     public static class RefreshTokenData {
         private long userId;
         private long tenantId;

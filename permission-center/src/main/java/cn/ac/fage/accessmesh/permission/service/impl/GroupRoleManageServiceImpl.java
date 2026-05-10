@@ -29,6 +29,17 @@ import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
+/**
+ * 组角色管理服务实现类
+ * <p>
+ * 提供组角色（GROUP_ROLE）的额外角色管理功能。
+ * 组角色是一种特殊角色类型，可以包含其他角色作为其"额外角色"，
+ * 通过UserRole表记录组角色与基础角色的关联关系（targetType=GROUP_ROLE）。
+ * 当用户拥有组角色时，自动继承组角色的额外角色权限。
+ * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
+ * </p>
+ */
 @Service
 public class GroupRoleManageServiceImpl implements GroupRoleManageService {
 
@@ -38,6 +49,15 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
     private final UserRoleDomainService userRoleDomainService;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param abstractRoleMapper    抽象角色数据访问层
+     * @param userRoleMapper        用户角色数据访问层
+     * @param typeResolutionService 类型解析服务
+     * @param userRoleDomainService 用户角色领域服务
+     * @param engine                权限查询引擎
+     */
     public GroupRoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                        UserRoleMapper userRoleMapper,
                                        TypeResolutionService typeResolutionService,
@@ -50,6 +70,23 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         this.engine = engine;
     }
 
+    /**
+     * 为组角色添加额外角色
+     * <p>
+     * 将基础角色添加为组角色的额外角色。当用户拥有该组角色时，
+     * 会自动继承该基础角色的权限。需要ROLE_ASSIGN权限。
+     * 通过UserRole表记录关联关系：
+     * - targetType = GROUP_ROLE
+     * - targetId = 组角色ID
+     * - relationId = 基础角色ID
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        添加额外角色请求，包含组角色标识和基础角色标识
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 组角色或基础角色不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
@@ -113,6 +150,19 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         }
     }
 
+    /**
+     * 移除组角色的额外角色
+     * <p>
+     * 将基础角色从组角色的额外角色列表中移除。
+     * 需要ROLE_REVOKE权限。软删除UserRole关联记录。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        移除额外角色请求，包含组角色标识和基础角色标识
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 组角色或基础角色不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
@@ -157,6 +207,18 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         }
     }
 
+    /**
+     * 查询组角色的额外角色列表
+     * <p>
+     * 查询指定组角色包含的所有额外角色。
+     * 通过UserRole表查询targetType=GROUP_ROLE的记录，
+     * relationId字段即为额外角色的ID。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      查询请求，包含组角色标识
+     * @return 角色摘要响应列表
+     */
     @Override
     public List<RoleSummaryResp> listGroupRoleExtraRoles(Long tenantId, GroupRoleExtraRolesListReq req) {
         Long groupId = typeResolutionService.resolveRoleId(

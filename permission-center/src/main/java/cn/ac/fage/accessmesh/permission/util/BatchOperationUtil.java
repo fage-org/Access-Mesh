@@ -5,25 +5,39 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import java.util.List;
 
 /**
- * Utility class for common batch operations.
+ * 批量操作工具类
+ * <p>
+ * 提供批量删除操作的通用工具方法。
+ * 封装批量软删除的执行逻辑和操作日志记录。
+ * </p>
  */
 public final class BatchOperationUtil {
 
+    /**
+     * 私有构造函数
+     * <p>
+     * 工具类不允许实例化。
+     * </p>
+     */
     private BatchOperationUtil() {
-        // Utility class, no instantiation
+        // 工具类，不允许实例化
     }
 
     /**
-     * Execute batch soft-delete with operation logging.
+     * 执行批量软删除并记录操作日志
+     * <p>
+     * 对指定的实体ID列表逐个执行软删除操作，并记录操作日志。
+     * 跳过null值ID，统计实际删除数量。
+     * </p>
      *
-     * @param tenantId              tenant ID
-     * @param ids                   list of entity IDs to delete
-     * @param operatorId            operator ID
-     * @param deleteFunc            function to delete single entity, returns true if deleted
-     * @param logModule             module for operation log (e.g., "perm")
-     * @param logAction             action for operation log (e.g., "type-definition-remove")
-     * @param entityName            entity name for log message
-     * @param operationLogDomainService the operation log service
+     * @param tenantId              租户ID
+     * @param ids                   待删除的实体ID列表
+     * @param operatorId            操作者ID
+     * @param deleteFunc            删除单个实体的函数，返回是否删除成功
+     * @param logModule             日志模块（如"perm"）
+     * @param logAction             日志动作（如"type-definition-remove"）
+     * @param entityName            实体名称，用于日志消息
+     * @param operationLogDomainService 操作日志服务
      */
     public static void executeBatchDelete(Long tenantId, List<Long> ids, Long operatorId,
                                           TriFunction<Long, Long, Long, Boolean> deleteFunc,
@@ -45,7 +59,7 @@ public final class BatchOperationUtil {
         if (n > 0) {
             operationLogDomainService.asyncRecord(
                 logModule, logAction, "BATCH", tenantId,
-                "batch soft-delete " + entityName + ", count=" + n + ", ids=" + ids,
+                "批量软删除 " + entityName + "，数量=" + n + "，IDs=" + ids,
                 operatorId, null, null, tenantId
             );
         }

@@ -16,8 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Role management API — proxy to permission-center for role-resource operations.
- * All APIs: POST + JSON Body.
+ * 角色管理控制器
+ * <p>
+ * 提供角色管理的代理接口，转发请求到permission-center进行角色资源操作。
+ * 角色用于组织用户并配置权限，用户通过角色获得菜单和操作权限。
+ * 所有接口采用POST + JSON Body方式。
+ * </p>
  */
 @RestController
 @RequestMapping("/role")
@@ -27,12 +31,24 @@ public class RoleController {
 
     private final RoleProxyService roleProxyService;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param roleProxyService 角色代理服务，用于转发请求到permission-center
+     */
     public RoleController(RoleProxyService roleProxyService) {
         this.roleProxyService = roleProxyService;
     }
 
     /**
-     * Create a role associated with an org.
+     * 创建组织关联角色
+     * <p>
+     * 创建与组织关联的角色，用于组织级别的权限管理。
+     * 角色创建后会自动关联到指定的组织。
+     * </p>
+     *
+     * @param req 角色创建请求，包含角色名称和组织ID
+     * @return 创建成功的角色ID
      */
     @PostMapping("/create")
     @AuditLog(module = "角色管理", action = "创建", targetType = "ROLE")
@@ -42,7 +58,14 @@ public class RoleController {
     }
 
     /**
-     * Grant a menu permission to a role.
+     * 为角色授予菜单权限
+     * <p>
+     * 将菜单的查看权限授予指定角色。
+     * 角色获得菜单权限后，关联用户可以访问该菜单。
+     * </p>
+     *
+     * @param req 角色菜单请求，包含角色ID和菜单ID
+     * @return 操作成功结果
      */
     @PostMapping("/grant-menu")
     @AuditLog(module = "角色管理", action = "授权菜单", targetType = "ROLE")
@@ -53,7 +76,14 @@ public class RoleController {
     }
 
     /**
-     * Revoke a menu permission from a role.
+     * 撤销角色的菜单权限
+     * <p>
+     * 从角色中移除菜单的访问权限。
+     * 角色失去菜单权限后，关联用户将无法访问该菜单。
+     * </p>
+     *
+     * @param req 角色菜单请求，包含角色ID和菜单ID
+     * @return 操作成功结果
      */
     @PostMapping("/revoke-menu")
     @AuditLog(module = "角色管理", action = "撤销菜单", targetType = "ROLE")
@@ -64,14 +94,32 @@ public class RoleController {
     }
 
     /**
-     * Get current user's roles and permissions.
+     * 获取当前用户的角色和权限信息
+     * <p>
+     * 查询当前登录用户的角色列表和权限标识。
+     * 用于前端展示用户角色和进行按钮权限控制。
+     * </p>
+     *
+     * @return 用户信息响应，包含角色列表和权限标识
      */
     @PostMapping("/my-info")
     public PermResult<UserInfoResp> getMyInfo() {
         return PermResult.success(roleProxyService.loadUserRolesAndPermissions(StpUtil.getLoginIdAsLong()));
     }
 
+    /**
+     * 角色创建请求记录
+     *
+     * @param roleName 角色名称
+     * @param orgId    组织ID
+     */
     public record CreateRoleReq(String roleName, Long orgId) {}
 
+    /**
+     * 角色菜单请求记录
+     *
+     * @param roleId 角色ID
+     * @param menuId 菜单ID
+     */
     public record RoleMenuReq(Long roleId, Long menuId) {}
 }

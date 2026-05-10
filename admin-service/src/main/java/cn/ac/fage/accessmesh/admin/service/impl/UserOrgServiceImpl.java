@@ -22,6 +22,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 
+/**
+ * 用户组织关联服务实现类
+ * <p>
+ * 提供用户与组织关联的管理功能，包括批量分配、移除关联、设置主组织等。
+ * 用户修改自己的组织关联无需权限校验（自我修改豁免）。
+ * 根据组织树配置校验单组织关联限制（singleAssoc=true时不允许多组织）。
+ * 使用批量插入优化性能。
+ * </p>
+ */
 @Service
 public class UserOrgServiceImpl implements UserOrgService {
 
@@ -29,6 +38,13 @@ public class UserOrgServiceImpl implements UserOrgService {
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final AdminPermissionValidator permissionValidator;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param userOrgDomainService 用户组织关联领域服务
+     * @param orgTreeConfigDomainService 组织树配置领域服务，校验单组织限制
+     * @param permissionValidator 权限校验器
+     */
     public UserOrgServiceImpl(UserOrgDomainService userOrgDomainService,
                               OrgTreeConfigDomainService orgTreeConfigDomainService,
                               AdminPermissionValidator permissionValidator) {
@@ -37,10 +53,21 @@ public class UserOrgServiceImpl implements UserOrgService {
         this.permissionValidator = permissionValidator;
     }
 
+    /**
+     * 批量分配用户到组织
+     * <p>
+     * 将用户分配到多个组织，先删除现有关联再批量创建新关联。
+     * 用户修改自己的组织关联无需权限校验（自我修改豁免）。
+     * 根据组织树配置校验单组织关联限制。
+     * 使用批量插入优化性能，避免N次插入。
+     * </p>
+     *
+     * @param req 用户组织分配请求，包含用户ID和组织ID列表、主组织ID
+     * @throws BizException 单组织关联限制冲突
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void assignUserToOrgs(UserOrgAssignReq req) {
-        // FIX #1: Add permission validation - user org assignment is an UPDATE operation on USER resource
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
@@ -82,10 +109,19 @@ public class UserOrgServiceImpl implements UserOrgService {
         }
     }
 
+    /**
+     * 移除用户与组织的关联
+     * <p>
+     * 删除单个用户组织关联记录。
+     * 用户移除自己的组织关联无需权限校验（自我修改豁免）。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @param orgId 组织ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeUserFromOrg(Long userId, Long orgId) {
-        // FIX #1: Add permission validation
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
@@ -101,10 +137,19 @@ public class UserOrgServiceImpl implements UserOrgService {
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
     }
 
+    /**
+     * 设置用户主组织
+     * <p>
+     * 将指定组织设为用户的主组织（用于默认组织选择）。
+     * 用户修改自己的主组织无需权限校验（自我修改豁免）。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @param orgId 组织ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setPrimaryOrg(Long userId, Long orgId) {
-        // FIX #1: Add permission validation
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
@@ -120,9 +165,17 @@ public class UserOrgServiceImpl implements UserOrgService {
         userOrgDomainService.setPrimaryOrg(tenantId, userId, orgId);
     }
 
+    /**
+     * 获取用户关联的组织列表
+     * <p>
+     * 查询用户关联的所有组织简要信息，标记主组织。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 组织简要信息列表
+     */
     @Override
     public List<UserPageItemResp.OrgBrief> getUserOrgs(Long userId) {
-        // FIX: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgDomainService.getUserOrgBriefs(tenantId, userId);
     }

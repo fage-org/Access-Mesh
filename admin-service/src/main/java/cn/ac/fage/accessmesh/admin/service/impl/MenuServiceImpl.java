@@ -34,6 +34,15 @@ import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
+/**
+ * 菜单管理服务实现类
+ * <p>
+ * 提供菜单的CRUD操作、树形查询、批量操作等功能。
+ * 实现跨服务数据同步机制，通过记录同步任务模式确保菜单变更同步到permission-center。
+ * 支持菜单层级深度限制（最多5级）、权限标识唯一性校验。
+ * 使用MenuDomainService处理菜单数据查询和批量操作。
+ * </p>
+ */
 @Service
 public class MenuServiceImpl implements MenuService {
 
@@ -47,6 +56,17 @@ public class MenuServiceImpl implements MenuService {
     private final SyncRetryService syncRetryService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param menuMapper 菜单数据访问Mapper
+     * @param roleProxyService 角色代理服务，获取用户角色和权限
+     * @param menuDomainService 菜单领域服务，处理菜单数据查询和批量操作
+     * @param menuSyncHandler 菜单同步处理器，同步菜单数据到permission-center
+     * @param permissionValidator 权限校验器，校验菜单操作权限
+     * @param syncRetryService 同步重试服务，记录同步失败任务
+     * @param objectMapper JSON序列化工具
+     */
     public MenuServiceImpl(SysMenuMapper menuMapper,
                            cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService,
                            MenuDomainService menuDomainService,
@@ -63,6 +83,17 @@ public class MenuServiceImpl implements MenuService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 创建菜单
+     * <p>
+     * 创建新菜单，校验权限标识唯一性和菜单层级深度（不超过5级）。
+     * 创建成功后记录同步任务，异步同步到permission-center。
+     * </p>
+     *
+     * @param req 菜单创建请求，包含菜单名称、路径、组件、权限标识等
+     * @return 新菜单ID
+     * @throws BizException 权限标识已存在、菜单层级超限、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createMenu(MenuCreateReq req) {
@@ -104,11 +135,6 @@ public class MenuServiceImpl implements MenuService {
         menu.setDeleteFlag(0L);
         menuMapper.insert(menu);
 
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"记录同步任务"模式，本地事务提交后异步同步
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // 记录同步任务，异步同步到权限中心
         try {
             String payload = objectMapper.writeValueAsString(Map.of(
@@ -134,6 +160,17 @@ public class MenuServiceImpl implements MenuService {
         return menu.getId();
     }
 
+    /**
+     * 更新菜单
+     * <p>
+     * 更新菜单的各项属性，校验权限标识唯一性和菜单层级深度。
+     * 执行实例级权限校验。
+     * 如果菜单已关联permission-center或设置了权限标识，同步更新到permission-center。
+     * </p>
+     *
+     * @param req 菜单更新请求，包含菜单ID和新属性值
+     * @throws BizException 菜单不存在、权限标识已存在、菜单层级超限等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateMenu(MenuUpdateReq req) {
@@ -183,18 +220,22 @@ public class MenuServiceImpl implements MenuService {
         menu.setUpdatedAt(LocalDateTime.now());
         menuMapper.update(menu);
 
-        // TODO: 跨服务数据一致性风险
-        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
-        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
-        // 参考：plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // 使用 SyncHandler 同步更新到权限中心
         if (menu.getPermResourceId() != null || (req.perms() != null && !req.perms().isBlank())) {
             menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
         }
     }
 
+    /**
+     * 删除菜单
+     * <p>
+     * 软删除菜单，不允许删除有子菜单的菜单。
+     * 执行实例级权限校验，先本地软删除再记录同步任务。
+     * </p>
+     *
+     * @param id 菜单ID
+     * @throws BizException 菜单不存在、有子菜单、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteMenu(Long id) {
@@ -218,11 +259,6 @@ public class MenuServiceImpl implements MenuService {
             throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(), AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
 
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // 1. 先执行本地软删除
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
 
@@ -244,6 +280,16 @@ public class MenuServiceImpl implements MenuService {
         }
     }
 
+    /**
+     * 获取菜单详情
+     * <p>
+     * 根据菜单ID查询菜单完整信息。
+     * </p>
+     *
+     * @param id 菜单ID
+     * @return 菜单详情响应
+     * @throws BizException 菜单不存在
+     */
     @Override
     public MenuResp getMenu(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -256,9 +302,17 @@ public class MenuServiceImpl implements MenuService {
         return toResp(menu, List.of());
     }
 
+    /**
+     * 查询菜单树
+     * <p>
+     * 获取当前租户的所有菜单，构建树形结构返回。
+     * 按排序字段和创建时间排序。
+     * </p>
+     *
+     * @return 菜单树列表
+     */
     @Override
     public List<MenuResp> treeMenu() {
-        // FIX #6: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectListByQuery(
             QueryWrapper.create()
@@ -269,21 +323,36 @@ public class MenuServiceImpl implements MenuService {
         return buildTree(all, 0L);
     }
 
+    /**
+     * 获取用户按钮级权限列表
+     * <p>
+     * 通过RoleProxyService加载用户的角色和权限，返回按钮级权限列表。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 权限码列表
+     */
     @Override
     public List<String> getUserPermissions(Long userId) {
         cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
         return info != null ? info.permissions() : List.of();
     }
 
+    /**
+     * 批量创建菜单
+     * <p>
+     * 批量创建多个菜单，校验权限标识唯一性和菜单层级深度。
+     * 使用批量查询检查权限标识和父菜单深度（优化性能）。
+     * 返回部分成功结果，包含成功ID列表和失败消息列表。
+     * </p>
+     *
+     * @param req 批量创建请求，包含多个菜单创建请求
+     * @return 批量操作结果，包含成功ID列表和失败消息列表
+     * @throws BizException 同步任务记录失败
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateMenus(MenuBatchCreateReq req) {
-        // TODO: 跨服务数据一致性风险
-        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
-        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
-        // 参考：plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
 
@@ -390,14 +459,20 @@ public class MenuServiceImpl implements MenuService {
         return BatchResultResp.partial(req.menus().size(), successIds.size(), successIds, failedMessages);
     }
 
+    /**
+     * 批量删除菜单
+     * <p>
+     * 批量软删除菜单及其所有子菜单。
+     * 执行批量实例级权限校验，使用批量查询获取子菜单ID。
+     * 先本地软删除再记录同步任务。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的菜单ID列表
+     * @throws BizException 同步任务记录失败
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchDeleteMenus(IdsReq req) {
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
@@ -449,14 +524,31 @@ public class MenuServiceImpl implements MenuService {
         }
     }
 
+    /**
+     * 获取菜单的所有子菜单ID（包含自身）
+     * <p>
+     * 递归查询菜单的所有后代菜单ID，用于级联删除等操作。
+     * </p>
+     *
+     * @param menuId 菜单ID
+     * @return 子菜单ID列表（包含自身）
+     */
     @Override
     public List<Long> getDescendantMenuIds(Long menuId) {
         Long tenantId = TenantContextHolder.getTenantId();
         return menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId);
     }
 
-    // ========== Helpers ==========
-
+    /**
+     * 将菜单实体转换为响应对象
+     * <p>
+     * 转换菜单实体为API响应格式，包含子菜单列表。
+     * </p>
+     *
+     * @param menu 菜单实体
+     * @param children 子菜单响应列表
+     * @return 菜单响应对象
+     */
     private MenuResp toResp(SysMenu menu, List<MenuResp> children) {
         return new MenuResp(
             menu.getId(), Integer.parseInt(menu.getMenuType()), menu.getName(),
@@ -466,6 +558,16 @@ public class MenuServiceImpl implements MenuService {
         );
     }
 
+    /**
+     * 构建菜单树
+     * <p>
+     * 将菜单列表转换为树形结构，递归构建子菜单。
+     * </p>
+     *
+     * @param all 所有菜单列表
+     * @param parentId 当前层级父菜单ID（0表示根级）
+     * @return 菜单树列表
+     */
     private List<MenuResp> buildTree(List<SysMenu> all, Long parentId) {
         return all.stream()
             .filter(m -> parentId.equals(m.getParentId()))

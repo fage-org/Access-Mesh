@@ -44,6 +44,15 @@ import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 
+/**
+ * 用户管理服务实现类
+ * <p>
+ * 提供用户的CRUD操作、批量操作、密码重置、状态管理等功能。
+ * 实现跨服务数据同步机制，通过Outbox Pattern确保用户创建与同步任务记录原子性。
+ * 用户修改自己的信息无需权限校验，其他操作需要相应权限。
+ * 使用BCrypt进行密码哈希，SecureRandom生成随机密码。
+ * </p>
+ */
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -58,8 +67,20 @@ public class UserServiceImpl implements UserService {
     private final ObjectMapper objectMapper;
     private final AdminPermissionValidator permissionValidator;
 
-    // TODO: 构造函数依赖过多(7个)，建议抽离同步和重试逻辑到独立服务
-    // 优先级：P3（低优先级，可关注但不强制整改）
+    /**
+     * 构造函数注入依赖
+     * <p>
+     * 注意：构造函数依赖较多(7个)，建议后续重构抽离同步和重试逻辑到独立服务。
+     * </p>
+     *
+     * @param userMapper 用户数据访问Mapper
+     * @param userOrgMapper 用户组织关联Mapper
+     * @param userDomainService 用户领域服务，处理用户数据查询和批量操作
+     * @param userSyncHandler 用户同步处理器，同步用户数据到permission-center
+     * @param syncRetryService 同步重试服务，记录同步失败任务
+     * @param objectMapper JSON序列化工具
+     * @param permissionValidator 权限校验器，校验用户操作权限
+     */
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
                            UserDomainService userDomainService, UserSyncHandler userSyncHandler,
                            SyncRetryService syncRetryService,
@@ -73,6 +94,18 @@ public class UserServiceImpl implements UserService {
         this.permissionValidator = permissionValidator;
     }
 
+    /**
+     * 创建用户
+     * <p>
+     * 创建新用户并生成随机初始密码（BCrypt哈希存储）。
+     * 同一事务内记录同步任务（Outbox Pattern），确保原子性。
+     * 校验用户名和手机号唯一性。
+     * </p>
+     *
+     * @param req 用户创建请求，包含用户名、姓名、手机号、邮箱等
+     * @return 新用户ID
+     * @throws BizException 用户名已存在、手机号已存在、同步任务记录失败等
+     */
     @Override
     @Transactional
     public Long createUser(UserCreateReq req) {
@@ -133,6 +166,18 @@ public class UserServiceImpl implements UserService {
         return user.getId();
     }
 
+    /**
+     * 更新用户信息
+     * <p>
+     * 更新用户的姓名、手机号、邮箱、状态等信息。
+     * 用户修改自己的信息无需权限校验（自我修改豁免）。
+     * 修改手机号时校验新手机号唯一性。
+     * 如果用户已同步到permission-center，记录更新同步任务。
+     * </p>
+     *
+     * @param req 用户更新请求，包含用户ID和新属性值
+     * @throws BizException 用户不存在、手机号已存在、同步任务记录失败等
+     */
     @Override
     @Transactional
     public void updateUser(UserUpdateReq req) {
@@ -169,7 +214,6 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
 
-        // TODO: 跨服务数据一致性改进 - 更新操作改为异步同步
         // 同步更新到权限中心 - 记录同步任务
         if (user.getPermUserId() != null) {
             try {
@@ -198,6 +242,16 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 批量删除用户
+     * <p>
+     * 软删除多个用户，不允许删除自己。
+     * 执行批量实例级权限校验，先本地软删除再记录同步任务。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的用户ID列表
+     * @throws BizException 不能删除自己、用户不存在、同步任务记录失败等
+     */
     @Override
     @Transactional
     public void deleteUser(IdsReq req) {
@@ -216,11 +270,6 @@ public class UserServiceImpl implements UserService {
             .map(String::valueOf)
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.DELETE);
-
-        // TODO: 跨服务数据一致性改进
-        // 当前采用"先本地软删除，后记录同步任务"模式，确保本地数据优先删除
-        // 建议：完整方案应使用消息队列 + 补偿机制，参见 plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
 
         // 批量获取用户
         List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
@@ -243,6 +292,16 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 批量启用用户
+     * <p>
+     * 将多个用户状态设置为启用(1)。
+     * 执行批量实例级权限校验，更新后记录同步任务到permission-center。
+     * </p>
+     *
+     * @param req ID集合请求，包含待启用的用户ID列表
+     * @throws BizException 用户不存在、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enableUser(IdsReq req) {
@@ -261,7 +320,6 @@ public class UserServiceImpl implements UserService {
         if (!validIds.isEmpty()) {
             userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 1);
 
-            // TODO: 跨服务数据一致性改进 - 状态变更需同步到权限中心
             // 同步启用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
@@ -289,6 +347,16 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 获取用户详情
+     * <p>
+     * 根据用户ID查询用户完整信息，包括关联的组织列表。
+     * </p>
+     *
+     * @param id 用户ID
+     * @return 用户详情响应
+     * @throws BizException 用户不存在
+     */
     @Override
     public UserResp getUser(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -306,9 +374,19 @@ public class UserServiceImpl implements UserService {
         );
     }
 
+    /**
+     * 分页查询用户列表
+     * <p>
+     * 支持按用户名、姓名、手机号、邮箱、状态过滤。
+     * 批量查询用户组织关联避免N+1问题。
+     * 按创建时间倒序排列。
+     * </p>
+     *
+     * @param req 分页查询请求，包含分页参数和过滤条件
+     * @return 分页用户列表结果
+     */
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
-        // FIX #4: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         QueryWrapper qw = QueryWrapper.create()
             .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
@@ -361,6 +439,17 @@ public class UserServiceImpl implements UserService {
         );
     }
 
+    /**
+     * 重置用户密码
+     * <p>
+     * 用户重置自己的密码无需权限校验（自我修改豁免）。
+     * 使用BCrypt哈希新密码后更新。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @param newPassword 新密码（明文）
+     * @throws BizException 用户不存在
+     */
     @Override
     @Transactional
     public void resetPassword(Long userId, String newPassword) {
@@ -388,15 +477,22 @@ public class UserServiceImpl implements UserService {
         userMapper.update(user);
     }
 
+    /**
+     * 批量创建用户
+     * <p>
+     * 批量创建多个用户，生成随机初始密码。
+     * 使用批量查询检查用户名和手机号唯一性（2次DB查询替代N次）。
+     * 批量插入用户后记录同步任务（Outbox Pattern）。
+     * 返回部分成功结果，包含成功ID列表和失败消息列表。
+     * </p>
+     *
+     * @param req 批量创建请求，包含多个用户创建请求
+     * @return 批量操作结果，包含成功ID列表和失败消息列表
+     * @throws BizException 同步任务记录失败
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BatchResultResp batchCreateUsers(UserBatchCreateReq req) {
-        // TODO: 跨服务数据一致性风险
-        // 问题：本地事务与远程 Feign 调用无法协调，可能导致数据不一致
-        // 建议：采用"本地事务 + 异步同步 + 补偿机制"模式
-        // 参考：plan/architecture.md 分布式事务章节
-        // 优先级：P1（架构债务）
-
         Long tenantId = TenantContextHolder.getTenantId();
         List<Long> successIds = new ArrayList<>();
         List<String> failedMessages = new ArrayList<>();
@@ -481,6 +577,16 @@ public class UserServiceImpl implements UserService {
         return BatchResultResp.partial(req.users().size(), successIds.size(), successIds, failedMessages);
     }
 
+    /**
+     * 批量禁用用户
+     * <p>
+     * 将多个用户状态设置为禁用(0)。
+     * 执行批量实例级权限校验，更新后记录同步任务到permission-center。
+     * </p>
+     *
+     * @param req ID集合请求，包含待禁用的用户ID列表
+     * @throws BizException 用户不存在、同步任务记录失败等
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void disableUser(IdsReq req) {
@@ -499,7 +605,6 @@ public class UserServiceImpl implements UserService {
         if (!validIds.isEmpty()) {
             userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 0);
 
-            // TODO: 跨服务数据一致性改进 - 状态变更需同步到权限中心
             // 同步禁用状态到权限中心 - 记录同步任务
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
@@ -527,6 +632,16 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 批量重置密码
+     * <p>
+     * 为多个用户设置相同的密码。
+     * 执行批量实例级权限校验，使用批量更新SQL提高效率。
+     * </p>
+     *
+     * @param req ID集合请求，包含待重置密码的用户ID列表
+     * @param newPassword 新密码（明文）
+     */
     @Override
     @Transactional
     public void batchResetPassword(IdsReq req, String newPassword) {
@@ -550,8 +665,16 @@ public class UserServiceImpl implements UserService {
         userMapper.batchUpdatePassword(tenantId, userIds, hashedPassword, now);
     }
 
+    /**
+     * 获取用户关联的组织列表
+     * <p>
+     * 查询用户关联的所有组织，标记主组织。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 组织简要信息列表
+     */
     private List<UserResp.OrgBrief> getUserOrgs(Long userId) {
-        // FIX #5: Add tenantId filter for security
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgMapper.selectListByQuery(
             QueryWrapper.create()
@@ -564,8 +687,13 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 生成随机强密码（12位，包含大小写字母、数字和特殊字符）
-     * 使用 SecureRandom 硋保密码学安全。
+     * 生成随机强密码
+     * <p>
+     * 生成12位密码，包含大小写字母、数字和特殊字符。
+     * 使用SecureRandom确保密码学安全。
+     * </p>
+     *
+     * @return 随机密码字符串
      */
     private String generateRandomPassword() {
         String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

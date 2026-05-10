@@ -35,15 +35,19 @@ import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
 
 /**
- * Resolves external stable business keys to internal database IDs.
+ * 类型解析服务实现类
+ * <p>
+ * 将外部稳定的业务键解析为内部数据库ID。
+ * 支持Redis缓存以提升解析性能。
+ * </p>
  */
 @Service
 public class TypeResolutionServiceImpl implements TypeResolutionService {
 
     private static final String TYPE_VALUE_CACHE_KEY_PREFIX = "perm:type:value:";
     private static final String TYPE_CODE_CACHE_KEY_PREFIX = "perm:type:code:";
-    private static final long TYPE_CACHE_TTL_HOURS = 1; // 字典/枚举配置类数据，L2 TTL 为 1 小时
-    private static final long NULL_CACHE_TTL_SECONDS = 30; // NULL 值缓存 TTL 不超过 30 秒，防止缓存穿透
+    private static final long TYPE_CACHE_TTL_HOURS = 1; // 字典/枚举配置类数据，L2 TTL为1小时
+    private static final long NULL_CACHE_TTL_SECONDS = 30; // NULL值缓存TTL不超过30秒，防止缓存穿透
     private static final String NULL_MARKER = "##NULL##";
 
     private final TypeDefinitionMapper typeDefinitionMapper;
@@ -54,9 +58,13 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    // TODO: 构造函数依赖过多(7个)，违反单一职责原则
-    // 建议：按类型拆分解析服务（如用户解析、角色解析、资源解析分离）
-    // 优先级：P4（临界情况，可关注但不强制整改）
+    /**
+     * 构造函数注入依赖
+     * <p>
+     * TODO: 构造函数依赖过多(7个)，违反单一职责原则
+     * 建议：按类型拆分解析服务（如用户解析、角色解析、资源解析分离）
+     * </p>
+     */
     public TypeResolutionServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                      AbstractUserMapper abstractUserMapper,
                                      ResourceEntityMapper resourceEntityMapper,
@@ -73,15 +81,22 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         this.redisTemplate = redisTemplate;
     }
 
+    /**
+     * 解析type_code到内部type_value
+     * <p>
+     * 使用Redis缓存，NULL值使用特殊标记防止缓存穿透
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键
+     * @param typeCode 类型编码
+     * @return type_value整数值，未找到时返回null
+     */
     @Override
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {
         String cacheKey = TYPE_VALUE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeCode;
 
-        // TODO: Redis 操作竞态条件风险
-        // 问题：当前 get + set 操作不具备原子性，高并发下可能导致缓存击穿
-        // 建议：使用分布式锁（如 Redisson）或 singleflight 模式合并并发请求
-        // 优先级：P2（性能优化，可关注但不强制整改）
-        // Try to get from cache
+        // 尝试从缓存获取
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
             if (NULL_MARKER.equals(cached)) {
@@ -92,7 +107,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             }
         }
 
-        // Cache miss, query database
+        // 缓存未命中，查询数据库
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -103,7 +118,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         Integer result = td != null ? td.getTypeValue() : null;
 
-        // Cache the result (use NULL_MARKER for null values to distinguish from cache miss)
+        // 缓存结果（NULL值使用NULL_MARKER标记，区别于缓存未命中）
         if (result != null) {
             redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
         } else {
@@ -113,6 +128,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return result;
     }
 
+    /**
+     * 批量解析type_codes到type_values
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键
+     * @param codes    类型编码集合
+     * @return typeCode到typeValue的映射
+     */
     @Override
     public Map<String, Integer> batchResolveTypeValues(Long tenantId, String typeKey, Set<String> codes) {
         if (codes == null || codes.isEmpty()) {
@@ -131,6 +154,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 解析内部type_value回稳定的type_code
+     *
+     * @param tenantId  租户ID
+     * @param typeKey   类型键
+     * @param typeValue 类型值
+     * @return 类型编码
+     */
     @Override
     public String resolveTypeCode(Long tenantId, String typeKey, Integer typeValue) {
         if (typeValue == null) {
@@ -139,7 +170,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         String cacheKey = TYPE_CODE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeValue;
 
-        // Try to get from cache
+        // 尝试从缓存获取
         Object cached = redisTemplate.opsForValue().get(cacheKey);
         if (cached != null) {
             if (NULL_MARKER.equals(cached)) {
@@ -150,7 +181,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             }
         }
 
-        // Cache miss, query database
+        // 缓存未命中，查询数据库
         TypeDefinition td = typeDefinitionMapper.selectOneByQuery(
             QueryWrapper.create()
                 .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
@@ -161,7 +192,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
         String result = td != null ? td.getTypeCode() : null;
 
-        // Cache the result (use NULL_MARKER for null values to distinguish from cache miss)
+        // 缓存结果
         if (result != null) {
             redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
         } else {
@@ -171,6 +202,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return result;
     }
 
+    /**
+     * 批量解析type_values回type_codes
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键
+     * @param values   类型值集合
+     * @return typeValue到typeCode的映射
+     */
     @Override
     public Map<Integer, String> batchResolveTypeCodes(Long tenantId, String typeKey, Set<Integer> values) {
         if (values == null || values.isEmpty()) {
@@ -189,6 +228,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 解析用户外部ID到内部用户ID
+     *
+     * @param tenantId          租户ID
+     * @param subjectTypeCode   用户类型编码
+     * @param subjectExternalId 用户外部ID
+     * @return 用户内部ID
+     */
     @Override
     public Long resolveUserId(Long tenantId, String subjectTypeCode, String subjectExternalId) {
         Integer userType = resolveTypeValue(tenantId, "user_type", subjectTypeCode);
@@ -204,6 +251,16 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return user != null ? user.getId() : null;
     }
 
+    /**
+     * 解析资源编码到内部资源ID
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceCode     资源编码
+     * @param codeType         编码类型，null时默认"default"
+     * @param domainCode       域编码，null表示全局
+     * @return 资源内部ID
+     */
     @Override
     public Long resolveResourceId(Long tenantId, String resourceTypeCode, String resourceCode,
                                   String codeType, String domainCode) {
@@ -231,6 +288,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return resource != null ? resource.getId() : null;
     }
 
+    /**
+     * 解析操作编码到内部操作ID
+     *
+     * @param tenantId         租户ID
+     * @param operationCode    操作编码
+     * @param resourceTypeCode 资源类型编码，用于缩小范围
+     * @return 操作内部ID
+     */
     @Override
     public Long resolveOperationId(Long tenantId, String operationCode, String resourceTypeCode) {
         Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -248,6 +313,13 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return op != null ? op.getId() : null;
     }
 
+    /**
+     * 解析域编码到内部域ID
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 域编码
+     * @return 域内部ID
+     */
     @Override
     public Long resolveDomainId(Long tenantId, String domainCode) {
         if (domainCode == null || domainCode.isBlank()) return null;
@@ -261,6 +333,15 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return domain != null ? domain.getId() : null;
     }
 
+    /**
+     * 解析角色外部ID到内部角色ID
+     *
+     * @param tenantId       租户ID
+     * @param roleTypeCode   角色类型编码
+     * @param roleExternalId 角色外部ID
+     * @param domainCode     域编码，null表示全局
+     * @return 角色内部ID
+     */
     @Override
     public Long resolveRoleId(Long tenantId, String roleTypeCode, String roleExternalId, String domainCode) {
         Integer roleType = resolveTypeValue(tenantId, "role_type", roleTypeCode);
@@ -284,14 +365,21 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return role != null ? role.getId() : null;
     }
 
-    // ===== Batch resolution implementations =====
+    // ===== 批量解析实现 =====
 
+    /**
+     * 批量解析域编码到域ID
+     *
+     * @param tenantId    租户ID
+     * @param domainCodes 域编码集合
+     * @return domainCode到domainId的映射
+     */
     @Override
     public Map<String, Long> batchResolveDomainIds(Long tenantId, Set<String> domainCodes) {
         if (domainCodes == null || domainCodes.isEmpty()) {
             return Collections.emptyMap();
         }
-        // Filter out null/blank codes
+        // 过滤空值编码
         Set<String> validCodes = domainCodes.stream()
             .filter(code -> code != null && !code.isBlank())
             .collect(Collectors.toSet());
@@ -310,12 +398,20 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 批量解析操作编码到操作ID
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypeCode 资源类型编码
+     * @param operationCodes   操作编码集合
+     * @return operationCode到operationId的映射
+     */
     @Override
     public Map<String, Long> batchResolveOperationIds(Long tenantId, String resourceTypeCode, Set<String> operationCodes) {
         if (operationCodes == null || operationCodes.isEmpty()) {
             return Collections.emptyMap();
         }
-        // Filter out null/blank codes
+        // 过滤空值编码
         Set<String> validCodes = operationCodes.stream()
             .filter(code -> code != null && !code.isBlank())
             .collect(Collectors.toSet());
@@ -337,32 +433,38 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 批量解析资源业务键到资源ID
+     * <p>
+     * 先批量解析类型和域，再按资源类型分组查询，避免N+1问题
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param requests 资源解析请求列表
+     * @return ResourceResolveKey到resourceId的映射
+     */
     @Override
     public Map<ResourceResolveKey, Long> batchResolveResourceIds(Long tenantId, List<ResourceResolveRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             return Collections.emptyMap();
         }
-        // Collect all unique resource type codes and batch resolve
+        // 批量解析所有唯一的资源类型编码
         Set<String> resourceTypeCodes = requests.stream()
             .map(ResourceResolveRequest::resourceTypeCode)
             .filter(code -> code != null && !code.isBlank())
             .collect(Collectors.toSet());
         Map<String, Integer> resourceTypeByCode = batchResolveTypeValues(tenantId, "resource_type", resourceTypeCodes);
 
-        // Collect all unique domain codes and batch resolve
+        // 批量解析所有唯一的域编码
         Set<String> domainCodes = requests.stream()
             .map(ResourceResolveRequest::domainCode)
             .filter(code -> code != null && !code.isBlank())
             .collect(Collectors.toSet());
         Map<String, Long> domainIdByCode = batchResolveDomainIds(tenantId, domainCodes);
 
-        // Build query conditions for each unique combination
-        // We need to query resource_entity with conditions: (tenantId, resourceType, code, codeType, domainId)
-        // Since domainId can be null, we need to handle this carefully
-
         Map<ResourceResolveKey, Long> result = new HashMap<>();
 
-        // Group requests by resource type for batch queries
+        // 按资源类型分组进行批量查询
         Map<Integer, List<ResourceResolveRequest>> byResourceType = requests.stream()
             .filter(r -> r.resourceTypeCode() != null && r.resourceCode() != null)
             .filter(r -> resourceTypeByCode.get(r.resourceTypeCode()) != null)
@@ -372,7 +474,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             Integer resourceType = entry.getKey();
             List<ResourceResolveRequest> typeRequests = entry.getValue();
 
-            // Collect all codes for this resource type
+            // 收集该资源类型的所有编码
             Set<String> codes = typeRequests.stream()
                 .map(ResourceResolveRequest::resourceCode)
                 .filter(code -> code != null && !code.isBlank())
@@ -380,7 +482,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
             if (codes.isEmpty()) continue;
 
-            // Query all resources of this type with matching codes
+            // 查询该资源类型的所有匹配资源
             List<ResourceEntity> resources = resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
@@ -389,7 +491,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                     .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
 
-            // Build lookup map by code+codeType+domainId
+            // 构建查找映射：code+codeType+domainId -> resource
             Map<String, ResourceEntity> resourceLookup = new HashMap<>();
             for (ResourceEntity res : resources) {
                 String codeType = res.getCodeType() != null ? res.getCodeType() : PermConstants.CodeType.DEFAULT;
@@ -398,7 +500,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 resourceLookup.put(lookupKey, res);
             }
 
-            // Match requests to resources
+            // 匹配请求到资源
             for (ResourceResolveRequest req : typeRequests) {
                 String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
                 Long domainId = req.domainCode() != null && !req.domainCode().isBlank()
@@ -415,6 +517,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         return result;
     }
 
+    /**
+     * 批量解析用户外部ID到用户ID
+     *
+     * @param tenantId        租户ID
+     * @param subjectTypeCode 用户类型编码
+     * @param externalIds     外部ID集合
+     * @return externalId到userId的映射
+     */
     @Override
     public Map<String, Long> batchResolveUserIds(Long tenantId, String subjectTypeCode, Set<String> externalIds) {
         if (externalIds == null || externalIds.isEmpty() || subjectTypeCode == null || subjectTypeCode.isBlank()) {
@@ -424,7 +534,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (userType == null) {
             return Collections.emptyMap();
         }
-        // Filter out null/blank external IDs
+        // 过滤空值外部ID
         Set<String> validIds = externalIds.stream()
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
@@ -444,6 +554,15 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 批量解析角色外部ID到角色ID
+     *
+     * @param tenantId       租户ID
+     * @param roleTypeCode   角色类型编码
+     * @param externalIds    外部ID集合
+     * @param domainCode     域编码，null表示全局
+     * @return externalId到roleId的映射
+     */
     @Override
     public Map<String, Long> batchResolveRoleIds(Long tenantId, String roleTypeCode, Set<String> externalIds, String domainCode) {
         if (externalIds == null || externalIds.isEmpty() || roleTypeCode == null || roleTypeCode.isBlank()) {
@@ -453,7 +572,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (roleType == null) {
             return Collections.emptyMap();
         }
-        // Filter out null/blank external IDs
+        // 过滤空值外部ID
         Set<String> validIds = externalIds.stream()
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
@@ -480,6 +599,13 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         ));
     }
 
+    /**
+     * 检查类型定义是否为系统预设（不可删除）
+     *
+     * @param tenantId  租户ID
+     * @param typeDefId 类型定义ID
+     * @return true表示系统预设类型
+     */
     @Override
     public boolean isSystemType(Long tenantId, Long typeDefId) {
         if (typeDefId == null) return false;

@@ -8,16 +8,28 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 操作权限数据访问接口
+ * <p>
+ * 提供操作权限表的基础CRUD操作和自定义查询方法。
+ * 操作权限定义了资源可执行的操作类型，使用位运算进行权限匹配。
+ * 支持按位掩码查询和批量软删除操作。
+ * </p>
+ */
 public interface OperationPermissionMapper extends BaseMapper<OperationPermission> {
 
     /**
-     * Select OperationPermissions where (binary_bit | inherit_mask) & requiredBits = requiredBits.
-     * This uses SQL bitwise operations to filter at database level, avoiding full table load.
+     * 按位掩码查询操作权限
+     * <p>
+     * 查询满足条件(binary_bit | inherit_mask) & requiredBits = requiredBits的操作权限。
+     * 使用SQL位运算在数据库层面过滤，避免全表加载。
+     * 用于权限匹配场景，提高查询效率。
+     * </p>
      *
-     * @param tenantId tenant ID for isolation
-     * @param resourceType resource type filter (can be null)
-     * @param requiredBits the required bits to match
-     * @return list of matching OperationPermissions
+     * @param tenantId     租户ID，用于数据隔离
+     * @param resourceType 资源类型过滤条件，可为null
+     * @param requiredBits 需匹配的位掩码
+     * @return 匹配的操作权限列表
      */
     @Select("""
         SELECT id, tenant_id, resource_type, code, name, binary_bit, inherit_mask,
@@ -34,13 +46,16 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
         @Param("requiredBits") Long requiredBits);
 
     /**
-     * Batch soft delete operation permissions.
-     * Sets delete_flag = id and deleted_at for each operation permission.
+     * 批量软删除操作权限
+     * <p>
+     * 将指定操作权限的delete_flag设置为id，deleted_at设置为当前时间。
+     * 用于批量删除场景，避免物理删除。
+     * </p>
      *
-     * @param tenantId   the tenant ID
-     * @param ids        the list of operation permission IDs to delete
-     * @param deletedAt  the timestamp of deletion
-     * @return number of rows updated
+     * @param tenantId  租户ID
+     * @param ids       待删除的操作权限ID列表
+     * @param deletedAt 删除时间戳
+     * @return 更新的行数
      */
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,

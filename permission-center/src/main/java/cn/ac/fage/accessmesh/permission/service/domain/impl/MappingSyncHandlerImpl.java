@@ -24,8 +24,11 @@ import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
 
 /**
- * Implementation of MappingSyncHandler.
- * Handles the synchronization of API mappings.
+ * API映射同步处理器实现类
+ * <p>
+ * 处理API映射的同步逻辑，将服务配置中的API映射关系持久化到数据库。
+ * 支持增量同步和过期清理。
+ * </p>
  */
 @Service
 public class MappingSyncHandlerImpl implements MappingSyncHandler {
@@ -33,20 +36,36 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final ResourceEntityMapper resourceEntityMapper;
 
+    /**
+     * 构造函数
+     *
+     * @param resourceApiMappingMapper API映射Mapper
+     * @param resourceEntityMapper     资源实体Mapper
+     */
     public MappingSyncHandlerImpl(ResourceApiMappingMapper resourceApiMappingMapper,
                                    ResourceEntityMapper resourceEntityMapper) {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.resourceEntityMapper = resourceEntityMapper;
     }
 
+    /**
+     * 同步API映射
+     * <p>
+     * 根据服务配置同步API映射关系。首先需要获取资源实体，
+     * 然后创建或更新对应的API映射记录。
+     * </p>
+     *
+     * @param context 同步上下文
+     * @return 同步结果，包含创建数、更新数和活跃映射键集合
+     */
     @Override
     public SyncMappingsResult syncMappings(SyncContext context) {
         int createdCount = 0;
         int updatedCount = 0;
         Set<String> incomingKeys = new HashSet<>();
 
-        // First, sync resources to get the active resource IDs
-        // We need to get resources again since we need to map resourceCode to resourceId
+        // 首先同步资源以获取活跃的资源ID
+        // 需要再次获取资源，以便将resourceCode映射到resourceId
         for (ServiceConfigSyncReq.GroupItem group : context.req().groups()) {
             for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
                 String fullPath = joinPath(context.basePath(), api.path());
@@ -54,7 +73,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 incomingKeys.add(routeResourceKey);
                 String syncKey = context.req().serviceCode() + "|" + api.resourceCode();
 
-                // Get the resource entity
+                // 获取资源实体
                 ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
                     QueryWrapper.create()
                         .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
@@ -65,12 +84,12 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 );
 
                 if (resource == null) {
-                    // This should have been created by ResourceSyncHandler
-                    // If not, throw exception
-                    throw new IllegalStateException("Resource not found: " + api.resourceCode());
+                    // 应该已由ResourceSyncHandler创建
+                    // 如果不存在，抛出异常
+                    throw new IllegalStateException("资源未找到: " + api.resourceCode());
                 }
 
-                // Find existing mapping
+                // 查找已有映射
                 ResourceApiMapping mapping = resourceApiMappingMapper.selectOneByQuery(
                     QueryWrapper.create()
                         .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(context.tenantId()))
@@ -82,7 +101,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 );
 
                 if (mapping == null) {
-                    // Create new mapping
+                    // 创建新映射
                     mapping = new ResourceApiMapping();
                     mapping.setTenantId(context.tenantId());
                     mapping.setResourceEntityId(resource.getId());
@@ -100,7 +119,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                     resourceApiMappingMapper.insert(mapping);
                     createdCount++;
                 } else {
-                    // Update existing mapping
+                    // 更新已有映射
                     mapping.setEnabled(true);
                     mapping.setExtra("{\"syncKey\":\"" + syncKey + "\"}");
                     mapping.setUpdatedAt(LocalDateTime.now());
@@ -113,11 +132,23 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         return new SyncMappingsResult(createdCount, updatedCount, incomingKeys);
     }
 
+    /**
+     * 清理过期的API映射
+     * <p>
+     * 删除不在活跃键集合中的API映射记录。
+     * 仅清理由服务同步维护且属于当前服务的映射。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @param incomingKeys 活跃的映射键集合
+     * @return 删除数量
+     */
     @Override
     public int cleanupObsoleteMappings(Long tenantId, String serviceCode, Set<String> incomingKeys) {
         int deletedCount = 0;
 
-        // Get all existing mappings for this service
+        // 获取该服务的所有已有映射
         List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
@@ -129,7 +160,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
             return 0;
         }
 
-        // Batch load resources to avoid N+1
+        // 批量加载资源以避免N+1问题
         Set<Long> mappingResourceIds = existingMappings.stream()
             .map(ResourceApiMapping::getResourceEntityId)
             .filter(Objects::nonNull)
@@ -142,7 +173,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                     .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-        // Performance fix: collect IDs and batch soft delete
+        // 性能优化：收集ID并批量软删除
         LocalDateTime now = LocalDateTime.now();
         List<Long> idsToDelete = new ArrayList<>();
         for (ResourceApiMapping mapping : existingMappings) {
@@ -151,7 +182,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 continue;
             }
 
-            // Only delete mappings for SERVICE_SYNC resources owned by this service
+            // 仅删除由SERVICE_SYNC维护且属于当前服务的资源映射
             if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                 || !serviceCode.equals(resource.getOwnerServiceCode())) {
                 continue;
@@ -174,7 +205,14 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
     }
 
     /**
-     * Join base path and path to form full path.
+     * 合并基础路径和路径形成完整路径
+     * <p>
+     * 将基础路径和API路径合并，处理斜杠拼接。
+     * </p>
+     *
+     * @param basePath 基础路径
+     * @param path     API路径
+     * @return 完整路径
      */
     private String joinPath(String basePath, String path) {
         String bp = basePath == null ? "" : basePath;

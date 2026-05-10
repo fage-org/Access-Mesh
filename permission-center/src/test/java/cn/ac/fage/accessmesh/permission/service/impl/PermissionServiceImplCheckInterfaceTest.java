@@ -47,29 +47,63 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+/**
+ * 权限服务接口校验测试类
+ * <p>
+ * 测试PermissionServiceImpl的checkInterface方法的各项功能：
+ * - 接口未注册时的拒绝逻辑
+ * - 有匹配映射时的权限校验逻辑
+ * - 无权限但资源存在时的拒绝逻辑
+ * </p>
+ */
 @ExtendWith(MockitoExtension.class)
 class PermissionServiceImplCheckInterfaceTest {
 
+    /** 抽象用户Mapper Mock */
     @Mock private AbstractUserMapper abstractUserMapper;
+    /** 资源实体Mapper Mock */
     @Mock private ResourceEntityMapper resourceEntityMapper;
+    /** API映射Mapper Mock */
     @Mock private ResourceApiMappingMapper apiMappingMapper;
+    /** 操作权限Mapper Mock */
     @Mock private OperationPermissionMapper operationPermissionMapper;
+    /** 角色资源权限Mapper Mock */
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    /** 资源依赖Mapper Mock */
     @Mock private ResourceDependencyMapper resourceDependencyMapper;
+    /** 用户角色领域服务Mock */
     @Mock private UserRoleDomainService userRoleDomainService;
+    /** 权限冲突领域服务Mock */
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
+    /** 权限条件领域服务Mock */
     @Mock private PermissionConditionDomainService permissionConditionDomainService;
+    /** 角色权限领域服务Mock */
     @Mock private RolePermissionDomainService rolePermissionDomainService;
+    /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
+    /** 权限缓存领域服务Mock */
     @Mock private PermCacheDomainService permCacheDomainService;
+    /** 权限版本领域服务Mock */
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
+    /** 资源实体领域服务Mock */
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
+    /** 实体批量加载领域服务Mock */
     @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
+    /** 角色权限条目Mapper Mock */
     @Mock private RolePermEntryMapper rolePermEntryMapper;
+    /** 权限查询引擎Mock */
     @Mock private PermQueryEngine engine;
 
+    /** 待测试的权限服务实例 */
     private PermissionServiceImpl service;
 
+    /**
+     * 测试前置初始化
+     * <p>
+     * 在每个测试方法执行前初始化PermissionServiceImpl实例，
+     * 注入所有Mock依赖对象。
+     * </p>
+     */
     @BeforeEach
     void setUp() {
         service = new PermissionServiceImpl(
@@ -81,6 +115,13 @@ class PermissionServiceImplCheckInterfaceTest {
         );
     }
 
+    /**
+     * 测试接口未注册时的拒绝逻辑
+     * <p>
+     * 当请求的API接口未在系统中注册映射时，
+     * checkInterface应返回拒绝结果，拒绝原因为"API_NOT_REGISTERED"。
+     * </p>
+     */
     @Test
     void shouldDenyWhenInterfaceNotRegistered() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
@@ -94,6 +135,13 @@ class PermissionServiceImplCheckInterfaceTest {
         assertTrue(resp.matchedResources().isEmpty());
     }
 
+    /**
+     * 测试任意匹配映射通过时的允许逻辑
+     * <p>
+     * 当存在多个API映射且任一个匹配的映射通过权限校验时，
+     * checkInterface应返回允许结果，并包含匹配的资源列表。
+     * </p>
+     */
     @Test
     void shouldAllowWhenAnyMatchedMappingPasses() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());

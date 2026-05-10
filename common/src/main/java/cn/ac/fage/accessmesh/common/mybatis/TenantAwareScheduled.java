@@ -7,20 +7,22 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a scheduled method as tenant-aware.
+ * 租户感知定时任务注解
+ * <p>
+ * 标记定时任务方法为租户感知，使方法为每个活跃租户执行一次。
+ * 业务逻辑会在TenantContextHolder设置租户ID后执行。
+ * </p>
  *
- * <p>Methods annotated with {@code @TenantAwareScheduled} will be wrapped so that
- * the business logic executes once for each active tenant, with
- * {@link TenantContextHolder} (service-specific) set appropriately.
- *
- * <p>Usage:
+ * <p>使用示例：
  * <pre>{@code
  * @TenantAwareScheduled
  * @Scheduled(fixedDelay = 30000)
  * public void processRetries() { ... }
  * }</pre>
+ * </p>
  *
- * <p>Requires a {@link TenantIdProvider} bean to be registered in the service.
+ * <p>要求：服务模块必须注册TenantIdProvider Bean。
+ * </p>
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)

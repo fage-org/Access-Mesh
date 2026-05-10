@@ -11,12 +11,27 @@ import reactor.netty.http.client.HttpClient;
 import java.time.Duration;
 
 /**
- * Provides a load-balanced WebClient.Builder for calling internal services
- * by logical name (e.g. lb://permission-center).
+ * WebClient配置类
+ * <p>
+ * 提供负载均衡的WebClient.Builder，用于通过逻辑名称调用内部服务
+ * （如lb://permission-center）。
+ * 配置连接超时和响应超时以防止长时间阻塞。
+ * </p>
  */
 @Configuration
 public class WebClientConfig {
 
+    /**
+     * 创建负载均衡WebClient构建器
+     * <p>
+     * 配置Netty HttpClient：
+     * - 连接超时: 3秒
+     * - 响应超时: 5秒
+     * 使用@LoadBalanced注解支持服务发现和负载均衡。
+     * </p>
+     *
+     * @return 负载均衡WebClient构建器实例
+     */
     @Bean
     @LoadBalanced
     public WebClient.Builder loadBalancedWebClientBuilder() {

@@ -8,17 +8,27 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 系统文件数据访问接口
+ * <p>
+ * 提供文件表的基础CRUD操作和自定义查询方法。
+ * 支持批量软删除操作。
+ * </p>
+ */
 @Mapper
 public interface SysFileMapper extends BaseMapper<SysFile> {
 
     /**
-     * Batch soft delete files.
-     * Sets delete_flag = id (row's own ID) and deleted_at for each file.
+     * 批量软删除文件
+     * <p>
+     * 将指定文件的delete_flag设置为id（行自身ID），deleted_at设置为当前时间。
+     * 用于批量删除场景，避免物理删除。
+     * </p>
      *
-     * @param tenantId   the tenant ID for isolation
-     * @param ids        the list of file IDs to delete
-     * @param deletedAt  the timestamp of deletion
-     * @return number of rows updated
+     * @param tenantId  租户ID，用于数据隔离
+     * @param ids       待删除的文件ID列表
+     * @param deletedAt 删除时间戳
+     * @return 更新的行数
      */
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,

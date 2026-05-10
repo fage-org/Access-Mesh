@@ -1,72 +1,101 @@
 package cn.ac.fage.accessmesh.permission.util;
 
 /**
- * String utility methods for null-safe string operations.
+ * 字符串工具类
+ * <p>
+ * 提供空值安全的字符串操作方法。
+ * 用于统一的字符串验证和处理。
+ * </p>
  */
 public final class StringUtils {
 
+    /**
+     * 私有构造函数
+     * <p>
+     * 工具类不允许实例化。
+     * </p>
+     */
     private StringUtils() {
-        // Utility class
+        // 工具类
     }
 
     /**
-     * Check if the string is not null and not blank (contains non-whitespace characters).
-     * This is the recommended method for most string validation scenarios.
+     * 判断字符串是否有文本内容
+     * <p>
+     * 判断字符串不为null且包含非空白字符。
+     * 这是大多数字符串验证场景推荐使用的方法。
+     * </p>
      *
-     * @param str the string to check
-     * @return true if the string has meaningful content, false otherwise
+     * @param str 待检查的字符串
+     * @return 字符串有实际内容返回true，否则返回false
      */
     public static boolean hasText(String str) {
         return str != null && !str.isBlank();
     }
 
     /**
-     * Check if the string is null or blank (empty or only whitespace).
+     * 判断字符串是否为空或空白
+     * <p>
+     * 判断字符串为null、空字符串或仅包含空白字符。
+     * </p>
      *
-     * @param str the string to check
-     * @return true if the string is null or blank, false otherwise
+     * @param str 待检查的字符串
+     * @return 字符串为null或空白返回true，否则返回false
      */
     public static boolean isBlank(String str) {
         return str == null || str.isBlank();
     }
 
     /**
-     * Check if the string is not null and not empty.
-     * Use this when you need to distinguish between empty and blank strings.
+     * 判断字符串是否非空
+     * <p>
+     * 判断字符串不为null且不为空字符串。
+     * 当需要区分空字符串和空白字符串时使用此方法。
+     * </p>
      *
-     * @param str the string to check
-     * @return true if the string has any content (including whitespace), false otherwise
+     * @param str 待检查的字符串
+     * @return 字符串有任何内容（包括空白字符）返回true，否则返回false
      */
     public static boolean isNotEmpty(String str) {
         return str != null && !str.isEmpty();
     }
 
     /**
-     * Check if the string is null or empty.
+     * 判断字符串是否为空
+     * <p>
+     * 判断字符串为null或空字符串。
+     * </p>
      *
-     * @param str the string to check
-     * @return true if the string is null or empty, false otherwise
+     * @param str 待检查的字符串
+     * @return 字符串为null或空返回true，否则返回false
      */
     public static boolean isEmpty(String str) {
         return str == null || str.isEmpty();
     }
 
     /**
-     * Return the string if not blank, otherwise return the default value.
+     * 返回非空白字符串或默认值
+     * <p>
+     * 如果字符串有文本内容则返回原字符串，否则返回默认值。
+     * </p>
      *
-     * @param str the string to check
-     * @param defaultValue the default value to return if blank
-     * @return the original string if has text, otherwise the default
+     * @param str         待检查的字符串
+     * @param defaultValue 默认值
+     * @return 原字符串如果有文本内容，否则返回默认值
      */
     public static String defaultIfBlank(String str, String defaultValue) {
         return hasText(str) ? str : defaultValue;
     }
 
     /**
-     * Trim the string, returning null if the result is blank.
+     * 去除空白并转换为null
+     * <p>
+     * 去除字符串两端的空白字符，如果结果为空白则返回null。
+     * 用于规范化字符串输入。
+     * </p>
      *
-     * @param str the string to trim
-     * @return trimmed string with content, or null if blank
+     * @param str 待处理的字符串
+     * @return 去除空白后有内容的字符串，或null
      */
     public static String trimToNull(String str) {
         if (str == null) {

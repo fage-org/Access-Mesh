@@ -51,6 +51,20 @@ import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
+/**
+ * 权限授予服务实现类
+ * <p>
+ * 提供角色权限的批量授予、批量撤销、权限列表查询、子权限管理等核心功能。
+ * 实现严格的授权传递安全校验：操作者必须拥有canGrant=true的权限才能授权给他人。
+ * 使用批量解析优化性能，避免N+1查询问题。
+ * 在事务提交后执行缓存失效和版本递增，确保数据一致性。
+ * </p>
+ * <p>
+ * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+ * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
+ * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+ * </p>
+ */
 @Service
 public class PermissionGrantServiceImpl implements PermissionGrantService {
 
@@ -74,9 +88,14 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final AbstractRoleDomainService abstractRoleDomainService;
     private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖过多(17个)，违反单一职责原则
-    // 建议：拆分为 GrantValidationService/GrantExecutionService/GrantCascadeService
-    // 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+    /**
+     * 构造函数注入所有依赖
+     * <p>
+     * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+     * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
+     * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+     * </p>
+     */
     public PermissionGrantServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
                                       OperationPermissionMapper operationPermissionMapper,
@@ -113,6 +132,25 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.engine = engine;
     }
 
+    /**
+     * 批量授予角色权限
+     * <p>
+     * 执行严格的授权传递安全校验：
+     * 1. 操作者必须对角色拥有MANAGE权限
+     * 2. 授权新增权限时，操作者必须拥有该权限且canGrant=true
+     * 3. 更新canGrant=true时，操作者必须已拥有canGrant=true的该权限
+     * 使用批量解析（资源ID、操作ID、类型值）避免N+1查询。
+     * 自动授予依赖权限（autoGrantForInsert）。
+     * 在事务提交后执行缓存失效和版本递增。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      批量授予请求，包含角色标识、新增项、更新项、删除项
+     * @return 授予后的角色权限列表
+     * @throws IllegalArgumentException  角色/资源/操作/条件不存在
+     * @throws SecurityException         操作者无授权传递权限
+     * @throws IllegalStateException     角色已禁用
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
@@ -123,7 +161,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             throw new IllegalArgumentException("Role not found by business key");
         }
 
-        // Operator authorization check - MANAGE permission on role
+        // 操作者授权校验 - 对角色拥有MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
@@ -151,8 +189,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         List<RoleGrantReq.GrantUpdateItem> updateItems = req.update() == null ? List.of() : req.update();
         List<Long> removeItems = req.remove() == null ? List.of() : req.remove();
 
-        // ===== SECURITY CHECK: Validate grant permissions for each add item =====
-        // Operator must have the permission AND canGrant=true to grant it to others
+        // ===== 安全校验：验证新增项的授权传递权限 =====
+        // 操作者必须拥有该权限且canGrant=true才能授权给他人
         if (!addItems.isEmpty()) {
             Set<AuthorizationService.GrantCheckKey> grantKeys = addItems.stream()
                 .map(item -> new AuthorizationService.GrantCheckKey(
@@ -166,7 +204,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<String, AuthorizationService.GrantCheckResult> grantResults =
                 authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, req.domainCode());
 
-            // Check each add item
+            // 校验每个新增项
             for (RoleGrantReq.GrantAddItem item : addItems) {
                 String permKey = buildGrantKey(item);
                 AuthorizationService.GrantCheckResult result = grantResults.get(permKey);
@@ -184,16 +222,15 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             }
         }
 
-        // ===== SECURITY CHECK: Validate grant permissions for update items that change canGrant =====
-        // If operator wants to set canGrant=true, they must already have canGrant=true on that permission
-        // Collect all updateItem IDs that need canGrant=true check
+        // ===== 安全校验：验证更新项的授权传递权限 =====
+        // 如果操作者想要设置canGrant=true，必须已拥有canGrant=true的该权限
         Set<Long> updatePermIds = updateItems.stream()
             .filter(item -> item.id() != null && Boolean.TRUE.equals(item.canGrant()))
             .map(RoleGrantReq.GrantUpdateItem::id)
             .collect(Collectors.toSet());
 
         if (!updatePermIds.isEmpty()) {
-            // Batch query existing permissions
+            // 批量查询现有权限
             List<RoleResourcePermission> existingPerms = rolePermMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
@@ -204,7 +241,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<Long, RoleResourcePermission> existingPermMap = existingPerms.stream()
                 .collect(Collectors.toMap(RoleResourcePermission::getId, p -> p));
 
-            // Batch query resource entities
+            // 批量查询资源实体
             Set<Long> resourceIds = existingPerms.stream()
                 .map(RoleResourcePermission::getResourceEntityId)
                 .filter(Objects::nonNull)
@@ -216,7 +253,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                         .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-            // Batch query operation permissions
+            // 批量查询操作权限
             Set<Long> operationIds = existingPerms.stream()
                 .map(RoleResourcePermission::getOperationPermissionId)
                 .filter(Objects::nonNull)
@@ -227,14 +264,14 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                         .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
                 ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
 
-            // Batch resolve resource type codes
+            // 批量解析资源类型编码
             Set<Integer> resourceTypeValues = existingPerms.stream()
                 .map(RoleResourcePermission::getResourceType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
 
-            // Check each update item
+            // 校验每个更新项
             for (RoleGrantReq.GrantUpdateItem updateItem : updateItems) {
                 if (updateItem.id() == null || !Boolean.TRUE.equals(updateItem.canGrant())) {
                     continue;
@@ -245,13 +282,13 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                     continue;
                 }
 
-                // Get resource info from pre-loaded maps
+                // 从预加载的映射中获取资源信息
                 ResourceEntity resource = existing.getResourceEntityId() == null ? null
                     : resourceMap.get(existing.getResourceEntityId());
                 OperationPermission operation = operationMap.get(existing.getOperationPermissionId());
                 String resourceTypeCode = resourceTypeCodeMap.get(existing.getResourceType());
 
-                // Check if operator can grant this permission
+                // 校验操作者是否可以授权该权限
                 boolean canGrant = authorizationService.canGrantPermission(
                     tenantId, operatorId, resourceTypeCode,
                     resource == null ? null : resource.getCode(),
@@ -269,10 +306,10 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 }
             }
         }
-        // ===== END SECURITY CHECK =====
+        // ===== 安全校验结束 =====
 
-        // ===== Batch resolution to avoid N+1 queries =====
-        // 1. Batch resolve resource IDs
+        // ===== 批量解析避免N+1查询 =====
+        // 1. 批量解析资源ID
         List<ResourceResolveRequest> resourceRequests = addItems.stream()
             .filter(item -> !Boolean.TRUE.equals(item.scopeAll()))
             .map(item -> new ResourceResolveRequest(
@@ -284,7 +321,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
 
-        // 2. Batch resolve operation IDs by resource type
+        // 2. 批量解析操作ID（按资源类型分组）
         Map<String, Set<String>> operationCodesByType = addItems.stream()
             .collect(Collectors.groupingBy(
                 RoleGrantReq.GrantAddItem::resourceTypeCode,
@@ -296,7 +333,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             operationIdMapByType.put(entry.getKey(), opMap);
         }
 
-        // 3. Batch resolve resource type values
+        // 3. 批量解析资源类型值
         Set<String> resourceTypeCodes = addItems.stream()
             .map(RoleGrantReq.GrantAddItem::resourceTypeCode)
             .filter(code -> code != null && !code.isBlank())
@@ -307,7 +344,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
-        // Batch load resources to avoid N+1 query
+        // 批量加载资源避免N+1查询
         Map<Long, ResourceEntity> resourceById = resourceIds.isEmpty() ? Map.of()
             : resourceEntityMapper.selectListByQuery(
                 QueryWrapper.create()
@@ -316,7 +353,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                     .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-        // Validate all resources exist
+        // 校验所有资源是否存在
         for (Long resId : resourceIds) {
             if (!resourceById.containsKey(resId)) {
                 throw new IllegalArgumentException("Resource not found: " + resId);
@@ -380,23 +417,24 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             toInsert.add(rp);
         }
 
+        // 自动授予依赖权限
         List<RoleResourcePermission> autoGranted = resourceDependencyDomainService
             .autoGrantForInsert(tenantId, roleId, toInsert);
         toInsert.addAll(autoGranted);
 
-        // Batch soft delete permissions to avoid N+1 query
+        // 批量软删除权限避免N+1查询
         if (!removeItems.isEmpty()) {
             rolePermissionDomainService.revokePermissions(tenantId, roleId, removeItems);
         }
 
-        // ===== Batch process update items to avoid N+1 queries =====
+        // ===== 批量处理更新项避免N+1查询 =====
         Set<Long> updateIds = updateItems.stream()
             .map(RoleGrantReq.GrantUpdateItem::id)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
         if (!updateIds.isEmpty()) {
-            // Batch query existing permissions
+            // 批量查询现有权限
             List<RoleResourcePermission> existingPerms = rolePermMapper.selectListByQuery(
                 QueryWrapper.create()
                     .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
@@ -407,7 +445,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<Long, RoleResourcePermission> existingPermMap = existingPerms.stream()
                 .collect(Collectors.toMap(RoleResourcePermission::getId, p -> p));
 
-            // Batch query permission conditions
+            // 批量查询权限条件
             Set<String> conditionCodes = updateItems.stream()
                 .map(RoleGrantReq.GrantUpdateItem::conditionCode)
                 .filter(code -> code != null && !code.isBlank())
@@ -420,7 +458,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                         .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(PermissionCondition::getCode, c -> c));
 
-            // Process each update item with pre-loaded data
+            // 使用预加载的数据处理每个更新项
             for (RoleGrantReq.GrantUpdateItem updateItem : updateItems) {
                 if (updateItem.id() == null) {
                     continue;
@@ -452,6 +490,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rolePermMapper.insertBatch(toInsert);
         }
 
+        // 事务提交后执行缓存失效和版本递增
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -477,6 +516,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         return toItemRespList(tenantId, allPerms);
     }
 
+    /**
+     * 批量撤销角色权限
+     * <p>
+     * 执行操作者授权校验（对角色拥有MANAGE权限）。
+     * 使用批量软删除方法优化性能。
+     * 版本递增和缓存失效由revokePermissions内部处理。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      批量撤销请求，包含角色标识和权限ID列表
+     * @throws IllegalArgumentException 角色不存在
+     * @throws SecurityException        操作者无MANAGE权限
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchRevoke(Long tenantId, BatchRevokeReq req) {
@@ -487,19 +539,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             throw new IllegalArgumentException("Role not found by business key");
         }
 
-        // Operator authorization check
+        // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
         List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
 
-        // Performance fix: use batch method instead of loop
+        // 性能优化：使用批量方法替代循环
         if (!permissionIds.isEmpty()) {
             rolePermissionDomainService.revokePermissions(tenantId, roleId, permissionIds);
         }
 
-        // Note: version increment and cache invalidation are handled by revokePermissions internally
-        // Only record operation log here
+        // 注意：版本递增和缓存失效由revokePermissions内部处理
+        // 此处仅记录操作日志
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -515,6 +567,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         }
     }
 
+    /**
+     * 查询角色权限列表
+     * <p>
+     * 执行操作者授权校验（对角色拥有VIEW权限）。
+     * 使用批量加载避免N+1查询（资源实体、操作权限、条件）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限列表查询请求，包含角色标识
+     * @return 角色权限项列表，无权限时返回空列表
+     */
     @Override
     @Transactional(readOnly = true)
     public List<RolePermissionItemResp> listPermissions(Long tenantId, RolePermissionListReq req) {
@@ -525,7 +588,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             return List.of();
         }
 
-        // Operator authorization check - VIEW permission required
+        // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
             return List.of();
@@ -540,6 +603,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         return toItemRespList(tenantId, perms);
     }
 
+    /**
+     * 查询权限的子权限列表
+     * <p>
+     * 查询依赖于指定权限的子权限（dependOn字段）。
+     * 执行操作者授权校验（对父权限所属角色拥有VIEW权限）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      子权限查询请求，包含父权限ID
+     * @return 子权限项列表，无权限时返回空列表
+     */
     @Override
     @Transactional(readOnly = true)
     public List<RolePermissionItemResp> listChildren(Long tenantId, RolePermissionChildrenReq req) {
@@ -548,7 +622,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             return List.of();
         }
 
-        // Operator authorization check - VIEW permission required
+        // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.VIEW)) {
             return List.of();
@@ -564,6 +638,22 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         return toItemRespList(tenantId, perms);
     }
 
+    /**
+     * 添加子权限
+     * <p>
+     * 为父权限添加依赖的子权限。
+     * 父权限必须是顶层权限（dependOn=null）。
+     * 执行SUB_PERM配置校验，限制允许的资源类型。
+     * 执行操作者授权校验（对父权限所属角色拥有MANAGE权限）。
+     * 使用批量解析避免N+1查询。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      添加子权限请求，包含父权限ID和子权限列表
+     * @return 新增的子权限项列表
+     * @throws IllegalArgumentException 父权限不存在、父权限不是顶层、资源类型不允许
+     * @throws SecurityException        操作者无MANAGE权限
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
@@ -572,7 +662,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             throw new IllegalArgumentException("parentPermissionId not found");
         }
 
-        // Operator authorization check
+        // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE);
 
@@ -591,21 +681,20 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             );
         }
 
-        // ===== Batch resolution to avoid N+1 queries =====
+        // ===== 批量解析避免N+1查询 =====
         List<RolePermissionAddChildReq.ChildItem> children = req.children();
         if (children.isEmpty()) {
             return List.of();
         }
 
-        // 1. Batch resolve resource type values
+        // 1. 批量解析资源类型值
         Set<String> resourceTypeCodes = children.stream()
             .map(RolePermissionAddChildReq.ChildItem::resourceTypeCode)
             .filter(code -> code != null && !code.isBlank())
             .collect(Collectors.toSet());
         Map<String, Integer> resourceTypeValueMap = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", resourceTypeCodes);
 
-        // 2. Batch resolve operation IDs
-        // Group by resourceTypeCode for batch resolution
+        // 2. 批量解析操作ID（按资源类型分组）
         Map<String, Set<String>> operationCodesByType = children.stream()
             .filter(c -> c.operationCode() != null && !c.operationCode().isBlank())
             .collect(Collectors.groupingBy(
@@ -618,7 +707,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             operationIdMapByType.put(entry.getKey(), opMap);
         }
 
-        // 3. Batch resolve resource IDs for non-scopeAll items
+        // 3. 批量解析资源ID（非scopeAll项）
         List<ResourceResolveRequest> resourceRequests = children.stream()
             .filter(c -> !Boolean.TRUE.equals(c.scopeAll()) && c.resourceCode() != null && !c.resourceCode().isBlank())
             .map(c -> new ResourceResolveRequest(c.resourceTypeCode(), c.resourceCode(), c.codeType(), null))
@@ -626,7 +715,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
 
-        // 4. Batch query permission conditions
+        // 4. 批量查询权限条件
         Set<String> conditionCodes = children.stream()
             .map(RolePermissionAddChildReq.ChildItem::conditionCode)
             .filter(code -> code != null && !code.isBlank())
@@ -648,6 +737,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             if (resourceType == null) {
                 throw new IllegalArgumentException("resourceTypeCode not found: " + child.resourceTypeCode());
             }
+            // SUB_PERM配置校验
             if (subPermConfig != null && subPermConfig.getExtra() != null && !subPermConfig.getExtra().isBlank()
                 && !parseAllowedTypeCodes(subPermConfig.getExtra()).contains(child.resourceTypeCode().trim().toUpperCase())) {
                 throw new IllegalArgumentException("resourceTypeCode not allowed by SUB_PERM config: " + child.resourceTypeCode());
@@ -697,7 +787,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 new Long[]{parent.getAbstractRoleId()}
             ));
         }
-        // Performance fix: batch insert instead of loop insert
+        // 性能优化：批量插入替代循环插入
         if (!inserted.isEmpty()) {
             rolePermMapper.insertBatch(inserted);
         }
@@ -718,6 +808,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         return toItemRespList(tenantId, inserted);
     }
 
+    /**
+     * 移除子权限
+     * <p>
+     * 软删除指定的子权限（必须是依赖权限，即dependOn不为null）。
+     * 执行操作者授权校验（对子权限所属角色拥有MANAGE权限）。
+     * 在事务提交后执行缓存失效和版本递增。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      移除子权限请求，包含子权限ID
+     * @throws IllegalArgumentException 子权限不存在、权限不是子权限
+     * @throws SecurityException        操作者无MANAGE权限
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
@@ -726,7 +829,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             throw new IllegalArgumentException("child permission not found");
         }
 
-        // Operator authorization check
+        // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE);
 
@@ -755,11 +858,25 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         )));
     }
 
+    /**
+     * 将权限实体列表转换为响应对象列表
+     * <p>
+     * 使用批量加载避免N+1查询：
+     * 1. 批量加载资源实体
+     * 2. 批量加载操作权限
+     * 3. 批量加载权限条件
+     * 4. 批量解析资源类型编码
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param perms    权限实体列表
+     * @return 权限项响应列表
+     */
     private List<RolePermissionItemResp> toItemRespList(Long tenantId, List<RoleResourcePermission> perms) {
         if (perms.isEmpty()) {
             return List.of();
         }
-        // Batch load resource entities to avoid N+1 queries
+        // 批量加载资源实体避免N+1查询
         Set<Long> resourceIds = perms.stream()
             .map(RoleResourcePermission::getResourceEntityId)
             .filter(java.util.Objects::nonNull)
@@ -772,7 +889,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                     .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             ).stream().collect(java.util.stream.Collectors.toMap(ResourceEntity::getId, r -> r));
 
-        // Batch load operation permissions to avoid N+1 queries
+        // 批量加载操作权限避免N+1查询
         Set<Long> operationIds = perms.stream()
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(java.util.Objects::nonNull)
@@ -782,7 +899,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 QueryWrapper.create().where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
             ).stream().collect(java.util.stream.Collectors.toMap(OperationPermission::getId, op -> op));
 
-        // Batch load permission conditions to avoid N+1 queries
+        // 批量加载权限条件避免N+1查询
         Set<Long> conditionIds = perms.stream()
             .map(RoleResourcePermission::getConditionId)
             .filter(java.util.Objects::nonNull)
@@ -792,7 +909,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 QueryWrapper.create().where(PermissionConditionTableDef.PERMISSION_CONDITION.ID.in(conditionIds))
             ).stream().collect(java.util.stream.Collectors.toMap(PermissionCondition::getId, c -> c));
 
-        // Batch resolve resource type codes (avoid N+1)
+        // 批量解析资源类型编码（避免N+1）
         Set<Integer> resourceTypeValues = perms.stream()
             .map(RoleResourcePermission::getResourceType)
             .filter(java.util.Objects::nonNull)
@@ -819,6 +936,16 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         }).toList();
     }
 
+    /**
+     * 解析SUB_PERM配置中允许的资源类型编码
+     * <p>
+     * 配置格式为JSON数组字符串，如["ORG","USER"]。
+     * 解析为Set并统一大写处理。
+     * </p>
+     *
+     * @param extra 配置字符串
+     * @return 允许的资源类型编码集合
+     */
     private Set<String> parseAllowedTypeCodes(String extra) {
         String normalized = extra.replace("[", "").replace("]", "").replace("\"", "");
         Set<String> codes = new HashSet<>();
@@ -832,7 +959,14 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     }
 
     /**
-     * Build permission key for grant check matching AuthorizationServiceImpl format.
+     * 构建授权校验的权限键
+     * <p>
+     * 格式：resourceTypeCode:resourceCode:operationCode:scopeAll
+     * 与AuthorizationServiceImpl的格式一致。
+     * </p>
+     *
+     * @param item 授权新增项
+     * @return 权限键字符串
      */
     private String buildGrantKey(RoleGrantReq.GrantAddItem item) {
         return String.format("%s:%s:%s:%s",

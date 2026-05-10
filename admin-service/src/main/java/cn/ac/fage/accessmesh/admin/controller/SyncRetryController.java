@@ -18,8 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Sync retry management API — view and manage failed sync records.
- * All APIs: POST + JSON Body.
+ * 同步重试管理控制器
+ * <p>
+ * 提供同步失败记录的查询、状态更新、删除等功能。
+ * 同步重试用于处理跨系统数据同步失败的情况，记录失败原因并支持重试。
+ * 所有接口采用POST + JSON Body方式。
+ * </p>
  */
 @RestController
 @RequestMapping("/sync-retry")
@@ -27,12 +31,24 @@ public class SyncRetryController {
 
     private final SyncRetryService syncRetryService;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param syncRetryService 同步重试服务
+     */
     public SyncRetryController(SyncRetryService syncRetryService) {
         this.syncRetryService = syncRetryService;
     }
 
     /**
-     * Paginated list of sync retry records.
+     * 分页查询同步重试记录列表
+     * <p>
+     * 查询所有同步重试记录，包括成功、失败、待重试等状态。
+     * 用于监控数据同步状态和排查同步问题。
+     * </p>
+     *
+     * @param pageReq 分页查询请求
+     * @return 分页同步重试记录列表结果
      */
     @PostMapping("/page")
     public PermResult<PaginatedResult<SyncRetryResp>> page(@RequestBody PageReq pageReq) {
@@ -44,7 +60,12 @@ public class SyncRetryController {
     }
 
     /**
-     * List pending retry records (status = pending).
+     * 查询待重试记录列表
+     * <p>
+     * 查询状态为待重试的同步记录，用于批量重试处理。
+     * </p>
+     *
+     * @return 待重试记录列表
      */
     @PostMapping("/pending")
     public PermResult<List<SyncRetryResp>> listPending() {
@@ -53,7 +74,13 @@ public class SyncRetryController {
     }
 
     /**
-     * Mark a record as successfully synced.
+     * 标记同步成功
+     * <p>
+     * 将同步记录标记为成功状态，表示数据同步已完成。
+     * </p>
+     *
+     * @param req ID请求，包含同步记录ID
+     * @return 操作成功结果
      */
     @PostMapping("/mark-success")
     public PermResult<Void> markSuccess(@Valid @RequestBody IdReq req) {
@@ -62,7 +89,14 @@ public class SyncRetryController {
     }
 
     /**
-     * Mark a record as failed with an error message.
+     * 标记同步失败
+     * <p>
+     * 将同步记录标记为失败状态，并记录错误原因。
+     * 用于记录重试失败的情况。
+     * </p>
+     *
+     * @param req 标记失败请求，包含同步记录ID和错误信息
+     * @return 操作成功结果
      */
     @PostMapping("/mark-failed")
     public PermResult<Void> markFailed(@RequestBody SyncRetryMarkFailedReq req) {
@@ -71,7 +105,13 @@ public class SyncRetryController {
     }
 
     /**
-     * Delete a processed sync retry record.
+     * 删除已处理的同步记录
+     * <p>
+     * 删除已完成（成功或放弃）的同步记录，清理历史数据。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的同步记录ID列表
+     * @return 操作成功结果
      */
     @PostMapping("/delete")
     public PermResult<Void> delete(@Valid @RequestBody IdsReq req) {

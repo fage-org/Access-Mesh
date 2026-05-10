@@ -25,17 +25,43 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 
+/**
+ * 组织树配置管理服务实现类
+ * <p>
+ * 提供组织树配置的CRUD操作、设置默认配置等功能。
+ * 组织树配置用于定义不同场景下组织树的展示规则，如过滤条件、排序方式等。
+ * 可配置多个组织树方案，在不同业务场景使用不同的组织树配置。
+ * 系统只有一个默认配置，设置新默认时会自动清除旧默认。
+ * </p>
+ */
 @Service
 public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
 
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
     private final AdminPermissionValidator permissionValidator;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param orgTreeConfigMapper 组织树配置数据访问Mapper
+     * @param permissionValidator 权限校验器，校验配置操作权限
+     */
     public OrgTreeConfigServiceImpl(SysOrgTreeConfigMapper orgTreeConfigMapper, AdminPermissionValidator permissionValidator) {
         this.orgTreeConfigMapper = orgTreeConfigMapper;
         this.permissionValidator = permissionValidator;
     }
 
+    /**
+     * 创建组织树配置
+     * <p>
+     * 创建新的组织树配置方案，定义组织树的展示规则。
+     * 如果设置为默认配置，会自动清除其他配置的默认标记。
+     * 执行类型级权限校验(CREATE)。
+     * </p>
+     *
+     * @param config 组织树配置实体，包含配置名称、规则定义等
+     * @return 创建成功的配置ID
+     */
     @Override
     @Transactional
     public Long createOrgTreeConfig(SysOrgTreeConfig config) {
@@ -52,6 +78,17 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         return config.getId();
     }
 
+    /**
+     * 更新组织树配置
+     * <p>
+     * 更新组织树配置的名称、规则定义等属性。
+     * 执行实例级权限校验(UPDATE)。
+     * 如果设置为默认配置，会自动清除其他配置的默认标记。
+     * </p>
+     *
+     * @param config 组织树配置实体，包含配置ID和新属性值
+     * @throws BizException 组织树配置不存在
+     */
     @Override
     @Transactional
     public void updateOrgTreeConfig(SysOrgTreeConfig config) {
@@ -71,6 +108,15 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         orgTreeConfigMapper.update(config);
     }
 
+    /**
+     * 批量删除组织树配置
+     * <p>
+     * 执行批量实例级权限校验后软删除配置方案。
+     * 使用单条批量SQL提高性能。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的配置ID列表
+     */
     @Override
     @Transactional
     public void deleteOrgTreeConfigs(IdsReq req) {
@@ -86,6 +132,18 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         orgTreeConfigMapper.softDeleteBatch(null, req.ids(), now);
     }
 
+    /**
+     * 设置默认组织树配置
+     * <p>
+     * 将指定配置设置为默认的组织树展示方案。
+     * 系统将使用默认配置展示组织树。
+     * 执行实例级权限校验(TOGGLE)。
+     * 设置新默认时会自动清除其他配置的默认标记。
+     * </p>
+     *
+     * @param id 配置ID
+     * @throws BizException 组织树配置不存在
+     */
     @Override
     @Transactional
     public void setDefault(Long id) {
@@ -104,6 +162,15 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         orgTreeConfigMapper.update(config);
     }
 
+    /**
+     * 获取组织树配置详情
+     * <p>
+     * 根据配置ID查询组织树配置的完整信息。
+     * </p>
+     *
+     * @param id 配置ID
+     * @return 组织树配置详情信息
+     */
     @Override
     public OrgTreeConfigResp getOrgTreeConfig(Long id) {
         SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
@@ -112,6 +179,16 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         return OrgTreeConfigResp.from(config);
     }
 
+    /**
+     * 分页查询组织树配置列表
+     * <p>
+     * 查询系统中所有的组织树配置方案，支持分页。
+     * 按创建时间倒序排列。
+     * </p>
+     *
+     * @param pageReq 分页查询请求
+     * @return 分页组织树配置列表结果
+     */
     @Override
     public PaginatedResult<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
         Page<SysOrgTreeConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
@@ -129,6 +206,13 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * 清除默认配置标记
+     * <p>
+     * 将所有配置的默认标记设为false，确保只有一个默认配置。
+     * 当前使用循环更新方式，后续可优化为批量更新SQL。
+     * </p>
+     */
     private void clearDefault() {
         // Performance optimization opportunity: could use custom batch update SQL
         // For now, loop update is used due to MyBatis-Flex API limitations

@@ -53,6 +53,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+/**
+ * 认证服务实现类
+ * <p>
+ * 提供用户登录认证相关的核心功能，包括验证码生成、密码登录、短信登录、
+ * 用户信息获取、用户菜单获取等。
+ * 实现了登录失败次数限制、账号锁定、验证码一次性使用等安全机制。
+ * 使用Redis Lua脚本确保原子性操作，避免竞态条件。
+ * 用户菜单和权限通过Feign调用permission-center服务获取。
+ * </p>
+ */
 @Service
 public class AuthServiceImpl implements AuthService {
 
@@ -64,7 +74,12 @@ public class AuthServiceImpl implements AuthService {
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
     private static final long LOCK_DURATION_MINUTES = 30;
 
-    // Lua脚本：INCR + EXPIRE 合并为原子操作，避免竞态条件
+    /**
+     * Lua脚本：INCR + EXPIRE 合并为原子操作
+     * <p>
+     * 避免INCR和EXPIRE之间的竞态条件，确保计数器正确设置过期时间。
+     * </p>
+     */
     private static final String LUA_INCREMENT_WITH_EXPIRE =
         "local count = redis.call('INCR', KEYS[1]) " +
         "if count == 1 then " +
@@ -72,7 +87,12 @@ public class AuthServiceImpl implements AuthService {
         "end " +
         "return count";
 
-    // Lua脚本：GET + DEL 合并为原子操作，确保验证码一次性使用
+    /**
+     * Lua脚本：GET + DEL 合并为原子操作
+     * <p>
+     * 确保验证码一次性使用，获取后立即删除，防止重复验证。
+     * </p>
+     */
     private static final String LUA_GET_AND_DELETE =
         "local value = redis.call('GET', KEYS[1]) " +
         "if value then " +
@@ -91,6 +111,17 @@ public class AuthServiceImpl implements AuthService {
     private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
     private static final String OPERATION_VIEW = "VIEW";
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param userDomainService 用户领域服务，处理用户数据访问
+     * @param userOrgDomainService 用户组织关联领域服务
+     * @param oauth2ClientDomainService OAuth2客户端领域服务
+     * @param loginLogDomainService 登录日志领域服务，记录登录成功/失败
+     * @param redisTemplate Redis操作模板，用于验证码和登录失败计数
+     * @param menuDomainService 菜单领域服务，获取菜单数据
+     * @param permissionFeignClient 权限中心Feign客户端，获取用户角色和权限
+     */
     public AuthServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
                            OAuth2ClientDomainService oauth2ClientDomainService,
@@ -107,6 +138,15 @@ public class AuthServiceImpl implements AuthService {
         this.permissionFeignClient = permissionFeignClient;
     }
 
+    /**
+     * 生成图形验证码
+     * <p>
+     * 生成随机4位数字验证码，存储到Redis中5分钟有效期。
+     * 返回验证码ID和Base64编码的PNG图片，前端通过图片展示验证码。
+     * </p>
+     *
+     * @return 验证码响应，包含验证码ID和图片Base64字符串
+     */
     @Override
     public CaptchaResp generateCaptcha() {
         String captchaId = UUID.randomUUID().toString();
@@ -116,6 +156,18 @@ public class AuthServiceImpl implements AuthService {
         return new CaptchaResp(captchaId, image);
     }
 
+    /**
+     * 用户密码登录
+     * <p>
+     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
+     * 账号锁定检查、密码校验、登录失败记录、Sa-Token会话创建。
+     * 登录成功后清除失败计数，失败时累加计数并可能锁定账号。
+     * </p>
+     *
+     * @param req 登录请求，包含租户ID、用户名、密码、验证码等
+     * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
+     * @throws BizException 验证码错误、用户不存在、账号锁定、密码错误等
+     */
     @Override
     public LoginResp login(LoginReq req) {
         validateCaptcha(req.captchaId(), req.captchaCode());
@@ -164,6 +216,17 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * 用户短信验证码登录
+     * <p>
+     * 通过手机号和短信验证码登录，无需密码。
+     * 验证短信验证码后查询用户，创建Sa-Token会话。
+     * </p>
+     *
+     * @param req 短信登录请求，包含租户ID、手机号、短信验证码等
+     * @return 登录响应，包含令牌、用户信息等
+     * @throws BizException 短信验证码错误、用户不存在、用户已停用等
+     */
     @Override
     public LoginResp smsLogin(SmsLoginReq req) {
         SysOauth2Client client = validateClient(req.clientId());
@@ -201,11 +264,29 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * 用户登出
+     * <p>
+     * 清除当前用户的Sa-Token会话，使令牌失效。
+     * </p>
+     */
     @Override
     public void logout() {
         StpUtil.logout();
     }
 
+    /**
+     * 获取用户信息
+     * <p>
+     * 根据用户ID获取用户基本信息，包括用户名、姓名、手机号、邮箱、头像等。
+     * 同时获取用户关联的组织信息列表。
+     * 验证用户ID属于当前租户。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 用户信息响应
+     * @throws BizException 用户不存在
+     */
     @Override
     public UserInfoResp getUserInfo(Long userId) {
         // FIX #13: Validate userId belongs to current tenant
@@ -235,6 +316,17 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * 验证图形验证码
+     * <p>
+     * 使用Lua脚本原子性地获取并删除验证码，确保一次性使用。
+     * 验证码过期或错误时抛出异常。
+     * </p>
+     *
+     * @param captchaId 验证码ID
+     * @param captchaCode 用户输入的验证码
+     * @throws BizException 验证码参数缺失、验证码错误或已过期
+     */
     private void validateCaptcha(String captchaId, String captchaCode) {
         if (captchaId == null || captchaCode == null) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "验证码参数缺失");
@@ -252,6 +344,17 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 验证OAuth2客户端
+     * <p>
+     * 检查客户端是否存在且支持密码授权类型。
+     * 如果客户端ID为空则跳过验证。
+     * </p>
+     *
+     * @param clientId 客户端ID
+     * @return 客户端实体，如果不存在或不支持密码授权则返回null
+     * @throws BizException 客户端不支持密码授权类型
+     */
     private SysOauth2Client validateClient(String clientId) {
         if (clientId == null) return null;
         SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
@@ -263,6 +366,16 @@ public class AuthServiceImpl implements AuthService {
         return client;
     }
 
+    /**
+     * 检查授权类型列表是否包含目标类型
+     * <p>
+     * 解析逗号分隔的授权类型字符串，检查是否包含指定类型。
+     * </p>
+     *
+     * @param grantTypes 授权类型字符串（逗号分隔）
+     * @param targetType 目标授权类型
+     * @return 是否包含目标类型
+     */
     private boolean containsGrantType(String grantTypes, String targetType) {
         if (grantTypes == null || grantTypes.isBlank()) return false;
         for (String gt : grantTypes.split(",")) {
@@ -271,6 +384,16 @@ public class AuthServiceImpl implements AuthService {
         return false;
     }
 
+    /**
+     * 检查账号是否被锁定
+     * <p>
+     * 检查Redis中的登录失败计数，达到上限则抛出账号锁定异常。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param username 用户名
+     * @throws BizException 登录失败次数过多，账号已锁定
+     */
     private void checkAccountLocked(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
         Long failCount = redisTemplate.opsForValue().increment(key, 0);
@@ -280,6 +403,16 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 记录登录失败
+     * <p>
+     * 使用Lua脚本原子性地累加失败计数并设置过期时间。
+     * 达到上限时将用户状态更新为锁定状态。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param username 用户名
+     */
     private void recordLoginFail(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
         // 使用 Lua 脚本原子性地执行 INCR + EXPIRE，避免竞态条件
@@ -298,11 +431,30 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 清除登录失败计数
+     * <p>
+     * 登录成功后清除Redis中的失败计数记录。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param username 用户名
+     */
     private void clearLoginFail(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
         redisTemplate.delete(key);
     }
 
+    /**
+     * 验证短信验证码
+     * <p>
+     * 使用Lua脚本原子性地获取并删除短信验证码，确保一次性使用。
+     * </p>
+     *
+     * @param phone 手机号
+     * @param smsCode 短信验证码
+     * @throws BizException 短信验证码参数缺失、错误或已过期
+     */
     private void validateSmsCode(String phone, String smsCode) {
         if (phone == null || smsCode == null) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");
@@ -320,6 +472,15 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 生成随机数字验证码
+     * <p>
+     * 使用SecureRandom生成指定长度的纯数字验证码。
+     * </p>
+     *
+     * @param length 验证码长度
+     * @return 随机数字验证码字符串
+     */
     private String generateRandomCode(int length) {
         String chars = "0123456789";
         StringBuilder sb = new StringBuilder();
@@ -330,7 +491,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 生成验证码图片（PNG格式，Base64编码）
+     * 生成验证码图片
+     * <p>
+     * 创建包含干扰线、噪点和随机旋转字符的验证码图片。
+     * 图片尺寸120x40，PNG格式，Base64编码返回。
+     * </p>
+     *
+     * @param code 验证码文本
+     * @return Base64编码的PNG图片字符串（带data:image/png;base64前缀）
      */
     private String generateCaptchaImage(String code) {
         int width = 120;
@@ -405,6 +573,18 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * 获取用户菜单
+     * <p>
+     * 获取用户可访问的菜单树、角色列表和按钮级权限列表。
+     * 通过permission-center获取用户角色和权限，批量校验菜单访问权限。
+     * 构建前端路由格式的菜单树，包含子菜单自动继承父菜单可见性。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 用户菜单响应，包含菜单树、角色列表、权限列表
+     * @throws BizException 用户不存在
+     */
     @Override
     public UserMenuResp getUserMenu(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -435,6 +615,14 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 获取用户角色列表
+     * <p>
+     * 通过Feign调用permission-center获取用户关联的角色列表。
+     * 失败时返回空列表并记录警告日志。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId 用户ID
+     * @return 角色名称列表
      */
     private List<String> getUserRoles(Long tenantId, Long userId) {
         try {
@@ -459,6 +647,14 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 获取用户按钮级权限列表
+     * <p>
+     * 通过Feign调用permission-center获取用户对MENU资源类型的操作权限。
+     * 权限码格式为"资源编码:操作编码"，如"system:user:add"。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId 用户ID
+     * @return 权限码列表
      */
     private List<String> getUserPermissions(Long tenantId, Long userId) {
         try {
@@ -502,6 +698,15 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 过滤用户有权限访问的菜单
+     * <p>
+     * 通过批量权限校验获取用户可访问的菜单ID集合。
+     * 自动补充父菜单ID，确保菜单树完整性（子菜单有权限时父菜单也显示）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId 用户ID
+     * @param allMenus 所有菜单列表
+     * @return 用户有权限访问的菜单ID集合
      */
     private Set<Long> filterAllowedMenus(Long tenantId, Long userId, List<SysMenu> allMenus) {
         if (allMenus.isEmpty()) {
@@ -560,6 +765,14 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 递归添加父菜单
+     * <p>
+     * 从子菜单向上递归，将所有祖先菜单ID添加到集合中。
+     * 确保菜单树的层级结构完整。
+     * </p>
+     *
+     * @param allMenus 所有菜单列表
+     * @param parentId 当前要添加的父菜单ID
+     * @param withParents 菜单ID集合（会被修改）
      */
     private void addParentMenus(List<SysMenu> allMenus, Long parentId, Set<Long> withParents) {
         for (SysMenu menu : allMenus) {
@@ -574,7 +787,16 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 构建菜单树（转换为前端路由格式）
+     * 构建菜单树
+     * <p>
+     * 将菜单列表转换为前端路由格式的树形结构。
+     * 只包含用户有权限、可见、启用状态的菜单，按排序字段排序。
+     * </p>
+     *
+     * @param allMenus 所有菜单列表
+     * @param allowedIds 用户有权限的菜单ID集合
+     * @param parentId 当前层级父菜单ID（0表示根级）
+     * @return 菜单路由项列表
      */
     private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<SysMenu> allMenus, Set<Long> allowedIds, Long parentId) {
         return allMenus.stream()
@@ -613,6 +835,13 @@ public class AuthServiceImpl implements AuthService {
 
     /**
      * 生成路由名称
+     * <p>
+     * 根据菜单类型和路径生成前端路由的name属性。
+     * 目录类型自动添加"Parent"后缀，菜单类型使用路径转换为驼峰命名。
+     * </p>
+     *
+     * @param menu 菜单实体
+     * @return 路由名称字符串
      */
     private String generateRouteName(SysMenu menu) {
         if (menu.getMenuType() != null && "1".equals(menu.getMenuType())) {

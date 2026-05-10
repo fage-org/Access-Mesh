@@ -37,6 +37,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
+/**
+ * 系统通知管理服务实现类
+ * <p>
+ * 提供系统通知的CRUD操作、发布、标记已读、用户通知列表等功能。
+ * 系统通知用于向用户推送重要信息，支持指定目标用户群。
+ * 用户通知阅读状态通过SysUserNotice表记录，支持批量查询优化。
+ * 目标用户ID列表在创建和更新时校验有效性和租户隔离。
+ * </p>
+ */
 @Service
 public class NoticeServiceImpl implements NoticeService {
 
@@ -45,6 +54,14 @@ public class NoticeServiceImpl implements NoticeService {
     private final AdminPermissionValidator permissionValidator;
     private final UserDomainService userDomainService;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param noticeMapper 通知数据访问Mapper
+     * @param userNoticeMapper 用户通知关联数据访问Mapper
+     * @param permissionValidator 权限校验器
+     * @param userDomainService 用户领域服务，用于校验目标用户
+     */
     public NoticeServiceImpl(SysNoticeMapper noticeMapper, SysUserNoticeMapper userNoticeMapper,
                              AdminPermissionValidator permissionValidator, UserDomainService userDomainService) {
         this.noticeMapper = noticeMapper;
@@ -53,6 +70,18 @@ public class NoticeServiceImpl implements NoticeService {
         this.userDomainService = userDomainService;
     }
 
+    /**
+     * 创建系统通知
+     * <p>
+     * 创建新的系统通知，设置标题、内容、通知类型、目标用户等。
+     * 执行类型级权限校验(CREATE)。
+     * 创建前校验目标用户ID列表的有效性和租户隔离。
+     * </p>
+     *
+     * @param req 通知创建请求，包含标题、内容、类型、目标用户ID
+     * @return 新通知ID
+     * @throws BizException 目标用户ID格式无效或用户不存在
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createNotice(NoticeCreateReq req) {
@@ -60,10 +89,10 @@ public class NoticeServiceImpl implements NoticeService {
         permissionValidator.checkTypeLevel(AdminResourceType.NOTICE, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
-        
+
         // FIX: Parse and validate targetUserIds before storing
         parseAndValidateUserIds(tenantId, req.targetUserIds());
-        
+
         SysNotice notice = new SysNotice();
         notice.setTenantId(tenantId);
         notice.setTitle(req.title());
@@ -78,11 +107,22 @@ public class NoticeServiceImpl implements NoticeService {
         return notice.getId();
     }
 
+    /**
+     * 更新系统通知
+     * <p>
+     * 更新通知的标题、内容、类型、目标用户等属性。
+     * 执行实例级权限校验(UPDATE)。
+     * 更新前校验目标用户ID列表的有效性和租户隔离。
+     * </p>
+     *
+     * @param req 通知更新请求，包含通知ID和新属性值
+     * @throws BizException 通知不存在、目标用户ID格式无效或用户不存在
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateNotice(NoticeUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
-        
+
         // FIX: 通过ID查找，而非title
         SysNotice notice = noticeMapper.selectOneByQuery(
             QueryWrapper.create()
@@ -90,16 +130,16 @@ public class NoticeServiceImpl implements NoticeService {
                 .and(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
                 .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
         );
-        
+
         if (notice == null) {
-            throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), 
+            throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(),
                 AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
 
         // Permission check - instance-level UPDATE
-        permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE, 
+        permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE,
             String.valueOf(req.id()), AdminOperationCode.UPDATE);
-        
+
         // FIX: Parse and validate targetUserIds before updating
         parseAndValidateUserIds(tenantId, req.targetUserIds());
 
@@ -111,6 +151,15 @@ public class NoticeServiceImpl implements NoticeService {
         noticeMapper.update(notice);
     }
 
+    /**
+     * 批量删除系统通知
+     * <p>
+     * 执行批量实例级权限校验后软删除通知。
+     * 使用批量查询和批量软删除优化性能。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的通知ID列表
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteNotice(IdsReq req) {
@@ -134,6 +183,16 @@ public class NoticeServiceImpl implements NoticeService {
         }
     }
 
+    /**
+     * 获取通知详情
+     * <p>
+     * 根据通知ID查询通知完整信息。
+     * </p>
+     *
+     * @param id 通知ID
+     * @return 通知详情响应
+     * @throws BizException 通知不存在
+     */
     @Override
     public NoticeResp getNotice(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -151,6 +210,15 @@ public class NoticeServiceImpl implements NoticeService {
             notice.getCreatedAt(), notice.getUpdatedAt());
     }
 
+    /**
+     * 分页查询通知列表
+     * <p>
+     * 获取当前租户的所有通知，按创建时间倒序排列。
+     * </p>
+     *
+     * @param pageReq 分页查询请求，包含分页参数
+     * @return 分页通知列表结果
+     */
     @Override
     public PaginatedResult<NoticeResp> pageNotices(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -172,6 +240,16 @@ public class NoticeServiceImpl implements NoticeService {
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
+    /**
+     * 发布通知
+     * <p>
+     * 将通知状态设置为已发布，记录发布时间。
+     * 执行实例级权限校验(PUBLISH)。
+     * </p>
+     *
+     * @param id 通知ID
+     * @throws BizException 通知不存在
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void publishNotice(Long id) {
@@ -195,6 +273,16 @@ public class NoticeServiceImpl implements NoticeService {
         noticeMapper.update(notice);
     }
 
+    /**
+     * 标记通知已读
+     * <p>
+     * 记录用户已阅读指定通知的状态和时间。
+     * 如果已有记录则更新，否则创建新记录。
+     * </p>
+     *
+     * @param noticeId 通知ID
+     * @param userId 用户ID
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markNoticeAsRead(Long noticeId, Long userId) {
@@ -217,6 +305,16 @@ public class NoticeServiceImpl implements NoticeService {
         }
     }
 
+    /**
+     * 获取用户通知列表
+     * <p>
+     * 获取指定用户可见的通知列表，包含阅读状态和阅读时间。
+     * 使用两次查询优化：先查通知列表，再查用户阅读记录。
+     * </p>
+     *
+     * @param userId 用户ID
+     * @return 用户通知项列表，包含通知内容和阅读状态
+     */
     @Override
     public List<UserNoticeItem> listMyNotices(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -253,21 +351,25 @@ public class NoticeServiceImpl implements NoticeService {
     }
 
     /**
-     * Parse and validate targetUserIds string
-     * 
-     * @param tenantId tenant ID for tenant isolation check
-     * @param targetUserIds comma-separated user ID string
-     * @throws BizException if contains invalid user ID format or non-existent users
+     * 解析并校验目标用户ID列表
+     * <p>
+     * 解析逗号分隔的用户ID字符串，校验格式有效性和用户存在性。
+     * 验证用户是否属于当前租户（租户隔离）。
+     * </p>
+     *
+     * @param tenantId 租户ID，用于租户隔离校验
+     * @param targetUserIds 逗号分隔的用户ID字符串
+     * @throws BizException 用户ID格式无效或用户不存在/不属于当前租户
      */
     private void parseAndValidateUserIds(Long tenantId, String targetUserIds) {
         if (targetUserIds == null || targetUserIds.isBlank()) {
             return;
         }
-        
+
         // Parse to Long set
         Set<Long> userIds = new HashSet<>();
         List<String> invalidIds = new ArrayList<>();
-        
+
         for (String idStr : targetUserIds.split(",")) {
             String trimmed = idStr.trim();
             if (!trimmed.isEmpty()) {
@@ -278,26 +380,26 @@ public class NoticeServiceImpl implements NoticeService {
                 }
             }
         }
-        
+
         if (!invalidIds.isEmpty()) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "Invalid user ID format: " + String.join(", ", invalidIds));
         }
-        
+
         if (userIds.isEmpty()) {
             return;
         }
-        
+
         // Validate user existence and tenant isolation
         List<SysUser> validUsers = userDomainService.selectValidByIds(tenantId, userIds);
         Map<Long, SysUser> validUserMap = validUsers.stream()
             .collect(Collectors.toMap(SysUser::getId, Function.identity()));
-        
+
         // Find non-existent user IDs
         Set<Long> missingUserIds = userIds.stream()
             .filter(id -> !validUserMap.containsKey(id))
             .collect(Collectors.toSet());
-        
+
         if (!missingUserIds.isEmpty()) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
                 "User does not exist or does not belong to current tenant: " + missingUserIds.stream()

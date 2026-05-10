@@ -28,10 +28,12 @@ import java.net.SocketAddress;
 import java.time.Instant;
 
 /**
- * Interface-level permission filter.
- * Calls permission-center to check if the user has access to the target endpoint.
- * Uses L1 Caffeine cache for performance.
- * Order: -60
+ * 接口级权限过滤器
+ * <p>
+ * 调用permission-center检查用户是否有访问目标接口的权限。
+ * 使用L1 Caffeine缓存提升性能，减少远程调用次数。
+ * 执行顺序：-60
+ * </p>
  */
 @Component
 public class PermissionFilter implements GlobalFilter, Ordered {
@@ -47,6 +49,14 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private final GatewayProperties gatewayProperties;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param permissionClient     权限校验客户端
+     * @param permissionCheckCache 权限校验结果缓存
+     * @param gatewayProperties    网关配置属性
+     * @param objectMapper         JSON序列化工具
+     */
     public PermissionFilter(PermissionClient permissionClient,
                             Cache<String, Boolean> permissionCheckCache,
                             GatewayProperties gatewayProperties,
@@ -57,6 +67,20 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 过滤器执行逻辑
+     * <p>
+     * 1. 检查是否跳过认证
+     * 2. 从exchange attributes获取用户ID和租户ID
+     * 3. 提取路由元数据（服务编码、HTTP方法、路径）
+     * 4. 查询L1缓存，命中则直接返回结果
+     * 5. 缓存未命中则调用permission-center校验权限
+     * </p>
+     *
+     * @param exchange 服务器Web交换对象
+     * @param chain    过滤器链
+     * @return Mono<Void> 处理结果
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         Boolean skipAuth = exchange.getAttribute(SKIP_AUTH_ATTR);
@@ -73,7 +97,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         Long userId = toLong(userIdObj);
         Long tenantId = toLong(tenantIdObj);
 
-        // Extract route metadata
+        // 提取路由元数据
         Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
         if (route == null) {
             return writeNotFound(exchange);
@@ -83,7 +107,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         String httpMethod = exchange.getRequest().getMethod().name();
         String path = exchange.getRequest().getURI().getPath();
 
-        // Check L1 cache
+        // 查询L1缓存
         String cacheKey = buildCacheKey(tenantId, userId, serviceCode, httpMethod, path);
         Boolean cachedResult = permissionCheckCache.getIfPresent(cacheKey);
         if (cachedResult != null) {
@@ -94,7 +118,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             }
         }
 
-        // Build auth check request
+        // 构建权限校验请求
         AuthCheckRequest req = new AuthCheckRequest();
         req.setUserId(userId);
         req.setServiceCode(serviceCode);
@@ -106,7 +130,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         ctx.setTimestamp(Instant.now().toString());
         req.setContext(ctx);
 
-        // Call permission-center
+        // 调用permission-center进行权限校验
         return permissionClient.checkInterface(req, tenantId)
             .flatMap(resp -> {
                 if (resp != null && resp.isAllowed()) {
@@ -120,17 +144,31 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 }
             })
             .onErrorResume(e -> {
-                // Permission-center unavailable — fail-close
+                // permission-center不可达 — 采用fail-close策略
                 log.warn("Permission-center unreachable, denying request: {}", e.getMessage());
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
     }
 
+    /**
+     * 获取过滤器执行顺序
+     * <p>
+     * 顺序为-60，在认证过滤器之后执行
+     * </p>
+     *
+     * @return 顺序值
+     */
     @Override
     public int getOrder() {
         return -60;
     }
 
+    /**
+     * 获取客户端IP地址
+     *
+     * @param exchange 服务器Web交换对象
+     * @return IP地址字符串
+     */
     private String getClientIp(ServerWebExchange exchange) {
         SocketAddress addr = exchange.getRequest().getRemoteAddress();
         if (addr instanceof InetSocketAddress inetAddr) {
@@ -142,12 +180,31 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return "unknown";
     }
 
+    /**
+     * 构建缓存键
+     * <p>
+     * 格式：perm:check:tenantId:userId:serviceCode:httpMethod:path
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param userId     用户ID
+     * @param serviceCode 服务编码
+     * @param httpMethod HTTP方法
+     * @param path       请求路径
+     * @return 缓存键字符串
+     */
     private String buildCacheKey(Long tenantId, Long userId, String serviceCode,
                                   String httpMethod, String path) {
         return CACHE_KEY_PREFIX + tenantId + ":" + userId + ":"
             + serviceCode + ":" + httpMethod + ":" + path;
     }
 
+    /**
+     * 将对象转换为Long类型
+     *
+     * @param obj 待转换对象
+     * @return Long值，转换失败返回null
+     */
     private Long toLong(Object obj) {
         if (obj instanceof Long) return (Long) obj;
         if (obj instanceof Number) return ((Number) obj).longValue();
@@ -158,6 +215,12 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         }
     }
 
+    /**
+     * 将拒绝原因映射为用户友好的错误消息
+     *
+     * @param reason 拒绝原因编码
+     * @return 错误消息
+     */
     private String mapReasonToMessage(String reason) {
         if (reason == null) return "无接口访问权限";
         return switch (reason) {
@@ -170,18 +233,47 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         };
     }
 
+    /**
+     * 写入禁止访问响应
+     *
+     * @param exchange 服务器Web交换对象
+     * @param message  错误消息
+     * @return Mono<Void> 响应结果
+     */
     private Mono<Void> writeForbidden(ServerWebExchange exchange, String message) {
         return writeError(exchange, HttpStatus.FORBIDDEN, 403, message);
     }
 
+    /**
+     * 写入未找到响应
+     *
+     * @param exchange 服务器Web交换对象
+     * @return Mono<Void> 响应结果
+     */
     private Mono<Void> writeNotFound(ServerWebExchange exchange) {
         return writeError(exchange, HttpStatus.NOT_FOUND, 404, "服务不存在");
     }
 
+    /**
+     * 写入服务不可用响应
+     *
+     * @param exchange 服务器Web交换对象
+     * @param message  错误消息
+     * @return Mono<Void> 响应结果
+     */
     private Mono<Void> writeServiceUnavailable(ServerWebExchange exchange, String message) {
         return writeError(exchange, HttpStatus.SERVICE_UNAVAILABLE, 503, message);
     }
 
+    /**
+     * 写入错误响应
+     *
+     * @param exchange   服务器Web交换对象
+     * @param httpStatus HTTP状态码
+     * @param code       业务错误码
+     * @param message    错误消息
+     * @return Mono<Void> 响应结果
+     */
     private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus httpStatus,
                                    int code, String message) {
         ServerHttpResponse response = exchange.getResponse();

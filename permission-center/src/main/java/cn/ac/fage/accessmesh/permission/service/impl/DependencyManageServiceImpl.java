@@ -31,6 +31,20 @@ import java.util.stream.Stream;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
 import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 
+/**
+ * 资源依赖管理服务实现类
+ * <p>
+ * 提供资源依赖关系的CRUD操作和批量同步功能。
+ * 资源依赖定义了权限级联规则：当用户对源资源执行某操作时，
+ * 如果该操作依赖目标资源的权限，系统会自动检查或授予目标资源权限。
+ * 核心功能包括：
+ * - 依赖关系创建、更新、删除
+ * - 批量同步（全量/增量模式）
+ * - 循环依赖检测
+ * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 批量删除和批量同步采用批量SQL优化，避免N+1查询问题。
+ * </p>
+ */
 @Service
 public class DependencyManageServiceImpl implements DependencyManageService {
 
@@ -41,8 +55,20 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     private final OperationLogDomainService operationLogDomainService;
     private final PermQueryEngine engine;
 
-    // TODO: 构造函数依赖达到6个，刚超过阈值，建议拆分批量同步逻辑
-    // 优先级：P4（临界情况，可关注但不强制整改）
+    /**
+     * 构造函数注入依赖
+     * <p>
+     * TODO: 构造函数依赖达到6个，刚超过阈值，建议拆分批量同步逻辑。
+     * 优先级：P4（临界情况，可关注但不强制整改）
+     * </p>
+     *
+     * @param dependencyMapper            资源依赖数据访问层
+     * @param resourceEntityMapper        资源实体数据访问层
+     * @param typeResolutionService       类型解析服务
+     * @param entityBatchLoadDomainService 实体批量加载领域服务
+     * @param operationLogDomainService   操作日志领域服务
+     * @param engine                      权限查询引擎
+     */
     public DependencyManageServiceImpl(ResourceDependencyMapper dependencyMapper,
                                         ResourceEntityMapper resourceEntityMapper,
                                         TypeResolutionService typeResolutionService,
@@ -57,6 +83,21 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         this.engine = engine;
     }
 
+    /**
+     * 创建资源依赖关系
+     * <p>
+     * 创建源资源与目标资源之间的依赖关系。
+     * 定义当用户对源资源执行特定操作时，需要目标资源的相应权限。
+     * 需要DEPENDENCY_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含源资源、目标资源、操作码等信息
+     * @param operatorId 操作者ID，可选
+     * @return 创建的资源依赖响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 源资源或目标资源不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
@@ -97,6 +138,18 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         return toDependencyResp(dep, entityMap);
     }
 
+    /**
+     * 查询资源依赖关系列表
+     * <p>
+     * 根据资源实体ID过滤查询依赖关系列表。
+     * 如果不指定资源实体ID，返回租户下所有依赖关系。
+     * 批量加载ResourceEntity避免N+1查询问题。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param resourceEntityId 资源实体ID，可选过滤条件
+     * @return 资源依赖响应列表
+     */
     @Override
     public List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId) {
         QueryWrapper qw = QueryWrapper.create()
@@ -116,6 +169,16 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             .collect(Collectors.toList());
     }
 
+    /**
+     * 查询所有资源依赖关系
+     * <p>
+     * 查询租户下所有活跃的资源依赖关系。
+     * 批量加载ResourceEntity避免N+1查询问题。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 资源依赖响应列表
+     */
     @Override
     public List<ResourceDependencyResp> listAllDependencies(Long tenantId) {
         List<ResourceDependency> dependencies = dependencyMapper.selectListByQuery(
@@ -133,6 +196,20 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             .collect(Collectors.toList());
     }
 
+    /**
+     * 更新资源依赖关系
+     * <p>
+     * 更新资源依赖关系的操作位、自动授权标志、描述等属性。
+     * 需要DEPENDENCY_UPDATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        更新请求，包含依赖ID和要更新的属性
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的资源依赖响应
+     * @throws SecurityException     无权限时抛出
+     * @throws IllegalArgumentException 依赖关系不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp updateDependency(Long tenantId, ResourceDependencyUpdateReq req, Long operatorId) {
@@ -162,6 +239,19 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         return toDependencyResp(dep, entityMap);
     }
 
+    /**
+     * 检测循环依赖
+     * <p>
+     * 检查添加新的依赖关系是否会形成循环依赖。
+     * 通过构建依赖图并使用深度优先搜索检测是否存在从目标资源到源资源的路径。
+     * 如果源资源和目标资源相同，直接返回存在循环。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      循环依赖检测请求，包含源资源和目标资源信息
+     * @return 是否存在循环依赖，true表示添加该依赖会形成循环
+     * @throws IllegalArgumentException 源资源或目标资源不存在时抛出
+     */
     @Override
     public boolean hasDependencyCycle(Long tenantId, ResourceDependencyCheckReq req) {
         Long sourceId = typeResolutionService.resolveResourceId(
@@ -191,6 +281,19 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         return canReach(graph, targetId, sourceId, new HashSet<>());
     }
 
+    /**
+     * 深度优先搜索检测路径可达性
+     * <p>
+     * 从当前节点出发，检测是否能到达目标节点。
+     * 用于循环依赖检测。
+     * </p>
+     *
+     * @param graph   依赖图，key为资源ID，value为该资源依赖的资源ID集合
+     * @param current 当前访问的资源ID
+     * @param target  目标资源ID
+     * @param visited 已访问的资源ID集合，防止重复访问
+     * @return 是否能从当前节点到达目标节点
+     */
     private boolean canReach(Map<Long, Set<Long>> graph, Long current, Long target, Set<Long> visited) {
         if (Objects.equals(current, target)) return true;
         if (!visited.add(current)) return false;
@@ -200,6 +303,18 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         return false;
     }
 
+    /**
+     * 删除单个资源依赖关系
+     * <p>
+     * 软删除指定的资源依赖关系。
+     * 需要DEPENDENCY_DELETE权限。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param dependencyId 资源依赖ID
+     * @param operatorId   操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDependency(Long tenantId, Long dependencyId, Long operatorId) {
@@ -214,6 +329,19 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         }
     }
 
+    /**
+     * 批量删除资源依赖关系
+     * <p>
+     * 批量软删除资源依赖关系。
+     * 使用批量查询和批量软删除避免N+1问题。
+     * 需要DEPENDENCY_DELETE权限。
+     * </p>
+     *
+     * @param tenantId       租户ID
+     * @param dependencyIds  资源依赖ID列表
+     * @param operatorId     操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDependencies(Long tenantId, List<Long> dependencyIds, Long operatorId) {
@@ -235,7 +363,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(ResourceDependency::getId).collect(Collectors.toSet());
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         dependencyMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
 
@@ -246,6 +374,21 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         );
     }
 
+    /**
+     * 批量同步资源依赖关系
+     * <p>
+     * 根据服务编码和维持来源批量同步资源依赖关系。
+     * 支持全量同步（FULL）和增量同步模式。
+     * 全量同步会删除不在同步列表中的依赖关系。
+     * 批量解析资源ID避免N+1查询，批量插入新依赖关系优化性能。
+     * 需要DEPENDENCY_SYNC权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        批量同步请求，包含同步模式、服务编码、维持来源和依赖项列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
@@ -277,7 +420,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                         .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
                 ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-            // Collect IDs to delete (performance fix: use batch SQL instead of loop updates)
+            // 收集需要删除的ID（性能优化：使用批量SQL代替循环更新）
             List<Long> idsToDelete = new java.util.ArrayList<>();
             for (ResourceDependency existing : existingDeps) {
                 ResourceEntity sourceResource = resourceMap.get(existing.getResourceEntityId());
@@ -291,14 +434,14 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                     idsToDelete.add(existing.getId());
                 }
             }
-            // Batch soft delete collected IDs
+            // 批量软删除收集的ID
             if (!idsToDelete.isEmpty()) {
                 dependencyMapper.softDeleteBatch(tenantId, idsToDelete, now);
             }
         }
 
-        // ===== Batch resolution to avoid N+1 queries =====
-        // 1. Collect all unique resource requests from items
+        // ===== 批量解析以避免N+1查询 =====
+        // 1. 从依赖项中收集所有唯一的资源请求
         List<ResourceResolveRequest> resourceRequests = items.stream()
             .flatMap(item -> Stream.of(
                 new ResourceResolveRequest(item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null),
@@ -308,11 +451,11 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             .distinct()
             .collect(Collectors.toList());
 
-        // 2. Batch resolve all resource IDs
+        // 2. 批量解析所有资源ID
         Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
 
-        // 3. Process each item with pre-resolved IDs
-        // 4. Batch query existing dependencies to avoid N+1 query in loop
+        // 3. 使用预解析的ID处理每个依赖项
+        // 4. 批量查询现有依赖关系以避免循环中的N+1查询
         Set<Long> sourceResourceIds = new HashSet<>();
         Set<Long> targetResourceIds = new HashSet<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
@@ -326,7 +469,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             if (targetResourceId != null) targetResourceIds.add(targetResourceId);
         }
 
-        // Build a composite key for existing dependency lookup
+        // 构建现有依赖关系的复合键映射
         Map<String, ResourceDependency> existingDepMap = new HashMap<>();
         if (!sourceResourceIds.isEmpty() || !targetResourceIds.isEmpty()) {
             List<ResourceDependency> existingDeps = dependencyMapper.selectListByQuery(
@@ -342,7 +485,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             }
         }
 
-        // Performance fix: collect inserts for batch operation
+        // 性能优化：收集插入项用于批量操作
         List<ResourceDependency> toInsert = new ArrayList<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             ResourceResolveKey sourceKey = new ResourceResolveKey(
@@ -361,7 +504,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             ResourceDependency existing = existingDepMap.get(depKey);
 
             if (existing != null) {
-                // Note: update remains per-item due to varying field values per entity
+                // 注意：更新仍然逐项执行，因为每个实体的字段值不同
                 if (sourceOperationBits != null) existing.setSourceOperationBits(sourceOperationBits);
                 if (requiredOperationBits != null) existing.setRequiredOperationBits(requiredOperationBits);
                 if (item.autoGrant() != null) existing.setAutoGrant(item.autoGrant());
@@ -388,12 +531,24 @@ public class DependencyManageServiceImpl implements DependencyManageService {
                 toInsert.add(dep);
             }
         }
-        // Performance fix: batch insert instead of loop inserts
+        // 性能优化：批量插入代替循环插入
         if (!toInsert.isEmpty()) {
             dependencyMapper.insertBatch(toInsert);
         }
     }
 
+    /**
+     * 解析操作码为操作位掩码
+     * <p>
+     * 将操作码列表转换为对应的二进制位掩码。
+     * 批量解析操作ID，然后合并所有操作权限的binaryBit。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param operationCodes   操作码列表
+     * @param resourceTypeCode 资源类型编码
+     * @return 操作位掩码，如果操作码列表为空返回null
+     */
     private Long resolveOperationBits(Long tenantId, List<String> operationCodes, String resourceTypeCode) {
         if (operationCodes == null || operationCodes.isEmpty()) return null;
 
@@ -410,6 +565,16 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         return bits;
     }
 
+    /**
+     * 将ResourceDependency实体转换为响应对象
+     * <p>
+     * 转换时从entityMap中获取源资源和目标资源的编码。
+     * </p>
+     *
+     * @param d        资源依赖实体
+     * @param entityMap 资源实体映射表
+     * @return 资源依赖响应对象
+     */
     private ResourceDependencyResp toDependencyResp(ResourceDependency d, Map<Long, ResourceEntity> entityMap) {
         ResourceEntity src = entityMap.get(d.getResourceEntityId());
         ResourceEntity dep = entityMap.get(d.getDependsOnResourceEntityId());
@@ -424,7 +589,14 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     }
 
     /**
-     * 批量加载 ResourceEntity 并构建 Map
+     * 批量加载ResourceEntity并构建映射表
+     * <p>
+     * 批量查询资源实体，避免N+1查询问题。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param resourceIds 资源ID集合
+     * @return 资源实体映射表，key为资源ID，value为资源实体
      */
     private Map<Long, ResourceEntity> loadResourceEntityMap(Long tenantId, Set<Long> resourceIds) {
         if (resourceIds == null || resourceIds.isEmpty()) {
@@ -439,7 +611,13 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     }
 
     /**
-     * 从依赖列表中提取所有相关的 ResourceEntity ID
+     * 从依赖列表中提取所有相关的ResourceEntity ID
+     * <p>
+     * 收集所有源资源ID和目标资源ID，用于批量加载。
+     * </p>
+     *
+     * @param dependencies 资源依赖列表
+     * @return 资源ID集合
      */
     private Set<Long> extractResourceIds(List<ResourceDependency> dependencies) {
         return dependencies.stream()
