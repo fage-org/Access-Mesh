@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id          类型定义ID
  * @param tenantId    租户ID
- * @param bizDomainId 业务域ID
  * @param typeKey     类型键，用于分类
  * @param typeCode    类型编码，唯一标识
  * @param typeValue   类型值，对应数据库存储值
@@ -25,7 +24,6 @@ import java.time.LocalDateTime;
 public record TypeDefinitionResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     String typeKey,
     String typeCode,
     Integer typeValue,

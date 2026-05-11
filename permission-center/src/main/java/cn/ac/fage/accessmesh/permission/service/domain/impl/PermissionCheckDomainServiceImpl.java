@@ -122,7 +122,7 @@ public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainSe
      * <p>
      * 使用内部ID（而非外部编码）进行权限校验。
      * 用于领域层内部调用，跳过类型解析步骤。
-     * 支持设置资源实体ID集合、操作权限ID集合、业务域ID等参数。
+     * 支持设置资源实体ID集合、操作权限ID集合等参数。
      * queryScopeAll设置为true表示查询所有可见范围，
      * earlyReturnOnScopeAll设置为true表示一旦找到有效权限即返回。
      * </p>
@@ -131,21 +131,19 @@ public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainSe
      * @param userId                用户ID
      * @param resourceEntityId      资源实体ID
      * @param operationPermissionId 操作权限ID
-     * @param bizDomainId           业务域ID
      * @param inheritMode           继承模式
      * @param context               上下文参数
      * @return 权限校验响应
      */
     @Override
     public AuthCheckResp checkInternal(Long tenantId, Long userId, Long resourceEntityId,
-                                        Long operationPermissionId, Long bizDomainId,
+                                        Long operationPermissionId,
                                         String inheritMode, Map<String, Object> context) {
         String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type",
             typeResolutionService.resolveTypeValue(tenantId, "resource_type", null));
         PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, null, null);
         q.setOperationPermissionIds(java.util.Set.of(operationPermissionId));
         q.setResourceEntityIds(java.util.Set.of(resourceEntityId));
-        q.setBizDomainId(bizDomainId);
         q.setInheritMode(inheritMode);
         q.setContext(context);
         q.setQueryScopeAll(true);

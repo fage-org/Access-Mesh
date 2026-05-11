@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
  * </p>
  *
  * @param typeId      类型定义ID，必填
- * @param bizDomainId 业务域ID，可选
  * @param name        类型名称，可选
  * @param description 类型描述，可选
  * @param sortOrder   排序顺序，可选
@@ -17,7 +16,6 @@ import jakarta.validation.constraints.NotNull;
  */
 public record TypeUpdateReq(
     @NotNull Long typeId,
-    Long bizDomainId,
     String name,
     String description,
     Integer sortOrder,

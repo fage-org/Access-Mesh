@@ -281,7 +281,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             if (domainId == null) {
                 return null;
             }
-            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(domainId));
+            // bizDomainId已从resource_entity移除，不再按BIZ_DOMAIN_ID过滤
         }
 
         ResourceEntity resource = resourceEntityMapper.selectOneByQuery(qw);
@@ -358,7 +358,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             if (domainId == null) {
                 return null;
             }
-            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
+            // bizDomainId已从abstract_role移除，不再按BIZ_DOMAIN_ID过滤
         }
 
         AbstractRole role = abstractRoleMapper.selectOneByQuery(qw);
@@ -491,22 +491,18 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                     .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
             );
 
-            // 构建查找映射：code+codeType+domainId -> resource
+            // 构建查找映射：code+codeType -> resource（bizDomainId已从resource_entity移除）
             Map<String, ResourceEntity> resourceLookup = new HashMap<>();
             for (ResourceEntity res : resources) {
                 String codeType = res.getCodeType() != null ? res.getCodeType() : PermConstants.CodeType.DEFAULT;
-                String domainKey = res.getBizDomainId() != null ? String.valueOf(res.getBizDomainId()) : "";
-                String lookupKey = res.getCode() + ":" + codeType + ":" + domainKey;
+                String lookupKey = res.getCode() + ":" + codeType;
                 resourceLookup.put(lookupKey, res);
             }
 
             // 匹配请求到资源
             for (ResourceResolveRequest req : typeRequests) {
                 String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
-                Long domainId = req.domainCode() != null && !req.domainCode().isBlank()
-                    ? domainIdByCode.get(req.domainCode()) : null;
-                String domainKey = domainId != null ? String.valueOf(domainId) : "";
-                String lookupKey = req.resourceCode() + ":" + codeType + ":" + domainKey;
+                String lookupKey = req.resourceCode() + ":" + codeType;
                 ResourceEntity res = resourceLookup.get(lookupKey);
                 if (res != null) {
                     result.put(req.toKey(), res.getId());
@@ -587,11 +583,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleType))
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.in(validIds))
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
-        if (domainId != null) {
-            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId));
-        } else {
-            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
-        }
+        // bizDomainId已从abstract_role移除，不再按BIZ_DOMAIN_ID过滤
         return abstractRoleMapper.selectListByQuery(qw).stream().collect(Collectors.toMap(
             AbstractRole::getExternalId,
             AbstractRole::getId,

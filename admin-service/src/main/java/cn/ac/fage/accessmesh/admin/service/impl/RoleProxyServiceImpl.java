@@ -96,7 +96,6 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         permissionValidator.checkTypeLevel(AdminResourceType.ROLE, AdminOperationCode.CREATE);
 
         RoleCreateReq req = new RoleCreateReq(
-            null, // bizDomainId
             null, // parentId
             "ORG_ROLE", // roleTypeCode
             String.valueOf(orgId), // externalId

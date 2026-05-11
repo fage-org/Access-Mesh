@@ -18,6 +18,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
@@ -61,6 +63,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     private final AbstractRoleDomainService abstractRoleDomainService;
     private final PermCacheDomainService permCacheDomainService;
     private final TypeResolutionService typeResolutionService;
+    private final DomainClassifyService domainClassifyService;
     private final ObjectMapper objectMapper;
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
@@ -87,6 +90,7 @@ public class RoleManageServiceImpl implements RoleManageService {
                                  AbstractRoleDomainService abstractRoleDomainService,
                                  PermCacheDomainService permCacheDomainService,
                                  TypeResolutionService typeResolutionService,
+                                 DomainClassifyService domainClassifyService,
                                  ObjectMapper objectMapper,
                                  OperationLogDomainService operationLogDomainService,
                                  PermissionChangeDomainService permissionChangeDomainService,
@@ -96,6 +100,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         this.abstractRoleDomainService = abstractRoleDomainService;
         this.permCacheDomainService = permCacheDomainService;
         this.typeResolutionService = typeResolutionService;
+        this.domainClassifyService = domainClassifyService;
         this.objectMapper = objectMapper;
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
@@ -131,7 +136,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             throw new IllegalArgumentException("未知的roleTypeCode: " + req.roleTypeCode());
         }
         Long roleId = abstractRoleDomainService.createRole(
-            tenantId, req.bizDomainId(), req.parentId(), roleType,
+            tenantId, req.parentId(), roleType,
             req.externalId(), req.name(), req.sortOrder(), req.extra()
         );
 
@@ -396,7 +401,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         Long[] roleArr = permittedIds.toArray(Long[]::new);
         permissionChangeDomainService.record(
             new PermissionChangeDomainService.ChangeLogContext(
-                tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
             List.of(new PermissionChangeDomainService.ChangeLogEntry(
                 "abstract_role",
                 0L,
@@ -436,22 +441,15 @@ public class RoleManageServiceImpl implements RoleManageService {
      */
     @Override
     public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode) {
-        Long bizDomainId = null;
-        if (domainCode != null && !domainCode.isBlank()) {
-            bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (bizDomainId == null) {
-                throw new IllegalArgumentException("未知的domainCode: " + domainCode);
-            }
+        if (domainCode != null && !domainCode.isBlank()
+            && !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE)) {
+            return List.of();
         }
+
         QueryWrapper qw = QueryWrapper.create()
             .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS));
-        if (bizDomainId != null) {
-            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
-        } else {
-            qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull());
-        }
 
         List<AbstractRole> allRoles = abstractRoleMapper.selectListByQuery(qw);
 
@@ -535,11 +533,9 @@ public class RoleManageServiceImpl implements RoleManageService {
             .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
             .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
         if (domainCode != null && !domainCode.isBlank()) {
-            Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (domainId == null) {
+            if (!domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE)) {
                 return queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            queryWrapper.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
         }
         if (roleTypeCode != null && !roleTypeCode.isBlank()) {
             Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
@@ -568,7 +564,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         String roleTypeName = RoleType.safeGetLabel(role.getRoleType());
 
         return new RoleResp(
-            role.getId(), role.getTenantId(), role.getBizDomainId(),
+            role.getId(), role.getTenantId(),
             role.getParentId(), typeResolutionService.resolveTypeCode(role.getTenantId(), "role_type", role.getRoleType()), roleTypeName,
             role.getExternalId(), role.getName(), role.getStatus(),
             role.getSortOrder(), role.getExtra(),

@@ -75,11 +75,10 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      *
      * @param tenantId    租户ID
      * @param userId      用户ID
-     * @param bizDomainId 业务域ID，null表示全局范围
      * @return 用户的有效角色ID集合
      */
     @Override
-    public Set<Long> resolveEffectiveRoles(Long tenantId, Long userId, Long bizDomainId) {
+    public Set<Long> resolveEffectiveRoles(Long tenantId, Long userId) {
         // L1本地缓存
         Optional<Set<Long>> cached = permCacheDomainService.getEffectiveRoles(tenantId, userId);
         if (cached.isPresent()) {
@@ -97,7 +96,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         }
 
         // 委托给批量方法处理数据库查询和缓存写入
-        Map<Long, Set<Long>> batchResult = resolveEffectiveRolesBatch(tenantId, Set.of(userId), bizDomainId);
+        Map<Long, Set<Long>> batchResult = resolveEffectiveRolesBatch(tenantId, Set.of(userId));
         return batchResult.getOrDefault(userId, Collections.emptySet());
     }
 
@@ -109,17 +108,16 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      *
      * @param tenantId    租户ID
      * @param userIds     用户ID集合
-     * @param bizDomainId 业务域ID，null表示全局范围
      * @return 用户ID到角色ID集合的映射
      */
     @Override
-    public Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds, Long bizDomainId) {
+    public Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
         // 使用批量查询方法，避免N+1问题
-        return resolveEffectiveRolesBatch(tenantId, userIds, bizDomainId);
+        return resolveEffectiveRolesBatch(tenantId, userIds);
     }
 
     /**
@@ -135,10 +133,9 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      *
      * @param tenantId    租户ID
      * @param userIds     用户ID集合
-     * @param bizDomainId 业务域ID
      * @return 用户ID到角色ID集合的映射
      */
-    private Map<Long, Set<Long>> resolveEffectiveRolesBatch(Long tenantId, Set<Long> userIds, Long bizDomainId) {
+    private Map<Long, Set<Long>> resolveEffectiveRolesBatch(Long tenantId, Set<Long> userIds) {
         Map<Long, Set<Long>> result = new HashMap<>();
         Set<Long> uncachedUserIds = new HashSet<>();
 
@@ -229,9 +226,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
                 .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(allCandidateRoleIds))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
-            if (bizDomainId != null) {
-                qw.and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(bizDomainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()));
-            }
             List<AbstractRole> enabledRoles = abstractRoleMapper.selectListByQuery(qw);
             enabledRoleIds = enabledRoles.stream().map(AbstractRole::getId).collect(Collectors.toSet());
         }

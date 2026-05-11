@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id               资源ID
  * @param tenantId         租户ID
- * @param bizDomainId      业务域ID
  * @param parentId         父资源ID
  * @param resourceTypeCode 资源类型编码
  * @param resourceTypeName 资源类型名称
@@ -28,7 +27,6 @@ import java.time.LocalDateTime;
 public record ResourceResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     Long parentId,
     String resourceTypeCode,
     String resourceTypeName,

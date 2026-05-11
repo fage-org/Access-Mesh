@@ -28,11 +28,6 @@ public class PermQuery {
      */
     private Set<Long> roleIds;
 
-    /**
-     * 业务域ID
-     */
-    private Long bizDomainId;
-
     // ── 资源相关 ──
 
     /**
@@ -469,13 +464,6 @@ public class PermQuery {
     public Set<Long> roleIds() { return roleIds; }
 
     /**
-     * 获取业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long bizDomainId() { return bizDomainId; }
-
-    /**
      * 获取资源类型编码集合
      *
      * @return 资源类型编码集合
@@ -644,13 +632,6 @@ public class PermQuery {
      * @param roleIds 角色ID集合
      */
     public void setRoleIds(Set<Long> roleIds) { this.roleIds = roleIds; }
-
-    /**
-     * 设置业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 设置资源类型编码集合

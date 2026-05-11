@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
  * 用于创建权限冲突规则，包括冲突类型、涉及的权限和角色。
  * </p>
  *
- * @param bizDomainId              业务域ID，可选
  * @param conflictType             冲突类型编码，必填（ROLE_MUTEX/PERM_MUTEX）
  * @param firstOperationPermissionId 第一个操作权限ID，可选
  * @param secondOperationPermissionId 第二个操作权限ID，可选
@@ -19,7 +18,6 @@ import jakarta.validation.constraints.NotNull;
  * @param description              规则描述，可选
  */
 public record ConflictRuleReq(
-    Long bizDomainId,
     @NotBlank String conflictType,
     Long firstOperationPermissionId,
     Long secondOperationPermissionId,

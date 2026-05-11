@@ -89,9 +89,6 @@ const handleTabChange = (tab: string) => {
             {{ statusDisplay.text }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="业务域ID">
-          {{ props.resourceDetail.bizDomainId || "-" }}
-        </el-descriptions-item>
         <el-descriptions-item label="父资源ID">
           {{ props.resourceDetail.parentId || "根资源" }}
         </el-descriptions-item>

@@ -31,11 +31,6 @@ public class TypeDefinition {
     private Long tenantId;
 
     /**
-     * 所属业务域ID
-     */
-    private Long bizDomainId;
-
-    /**
      * 类型键，标识类型所属的分类体系
      */
     private String typeKey;
@@ -137,20 +132,6 @@ public class TypeDefinition {
      * @param tenantId 租户ID
      */
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-
-    /**
-     * 获取所属业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long getBizDomainId() { return bizDomainId; }
-
-    /**
-     * 设置所属业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 获取类型键

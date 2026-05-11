@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id           角色ID
  * @param tenantId     租户ID
- * @param bizDomainId  业务域ID
  * @param parentId     父角色ID
  * @param roleTypeCode 角色类型编码
  * @param roleTypeName 角色类型名称
@@ -26,7 +25,6 @@ import java.time.LocalDateTime;
 public record RoleResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     Long parentId,
     String roleTypeCode,
     String roleTypeName,

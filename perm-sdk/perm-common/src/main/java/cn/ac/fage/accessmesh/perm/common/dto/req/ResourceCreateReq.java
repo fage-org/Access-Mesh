@@ -11,10 +11,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record ResourceCreateReq(
     /**
-     * 业务域ID
-     */
-    Long bizDomainId,
-    /**
      * 父资源ID
      */
     Long parentId,

@@ -15,7 +15,6 @@
 CREATE TABLE type_definition (
     id            BIGSERIAL PRIMARY KEY,
     tenant_id     BIGINT NOT NULL,
-    biz_domain_id BIGINT,
     type_key      VARCHAR(64) NOT NULL,
     type_code     VARCHAR(64) NOT NULL,
     type_value    INT NOT NULL,
@@ -34,13 +33,12 @@ CREATE TABLE type_definition (
 );
 
 CREATE UNIQUE INDEX uk_type_definition_value ON type_definition (tenant_id, type_key, type_value) WHERE delete_flag = 0;
-CREATE UNIQUE INDEX uk_type_definition_code_domain ON type_definition (tenant_id, biz_domain_id, type_key, type_code) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_type_definition_code_global ON type_definition (tenant_id, type_key, type_code) WHERE biz_domain_id IS NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_type_definition_code ON type_definition (tenant_id, type_key, type_code) WHERE delete_flag = 0;
 
 COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type/group_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission';
 COMMENT ON COLUMN type_definition.id IS '主键';
 COMMENT ON COLUMN type_definition.tenant_id IS '租户ID';
-COMMENT ON COLUMN type_definition.biz_domain_id IS '业务域ID，NULL 表示全局类型';
+COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type、group_type';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type、group_type';
 COMMENT ON COLUMN type_definition.type_code IS '对外稳定编码，如 USER、SERVICE、BASIC_ROLE、MENU、DATA';
 COMMENT ON COLUMN type_definition.type_value IS '内部枚举值，如 1=人员 2=服务；同一 tenant_id + type_key 内全局唯一，不随 biz_domain_id 重复；只用于存储、索引和计算，不作为外部 API 契约';
@@ -59,6 +57,7 @@ CREATE TABLE biz_domain (
     tenant_id   BIGINT NOT NULL,
     code        VARCHAR(64) NOT NULL,
     name        VARCHAR(128) NOT NULL,
+    global      BOOLEAN NOT NULL DEFAULT false,
     description VARCHAR(512),
     created_by  BIGINT,
     updated_by  BIGINT,
@@ -70,10 +69,12 @@ CREATE TABLE biz_domain (
 );
 
 CREATE UNIQUE INDEX uk_biz_domain ON biz_domain (tenant_id, code) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_biz_domain_global ON biz_domain (tenant_id) WHERE global = TRUE AND delete_flag = 0;
 
-COMMENT ON TABLE biz_domain IS '业务域，扁平列表，对权限对象分类，无启停，删除前检查引用';
+COMMENT ON TABLE biz_domain IS '业务域，扁平列表，对权限对象分类，无启停，删除前检查引用。全局域(global=true)每个租户仅一个，其范围=未被其他域认领的资源类型';
 COMMENT ON COLUMN biz_domain.code IS '域编码';
 COMMENT ON COLUMN biz_domain.name IS '域名称';
+COMMENT ON COLUMN biz_domain.global IS '是否全局域：true=全局域（每租户仅一个），其范围隐式包含未被其他域认领的资源类型';
 
 -- -----------------------------------------------------------------------------
 -- 3. 抽象用户表（不含 biz_domain_id，通过分组/角色关联域）
@@ -125,7 +126,6 @@ COMMENT ON COLUMN abstract_user.delete_flag IS '逻辑删除：0=未删除，删
 CREATE TABLE abstract_role (
     id            BIGSERIAL PRIMARY KEY,
     tenant_id     BIGINT NOT NULL,
-    biz_domain_id BIGINT,
     parent_id     BIGINT,
     role_type     INT NOT NULL,
     external_id   VARCHAR(256),
@@ -142,19 +142,15 @@ CREATE TABLE abstract_role (
     delete_flag   BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_abstract_role_tenant_domain ON abstract_role (tenant_id, biz_domain_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_role_tenant_type ON abstract_role (tenant_id, role_type) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_role_parent ON abstract_role (parent_id) WHERE delete_flag = 0;
-CREATE UNIQUE INDEX uk_abstract_role_external_domain ON abstract_role (tenant_id, role_type, biz_domain_id, external_id)
-    WHERE biz_domain_id IS NOT NULL AND external_id IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_abstract_role_external_global ON abstract_role (tenant_id, role_type, external_id)
-    WHERE biz_domain_id IS NULL AND external_id IS NOT NULL AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_abstract_role_external ON abstract_role (tenant_id, role_type, external_id)
+    WHERE external_id IS NOT NULL AND delete_flag = 0;
 
 COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。删除级联：user_role + role_resource_permission';
-COMMENT ON COLUMN abstract_role.biz_domain_id IS '所属业务域ID，NULL 表示全局角色';
 COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；BASIC_ROLE 和 PERSONAL 不允许有子级（应用层约束）';
 COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/GROUP_ROLE(5)分组角色/BASIC_ROLE(6)基本角色，来自 type_definition';
-COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + biz_domain_id + external_id 定位角色';
+COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + external_id 定位角色';
 COMMENT ON COLUMN abstract_role.name IS '名称';
 COMMENT ON COLUMN abstract_role.status IS '状态：0=停用 1=启用，预留扩展空间';
 COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
@@ -202,7 +198,6 @@ COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实
 CREATE TABLE resource_entity (
     id            BIGSERIAL PRIMARY KEY,
     tenant_id     BIGINT NOT NULL,
-    biz_domain_id BIGINT,
     parent_id     BIGINT,
     resource_type INT NOT NULL,
     code          VARCHAR(128) NOT NULL,
@@ -224,16 +219,12 @@ CREATE TABLE resource_entity (
     delete_flag   BIGINT NOT NULL DEFAULT 0
 );
 
--- 唯一约束包含 resource_type + code_type，biz_domain_id 可 NULL
-CREATE UNIQUE INDEX uk_resource_entity_domain ON resource_entity (tenant_id, resource_type, biz_domain_id, code, code_type) WHERE biz_domain_id IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_resource_entity_global ON resource_entity (tenant_id, resource_type, code, code_type) WHERE biz_domain_id IS NULL AND delete_flag = 0;
-CREATE INDEX idx_resource_entity_tenant_domain ON resource_entity (tenant_id, biz_domain_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_resource_entity ON resource_entity (tenant_id, resource_type, code, code_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
 COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）';
-COMMENT ON COLUMN resource_entity.biz_domain_id IS '所属业务域ID，NULL 表示全局资源';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
 COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举：MENU(1)/BUTTON(2)/API(3)/DATA(4)，来自 type_definition';
 COMMENT ON COLUMN resource_entity.code IS '资源编码';
@@ -252,7 +243,6 @@ COMMENT ON COLUMN resource_entity.sync_key IS '同步源内稳定键，用于 FU
 CREATE TABLE resource_api_mapping (
     id                 BIGSERIAL PRIMARY KEY,
     tenant_id          BIGINT NOT NULL,
-    biz_domain_id      BIGINT,
     resource_entity_id BIGINT NOT NULL,
     service_code       VARCHAR(128) NOT NULL,
     http_method        VARCHAR(16) NOT NULL,
@@ -439,9 +429,9 @@ CREATE TABLE domain_config (
 
 CREATE INDEX idx_domain_config_domain ON domain_config (tenant_id, biz_domain_id, config_type) WHERE delete_flag = 0;
 
-COMMENT ON TABLE domain_config IS '域配置：SCOPE=域范围 / RELATION=域关系 / BINDING=域绑定 / SUB_PERM=子权限配置。每个域独立，无继承';
-COMMENT ON COLUMN domain_config.config_type IS 'SCOPE / RELATION / BINDING / SUB_PERM';
-COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}';
+COMMENT ON TABLE domain_config IS '域配置：SCOPE=域范围 / RELATION=域关系 / BINDING=域绑定 / SUB_PERM=子权限配置 / CLASSIFY=域分类配置。每个域独立，无继承';
+COMMENT ON COLUMN domain_config.config_type IS 'SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY';
+COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}, CLASSIFY示例: {"resourceTypeCodes":["ORG","USER"]}';
 
 -- -----------------------------------------------------------------------------
 -- 13. 资源依赖表（操作位级别触发，支持自动补全）
@@ -491,7 +481,6 @@ COMMENT ON COLUMN resource_dependency.sync_key IS '同步源内稳定键，用�
 CREATE TABLE permission_conflict_rule (
     id                             BIGSERIAL PRIMARY KEY,
     tenant_id                      BIGINT NOT NULL,
-    biz_domain_id                  BIGINT,
     conflict_type                  VARCHAR(16) NOT NULL DEFAULT 'PERM_MUTEX',
     -- PERM_MUTEX 字段
     first_operation_permission_id  BIGINT,
@@ -511,11 +500,9 @@ CREATE TABLE permission_conflict_rule (
 );
 
 -- 权限互斥唯一约束
-CREATE UNIQUE INDEX uk_conflict_rule_perm_domain ON permission_conflict_rule (tenant_id, biz_domain_id, first_operation_permission_id, second_operation_permission_id) WHERE biz_domain_id IS NOT NULL AND conflict_type = 'PERM_MUTEX' AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_conflict_rule_perm_global ON permission_conflict_rule (tenant_id, first_operation_permission_id, second_operation_permission_id) WHERE biz_domain_id IS NULL AND conflict_type = 'PERM_MUTEX' AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_conflict_rule_perm ON permission_conflict_rule (tenant_id, first_operation_permission_id, second_operation_permission_id) WHERE conflict_type = 'PERM_MUTEX' AND delete_flag = 0;
 -- 角色互斥唯一约束
-CREATE UNIQUE INDEX uk_conflict_rule_role_domain ON permission_conflict_rule (tenant_id, biz_domain_id, first_abstract_role_id, second_abstract_role_id) WHERE biz_domain_id IS NOT NULL AND conflict_type = 'ROLE_MUTEX' AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_conflict_rule_role_global ON permission_conflict_rule (tenant_id, first_abstract_role_id, second_abstract_role_id) WHERE biz_domain_id IS NULL AND conflict_type = 'ROLE_MUTEX' AND delete_flag = 0;
+CREATE UNIQUE INDEX uk_conflict_rule_role ON permission_conflict_rule (tenant_id, first_abstract_role_id, second_abstract_role_id) WHERE conflict_type = 'ROLE_MUTEX' AND delete_flag = 0;
 
 COMMENT ON TABLE permission_conflict_rule IS '冲突规则：ROLE_MUTEX=角色互斥(写入检查拒绝) / PERM_MUTEX=权限互斥(查询时失效+异步通知)。存库时 first_id < second_id';
 COMMENT ON COLUMN permission_conflict_rule.conflict_type IS 'ROLE_MUTEX=角色互斥 / PERM_MUTEX=权限互斥';
@@ -556,7 +543,6 @@ COMMENT ON COLUMN permission_version.trigger_entity_id IS '触发变更的实体
 CREATE TABLE permission_change_log (
     id                         BIGSERIAL PRIMARY KEY,
     tenant_id                  BIGINT NOT NULL,
-    biz_domain_id              BIGINT,
     entity_type                VARCHAR(64) NOT NULL,
     entity_id                  BIGINT,
     operation                  VARCHAR(16) NOT NULL,
@@ -574,7 +560,7 @@ CREATE TABLE permission_change_log (
 
 CREATE INDEX idx_change_log_tenant_users ON permission_change_log USING GIN (affected_abstract_user_ids);
 CREATE INDEX idx_change_log_tenant_roles ON permission_change_log USING GIN (affected_abstract_role_ids);
-CREATE INDEX idx_change_log_tenant_domain_time ON permission_change_log (tenant_id, biz_domain_id, created_at DESC);
+CREATE INDEX idx_change_log_tenant_time ON permission_change_log (tenant_id, created_at DESC);
 CREATE INDEX idx_change_log_entity ON permission_change_log (tenant_id, entity_type, entity_id);
 CREATE INDEX idx_change_log_request_id ON permission_change_log (request_id) WHERE request_id IS NOT NULL;
 CREATE INDEX idx_change_log_event_time ON permission_change_log (tenant_id, (diff_snapshot->>'eventType'), created_at DESC) WHERE diff_snapshot IS NOT NULL;

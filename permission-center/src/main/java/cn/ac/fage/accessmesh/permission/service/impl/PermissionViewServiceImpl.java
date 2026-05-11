@@ -17,11 +17,13 @@ import cn.ac.fage.accessmesh.permission.dto.resp.UserPermissionViewResp.SourceRo
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.entity.*;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.mapper.*;
 import cn.ac.fage.accessmesh.permission.service.LogQueryService;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
@@ -66,6 +68,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final BizDomainMapper bizDomainMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final UserRoleDomainService userRoleDomainService;
+    private final DomainClassifyService domainClassifyService;
     private final TypeResolutionService typeResolutionService;
     private final PermissionService permissionService;
     private final LogQueryService logQueryService;
@@ -95,6 +98,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      BizDomainMapper bizDomainMapper,
                                      RoleResourcePermissionMapper rolePermMapper,
                                      UserRoleDomainService userRoleDomainService,
+                                     DomainClassifyService domainClassifyService,
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
                                      LogQueryService logQueryService,
@@ -107,6 +111,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.bizDomainMapper = bizDomainMapper;
         this.rolePermMapper = rolePermMapper;
         this.userRoleDomainService = userRoleDomainService;
+        this.domainClassifyService = domainClassifyService;
         this.typeResolutionService = typeResolutionService;
         this.permissionService = permissionService;
         this.logQueryService = logQueryService;
@@ -281,7 +286,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      */
     private void loadRoles(PermissionQueryContext context) {
         Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(
-            context.getTenantId(), context.getUserId(), context.getDomainId());
+            context.getTenantId(), context.getUserId());
         context.setRoleIds(roleIds);
 
         if (context.hasNoRoles()) {
@@ -340,17 +345,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Map<Long, ResourceEntity> resourceMap = loadResources(context.getTenantId(), resourceIds);
         context.setResourceMap(resourceMap);
 
-        Set<Long> domainIds = resourceMap.values().stream()
-            .map(ResourceEntity::getBizDomainId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, String> domainCodeMap = loadDomainCodes(context.getTenantId(), domainIds);
-        context.setDomainCodeMap(domainCodeMap);
-
-        // 解析API类型值用于过滤
-        Integer apiTypeValue = typeResolutionService.resolveTypeValue(context.getTenantId(), "resource_type", ResourceTypeCode.API);
-        context.setApiTypeValue(apiTypeValue);
-
         // 批量解析资源类型编码
         Set<Integer> allResourceTypes = allPerms.stream()
             .map(RoleResourcePermission::getResourceType)
@@ -363,6 +357,14 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(
             context.getTenantId(), "resource_type", allResourceTypes);
         context.setResourceTypeCodeMap(resourceTypeCodeMap);
+
+        Map<Long, String> domainCodeMap = buildResourceDomainCodeMap(
+            context.getTenantId(), resourceMap.values(), resourceTypeCodeMap);
+        context.setDomainCodeMap(domainCodeMap);
+
+        // 解析API类型值用于过滤
+        Integer apiTypeValue = typeResolutionService.resolveTypeValue(context.getTenantId(), "resource_type", ResourceTypeCode.API);
+        context.setApiTypeValue(apiTypeValue);
 
         // 批量解析角色类型编码
         Set<Integer> roleTypeValues = context.getRoleMap().values().stream()
@@ -462,7 +464,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * - 资源类型过滤：资源类型是否在指定列表中
      * - 资源关键词过滤：资源名称是否包含关键词
      * - API资源过滤：是否排除API资源
-     * - 业务域过滤：资源业务域是否匹配
+    * - 业务域过滤：资源类型是否命中当前域分类范围
      * </p>
      *
      * @param perm    角色资源权限
@@ -511,10 +513,11 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 return false;
             }
 
-            // 业务域过滤
+            // 业务域过滤 - 基于资源类型码判断
             if (context.hasDomainFilter()) {
-                if (context.getDomainId() == null
-                    || (!Objects.equals(context.getDomainId(), resource.getBizDomainId()) && resource.getBizDomainId() != null)) {
+                if (resourceTypeCode == null || !domainClassifyService.matchesTypeCode(
+                    context.getTenantId(), DomainQueryMode.GLOBAL_PLUS,
+                    context.getRequest().domainCode(), resourceTypeCode)) {
                     return false;
                 }
             }
@@ -579,7 +582,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
         return new ResourcePermissionView(
             resourceId,
-            context.getDomainCodeMap().get(resource.getBizDomainId()),
+            context.getDomainCodeMap().get(resourceId),
             resource.getCode(),
             resource.getName(),
             context.getResourceTypeCodeMap().get(resource.getResourceType()),
@@ -669,9 +672,53 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     }
 
     /**
+     * 按资源类型码反查每个资源所属的业务域编码
+     * <p>
+     * 资源实体不再直接存储bizDomainId，因此这里根据resourceTypeCode反查域配置。
+     * </p>
+     *
+     * @param tenantId             租户ID
+     * @param resources            资源实体集合
+     * @param resourceTypeCodeMap  资源类型值到资源类型码的映射
+     * @return 资源ID到业务域编码的映射
+     */
+    private Map<Long, String> buildResourceDomainCodeMap(Long tenantId,
+                                                         Collection<ResourceEntity> resources,
+                                                         Map<Integer, String> resourceTypeCodeMap) {
+        if (resources.isEmpty() || resourceTypeCodeMap.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Long> domainIdByTypeCode = new HashMap<>();
+        for (ResourceEntity resource : resources) {
+            String resourceTypeCode = resourceTypeCodeMap.get(resource.getResourceType());
+            if (resourceTypeCode == null || domainIdByTypeCode.containsKey(resourceTypeCode)) {
+                continue;
+            }
+            domainIdByTypeCode.put(resourceTypeCode,
+                domainClassifyService.findDomainIdByTypeCode(tenantId, resourceTypeCode));
+        }
+
+        Set<Long> domainIds = domainIdByTypeCode.values().stream()
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, String> domainCodeById = loadDomainCodes(tenantId, domainIds);
+
+        Map<Long, String> resourceDomainCodeMap = new HashMap<>();
+        for (ResourceEntity resource : resources) {
+            String resourceTypeCode = resourceTypeCodeMap.get(resource.getResourceType());
+            Long domainId = resourceTypeCode != null ? domainIdByTypeCode.get(resourceTypeCode) : null;
+            if (domainId != null && domainCodeById.containsKey(domainId)) {
+                resourceDomainCodeMap.put(resource.getId(), domainCodeById.get(domainId));
+            }
+        }
+        return resourceDomainCodeMap;
+    }
+
+    /**
      * 批量加载业务域编码
      * <p>
-     * 根据业务域ID集合批量查询业务域编码。
+        * 根据业务域ID集合批量查询业务域编码。
      * </p>
      *
      * @param tenantId  租户ID
@@ -700,7 +747,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @param roleIds            角色ID集合
      * @param sourceRoleExternalId 来源角色外部ID，可选
      * @param roleTypeCode       角色类型编码，可选
-     * @param domainCode         业务域编码，可选
+    * @param domainCode         业务域编码，可选，仅用于保持调用签名兼容
      * @return 过滤后的角色ID集合
      */
     private Set<Long> filterRoleIds(Long tenantId, Set<Long> roleIds, String sourceRoleExternalId, String roleTypeCode, String domainCode) {
@@ -709,7 +756,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         }
         Integer roleTypeValue = roleTypeCode == null || roleTypeCode.isBlank()
             ? null : typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
-        Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
         return abstractRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
@@ -718,8 +764,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                     ? AbstractRoleTableDef.ABSTRACT_ROLE.ID.isNotNull()
                     : AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.eq(sourceRoleExternalId))
                 .and(roleTypeValue == null ? AbstractRoleTableDef.ABSTRACT_ROLE.ID.isNotNull() : AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleTypeValue))
-                .and(domainCode == null ? AbstractRoleTableDef.ABSTRACT_ROLE.ID.isNotNull()
-                    : AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
         ).stream().map(AbstractRole::getId).collect(Collectors.toSet());
     }

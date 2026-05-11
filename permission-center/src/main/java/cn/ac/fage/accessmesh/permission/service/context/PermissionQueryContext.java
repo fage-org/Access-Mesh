@@ -575,6 +575,6 @@ public class PermissionQueryContext {
      * @return 有过滤器返回true
      */
     public boolean hasDomainFilter() {
-        return request.domainCode() != null;
+        return request.domainCode() != null && !request.domainCode().isBlank();
     }
 }

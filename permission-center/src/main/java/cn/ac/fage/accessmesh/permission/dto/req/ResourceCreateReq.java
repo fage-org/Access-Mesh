@@ -6,10 +6,9 @@ import jakarta.validation.constraints.NotNull;
 /**
  * 资源创建请求体
  * <p>
- * 用于创建新的资源实体，包括业务域、父资源、类型和名称。
+ * 用于创建新的资源实体，包括父资源、类型和名称。
  * </p>
  *
- * @param bizDomainId      业务域ID，可选
  * @param parentId         父资源ID，可选
  * @param resourceTypeCode 资源类型编码，必填
  * @param code             资源编码，必填，唯一标识
@@ -21,7 +20,6 @@ import jakarta.validation.constraints.NotNull;
  * @param extra            扩展属性JSON，可选
  */
 public record ResourceCreateReq(
-    Long bizDomainId,
     Long parentId,
     @NotBlank String resourceTypeCode,
     @NotBlank String code,

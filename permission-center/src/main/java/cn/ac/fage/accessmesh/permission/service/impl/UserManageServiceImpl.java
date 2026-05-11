@@ -26,7 +26,9 @@ import cn.ac.fage.accessmesh.permission.service.domain.AbstractUserDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.SqlUtil;
@@ -63,9 +65,10 @@ import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
  * </p>
  *
- * TODO: 构造函数依赖过多(11个)，违反单一职责原则
+ * TODO: 构造函数依赖过多(12个)，违反单一职责原则
  * 建议：拆分为 UserSyncService/UserRoleAssignService/UserQueryService
  * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
+ * 业务域过滤按域分类规则判断是否覆盖 USER 资源类型。
  */
 @Service
 public class UserManageServiceImpl implements UserManageService {
@@ -78,6 +81,7 @@ public class UserManageServiceImpl implements UserManageService {
     private final AbstractUserDomainService abstractUserDomainService;
     private final UserRoleDomainService userRoleDomainService;
     private final TypeResolutionService typeResolutionService;
+    private final DomainClassifyService domainClassifyService;
     private final OperationLogDomainService operationLogDomainService;
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final ObjectMapper objectMapper;
@@ -93,6 +97,7 @@ public class UserManageServiceImpl implements UserManageService {
      * @param abstractUserDomainService   抽象用户领域服务
      * @param userRoleDomainService       用户角色领域服务
      * @param typeResolutionService       类型解析服务
+    * @param domainClassifyService       域分类领域服务
      * @param operationLogDomainService   操作日志领域服务
      * @param permissionChangeDomainService 权限变更领域服务
      * @param objectMapper                JSON对象映射器
@@ -105,6 +110,7 @@ public class UserManageServiceImpl implements UserManageService {
                                  AbstractUserDomainService abstractUserDomainService,
                                  UserRoleDomainService userRoleDomainService,
                                  TypeResolutionService typeResolutionService,
+                                 DomainClassifyService domainClassifyService,
                                  OperationLogDomainService operationLogDomainService,
                                  PermissionChangeDomainService permissionChangeDomainService,
                                  ObjectMapper objectMapper,
@@ -116,6 +122,7 @@ public class UserManageServiceImpl implements UserManageService {
         this.abstractUserDomainService = abstractUserDomainService;
         this.userRoleDomainService = userRoleDomainService;
         this.typeResolutionService = typeResolutionService;
+        this.domainClassifyService = domainClassifyService;
         this.operationLogDomainService = operationLogDomainService;
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.objectMapper = objectMapper;
@@ -934,7 +941,7 @@ public class UserManageServiceImpl implements UserManageService {
         Set<Long> uniqueRoles = new LinkedHashSet<>(affectedRoleIds);
         Long[] roleArr = uniqueRoles.toArray(Long[]::new);
         permissionChangeDomainService.record(
-            new PermissionChangeDomainService.ChangeLogContext(tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
+            new PermissionChangeDomainService.ChangeLogContext(tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
             List.of(new PermissionChangeDomainService.ChangeLogEntry(
                 "user_role",
                 0L,
@@ -1099,29 +1106,9 @@ public class UserManageServiceImpl implements UserManageService {
             );
         }
         if (domainCode != null && !domainCode.isBlank()) {
-            Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (domainId == null) {
+            if (!domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER)) {
                 return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
             }
-            List<Long> roleIds = abstractRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.eq(domainId).or(AbstractRoleTableDef.ABSTRACT_ROLE.BIZ_DOMAIN_ID.isNull()))
-            ).stream().map(AbstractRole::getId).toList();
-            if (roleIds.isEmpty()) {
-                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
-            }
-            List<Long> userIds = userRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(roleIds))
-            ).stream().map(UserRole::getAbstractUserId).distinct().toList();
-            if (userIds.isEmpty()) {
-                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
-            }
-            queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.in(userIds));
         }
         return queryWrapper;
     }

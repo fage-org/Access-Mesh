@@ -20,10 +20,9 @@ public interface UserRoleDomainService {
      *
      * @param tenantId    租户ID
      * @param userId      用户ID
-     * @param bizDomainId 业务域ID，null表示全局范围
      * @return 用户的有效角色ID集合
      */
-    Set<Long> resolveEffectiveRoles(Long tenantId, Long userId, Long bizDomainId);
+    Set<Long> resolveEffectiveRoles(Long tenantId, Long userId);
 
     /**
      * 批量解析多个用户的有效角色
@@ -33,10 +32,9 @@ public interface UserRoleDomainService {
      *
      * @param tenantId    租户ID
      * @param userIds     用户ID集合
-     * @param bizDomainId 业务域ID，null表示全局范围
      * @return 用户ID到角色ID集合的映射
      */
-    Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds, Long bizDomainId);
+    Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds);
 
     /**
      * 失效单个用户的角色缓存

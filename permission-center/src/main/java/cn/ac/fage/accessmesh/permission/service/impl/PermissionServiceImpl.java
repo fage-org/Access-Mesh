@@ -166,12 +166,10 @@ public class PermissionServiceImpl implements PermissionService {
     public AuthCheckResp check(Long tenantId, AuthCheckReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND");
-        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
 
         PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
             req.resourceTypeCode(), req.resourceCode(), req.operationCode());
         q.setCodeType(req.codeType());
-        if (bizDomainId != null) q.setBizDomainId(bizDomainId);
         if (req.inheritMode() != null) q.setInheritMode(req.inheritMode());
         q.setContext(req.context());
 
@@ -268,12 +266,10 @@ public class PermissionServiceImpl implements PermissionService {
     public QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new QueryResourcesResp(List.of(), "", 60);
-        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
 
         PermQuery q = PermQuery.forResourceQuery(tenantId, userId,
             req.resourceTypeCodes() != null ? new HashSet<>(req.resourceTypeCodes()) : Set.of(),
             req.operationCodes() != null ? new HashSet<>(req.operationCodes()) : Set.of());
-        if (bizDomainId != null) q.setBizDomainId(bizDomainId);
         PermResult r = engine.query(q);
         return PermResultUtils.toQueryResourcesResp(r, 60);
     }
@@ -300,19 +296,18 @@ public class PermissionServiceImpl implements PermissionService {
             return new QueryScopesResp(false, "OBJECT_KEY_NOT_FOUND", List.of(), List.of(), List.of(), "UNION", "", 60);
         }
 
-        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
         Map<String, Object> ctx = req.context() != null ? req.context() : Map.of();
 
         // 2. 验证父资源权限
         ParentPermissionsResult parentResult = validateParentPermissions(tenantId, userId,
-            req, parentResourceEntityId, bizDomainId, ctx);
+            req, parentResourceEntityId, ctx);
         if (parentResult == null) {
             return new QueryScopesResp(false, "NO_PERMISSION", List.of(), List.of(), List.of(), "UNION", "", 60);
         }
 
         // 3. 处理范围权限
         Map<String, ScopeAccumulator> merged = processScopePermissions(tenantId, userId,
-            bizDomainId, req, parentResult.parentPermissionIds, ctx);
+            req, parentResult.parentPermissionIds, ctx);
 
         // 4. 构建响应
         return buildQueryScopesResponse(merged, userId, tenantId, parentResult);
@@ -388,13 +383,12 @@ public class PermissionServiceImpl implements PermissionService {
      */
     private ParentPermissionsResult validateParentPermissions(Long tenantId, Long userId,
                                                                QueryScopesReq req, Long parentResourceEntityId,
-                                                               Long bizDomainId, Map<String, Object> ctx) {
+                                                               Map<String, Object> ctx) {
         Set<String> matchedParentOps = new HashSet<>();
         Set<Long> parentPermissionIds = new HashSet<>();
         for (String parentOpCode : req.parentOperationCodes()) {
             PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
                 req.parentResourceTypeCode(), req.parentResourceCode(), parentOpCode);
-            q.setBizDomainId(bizDomainId);
             q.setContext(ctx);
             PermResult r = engine.query(q);
             if (r.allowed()) {
@@ -413,13 +407,12 @@ public class PermissionServiceImpl implements PermissionService {
      * </p>
      */
     private Map<String, ScopeAccumulator> processScopePermissions(Long tenantId, Long userId,
-                                                                   Long bizDomainId, QueryScopesReq req,
+                                                                   QueryScopesReq req,
                                                                    Set<Long> parentPermissionIds,
                                                                    Map<String, Object> ctx) {
         PermQuery q = PermQuery.forScopeQuery(tenantId, userId,
             new HashSet<>(req.scopeResourceTypeCodes()),
             new HashSet<>(req.scopeOperationCodes()));
-        q.setBizDomainId(bizDomainId);
         q.setContext(ctx);
         PermResult result = engine.query(q);
 
@@ -523,7 +516,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // 解析用户有效角色
-        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, null);
+        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
         if (effectiveRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
@@ -735,19 +728,17 @@ public class PermissionServiceImpl implements PermissionService {
     private static class TreeContext {
         final Long userId;
         final Long rootResourceId;
-        final Long bizDomainId;
         final Set<Long> validRoleIds;
         final Set<Long> operationIds;
         final Map<Long, OperationPermission> operationMap;
         final int maxDepth;
         final String direction;
 
-        TreeContext(Long userId, Long rootResourceId, Long bizDomainId, Set<Long> validRoleIds,
+        TreeContext(Long userId, Long rootResourceId, Set<Long> validRoleIds,
                     Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
                     int maxDepth, String direction) {
             this.userId = userId;
             this.rootResourceId = rootResourceId;
-            this.bizDomainId = bizDomainId;
             this.validRoleIds = validRoleIds;
             this.operationIds = operationIds;
             this.operationMap = operationMap;
@@ -763,7 +754,7 @@ public class PermissionServiceImpl implements PermissionService {
         // 1. 解析用户ID
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
-            return new TreeContext(null, null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
         // 2. 解析根资源ID
@@ -771,23 +762,20 @@ public class PermissionServiceImpl implements PermissionService {
             tenantId, req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.domainCode()
         );
         if (rootResourceId == null) {
-            return new TreeContext(userId, null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
-        // 3. 解析业务域ID
-        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
-
-        // 4. 获取有效角色
-        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);
+        // 3. 获取有效角色
+        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
         if (effectiveRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, bizDomainId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, bizDomainId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }
 
-        // 5. 解析操作ID
+        // 4. 解析操作ID
         Set<Long> operationIds = resolveOperationIds(tenantId, req);
 
         // 批量加载操作权限
@@ -796,7 +784,7 @@ public class PermissionServiceImpl implements PermissionService {
         int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
         String direction = req.direction() != null ? req.direction().toUpperCase() : "BOTH";
 
-        return new TreeContext(userId, rootResourceId, bizDomainId, validRoleIds, operationIds, operationMap, maxDepth, direction);
+        return new TreeContext(userId, rootResourceId, validRoleIds, operationIds, operationMap, maxDepth, direction);
     }
 
     /**

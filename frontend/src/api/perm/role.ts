@@ -27,7 +27,6 @@ export interface RoleTreeResult {
 export interface RoleDetail {
   id: number;
   tenantId: number;
-  bizDomainId: number | null;
   parentId: number | null;
   roleTypeCode: string;
   roleTypeName: string;
@@ -48,7 +47,6 @@ export interface RoleDetailResult {
 
 /** 创建角色请求 */
 export interface RoleCreateRequest {
-  bizDomainId?: number;
   parentId?: number;
   roleTypeCode: string;
   externalId?: string;

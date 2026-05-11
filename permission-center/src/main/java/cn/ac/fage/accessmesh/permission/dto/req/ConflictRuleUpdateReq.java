@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
  * </p>
  *
  * @param id                       规则ID，必填
- * @param bizDomainId              业务域ID，可选
  * @param conflictType             冲突类型编码，可选
  * @param firstOperationPermissionId 第一个操作权限ID，可选
  * @param secondOperationPermissionId 第二个操作权限ID，可选
@@ -20,7 +19,6 @@ import jakarta.validation.constraints.NotNull;
  */
 public record ConflictRuleUpdateReq(
     @NotNull Long id,
-    Long bizDomainId,
     String conflictType,
     Long firstOperationPermissionId,
     Long secondOperationPermissionId,

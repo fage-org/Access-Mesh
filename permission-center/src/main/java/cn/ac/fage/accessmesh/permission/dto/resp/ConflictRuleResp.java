@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id                       规则ID
  * @param tenantId                 租户ID
- * @param bizDomainId              业务域ID
  * @param conflictType             冲突类型编码（ROLE_MUTEX/PERM_MUTEX）
  * @param firstOperationPermissionId  第一个操作权限ID
  * @param secondOperationPermissionId 第二个操作权限ID
@@ -24,7 +23,6 @@ import java.time.LocalDateTime;
 public record ConflictRuleResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     String conflictType,
     Long firstOperationPermissionId,
     Long secondOperationPermissionId,

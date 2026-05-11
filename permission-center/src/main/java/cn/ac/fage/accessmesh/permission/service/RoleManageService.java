@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp;
 
-import java.util List;
+import java.util.List;
 
 /**
  * 角色管理服务接口
@@ -98,7 +98,7 @@ public interface RoleManageService {
      * 获取角色树
      * <p>
      * 获取租户的角色树结构。
-     * domainCode为空或空白时返回全局域角色；否则返回指定域角色加全局域角色。
+      * domainCode为空或空白时返回全部角色；否则按域分类规则判断当前域是否覆盖角色管理资源类型。
      * </p>
      *
      * @param tenantId   租户ID

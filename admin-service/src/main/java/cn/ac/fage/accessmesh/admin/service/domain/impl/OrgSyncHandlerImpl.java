@@ -55,7 +55,6 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
         String code = generateResourceCode(org);
         ResourceCreateReq req = new ResourceCreateReq(
-            null, // bizDomainId
             org.getParentId() != null && org.getParentId() != 0L ? org.getParentId() : 0L,
             RESOURCE_TYPE_ORG,
             code,

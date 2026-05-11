@@ -118,7 +118,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             return Map.of();
         }
 
-        Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
+        Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (operatorRoleIds.isEmpty()) {
             Map<String, GrantCheckResult> results = new HashMap<>();
             for (GrantCheckKey key : permissions) {

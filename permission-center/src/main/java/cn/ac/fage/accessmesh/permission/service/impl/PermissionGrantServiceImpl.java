@@ -31,6 +31,7 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -86,6 +87,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final AuthorizationService authorizationService;
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final AbstractRoleDomainService abstractRoleDomainService;
+    private final DomainClassifyService domainClassifyService;
     private final PermQueryEngine engine;
 
     /**
@@ -112,6 +114,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       AuthorizationService authorizationService,
                                       OperationPermissionDomainService operationPermissionDomainService,
                                       AbstractRoleDomainService abstractRoleDomainService,
+                                      DomainClassifyService domainClassifyService,
                                       PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
@@ -129,6 +132,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.authorizationService = authorizationService;
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.abstractRoleDomainService = abstractRoleDomainService;
+        this.domainClassifyService = domainClassifyService;
         this.engine = engine;
     }
 
@@ -671,14 +675,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         }
         ResourceEntity parentResource = parent.getResourceEntityId() == null ? null : resourceEntityMapper.selectOneById(parent.getResourceEntityId());
         DomainConfig subPermConfig = null;
-        if (parentResource != null && parentResource.getBizDomainId() != null) {
-            subPermConfig = domainConfigMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                    .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(parentResource.getBizDomainId()))
-                    .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.SUB_PERM.getValue()))
-                    .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-            );
+        // 通过DomainClassifyService按资源类型码反查域ID，用于SUB_PERM配置查找
+        if (parentResource != null) {
+            String parentResourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", parentResource.getResourceType());
+            Long parentBizDomainId = domainClassifyService.findDomainIdByTypeCode(tenantId, parentResourceTypeCode);
+            if (parentBizDomainId != null) {
+                subPermConfig = domainConfigMapper.selectOneByQuery(
+                    QueryWrapper.create()
+                        .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
+                        .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(parentBizDomainId))
+                        .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.SUB_PERM.getValue()))
+                        .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
+                );
+            }
         }
 
         // ===== 批量解析避免N+1查询 =====
@@ -803,7 +812,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             });
         }
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
-            tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
+            tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
         ), changeLogs);
         return toItemRespList(tenantId, inserted);
     }
@@ -851,7 +860,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             });
         }
         permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
-            tenantId, null, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
+            tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
         ), List.of(new PermissionChangeDomainService.ChangeLogEntry(
             "role_resource_permission", child.getId(), "REMOVE", "child-exists", null, "{}", null,
             new Long[]{child.getAbstractRoleId()}

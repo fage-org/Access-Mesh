@@ -250,7 +250,7 @@ public class PermQueryEngine {
         }
 
         // 1. Resolve user roles (1 query)
-        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
+        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (roleIds.isEmpty()) {
             return new LinkedHashSet<>(resourceIds); // No roles = all denied
         }
@@ -444,11 +444,11 @@ public class PermQueryEngine {
             return Set.of();
         }
         if (q.useRoleCache()) {
-            return userRoleDomainService.resolveEffectiveRoles(q.tenantId(), q.userId(), q.bizDomainId());
+            return userRoleDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
         }
         // bypass cache — direct batch resolve
         Map<Long, Set<Long>> batch = userRoleDomainService.batchResolveEffectiveRoles(
-            q.tenantId(), Set.of(q.userId()), q.bizDomainId());
+            q.tenantId(), Set.of(q.userId()));
         return batch.getOrDefault(q.userId(), Set.of());
     }
 

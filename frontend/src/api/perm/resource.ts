@@ -28,7 +28,6 @@ export interface ResourceTreeResult {
 export interface ResourceDetail {
   id: number;
   tenantId: number;
-  bizDomainId: number | null;
   parentId: number | null;
   resourceTypeCode: string;
   resourceTypeName: string;
@@ -155,7 +154,6 @@ export const getResourceTypeTag = (
 
 /** 创建资源请求 */
 export interface ResourceCreateRequest {
-  bizDomainId?: number;
   parentId?: number;
   resourceTypeCode: string;
   code: string;

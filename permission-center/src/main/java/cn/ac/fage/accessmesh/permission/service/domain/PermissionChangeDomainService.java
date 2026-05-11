@@ -34,7 +34,6 @@ public interface PermissionChangeDomainService {
      */
     record ChangeLogContext(
         Long tenantId,       // 租户ID
-        Long bizDomainId,    // 业务域ID
         Long operatorId,     // 操作者ID
         String requestId,    // 请求ID，用于关联同一请求的多个变更
         String changeSource, // 变更来源（如MANUAL、SYNC、IMPORT等）

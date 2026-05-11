@@ -44,6 +44,9 @@ import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainServi
 
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.permission.dto.query.DomainTypeFilter;
+import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 
@@ -111,6 +114,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     private final TypeResolutionService typeResolutionService;
 
+    private final DomainClassifyService domainClassifyService;
+
     private final OperationLogDomainService operationLogDomainService;
 
     private final AuthorizationService authorizationService;
@@ -140,6 +145,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
                                      ResourceEntityDomainService resourceEntityDomainService,
                                      ResourceApiMappingDomainService resourceApiMappingDomainService,
                                      TypeResolutionService typeResolutionService,
+                                     DomainClassifyService domainClassifyService,
                                      OperationLogDomainService operationLogDomainService,
                                      AuthorizationService authorizationService,
                                      PermQueryEngine engine,
@@ -149,6 +155,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.resourceApiMappingDomainService = resourceApiMappingDomainService;
         this.typeResolutionService = typeResolutionService;
+        this.domainClassifyService = domainClassifyService;
         this.operationLogDomainService = operationLogDomainService;
         this.authorizationService = authorizationService;
         this.engine = engine;
@@ -179,7 +186,6 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
         ResourceEntity entity = new ResourceEntity();
         entity.setTenantId(tenantId);
-        entity.setBizDomainId(req.bizDomainId());
         entity.setParentId(req.parentId());
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
         if (resourceType == null) {
@@ -280,7 +286,6 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             // 构建实体
             ResourceEntity entity = new ResourceEntity();
             entity.setTenantId(tenantId);
-            entity.setBizDomainId(req.bizDomainId());
             entity.setParentId(req.parentId());
             entity.setResourceType(resourceType);
             entity.setCode(req.code());
@@ -552,15 +557,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         if (resourceType != null) {
             qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(resourceType));
         }
-        if (domainCode != null && !domainCode.isBlank()) {
-            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (bizDomainId == null) {
-                return List.of();
-            }
-            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(bizDomainId).or(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull()));
-        } else {
-            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
-        }
+        applyDomainFilter(qw, tenantId, domainCode);
 
         List<ResourceEntity> allEntities = resourceEntityMapper.selectListByQuery(qw);
 
@@ -648,8 +645,8 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     /**
      * 应用域过滤条件
      * <p>
-     * 根据域编码添加查询过滤条件。
-     * 支持查询指定域下的资源或公共资源（域ID为null）。
+     * 根据域编码使用DomainClassifyService按资源类型过滤域范围。
+     * 替代原先直接按BIZ_DOMAIN_ID列过滤的方式。
      * </p>
      *
      * @param qw         查询包装器
@@ -658,14 +655,43 @@ public class ResourceManageServiceImpl implements ResourceManageService {
      */
     private void applyDomainFilter(QueryWrapper qw, Long tenantId, String domainCode) {
         if (domainCode != null && !domainCode.isBlank()) {
-            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (bizDomainId != null) {
-                qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.eq(bizDomainId).or(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull()));
-            } else {
-                qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
-            }
-        } else {
-            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.BIZ_DOMAIN_ID.isNull());
+            DomainTypeFilter typeFilter = domainClassifyService.buildTypeFilter(
+                tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode);
+            applyResourceTypeFilter(qw, typeFilter);
+        }
+    }
+
+    /**
+     * 将资源类型过滤条件应用到查询中
+     * <p>
+     * GLOBAL_PLUS 语义是“指定域类型 OR 全局未认领类型”，
+     * 不能拆成两个 and 条件，否则会把指定域类型错误过滤掉。
+     * </p>
+     *
+     * @param qw         查询包装器
+     * @param typeFilter 域类型过滤条件
+     */
+    private void applyResourceTypeFilter(QueryWrapper qw, DomainTypeFilter typeFilter) {
+        if (typeFilter.isNoFilter()) {
+            return;
+        }
+        if (typeFilter.isMatchNone()) {
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.eq(PermissionConstants.NONEXISTENT_ID));
+            return;
+        }
+        if (!typeFilter.getIncludeValues().isEmpty() && !typeFilter.getExcludeValues().isEmpty()) {
+            qw.and(
+                ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.in(typeFilter.getIncludeValues())
+                    .or(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.notIn(typeFilter.getExcludeValues()))
+            );
+            return;
+        }
+        if (!typeFilter.getIncludeValues().isEmpty()) {
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.in(typeFilter.getIncludeValues()));
+            return;
+        }
+        if (!typeFilter.getExcludeValues().isEmpty()) {
+            qw.and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.notIn(typeFilter.getExcludeValues()));
         }
     }
 
@@ -865,7 +891,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     private ResourceResp toResourceResp(ResourceEntity entity) {
         String resourceTypeName = ResourceType.safeGetLabel(entity.getResourceType());
         return new ResourceResp(
-            entity.getId(), entity.getTenantId(), entity.getBizDomainId(),
+            entity.getId(), entity.getTenantId(),
             entity.getParentId(), typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()), resourceTypeName,
             entity.getCode(), entity.getCodeType(), entity.getName(),
             entity.getPath(), entity.getStatus(), entity.getSortOrder(),
@@ -881,7 +907,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
      */
     private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping) {
         return new ApiMappingResp(
-            mapping.getId(), mapping.getTenantId(), mapping.getBizDomainId(),
+            mapping.getId(), mapping.getTenantId(),
             mapping.getResourceEntityId(), mapping.getServiceCode(),
             mapping.getHttpMethod(), mapping.getPathPattern(),
             mapping.getMatchOrder(), mapping.getEnabled(),

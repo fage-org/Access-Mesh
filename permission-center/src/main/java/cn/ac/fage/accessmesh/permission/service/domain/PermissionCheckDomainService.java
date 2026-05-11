@@ -68,12 +68,11 @@ public interface PermissionCheckDomainService {
      * @param userId                用户ID
      * @param resourceEntityId      资源实体ID
      * @param operationPermissionId 操作权限ID
-     * @param bizDomainId           业务域ID
      * @param inheritMode           继承模式
      * @param context               上下文参数
      * @return 权限校验响应
      */
     AuthCheckResp checkInternal(Long tenantId, Long userId, Long resourceEntityId,
-                                Long operationPermissionId, Long bizDomainId,
+                                Long operationPermissionId,
                                 String inheritMode, Map<String, Object> context);
 }

@@ -43,13 +43,12 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     /**
      * 创建角色
      * <p>
-     * 在指定租户和域下创建新角色。
+     * 在指定租户下创建新角色。
      * 角色类型通过roleType参数指定，支持组角色、组织角色、业务角色等。
      * 默认状态为启用（status=1），排序顺序默认为0。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param bizDomainId 业务域ID
      * @param parentId   父角色ID，可选
      * @param roleType   角色类型值（参考RoleType枚举）
      * @param externalId 外部标识，用于与外部系统关联
@@ -60,13 +59,12 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createRole(Long tenantId, Long bizDomainId, Long parentId, Integer roleType,
+    public Long createRole(Long tenantId, Long parentId, Integer roleType,
                            String externalId, String name, Integer sortOrder, String extra) {
         RoleType rt = RoleType.fromValue(roleType);
 
         AbstractRole role = new AbstractRole();
         role.setTenantId(tenantId);
-        role.setBizDomainId(bizDomainId);
         role.setParentId(parentId);
         role.setRoleType(roleType);
         role.setExternalId(externalId);

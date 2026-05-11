@@ -9,7 +9,6 @@ import jakarta.validation.constraints.NotNull;
  * 用于创建新的类型定义，包括类型键、类型值、名称等。
  * </p>
  *
- * @param bizDomainId  业务域ID，可选
  * @param typeKey      类型键，必填，用于分类
  * @param typeValue    类型值，必填，对应数据库存储值
  * @param name         类型名称，必填
@@ -19,7 +18,6 @@ import jakarta.validation.constraints.NotNull;
  * @param extra        扩展属性JSON，可选
  */
 public record TypeCreateReq(
-    Long bizDomainId,
     @NotBlank String typeKey,
     @NotNull Integer typeValue,
     @NotBlank String name,

@@ -46,6 +46,11 @@ public class BizDomain {
     private String description;
 
     /**
+     * 是否全局域（每租户仅一个全局域，其范围隐式包含未被其他域认领的资源类型）
+     */
+    private Boolean global;
+
+    /**
      * 创建者用户ID
      */
     private Long createdBy;
@@ -149,6 +154,20 @@ public class BizDomain {
      * @param description 业务域描述
      */
     public void setDescription(String description) { this.description = description; }
+
+    /**
+     * 获取是否全局域
+     *
+     * @return 是否全局域
+     */
+    public Boolean getGlobal() { return global; }
+
+    /**
+     * 设置是否全局域
+     *
+     * @param global 是否全局域
+     */
+    public void setGlobal(Boolean global) { this.global = global; }
 
     /**
      * 获取创建者用户ID

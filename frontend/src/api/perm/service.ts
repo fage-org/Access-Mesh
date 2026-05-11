@@ -59,7 +59,6 @@ export interface ServiceSyncResultResponse {
 export interface ApiMappingItem {
   id: number;
   tenantId: number;
-  bizDomainId: number | null;
   resourceEntityId: number;
   serviceCode: string;
   httpMethod: string;

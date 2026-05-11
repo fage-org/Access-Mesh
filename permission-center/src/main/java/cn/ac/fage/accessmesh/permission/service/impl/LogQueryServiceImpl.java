@@ -314,7 +314,7 @@ public class LogQueryServiceImpl implements LogQueryService {
      */
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
-            c.getId(), c.getTenantId(), c.getBizDomainId(), c.getEntityType(),
+            c.getId(), c.getTenantId(), c.getEntityType(),
             c.getEntityId(), c.getOperation(), c.getOldSnapshot(), c.getNewSnapshot(),
             c.getDiffSnapshot(), c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
             c.getChangeReason(), c.getChangeSource(), c.getRequestId(), c.getCreatedAt()

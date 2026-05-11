@@ -32,11 +32,6 @@ public class PermissionConflictRule {
     private Long tenantId;
 
     /**
-     * 所属业务域ID
-     */
-    private Long bizDomainId;
-
-    /**
      * 冲突类型（MUTEX_OP=操作互斥，MUTEX_ROLE=角色互斥）
      */
     private String conflictType;
@@ -133,20 +128,6 @@ public class PermissionConflictRule {
      * @param tenantId 租户ID
      */
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-
-    /**
-     * 获取所属业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long getBizDomainId() { return bizDomainId; }
-
-    /**
-     * 设置所属业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 获取冲突类型

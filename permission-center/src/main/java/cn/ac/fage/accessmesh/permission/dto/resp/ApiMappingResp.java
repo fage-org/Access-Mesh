@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id               映射ID
  * @param tenantId         租户ID
- * @param bizDomainId      业务域ID
  * @param resourceEntityId 资源实体ID
  * @param serviceCode      服务编码
  * @param httpMethod       HTTP方法（GET/POST/PUT/DELETE等）
@@ -25,7 +24,6 @@ import java.time.LocalDateTime;
 public record ApiMappingResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     Long resourceEntityId,
     String serviceCode,
     String httpMethod,

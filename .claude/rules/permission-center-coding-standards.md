@@ -4,7 +4,8 @@ description: >-
   Permission Center 编码规范。
   Rule type: ALWAYS — applies to all permission-center module code changes.
   Covers: entity batch loading, PermQueryEngine, PermQuery/PermResult, RolePermEntry,
-  OperationPermissionUtils, ConditionEvalUtils, role resolution, OperationCodeConstants, ResourceTypeCode.
+  OperationPermissionUtils, ConditionEvalUtils, role resolution, OperationCodeConstants, ResourceTypeCode,
+  DomainClassifyService, DomainTypeFilter, DomainQueryMode.
 origin: project
 metadata:
   project: AccessMesh
@@ -83,16 +84,53 @@ new RolePermEntry(p.getId(), p.getAbstractRoleId(), ...)
 
 ```java
 // ✅ 正确 — 单个用户
-Set<Long> roles = userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);
+Set<Long> roles = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
 
 // ✅ 正确 — 批量用户
-Map<Long, Set<Long>> roles = userRoleDomainService.batchResolveEffectiveRoles(tenantId, userIds, bizDomainId);
+Map<Long, Set<Long>> roles = userRoleDomainService.batchResolveEffectiveRoles(tenantId, userIds);
 
 // ❌ 禁止 — 自己查 UserRole 表
 userRoleMapper.selectListByQuery(...)
 ```
 
-## 5. 类型解析
+## 5. 业务域分类
+
+**MUST** 通过 `DomainClassifyService` 进行管理查询的域范围过滤。权限查询管线不感知业务域。
+
+```java
+// ✅ 正确 — 管理查询按域过滤
+DomainTypeFilter filter = domainClassifyService.buildTypeFilter(tenantId, DomainQueryMode.GLOBAL_PLUS, "HR");
+// 应用到查询: filter.getIncludeValues() / filter.getExcludeValues()
+
+// ✅ 正确 — 通过资源类型码反查域
+Long domainId = domainClassifyService.findDomainIdByTypeCode(tenantId, "ORG");
+
+// ✅ 正确 — 获取域的类型码范围
+Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "HR");
+
+// ❌ 禁止 — 在实体上使用 bizDomainId 字段（已从 abstract_role, resource_entity 等表中删除）
+role.setBizDomainId(domainId);  // 字段已删除
+role.getBizDomainId();           // 字段已删除
+
+// ❌ 禁止 — 权限查询管线中使用 bizDomainId 参数
+userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);  // 参数已删除
+```
+
+### 查询模式
+
+| 模式 | 含义 |
+|------|------|
+| `ALL` | 不过滤，查看全部 |
+| `GLOBAL_PLUS` | 全局域 + 指定域（指定域类型 + 未被认领的类型） |
+| `DOMAIN_ONLY` | 仅指定域声明的类型 |
+
+### 全局域
+
+- 每个租户有且仅有一个全局域（`biz_domain.global = true`）
+- 全局域的范围隐式包含未被其他域认领的资源类型，无需配置 CLASSIFY
+- 通过 `domainClassifyService.ensureGlobalDomain(tenantId)` 初始化
+
+## 6. 类型解析
 
 **MUST** 通过 `TypeResolutionService` 的批量方法。
 
@@ -108,7 +146,7 @@ for (String code : codes) {
 }
 ```
 
-## 6. OperationPermission 位运算
+## 7. OperationPermission 位运算
 
 **MUST** 使用 `OperationPermissionUtils` 静态方法：
 
@@ -119,7 +157,7 @@ boolean ok = OperationPermissionUtils.covers(granted, target);
 List<RolePermEntry> filtered = OperationPermissionUtils.filterByOperation(entries, opCache, targetOp);
 ```
 
-## 7. Condition 条件评估
+## 8. Condition 条件评估
 
 **MUST** 使用 `ConditionEvalUtils` 静态方法进行子项评估：
 
@@ -129,7 +167,7 @@ boolean ok = ConditionEvalUtils.evalDateRange("2025-01-01", "2026-12-31");
 boolean ok = ConditionEvalUtils.evalItem(jsonNode, context, ...);
 ```
 
-## 8. 缓存失效
+## 9. 缓存失效
 
 **MUST** 在事务提交后（`TransactionSynchronization.afterCommit`）失效缓存。
 
@@ -146,7 +184,7 @@ TransactionSynchronizationManager.registerSynchronization(new TransactionSynchro
 // ❌ 禁止 — 事务提交前失效（缓存可能被回滚数据污染）
 ```
 
-## 9. 构造函数依赖
+## 10. 构造函数依赖
 
 **SHOULD** 保持构造函数依赖不超过 10 个。超过时应考虑拆分类。
 
@@ -156,13 +194,13 @@ TransactionSynchronizationManager.registerSynchronization(new TransactionSynchro
 - `PermissionViewServiceImpl` (14 deps) — TODO: 拆分 View/Log
 - `ConfigManageServiceImpl` (12 deps) — TODO: 拆分配置查询/配置管理/配置同步
 
-## 10. 事务边界
+## 11. 事务边界
 
 - 读操作使用 `@Transactional(readOnly = true)` 
 - 写操作使用 `@Transactional(rollbackFor = Exception.class)`
 - 缓存写入在事务提交后（`afterCommit`）
 
-## 11. MyBatis-Flex TableDef 使用（全模块）
+## 12. MyBatis-Flex TableDef 使用（全模块）
 
 **ALL MODULES MUST** 使用普通导入或 `Tables` 类，**禁止静态导入 `*TableDef` 类**。
 
@@ -193,7 +231,7 @@ QueryWrapper qw = QueryWrapper.create()
     .where(ABSTRACT_ROLE.ID.eq(roleId));  // mvn clean 后编译失败
 ```
 
-## 12. 常量类使用
+## 13. 常量类使用
 
 ### OperationCodeConstants（操作码）
 
@@ -224,7 +262,7 @@ engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCo
 engine.validate(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写错误风险
 ```
 
-## 13. 已删除的类（禁止引用）
+## 14. 已删除的类（禁止引用）
 
 以下类已删除，**禁止任何引用**：
 
@@ -237,3 +275,18 @@ engine.validate(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写错�
 | `DomainPermissionStrategy` | 无需替代 |
 | `TypeDefPermissionStrategy` | 直接查询实体检查 |
 | `PermissionCheckUtils` | 使用 `PermQueryEngine` 或 `PermResultUtils` |
+
+## 15. 已删除的实体字段（禁止引用）
+
+以下实体类的 `bizDomainId` 字段已删除，**禁止任何引用**：
+
+| 实体类 | 说明 |
+|--------|------|
+| `AbstractRole` | 角色不再内嵌域归属，通过 `DomainClassifyService` 按资源类型码间接关联 |
+| `ResourceEntity` | 同上 |
+| `TypeDefinition` | 同上 |
+| `ResourceApiMapping` | 同上 |
+| `PermissionConflictRule` | 同上 |
+| `PermissionChangeLog` | 同上 |
+
+域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现，参见 §5。

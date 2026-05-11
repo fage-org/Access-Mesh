@@ -80,7 +80,6 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
 
         PermissionConflictRule rule = new PermissionConflictRule();
         rule.setTenantId(tenantId);
-        rule.setBizDomainId(req.bizDomainId());
         rule.setConflictType(req.conflictType());
         rule.setFirstOperationPermissionId(req.firstOperationPermissionId());
         rule.setSecondOperationPermissionId(req.secondOperationPermissionId());
@@ -160,7 +159,6 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
         if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
             throw new IllegalArgumentException("Conflict rule not found: " + req.id());
         }
-        if (req.bizDomainId() != null) rule.setBizDomainId(req.bizDomainId());
         if (req.conflictType() != null) rule.setConflictType(req.conflictType());
         if (req.firstOperationPermissionId() != null) rule.setFirstOperationPermissionId(req.firstOperationPermissionId());
         if (req.secondOperationPermissionId() != null) rule.setSecondOperationPermissionId(req.secondOperationPermissionId());
@@ -283,7 +281,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
      */
     private ConflictRuleResp toConflictRuleResp(PermissionConflictRule r) {
         return new ConflictRuleResp(
-            r.getId(), r.getTenantId(), r.getBizDomainId(), r.getConflictType(),
+            r.getId(), r.getTenantId(), r.getConflictType(),
             r.getFirstOperationPermissionId(), r.getSecondOperationPermissionId(),
             r.getResourceTypeValue(), r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId(),
             r.getDescription(), r.getCreatedAt()

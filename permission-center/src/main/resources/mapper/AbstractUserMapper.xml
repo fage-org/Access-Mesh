@@ -3,19 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper">
 
-    <select id="selectUserIdsByBizDomain" resultType="java.lang.Long">
-        SELECT DISTINCT u.id
-        FROM abstract_user u
-        INNER JOIN user_role ur ON ur.abstract_user_id = u.id
-            AND ur.tenant_id = #{tenantId}
-            AND ur.delete_flag = 0
-        INNER JOIN abstract_role r ON r.id = ur.target_id
-            AND r.tenant_id = #{tenantId}
-            AND r.delete_flag = 0
-            AND (r.biz_domain_id = #{bizDomainId} OR r.biz_domain_id IS NULL)
-        WHERE u.tenant_id = #{tenantId}
-          AND u.delete_flag = 0
-    </select>
+    <!-- selectUserIdsByBizDomain 已移除：abstract_role.biz_domain_id列已删除，域过滤改为DomainClassifyService按类型码过滤 -->
 
     <update id="softDeleteBatch">
         UPDATE abstract_user

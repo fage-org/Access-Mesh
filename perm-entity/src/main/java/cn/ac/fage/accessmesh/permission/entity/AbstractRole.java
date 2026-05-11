@@ -31,11 +31,6 @@ public class AbstractRole {
     private Long tenantId;
 
     /**
-     * 所属业务域ID
-     */
-    private Long bizDomainId;
-
-    /**
      * 父角色ID，用于角色继承层级
      */
     private Long parentId;
@@ -132,20 +127,6 @@ public class AbstractRole {
      * @param tenantId 租户ID
      */
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-
-    /**
-     * 获取所属业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long getBizDomainId() { return bizDomainId; }
-
-    /**
-     * 设置所属业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 获取父角色ID

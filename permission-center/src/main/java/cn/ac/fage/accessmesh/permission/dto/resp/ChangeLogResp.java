@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
  *
  * @param id                   变更日志ID
  * @param tenantId             租户ID
- * @param bizDomainId          业务域ID
  * @param entityType           变更实体类型
  * @param entityId             变更实体ID
  * @param operation            变更操作类型
@@ -28,7 +27,6 @@ import java.time.LocalDateTime;
 public record ChangeLogResp(
     Long id,
     Long tenantId,
-    Long bizDomainId,
     String entityType,
     Long entityId,
     String operation,

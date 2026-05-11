@@ -58,7 +58,6 @@ public class PermissionChangeDomainServiceImpl implements PermissionChangeDomain
         for (ChangeLogEntry entry : changes) {
             PermissionChangeLog cl = new PermissionChangeLog();
             cl.setTenantId(context.tenantId());
-            cl.setBizDomainId(context.bizDomainId());
             cl.setEntityType(entry.entityType());
             cl.setEntityId(entry.entityId());
             cl.setOperation(entry.operation());

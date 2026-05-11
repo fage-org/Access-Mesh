@@ -31,11 +31,6 @@ public class PermissionChangeLog {
     private Long tenantId;
 
     /**
-     * 所属业务域ID
-     */
-    private Long bizDomainId;
-
-    /**
      * 实体类型（ROLE/RESOURCE/PERMISSION等）
      */
     private String entityType;
@@ -127,20 +122,6 @@ public class PermissionChangeLog {
      * @param tenantId 租户ID
      */
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-
-    /**
-     * 获取所属业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long getBizDomainId() { return bizDomainId; }
-
-    /**
-     * 设置所属业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 获取实体类型

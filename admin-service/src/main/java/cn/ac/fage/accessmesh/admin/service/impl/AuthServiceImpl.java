@@ -629,14 +629,13 @@ public class AuthServiceImpl implements AuthService {
             cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq req =
                 new cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq(
                     SUBJECT_TYPE_ADMIN_USER,
-                    String.valueOf(userId),
-                    null
+                    String.valueOf(userId)
                 );
             PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
                 permissionFeignClient.getUserRoles(req);
             if (result != null && result.data() != null && result.data().roles() != null) {
                 return result.data().roles().stream()
-                    .map(cn.ac.fage.accessmesh.perm.common.dto.resp.RoleInfo::roleName)
+                    .map(cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp.RoleSummary::roleName)
                     .collect(Collectors.toList());
             }
         } catch (Exception e) {
@@ -714,12 +713,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 构建批量权限检查请求
-        List<cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.BatchAuthCheckItem> items = allMenus.stream()
+        List<cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem> items = allMenus.stream()
             .filter(m -> m.getMenuType() != null && !"3".equals(m.getMenuType())) // 排除按钮类型
-            .map(m -> new cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.BatchAuthCheckItem(
-                AdminResourceType.MENU.getCode(),
+            .map(m -> new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
+                AdminResourceType.MENU,
                 String.valueOf(m.getId()),
-                OPERATION_VIEW
+                OPERATION_VIEW,
+                null,
+                null,
+                null
             ))
             .collect(Collectors.toList());
 
@@ -732,15 +734,15 @@ public class AuthServiceImpl implements AuthService {
                 new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq(
                     SUBJECT_TYPE_ADMIN_USER,
                     String.valueOf(userId),
-                    null,
-                    items
+                    items,
+                    null
                 );
             PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp> result =
                 permissionFeignClient.batchCheckAuth(req);
-            if (result != null && result.data() != null && result.data().results() != null) {
+            if (result != null && result.data() != null && result.data().items() != null) {
                 Set<Long> allowed = new HashSet<>();
-                for (cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp check : result.data().results()) {
-                    if (check.allowed() != null && check.allowed()) {
+                for (cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult check : result.data().items()) {
+                    if (check.allowed()) {
                         try {
                             allowed.add(Long.valueOf(check.resourceCode()));
                         } catch (NumberFormatException e) {

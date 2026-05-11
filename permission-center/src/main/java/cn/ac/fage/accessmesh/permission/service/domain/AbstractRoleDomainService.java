@@ -19,11 +19,10 @@ public interface AbstractRoleDomainService {
     /**
      * 创建角色
      * <p>
-     * 在指定租户和域下创建新角色。
+     * 在指定租户下创建新角色。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param bizDomainId 业务域ID
      * @param parentId   父角色ID
      * @param roleType   角色类型值（参考RoleType枚举）
      * @param externalId 外部标识
@@ -32,7 +31,7 @@ public interface AbstractRoleDomainService {
      * @param extra      扩展属性JSON
      * @return 创建的角色ID
      */
-    Long createRole(Long tenantId, Long bizDomainId, Long parentId, Integer roleType,
+    Long createRole(Long tenantId, Long parentId, Integer roleType,
                     String externalId, String name, Integer sortOrder, String extra);
 
     /**

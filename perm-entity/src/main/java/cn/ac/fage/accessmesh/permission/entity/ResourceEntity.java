@@ -32,11 +32,6 @@ public class ResourceEntity {
     private Long tenantId;
 
     /**
-     * 所属业务域ID
-     */
-    private Long bizDomainId;
-
-    /**
      * 父资源ID，用于资源层级结构
      */
     private Long parentId;
@@ -158,20 +153,6 @@ public class ResourceEntity {
      * @param tenantId 租户ID
      */
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
-
-    /**
-     * 获取所属业务域ID
-     *
-     * @return 业务域ID
-     */
-    public Long getBizDomainId() { return bizDomainId; }
-
-    /**
-     * 设置所属业务域ID
-     *
-     * @param bizDomainId 业务域ID
-     */
-    public void setBizDomainId(Long bizDomainId) { this.bizDomainId = bizDomainId; }
 
     /**
      * 获取父资源ID

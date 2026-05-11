@@ -137,7 +137,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
-        type.setBizDomainId(req.bizDomainId());
         type.setTypeKey(req.typeKey());
         type.setTypeValue(req.typeValue());
         type.setName(req.name());
@@ -200,13 +199,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         QueryWrapper qw = QueryWrapper.create()
             .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
             .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0));
-        if (domainCode != null && !domainCode.isBlank()) {
-            Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
-            if (bizDomainId == null) {
-                return List.of();
-            }
-            qw.and(TypeDefinitionTableDef.TYPE_DEFINITION.BIZ_DOMAIN_ID.eq(bizDomainId).or(TypeDefinitionTableDef.TYPE_DEFINITION.BIZ_DOMAIN_ID.isNull()));
-        }
+        // 域过滤已移除：type_definition不再有biz_domain_id列
+        // 如需按域过滤类型，通过DomainClassifyService按类型码过滤
         return typeDefinitionMapper.selectListByQuery(qw)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
     }
@@ -353,7 +347,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
                 .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
         );
         if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
-        if (req.bizDomainId() != null) type.setBizDomainId(req.bizDomainId());
         if (req.name() != null) type.setName(req.name());
         if (req.description() != null) type.setDescription(req.description());
         if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());
@@ -1026,7 +1019,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         ).stream().map(mapping -> new ApiMappingResp(
             mapping.getId(),
             mapping.getTenantId(),
-            mapping.getBizDomainId(),
             mapping.getResourceEntityId(),
             mapping.getServiceCode(),
             mapping.getHttpMethod(),
@@ -1149,7 +1141,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
      */
     private TypeDefinitionResp toTypeResp(TypeDefinition t) {
         return new TypeDefinitionResp(
-            t.getId(), t.getTenantId(), t.getBizDomainId(),
+            t.getId(), t.getTenantId(),
             t.getTypeKey(), t.getTypeCode(), t.getTypeValue(), t.getName(),
             t.getDescription(), t.getIsSystem(), t.getSortOrder(),
             t.getExtra(), t.getCreatedAt()

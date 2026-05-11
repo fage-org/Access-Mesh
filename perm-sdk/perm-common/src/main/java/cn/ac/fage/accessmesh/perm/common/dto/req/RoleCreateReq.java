@@ -10,10 +10,6 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record RoleCreateReq(
     /**
-     * 业务域ID
-     */
-    Long bizDomainId,
-    /**
      * 父角色ID
      */
     Long parentId,
