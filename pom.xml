@@ -41,6 +41,7 @@
 
         <!-- Tools -->
         <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <lombok.version>1.18.30</lombok.version>
         <guava.version>33.1.0-jre</guava.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <jsqlparser.version>4.9</jsqlparser.version>
@@ -84,6 +85,13 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- Lombok (only @Getter/@Setter are allowed in this repository) -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+
             <!-- Internal modules -->
             <dependency>
                 <groupId>cn.ac.fage.accessmesh</groupId>
@@ -119,6 +127,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- Lombok - provided globally for modules, do not redeclare in child poms -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- Global test dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -170,6 +184,11 @@
                         <target>${java.version}</target>
                         <parameters>true</parameters>
                         <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
                             <path>
                                 <groupId>com.mybatis-flex</groupId>
                                 <artifactId>mybatis-flex-processor</artifactId>

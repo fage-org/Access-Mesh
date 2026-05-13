@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.common.exception;
 
+import lombok.Getter;
+
 /**
  * 业务异常类
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.common.exception;
  * 异常会被全局异常处理器捕获并返回业务错误码和消息。
  * </p>
  */
+@Getter
 public class BizException extends RuntimeException {
 
     /**
@@ -26,14 +29,5 @@ public class BizException extends RuntimeException {
     public BizException(int errorCode, String message) {
         super(message);
         this.errorCode = errorCode;
-    }
-
-    /**
-     * 获取错误码
-     *
-     * @return 错误码
-     */
-    public int getErrorCode() {
-        return errorCode;
     }
 }

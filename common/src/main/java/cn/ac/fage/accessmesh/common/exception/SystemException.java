@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.common.exception;
 
+import lombok.Getter;
+
 /**
  * 系统异常类
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.common.exception;
  * 异常会被全局异常处理器捕获并记录完整堆栈信息。
  * </p>
  */
+@Getter
 public class SystemException extends RuntimeException {
 
     /**
@@ -41,14 +44,5 @@ public class SystemException extends RuntimeException {
     public SystemException(int errorCode, String message, Throwable cause) {
         super(message, cause);
         this.errorCode = errorCode;
-    }
-
-    /**
-     * 获取错误码
-     *
-     * @return 错误码
-     */
-    public int getErrorCode() {
-        return errorCode;
     }
 }

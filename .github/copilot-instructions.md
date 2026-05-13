@@ -124,11 +124,15 @@ import java.time.LocalDate;
 import com.alibaba.fastjson.*;
 import com.alibaba.fastjson2.*;
 import cn.hutool.*;
-import lombok.*;  // 禁止 Lombok，用 Java 21 Record 或手写
+import lombok.*;  // 禁止通配导入，Lombok 仅允许精确导入 Getter / Setter
 // 使用
 import com.fasterxml.jackson.*;
 import org.apache.commons.lang3.*;
 import com.google.common.*;
+
+// 仅允许
+import lombok.Getter;
+import lombok.Setter;
 ```
 
 ---

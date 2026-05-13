@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 服务接口同步结果类
@@ -10,6 +12,8 @@ import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
  * 可转换为响应DTO返回给前端。
  * </p>
  */
+@Getter
+@Setter
 public class SyncResult {
     /**
      * 创建的资源数量
@@ -82,68 +86,6 @@ public class SyncResult {
             deletedMappings
         );
     }
-
-    // ===== Getters and Setters =====
-
-    /**
-     * 获取创建的资源数
-     */
-    public int getCreatedResources() { return createdResources; }
-
-    /**
-     * 设置创建的资源数
-     */
-    public void setCreatedResources(int createdResources) { this.createdResources = createdResources; }
-
-    /**
-     * 获取更新的资源数
-     */
-    public int getUpdatedResources() { return updatedResources; }
-
-    /**
-     * 设置更新的资源数
-     */
-    public void setUpdatedResources(int updatedResources) { this.updatedResources = updatedResources; }
-
-    /**
-     * 获取创建的映射数
-     */
-    public int getCreatedMappings() { return createdMappings; }
-
-    /**
-     * 设置创建的映射数
-     */
-    public void setCreatedMappings(int createdMappings) { this.createdMappings = createdMappings; }
-
-    /**
-     * 获取更新的映射数
-     */
-    public int getUpdatedMappings() { return updatedMappings; }
-
-    /**
-     * 设置更新的映射数
-     */
-    public void setUpdatedMappings(int updatedMappings) { this.updatedMappings = updatedMappings; }
-
-    /**
-     * 获取删除的映射数
-     */
-    public int getDeletedMappings() { return deletedMappings; }
-
-    /**
-     * 设置删除的映射数
-     */
-    public void setDeletedMappings(int deletedMappings) { this.deletedMappings = deletedMappings; }
-
-    /**
-     * 获取删除的资源数
-     */
-    public int getDeletedResources() { return deletedResources; }
-
-    /**
-     * 设置删除的资源数
-     */
-    public void setDeletedResources(int deletedResources) { this.deletedResources = deletedResources; }
 
     /**
      * 将另一个同步结果累加到当前结果

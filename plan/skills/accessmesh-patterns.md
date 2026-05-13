@@ -14,14 +14,14 @@ analyzed_commits: 100
 
 项目使用 **Conventional Commits** 规范，支持中文描述：
 
-| type | 说明 | 示例 |
-|------|------|------|
-| `feat` | 新功能 | `feat(permission-center): 新增分组角色批量删除接口` |
-| `fix` | Bug 修复 | `fix(gateway): align PermissionClient with permission-center response model` |
-| `refactor` | 重构 | `refactor: decouple admin-service from permission-center via generic Feign proxy` |
-| `docs` | 文档 | `docs(plan): freeze phase0 baseline docs` |
-| `chore` | 杄项 | `chore(ci): 简化构建流程并优化依赖安装` |
-| `perf` | 性能优化 | `perf(cache): optimize L1 cache hit rate` |
+| type       | 说明     | 示例                                                                              |
+| ---------- | -------- | --------------------------------------------------------------------------------- |
+| `feat`     | 新功能   | `feat(permission-center): 新增分组角色批量删除接口`                               |
+| `fix`      | Bug 修复 | `fix(gateway): align PermissionClient with permission-center response model`      |
+| `refactor` | 重构     | `refactor: decouple admin-service from permission-center via generic Feign proxy` |
+| `docs`     | 文档     | `docs(plan): freeze phase0 baseline docs`                                         |
+| `chore`    | 杄项     | `chore(ci): 简化构建流程并优化依赖安装`                                           |
+| `perf`     | 性能优化 | `perf(cache): optimize L1 cache hit rate`                                         |
 
 **格式**: `<type>(<scope>): <subject>`
 
@@ -81,12 +81,12 @@ cn.ac.fage.accessmesh.{service}
 
 **强制规则**：所有对外接口使用 `POST` + JSON Body
 
-| 规则 | 说明 |
-|------|------|
-| 禁止 `@RequestParam` | 所有参数通过 `@RequestBody` + Request DTO |
-| 禁止 GET/PUT/DELETE | 统一使用 `@PostMapping` |
-| 禁止路径参数 | ID 放 JSON Body，禁止 `/user/{id}` |
-| 例外 | 文件上传 `MultipartFile` 可用 `@RequestParam` |
+| 规则                 | 说明                                          |
+| -------------------- | --------------------------------------------- |
+| 禁止 `@RequestParam` | 所有参数通过 `@RequestBody` + Request DTO     |
+| 禁止 GET/PUT/DELETE  | 统一使用 `@PostMapping`                       |
+| 禁止路径参数         | ID 放 JSON Body，禁止 `/user/{id}`            |
+| 例外                 | 文件上传 `MultipartFile` 可用 `@RequestParam` |
 
 ### 路径命名
 
@@ -94,14 +94,14 @@ cn.ac.fage.accessmesh.{service}
 /api/{module}/{resource}/{action}
 ```
 
-| 路径 | 说明 |
-|------|------|
-| `/api/user/create` | 创建 |
-| `/api/user/update` | 更新 |
-| `/api/user/delete` | 删除 |
-| `/api/user/get` | 单条查询 |
-| `/api/user/page` | 分页查询 |
-| `/api/user/list` | 不分页列表 |
+| 路径               | 说明       |
+| ------------------ | ---------- |
+| `/api/user/create` | 创建       |
+| `/api/user/update` | 更新       |
+| `/api/user/delete` | 删除       |
+| `/api/user/get`    | 单条查询   |
+| `/api/user/page`   | 分页查询   |
+| `/api/user/list`   | 不分页列表 |
 
 ### 统一响应体
 
@@ -116,6 +116,7 @@ cn.ac.fage.accessmesh.{service}
 ```
 
 **错误码分段**：
+
 - `200` = 成功
 - `10001-19999` = admin-service
 - `20001-29999` = permission-center
@@ -125,6 +126,7 @@ cn.ac.fage.accessmesh.{service}
 ### 分页规范
 
 **请求**：
+
 ```json
 {
   "pageNum": 1,
@@ -134,6 +136,7 @@ cn.ac.fage.accessmesh.{service}
 ```
 
 **响应**：
+
 ```json
 {
   "data": {
@@ -152,13 +155,13 @@ cn.ac.fage.accessmesh.{service}
 
 ### 命名规范
 
-| 类型 | 命名 | 示例 |
-|------|------|------|
-| 请求 DTO | `XxxReq` | `CreateUserReq`, `UserPageReq` |
-| 响应 DTO | `XxxResp` | `UserDetailResp`, `UserPageItemResp` |
-| 视图对象 | `XxxVO` | `UserRoleVO` |
-| 数据库实体 | `Xxx`（无后缀） | `User`, `AbstractRole` |
-| Feign DTO | `XxxDTO` | `PermissionCheckDTO` |
+| 类型       | 命名            | 示例                                 |
+| ---------- | --------------- | ------------------------------------ |
+| 请求 DTO   | `XxxReq`        | `CreateUserReq`, `UserPageReq`       |
+| 响应 DTO   | `XxxResp`       | `UserDetailResp`, `UserPageItemResp` |
+| 视图对象   | `XxxVO`         | `UserRoleVO`                         |
+| 数据库实体 | `Xxx`（无后缀） | `User`, `AbstractRole`               |
+| Feign DTO  | `XxxDTO`        | `PermissionCheckDTO`                 |
 
 ### Record 使用
 
@@ -182,24 +185,25 @@ private LocalDateTime deletedAt;
 
 ### 调用方向规范
 
-| 规则 | 说明 |
-|------|------|
-| 禁止跳层调用 | Controller 不得直接调用 Mapper |
-| 禁止横向调用 | 同层 Service 禁止互相调用 |
+| 规则               | 说明                                      |
+| ------------------ | ----------------------------------------- |
+| 禁止跳层调用       | Controller 不得直接调用 Mapper            |
+| 禁止横向调用       | 同层 Service 禁止互相调用                 |
 | DomainService 复用 | 新增功能必须检查 DomainService 可复用方法 |
 
 ### DomainService 复用清单
 
-| 场景 | 已有方法 | 禁止行为 |
-|------|---------|---------|
-| 用户角色解析 | `UserRoleDomainService.resolveEffectiveRoles()` | 调度层直接查 `user_role` |
-| 资源层级遍历 | `ResourceEntityDomainService.getAncestorIds()` | 调度层写递归 |
-| 权限级联删除 | `RolePermissionDomainService.revokePermissionWithCascade()` | 循环删除子权限 |
-| 类型解析 | `TypeResolutionService.resolveTypeValue()` | 直接查 `type_definition` |
+| 场景         | 已有方法                                                    | 禁止行为                 |
+| ------------ | ----------------------------------------------------------- | ------------------------ |
+| 用户角色解析 | `UserRoleDomainService.resolveEffectiveRoles()`             | 调度层直接查 `user_role` |
+| 资源层级遍历 | `ResourceEntityDomainService.getAncestorIds()`              | 调度层写递归             |
+| 权限级联删除 | `RolePermissionDomainService.revokePermissionWithCascade()` | 循环删除子权限           |
+| 类型解析     | `TypeResolutionService.resolveTypeValue()`                  | 直接查 `type_definition` |
 
 ### N+1 查询禁止
 
 **禁止模式**：
+
 ```java
 // ❌ 错误
 for (Long id : ids) {
@@ -208,6 +212,7 @@ for (Long id : ids) {
 ```
 
 **正确模式**：
+
 ```java
 // ✅ 批量查询
 List<Xxx> list = mapper.selectListByQuery(
@@ -243,12 +248,12 @@ deleted_at  TIMESTAMPTZ
 
 ### 命名规范
 
-| 对象 | 规范 | 示例 |
-|------|------|------|
-| 表名 | 小写+下划线，单数 | `abstract_user`, `biz_domain` |
-| 字段名 | 小写+下划线 | `created_at`, `delete_flag` |
-| 索引 | `idx_{table}_{col}` | `idx_user_tenant_id` |
-| 唯一索引 | `uniq_{table}_{col}` | `uniq_user_name_tenant` |
+| 对象     | 规范                 | 示例                          |
+| -------- | -------------------- | ----------------------------- |
+| 表名     | 小写+下划线，单数    | `abstract_user`, `biz_domain` |
+| 字段名   | 小写+下划线          | `created_at`, `delete_flag`   |
+| 索引     | `idx_{table}_{col}`  | `idx_user_tenant_id`          |
+| 唯一索引 | `uniq_{table}_{col}` | `uniq_user_name_tenant`       |
 
 ---
 
@@ -275,6 +280,7 @@ L2: Redis（分布式缓存，5分钟 TTL）
 ```
 
 示例：
+
 - `perm:role:detail:1234`
 - `admin:user:detail:10086`
 
@@ -284,11 +290,11 @@ L2: Redis（分布式缓存，5分钟 TTL）
 
 ### Header 透传
 
-| Header | 说明 |
-|--------|------|
-| `Authorization` | Bearer Token |
-| `X-Trace-Id` | 链路追踪 |
-| `X-Tenant-Id` | 租户 ID |
+| Header           | 说明           |
+| ---------------- | -------------- |
+| `Authorization`  | Bearer Token   |
+| `X-Trace-Id`     | 链路追踪       |
+| `X-Tenant-Id`    | 租户 ID        |
 | `X-Service-Code` | 调用方服务标识 |
 
 ### 超时配置
@@ -310,19 +316,19 @@ feign:
 
 ### 禁止引入的依赖
 
-| 依赖 | 替代方案 |
-|------|---------|
-| `Lombok` | Java 21 Record + 手写 getter/setter |
-| `Hutool` | Apache Commons / Guava / Jackson |
-| `FastJSON` | Jackson |
+| 依赖       | 替代方案                                                   |
+| ---------- | ---------------------------------------------------------- |
+| `Lombok`   | 仅允许 `@Getter` / `@Setter`；不可变 DTO 用 Java 21 Record |
+| `Hutool`   | Apache Commons / Guava / Jackson                           |
+| `FastJSON` | Jackson                                                    |
 
 ### 禁止的日期类型
 
-| 禁止 | 使用 |
-|------|------|
-| `java.util.Date` | `LocalDateTime` |
+| 禁止                 | 使用            |
+| -------------------- | --------------- |
+| `java.util.Date`     | `LocalDateTime` |
 | `java.sql.Timestamp` | `LocalDateTime` |
-| `java.sql.Date` | `LocalDate` |
+| `java.sql.Date`      | `LocalDate`     |
 
 ### 其他禁止项
 
@@ -365,14 +371,14 @@ feign:
 
 ## Reference Documents
 
-| 主题 | 文档 |
-|------|------|
-| 工程规范 | `plan/project-rules.md` |
-| 整体架构 | `plan/architecture.md` |
+| 主题     | 文档                                     |
+| -------- | ---------------------------------------- |
+| 工程规范 | `plan/project-rules.md`                  |
+| 整体架构 | `plan/architecture.md`                   |
 | API 契约 | `plan/permission-center/api-contract.md` |
-| 核心流程 | `plan/permission-center/core-flows.md` |
-| 表结构 | `plan/schema/*.sql` |
+| 核心流程 | `plan/permission-center/core-flows.md`   |
+| 表结构   | `plan/schema/*.sql`                      |
 
 ---
 
-*Generated by skill-create from git history analysis*
+_Generated by skill-create from git history analysis_

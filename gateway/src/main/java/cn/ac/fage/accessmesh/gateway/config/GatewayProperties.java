@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import java.util.List;
  * 通过application.yml中的gateway.*配置项进行配置。
  * </p>
  */
+@Getter
+@Setter
 @Component
 @ConfigurationProperties(prefix = "gateway")
 public class GatewayProperties {
@@ -23,102 +27,14 @@ public class GatewayProperties {
     private Signature signature = new Signature();
 
     /**
-     * 获取白名单配置
-     *
-     * @return 白名单配置对象
-     */
-    public Whitelist getWhitelist() {
-        return whitelist;
-    }
-
-    /**
-     * 设置白名单配置
-     *
-     * @param whitelist 白名单配置对象
-     */
-    public void setWhitelist(Whitelist whitelist) {
-        this.whitelist = whitelist;
-    }
-
-    /**
-     * 获取缓存配置
-     *
-     * @return 缓存配置对象
-     */
-    public Cache getCache() {
-        return cache;
-    }
-
-    /**
-     * 设置缓存配置
-     *
-     * @param cache 缓存配置对象
-     */
-    public void setCache(Cache cache) {
-        this.cache = cache;
-    }
-
-    /**
-     * 获取请求头配置
-     *
-     * @return 请求头配置对象
-     */
-    public Header getHeader() {
-        return header;
-    }
-
-    /**
-     * 设置请求头配置
-     *
-     * @param header 请求头配置对象
-     */
-    public void setHeader(Header header) {
-        this.header = header;
-    }
-
-    /**
-     * 获取权限配置
-     *
-     * @return 权限配置对象
-     */
-    public Permission getPermission() {
-        return permission;
-    }
-
-    /**
-     * 设置权限配置
-     *
-     * @param permission 权限配置对象
-     */
-    public void setPermission(Permission permission) {
-        this.permission = permission;
-    }
-
-    /**
-     * 获取签名配置
-     *
-     * @return 签名配置对象
-     */
-    public Signature getSignature() {
-        return signature;
-    }
-
-    /**
-     * 设置签名配置
-     *
-     * @param signature 签名配置对象
-     */
-    public void setSignature(Signature signature) {
-        this.signature = signature;
-    }
-
-    /**
      * 白名单配置
      * <p>
      * 配置不需要认证和权限校验的路径列表。
      * 这些路径直接放行，如认证接口、健康检查、公开资源等。
      * </p>
      */
+    @Getter
+    @Setter
     public static class Whitelist {
         private List<String> paths = List.of(
             "/auth/**",
@@ -126,24 +42,6 @@ public class GatewayProperties {
             "/public/**",
             "/captcha/**"
         );
-
-        /**
-         * 获取白名单路径列表
-         *
-         * @return 白名单路径列表
-         */
-        public List<String> getPaths() {
-            return paths;
-        }
-
-        /**
-         * 设置白名单路径列表
-         *
-         * @param paths 白名单路径列表
-         */
-        public void setPaths(List<String> paths) {
-            this.paths = paths;
-        }
     }
 
     /**
@@ -152,26 +50,10 @@ public class GatewayProperties {
      * 配置网关本地缓存参数，用于减少远程服务调用。
      * </p>
      */
+    @Getter
+    @Setter
     public static class Cache {
         private L1 l1 = new L1();
-
-        /**
-         * 获取L1缓存配置
-         *
-         * @return L1缓存配置对象
-         */
-        public L1 getL1() {
-            return l1;
-        }
-
-        /**
-         * 设置L1缓存配置
-         *
-         * @param l1 L1缓存配置对象
-         */
-        public void setL1(L1 l1) {
-            this.l1 = l1;
-        }
 
         /**
          * L1本地缓存配置
@@ -181,45 +63,11 @@ public class GatewayProperties {
          * - ttlSeconds: 缓存过期时间
          * </p>
          */
+        @Getter
+        @Setter
         public static class L1 {
             private long maxSize = 50000;
             private int ttlSeconds = 10;  // 缩短TTL以降低权限撤销后的风险窗口（原30秒）
-
-            /**
-             * 获取最大缓存条目数
-             *
-             * @return 最大缓存条目数
-             */
-            public long getMaxSize() {
-                return maxSize;
-            }
-
-            /**
-             * 设置最大缓存条目数
-             *
-             * @param maxSize 最大缓存条目数
-             */
-            public void setMaxSize(long maxSize) {
-                this.maxSize = maxSize;
-            }
-
-            /**
-             * 获取缓存过期时间（秒）
-             *
-             * @return 缓存过期时间（秒）
-             */
-            public int getTtlSeconds() {
-                return ttlSeconds;
-            }
-
-            /**
-             * 设置缓存过期时间（秒）
-             *
-             * @param ttlSeconds 缓存过期时间（秒）
-             */
-            public void setTtlSeconds(int ttlSeconds) {
-                this.ttlSeconds = ttlSeconds;
-            }
         }
     }
 
@@ -231,6 +79,8 @@ public class GatewayProperties {
      * - enrich: 需要从token中提取并添加的请求头
      * </p>
      */
+    @Getter
+    @Setter
     public static class Header {
         private List<String> clean = List.of(
             "X-User-Id",
@@ -245,143 +95,19 @@ public class GatewayProperties {
         private Enrich enrich = new Enrich();
 
         /**
-         * 获取需要清理的请求头列表
-         *
-         * @return 需要清理的请求头列表
-         */
-        public List<String> getClean() {
-            return clean;
-        }
-
-        /**
-         * 设置需要清理的请求头列表
-         *
-         * @param clean 需要清理的请求头列表
-         */
-        public void setClean(List<String> clean) {
-            this.clean = clean;
-        }
-
-        /**
-         * 获取请求头增强配置
-         *
-         * @return 请求头增强配置对象
-         */
-        public Enrich getEnrich() {
-            return enrich;
-        }
-
-        /**
-         * 设置请求头增强配置
-         *
-         * @param enrich 请求头增强配置对象
-         */
-        public void setEnrich(Enrich enrich) {
-            this.enrich = enrich;
-        }
-
-        /**
          * 请求头增强配置
          * <p>
          * 配置从token中提取并添加到下游请求的请求头名称。
          * </p>
          */
+        @Getter
+        @Setter
         public static class Enrich {
             private String requestId = "X-Request-Id";
             private String tenantId = "X-Tenant-Id";
             private String userId = "X-User-Id";
             private String userName = "X-User-Name";
             private String userType = "X-User-Type";
-
-            /**
-             * 获取请求ID请求头名称
-             *
-             * @return 请求ID请求头名称
-             */
-            public String getRequestId() {
-                return requestId;
-            }
-
-            /**
-             * 设置请求ID请求头名称
-             *
-             * @param requestId 请求ID请求头名称
-             */
-            public void setRequestId(String requestId) {
-                this.requestId = requestId;
-            }
-
-            /**
-             * 获取租户ID请求头名称
-             *
-             * @return 租户ID请求头名称
-             */
-            public String getTenantId() {
-                return tenantId;
-            }
-
-            /**
-             * 设置租户ID请求头名称
-             *
-             * @param tenantId 租户ID请求头名称
-             */
-            public void setTenantId(String tenantId) {
-                this.tenantId = tenantId;
-            }
-
-            /**
-             * 获取用户ID请求头名称
-             *
-             * @return 用户ID请求头名称
-             */
-            public String getUserId() {
-                return userId;
-            }
-
-            /**
-             * 设置用户ID请求头名称
-             *
-             * @param userId 用户ID请求头名称
-             */
-            public void setUserId(String userId) {
-                this.userId = userId;
-            }
-
-            /**
-             * 获取用户名请求头名称
-             *
-             * @return 用户名请求头名称
-             */
-            public String getUserName() {
-                return userName;
-            }
-
-            /**
-             * 设置用户名请求头名称
-             *
-             * @param userName 用户名请求头名称
-             */
-            public void setUserName(String userName) {
-                this.userName = userName;
-            }
-
-            /**
-             * 获取用户类型请求头名称
-             *
-             * @return 用户类型请求头名称
-             */
-            public String getUserType() {
-                return userType;
-            }
-
-            /**
-             * 设置用户类型请求头名称
-             *
-             * @param userType 用户类型请求头名称
-             */
-            public void setUserType(String userType) {
-                this.userType = userType;
-            }
         }
     }
 
@@ -391,69 +117,12 @@ public class GatewayProperties {
      * 配置权限校验服务的地址和策略。
      * </p>
      */
+    @Getter
+    @Setter
     public static class Permission {
         private String serviceUrl = "lb://permission-center";
         private String checkInterfacePath = "/api/perm/auth/check-interface";
         private String unregisteredPolicy = "DENY";
-
-        /**
-         * 获取权限服务URL
-         *
-         * @return 权限服务URL
-         */
-        public String getServiceUrl() {
-            return serviceUrl;
-        }
-
-        /**
-         * 设置权限服务URL
-         *
-         * @param serviceUrl 权限服务URL
-         */
-        public void setServiceUrl(String serviceUrl) {
-            this.serviceUrl = serviceUrl;
-        }
-
-        /**
-         * 获取接口权限校验路径
-         *
-         * @return 接口权限校验路径
-         */
-        public String getCheckInterfacePath() {
-            return checkInterfacePath;
-        }
-
-        /**
-         * 设置接口权限校验路径
-         *
-         * @param checkInterfacePath 接口权限校验路径
-         */
-        public void setCheckInterfacePath(String checkInterfacePath) {
-            this.checkInterfacePath = checkInterfacePath;
-        }
-
-        /**
-         * 获取未注册接口策略
-         * <p>
-         * 当接口未在权限中心注册时的处理策略：
-         * - DENY: 拒绝访问
-         * - ALLOW: 允许访问
-         * </p>
-         *
-         * @return 未注册接口策略
-         */
-        public String getUnregisteredPolicy() {
-            return unregisteredPolicy;
-        }
-
-        /**
-         * 设置未注册接口策略
-         *
-         * @param unregisteredPolicy 未注册接口策略
-         */
-        public void setUnregisteredPolicy(String unregisteredPolicy) {
-            this.unregisteredPolicy = unregisteredPolicy;
-        }
     }
 
     /**
@@ -464,6 +133,8 @@ public class GatewayProperties {
      * 签名功能始终启用（安全原因，移除enabled字段）。
      * </p>
      */
+    @Getter
+    @Setter
     public static class Signature {
         /**
          * HMAC-SHA256签名密钥
@@ -483,59 +154,5 @@ public class GatewayProperties {
          * 签名时间戳请求头名称
          */
         private String timestampHeaderName = "X-Signature-Timestamp";
-
-        /**
-         * 获取签名密钥
-         *
-         * @return 签名密钥
-         */
-        public String getSecret() {
-            return secret;
-        }
-
-        /**
-         * 设置签名密钥
-         *
-         * @param secret 签名密钥
-         */
-        public void setSecret(String secret) {
-            this.secret = secret;
-        }
-
-        /**
-         * 获取签名请求头名称
-         *
-         * @return 签名请求头名称
-         */
-        public String getHeaderName() {
-            return headerName;
-        }
-
-        /**
-         * 设置签名请求头名称
-         *
-         * @param headerName 签名请求头名称
-         */
-        public void setHeaderName(String headerName) {
-            this.headerName = headerName;
-        }
-
-        /**
-         * 获取签名时间戳请求头名称
-         *
-         * @return 签名时间戳请求头名称
-         */
-        public String getTimestampHeaderName() {
-            return timestampHeaderName;
-        }
-
-        /**
-         * 设置签名时间戳请求头名称
-         *
-         * @param timestampHeaderName 签名时间戳请求头名称
-         */
-        public void setTimestampHeaderName(String timestampHeaderName) {
-            this.timestampHeaderName = timestampHeaderName;
-        }
     }
 }

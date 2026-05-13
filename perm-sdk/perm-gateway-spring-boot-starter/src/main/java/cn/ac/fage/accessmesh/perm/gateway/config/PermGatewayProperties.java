@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.perm.gateway.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -9,6 +11,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 可通过 application.yml 中的 `perm.gateway` 前缀进行自定义。
  * </p>
  */
+@Getter
+@Setter
 @ConfigurationProperties(prefix = "perm.gateway")
 public class PermGatewayProperties {
 
@@ -21,32 +25,4 @@ public class PermGatewayProperties {
      * 跳过权限校验的URL路径模式
      */
     private String[] excludePaths = {};
-
-    /**
-     * 获取是否启用权限校验
-     *
-     * @return 是否启用
-     */
-    public boolean isEnabled() { return enabled; }
-
-    /**
-     * 设置是否启用权限校验
-     *
-     * @param enabled 是否启用
-     */
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-
-    /**
-     * 获取跳过权限校验的路径
-     *
-     * @return 跳过的路径数组
-     */
-    public String[] getExcludePaths() { return excludePaths; }
-
-    /**
-     * 设置跳过权限校验的路径
-     *
-     * @param excludePaths 跳过的路径数组
-     */
-    public void setExcludePaths(String[] excludePaths) { this.excludePaths = excludePaths; }
 }

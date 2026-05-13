@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.gateway.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 网关统一响应体
@@ -9,6 +11,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 包含状态码、消息、数据、请求ID和追踪ID。
  * </p>
  */
+@Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GatewayResponse {
 
@@ -30,11 +33,13 @@ public class GatewayResponse {
     /**
      * 请求ID
      */
+    @Setter
     private String requestId;
 
     /**
      * 链路追踪ID
      */
+    @Setter
     private String traceId;
 
     /**
@@ -81,68 +86,5 @@ public class GatewayResponse {
      */
     public static GatewayResponse error(int code, String message, Object data) {
         return new GatewayResponse(code, message, data);
-    }
-
-    /**
-     * 获取状态码
-     *
-     * @return 状态码
-     */
-    public int getCode() {
-        return code;
-    }
-
-    /**
-     * 获取结果消息
-     *
-     * @return 结果消息
-     */
-    public String getMessage() {
-        return message;
-    }
-
-    /**
-     * 获取返回数据
-     *
-     * @return 返回数据
-     */
-    public Object getData() {
-        return data;
-    }
-
-    /**
-     * 获取请求ID
-     *
-     * @return 请求ID
-     */
-    public String getRequestId() {
-        return requestId;
-    }
-
-    /**
-     * 设置请求ID
-     *
-     * @param requestId 请求ID
-     */
-    public void setRequestId(String requestId) {
-        this.requestId = requestId;
-    }
-
-    /**
-     * 获取链路追踪ID
-     *
-     * @return 链路追踪ID
-     */
-    public String getTraceId() {
-        return traceId;
-    }
-
-    /**
-     * 设置链路追踪ID
-     *
-     * @param traceId 链路追踪ID
-     */
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
     }
 }

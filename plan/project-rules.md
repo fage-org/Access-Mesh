@@ -43,13 +43,13 @@
 }
 ```
 
-| 字段        | 类型      | 说明                                                          |
-| ----------- | --------- | ------------------------------------------------------------- |
-| `code`      | `int`     | 200 = 成功；非零为错误码，见 §1.2                              |
-| `message`   | `String`  | 面向前端展示的提示文本，不得包含堆栈信息                      |
-| `data`      | `Object`  | 业务数据；失败时为 `null`                                     |
-| `requestId` | `String`  | 请求追踪 ID，由 Gateway 生成                                   |
-| `traceId`   | `String`  | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
+| 字段        | 类型     | 说明                                                          |
+| ----------- | -------- | ------------------------------------------------------------- |
+| `code`      | `int`    | 200 = 成功；非零为错误码，见 §1.2                             |
+| `message`   | `String` | 面向前端展示的提示文本，不得包含堆栈信息                      |
+| `data`      | `Object` | 业务数据；失败时为 `null`                                     |
+| `requestId` | `String` | 请求追踪 ID，由 Gateway 生成                                  |
+| `traceId`   | `String` | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
 
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
@@ -78,11 +78,11 @@
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `pageNum` | `int` | 当前页码，从 1 开始 |
-| `pageSize` | `int` | 每页条数，默认 20，最大不超过 100 |
-| `sort` | `String` | 排序字段和方向，格式 `field,asc` 或 `field,desc`，可空 |
+| 字段       | 类型     | 说明                                                   |
+| ---------- | -------- | ------------------------------------------------------ |
+| `pageNum`  | `int`    | 当前页码，从 1 开始                                    |
+| `pageSize` | `int`    | 每页条数，默认 20，最大不超过 100                      |
+| `sort`     | `String` | 排序字段和方向，格式 `field,asc` 或 `field,desc`，可空 |
 
 分页响应结构统一放在 `data` 对象内：
 
@@ -131,10 +131,10 @@
 
 **例外场景（允许 `@RequestParam`）：**
 
-| 场景 | 原因 |
-|------|------|
+| 场景                        | 原因                           |
+| --------------------------- | ------------------------------ |
 | 文件上传（`MultipartFile`） | 必须使用 `multipart/form-data` |
-| 文件下载（二进制流响应） | 响应不是 JSON |
+| 文件下载（二进制流响应）    | 响应不是 JSON                  |
 
 ### 2.2 路径命名规范
 
@@ -144,8 +144,8 @@
 
 示例：
 
-| 路径              | 说明       |
-| ----------------- | ---------- |
+| 路径               | 说明       |
+| ------------------ | ---------- |
 | `/api/user/create` | 创建用户   |
 | `/api/user/update` | 更新用户   |
 | `/api/user/delete` | 删除用户   |
@@ -307,12 +307,14 @@ ERROR 级别单独写入 error.log，保留 180 天
 
 ### 5.2 禁止引入的依赖
 
-| 依赖        | 禁止原因                                                                 | 替代方案                                                   |
-| ----------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `Lombok`    | Java 21 Record + `@Getter`/`@Builder` 可覆盖，避免 APT 编译问题          | Java 21 Record（不可变 DTO）；手写 getter/setter（实体类） |
-| `Hutool`    | 依赖庞大（全量引入）、部分工具类实现有安全问题，与项目其他工具库功能重复 | Apache Commons / Guava / Jackson                           |
-| `FastJSON`  | 历史上存在多次高危 RCE 漏洞                                              | Jackson（全局统一）                                        |
-| `fastjson2` | 同上，尽管已重写，但团队统一用 Jackson，避免多库并存混乱                 | Jackson                                                    |
+| 依赖        | 禁止原因                                                                                         | 替代方案                                     |
+| ----------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `Lombok`    | 仅允许 `@Getter` / `@Setter`；禁止 `@Data`、`@Builder`、`@Value` 等隐式生成逻辑，控制 APT 复杂度 | Java 21 Record（不可变 DTO）；必要时手写方法 |
+| `Hutool`    | 依赖庞大（全量引入）、部分工具类实现有安全问题，与项目其他工具库功能重复                         | Apache Commons / Guava / Jackson             |
+| `FastJSON`  | 历史上存在多次高危 RCE 漏洞                                                                      | Jackson（全局统一）                          |
+| `fastjson2` | 同上，尽管已重写，但团队统一用 Jackson，避免多库并存混乱                                         | Jackson                                      |
+
+补充约束：Lombok 仅允许在需要可变字段的实体类、配置类、简单结果类中使用 `@Getter` / `@Setter`，禁止使用其他 Lombok 注解。
 
 ### 5.3 推荐工具库
 
@@ -472,12 +474,13 @@ cn.ac.fage.accessmesh.{service}
 
 #### 8.4.1 两层职责划分
 
-| 层级 | 命名 | 职责 | 典型方法 |
-|------|------|------|---------|
-| **调度层 Service** | `XxxService` / `XxxServiceImpl` | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`checkPermissions()`、`listEffectiveRoles()` |
-| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理 | `resolveEffectiveRoles()`、`getAncestorIds()`、`revokePermissionWithCascade()` |
+| 层级                     | 命名                                        | 职责                                                           | 典型方法                                                                       |
+| ------------------------ | ------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **调度层 Service**       | `XxxService` / `XxxServiceImpl`             | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`checkPermissions()`、`listEffectiveRoles()`                   |
+| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`getAncestorIds()`、`revokePermissionWithCascade()` |
 
 **核心原则**：
+
 - 调度层负责**组合**，不实现单一领域逻辑
 - 领域层负责**原子逻辑**，可被多个调度层服务复用
 - 领域层方法应**高内聚**，一个方法只做一件事
@@ -486,13 +489,13 @@ cn.ac.fage.accessmesh.{service}
 
 以下场景**必须**复用现有 DomainService 方法，禁止在调度层重新实现：
 
-| 场景 | 已有 DomainService 方法 | 禁止行为 |
-|------|------------------------|---------|
-| 用户角色解析（带缓存） | `UserRoleDomainService.resolveEffectiveRoles()` | 调度层直接查询 `user_role` 表 |
-| 资源层级遍历 | `ResourceEntityDomainService.getAncestorIds()` / `getDescendantIds()` | 调度层写递归遍历逻辑 |
-| 权限级联删除 | `RolePermissionDomainService.revokePermissionWithCascade()` | 调度层写子权限删除循环 |
-| 权限版本递增 | `PermissionVersionDomainService.increment()` | 调度层直接更新版本字段 |
-| 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()` | 调度层查 `type_definition` 表 |
+| 场景                     | 已有 DomainService 方法                                               | 禁止行为                      |
+| ------------------------ | --------------------------------------------------------------------- | ----------------------------- |
+| 用户角色解析（带缓存）   | `UserRoleDomainService.resolveEffectiveRoles()`                       | 调度层直接查询 `user_role` 表 |
+| 资源层级遍历             | `ResourceEntityDomainService.getAncestorIds()` / `getDescendantIds()` | 调度层写递归遍历逻辑          |
+| 权限级联删除             | `RolePermissionDomainService.revokePermissionWithCascade()`           | 调度层写子权限删除循环        |
+| 权限版本递增             | `PermissionVersionDomainService.increment()`                          | 调度层直接更新版本字段        |
+| 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()`      | 调度层查 `type_definition` 表 |
 
 **判断标准**：如果逻辑涉及**单一领域实体**的原子操作（查、改、删、转换），应下沉到 DomainService。
 
@@ -520,14 +523,15 @@ cn.ac.fage.accessmesh.{service}
 
 新增 DomainService 方法时，**必须**考虑扩展性：
 
-| 要求 | 说明 | 示例 |
-|------|------|------|
-| **参数设计** | 预留过滤/扩展参数，使用 nullable 或默认值 | `resolveEffectiveRoles(tenantId, userId, bizDomainId, includeDisabled)` |
-| **返回值设计** | 返回足够信息供调用方二次处理，不丢失上下文 | 返回 `Set<Long>` 角色 ID + `Map<Long, RoleInfo>` 角色详情 |
-| **批量优化** | 支持批量输入，避免 N+1 查询 | `batchGetRolePermissions(roleIds)` 返回 `Map<Long, List<...>>` |
-| **缓存友好** | 高频查询方法应集成缓存，调用方无需关心缓存细节 | `resolveEffectiveRoles()` 内置 L1/L2 缓存 |
+| 要求           | 说明                                           | 示例                                                                    |
+| -------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| **参数设计**   | 预留过滤/扩展参数，使用 nullable 或默认值      | `resolveEffectiveRoles(tenantId, userId, bizDomainId, includeDisabled)` |
+| **返回值设计** | 返回足够信息供调用方二次处理，不丢失上下文     | 返回 `Set<Long>` 角色 ID + `Map<Long, RoleInfo>` 角色详情               |
+| **批量优化**   | 支持批量输入，避免 N+1 查询                    | `batchGetRolePermissions(roleIds)` 返回 `Map<Long, List<...>>`          |
+| **缓存友好**   | 高频查询方法应集成缓存，调用方无需关心缓存细节 | `resolveEffectiveRoles()` 内置 L1/L2 缓存                               |
 
 **禁止行为**：
+
 - 禁止 DomainService 方法返回 Controller 层 DTO（如 `XxxResp`），应返回领域对象或基础类型
 - 禁止 DomainService 方法依赖外部业务上下文（如 `OperatorContext`），应通过参数传入
 
@@ -535,24 +539,25 @@ cn.ac.fage.accessmesh.{service}
 
 以下模式表示代码重复，**必须**重构：
 
-| 重复模式 | 检测方法 | 重构方案 |
-|---------|---------|---------|
-| 相同 SQL 查询出现在多个 Service | Grep 搜索 `selectListByQuery` 或表名 | 抽取到 DomainService 或 Mapper |
-| 相同数据转换逻辑出现在多处 | 搜索 `new XxxResp(...)` 或 `stream().map(...)` | 抽取为 DomainService 转换方法或实体方法 |
-| 相同计算公式出现在多处 | 搜索计算表达式（如 `binaryBit | inheritMask`） | 抽取为实体方法（如 `getEffectiveBits()`） |
-| 相同业务校验逻辑出现在多处 | 搜索校验注释或异常抛出 | 抽取为 DomainService 校验方法 |
+| 重复模式                        | 检测方法                                       | 重构方案                                |
+| ------------------------------- | ---------------------------------------------- | --------------------------------------- | ----------------------------------------- |
+| 相同 SQL 查询出现在多个 Service | Grep 搜索 `selectListByQuery` 或表名           | 抽取到 DomainService 或 Mapper          |
+| 相同数据转换逻辑出现在多处      | 搜索 `new XxxResp(...)` 或 `stream().map(...)` | 抽取为 DomainService 转换方法或实体方法 |
+| 相同计算公式出现在多处          | 搜索计算表达式（如 `binaryBit                  | inheritMask`）                          | 抽取为实体方法（如 `getEffectiveBits()`） |
+| 相同业务校验逻辑出现在多处      | 搜索校验注释或异常抛出                         | 抽取为 DomainService 校验方法           |
 
 #### 8.4.6 实体方法封装标准
 
 以下逻辑**优先**封装到实体类（Entity）方法：
 
-| 场景 | 实体方法示例 |
-|------|-------------|
-| 字段派生计算 | `OperationPermission.getEffectiveBits()` = `binaryBit | inheritMask` |
-| 状态判断 | `AbstractRole.isEnabled()` = `status == 1 && deleteFlag == 0` |
-| 业务字段格式化 | `ResourceEntity.getFullCode()` = `parentCode + "/" + code` |
+| 场景           | 实体方法示例                                                  |
+| -------------- | ------------------------------------------------------------- | ------------ |
+| 字段派生计算   | `OperationPermission.getEffectiveBits()` = `binaryBit         | inheritMask` |
+| 状态判断       | `AbstractRole.isEnabled()` = `status == 1 && deleteFlag == 0` |
+| 业务字段格式化 | `ResourceEntity.getFullCode()` = `parentCode + "/" + code`    |
 
 **规则**：
+
 - 实体方法**禁止**依赖外部服务（Mapper、其他 Service）
 - 实体方法**禁止**修改自身状态（保持只读计算）
 - 复杂逻辑（涉及多表查询）不应放实体类，放 DomainService
@@ -584,12 +589,12 @@ cn.ac.fage.accessmesh.{service}
 
 **禁止场景**：
 
-| 禁止模式 | 问题示例 | 正确方案 |
-|---------|---------|---------|
-| 循环内单条查询 | `for (Long id : ids) { mapper.selectOneById(id); }` | `mapper.selectListByQuery(ids)` 批量查询 |
-| 循环内关联查询 | `for (Role r : roles) { r.getPermissions(); }` 每次查权限表 | 先批量查所有权限，再按 roleId 分组 |
-| 循环内类型解析 | `for (Entity e : list) { typeService.resolve(e.type); }` | 批量解析或使用缓存 Map |
-| 循环内外部调用 | `for (User u : users) { feign.getUserDetail(u.id); }` | 批量 Feign 接口或本地批量查询 |
+| 禁止模式       | 问题示例                                                    | 正确方案                                 |
+| -------------- | ----------------------------------------------------------- | ---------------------------------------- |
+| 循环内单条查询 | `for (Long id : ids) { mapper.selectOneById(id); }`         | `mapper.selectListByQuery(ids)` 批量查询 |
+| 循环内关联查询 | `for (Role r : roles) { r.getPermissions(); }` 每次查权限表 | 先批量查所有权限，再按 roleId 分组       |
+| 循环内类型解析 | `for (Entity e : list) { typeService.resolve(e.type); }`    | 批量解析或使用缓存 Map                   |
+| 循环内外部调用 | `for (User u : users) { feign.getUserDetail(u.id); }`       | 批量 Feign 接口或本地批量查询            |
 
 **检测方法**：
 
@@ -626,38 +631,39 @@ Map<Long, AbstractRole> roleMap = roles.stream()
 
 **批量查询设计要求**：
 
-| 要求 | 说明 |
-|------|------|
-| **DomainService 提供批量方法** | 高频查询场景必须提供 `batchGetXxx(List<Long> ids)` 方法 |
-| **批量结果用 Map 返回** | 返回 `Map<Long, Xxx>` 便于调用方按 ID 快速获取 |
-| **批量方法内含缓存** | 批量方法应利用缓存，避免每次批量查询都穿透到 DB |
-| **分批处理** | 批量 ID 数量 > 1000 时分批查询（每批 500-1000），避免 SQL 过长 |
+| 要求                           | 说明                                                           |
+| ------------------------------ | -------------------------------------------------------------- |
+| **DomainService 提供批量方法** | 高频查询场景必须提供 `batchGetXxx(List<Long> ids)` 方法        |
+| **批量结果用 Map 返回**        | 返回 `Map<Long, Xxx>` 便于调用方按 ID 快速获取                 |
+| **批量方法内含缓存**           | 批量方法应利用缓存，避免每次批量查询都穿透到 DB                |
+| **分批处理**                   | 批量 ID 数量 > 1000 时分批查询（每批 500-1000），避免 SQL 过长 |
 
 **已识别的批量优化案例**：
 
-| 场景 | 批量方法 |
-|------|---------|
-| 权限批量检查 | `AuthorizationService.checkPermissionsBatch()` |
-| 授权批量校验 | `AuthorizationService.checkGrantPermissionsBatch()` |
-| 角色批量加载 | `PermissionViewServiceImpl.loadRoles(Set<Long> roleIds)` |
+| 场景             | 批量方法                                                    |
+| ---------------- | ----------------------------------------------------------- |
+| 权限批量检查     | `AuthorizationService.checkPermissionsBatch()`              |
+| 授权批量校验     | `AuthorizationService.checkGrantPermissionsBatch()`         |
+| 角色批量加载     | `PermissionViewServiceImpl.loadRoles(Set<Long> roleIds)`    |
 | 操作权限批量加载 | `PermissionViewServiceImpl.loadOperations(Set<Long> opIds)` |
 
 **N+1 问题跟踪**：
 
-| 状态 | Service | 方法 | 问题描述 |
-|------|---------|------|----------|
-| ✅ 已修复 | `UserServiceImpl` | `batchCreateUsers` | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `OrgServiceImpl` | `batchCreateOrgs` | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `MenuServiceImpl` | `batchCreateMenus` | 循环内单条查询父菜单/检查路径重复 |
-| ❌ 待修复 | `UserOrgServiceImpl` | `setPrimaryOrg` | 循环内单条查询用户组织关系 |
-| ✅ 已修复 | `DictServiceImpl` | `listDictTypes` | 循环内单条查询字典类型详情 |
-| ❌ 待修复 | `RoleManageServiceImpl` | `deleteRoles` | 循环内单条查询角色权限并删除 |
-| ❌ 待修复 | `UserManageServiceImpl` | `assignRole` | 循环内单条查询用户并分配角色 |
-| ❌ 待修复 | `UserManageServiceImpl` | `assignRolesBatch` | 循环内单条查询用户并批量分配角色 |
+| 状态      | Service                     | 方法                   | 问题描述                          |
+| --------- | --------------------------- | ---------------------- | --------------------------------- |
+| ✅ 已修复 | `UserServiceImpl`           | `batchCreateUsers`     | 循环内单条查询父组织/检查编码重复 |
+| ✅ 已修复 | `OrgServiceImpl`            | `batchCreateOrgs`      | 循环内单条查询父组织/检查编码重复 |
+| ✅ 已修复 | `MenuServiceImpl`           | `batchCreateMenus`     | 循环内单条查询父菜单/检查路径重复 |
+| ❌ 待修复 | `UserOrgServiceImpl`        | `setPrimaryOrg`        | 循环内单条查询用户组织关系        |
+| ✅ 已修复 | `DictServiceImpl`           | `listDictTypes`        | 循环内单条查询字典类型详情        |
+| ❌ 待修复 | `RoleManageServiceImpl`     | `deleteRoles`          | 循环内单条查询角色权限并删除      |
+| ❌ 待修复 | `UserManageServiceImpl`     | `assignRole`           | 循环内单条查询用户并分配角色      |
+| ❌ 待修复 | `UserManageServiceImpl`     | `assignRolesBatch`     | 循环内单条查询用户并批量分配角色  |
 | ❌ 待修复 | `ResourceManageServiceImpl` | `batchCreateResources` | 循环内单条查询父资源/检查编码重复 |
-| ❌ 待修复 | `ResourceManageServiceImpl` | `deleteResources` | 循环内单条查询资源依赖并删除 |
+| ❌ 待修复 | `ResourceManageServiceImpl` | `deleteResources`      | 循环内单条查询资源依赖并删除      |
 
 **评审标准**：
+
 - 新增 Service 方法包含循环 + 数据库查询，**必须打回**
 - 已有方法发现 N+1 问题，**必须修复**（优先级：P1）
 - 循环内调用外部服务（Feign/HTTP），**必须打回**（改用批量接口）
@@ -756,15 +762,16 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 **核心规范**：
 
-| 操作 | 顺序 | 说明 |
-|------|------|------|
-| **写入** | 先 L2 后 L1 | 确保 Redis 优先，分布式一致性 |
-| **失效** | 先 L2 后 L1 | 防止竞态条件（L1 清除但 L2 还有旧数据） |
-| **读取** | L1 → L2 → Loader | 本地优先，减少网络开销 |
+| 操作     | 顺序             | 说明                                    |
+| -------- | ---------------- | --------------------------------------- |
+| **写入** | 先 L2 后 L1      | 确保 Redis 优先，分布式一致性           |
+| **失效** | 先 L2 后 L1      | 防止竞态条件（L1 清除但 L2 还有旧数据） |
+| **读取** | L1 → L2 → Loader | 本地优先，减少网络开销                  |
 
 **键格式**: `namespace:tenantId:key`（示例：`perm:condition:rules:1:123`）
 
 **禁止事项**：
+
 - ❌ 禁止使用 `ConcurrentHashMap` 替代 Caffeine（缺少 TTL、容量限制）
 - ❌ 禁止使用 Redis KEYS 命令（用 SCAN）
 - ❌ 禁止先失效 L1 后失效 L2
@@ -914,6 +921,7 @@ int softDeleteBatch(...);
 ```
 
 **原因**：
+
 - XML 文件便于 SQL 维护和版本管理
 - 复杂 SQL（多条件、动态拼接）在 XML 中更清晰
 - 避免注解字符串过长影响代码可读性

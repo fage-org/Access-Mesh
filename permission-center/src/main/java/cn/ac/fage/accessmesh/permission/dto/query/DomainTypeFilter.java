@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.dto.query;
 
+import lombok.Getter;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -12,6 +14,7 @@ import java.util.Set;
  * 调用者通过 apply 方法将过滤条件应用到 QueryWrapper，无需关心实现细节。
  * </p>
  */
+@Getter
 public class DomainTypeFilter {
 
     /**
@@ -91,34 +94,6 @@ public class DomainTypeFilter {
         }
         return new DomainTypeFilter(false, false, include, exclude);
     }
-
-    /**
-     * 是否不需要过滤
-     *
-     * @return 不需要过滤返回true
-     */
-    public boolean isNoFilter() { return noFilter; }
-
-    /**
-     * 是否匹配不到任何结果
-     *
-     * @return 匹配不到任何结果返回true
-     */
-    public boolean isMatchNone() { return matchNone; }
-
-    /**
-     * 获取 IN 条件的资源类型值集合
-     *
-     * @return 资源类型值集合
-     */
-    public Set<Integer> getIncludeValues() { return includeValues; }
-
-    /**
-     * 获取 NOT IN 条件的资源类型值集合
-     *
-     * @return 资源类型值集合
-     */
-    public Set<Integer> getExcludeValues() { return excludeValues; }
 
     /**
      * 判断给定类型值是否命中过滤条件

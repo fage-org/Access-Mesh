@@ -67,14 +67,14 @@
 
 ### 1.4 服务间交互矩阵
 
-| 调用方            | 被调方            | 协议        | 场景                                                                     |
-| ----------------- | ----------------- | ----------- | ------------------------------------------------------------------------ |
-| gateway           | admin-service     | HTTP (转发) | 登录请求透传、管理接口转发                                               |
+| 调用方            | 被调方            | 协议           | 场景                                                                                         |
+| ----------------- | ----------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| gateway           | admin-service     | HTTP (转发)    | 登录请求透传、管理接口转发                                                                   |
 | gateway           | permission-center | OpenFeign/HTTP | 调用 `POST /api/perm/auth/check-interface` 做接口级鉴权；`interface-snapshot` 仅作为可选优化 |
-| gateway           | example-service   | HTTP (转发) | 演示服务接口转发                                                         |
-| admin-service     | permission-center | OpenFeign   | 用户同步、角色查询/复用、菜单资源同步、鉴权查询                          |
-| example-service   | permission-center | OpenFeign   | 鉴权查询、权限数据查询                                                   |
-| permission-center | admin-service     | OpenFeign   | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                       |
+| gateway           | example-service   | HTTP (转发)    | 演示服务接口转发                                                                             |
+| admin-service     | permission-center | OpenFeign      | 用户同步、角色查询/复用、菜单资源同步、鉴权查询                                              |
+| example-service   | permission-center | OpenFeign      | 鉴权查询、权限数据查询                                                                       |
+| permission-center | admin-service     | OpenFeign      | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                                           |
 
 ---
 
@@ -90,14 +90,14 @@
 
 ### 2.2 模块划分
 
-| #   | 模块             | 说明                                                                         |
-| --- | ---------------- | ---------------------------------------------------------------------------- |
-| 1   | 路由配置         | 基于 Nacos 动态路由配置，支持按服务名/路径匹配转发                           |
-| 2   | Token 校验过滤器 | 全局 GatewayFilter，Sa-Token 解析令牌，校验有效性和登录状态                  |
+| #   | 模块             | 说明                                                                                           |
+| --- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| 1   | 路由配置         | 基于 Nacos 动态路由配置，支持按服务名/路径匹配转发                                             |
+| 2   | Token 校验过滤器 | 全局 GatewayFilter，Sa-Token 解析令牌，校验有效性和登录状态                                    |
 | 3   | 接口鉴权过滤器   | 全局 GatewayFilter，对接权限中心判断接口权限，Gateway 仅维护短 TTL L1 缓存，未注册接口默认拒绝 |
-| 4   | 白名单管理       | 可配置的公开接口列表（Nacos 配置动态刷新），匹配的请求跳过鉴权               |
-| 5   | 请求头增强       | 注入标准请求头（X-Tenant-Id、X-User-Id、X-Request-Id），清洗外部伪造头       |
-| 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                      |
+| 4   | 白名单管理       | 可配置的公开接口列表（Nacos 配置动态刷新），匹配的请求跳过鉴权                                 |
+| 5   | 请求头增强       | 注入标准请求头（X-Tenant-Id、X-User-Id、X-Request-Id），清洗外部伪造头                         |
+| 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                                        |
 
 ### 2.3 鉴权流程（与权限中心 core-flows 场景六对齐）
 
@@ -124,10 +124,10 @@
 
 ### 2.4 缓存策略
 
-| 层级 | 存储     | Key 模式                                      | TTL  | 失效方式     |
-| ---- | -------- | --------------------------------------------- | ---- | ------------ |
-| L1   | Caffeine | `perm:auth:{tenantId}:{userId}:{path}`        | 30s  | TTL 过期     |
-| L2   | 无       | —                                             | —    | Gateway 不直连 Redis |
+| 层级 | 存储     | Key 模式                               | TTL | 失效方式             |
+| ---- | -------- | -------------------------------------- | --- | -------------------- |
+| L1   | Caffeine | `perm:auth:{tenantId}:{userId}:{path}` | 30s | TTL 过期             |
+| L2   | 无       | —                                      | —   | Gateway 不直连 Redis |
 
 > Gateway 不直接读 Redis，鉴权缓存命中走 L1，未命中回调权限中心 HTTP 接口。权限中心内部使用 Redis 两份数据（用户角色 + 角色权限）完成判定。
 
@@ -326,25 +326,25 @@ perm-sdk/
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
 | perm-client-spring-boot-starter  | 权限中心客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式） |
-| perm-gateway-spring-boot-starter | 网关插件：接口权限缓存（L1 Caffeine）、回调权限中心鉴权、ConditionEvaluator 条件评估           |
+| perm-gateway-spring-boot-starter | 网关插件：接口权限缓存（L1 Caffeine）、回调权限中心鉴权、ConditionEvaluator 条件评估                                       |
 | perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存             |
 
 ### 4.5 核心 API 清单
 
 #### 4.5.1 perm-client-spring-boot-starter
 
-| 组件 | 说明 |
-|------|------|
-| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到权限中心 |
-| `PermissionClient` | 业务服务查询用户权限视图的客户端。主要方法：`hasPermission(resourceId, operationId)`、`getMenuTree()` |
-| `DataPermissionInterceptor` | MyBatis 拦截器，自动在 SQL 中注入数据权限过滤条件 |
+| 组件                           | 说明                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到权限中心                          |
+| `PermissionClient`             | 业务服务查询用户权限视图的客户端。主要方法：`hasPermission(resourceId, operationId)`、`getMenuTree()` |
+| `DataPermissionInterceptor`    | MyBatis 拦截器，自动在 SQL 中注入数据权限过滤条件                                                     |
 
 #### 4.5.2 perm-gateway-spring-boot-starter
 
-| 组件 | 说明 |
-|------|------|
-| `PermissionFilter` | Gateway GlobalFilter，Order=-60，每次请求回调权限中心鉴权 |
-| `ConditionEvaluator` | 评估条件规则（时间范围、IP白名单等），返回匹配结果 |
+| 组件                 | 说明                                                      |
+| -------------------- | --------------------------------------------------------- |
+| `PermissionFilter`   | Gateway GlobalFilter，Order=-60，每次请求回调权限中心鉴权 |
+| `ConditionEvaluator` | 评估条件规则（时间范围、IP白名单等），返回匹配结果        |
 
 ---
 
@@ -352,9 +352,9 @@ perm-sdk/
 
 > 已移除。服务间同步改为仅 API 调用，不再使用 RocketMQ 传递用户同步和权限变更通知。
 
-~~| Topic                    | 生产者            | 消费者                          | 消息内容                     |~~
+~~| Topic | 生产者 | 消费者 | 消息内容 |~~
 ~~| ------------------------ | ----------------- | ------------------------------- | ---------------------------- |~~
-~~| USER_SYNC                | admin-service     | permission-center               | 用户创建/更新/删除事件       |~~
+~~| USER_SYNC | admin-service | permission-center | 用户创建/更新/删除事件 |~~
 ~~| PERMISSION_CHANGE_NOTIFY | permission-center | admin-service / example-service | 权限变更通知（角色、资源等） |~~
 
 ---
@@ -381,4 +381,4 @@ perm-sdk/
 - **所有接口 POST + JSON Body**
 - **通用响应结构**：`{ "code": 200, "message": "success", "data": {} }`
 - **分页规范**：与项目规范一致，分页入参使用 `pageNum/pageSize/sort`，分页响应使用 `items/total/pageNum/pageSize/hasNext`
-- **禁止使用 Lombok**：使用 Java 21 Record 替代 Lombok 的 @Data/@Value/@Builder 等，保持代码清晰可控
+- **限制使用 Lombok**：仅允许 `@Getter` / `@Setter`，禁止 `@Data`、`@Value`、`@Builder` 等其他注解；不可变 DTO 优先使用 Java 21 Record

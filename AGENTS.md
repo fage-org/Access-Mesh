@@ -10,19 +10,19 @@
 
 ## 技术栈
 
-| 层面 | 技术 |
-|------|------|
-| 语言 | Java 21 |
-| 框架 | Spring Boot 3 + Spring Cloud |
-| ORM | MyBatis-Flex |
-| 数据库 | PostgreSQL（多租户，软删除） |
-| 注册/配置 | Nacos |
-| 缓存 | Caffeine (L1) + Redis (L2) |
-| 消息队列 | RocketMQ |
-| 认证 | Sa-Token + OAuth2 |
-| JSON | Jackson（禁止 FastJSON / Hutool / Lombok） |
-| 日志 | SLF4J + Log4j2 |
-| 前端 | Vue 3 + Element Plus |
+| 层面      | 技术                                                               |
+| --------- | ------------------------------------------------------------------ |
+| 语言      | Java 21                                                            |
+| 框架      | Spring Boot 3 + Spring Cloud                                       |
+| ORM       | MyBatis-Flex                                                       |
+| 数据库    | PostgreSQL（多租户，软删除）                                       |
+| 注册/配置 | Nacos                                                              |
+| 缓存      | Caffeine (L1) + Redis (L2)                                         |
+| 消息队列  | RocketMQ                                                           |
+| 认证      | Sa-Token + OAuth2                                                  |
+| JSON      | Jackson（禁止 FastJSON / Hutool；Lombok 仅允许 @Getter / @Setter） |
+| 日志      | SLF4J + Log4j2                                                     |
+| 前端      | Vue 3 + Element Plus                                               |
 
 ## 服务架构
 
@@ -36,17 +36,17 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 
 ## 权威来源
 
-| 主题 | 权威文档 |
-|------|----------|
-| 文档入口与阅读顺序 | `plan/README.md` |
-| 工程规范 | `plan/project-rules.md` |
-| 整体架构 | `plan/architecture.md` |
-| 权限中心概念模型 | `plan/permission-center/overview.md` |
-| 权限中心 API 契约 | `plan/permission-center/api-contract.md` |
-| 权限中心核心流程 | `plan/permission-center/core-flows.md` |
-| 权限中心实现设计 | `plan/permission-center/implementation.md` |
-| 服务设计 | `plan/services/*.md` |
-| 表结构 | `plan/schema/*.sql` |
+| 主题               | 权威文档                                   |
+| ------------------ | ------------------------------------------ |
+| 文档入口与阅读顺序 | `plan/README.md`                           |
+| 工程规范           | `plan/project-rules.md`                    |
+| 整体架构           | `plan/architecture.md`                     |
+| 权限中心概念模型   | `plan/permission-center/overview.md`       |
+| 权限中心 API 契约  | `plan/permission-center/api-contract.md`   |
+| 权限中心核心流程   | `plan/permission-center/core-flows.md`     |
+| 权限中心实现设计   | `plan/permission-center/implementation.md` |
+| 服务设计           | `plan/services/*.md`                       |
+| 表结构             | `plan/schema/*.sql`                        |
 
 `plan/archive/` 只用于历史追溯，不作为实现依据。
 
@@ -63,7 +63,8 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - **Service 层复用规范**：新增/修改功能必须检查 DomainService 是否有可复用方法，禁止在调度层重新实现领域逻辑。详见 `plan/project-rules.md` §8.4。
 - **N+1 查询禁止**：循环内禁止单条数据库查询，必须使用批量查询方法。详见 `plan/project-rules.md` §8.4.8。
 - 禁止跳层调用，禁止同层横向调用。
-- 禁止 Lombok，使用 Java 21 Record 表达不可变 DTO。
+- Lombok 仅允许 `@Getter` / `@Setter`，禁止 `@Data`、`@Builder`、`@Value`、`@EqualsAndHashCode` 等其他注解。
+- 不可变 DTO 优先使用 Java 21 Record。
 - 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。
 - 实体类不含业务逻辑，审计字段由框架填充。
 
@@ -89,6 +90,7 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 "evict"、"put"、"getBatch"、CacheProperties、CacheAutoConfiguration。
 
 **核心要点**:
+
 - **框架位置**: `common/cache/` 模块，所有服务可复用
 - **键格式**: `namespace:tenantId:key`
 - **写入顺序**: 先 L2 (Redis) 后 L1 (Caffeine)
@@ -99,6 +101,7 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - **禁止事项**: 禁止 KEYS 命令（用 SCAN）、禁止循环单条查询（用批量）、禁止变更后不失效
 
 **创建新缓存管理器**:
+
 ```java
 @Component
 public class MyCacheManager extends AbstractGenericCacheManager<Long, MyData> {
@@ -115,6 +118,7 @@ OperationType 枚举、权限相关逻辑、关键词 "permission"、"权限"、
 "validateBatch"、"getDeniedIds"、"canGrant"、"ResourcePermissionStrategy"。
 
 **核心 API**:
+
 ```java
 // 单实例校验（无权限抛 SecurityException）
 permissionValidator.validate(tenantId, operatorId, "SERVICE", serviceCode, OperationType.MANAGE_API_MAPPING);

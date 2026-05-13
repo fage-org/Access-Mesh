@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -84,13 +86,10 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
      * 用于封装批量子孙查询的结果，包含组织ID和子孙ID对。
      * </p>
      */
+    @Getter
+    @Setter
     class DescendantResult {
         private Long orgId;
         private Long descendantId;
-
-        public Long getOrgId() { return orgId; }
-        public void setOrgId(Long orgId) { this.orgId = orgId; }
-        public Long getDescendantId() { return descendantId; }
-        public void setDescendantId(Long descendantId) { this.descendantId = descendantId; }
     }
 }

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  * 通过perm.cache前缀的配置文件进行配置。
  * </p>
  */
+@Getter
+@Setter
 @Component
 @ConfigurationProperties(prefix = "perm.cache")
 public class PermCacheProperties {
@@ -18,45 +22,13 @@ public class PermCacheProperties {
     private L2Config l2 = new L2Config();
 
     /**
-     * 获取L1缓存配置
-     * <p>
-     * L1缓存为本地Caffeine缓存，提供快速访问。
-     * </p>
-     *
-     * @return L1缓存配置对象
-     */
-    public L1Config getL1() { return l1; }
-
-    /**
-     * 设置L1缓存配置
-     *
-     * @param l1 L1缓存配置对象
-     */
-    public void setL1(L1Config l1) { this.l1 = l1; }
-
-    /**
-     * 获取L2缓存配置
-     * <p>
-     * L2缓存为Redis分布式缓存，用于缓存共享和持久化。
-     * </p>
-     *
-     * @return L2缓存配置对象
-     */
-    public L2Config getL2() { return l2; }
-
-    /**
-     * 设置L2缓存配置
-     *
-     * @param l2 L2缓存配置对象
-     */
-    public void setL2(L2Config l2) { this.l2 = l2; }
-
-    /**
      * L1缓存配置类
      * <p>
      * 配置Caffeine本地缓存的参数。
      * </p>
      */
+    @Getter
+    @Setter
     public static class L1Config {
         /**
          * 最大缓存条目数量
@@ -73,34 +45,6 @@ public class PermCacheProperties {
          * </p>
          */
         private int expireMinutes = 10;
-
-        /**
-         * 获取最大缓存条目数量
-         *
-         * @return 最大缓存条目数量
-         */
-        public int getMaximumSize() { return maximumSize; }
-
-        /**
-         * 设置最大缓存条目数量
-         *
-         * @param maximumSize 最大缓存条目数量
-         */
-        public void setMaximumSize(int maximumSize) { this.maximumSize = maximumSize; }
-
-        /**
-         * 获取缓存过期时间
-         *
-         * @return 缓存过期时间（分钟）
-         */
-        public int getExpireMinutes() { return expireMinutes; }
-
-        /**
-         * 设置缓存过期时间
-         *
-         * @param expireMinutes 缓存过期时间（分钟）
-         */
-        public void setExpireMinutes(int expireMinutes) { this.expireMinutes = expireMinutes; }
     }
 
     /**
@@ -109,6 +53,8 @@ public class PermCacheProperties {
      * 配置Redis分布式缓存的参数。
      * </p>
      */
+    @Getter
+    @Setter
     public static class L2Config {
         /**
          * 缓存存活时间（分钟）
@@ -117,19 +63,5 @@ public class PermCacheProperties {
          * </p>
          */
         private int ttlMinutes = 30;
-
-        /**
-         * 获取缓存存活时间
-         *
-         * @return 缓存存活时间（分钟）
-         */
-        public int getTtlMinutes() { return ttlMinutes; }
-
-        /**
-         * 设置缓存存活时间
-         *
-         * @param ttlMinutes 缓存存活时间（分钟）
-         */
-        public void setTtlMinutes(int ttlMinutes) { this.ttlMinutes = ttlMinutes; }
     }
 }
