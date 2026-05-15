@@ -142,10 +142,10 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (!isSuccess(result)) {
             log.warn("批量权限校验失败: subject={}, resourceType={}, operation={}",
                 subjectExternalId, resourceTypeCode, operationCode);
-            throw new SecurityException("权限校验失败: " + result.message());
+            throw new SecurityException("权限校验失败: " + result.getMessage());
         }
 
-        BatchAuthCheckResp resp = result.data();
+        BatchAuthCheckResp resp = result.getData();
         if (resp == null || resp.items() == null) {
             throw new SecurityException("权限校验返回空响应");
         }
@@ -181,10 +181,10 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (!isSuccess(result)) {
             log.warn("权限校验请求失败: subject={}, resourceType={}, resourceCode={}, operation={}",
                 req.subjectExternalId(), resourceTypeCode, resourceCode, operationCode);
-            throw new SecurityException("权限校验失败: " + result.message());
+            throw new SecurityException("权限校验失败: " + result.getMessage());
         }
 
-        AuthCheckResp resp = result.data();
+        AuthCheckResp resp = result.getData();
         if (resp == null || !resp.allowed()) {
             String reason = resp != null ? resp.reason() : "NO_PERMISSION";
             log.warn("权限被拒绝: subject={}, resourceType={}, resourceCode={}, operation={}, reason={}",
@@ -202,6 +202,6 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
      * @return 成功返回true
      */
     private boolean isSuccess(PermResult<?> result) {
-        return result != null && result.code() == 200;
+        return result != null && result.getCode() == 200;
     }
 }

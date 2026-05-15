@@ -29,6 +29,7 @@ public interface SysConfigMapper extends BaseMapper<SysConfig> {
      * @param deletedAt 删除时间戳
      * @return 更新的行数
      */
-    int softDeleteBatch(@Param("ids") List<Long> ids,
+    int softDeleteBatch(@Param("tenantId") Long tenantId,
+                        @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
 }

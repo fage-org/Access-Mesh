@@ -101,6 +101,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         } else {
             // 创建新记录
             SysSyncRetry record = new SysSyncRetry();
+            record.setTenantId(TenantContextHolder.getTenantId());
             record.setMessageKey(messageKey);
             record.setTargetService(targetService);
             record.setEntityType(entityType);
@@ -128,7 +129,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      * @param id 任务ID
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void markSuccess(Long id) {
         // Permission check - instance-level UPDATE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
@@ -155,7 +156,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      * @param error 错误信息
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void markFailed(Long id, String error) {
         // Permission check - instance-level UPDATE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
@@ -206,7 +207,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      * @param id 任务ID
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteProcessed(Long id) {
         // Permission check - instance-level DELETE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.DELETE);

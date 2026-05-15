@@ -42,7 +42,7 @@ public record OrgResp(
     /**
      * 父级组织ID
      */
-    String parentOrgId,
+    Long parentOrgId,
 
     /**
      * 组织编码

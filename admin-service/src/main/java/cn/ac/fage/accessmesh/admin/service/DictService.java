@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.DictDataUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
@@ -87,7 +88,7 @@ public interface DictService {
      *
      * @param req 字典数据更新请求
      */
-    void updateDictData(DictDataCreateReq req);
+    void updateDictData(DictDataUpdateReq req);
 
     /**
      * 删除字典数据

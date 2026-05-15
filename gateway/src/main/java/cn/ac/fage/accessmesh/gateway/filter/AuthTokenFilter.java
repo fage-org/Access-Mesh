@@ -5,6 +5,8 @@ import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -28,6 +30,8 @@ import reactor.core.publisher.Mono;
  */
 @Component
 public class AuthTokenFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthTokenFilter.class);
 
     private static final String SKIP_AUTH_ATTR = "skipAuth";
     private static final String USER_ID_ATTR = "userId";
@@ -81,9 +85,13 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
                 Object tenantId = StpUtil.getExtra(loginIdStr, "tenantId");
                 if (tenantId != null) {
                     exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
+                } else {
+                    log.warn("租户ID为空，loginId={}", loginIdStr);
+                    return writeUnauthorized(exchange, 401, "租户信息缺失");
                 }
             } catch (Exception e) {
-                // 额外数据可能未设置 — 租户信息缺失但用户仍认证通过
+                log.error("获取租户ID异常，loginId={}: {}", loginIdStr, e.getMessage());
+                return writeUnauthorized(exchange, 401, "租户信息缺失");
             }
 
             try {

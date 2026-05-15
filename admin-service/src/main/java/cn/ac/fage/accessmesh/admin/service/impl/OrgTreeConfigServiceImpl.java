@@ -1,7 +1,8 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
-import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
@@ -37,6 +38,8 @@ import java.util.List;
 @Service
 public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
 
+    private static final String POSITION_TREE_TYPE = "POSITION";
+
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
     private final AdminPermissionValidator permissionValidator;
 
@@ -63,14 +66,18 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      * @return 创建成功的配置ID
      */
     @Override
-    @Transactional
-    public Long createOrgTreeConfig(SysOrgTreeConfig config) {
-        // Permission check - type-level CREATE on ORG_TREE_CONFIG
+    @Transactional(rollbackFor = Exception.class)
+    public Long createOrgTreeConfig(OrgTreeConfigCreateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
         permissionValidator.checkTypeLevel(AdminResourceType.ORG_TREE_CONFIG, AdminOperationCode.CREATE);
 
-        if (Boolean.TRUE.equals(config.getIsDefault())) {
-            clearDefault();
-        }
+        SysOrgTreeConfig config = new SysOrgTreeConfig();
+        config.setTenantId(tenantId);
+        config.setRootOrgId(req.orgId());
+        config.setTreeName(req.treeName());
+        config.setTreeType(req.treeType());
+        config.setSingleAssoc(resolveSingleAssoc(req.treeType(), req.singleAssoc(), true));
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());
         config.setDeleteFlag(0L);
@@ -90,22 +97,30 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      * @throws BizException 组织树配置不存在
      */
     @Override
-    @Transactional
-    public void updateOrgTreeConfig(SysOrgTreeConfig config) {
+    @Transactional(rollbackFor = Exception.class)
+    public void updateOrgTreeConfig(OrgTreeConfigUpdateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
         // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
-        permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, config.getId().toString(), AdminOperationCode.UPDATE);
+        permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, req.id().toString(), AdminOperationCode.UPDATE);
 
         SysOrgTreeConfig existing = TenantSafeQuery.selectOneByIdSafe(
             orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), config.getId());
+            tenantId, req.id());
         if (existing == null) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
-        if (Boolean.TRUE.equals(config.getIsDefault())) {
-            clearDefault();
+
+        String treeType = req.treeType() != null ? req.treeType() : existing.getTreeType();
+        if (req.orgId() != null) existing.setRootOrgId(req.orgId());
+        if (req.treeName() != null) existing.setTreeName(req.treeName());
+        if (req.treeType() != null) existing.setTreeType(req.treeType());
+        if (req.singleAssoc() != null || req.treeType() != null) {
+            boolean defaultSingleAssoc = existing.getSingleAssoc() == null ? true : existing.getSingleAssoc();
+            existing.setSingleAssoc(resolveSingleAssoc(treeType, req.singleAssoc(), defaultSingleAssoc));
         }
-        config.setUpdatedAt(LocalDateTime.now());
-        orgTreeConfigMapper.update(config);
+        existing.setUpdatedAt(LocalDateTime.now());
+        orgTreeConfigMapper.update(existing);
     }
 
     /**
@@ -118,7 +133,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      * @param req ID集合请求，包含待删除的配置ID列表
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteOrgTreeConfigs(IdsReq req) {
         if (req.ids() == null || req.ids().isEmpty()) {
             return;
@@ -129,7 +144,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
 
         // Performance fix: use batch soft delete instead of loop updates
         LocalDateTime now = LocalDateTime.now();
-        orgTreeConfigMapper.softDeleteBatch(null, req.ids(), now);
+        orgTreeConfigMapper.softDeleteBatch(TenantContextHolder.getTenantId(), req.ids(), now);
     }
 
     /**
@@ -145,7 +160,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      * @throws BizException 组织树配置不存在
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void setDefault(Long id) {
         // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
@@ -204,6 +219,13 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
         return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+    }
+
+    private boolean resolveSingleAssoc(String treeType, Boolean requestedValue, boolean defaultValue) {
+        if (treeType != null && POSITION_TREE_TYPE.equalsIgnoreCase(treeType)) {
+            return false;
+        }
+        return requestedValue != null ? requestedValue : defaultValue;
     }
 
     /**

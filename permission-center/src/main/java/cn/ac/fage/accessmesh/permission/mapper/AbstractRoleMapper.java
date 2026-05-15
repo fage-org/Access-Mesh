@@ -72,4 +72,5 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
      * @return 所有后代角色ID列表（不含起始角色）
      */
     List<Long> selectDescendantIdsBatch(@Param("tenantId") Long tenantId, @Param("roleIds") Set<Long> roleIds);
+    List<Long> selectAncestorGroupRoleIds(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
 }

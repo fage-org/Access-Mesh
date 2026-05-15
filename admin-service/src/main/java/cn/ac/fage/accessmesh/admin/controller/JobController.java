@@ -6,6 +6,8 @@ import cn.ac.fage.accessmesh.admin.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.service.JobService;
@@ -54,8 +56,8 @@ public class JobController {
      */
     @PostMapping("/create")
     @AuditLog(module = "定时任务", action = "创建")
-    public PermResult<Long> createJob(@Valid @RequestBody SysJob job) {
-        return PermResult.success(jobService.createJob(job));
+    public PermResult<Long> createJob(@Valid @RequestBody JobCreateReq req) {
+        return PermResult.success(jobService.createJob(req));
     }
 
     /**
@@ -69,8 +71,8 @@ public class JobController {
      */
     @PostMapping("/update")
     @AuditLog(module = "定时任务", action = "更新")
-    public PermResult<Void> updateJob(@Valid @RequestBody SysJob job) {
-        jobService.updateJob(job);
+    public PermResult<Void> updateJob(@Valid @RequestBody JobUpdateReq req) {
+        jobService.updateJob(req);
         return PermResult.success();
     }
 

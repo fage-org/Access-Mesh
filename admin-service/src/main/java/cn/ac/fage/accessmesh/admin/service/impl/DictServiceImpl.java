@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.DictDataUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
@@ -77,13 +78,14 @@ public class DictServiceImpl implements DictService {
      * @return 新字典类型ID
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictType(DictTypeCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.DICT, AdminOperationCode.CREATE);
 
         SysDictType type = new SysDictType();
+        type.setTenantId(TenantContextHolder.getTenantId());
         type.setDictType(req.dictType());
         type.setDictName(req.dictName());
         type.setStatus(req.status() != null ? req.status() : 1);
@@ -108,7 +110,7 @@ public class DictServiceImpl implements DictService {
      * @throws BizException 字典类型有关联数据
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictType(IdsReq req) {
         // Permission check - batch instance-level DELETE
@@ -149,7 +151,7 @@ public class DictServiceImpl implements DictService {
         if (!types.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = types.stream().map(SysDictType::getId).collect(java.util.stream.Collectors.toList());
-            dictTypeMapper.softDeleteBatch(validIds, now);
+            dictTypeMapper.softDeleteBatch(TenantContextHolder.getTenantId(), validIds, now);
         }
     }
 
@@ -250,7 +252,7 @@ public class DictServiceImpl implements DictService {
      * @throws BizException 字典类型不存在
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictData(DictDataCreateReq req) {
         // Permission check - type-level CREATE for dict data
@@ -263,6 +265,7 @@ public class DictServiceImpl implements DictService {
             throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
         SysDictData data = new SysDictData();
+        data.setTenantId(TenantContextHolder.getTenantId());
         data.setDictType(type.getDictType());
         data.setDictLabel(req.dictLabel());
         data.setDictValue(req.dictValue());
@@ -288,27 +291,41 @@ public class DictServiceImpl implements DictService {
      * @throws BizException 字典数据不存在
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "dictTypes", allEntries = true)
-    public void updateDictData(DictDataCreateReq req) {
-        // Permission check - instance-level UPDATE
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.DICT_DATA,
-            String.valueOf(req.dictTypeId()),
-            AdminOperationCode.UPDATE
-        );
+    public void updateDictData(DictDataUpdateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // Permission check - instance-level UPDATE on the data record
+        permissionValidator.checkInstanceLevel(AdminResourceType.DICT_DATA,
+            String.valueOf(req.id()), AdminOperationCode.UPDATE);
 
         SysDictData data = TenantSafeQuery.selectOneByIdSafe(
             dictDataMapper, SysDictDataTableDef.SYS_DICT_DATA.ID, SysDictDataTableDef.SYS_DICT_DATA.TENANT_ID, SysDictDataTableDef.SYS_DICT_DATA.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), req.dictTypeId());
+            tenantId, req.id());
         if (data == null) {
             throw new BizException(AdminErrorCode.DICT_DATA_NOT_FOUND.getCode(), AdminErrorCode.DICT_DATA_NOT_FOUND.getMessage());
         }
+
+        SysDictType type = TenantSafeQuery.selectOneByIdSafe(
+            dictTypeMapper, SysDictTypeTableDef.SYS_DICT_TYPE.ID, SysDictTypeTableDef.SYS_DICT_TYPE.TENANT_ID, SysDictTypeTableDef.SYS_DICT_TYPE.DELETE_FLAG,
+            tenantId, req.dictTypeId());
+        if (type == null) {
+            throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
+        }
+
+        data.setDictType(type.getDictType());
         data.setDictLabel(req.dictLabel());
         data.setDictValue(req.dictValue());
-        data.setSortOrder(req.sort());
-        data.setStatus(req.status());
-        data.setRemark(req.remark());
+        if (req.sort() != null) {
+            data.setSortOrder(req.sort());
+        }
+        if (req.status() != null) {
+            data.setStatus(req.status());
+        }
+        if (req.remark() != null) {
+            data.setRemark(req.remark());
+        }
         data.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.update(data);
     }
@@ -324,7 +341,7 @@ public class DictServiceImpl implements DictService {
      * @param req ID请求，包含字典数据ID
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictData(IdReq req) {
         // Permission check - instance-level DELETE

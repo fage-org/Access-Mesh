@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.service.OrgTreeConfigService;
@@ -50,8 +52,8 @@ public class OrgTreeConfigController {
      */
     @PostMapping("/create")
     @AuditLog(module = "组织树配置", action = "创建")
-    public PermResult<Long> createOrgTreeConfig(@Valid @RequestBody SysOrgTreeConfig config) {
-        return PermResult.success(orgTreeConfigService.createOrgTreeConfig(config));
+    public PermResult<Long> createOrgTreeConfig(@Valid @RequestBody OrgTreeConfigCreateReq req) {
+        return PermResult.success(orgTreeConfigService.createOrgTreeConfig(req));
     }
 
     /**
@@ -65,8 +67,8 @@ public class OrgTreeConfigController {
      */
     @PostMapping("/update")
     @AuditLog(module = "组织树配置", action = "更新")
-    public PermResult<Void> updateOrgTreeConfig(@Valid @RequestBody SysOrgTreeConfig config) {
-        orgTreeConfigService.updateOrgTreeConfig(config);
+    public PermResult<Void> updateOrgTreeConfig(@Valid @RequestBody OrgTreeConfigUpdateReq req) {
+        orgTreeConfigService.updateOrgTreeConfig(req);
         return PermResult.success();
     }
 

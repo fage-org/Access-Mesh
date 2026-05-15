@@ -262,7 +262,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
                         autoRp.setAbstractRoleId(roleId);
                         autoRp.setResourceEntityId(dep.getDependsOnResourceEntityId());
                         autoRp.setOperationPermissionId(requiredOpId);
-                        autoRp.setResourceType(null);
+                        autoRp.setResourceType(resolveResourceType(dep.getDependsOnResourceEntityId()));
                         autoRp.setDependOn(null);
                         autoRp.setScopeAll(false);
                         autoRp.setCanGrant(false);
@@ -349,11 +349,27 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         if (requiredOpId == null) {
             return;
         }
+
+        // Duplicate check: skip if an active permission with same composite key already exists
+        long existingCount = rolePermMapper.selectCountByQuery(
+            QueryWrapper.create()
+                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(dep.getDependsOnResourceEntityId()))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(requiredOpId))
+                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
+        );
+        if (existingCount > 0) {
+            log.info("Skipping duplicate auto-grant: role={}, resource={}, op={}", roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
+            return;
+        }
+
         RoleResourcePermission rp = new RoleResourcePermission();
         rp.setTenantId(tenantId);
         rp.setAbstractRoleId(roleId);
         rp.setResourceEntityId(dep.getDependsOnResourceEntityId());
         rp.setOperationPermissionId(requiredOpId);
+        rp.setResourceType(resolveResourceType(dep.getDependsOnResourceEntityId()));
         rp.setScopeAll(false);
         rp.setGrantSource(GrantSource.AUTO_DEP.getValue());
         rp.setGrantDepId(dep.getId());
@@ -413,5 +429,11 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             return matchingOps.get(0).getId();
         }
         return fallbackOperationId;
+    }
+
+    private Integer resolveResourceType(Long resourceEntityId) {
+        if (resourceEntityId == null) return null;
+        ResourceEntity resource = resourceEntityMapper.selectOneById(resourceEntityId);
+        return resource != null ? resource.getResourceType() : null;
     }
 }

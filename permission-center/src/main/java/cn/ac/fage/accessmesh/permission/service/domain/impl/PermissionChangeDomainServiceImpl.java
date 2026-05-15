@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
+import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -64,6 +65,9 @@ public class PermissionChangeDomainServiceImpl implements PermissionChangeDomain
             cl.setOldSnapshot(entry.oldSnapshot());
             cl.setNewSnapshot(entry.newSnapshot());
             cl.setDiffSnapshot(entry.diffSnapshot());
+            if (entry.oldSnapshot() != null) JsonValidationUtils.validateJson(entry.oldSnapshot());
+            if (entry.newSnapshot() != null) JsonValidationUtils.validateJson(entry.newSnapshot());
+            if (entry.diffSnapshot() != null) JsonValidationUtils.validateJson(entry.diffSnapshot());
             cl.setAffectedAbstractUserIds(entry.affectedUserIds());
             cl.setAffectedAbstractRoleIds(entry.affectedRoleIds());
             cl.setChangeReason(context.changeReason());

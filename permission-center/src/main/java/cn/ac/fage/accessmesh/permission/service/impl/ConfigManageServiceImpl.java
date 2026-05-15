@@ -22,6 +22,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -1053,6 +1054,8 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
         }
+
+        JsonValidationUtils.validateJson(req.configValue());
 
         SystemConfig existing = systemConfigMapper.selectOneByQuery(
             QueryWrapper.create()

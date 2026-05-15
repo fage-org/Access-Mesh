@@ -19,7 +19,8 @@ import cn.ac.fage.accessmesh.common.cache.CacheAutoConfiguration;
  */
 @AutoConfiguration
 @ComponentScan(basePackages = {
-    "cn.ac.fage.accessmesh.common.exception"
+    "cn.ac.fage.accessmesh.common.exception",
+    "cn.ac.fage.accessmesh.common.config"
 })
 @Import(CacheAutoConfiguration.class)
 public class CommonAutoConfiguration {

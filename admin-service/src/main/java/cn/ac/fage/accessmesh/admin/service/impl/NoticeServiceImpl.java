@@ -267,7 +267,7 @@ public class NoticeServiceImpl implements NoticeService {
         // Permission check - instance-level PUBLISH
         permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE, notice.getId().toString(), AdminOperationCode.PUBLISH);
 
-        notice.setStatus(1);
+        notice.setStatus(2);
         notice.setPublishedAt(LocalDateTime.now());
         notice.setUpdatedAt(LocalDateTime.now());
         noticeMapper.update(notice);
@@ -290,6 +290,7 @@ public class NoticeServiceImpl implements NoticeService {
             QueryWrapper.create()
                 .where(SysUserNoticeTableDef.SYS_USER_NOTICE.NOTICE_ID.eq(noticeId))
                 .and(SysUserNoticeTableDef.SYS_USER_NOTICE.USER_ID.eq(userId))
+                .and(SysUserNoticeTableDef.SYS_USER_NOTICE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
         );
         if (existing != null) {
             existing.setIsRead(true);
@@ -297,6 +298,7 @@ public class NoticeServiceImpl implements NoticeService {
             userNoticeMapper.update(existing);
         } else {
             SysUserNotice userNotice = new SysUserNotice();
+            userNotice.setTenantId(TenantContextHolder.getTenantId());
             userNotice.setNoticeId(noticeId);
             userNotice.setUserId(userId);
             userNotice.setIsRead(true);
@@ -333,6 +335,7 @@ public class NoticeServiceImpl implements NoticeService {
                 QueryWrapper.create()
                     .where(SysUserNoticeTableDef.SYS_USER_NOTICE.USER_ID.eq(userId))
                     .and(SysUserNoticeTableDef.SYS_USER_NOTICE.NOTICE_ID.in(noticeIds))
+                    .and(SysUserNoticeTableDef.SYS_USER_NOTICE.TENANT_ID.eq(tenantId))
             );
 
         var readMap = userNotices.stream()

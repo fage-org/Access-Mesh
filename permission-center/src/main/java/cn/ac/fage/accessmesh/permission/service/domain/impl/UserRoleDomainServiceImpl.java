@@ -224,6 +224,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         if (!allCandidateRoleIds.isEmpty()) {
             QueryWrapper qw = QueryWrapper.create()
                 .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(allCandidateRoleIds))
+                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
                 .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
             List<AbstractRole> enabledRoles = abstractRoleMapper.selectListByQuery(qw);
@@ -402,12 +403,25 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      */
     @Override
     public void invalidateRoleCacheByRole(Long tenantId, Long roleId) {
-        List<Long> userIds = userRoleMapper.selectListByQuery(
+        // 1. 直接分配该角色的用户
+        Set<Long> userIds = userRoleMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
                 .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(roleId))
                 .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        ).stream().map(UserRole::getAbstractUserId).distinct().collect(Collectors.toList());
+        ).stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet());
+
+        // 2. 通过GROUP_ROLE间接拥有该角色的用户
+        List<Long> ancestorGroupRoleIds = abstractRoleMapper.selectAncestorGroupRoleIds(tenantId, roleId);
+        if (!ancestorGroupRoleIds.isEmpty()) {
+            userIds.addAll(userRoleMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(ancestorGroupRoleIds))
+                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
+                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
+            ).stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+        }
 
         if (userIds.isEmpty()) {
             return;

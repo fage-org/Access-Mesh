@@ -103,7 +103,7 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enableUser(Long tenantId, Long userId) {
-        updateUserStatus(userId, true);
+        updateUserStatus(tenantId, userId, true);
     }
 
     /**
@@ -119,7 +119,7 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void disableUser(Long tenantId, Long userId) {
-        updateUserStatus(userId, false);
+        updateUserStatus(tenantId, userId, false);
     }
 
     /**
@@ -154,12 +154,15 @@ public class AbstractUserDomainServiceImpl implements AbstractUserDomainService 
      * @param userId  用户ID
      * @param enabled 启用状态
      */
-    private void updateUserStatus(Long userId, boolean enabled) {
-        AbstractUser user = new AbstractUser();
-        user.setId(userId);
-        user.setEnabled(enabled);
-        user.setUpdatedAt(LocalDateTime.now());
-        abstractUserMapper.update(user);
+    private void updateUserStatus(Long tenantId, Long userId, boolean enabled) {
+        // Verify user belongs to tenant before updating
+        AbstractUser existing = selectValidById(tenantId, userId);
+        if (existing == null) {
+            return;
+        }
+        existing.setEnabled(enabled);
+        existing.setUpdatedAt(LocalDateTime.now());
+        abstractUserMapper.update(existing);
     }
 
     /**

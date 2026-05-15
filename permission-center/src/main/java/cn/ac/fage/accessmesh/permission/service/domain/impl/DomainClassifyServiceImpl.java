@@ -171,6 +171,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
             global.setCode("GLOBAL");
             global.setName("全局");
             global.setGlobal(true);
+            global.setDeleteFlag(0L);
             bizDomainMapper.insert(global);
         }
     }

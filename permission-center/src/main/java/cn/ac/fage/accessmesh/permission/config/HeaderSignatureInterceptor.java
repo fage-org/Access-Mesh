@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.permission.config;
 
 import cn.ac.fage.accessmesh.permission.util.SecurityEventType;
 import cn.ac.fage.accessmesh.permission.util.SecurityLogUtil;
+import cn.ac.fage.accessmesh.permission.util.SecurityUtils;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
@@ -167,7 +168,7 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
         }
 
         // 使用常量时间比较防止时序攻击
-        if (!constantTimeEquals(expectedSignature, providedSignature)) {
+        if (!SecurityUtils.constantTimeEquals(expectedSignature, providedSignature)) {
             SecurityLogUtil.logSecurityEvent(
                 SecurityEventType.INVALID_SIGNATURE,
                 request,
@@ -225,33 +226,6 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
             log.error("签名计算错误: {}", e.getMessage());
             return null;
         }
-    }
-
-    /**
-     * 常量时间字符串比较
-     * <p>
-     * 使用常量时间比较算法防止时序攻击。
-     * 比较过程中不提前返回，避免泄露签名信息。
-     * </p>
-     *
-     * @param expected 期望的签名值
-     * @param provided 提供的签名值
-     * @return 相等返回true，否则返回false
-     */
-    private boolean constantTimeEquals(String expected, String provided) {
-        if (expected == null || provided == null) {
-            return false;
-        }
-        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
-        byte[] providedBytes = provided.getBytes(StandardCharsets.UTF_8);
-        if (expectedBytes.length != providedBytes.length) {
-            return false;
-        }
-        int result = 0;
-        for (int i = 0; i < expectedBytes.length; i++) {
-            result |= expectedBytes[i] ^ providedBytes[i];
-        }
-        return result == 0;
     }
 
     /**

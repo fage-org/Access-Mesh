@@ -67,13 +67,13 @@ public class UserSyncHandlerImpl implements UserSyncHandler {
         );
 
         PermResult<Map<String, Object>> result = permissionFeignClient.syncUser(req);
-        if (result == null || result.code() != 200 || result.data() == null) {
+        if (result == null || result.getCode() != 200 || result.getData() == null) {
             log.warn("同步用户到权限中心失败: userId={}, username={}",
                 user.getId(), user.getUsername());
             return null;
         }
 
-        Object idObj = result.data().get("id");
+        Object idObj = result.getData().get("id");
         if (idObj != null) {
             Long permUserId = Long.valueOf(idObj.toString());
             log.info("同步用户到权限中心成功: userId={}, permUserId={}",
@@ -120,7 +120,7 @@ public class UserSyncHandlerImpl implements UserSyncHandler {
 
         IdsReq req = new IdsReq(List.of(permUserId));
         PermResult<Void> result = permissionFeignClient.deleteUsers(req);
-        if (result == null || result.code() != 200) {
+        if (result == null || result.getCode() != 200) {
             log.warn("从权限中心删除用户失败: permUserId={}", permUserId);
             return false;
         }

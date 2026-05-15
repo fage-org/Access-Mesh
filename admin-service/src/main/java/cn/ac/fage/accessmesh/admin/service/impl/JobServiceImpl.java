@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
+import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import cn.ac.fage.accessmesh.admin.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
@@ -8,7 +9,9 @@ import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
@@ -33,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.ReentrantLock;
@@ -51,11 +55,14 @@ import java.util.concurrent.locks.ReentrantLock;
 public class JobServiceImpl implements JobService {
 
     private static final Logger log = LoggerFactory.getLogger(JobServiceImpl.class);
+    private static final int JOB_STATUS_DISABLED = 0;
+    private static final int JOB_STATUS_ENABLED = 1;
 
     private final SysJobMapper jobMapper;
     private final SysJobLogMapper jobLogMapper;
     private final TaskScheduler taskScheduler;
     private final AdminPermissionValidator permissionValidator;
+    private final TenantIdProvider tenantIdProvider;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     /**
@@ -76,11 +83,12 @@ public class JobServiceImpl implements JobService {
      * @param permissionValidator 权限校验器
      */
     public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler,
-                          AdminPermissionValidator permissionValidator) {
+                          AdminPermissionValidator permissionValidator, TenantIdProvider tenantIdProvider) {
         this.jobMapper = jobMapper;
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
         this.permissionValidator = permissionValidator;
+        this.tenantIdProvider = tenantIdProvider;
     }
 
     /**
@@ -106,20 +114,33 @@ public class JobServiceImpl implements JobService {
     @PostConstruct
     public void initScheduledTasks() {
         log.info("Initializing scheduled tasks from database...");
-        List<SysJob> enabledJobs = jobMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.STATUS.eq(1))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
-        for (SysJob job : enabledJobs) {
+        Set<Long> tenantIds = tenantIdProvider.getTenantIds();
+        int totalJobs = 0;
+        for (Long tenantId : tenantIds) {
             try {
-                scheduleJob(job);
-                log.info("Loaded job on startup: id={}, name={}", job.getId(), job.getJobName());
+                TenantContextHolder.setTenantId(tenantId);
+                List<SysJob> enabledJobs = jobMapper.selectListByQuery(
+                    QueryWrapper.create()
+                        .where(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
+                        .and(SysJobTableDef.SYS_JOB.STATUS.eq(JOB_STATUS_ENABLED))
+                        .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
+                );
+                for (SysJob job : enabledJobs) {
+                    try {
+                        scheduleJob(job);
+                        log.info("Loaded job on startup: tenant={}, id={}, name={}", tenantId, job.getId(), job.getJobName());
+                    } catch (Exception e) {
+                        log.error("Failed to schedule job on startup: tenant={}, id={}", tenantId, job.getId(), e);
+                    }
+                }
+                totalJobs += enabledJobs.size();
             } catch (Exception e) {
-                log.error("Failed to schedule job on startup: id={}", job.getId(), e);
+                log.error("Failed to load jobs for tenant {}", tenantId, e);
+            } finally {
+                TenantContextHolder.clear();
             }
         }
-        log.info("Initialized {} scheduled tasks", enabledJobs.size());
+        log.info("Initialized {} scheduled tasks across {} tenants", totalJobs, tenantIds.size());
     }
 
     /**
@@ -135,18 +156,25 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createJob(SysJob job) {
-        // Permission check - type-level CREATE
+    public Long createJob(JobCreateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
         permissionValidator.checkTypeLevel(AdminResourceType.JOB, AdminOperationCode.CREATE);
 
-        Long tenantId = TenantContextHolder.getTenantId();
+        SysJob job = new SysJob();
         job.setTenantId(tenantId);
+        job.setJobName(req.jobName());
+        job.setJobGroup(req.jobGroup() != null ? req.jobGroup() : "DEFAULT");
+        job.setInvokeTarget(req.invokeTarget());
+        job.setCronExpression(req.cronExpression());
+        job.setMisfirePolicy(req.misfirePolicy() != null ? req.misfirePolicy() : 1);
+        job.setStatus(req.status() != null ? req.status() : JOB_STATUS_ENABLED);
+        job.setRemark(req.remark());
         job.setCreatedAt(LocalDateTime.now());
         job.setUpdatedAt(LocalDateTime.now());
         job.setDeleteFlag(0L);
-        job.setStatus(job.getStatus() != null ? job.getStatus() : 0);
         jobMapper.insert(job);
-        if (job.getStatus() == 1) {
+        if (job.getStatus() == JOB_STATUS_ENABLED) {
             scheduleJob(job);
         }
         return job.getId();
@@ -166,11 +194,11 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateJob(SysJob job) {
+    public void updateJob(JobUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob existing = jobMapper.selectOneByQuery(
             QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.eq(job.getId()))
+                .where(SysJobTableDef.SYS_JOB.ID.eq(req.id()))
                 .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
                 .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
         );
@@ -179,18 +207,25 @@ public class JobServiceImpl implements JobService {
         }
 
         // Permission check - instance-level UPDATE
-        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, job.getId().toString(), AdminOperationCode.UPDATE);
+        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, req.id().toString(), AdminOperationCode.UPDATE);
 
-        // If cron changed, reschedule
-        if (existing.getStatus() == 1) {
-            unscheduleJob(job.getId());
+        // If currently running, unschedule first
+        if (existing.getStatus() == JOB_STATUS_ENABLED) {
+            unscheduleJob(req.id());
         }
-        job.setTenantId(tenantId);
-        job.setUpdatedAt(LocalDateTime.now());
-        jobMapper.update(job);
-        if (job.getStatus() == 1) {
-            SysJob updated = jobMapper.selectOneById(job.getId());
-            scheduleJob(updated);
+
+        if (req.jobName() != null) existing.setJobName(req.jobName());
+        if (req.jobGroup() != null) existing.setJobGroup(req.jobGroup());
+        if (req.invokeTarget() != null) existing.setInvokeTarget(req.invokeTarget());
+        if (req.cronExpression() != null) existing.setCronExpression(req.cronExpression());
+        if (req.misfirePolicy() != null) existing.setMisfirePolicy(req.misfirePolicy());
+        if (req.status() != null) existing.setStatus(req.status());
+        if (req.remark() != null) existing.setRemark(req.remark());
+        existing.setUpdatedAt(LocalDateTime.now());
+        jobMapper.update(existing);
+
+        if (existing.getStatus() == JOB_STATUS_ENABLED) {
+            scheduleJob(existing);
         }
     }
 
@@ -261,13 +296,13 @@ public class JobServiceImpl implements JobService {
         }
 
         // Permission check - instance-level ENABLE/DISABLE
-        String operationCode = status == 1 ? AdminOperationCode.ENABLE : AdminOperationCode.DISABLE;
+        String operationCode = status == JOB_STATUS_ENABLED ? AdminOperationCode.ENABLE : AdminOperationCode.DISABLE;
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), operationCode);
 
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
         jobMapper.update(job);
-        if (status == 1) {
+        if (status == JOB_STATUS_ENABLED) {
             scheduleJob(job);
         } else {
             unscheduleJob(id);

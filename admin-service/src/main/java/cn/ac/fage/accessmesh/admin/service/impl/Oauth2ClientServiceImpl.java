@@ -85,6 +85,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
         }
 
         SysOauth2Client client = new SysOauth2Client();
+        client.setTenantId(TenantContextHolder.getTenantId());
         client.setClientId(req.clientId());
         // clientSecret 应加密存储
         client.setClientSecret(BCrypt.hashpw(req.clientSecret()));
@@ -181,7 +182,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
 
         // Batch soft delete (performance fix: use single SQL instead of loop)
         LocalDateTime now = LocalDateTime.now();
-        oauth2ClientMapper.softDeleteBatch(req.ids(), now);
+        oauth2ClientMapper.softDeleteBatch(TenantContextHolder.getTenantId(), req.ids(), now);
     }
 
     /**

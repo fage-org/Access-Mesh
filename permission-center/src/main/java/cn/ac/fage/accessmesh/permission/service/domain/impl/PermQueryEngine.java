@@ -470,13 +470,15 @@ public class PermQueryEngine {
             return q.operationPermissionIds();
         }
         if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
-        // 批量解析：取第一个resourceTypeCode用于操作查找
-        String rtCode = q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()
-            ? q.resourceTypeCodes().iterator().next() : null;
-        if (rtCode == null) return Set.of();
-        Map<String, Long> map = typeResolutionService.batchResolveOperationIds(
-            q.tenantId(), rtCode, q.operationCodes());
-        return new HashSet<>(map.values());
+        // 批量解析：遍历所有resourceTypeCode，合并结果
+        if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
+        Set<Long> result = new HashSet<>();
+        for (String rtCode : q.resourceTypeCodes()) {
+            Map<String, Long> map = typeResolutionService.batchResolveOperationIds(
+                q.tenantId(), rtCode, q.operationCodes());
+            result.addAll(map.values());
+        }
+        return result;
     }
 
     /**
@@ -487,20 +489,20 @@ public class PermQueryEngine {
             return q.resourceEntityIds();
         }
         if (q.resourceCodes() == null || q.resourceCodes().isEmpty()) return Set.of();
-        // 批量解析
-        String rtCode = q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()
-            ? q.resourceTypeCodes().iterator().next() : null;
-        if (rtCode == null) return Set.of();
+        // 批量解析：遍历所有resourceTypeCode，合并结果
+        if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
 
-        // 构建批量解析请求（1条SQL查询替代N条）
-        List<ResourceResolveRequest> requests = q.resourceCodes().stream()
-            .map(code -> new ResourceResolveRequest(rtCode, code, q.codeType(), null))
-            .toList();
+        Set<Long> allResolved = new HashSet<>();
+        for (String rtCode : q.resourceTypeCodes()) {
+            List<ResourceResolveRequest> requests = q.resourceCodes().stream()
+                .map(code -> new ResourceResolveRequest(rtCode, code, q.codeType(), null))
+                .toList();
 
-        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(q.tenantId(), requests);
+            Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(q.tenantId(), requests);
+            allResolved.addAll(resolved.values());
+        }
 
-        // 返回解析后的ID集合（内存操作）
-        return new HashSet<>(resolved.values());
+        return allResolved;
     }
 
     /**
@@ -571,6 +573,7 @@ public class PermQueryEngine {
         QueryWrapper qw = QueryWrapper.create()
             .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
             .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
+            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(false))
             .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
         if (resourceEntityIds != null && !resourceEntityIds.isEmpty()) {
             qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceEntityIds));

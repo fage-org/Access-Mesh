@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @param id             任务ID
  * @param jobName        任务名称
  * @param cronExpression Cron表达式
- * @param status         状态（0=正常，1=暂停）
+ * @param status         状态（0=停用，1=启用）
  * @param description    任务描述
  * @param createdAt      创建时间
  * @param updatedAt      更新时间
@@ -37,7 +37,7 @@ public record JobResp(
     String cronExpression,
 
     /**
-     * 状态（0=正常，1=暂停）
+        * 状态（0=停用，1=启用）
      */
     Integer status,
 

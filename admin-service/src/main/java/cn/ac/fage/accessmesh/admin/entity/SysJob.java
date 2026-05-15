@@ -62,7 +62,7 @@ public class SysJob {
     private Long runAsUserId;
 
     /**
-     * 状态（0=正常，1=暂停）
+        * 状态（0=停用，1=启用）
      */
     private Integer status;
 

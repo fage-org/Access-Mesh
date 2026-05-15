@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermissionConditionDomainServiceImpl;
+import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
@@ -88,6 +89,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
         condition.setTenantId(tenantId);
         condition.setCode(req.code());
         condition.setName(req.name());
+        JsonValidationUtils.validateJson(req.conditionRules());
         condition.setConditionRules(req.conditionRules());
         condition.setEnabled(req.enabled() != null ? req.enabled() : true);
         condition.setDescription(req.description());
@@ -147,7 +149,10 @@ public class ConditionManageServiceImpl implements ConditionManageService {
             throw new IllegalArgumentException("Condition not found: " + req.conditionId());
         }
         if (req.name() != null) condition.setName(req.name());
-        if (req.conditionRules() != null) condition.setConditionRules(req.conditionRules());
+        if (req.conditionRules() != null) {
+            JsonValidationUtils.validateJson(req.conditionRules());
+            condition.setConditionRules(req.conditionRules());
+        }
         if (req.enabled() != null) condition.setEnabled(req.enabled());
         if (req.description() != null) condition.setDescription(req.description());
         condition.setUpdatedAt(LocalDateTime.now());

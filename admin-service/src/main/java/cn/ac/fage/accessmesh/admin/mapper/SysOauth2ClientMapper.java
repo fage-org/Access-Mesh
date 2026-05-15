@@ -24,12 +24,15 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
      * <p>
      * 将指定客户端的delete_flag设置为id（行自身ID），deleted_at设置为当前时间。
      * 用于批量删除场景，避免物理删除。
+     * 包含租户ID过滤，确保租户隔离。
      * </p>
      *
+     * @param tenantId  租户ID
      * @param ids       待删除的客户端ID列表
      * @param deletedAt 删除时间戳
      * @return 更新的行数
      */
-    int softDeleteBatch(@Param("ids") List<Long> ids,
+    int softDeleteBatch(@Param("tenantId") Long tenantId,
+                        @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
 }

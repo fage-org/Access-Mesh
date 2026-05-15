@@ -633,8 +633,8 @@ public class AuthServiceImpl implements AuthService {
                 );
             PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
                 permissionFeignClient.getUserRoles(req);
-            if (result != null && result.data() != null && result.data().roles() != null) {
-                return result.data().roles().stream()
+            if (result != null && result.getData() != null && result.getData().roles() != null) {
+                return result.getData().roles().stream()
                     .map(cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp.RoleSummary::roleName)
                     .collect(Collectors.toList());
             }
@@ -678,9 +678,9 @@ public class AuthServiceImpl implements AuthService {
                 );
             PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp<Map<String, Object>>> result =
                 permissionFeignClient.getEffectivePermissions(req);
-            if (result != null && result.data() != null && result.data().items() != null) {
+            if (result != null && result.getData() != null && result.getData().items() != null) {
                 Set<String> permCodes = new HashSet<>();
-                for (Map<String, Object> item : result.data().items()) {
+                for (Map<String, Object> item : result.getData().items()) {
                     Object opCodeObj = item.get("operationCode");
                     Object resourceCodeObj = item.get("resourceCode");
                     if (opCodeObj != null && resourceCodeObj != null) {
@@ -739,9 +739,9 @@ public class AuthServiceImpl implements AuthService {
                 );
             PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp> result =
                 permissionFeignClient.batchCheckAuth(req);
-            if (result != null && result.data() != null && result.data().items() != null) {
+            if (result != null && result.getData() != null && result.getData().items() != null) {
                 Set<Long> allowed = new HashSet<>();
-                for (cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult check : result.data().items()) {
+                for (cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult check : result.getData().items()) {
                     if (check.allowed()) {
                         try {
                             allowed.add(Long.valueOf(check.resourceCode()));

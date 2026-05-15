@@ -31,5 +31,5 @@ public record OrgQuery(
     /**
      * 父级组织ID（用于查询子组织）
      */
-    String parentOrgId
+    Long parentOrgId
 ) {}

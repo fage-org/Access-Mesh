@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service;
 
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
@@ -26,7 +28,7 @@ public interface OrgTreeConfigService {
      * @param config 组织树配置实体
      * @return 创建的配置ID
      */
-    Long createOrgTreeConfig(SysOrgTreeConfig config);
+    Long createOrgTreeConfig(OrgTreeConfigCreateReq req);
 
     /**
      * 更新组织树配置
@@ -36,7 +38,7 @@ public interface OrgTreeConfigService {
      *
      * @param config 组织树配置实体
      */
-    void updateOrgTreeConfig(SysOrgTreeConfig config);
+    void updateOrgTreeConfig(OrgTreeConfigUpdateReq req);
 
     /**
      * 批量删除组织树配置

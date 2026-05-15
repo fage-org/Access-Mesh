@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service;
 
+import cn.ac.fage.accessmesh.admin.dto.req.JobCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.JobLogPageReq;
@@ -28,7 +30,7 @@ public interface JobService {
      * @param job 任务实体
      * @return 创建的任务ID
      */
-    Long createJob(SysJob job);
+    Long createJob(JobCreateReq req);
 
     /**
      * 更新定时任务
@@ -39,7 +41,7 @@ public interface JobService {
      *
      * @param job 任务实体
      */
-    void updateJob(SysJob job);
+    void updateJob(JobUpdateReq req);
 
     /**
      * 删除定时任务

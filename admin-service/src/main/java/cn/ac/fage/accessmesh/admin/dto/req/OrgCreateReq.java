@@ -35,7 +35,7 @@ public record OrgCreateReq(
     /**
      * 父级组织ID（null表示顶级组织）
      */
-    String parentOrgId,
+    Long parentOrgId,
 
     /**
      * 组织编码

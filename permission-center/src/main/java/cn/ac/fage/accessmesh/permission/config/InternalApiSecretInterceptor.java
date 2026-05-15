@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.permission.util.SecurityEventType;
 import cn.ac.fage.accessmesh.permission.util.SecurityLogUtil;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import jakarta.annotation.PostConstruct;
+import cn.ac.fage.accessmesh.permission.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -70,7 +71,7 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
         String providedSecret = request.getHeader(SECRET_HEADER);
-        if (providedSecret == null || !providedSecret.equals(expectedSecret)) {
+        if (providedSecret == null || !SecurityUtils.constantTimeEquals(providedSecret, expectedSecret)) {
             String userId = request.getHeader("X-User-Id");
             String tenantId = request.getHeader("X-Tenant-Id");
 

@@ -145,7 +145,7 @@ public class MenuServiceImpl implements MenuService {
             syncRetryService.recordSyncFailure(
                 "menu:create:" + menu.getId(),
                 "permission-center",
-                "abstract_user",
+                "resource_entity",
                 String.valueOf(menu.getId()),
                 "create",
                 payload,
@@ -267,7 +267,7 @@ public class MenuServiceImpl implements MenuService {
             syncRetryService.recordSyncFailure(
                 "menu:delete:" + id,
                 "permission-center",
-                "abstract_user",
+                "resource_entity",
                 String.valueOf(id),
                 "delete",
                 null,
@@ -442,7 +442,7 @@ public class MenuServiceImpl implements MenuService {
                     syncRetryService.recordSyncFailure(
                         "menu:create:" + menu.getId(),
                         "permission-center",
-                        "abstract_user",
+                        "resource_entity",
                         String.valueOf(menu.getId()),
                         "create",
                         payload,
@@ -510,7 +510,7 @@ public class MenuServiceImpl implements MenuService {
                 syncRetryService.recordSyncFailure(
                     "menu:delete:" + menu.getId(),
                     "permission-center",
-                    "abstract_user",
+                    "resource_entity",
                     String.valueOf(menu.getId()),
                     "delete",
                     null,

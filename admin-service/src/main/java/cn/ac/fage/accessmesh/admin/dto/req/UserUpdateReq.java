@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.dto.req;
 
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 用户更新请求记录类
  * <p>
@@ -17,6 +19,7 @@ public record UserUpdateReq(
     /**
      * 用户ID
      */
+    @NotNull(message = "用户ID不能为空")
     Long id,
 
     /**

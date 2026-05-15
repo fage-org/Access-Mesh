@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.dto.req;
 
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 组织更新请求记录类
  * <p>
@@ -20,6 +22,7 @@ public record OrgUpdateReq(
     /**
      * 组织ID
      */
+    @NotNull(message = "组织ID不能为空")
     Long id,
 
     /**
@@ -30,7 +33,7 @@ public record OrgUpdateReq(
     /**
      * 父级组织ID
      */
-    String parentOrgId,
+    Long parentOrgId,
 
     /**
      * 组织编码

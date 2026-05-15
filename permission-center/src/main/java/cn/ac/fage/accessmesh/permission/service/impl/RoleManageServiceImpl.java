@@ -38,6 +38,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -356,7 +357,17 @@ public class RoleManageServiceImpl implements RoleManageService {
         if (!groupRoleIds.isEmpty()) {
             // 批量解析组角色的所有子孙ID（1次查询替代N次查询）
             List<Long> descendantIds = abstractRoleDomainService.resolveDescendantIdsBatch(tenantId, groupRoleIds);
-            allIdsToDelete.addAll(descendantIds);
+
+            // Check MANAGE permission on descendant roles too
+            Set<Long> descendantSet = new HashSet<>(descendantIds);
+            Set<Long> deniedDescendantIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, descendantSet, OperationCodeConstants.MANAGE);
+            for (Long descId : descendantIds) {
+                if (!deniedDescendantIds.contains(descId)) {
+                    allIdsToDelete.add(descId);
+                } else {
+                    log.info("操作者{}无权删除子孙角色: {}", operatorId, descId);
+                }
+            }
         }
 
         // 批量软删除所有角色（包括子孙） - 1条UPDATE语句

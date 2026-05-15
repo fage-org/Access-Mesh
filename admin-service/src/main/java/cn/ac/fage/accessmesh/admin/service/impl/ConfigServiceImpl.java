@@ -114,7 +114,7 @@ public class ConfigServiceImpl implements ConfigService {
      * @throws BizException 配置不存在、系统内置配置不可修改
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateConfig(ConfigUpdateReq req) {
         // Permission check - instance-level UPDATE
         permissionValidator.checkInstanceLevel(
@@ -151,7 +151,7 @@ public class ConfigServiceImpl implements ConfigService {
      * @throws BizException 系统内置配置不可删除
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(IdsReq req) {
         // Permission check - batch instance-level DELETE
         List<String> resourceCodes = req.ids().stream()
@@ -179,7 +179,7 @@ public class ConfigServiceImpl implements ConfigService {
         if (!configs.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = configs.stream().map(SysConfig::getId).collect(java.util.stream.Collectors.toList());
-            configMapper.softDeleteBatch(validIds, now);
+            configMapper.softDeleteBatch(TenantContextHolder.getTenantId(), validIds, now);
         }
     }
 }

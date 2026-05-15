@@ -6,8 +6,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
-import cn.ac.fage.accessmesh.perm.common.model.PermCheckReq;
-import cn.ac.fage.accessmesh.perm.common.model.PermCheckResp;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -71,15 +69,6 @@ public interface PermissionFeignClient {
     PermResult<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
 
     // ========== 角色管理 ==========
-
-    /**
-     * 权限校验
-     *
-     * @param req 权限校验请求
-     * @return 权限校验结果
-     */
-    @PostMapping("/api/perm/auth/check")
-    PermResult<PermCheckResp> checkPermission(@RequestBody PermCheckReq req);
 
     /**
      * 创建角色

@@ -9,6 +9,8 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -159,9 +161,16 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         pv.setCreatedAt(LocalDateTime.now());
         versionMapper.insert(pv);
 
-        // 更新缓存
-        permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
-        redisTemplate.opsForValue().set(VERSION_KEY_PREFIX + tenantId + ":" + roleId, newVersion, VERSION_CACHE_TTL_HOURS, TimeUnit.HOURS);
+        // 缓存写入延迟到事务提交后，避免回滚污染缓存
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
+                    redisTemplate.opsForValue().set(VERSION_KEY_PREFIX + tenantId + ":" + roleId, newVersion, VERSION_CACHE_TTL_HOURS, TimeUnit.HOURS);
+                }
+            });
+        }
         return newVersion;
     }
 
@@ -214,23 +223,33 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
             // 准备Redis批量写入数据
             String l2Key = VERSION_KEY_PREFIX + tenantId + ":" + roleId;
             redisKeyToVersion.put(l2Key, newVersion);
-
-            // 更新L1缓存
-            permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
         }
 
         // 3. 批量插入数据库
         versionMapper.insertBatch(newVersions);
 
-        // 4. 批量写入L2缓存（使用Pipeline提高性能）
-        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            for (Map.Entry<String, Long> entry : redisKeyToVersion.entrySet()) {
-                byte[] keyBytes = entry.getKey().getBytes();
-                byte[] valueBytes = entry.getValue().toString().getBytes();
-                connection.set(keyBytes, valueBytes);
-                connection.expire(keyBytes, VERSION_CACHE_TTL_HOURS * 3600);
-            }
-            return null;
-        });
+        // 4. 缓存写入延迟到事务提交后，避免回滚污染缓存
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // L1缓存写入
+                    for (Long roleId : roleIds) {
+                        Long newVersion = roleIdToVersion.getOrDefault(roleId, 1L) + 1;
+                        permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
+                    }
+                    // L2缓存批量写入（使用Pipeline提高性能）
+                    redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+                        for (Map.Entry<String, Long> entry : redisKeyToVersion.entrySet()) {
+                            byte[] keyBytes = entry.getKey().getBytes();
+                            byte[] valueBytes = entry.getValue().toString().getBytes();
+                            connection.set(keyBytes, valueBytes);
+                            connection.expire(keyBytes, VERSION_CACHE_TTL_HOURS * 3600);
+                        }
+                        return null;
+                    });
+                }
+            });
+        }
     }
 }

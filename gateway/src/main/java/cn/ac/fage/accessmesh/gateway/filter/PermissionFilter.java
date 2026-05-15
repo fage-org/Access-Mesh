@@ -96,6 +96,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         Long userId = toLong(userIdObj);
         Long tenantId = toLong(tenantIdObj);
+        if (userId == null || tenantId == null) {
+            return writeForbidden(exchange, "无接口访问权限");
+        }
 
         // 提取路由元数据
         Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
@@ -137,7 +140,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                     permissionCheckCache.put(cacheKey, true);
                     return chain.filter(exchange);
                 } else {
-                    permissionCheckCache.put(cacheKey, false);
+                    // Denial decisions are not cached — permission grants should take effect quickly
                     String reason = resp != null && resp.getData() != null
                         ? resp.getData().getDenyReason() : null;
                     return writeForbidden(exchange, mapReasonToMessage(reason));

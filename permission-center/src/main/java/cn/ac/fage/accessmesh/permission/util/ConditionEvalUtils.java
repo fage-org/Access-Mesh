@@ -73,6 +73,10 @@ public final class ConditionEvalUtils {
             LocalTime now = LocalTime.now();
             LocalTime start = LocalTime.parse(startTime);
             LocalTime end = LocalTime.parse(endTime);
+            if (end.isBefore(start)) {
+                // Cross-midnight range (e.g., 22:00-06:00): now is in range if >= start OR <= end
+                return !now.isBefore(start) || !now.isAfter(end);
+            }
             return !now.isBefore(start) && !now.isAfter(end);
         } catch (DateTimeParseException e) {
             log.warn("无效的时间范围: [{}, {}] — {}", startTime, endTime, e.getMessage());

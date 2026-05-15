@@ -63,6 +63,16 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
                            String externalId, String name, Integer sortOrder, String extra) {
         RoleType rt = RoleType.fromValue(roleType);
 
+        if (parentId != null) {
+            AbstractRole parent = selectValidById(tenantId, parentId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Parent role not found: " + parentId);
+            }
+            if (!parent.getRoleType().equals(roleType)) {
+                throw new IllegalArgumentException("Child roleType must match parent roleType: expected " + parent.getRoleType() + ", got " + roleType);
+            }
+        }
+
         AbstractRole role = new AbstractRole();
         role.setTenantId(tenantId);
         role.setParentId(parentId);

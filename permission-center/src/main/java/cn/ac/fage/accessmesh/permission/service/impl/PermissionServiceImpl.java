@@ -574,11 +574,16 @@ public class PermissionServiceImpl implements PermissionService {
                     .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
                     .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ENABLED.eq(true))
             );
+            // Build permission map indexed by resourceEntityId for O(n+m) lookup
+            Map<Long, List<RoleResourcePermission>> permsByResource = allPerms.stream()
+                .filter(p -> p.getResourceEntityId() != null)
+                .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
+
             for (ResourceApiMapping mapping : apiMappings) {
-                boolean hasCondition = allPerms.stream()
-                    .anyMatch(p -> p.getResourceEntityId().equals(mapping.getResourceEntityId()) && p.getConditionId() != null);
-                Long conditionId = allPerms.stream()
-                    .filter(p -> p.getResourceEntityId().equals(mapping.getResourceEntityId()) && p.getConditionId() != null)
+                List<RoleResourcePermission> resourcePerms = permsByResource.getOrDefault(mapping.getResourceEntityId(), List.of());
+                boolean hasCondition = resourcePerms.stream().anyMatch(p -> p.getConditionId() != null);
+                Long conditionId = resourcePerms.stream()
+                    .filter(p -> p.getConditionId() != null)
                     .map(RoleResourcePermission::getConditionId).findFirst().orElse(null);
                 entries.add(new ApiPermissionEntry(mapping.getServiceCode(), mapping.getHttpMethod(),
                     mapping.getPathPattern(), hasCondition, conditionId));

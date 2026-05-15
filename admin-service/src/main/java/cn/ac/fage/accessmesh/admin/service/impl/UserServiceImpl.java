@@ -107,7 +107,7 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 用户名已存在、手机号已存在、同步任务记录失败等
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Long createUser(UserCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
@@ -179,7 +179,7 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 用户不存在、手机号已存在、同步任务记录失败等
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void updateUser(UserUpdateReq req) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
@@ -253,7 +253,7 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 不能删除自己、用户不存在、同步任务记录失败等
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         long currentUserId = StpUtil.getLoginIdAsLong();
@@ -412,6 +412,7 @@ public class UserServiceImpl implements UserService {
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.in(userIds))
+                .and(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
                 .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
         );
 
@@ -451,7 +452,7 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 用户不存在
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void resetPassword(Long userId, String newPassword) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
@@ -643,7 +644,7 @@ public class UserServiceImpl implements UserService {
      * @param newPassword 新密码（明文）
      */
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void batchResetPassword(IdsReq req, String newPassword) {
         // Permission check - batch instance-level RESET_PASSWORD
         List<String> resourceCodes = req.ids().stream()

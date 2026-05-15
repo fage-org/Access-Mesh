@@ -101,8 +101,34 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         if (entries == null || entries.isEmpty()) {
             return;
         }
-        List<RoleResourcePermission> toInsert = new ArrayList<>(entries.size());
+
+        // Check for soft-deleted records with same composite key and reactivate them
         for (RolePermSnapshot.RolePermEntry entry : entries) {
+            List<RoleResourcePermission> existing = rolePermMapper.selectListByQuery(
+                QueryWrapper.create()
+                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(entry.resourceEntityId()))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(entry.operationPermissionId()))
+                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.ne(0))
+            );
+            if (!existing.isEmpty()) {
+                // Reactivate the soft-deleted record instead of inserting a new one
+                RoleResourcePermission reactivated = existing.get(0);
+                reactivated.setDeleteFlag(0L);
+                reactivated.setUpdatedAt(LocalDateTime.now());
+                reactivated.setGrantSource(changeSource != null ? changeSource : PermConstants.MaintainSource.MANUAL);
+                if (entry.conditionId() != null) {
+                    reactivated.setConditionId(entry.conditionId());
+                }
+                if (entry.canGrant() != null) {
+                    reactivated.setCanGrant(entry.canGrant());
+                }
+                rolePermMapper.update(reactivated);
+                continue;
+            }
+
+            // No existing record (active or soft-deleted), insert new
             RoleResourcePermission rp = new RoleResourcePermission();
             rp.setTenantId(tenantId);
             rp.setAbstractRoleId(roleId);
@@ -118,9 +144,8 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setCreatedAt(now);
             rp.setUpdatedAt(now);
             rp.setDeleteFlag(0L);
-            toInsert.add(rp);
+            rolePermMapper.insert(rp);
         }
-        rolePermMapper.insertBatch(toInsert);
 
         // 版本递增（事务提交后执行，避免缓存被回滚数据污染）
         final Long roleIdForCache = roleId;
@@ -153,23 +178,24 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         }
         LocalDateTime now = LocalDateTime.now();
 
-        // 验证权限归属该角色
-        long validCount = rolePermMapper.selectCountByQuery(
+        // 查询实际属于该角色的有效权限ID
+        List<RoleResourcePermission> validPerms = rolePermMapper.selectListByQuery(
             QueryWrapper.create()
                 .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
                 .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
         );
-        if (validCount == 0) {
+        if (validPerms.isEmpty()) {
             return;
         }
+        List<Long> validIds = validPerms.stream().map(RoleResourcePermission::getId).collect(Collectors.toList());
 
-        // 批量软删除权限（单条SQL，避免N+1）
-        rolePermMapper.softDeleteBatch(tenantId, permissionIds, now);
+        // 批量软删除权限（仅删除属于该角色的有效权限）
+        rolePermMapper.softDeleteBatch(tenantId, validIds, now);
 
-        // 批量级联删除子权限（单条SQL，避免N+1）
-        rolePermMapper.cascadeSoftDeleteChildren(tenantId, permissionIds, now);
+        // 批量级联删除子权限（仅基于有效权限ID）
+        rolePermMapper.cascadeSoftDeleteChildren(tenantId, validIds, now);
 
         // 版本递增（事务提交后执行）
         final Long roleIdForCache = roleId;

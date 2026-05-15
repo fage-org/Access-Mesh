@@ -52,7 +52,7 @@ public record OrgPageReq(
     /**
      * 父级组织ID（用于查询子组织）
      */
-    String parentOrgId
+    Long parentOrgId
 ) {
     /**
      * 获取页码（默认1）

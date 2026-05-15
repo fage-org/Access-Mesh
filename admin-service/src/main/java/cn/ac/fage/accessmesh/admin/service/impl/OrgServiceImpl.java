@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -109,7 +110,7 @@ public class OrgServiceImpl implements OrgService {
 
         int level = 1;
         if (req.parentOrgId() != null) {
-            Long parentId = Long.parseLong(req.parentOrgId());
+            Long parentId = req.parentOrgId();
             SysOrg parent = orgDomainService.selectValidById(tenantId, parentId);
             if (parent != null) {
                 level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
@@ -121,7 +122,7 @@ public class OrgServiceImpl implements OrgService {
 
         SysOrg org = new SysOrg();
         org.setTenantId(tenantId);
-        org.setParentId(req.parentOrgId() != null ? Long.parseLong(req.parentOrgId()) : 0L);
+        org.setParentId(req.parentOrgId() != null ? req.parentOrgId() : 0L);
         org.setOrgType(String.valueOf(req.orgType()));
         org.setCode(req.code());
         org.setName(req.orgName());
@@ -190,8 +191,8 @@ public class OrgServiceImpl implements OrgService {
         }
 
         // Validate parent change only if a new parent is specified
-        if (req.parentOrgId() != null && !req.parentOrgId().isBlank()) {
-            long newParentId = Long.parseLong(req.parentOrgId());
+        if (req.parentOrgId() != null) {
+            long newParentId = req.parentOrgId();
             if (newParentId != org.getParentId()) {
                 SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
                 int newLevel = newParent != null ? (newParent.getLevel() != null ? newParent.getLevel() + 1 : 1) : 1;
@@ -210,7 +211,7 @@ public class OrgServiceImpl implements OrgService {
         }
 
         org.setName(req.orgName());
-        org.setParentId(req.parentOrgId() != null ? Long.parseLong(req.parentOrgId()) : org.getParentId());
+        org.setParentId(req.parentOrgId() != null ? req.parentOrgId() : org.getParentId());
         org.setCode(req.code());
         org.setStatus(req.status());
         org.setUpdatedAt(LocalDateTime.now());
@@ -406,8 +407,7 @@ public class OrgServiceImpl implements OrgService {
             .collect(Collectors.toSet());
         Set<Long> allParentIds = req.orgs().stream()
             .map(OrgCreateReq::parentOrgId)
-            .filter(id -> id != null && !id.isBlank())
-            .map(Long::parseLong)
+            .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
         // 批量查询：1次查询编码 + 1次查询父组织（优化前需要 N 次查询）
@@ -429,8 +429,8 @@ public class OrgServiceImpl implements OrgService {
             // 检查父组织并计算层级
             int level = 1;
             Long parentId = 0L;
-            if (orgReq.parentOrgId() != null && !orgReq.parentOrgId().isBlank()) {
-                Long parsedParentId = Long.parseLong(orgReq.parentOrgId());
+            if (orgReq.parentOrgId() != null) {
+                Long parsedParentId = orgReq.parentOrgId();
                 SysOrg parent = parentOrgMap.get(parsedParentId);
                 if (parent == null) {
                     failedMessages.add("父组织不存在: " + orgReq.parentOrgId());
@@ -584,7 +584,7 @@ public class OrgServiceImpl implements OrgService {
     private OrgResp toResp(SysOrg org, List<OrgResp> children) {
         return new OrgResp(
             org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
-            String.valueOf(org.getParentId()), org.getCode(), null, null,
+            org.getParentId(), org.getCode(), null, null,
             org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );
     }
@@ -604,7 +604,7 @@ public class OrgServiceImpl implements OrgService {
             .filter(o -> parentId.equals(o.getParentId()))
             .map(o -> new OrgResp(
                 o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
-                String.valueOf(o.getParentId()), o.getCode(), null, null,
+                o.getParentId(), o.getCode(), null, null,
                 o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
                 buildTree(all, o.getId())
             ))

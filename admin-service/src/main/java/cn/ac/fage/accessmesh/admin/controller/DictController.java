@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.controller;
 
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.req.DictDataCreateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.DictDataUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.DictTypeCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.DictDataResp;
@@ -127,7 +128,7 @@ public class DictController {
      */
     @PostMapping("/data/update")
     @AuditLog(module = "字典管理", action = "修改数据", targetType = "DICT_DATA")
-    public PermResult<Void> updateDictData(@Valid @RequestBody DictDataCreateReq req) {
+    public PermResult<Void> updateDictData(@Valid @RequestBody DictDataUpdateReq req) {
         dictService.updateDictData(req);
         return PermResult.success();
     }

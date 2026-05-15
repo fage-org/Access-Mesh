@@ -335,7 +335,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> operationMap = loadOperations(operationIds);
+        Map<Long, OperationPermission> operationMap = loadOperations(context.getTenantId(), operationIds);
         context.setOperationMap(operationMap);
 
         Set<Long> resourceIds = allPerms.stream()
@@ -640,12 +640,15 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @param operationIds 操作权限ID集合
      * @return 操作权限ID到操作权限实体的映射
      */
-    private Map<Long, OperationPermission> loadOperations(Set<Long> operationIds) {
+    private Map<Long, OperationPermission> loadOperations(Long tenantId, Set<Long> operationIds) {
         if (operationIds.isEmpty()) {
             return Map.of();
         }
         return operationPermissionMapper.selectListByQuery(
-            QueryWrapper.create().where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
+            QueryWrapper.create()
+                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
+                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0L))
         ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
     }
 
@@ -824,7 +827,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
 
         // 批量解析角色类型编码（避免N+1）
         Set<Integer> roleTypeValues = roleMap.values().stream()
@@ -915,7 +918,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
 
         // 批量解析资源类型编码（避免N+1）
         Set<Integer> resourceTypeValues = perms.stream()
@@ -998,7 +1001,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(opIds);
+        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
 
         // 批量解析资源类型编码（避免N+1）
         Set<Integer> resourceTypeValues = perms.stream()
@@ -1272,7 +1275,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(RoleResourcePermission::getOperationPermissionId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(grantedOpIds);
+        Map<Long, OperationPermission> opMap = loadOperations(tenantId, grantedOpIds);
 
         List<Long> matchedPermissionIds = new ArrayList<>();
         for (RoleResourcePermission perm : perms) {

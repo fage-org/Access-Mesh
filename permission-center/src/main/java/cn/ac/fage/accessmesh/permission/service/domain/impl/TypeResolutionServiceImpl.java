@@ -258,7 +258,9 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码
      * @param codeType         编码类型，null时默认"default"
-     * @param domainCode       域编码，null表示全局
+     * @param domainCode       域编码，null表示全局。
+     *                        注意：当前domainCode仅做域存在性校验（域不存在则返回null），
+     *                        不对查询结果做域范围过滤。域范围过滤应通过DomainClassifyService实现。
      * @return 资源内部ID
      */
     @Override

@@ -104,11 +104,11 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             null // extra
         );
         PermResult<Map<String, Object>> result = permissionFeignClient.createRole(req);
-        if (result == null || result.data() == null) {
+        if (result == null || result.getData() == null) {
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                 "Failed to create role for org: " + orgId);
         }
-        Object idObj = result.data().get("id");
+        Object idObj = result.getData().get("id");
         return idObj != null ? Long.valueOf(idObj.toString()) : null;
     }
 
@@ -170,7 +170,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
         try {
             PermResult<Map<String, Object>> result = permissionFeignClient.batchGrant(req);
-            if (result == null || result.code() != 200) {
+            if (result == null || result.getCode() != 200) {
                 log.warn("Failed to grant menu to role: roleId={}, menuId={}, opCode={}", roleId, menuId, opCode);
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                     "Failed to grant menu permission");
@@ -242,7 +242,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             PermResult<PermissionEffectivePermissionsResp<Map<String, Object>>> viewResult =
                 permissionFeignClient.getEffectivePermissions(viewReq);
 
-            if (viewResult == null || viewResult.data() == null) {
+            if (viewResult == null || viewResult.getData() == null) {
                 log.warn("Failed to query permissions for role: roleId={}, menuId={}", roleId, menuId);
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                     "Failed to query existing permissions");
@@ -252,7 +252,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             List<Long> permissionIds = new ArrayList<>();
             String targetResourceCode = String.valueOf(menuId);
 
-            PermissionEffectivePermissionsResp<Map<String, Object>> respData = viewResult.data();
+            PermissionEffectivePermissionsResp<Map<String, Object>> respData = viewResult.getData();
             if (respData.items() != null) {
                 for (Map<String, Object> item : respData.items()) {
                     Object resourceCodeObj = item.get("resourceCode");
@@ -284,7 +284,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             );
 
             PermResult<Void> result = permissionFeignClient.batchRevoke(revokeReq);
-            if (result == null || result.code() != 200) {
+            if (result == null || result.getCode() != 200) {
                 log.warn("Failed to revoke menu from role: roleId={}, menuId={}, permissionCount={}",
                     roleId, menuId, permissionIds.size());
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
@@ -370,11 +370,11 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     private Map<String, Long> loadOperations(Long tenantId, Long key) {
         OperationListReq req = new OperationListReq("MENU"); // resourceTypeCode
         PermResult<Map<String, Object>> result = permissionFeignClient.listOperations(req);
-        if (result == null || result.data() == null) {
+        if (result == null || result.getData() == null) {
             throw new IllegalStateException("Failed to list operations for tenant " + tenantId);
         }
         // The response is a Map, extract operation list from it
-        Object itemsObj = result.data().get("items");
+        Object itemsObj = result.getData().get("items");
         if (itemsObj instanceof List<?> items) {
             Map<String, Long> ops = new HashMap<>();
             for (Object item : items) {

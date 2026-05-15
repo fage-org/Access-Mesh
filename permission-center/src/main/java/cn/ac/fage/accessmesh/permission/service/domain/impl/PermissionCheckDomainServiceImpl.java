@@ -8,12 +8,15 @@ import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionCheckDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 权限校验领域服务实现类
@@ -29,17 +32,21 @@ import java.util.Map;
 public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainService {
 
     private final TypeResolutionService typeResolutionService;
+    private final EntityBatchLoadDomainService entityBatchLoadService;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入依赖
      *
      * @param typeResolutionService 类型解析服务
+     * @param entityBatchLoadService 实体批量加载服务
      * @param engine                 权限查询引擎
      */
     public PermissionCheckDomainServiceImpl(TypeResolutionService typeResolutionService,
+                                             EntityBatchLoadDomainService entityBatchLoadService,
                                              PermQueryEngine engine) {
         this.typeResolutionService = typeResolutionService;
+        this.entityBatchLoadService = entityBatchLoadService;
         this.engine = engine;
     }
 
@@ -139,8 +146,19 @@ public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainSe
     public AuthCheckResp checkInternal(Long tenantId, Long userId, Long resourceEntityId,
                                         Long operationPermissionId,
                                         String inheritMode, Map<String, Object> context) {
-        String resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type",
-            typeResolutionService.resolveTypeValue(tenantId, "resource_type", null));
+        // Resolve resourceTypeCode from resourceEntityId
+        String resourceTypeCode = null;
+        if (resourceEntityId != null) {
+            Map<Long, ResourceEntity> resourceMap = entityBatchLoadService.batchLoadResources(tenantId, Set.of(resourceEntityId));
+            ResourceEntity resource = resourceMap.get(resourceEntityId);
+            if (resource != null && resource.getResourceType() != null) {
+                resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType());
+            }
+        }
+        if (resourceTypeCode == null) {
+            return AuthCheckResp.deny("CANNOT_RESOLVE_RESOURCE_TYPE");
+        }
+
         PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, null, null);
         q.setOperationPermissionIds(java.util.Set.of(operationPermissionId));
         q.setResourceEntityIds(java.util.Set.of(resourceEntityId));

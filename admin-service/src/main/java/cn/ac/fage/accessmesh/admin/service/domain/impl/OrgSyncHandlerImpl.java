@@ -67,13 +67,13 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
         );
 
         PermResult<Map<String, Object>> result = permissionFeignClient.createResource(req);
-        if (result == null || result.code() != 200 || result.data() == null) {
+        if (result == null || result.getCode() != 200 || result.getData() == null) {
             log.warn("同步组织到权限中心失败: orgId={}, orgName={}",
                 org.getId(), org.getName());
             return null;
         }
 
-        Object idObj = result.data().get("id");
+        Object idObj = result.getData().get("id");
         if (idObj != null) {
             Long permResourceId = Long.valueOf(idObj.toString());
             log.info("同步组织到权限中心成功: orgId={}, permResourceId={}",
@@ -120,7 +120,7 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
         IdsReq req = new IdsReq(List.of(permResourceId));
         PermResult<Void> result = permissionFeignClient.deleteResources(req);
-        if (result == null || result.code() != 200) {
+        if (result == null || result.getCode() != 200) {
             log.warn("从权限中心删除组织失败: permResourceId={}", permResourceId);
             return false;
         }

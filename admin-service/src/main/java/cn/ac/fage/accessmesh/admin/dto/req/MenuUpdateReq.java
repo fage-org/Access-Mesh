@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.dto.req;
 
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 菜单更新请求记录类
  * <p>
@@ -23,6 +25,7 @@ public record MenuUpdateReq(
     /**
      * 菜单ID
      */
+    @NotNull(message = "菜单ID不能为空")
     Long id,
 
     /**
