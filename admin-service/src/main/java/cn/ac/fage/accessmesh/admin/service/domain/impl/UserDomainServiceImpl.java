@@ -73,7 +73,7 @@ public class UserDomainServiceImpl implements UserDomainService {
     /**
      * 批量软删除用户
      * <p>
-     * 将指定用户标记为已删除（deleteFlag设置为当前时间戳）。
+     * 将指定用户标记为已删除（deleteFlag设置为本行id）。
      * 使用单条批量SQL优化性能。
      * </p>
      *

@@ -98,7 +98,7 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
     /**
      * 批量软删除映射
      * <p>
-     * 批量设置映射的deleteFlag为非0值，实现软删除。
+     * 批量设置映射的deleteFlag为本行id，实现软删除。
      * 使用单条SQL批量更新，提高删除效率。
      * </p>
      *
