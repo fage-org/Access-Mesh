@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper.DescendantResult;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,8 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
 /**
  * 菜单领域服务实现类
@@ -139,6 +136,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
      * @param menuIds  菜单ID集合
      * @return menuId到祖先ID列表的映射
      */
+    @Override
     public Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> menuIds) {
         if (menuIds == null || menuIds.isEmpty()) {
             return Collections.emptyMap();
@@ -149,12 +147,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         Set<Long> toLoad = new HashSet<>(menuIds);
 
         while (!toLoad.isEmpty()) {
-            List<SysMenu> loaded = menuMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                    .and(SysMenuTableDef.SYS_MENU.ID.in(toLoad))
-                    .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-            );
+            List<SysMenu> loaded = menuMapper.selectByIdsForAncestors(tenantId, toLoad);
             toLoad.clear();
             for (SysMenu menu : loaded) {
                 entityMap.put(menu.getId(), menu);
@@ -202,12 +195,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (menuId == null) {
             return null;
         }
-        return menuMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.ID.eq(menuId))
-                .and(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        return menuMapper.selectValidById(tenantId, menuId);
     }
 
     /**
@@ -222,12 +210,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (menuIds == null || menuIds.isEmpty()) {
             return List.of();
         }
-        return menuMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.ID.in(menuIds))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        return menuMapper.selectValidByIds(tenantId, menuIds);
     }
 
     /**
@@ -273,12 +256,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
      */
     @Override
     public boolean hasChildren(Long tenantId, Long menuId) {
-        long count = menuMapper.selectCountByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.PARENT_ID.eq(menuId))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        long count = menuMapper.countChildren(tenantId, menuId);
         return count > 0;
     }
 
@@ -294,12 +272,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (permCode == null || permCode.isBlank()) {
             return null;
         }
-        return menuMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.PERM_CODE.eq(permCode))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        return menuMapper.selectByPermCode(tenantId, permCode);
     }
 
     /**
@@ -314,12 +287,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (permCodes == null || permCodes.isEmpty()) {
             return List.of();
         }
-        return menuMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.PERM_CODE.in(permCodes))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        return menuMapper.selectByPermCodes(tenantId, permCodes);
     }
 
     /**
@@ -359,12 +327,7 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         if (permCodes == null || permCodes.isEmpty()) {
             return Set.of();
         }
-        List<SysMenu> existingMenus = menuMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.PERM_CODE.in(permCodes))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-        );
+        List<SysMenu> existingMenus = menuMapper.selectExistingByPermCodes(tenantId, permCodes);
         return existingMenus.stream()
             .map(SysMenu::getPermCode)
             .filter(p -> p != null && !p.isBlank())
@@ -433,11 +396,6 @@ public class MenuDomainServiceImpl implements MenuDomainService {
      */
     @Override
     public List<SysMenu> selectAllValid(Long tenantId) {
-        return menuMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-                .orderBy(SysMenuTableDef.SYS_MENU.SORT_ORDER.asc())
-        );
+        return menuMapper.selectAllValid(tenantId);
     }
 }

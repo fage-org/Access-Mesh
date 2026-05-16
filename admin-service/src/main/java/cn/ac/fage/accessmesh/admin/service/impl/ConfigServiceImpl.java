@@ -1,12 +1,10 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.dto.req.ConfigUpdateReq;
-import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.ConfigResp;
 import cn.ac.fage.accessmesh.admin.entity.SysConfig;
-import cn.ac.fage.accessmesh.admin.entity.table.SysConfigTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysConfigMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
@@ -16,9 +14,7 @@ import cn.ac.fage.accessmesh.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,12 +60,9 @@ public class ConfigServiceImpl implements ConfigService {
      */
     @Override
     public PaginatedResult<ConfigResp> pageConfigs(PageReq pageReq) {
+        Long tenantId = TenantContextHolder.getTenantId();
         Page<SysConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysConfig> result = configMapper.paginate(page,
-            QueryWrapper.create()
-                .where(SysConfigTableDef.SYS_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysConfigTableDef.SYS_CONFIG.DELETE_FLAG.eq(0))
-                .orderBy(SysConfigTableDef.SYS_CONFIG.CREATED_AT.asc()));
+        Page<SysConfig> result = configMapper.selectPageByTenantId(page, tenantId);
 
         var items = result.getRecords().stream()
             .map(c -> new ConfigResp(c.getId(), c.getConfigName(), c.getConfigKey(), c.getConfigValue(), c.getRemark(), c.getCreatedAt(), c.getUpdatedAt()))
@@ -93,9 +86,7 @@ public class ConfigServiceImpl implements ConfigService {
      */
     @Override
     public ConfigResp getConfig(Long id) {
-        SysConfig config = TenantSafeQuery.selectOneByIdSafe(
-            configMapper, SysConfigTableDef.SYS_CONFIG.ID, SysConfigTableDef.SYS_CONFIG.TENANT_ID, SysConfigTableDef.SYS_CONFIG.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), id);
         if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
@@ -123,9 +114,7 @@ public class ConfigServiceImpl implements ConfigService {
             AdminOperationCode.UPDATE
         );
 
-        SysConfig config = TenantSafeQuery.selectOneByIdSafe(
-            configMapper, SysConfigTableDef.SYS_CONFIG.ID, SysConfigTableDef.SYS_CONFIG.TENANT_ID, SysConfigTableDef.SYS_CONFIG.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), req.id());
+        SysConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), req.id());
         if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
@@ -159,13 +148,8 @@ public class ConfigServiceImpl implements ConfigService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
-        // Batch query to check system config and filter valid IDs (performance fix: avoid N+1 queries)
-        List<SysConfig> configs = configMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysConfigTableDef.SYS_CONFIG.ID.in(req.ids()))
-                .and(SysConfigTableDef.SYS_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysConfigTableDef.SYS_CONFIG.DELETE_FLAG.eq(0))
-        );
+        // Batch query to check system config and filter valid IDs
+        List<SysConfig> configs = configMapper.selectListByIdsAndTenantId(TenantContextHolder.getTenantId(), req.ids());
 
         // Check if any config is system config (immutable)
         for (SysConfig config : configs) {
@@ -175,7 +159,7 @@ public class ConfigServiceImpl implements ConfigService {
             }
         }
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // Batch soft delete
         if (!configs.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = configs.stream().map(SysConfig::getId).collect(java.util.stream.Collectors.toList());

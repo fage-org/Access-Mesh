@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysConfig;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -20,11 +21,8 @@ public interface SysConfigMapper extends BaseMapper<SysConfig> {
 
     /**
      * 批量软删除配置
-     * <p>
-     * 将指定配置的delete_flag设置为id（行自身ID），deleted_at设置为当前时间。
-     * 用于批量删除场景，避免物理删除。
-     * </p>
      *
+     * @param tenantId  租户ID
      * @param ids       待删除的配置ID列表
      * @param deletedAt 删除时间戳
      * @return 更新的行数
@@ -32,4 +30,34 @@ public interface SysConfigMapper extends BaseMapper<SysConfig> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 分页查询租户下的配置列表
+     *
+     * @param page     分页参数
+     * @param tenantId 租户ID
+     * @return 分页结果
+     */
+    Page<SysConfig> selectPageByTenantId(Page<SysConfig> page,
+                                         @Param("tenantId") Long tenantId);
+
+    /**
+     * 根据ID列表和租户ID查询配置列表
+     *
+     * @param tenantId 租户ID
+     * @param ids      配置ID列表
+     * @return 配置列表
+     */
+    List<SysConfig> selectListByIdsAndTenantId(@Param("tenantId") Long tenantId,
+                                               @Param("ids") List<Long> ids);
+
+    /**
+     * 根据ID和租户ID查询单条配置
+     *
+     * @param tenantId 租户ID
+     * @param id       配置ID
+     * @return 配置实体
+     */
+    SysConfig selectOneByIdAndTenantId(@Param("tenantId") Long tenantId,
+                                       @Param("id") Long id);
 }

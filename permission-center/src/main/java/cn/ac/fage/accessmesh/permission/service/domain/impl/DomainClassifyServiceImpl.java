@@ -13,7 +13,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,10 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef;
 
 /**
  * 域分类领域服务实现
@@ -135,12 +130,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
         if (resourceTypeCode == null || resourceTypeCode.isBlank()) return null;
 
         // 查所有非全局域
-        List<BizDomain> specificDomains = bizDomainMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.GLOBAL.eq(false))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
+        List<BizDomain> specificDomains = bizDomainMapper.selectNonGlobalByTenant(tenantId);
 
         for (BizDomain domain : specificDomains) {
             Set<String> typeCodes = loadClassifyTypeCodes(tenantId, domain.getId());
@@ -149,7 +139,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
             }
         }
 
-        BizDomain globalDomain = findGlobalDomain(tenantId);
+        BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
         return globalDomain != null ? globalDomain.getId() : null;
     }
 
@@ -159,12 +149,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void ensureGlobalDomain(Long tenantId) {
-        boolean exists = bizDomainMapper.selectCountByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.GLOBAL.eq(true))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        ) > 0;
+        boolean exists = bizDomainMapper.countGlobalByTenant(tenantId) > 0;
         if (!exists) {
             BizDomain global = new BizDomain();
             global.setTenantId(tenantId);
@@ -182,9 +167,8 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      * 判断指定域是否为全局域
      */
     private boolean isGlobalDomain(Long tenantId, Long domainId) {
-        BizDomain domain = bizDomainMapper.selectOneById(domainId);
-        return domain != null && Boolean.TRUE.equals(domain.getGlobal())
-            && domain.getTenantId().equals(tenantId);
+        BizDomain domain = bizDomainMapper.selectValidById(domainId, tenantId);
+        return domain != null && Boolean.TRUE.equals(domain.getGlobal());
     }
 
     /**
@@ -199,28 +183,10 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     }
 
     /**
-     * 查询租户的全局域
-     */
-    private BizDomain findGlobalDomain(Long tenantId) {
-        return bizDomainMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.GLOBAL.eq(true))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
-    }
-
-    /**
      * 从 domain_config 加载指定域的 CLASSIFY 配置
      */
     private Set<String> loadClassifyTypeCodes(Long tenantId, Long bizDomainId) {
-        DomainConfig config = domainConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(ConfigType.CLASSIFY.getValue()))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-        );
+        DomainConfig config = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, ConfigType.CLASSIFY.getValue());
         if (config == null || config.getExtra() == null) return Set.of();
         return parseResourceTypeCodes(config.getExtra());
     }
@@ -229,12 +195,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      * 获取所有非全局域声明的类型码
      */
     private Set<String> getAllClaimedTypeCodes(Long tenantId) {
-        List<BizDomain> specificDomains = bizDomainMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.GLOBAL.eq(false))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
+        List<BizDomain> specificDomains = bizDomainMapper.selectNonGlobalByTenant(tenantId);
         Set<String> claimed = new HashSet<>();
         for (BizDomain domain : specificDomains) {
             claimed.addAll(loadClassifyTypeCodes(tenantId, domain.getId()));
@@ -254,12 +215,8 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      * 加载租户下所有 resource_type 类型码
      */
     private Set<String> loadAllResourceTypeCodes(Long tenantId) {
-        return typeDefinitionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TYPE_KEY.eq("resource_type"))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
-        ).stream().map(TypeDefinition::getTypeCode).filter(Objects::nonNull).collect(Collectors.toSet());
+        return typeDefinitionMapper.selectByTenantAndTypeKey(tenantId, "resource_type")
+            .stream().map(TypeDefinition::getTypeCode).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     /**

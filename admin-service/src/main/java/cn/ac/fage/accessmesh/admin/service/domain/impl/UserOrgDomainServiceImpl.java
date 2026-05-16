@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,9 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef;
 
 /**
  * 用户组织关联领域服务实现类
@@ -61,12 +57,7 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         if (userId == null) {
             return List.of();
         }
-        return userOrgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
-        );
+        return userOrgMapper.selectByUserIdAndTenant(tenantId, userId);
     }
 
     /**
@@ -85,11 +76,7 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         if (userId == null) {
             return;
         }
-        userOrgMapper.deleteByQuery(
-            QueryWrapper.create()
-                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-        );
+        userOrgMapper.deleteByUserId(tenantId, userId);
     }
 
     /**
@@ -109,12 +96,7 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         if (userId == null || orgId == null) {
             return;
         }
-        userOrgMapper.deleteByQuery(
-            QueryWrapper.create()
-                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.eq(orgId))
-        );
+        userOrgMapper.deleteByUserIdAndOrgId(tenantId, userId, orgId);
     }
 
     /**
@@ -154,26 +136,10 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         LocalDateTime now = LocalDateTime.now();
 
         // 将目标组织设为主组织
-        SysUserOrg updatePrimary = new SysUserOrg();
-        updatePrimary.setIsPrimary(true);
-        updatePrimary.setUpdatedAt(now);
-        userOrgMapper.updateByQuery(updatePrimary, QueryWrapper.create()
-            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.eq(orgId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
-        );
+        userOrgMapper.updatePrimaryByUserIdAndOrgId(tenantId, userId, orgId, true, now);
 
         // 将其他组织设为非主组织
-        SysUserOrg updateNonPrimary = new SysUserOrg();
-        updateNonPrimary.setIsPrimary(false);
-        updateNonPrimary.setUpdatedAt(now);
-        userOrgMapper.updateByQuery(updateNonPrimary, QueryWrapper.create()
-            .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.eq(userId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.ORG_ID.ne(orgId))
-            .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
-        );
+        userOrgMapper.updateNonPrimaryByUserIdExclOrgId(tenantId, userId, orgId, false, now);
     }
 
     /**
@@ -224,12 +190,7 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
             return Map.of();
         }
 
-        List<SysUserOrg> allUserOrgs = userOrgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserOrgTableDef.SYS_USER_ORG.TENANT_ID.eq(tenantId))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.USER_ID.in(userIds))
-                .and(SysUserOrgTableDef.SYS_USER_ORG.DELETE_FLAG.eq(0))
-        );
+        List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsSet(tenantId, userIds);
 
         // 为每个用户ID初始化空列表
         Map<Long, List<SysUserOrg>> result = new HashMap<>();

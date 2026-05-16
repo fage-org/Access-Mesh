@@ -2,12 +2,11 @@ package cn.ac.fage.accessmesh.permission.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
-import lombok.Getter;
-import lombok.Setter;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 资源实体数据访问接口
@@ -18,6 +17,104 @@ import java.util.List;
  * </p>
  */
 public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
+
+    /**
+     * 查询指定父资源下的子资源列表
+     *
+     * @param tenantId 租户ID
+     * @param parentId 父资源ID，null表示根级
+     * @return 子资源列表
+     */
+    List<ResourceEntity> selectByParentId(@Param("tenantId") Long tenantId,
+                                          @Param("parentId") Long parentId);
+
+    /**
+     * 查询指定类型的资源列表
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @return 资源列表
+     */
+    List<ResourceEntity> selectByType(@Param("tenantId") Long tenantId,
+                                      @Param("resourceType") Integer resourceType);
+
+    /**
+     * 根据ID查询有效资源（含租户校验）
+     *
+     * @param tenantId  租户ID
+     * @param resourceId 资源ID
+     * @return 资源实体
+     */
+    ResourceEntity selectValidById(@Param("tenantId") Long tenantId,
+                                   @Param("resourceId") Long resourceId);
+
+    /**
+     * 批量查询有效资源（按ID集合）
+     *
+     * @param tenantId    租户ID
+     * @param resourceIds 资源ID集合
+     * @return 资源列表
+     */
+    List<ResourceEntity> selectValidByIds(@Param("tenantId") Long tenantId,
+                                          @Param("resourceIds") Set<Long> resourceIds);
+
+    /**
+     * 查询已存在的编码集合
+     *
+     * @param tenantId 租户ID
+     * @param codes    编码集合
+     * @return 已存在的编码集合
+     */
+    Set<String> selectExistingCodes(@Param("tenantId") Long tenantId,
+                                    @Param("codes") Set<String> codes);
+
+    /**
+     * 根据类型和编码查找资源
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @param code         资源编码
+     * @return 资源实体
+     */
+    ResourceEntity selectByTypeAndCode(@Param("tenantId") Long tenantId,
+                                       @Param("resourceType") Integer resourceType,
+                                       @Param("code") String code);
+
+    /**
+     * 查找指定租户、类型、编码和编码类型的资源
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @param code         资源编码
+     * @param codeType     编码类型
+     * @return 资源实体
+     */
+    ResourceEntity selectByTypeCodeAndCodeType(@Param("tenantId") Long tenantId,
+                                                @Param("resourceType") Integer resourceType,
+                                                @Param("code") String code,
+                                                @Param("codeType") String codeType);
+
+    /**
+     * 批量查询指定类型和编码集合的资源
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @param codes        编码集合
+     * @return 资源列表
+     */
+    List<ResourceEntity> selectByTypeAndCodes(@Param("tenantId") Long tenantId,
+                                               @Param("resourceType") Integer resourceType,
+                                               @Param("codes") Set<String> codes);
+
+    /**
+     * 查询指定租户和类型的所有API资源
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @return 资源列表
+     */
+    List<ResourceEntity> selectApiResourcesByType(@Param("tenantId") Long tenantId,
+                                                   @Param("resourceType") Integer resourceType);
 
     /**
      * 批量软删除资源实体
@@ -111,11 +208,14 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      * 用于封装批量祖先查询的结果，包含资源ID和祖先ID对。
      * </p>
      */
-    @Getter
-    @Setter
     class AncestorResult {
         private Long resourceId;
         private Long ancestorId;
+
+        public Long getResourceId() { return resourceId; }
+        public void setResourceId(Long resourceId) { this.resourceId = resourceId; }
+        public Long getAncestorId() { return ancestorId; }
+        public void setAncestorId(Long ancestorId) { this.ancestorId = ancestorId; }
     }
 
     /**
@@ -124,10 +224,71 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      * 用于封装批量后代查询的结果，包含资源ID和后代ID对。
      * </p>
      */
-    @Getter
-    @Setter
     class DescendantResult {
         private Long resourceId;
         private Long descendantId;
+
+        public Long getResourceId() { return resourceId; }
+        public void setResourceId(Long resourceId) { this.resourceId = resourceId; }
+        public Long getDescendantId() { return descendantId; }
+        public void setDescendantId(Long descendantId) { this.descendantId = descendantId; }
     }
+
+    /**
+     * 查询所有有效资源实体（用于权限树构建）
+     *
+     * @param tenantId 租户ID
+     * @return 资源实体列表
+     */
+    List<ResourceEntity> selectAllValid(@Param("tenantId") Long tenantId);
+
+    /**
+     * 根据资源类型集合查询有效资源实体（用于接口快照scopeAll）
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return 资源实体列表
+     */
+    List<ResourceEntity> selectValidByResourceTypes(@Param("tenantId") Long tenantId,
+                                                     @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
+     * 查询资源树（所有有效且启用的资源，可选资源类型过滤）
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可选
+     * @param matchNone    是否匹配空结果（用于域过滤不匹配时）
+     * @return 资源实体列表
+     */
+    List<ResourceEntity> selectResourceTree(@Param("tenantId") Long tenantId,
+                                             @Param("resourceType") Integer resourceType,
+                                             @Param("matchNone") boolean matchNone);
+
+    /**
+     * 分页查询资源列表（带过滤条件）
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可选
+     * @param matchNone    是否匹配空结果
+     * @param offset       偏移量
+     * @param limit        每页数量
+     * @return 资源实体列表
+     */
+    List<ResourceEntity> selectResourceListPaged(@Param("tenantId") Long tenantId,
+                                                   @Param("resourceType") Integer resourceType,
+                                                   @Param("matchNone") boolean matchNone,
+                                                   @Param("offset") int offset,
+                                                   @Param("limit") int limit);
+
+    /**
+     * 统计资源数量（带过滤条件）
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可选
+     * @param matchNone    是否匹配空结果
+     * @return 资源总数
+     */
+    long selectResourceListCount(@Param("tenantId") Long tenantId,
+                                  @Param("resourceType") Integer resourceType,
+                                  @Param("matchNone") boolean matchNone);
 }

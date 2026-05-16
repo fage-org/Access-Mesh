@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 权限条件数据访问接口
@@ -19,10 +20,6 @@ public interface PermissionConditionMapper extends BaseMapper<PermissionConditio
 
     /**
      * 批量软删除权限条件
-     * <p>
-     * 将指定权限条件的delete_flag设置为id，deleted_at设置为当前时间。
-     * 用于批量删除场景，避免物理删除。
-     * </p>
      *
      * @param tenantId  租户ID
      * @param ids       待删除的权限条件ID列表
@@ -32,4 +29,60 @@ public interface PermissionConditionMapper extends BaseMapper<PermissionConditio
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据租户ID和条件编码查询有效权限条件
+     *
+     * @param tenantId 租户ID
+     * @param code     条件编码
+     * @return 权限条件实体，不存在返回null
+     */
+    PermissionCondition selectValidByCode(@Param("tenantId") Long tenantId,
+                                           @Param("code") String code);
+
+    /**
+     * 根据租户ID和条件编码集合批量查询有效权限条件
+     *
+     * @param tenantId 租户ID
+     * @param codes   条件编码集合
+     * @return 权限条件列表
+     */
+    List<PermissionCondition> selectValidByCodes(@Param("tenantId") Long tenantId,
+                                                  @Param("codes") Set<String> codes);
+
+    /**
+     * 根据ID集合查询有效权限条件（无租户过滤，用于批量加载）
+     *
+     * @param ids 权限条件ID集合
+     * @return 权限条件列表
+     */
+    List<PermissionCondition> selectValidByIdsNoTenant(@Param("ids") Set<Long> ids);
+
+    /**
+     * 根据ID和租户ID查询有效权限条件
+     *
+     * @param conditionId 条件ID
+     * @param tenantId   租户ID
+     * @return 权限条件实体，不存在返回null
+     */
+    PermissionCondition selectValidById(@Param("conditionId") Long conditionId,
+                                         @Param("tenantId") Long tenantId);
+
+    /**
+     * 根据租户ID查询所有有效权限条件列表
+     *
+     * @param tenantId 租户ID
+     * @return 权限条件列表
+     */
+    List<PermissionCondition> selectByTenantId(@Param("tenantId") Long tenantId);
+
+    /**
+     * 根据租户ID和ID集合查询有效权限条件列表
+     *
+     * @param tenantId 租户ID
+     * @param ids      条件ID集合
+     * @return 权限条件列表
+     */
+    List<PermissionCondition> selectValidByIds(@Param("tenantId") Long tenantId,
+                                                @Param("ids") Set<Long> ids);
 }

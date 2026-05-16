@@ -18,6 +18,16 @@ import java.util.List;
 public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
 
     /**
+     * 根据租户ID和服务编码查询有效服务配置
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 服务配置实体
+     */
+    ServiceConfig selectByTenantAndServiceCode(@Param("tenantId") Long tenantId,
+                                               @Param("serviceCode") String serviceCode);
+
+    /**
      * 批量软删除服务配置
      * <p>
      * 将指定服务配置的delete_flag设置为id，deleted_at设置为当前时间。
@@ -32,4 +42,22 @@ public interface ServiceConfigMapper extends BaseMapper<ServiceConfig> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据租户ID查询所有有效服务配置列表
+     *
+     * @param tenantId 租户ID
+     * @return 服务配置列表
+     */
+    List<ServiceConfig> selectByTenantId(@Param("tenantId") Long tenantId);
+
+    /**
+     * 根据租户ID和ID集合查询有效服务配置列表
+     *
+     * @param tenantId 租户ID
+     * @param ids      服务配置ID集合
+     * @return 服务配置列表
+     */
+    List<ServiceConfig> selectValidByIds(@Param("tenantId") Long tenantId,
+                                          @Param("ids") java.util.Set<Long> ids);
 }

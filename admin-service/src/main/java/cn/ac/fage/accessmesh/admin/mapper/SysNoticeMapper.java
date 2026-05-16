@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysNotice;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,6 +18,41 @@ import java.util.List;
  */
 @Mapper
 public interface SysNoticeMapper extends BaseMapper<SysNotice> {
+
+    /**
+     * 根据ID查询未删除的通知（租户隔离）
+     *
+     * @param tenantId 租户ID
+     * @param id       通知ID
+     * @return 通知实体，不存在返回null
+     */
+    SysNotice selectByIdSafe(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
+    /**
+     * 批量查询未删除的通知（租户隔离）
+     *
+     * @param tenantId 租户ID
+     * @param ids      通知ID列表
+     * @return 通知实体列表
+     */
+    List<SysNotice> selectByIdsSafe(@Param("tenantId") Long tenantId, @Param("ids") List<Long> ids);
+
+    /**
+     * 分页查询未删除的通知（租户隔离），按创建时间倒序
+     *
+     * @param page     分页参数（MyBatis-Flex自动拦截）
+     * @param tenantId 租户ID
+     * @return 分页结果
+     */
+    Page<SysNotice> paginateByTenant(@Param("page") Page<SysNotice> page, @Param("tenantId") Long tenantId);
+
+    /**
+     * 查询已发布且未删除的通知列表（租户隔离），按创建时间倒序
+     *
+     * @param tenantId 租户ID
+     * @return 通知实体列表
+     */
+    List<SysNotice> selectPublishedByTenant(@Param("tenantId") Long tenantId);
 
     /**
      * 批量软删除通知公告

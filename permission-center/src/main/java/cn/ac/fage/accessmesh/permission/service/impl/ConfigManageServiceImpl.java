@@ -25,7 +25,6 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -35,12 +34,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.DomainConfigTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.SystemConfigTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.TypeDefinitionTableDef;
 
 /**
  * 配置管理服务实现类
@@ -171,12 +164,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW);
 
-        TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(typeId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
-        );
+        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
         return type != null ? toTypeResp(type) : null;
     }
 
@@ -197,12 +185,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW);
 
-        QueryWrapper qw = QueryWrapper.create()
-            .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-            .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0));
-        // 域过滤已移除：type_definition不再有biz_domain_id列
-        // 如需按域过滤类型，通过DomainClassifyService按类型码过滤
-        return typeDefinitionMapper.selectListByQuery(qw)
+        return typeDefinitionMapper.selectByTenantId(tenantId)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
     }
 
@@ -228,12 +211,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE);
 
         // 检查是否为系统类型，系统类型不可删除
-        TypeDefinition typeDef = typeDefinitionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(typeId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
-        );
+        TypeDefinition typeDef = typeDefinitionMapper.selectValidById(tenantId, typeId);
         if (typeDef != null && Boolean.TRUE.equals(typeDef.getIsSystem())) {
             throw new IllegalStateException("Cannot delete system type: " + typeId);
         }
@@ -280,12 +258,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         engine.validateBatch(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
 
         // 批量查询（避免N+1）
-        List<TypeDefinition> entities = typeDefinitionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.ID.in(validInputIds))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
-        );
+        List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             return;
@@ -341,12 +314,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
         engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE);
 
-        TypeDefinition type = typeDefinitionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(TypeDefinitionTableDef.TYPE_DEFINITION.ID.eq(req.typeId()))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.TENANT_ID.eq(tenantId))
-                .and(TypeDefinitionTableDef.TYPE_DEFINITION.DELETE_FLAG.eq(0))
-        );
+        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
         if (req.name() != null) type.setName(req.name());
         if (req.description() != null) type.setDescription(req.description());
@@ -413,12 +381,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW);
 
-        BizDomain domain = bizDomainMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.ID.eq(domainId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
+        BizDomain domain = bizDomainMapper.selectValidById(domainId, tenantId);
         return domain != null ? toBizDomainResp(domain) : null;
     }
 
@@ -438,11 +401,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW);
 
-        return bizDomainMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        ).stream().map(this::toBizDomainResp).collect(Collectors.toList());
+        return bizDomainMapper.selectByTenantId(tenantId).stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
 
     /**
@@ -510,12 +469,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
 
         // 批量查询（避免N+1）
-        List<BizDomain> entities = bizDomainMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.ID.in(validInputIds))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
+        List<BizDomain> entities = bizDomainMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             return;
@@ -567,12 +521,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
             throw new SecurityException("No permission to update biz domain");
         }
 
-        BizDomain domain = bizDomainMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.ID.eq(req.domainId()))
-                .and(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        );
+        BizDomain domain = bizDomainMapper.selectValidById(req.domainId(), tenantId);
         if (domain == null) throw new IllegalArgumentException("BizDomain not found: " + req.domainId());
         if (req.name() != null) domain.setName(req.name());
         if (req.description() != null) domain.setDescription(req.description());
@@ -609,13 +558,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (bizDomainId == null) {
             throw new IllegalArgumentException("Unknown domainCode: " + req.domainCode());
         }
-        DomainConfig existing = domainConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(req.configType()))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-        );
+        DomainConfig existing = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, req.configType());
 
         if (existing != null) {
             existing.setExtra(req.extra());
@@ -659,13 +602,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (bizDomainId == null) {
             return null;
         }
-        DomainConfig config = domainConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.CONFIG_TYPE.eq(configType))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-        );
+        DomainConfig config = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, configType);
         return config != null ? toDomainConfigResp(config) : null;
     }
 
@@ -686,17 +623,15 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        QueryWrapper qw = QueryWrapper.create()
-            .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-            .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0));
         if (domainCode != null && !domainCode.isBlank()) {
             Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
             if (bizDomainId == null) {
                 return List.of();
             }
-            qw.and(DomainConfigTableDef.DOMAIN_CONFIG.BIZ_DOMAIN_ID.eq(bizDomainId));
+            return domainConfigMapper.selectByTenantAndDomainId(tenantId, bizDomainId)
+                .stream().map(this::toDomainConfigResp).collect(Collectors.toList());
         }
-        return domainConfigMapper.selectListByQuery(qw)
+        return domainConfigMapper.selectByTenantId(tenantId)
             .stream().map(this::toDomainConfigResp).collect(Collectors.toList());
     }
 
@@ -736,12 +671,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
 
         // 批量查询（避免N+1）
-        List<DomainConfig> entities = domainConfigMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(DomainConfigTableDef.DOMAIN_CONFIG.TENANT_ID.eq(tenantId))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.ID.in(validInputIds))
-                .and(DomainConfigTableDef.DOMAIN_CONFIG.DELETE_FLAG.eq(0))
-        );
+        List<DomainConfig> entities = domainConfigMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             return;
@@ -799,12 +729,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (existing == null) {
             return createServiceConfig(tenantId, req, operatorId);
         }
-        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
+        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
         if (config == null) {
             throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
         }
@@ -874,12 +799,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW);
 
-        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(serviceCode))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
+        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
         return config != null ? toServiceConfigResp(config) : null;
     }
 
@@ -899,11 +819,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW);
 
-        return serviceConfigMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        ).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
+        return serviceConfigMapper.selectByTenantId(tenantId).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
     }
 
     /**
@@ -942,12 +858,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
 
         // 批量查询（避免N+1）
-        List<ServiceConfig> entities = serviceConfigMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.ID.in(validInputIds))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
+        List<ServiceConfig> entities = serviceConfigMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             return;
@@ -1012,12 +923,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
      */
     @Override
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
-        return resourceApiMappingMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-        ).stream().map(mapping -> new ApiMappingResp(
+        return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode).stream().map(mapping -> new ApiMappingResp(
             mapping.getId(),
             mapping.getTenantId(),
             mapping.getResourceEntityId(),
@@ -1057,12 +963,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
         JsonValidationUtils.validateJson(req.configValue());
 
-        SystemConfig existing = systemConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SystemConfigTableDef.SYSTEM_CONFIG.CONFIG_KEY.eq(req.configKey()))
-                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
-        );
+        SystemConfig existing = systemConfigMapper.selectByConfigKey(tenantId, req.configKey());
 
         if (existing != null) {
             existing.setConfigValue(req.configValue());
@@ -1102,12 +1003,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        SystemConfig config = systemConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SystemConfigTableDef.SYSTEM_CONFIG.CONFIG_KEY.eq(configKey))
-                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
-        );
+        SystemConfig config = systemConfigMapper.selectByConfigKey(tenantId, configKey);
         return config != null ? toSystemConfigResp(config) : null;
     }
 
@@ -1127,11 +1023,7 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        return systemConfigMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SystemConfigTableDef.SYSTEM_CONFIG.TENANT_ID.eq(tenantId))
-                .and(SystemConfigTableDef.SYSTEM_CONFIG.DELETE_FLAG.eq(0))
-        ).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
+        return systemConfigMapper.selectByTenantId(tenantId).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
     }
 
     // ===== 实体转换方法 =====

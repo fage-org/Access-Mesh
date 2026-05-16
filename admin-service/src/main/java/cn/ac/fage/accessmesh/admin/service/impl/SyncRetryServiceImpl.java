@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysSyncRetry;
-import cn.ac.fage.accessmesh.admin.entity.table.SysSyncRetryTableDef;
 import cn.ac.fage.accessmesh.admin.mapper.SysSyncRetryMapper;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
@@ -11,7 +10,6 @@ import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -26,7 +24,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import cn.ac.fage.accessmesh.common.mybatis.TenantAwareScheduled;
-import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 
 
 /**
@@ -83,12 +80,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         LocalDateTime now = LocalDateTime.now();
         SysSyncRetry existing = null;
         if (messageKey != null) {
-            existing = syncRetryMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                    .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.MESSAGE_KEY.eq(messageKey))
-                    .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
-            );
+            existing = syncRetryMapper.selectByMessageKey(TenantContextHolder.getTenantId(), messageKey);
         }
         if (existing != null) {
             // 更新现有记录
@@ -134,9 +126,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         // Permission check - instance-level UPDATE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
 
-        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
         if (record != null) {
             record.setStatus("success");
             record.setUpdatedAt(LocalDateTime.now());
@@ -161,9 +151,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         // Permission check - instance-level UPDATE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
 
-        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
         if (record != null) {
             LocalDateTime now = LocalDateTime.now();
             record.setRetryCount(record.getRetryCount() + 1);
@@ -186,15 +174,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      */
     @Override
     public List<SysSyncRetry> getPendingRetries() {
-        return syncRetryMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.STATUS.eq("pending"))
-                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.RETRY_COUNT.lt(SysSyncRetryTableDef.SYS_SYNC_RETRY.MAX_RETRIES))
-                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.NEXT_RETRY_AT.le(LocalDateTime.now()))
-                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
-                .orderBy(SysSyncRetryTableDef.SYS_SYNC_RETRY.CREATED_AT.asc())
-        );
+        return syncRetryMapper.selectPendingRetries(TenantContextHolder.getTenantId(), LocalDateTime.now());
     }
 
     /**
@@ -212,9 +192,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         // Permission check - instance-level DELETE on SYNC_RETRY
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.DELETE);
 
-        SysSyncRetry record = TenantSafeQuery.selectOneByIdSafe(
-            syncRetryMapper, SysSyncRetryTableDef.SYS_SYNC_RETRY.ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID, SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
         if (record != null) {
             record.setDeleteFlag(record.getId());
             record.setDeletedAt(LocalDateTime.now());
@@ -234,12 +212,9 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      */
     @Override
     public PaginatedResult<SysSyncRetry> page(PageReq pageReq) {
-        Page<SysSyncRetry> page = syncRetryMapper.paginate(
+        Page<SysSyncRetry> page = syncRetryMapper.paginateByTenantId(
             Page.of(pageReq.getPageNum(), pageReq.getPageSize()),
-            QueryWrapper.create()
-                .where(SysSyncRetryTableDef.SYS_SYNC_RETRY.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysSyncRetryTableDef.SYS_SYNC_RETRY.DELETE_FLAG.eq(0))
-                .orderBy(SysSyncRetryTableDef.SYS_SYNC_RETRY.CREATED_AT.desc())
+            TenantContextHolder.getTenantId()
         );
         long totalPages = (page.getTotalRow() + pageReq.getPageSize() - 1) / pageReq.getPageSize();
         return new PaginatedResult<>(page.getRecords(),

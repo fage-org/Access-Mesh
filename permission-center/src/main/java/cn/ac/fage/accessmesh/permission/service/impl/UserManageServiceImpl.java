@@ -35,7 +35,6 @@ import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -52,9 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 /**
  * 用户管理服务实现类
@@ -64,11 +60,6 @@ import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
  * 批量操作采用批量查询和批量插入策略，避免N+1查询问题。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
  * </p>
- *
- * TODO: 构造函数依赖过多(12个)，违反单一职责原则
- * 建议：拆分为 UserSyncService/UserRoleAssignService/UserQueryService
- * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
- * 业务域过滤按域分类规则判断是否覆盖 USER 资源类型。
  */
 @Service
 public class UserManageServiceImpl implements UserManageService {
@@ -88,22 +79,6 @@ public class UserManageServiceImpl implements UserManageService {
     private final AuthorizationService authorizationService;
     private final PermQueryEngine engine;
 
-    /**
-     * 构造函数注入依赖
-     *
-     * @param abstractUserMapper          抽象用户数据访问层
-     * @param userRoleMapper              用户角色关联数据访问层
-     * @param abstractRoleMapper          抽象角色数据访问层
-     * @param abstractUserDomainService   抽象用户领域服务
-     * @param userRoleDomainService       用户角色领域服务
-     * @param typeResolutionService       类型解析服务
-    * @param domainClassifyService       域分类领域服务
-     * @param operationLogDomainService   操作日志领域服务
-     * @param permissionChangeDomainService 权限变更领域服务
-     * @param objectMapper                JSON对象映射器
-     * @param authorizationService        授权服务
-     * @param engine                      权限查询引擎
-     */
     public UserManageServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
                                  AbstractRoleMapper abstractRoleMapper,
@@ -130,23 +105,9 @@ public class UserManageServiceImpl implements UserManageService {
         this.engine = engine;
     }
 
-    /**
-     * 同步用户信息
-     * <p>
-     * 从外部系统同步用户数据。如果用户已存在（根据用户类型和外部ID判断），则更新用户信息；
-     * 如果用户不存在，则创建新用户。同步操作需要USER_SYNC权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户同步请求，包含用户类型、外部ID、名称、启用状态、扩展信息
-     * @return 用户响应信息
-     * @throws SecurityException    无权限时抛出
-     * @throws IllegalArgumentException 用户类型不存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResp syncUser(Long tenantId, UserSyncReq req) {
-        // 权限校验：同步用户需要USER_SYNC权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.SYNC)) {
             throw new SecurityException("No permission to sync user");
@@ -156,16 +117,9 @@ public class UserManageServiceImpl implements UserManageService {
         if (userType == null) {
             throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
-        AbstractUser existing = abstractUserMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
 
         if (existing != null) {
-            // 用户已存在，更新用户信息
             existing.setName(req.name() != null ? req.name() : existing.getName());
             existing.setEnabled(req.enabled() != null ? req.enabled() : existing.getEnabled());
             existing.setExtra(req.extra() != null ? req.extra() : existing.getExtra());
@@ -174,7 +128,6 @@ public class UserManageServiceImpl implements UserManageService {
             return toUserResp(existing);
         }
 
-        // 用户不存在，创建新用户
         AbstractUser user = new AbstractUser();
         user.setTenantId(tenantId);
         user.setUserType(userType);
@@ -190,25 +143,11 @@ public class UserManageServiceImpl implements UserManageService {
         return toUserResp(user);
     }
 
-    /**
-     * 创建用户
-     * <p>
-     * 创建新的用户记录。创建操作需要USER_CREATE权限。
-     * 如果用户已存在（根据用户类型和外部ID判断），则抛出异常。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户创建请求，包含用户类型、外部ID、名称、启用状态、扩展信息
-     * @return 用户响应信息
-     * @throws SecurityException    无权限时抛出
-     * @throws IllegalArgumentException 用户类型不存在或用户已存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResp createUser(Long tenantId, UserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        // 权限校验：创建用户需要USER_CREATE权限
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
@@ -217,13 +156,7 @@ public class UserManageServiceImpl implements UserManageService {
         if (userType == null) {
             throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
-        AbstractUser existing = abstractUserMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType))
-                .and(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.eq(req.externalId()))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
         if (existing != null) {
             throw new IllegalArgumentException("User already exists");
         }
@@ -242,19 +175,6 @@ public class UserManageServiceImpl implements UserManageService {
         return toUserResp(user);
     }
 
-    /**
-     * 更新用户信息
-     * <p>
-     * 更新用户的名称、启用状态、扩展信息等。
-     * 用户修改自己的信息无需权限校验；修改其他用户需要USER_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户更新请求，包含用户ID、名称、启用状态、扩展信息
-     * @return 用户响应信息
-     * @throws SecurityException    无权限时抛出
-     * @throws IllegalArgumentException 用户不存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
@@ -265,7 +185,6 @@ public class UserManageServiceImpl implements UserManageService {
             throw new IllegalArgumentException("User not found: " + req.userId());
         }
 
-        // 用户修改自己的信息无需权限校验，修改其他用户需要USER_MANAGE权限
         if (!operatorId.equals(req.userId())) {
             engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
         }
@@ -284,39 +203,12 @@ public class UserManageServiceImpl implements UserManageService {
         return toUserResp(existing);
     }
 
-    /**
-     * 获取用户信息
-     * <p>
-     * 根据用户ID查询用户信息，返回用户类型、外部ID、名称、启用状态等。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @return 用户响应信息，不存在返回null
-     */
     @Override
     public UserResp getUser(Long tenantId, Long userId) {
-        AbstractUser user = abstractUserMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.ID.eq(userId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        AbstractUser user = abstractUserMapper.selectValidById(userId, tenantId);
         return user != null ? toUserResp(user) : null;
     }
 
-    /**
-     * 删除单个用户
-     * <p>
-     * 软删除用户记录。用户删除自己的账号无需权限校验；
-     * 删除其他用户需要USER_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @throws SecurityException    无权限时抛出
-     * @throws IllegalArgumentException 用户不存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteUser(Long tenantId, Long userId) {
@@ -327,7 +219,6 @@ public class UserManageServiceImpl implements UserManageService {
             throw new IllegalArgumentException("User not found: " + userId);
         }
 
-        // 用户删除自己的账号无需权限校验，删除其他用户需要USER_MANAGE权限
         if (!operatorId.equals(userId)) {
             engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
         }
@@ -337,18 +228,6 @@ public class UserManageServiceImpl implements UserManageService {
         abstractUserMapper.update(user);
     }
 
-    /**
-     * 批量删除用户
-     * <p>
-     * 批量软删除用户记录及其关联的用户角色关系。
-     * 对于非自身用户，需要USER_MANAGE权限。
-     * 缓存失效在事务提交后执行。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userIds  用户ID列表
-     * @throws SecurityException 无权限删除部分用户时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteUsers(Long tenantId, List<Long> userIds) {
@@ -359,13 +238,8 @@ public class UserManageServiceImpl implements UserManageService {
         Long operatorId = OperatorContext.getOperatorId();
         LocalDateTime now = LocalDateTime.now();
 
-        // 批量查询用户以验证存在性
-        List<AbstractUser> users = abstractUserMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.ID.in(userIds))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        Set<Long> userIdsSet = new LinkedHashSet<>(userIds);
+        List<AbstractUser> users = abstractUserMapper.selectValidByIds(tenantId, userIdsSet);
 
         if (users.isEmpty()) {
             return;
@@ -373,8 +247,6 @@ public class UserManageServiceImpl implements UserManageService {
 
         Set<Long> existingUserIds = users.stream().map(AbstractUser::getId).collect(Collectors.toSet());
 
-        // 权限校验：用户删除自己的账号无需权限校验，删除其他用户需要USER_MANAGE权限
-        // 对于批量操作，仅校验非自身用户
         Set<Long> nonSelfUserIds = existingUserIds.stream()
             .filter(id -> !operatorId.equals(id))
             .collect(Collectors.toSet());
@@ -386,21 +258,14 @@ public class UserManageServiceImpl implements UserManageService {
             }
         }
 
-        // 批量软删除用户
         abstractUserMapper.softDeleteBatch(tenantId, existingUserIds.stream().toList(), now);
 
-        // 批量软删除用户角色关联
-        List<Long> userRoleIds = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(existingUserIds))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        ).stream().map(UserRole::getId).toList();
+        List<UserRole> userRoles = userRoleMapper.selectValidByUserIds(tenantId, existingUserIds);
+        List<Long> userRoleIds = userRoles.stream().map(UserRole::getId).toList();
         if (!userRoleIds.isEmpty()) {
             userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
         }
 
-        // 缓存失效（事务提交后执行）
         final Set<Long> existingUserIdsForCache = existingUserIds;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -413,7 +278,6 @@ public class UserManageServiceImpl implements UserManageService {
             });
         }
 
-        // 记录单条操作日志
         operationLogDomainService.asyncRecord(
             "user", "BATCH_DELETE",
             "abstract_user", null,
@@ -422,22 +286,6 @@ public class UserManageServiceImpl implements UserManageService {
         );
     }
 
-    /**
-     * 分配角色给用户
-     * <p>
-     * 为多个用户分配多个角色。批量处理策略避免N+1查询：
-     * 1. 按用户类型和角色类型分组批量解析ID
-     * 2. 批量权限校验
-     * 3. 批量查询现有关系避免重复插入
-     * 4. 批量插入新关系
-     * 缓存失效在事务提交后执行。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户角色分配请求，包含分配项列表
-     * @throws SecurityException    无权限管理角色时抛出
-     * @throws IllegalArgumentException 用户或角色不存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
@@ -447,8 +295,6 @@ public class UserManageServiceImpl implements UserManageService {
             throw new IllegalArgumentException("items must not be empty");
         }
 
-        // ===== 批量处理策略避免N+1查询 =====
-        // 1. 按用户类型和角色类型分组批量解析ID
         Map<String, Set<String>> userExternalIdsByType = req.items().stream()
             .collect(Collectors.groupingBy(
                 UserAssignRoleReq.AssignItem::subjectTypeCode,
@@ -460,7 +306,6 @@ public class UserManageServiceImpl implements UserManageService {
                 Collectors.mapping(UserAssignRoleReq.AssignItem::roleExternalId, Collectors.toSet())
             ));
 
-        // 2. 批量解析用户ID
         Map<String, Long> userIdMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : userExternalIdsByType.entrySet()) {
             Map<String, Long> partialMap = typeResolutionService.batchResolveUserIds(
@@ -472,7 +317,6 @@ public class UserManageServiceImpl implements UserManageService {
                 )));
         }
 
-        // 3. 批量解析角色ID
         Map<String, Long> roleIdMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : roleExternalIdsByTypeAndDomain.entrySet()) {
             String[] parts = entry.getKey().split(":");
@@ -487,7 +331,6 @@ public class UserManageServiceImpl implements UserManageService {
                 )));
         }
 
-        // 4. 收集所有目标角色ID用于批量权限校验
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
             String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
@@ -497,10 +340,8 @@ public class UserManageServiceImpl implements UserManageService {
             }
         }
 
-        // 5. 批量权限校验，避免N+1查询
         Set<Long> deniedRoleIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
 
-        // 6. 批量查询现有用户角色关系，避免循环内N+1查询
         Set<Long> allUserIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
             String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
@@ -510,24 +351,15 @@ public class UserManageServiceImpl implements UserManageService {
             }
         }
 
-        // 构建现有关系检查键格式：userId:roleId
         Map<String, UserRole> existingRelationMap = new HashMap<>();
         if (!allUserIds.isEmpty() && !targetRoleIds.isEmpty()) {
-            List<UserRole> existingRelations = userRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(targetRoleIds))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-            );
+            List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetIds(tenantId, allUserIds, targetRoleIds, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
                 String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
                 existingRelationMap.put(key, ur);
             }
         }
 
-        // 7. 构建待插入关系列表（跳过已存在和被拒绝的角色）
         List<UserRole> toInsert = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         Set<Long> affectedUserIds = new LinkedHashSet<>();
@@ -548,20 +380,16 @@ public class UserManageServiceImpl implements UserManageService {
                 continue;
             }
 
-            // 使用预校验结果进行权限检查
             if (deniedRoleIds.contains(targetRoleId)) {
                 errors.add("No permission to manage role: " + item.roleTypeCode() + "/" + item.roleExternalId());
                 continue;
             }
 
-            // 检查关系是否已存在
             String relationKey = abstractUserId + ":" + targetRoleId;
             if (existingRelationMap.containsKey(relationKey)) {
-                // 已存在，跳过
                 continue;
             }
 
-            // 创建新关系
             UserRole ur = new UserRole();
             ur.setTenantId(tenantId);
             ur.setAbstractUserId(abstractUserId);
@@ -577,17 +405,14 @@ public class UserManageServiceImpl implements UserManageService {
             affectedUserIds.add(abstractUserId);
         }
 
-        // 8. 验证失败时抛出异常
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join("; ", errors));
         }
 
-        // 9. 批量插入
         if (!toInsert.isEmpty()) {
             userRoleMapper.insertBatch(toInsert);
         }
 
-        // 10. 缓存失效（事务提交后执行）
         if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
             final Set<Long> userIdsForCache = affectedUserIds;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -601,22 +426,6 @@ public class UserManageServiceImpl implements UserManageService {
         }
     }
 
-    /**
-     * 批量为多个用户分配同一角色
-     * <p>
-     * 将指定角色分配给多个用户。批量处理策略避免N+1查询：
-     * 1. 批量解析用户ID
-     * 2. 批量权限校验
-     * 3. 批量查询现有关系避免重复插入
-     * 4. 批量插入新关系
-     * 缓存失效在事务提交后执行。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      批量分配请求，包含用户外部ID列表、角色类型、角色外部ID、业务域编码
-     * @throws SecurityException    无权限管理角色时抛出
-     * @throws IllegalArgumentException 用户或角色不存在时抛出
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
@@ -626,8 +435,6 @@ public class UserManageServiceImpl implements UserManageService {
 
         Long operatorId = OperatorContext.getOperatorId();
 
-        // ===== 批量处理策略避免N+1查询 =====
-        // 1. 批量解析用户ID（所有用户共享同一用户类型）
         Map<String, Long> userIdMap = typeResolutionService.batchResolveUserIds(
             tenantId, req.subjectTypeCode(), new LinkedHashSet<>(req.subjectExternalIds()));
         Map<String, Long> fullUserIdMap = userIdMap.entrySet().stream()
@@ -636,21 +443,18 @@ public class UserManageServiceImpl implements UserManageService {
                 Map.Entry::getValue
             ));
 
-        // 2. 解析单个目标角色ID
         Long targetRoleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (targetRoleId == null) {
             throw new IllegalArgumentException("Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
-        // 3. 批量权限校验
         Set<Long> deniedRoleIds = engine.getDeniedIds(
             tenantId, operatorId, ResourceTypeCode.ROLE, Set.of(targetRoleId), OperationCodeConstants.MANAGE);
         if (deniedRoleIds.contains(targetRoleId)) {
             throw new SecurityException("No permission to manage role: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
-        // 4. 收集所有用户ID
         Set<Long> allUserIds = new LinkedHashSet<>();
         List<String> userNotFoundErrors = new ArrayList<>();
         for (String subjectExternalId : req.subjectExternalIds()) {
@@ -667,24 +471,15 @@ public class UserManageServiceImpl implements UserManageService {
             throw new IllegalArgumentException(String.join("; ", userNotFoundErrors));
         }
 
-        // 5. 批量查询现有用户角色关系
         Map<String, UserRole> existingRelationMap = new HashMap<>();
         if (!allUserIds.isEmpty()) {
-            List<UserRole> existingRelations = userRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(targetRoleId))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-            );
+            List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetId(tenantId, allUserIds, targetRoleId, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
                 String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
                 existingRelationMap.put(key, ur);
             }
         }
 
-        // 6. 构建待插入关系列表
         List<UserRole> toInsert = new ArrayList<>();
         Set<Long> affectedUserIds = new LinkedHashSet<>();
         LocalDateTime now = LocalDateTime.now();
@@ -693,23 +488,21 @@ public class UserManageServiceImpl implements UserManageService {
             String userKey = req.subjectTypeCode() + ":" + subjectExternalId;
             Long abstractUserId = fullUserIdMap.get(userKey);
             if (abstractUserId == null) {
-                continue; // 已在上面验证
+                continue;
             }
 
-            // 检查关系是否已存在
             String relationKey = abstractUserId + ":" + targetRoleId;
             if (existingRelationMap.containsKey(relationKey)) {
-                continue; // 已存在，跳过
+                continue;
             }
 
-            // 创建新关系
             UserRole ur = new UserRole();
             ur.setTenantId(tenantId);
             ur.setAbstractUserId(abstractUserId);
             ur.setTargetType(ResourceTypeCode.ROLE);
             ur.setTargetId(targetRoleId);
             ur.setRelationId(req.relationId());
-            ur.setValidFrom(null); // UserRoleBatchAssignReq没有validFrom/validTo
+            ur.setValidFrom(null);
             ur.setValidTo(null);
             ur.setCreatedAt(now);
             ur.setUpdatedAt(now);
@@ -718,12 +511,10 @@ public class UserManageServiceImpl implements UserManageService {
             affectedUserIds.add(abstractUserId);
         }
 
-        // 7. 批量插入
         if (!toInsert.isEmpty()) {
             userRoleMapper.insertBatch(toInsert);
         }
 
-        // 8. 缓存失效（事务提交后执行）
         if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
             final Set<Long> userIdsForCache = affectedUserIds;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -737,21 +528,6 @@ public class UserManageServiceImpl implements UserManageService {
         }
     }
 
-    /**
-     * 批量撤销用户角色
-     * <p>
-     * 批量撤销用户与角色的关联关系。批量处理策略避免N+1查询：
-     * 1. 按角色类型和用户类型分组批量解析ID
-     * 2. 批量权限校验
-     * 3. 批量查询现有关系
-     * 4. 批量软删除
-     * 缓存失效在事务提交后执行。
-     * 记录权限变更日志和操作日志。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      批量撤销请求，包含撤销项列表
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
@@ -761,13 +537,10 @@ public class UserManageServiceImpl implements UserManageService {
             return;
         }
 
-        // ===== 批量解析策略避免N+1查询 =====
-        // 1. 收集所有唯一的角色外部ID并批量解析
         Set<String> roleExternalIds = req.items().stream()
             .map(UserRoleBatchRevokeReq.RevokeItem::roleExternalId)
             .filter(id -> id != null && !id.isBlank())
             .collect(Collectors.toSet());
-        // 按角色类型和业务域分组批量解析
         Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
             .collect(Collectors.groupingBy(
                 item -> item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : ""),
@@ -787,7 +560,6 @@ public class UserManageServiceImpl implements UserManageService {
                 )));
         }
 
-        // 2. 收集所有唯一的用户外部ID并批量解析
         Map<String, Set<String>> userExternalIdsByType = req.items().stream()
             .collect(Collectors.groupingBy(
                 UserRoleBatchRevokeReq.RevokeItem::subjectTypeCode,
@@ -804,7 +576,6 @@ public class UserManageServiceImpl implements UserManageService {
                 )));
         }
 
-        // 收集所有目标角色ID用于批量权限校验
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
             String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
@@ -814,20 +585,12 @@ public class UserManageServiceImpl implements UserManageService {
             }
         }
 
-        // 批量权限校验，避免N+1查询
         Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
 
-        // 批量加载角色，避免循环内N+1查询
         Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
-            : abstractRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(targetRoleIds))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            ).stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
+            : abstractRoleMapper.selectValidByIds(tenantId, targetRoleIds)
+                .stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
-        // ===== 批量查询用户角色关系，避免循环内N+1查询 =====
-        // 收集所有(userId, roleId)对用于批量查询
         Set<Long> allUserIds = new LinkedHashSet<>();
         Set<Long> allRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
@@ -841,19 +604,10 @@ public class UserManageServiceImpl implements UserManageService {
             }
         }
 
-        // 批量查询所有相关的用户角色关系
         Map<String, UserRole> userRoleMap = new HashMap<>();
         if (!allUserIds.isEmpty() && !allRoleIds.isEmpty()) {
-            List<UserRole> userRoles = userRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(allUserIds))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(ResourceTypeCode.ROLE))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(allRoleIds))
-                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-            );
+            List<UserRole> userRoles = userRoleMapper.selectValidByUserIdsTypeAndTargetIds(tenantId, allUserIds, ResourceTypeCode.ROLE, allRoleIds);
             for (UserRole ur : userRoles) {
-                // 键格式：userId:roleId:relationId（null值用"null"表示）
                 String key = ur.getAbstractUserId() + ":" + ur.getTargetId() + ":" + (ur.getRelationId() != null ? ur.getRelationId() : "null");
                 userRoleMap.put(key, ur);
             }
@@ -864,7 +618,6 @@ public class UserManageServiceImpl implements UserManageService {
         ArrayNode itemsJson = objectMapper.createArrayNode();
         int revoked = 0;
         List<String> deniedItems = new ArrayList<>();
-        // 性能修复：收集ID用于批量软删除
         List<Long> idsToDelete = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
@@ -880,13 +633,11 @@ public class UserManageServiceImpl implements UserManageService {
                 throw new IllegalArgumentException("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }
 
-            // 使用预校验结果进行权限检查
             if (deniedIds.contains(targetRoleId)) {
                 deniedItems.add(item.subjectTypeCode() + "/" + item.subjectExternalId() + " -> " + item.roleTypeCode() + "/" + item.roleExternalId());
-                continue;  // 跳过此项，无权限撤销
+                continue;
             }
 
-            // 从预加载的映射中查找用户角色
             String urKey = abstractUserId + ":" + targetRoleId + ":" + (item.relationId() != null ? item.relationId() : "null");
             UserRole ur = userRoleMap.get(urKey);
             if (ur == null) {
@@ -905,18 +656,15 @@ public class UserManageServiceImpl implements UserManageService {
             roleNode.put("roleName", role != null ? role.getName() : "");
             itemsJson.add(it);
         }
-        // 性能修复：批量软删除代替循环更新
         if (!idsToDelete.isEmpty()) {
             userRoleMapper.softDeleteBatch(tenantId, idsToDelete, now);
         }
 
-        // 记录被拒绝的项目
         if (!deniedItems.isEmpty()) {
             log.info("Operator {} denied to revoke roles for items: {}", operatorId, deniedItems);
         }
 
         Set<Long> uniqueUsers = new LinkedHashSet<>(affectedUserIds);
-        // 缓存失效（事务提交后执行）
         final Set<Long> uniqueUsersForCache = uniqueUsers;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -966,17 +714,6 @@ public class UserManageServiceImpl implements UserManageService {
         );
     }
 
-    /**
-     * 获取用户的角色列表
-     * <p>
-     * 查询用户当前有效的角色关联。有效条件：未删除、有效期范围内。
-     * 批量预加载角色信息避免N+1查询。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户角色列表请求，包含用户类型和用户外部ID
-     * @return 用户角色响应，包含角色摘要列表
-     */
     @Override
     public UserRolesResp getUserRoles(Long tenantId, UserRoleListReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
@@ -984,16 +721,8 @@ public class UserManageServiceImpl implements UserManageService {
             return new UserRolesResp(req.subjectTypeCode(), req.subjectExternalId(), List.of());
         }
         LocalDateTime now = LocalDateTime.now();
-        List<UserRole> userRoles = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.eq(userId))
-                .and(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-                .and(UserRoleTableDef.USER_ROLE.VALID_FROM.le(now).or(UserRoleTableDef.USER_ROLE.VALID_FROM.isNull()))
-                .and(UserRoleTableDef.USER_ROLE.VALID_TO.ge(now).or(UserRoleTableDef.USER_ROLE.VALID_TO.isNull()))
-        );
+        List<UserRole> userRoles = userRoleMapper.selectValidByUserIdWithValidity(userId, tenantId, now);
 
-        // 批量预加载角色，避免N+1查询
         List<RoleSummary> summaries;
         if (userRoles.isEmpty()) {
             summaries = List.of();
@@ -1002,12 +731,7 @@ public class UserManageServiceImpl implements UserManageService {
                 .map(UserRole::getTargetId)
                 .collect(Collectors.toSet());
 
-            List<AbstractRole> roles = abstractRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(targetIds))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                    .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-            );
+            List<AbstractRole> roles = abstractRoleMapper.selectValidByIds(tenantId, targetIds);
 
             Map<Long, AbstractRole> roleMap = roles.stream()
                 .collect(Collectors.toMap(AbstractRole::getId, r -> r));
@@ -1031,94 +755,39 @@ public class UserManageServiceImpl implements UserManageService {
         return new UserRolesResp(req.subjectTypeCode(), req.subjectExternalId(), summaries);
     }
 
-    /**
-     * 分页查询用户列表
-     * <p>
-     * 根据用户类型、业务域、关键词等条件分页查询用户。
-     * 支持模糊搜索用户名称和外部ID。
-     * </p>
-     *
-     * @param tenantId        租户ID
-     * @param subjectTypeCode 用户类型编码，可选
-     * @param domainCode      业务域编码，可选
-     * @param keyword         搜索关键词，可选
-     * @param offset          分页偏移量
-     * @param limit           分页大小
-     * @return 用户响应列表
-     */
     @Override
     public List<UserResp> listUsers(Long tenantId, String subjectTypeCode, String domainCode, String keyword, int offset, int limit) {
-        QueryWrapper queryWrapper = buildUserListQuery(tenantId, subjectTypeCode, domainCode, keyword)
-            .limit(limit)
-            .offset(offset);
-        return abstractUserMapper.selectListByQuery(queryWrapper)
+        Integer userType = null;
+        if (subjectTypeCode != null && !subjectTypeCode.isBlank()) {
+            userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", subjectTypeCode);
+        }
+        boolean matchNone = false;
+        if (domainCode != null && !domainCode.isBlank()) {
+            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER);
+        }
+        if (!matchNone && subjectTypeCode != null && !subjectTypeCode.isBlank() && userType == null) {
+            matchNone = true;
+        }
+        return abstractUserMapper.selectUserListPaged(tenantId, userType, keyword, matchNone, offset, limit)
             .stream().map(this::toUserResp).collect(Collectors.toList());
     }
 
-    /**
-     * 统计用户总数
-     * <p>
-     * 根据用户类型、业务域、关键词等条件统计用户数量。
-     * </p>
-     *
-     * @param tenantId        租户ID
-     * @param subjectTypeCode 用户类型编码，可选
-     * @param domainCode      业务域编码，可选
-     * @param keyword         搜索关键词，可选
-     * @return 用户总数
-     */
     @Override
     public long countUsers(Long tenantId, String subjectTypeCode, String domainCode, String keyword) {
-        return abstractUserMapper.selectCountByQuery(
-            buildUserListQuery(tenantId, subjectTypeCode, domainCode, keyword)
-        );
-    }
-
-    /**
-     * 构建用户列表查询条件
-     * <p>
-     * 根据用户类型、业务域、关键词构建QueryWrapper。
-     * 业务域过滤通过用户角色关联的角色的业务域实现。
-     * </p>
-     *
-     * @param tenantId        租户ID
-     * @param subjectTypeCode 用户类型编码，可选
-     * @param domainCode      业务域编码，可选
-     * @param keyword         搜索关键词，可选
-     * @return QueryWrapper查询条件
-     */
-    private QueryWrapper buildUserListQuery(Long tenantId, String subjectTypeCode, String domainCode, String keyword) {
-        QueryWrapper queryWrapper = QueryWrapper.create()
-            .where(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-            .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0));
+        Integer userType = null;
         if (subjectTypeCode != null && !subjectTypeCode.isBlank()) {
-            Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", subjectTypeCode);
-            if (userType == null) {
-                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
-            }
-            queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.USER_TYPE.eq(userType));
+            userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", subjectTypeCode);
         }
-        if (keyword != null && !keyword.isBlank()) {
-            String pattern = SqlUtil.likePattern(keyword);
-            queryWrapper.and(
-                AbstractUserTableDef.ABSTRACT_USER.NAME.like(pattern)
-                    .or(AbstractUserTableDef.ABSTRACT_USER.EXTERNAL_ID.like(pattern))
-            );
-        }
+        boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            if (!domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER)) {
-                return queryWrapper.and(AbstractUserTableDef.ABSTRACT_USER.ID.eq(PermissionConstants.NONEXISTENT_ID));
-            }
+            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER);
         }
-        return queryWrapper;
+        if (!matchNone && subjectTypeCode != null && !subjectTypeCode.isBlank() && userType == null) {
+            matchNone = true;
+        }
+        return abstractUserMapper.selectUserListCount(tenantId, userType, keyword, matchNone);
     }
 
-    /**
-     * 将AbstractUser实体转换为UserResp响应
-     *
-     * @param user 抽象用户实体
-     * @return 用户响应信息
-     */
     private UserResp toUserResp(AbstractUser user) {
         return new UserResp(
             user.getId(), user.getTenantId(), typeResolutionService.resolveTypeCode(user.getTenantId(), "user_type", user.getUserType()),

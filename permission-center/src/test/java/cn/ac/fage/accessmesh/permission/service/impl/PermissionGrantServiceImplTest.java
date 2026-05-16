@@ -22,8 +22,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -82,6 +82,8 @@ class PermissionGrantServiceImplTest {
     @Mock private AbstractRoleDomainService abstractRoleDomainService;
     /** 域分类领域服务Mock */
     @Mock private DomainClassifyService domainClassifyService;
+    /** 实体批量加载领域服务Mock */
+    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
     /** 权限查询引擎Mock */
     @Mock private PermQueryEngine engine;
 
@@ -101,7 +103,8 @@ class PermissionGrantServiceImplTest {
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
             operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
-            authorizationService, operationPermissionDomainService, abstractRoleDomainService, domainClassifyService, engine
+            authorizationService, operationPermissionDomainService, abstractRoleDomainService, domainClassifyService,
+            entityBatchLoadDomainService, engine
         );
     }
 
@@ -133,7 +136,7 @@ class PermissionGrantServiceImplTest {
 
         DomainConfig config = new DomainConfig();
         config.setExtra("USER,DEPT");
-        when(domainConfigMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(config);
+        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenReturn(config);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SER")).thenReturn(3);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(

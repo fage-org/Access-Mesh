@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.admin.entity.SysFile;
-import cn.ac.fage.accessmesh.admin.entity.table.SysFileTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
@@ -15,7 +14,6 @@ import cn.ac.fage.accessmesh.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -288,12 +286,7 @@ public class FileServiceImpl implements FileService {
 
         Long tenantId = TenantContextHolder.getTenantId();
         // Batch query valid files
-        List<SysFile> files = fileMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysFileTableDef.SYS_FILE.ID.in(req.ids()))
-                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
-        );
+        List<SysFile> files = fileMapper.selectValidByIds(tenantId, req.ids());
 
         if (files.isEmpty()) {
             return;
@@ -337,12 +330,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public FileResp getFile(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysFile f = fileMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
-                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
-        );
+        SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }
@@ -362,14 +350,8 @@ public class FileServiceImpl implements FileService {
     @Override
     public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         Long tenantId = TenantContextHolder.getTenantId();
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
-            .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0));
-        if (bizType != null) qw.and(SysFileTableDef.SYS_FILE.BUCKET_NAME.eq(bizType));
-        qw.orderBy(SysFileTableDef.SYS_FILE.CREATED_AT.desc());
 
-        Page<SysFile> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysFile> result = fileMapper.paginate(page, qw);
+        Page<SysFile> result = fileMapper.paginateFiles(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, bizType);
 
         List<FileResp> items = result.getRecords().stream()
             .map(this::toResp)
@@ -413,12 +395,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public byte[] downloadFile(Long id, jakarta.servlet.http.HttpServletResponse response) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysFile f = fileMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysFileTableDef.SYS_FILE.ID.eq(id))
-                .and(SysFileTableDef.SYS_FILE.TENANT_ID.eq(tenantId))
-                .and(SysFileTableDef.SYS_FILE.DELETE_FLAG.eq(0))
-        );
+        SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }

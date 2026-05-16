@@ -23,7 +23,6 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,8 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
 /**
  * 组织管理服务实现类
@@ -330,16 +327,9 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
-        if (req.orgName() != null) qw.and(SysOrgTableDef.SYS_ORG.NAME.like(req.orgName()));
-        if (req.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(req.orgType())));
-        if (req.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(req.status()));
-        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
+        String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
 
-        Page<SysOrg> page = Page.of(req.getPageNum(), req.getPageSize());
-        Page<SysOrg> result = orgMapper.paginate(page, qw);
+        Page<SysOrg> result = orgMapper.paginateOrgs(Page.of(req.getPageNum(), req.getPageSize()), tenantId, req.orgName(), orgType, req.status());
 
         List<OrgResp> items = result.getRecords().stream()
             .map(o -> toResp(o, List.of()))
@@ -364,16 +354,10 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public List<OrgResp> treeOrgs(OrgQuery query) {
         Long tenantId = TenantContextHolder.getTenantId();
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-            .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0));
-        if (query != null) {
-            if (query.orgType() != null) qw.and(SysOrgTableDef.SYS_ORG.ORG_TYPE.eq(String.valueOf(query.orgType())));
-            if (query.status() != null) qw.and(SysOrgTableDef.SYS_ORG.STATUS.eq(query.status()));
-        }
-        qw.orderBy(SysOrgTableDef.SYS_ORG.SORT_ORDER.asc(), SysOrgTableDef.SYS_ORG.CREATED_AT.asc());
+        String orgType = query != null && query.orgType() != null ? String.valueOf(query.orgType()) : null;
+        Integer status = query != null ? query.status() : null;
 
-        List<SysOrg> all = orgMapper.selectListByQuery(qw);
+        List<SysOrg> all = orgMapper.selectOrgsForTree(tenantId, orgType, status);
         return buildTree(all, 0L);
     }
 

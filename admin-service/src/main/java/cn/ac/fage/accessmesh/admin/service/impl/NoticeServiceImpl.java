@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
-import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.NoticeCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.NoticeUpdateReq;
@@ -13,8 +12,6 @@ import cn.ac.fage.accessmesh.admin.dto.resp.NoticeResp;
 import cn.ac.fage.accessmesh.admin.entity.SysNotice;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.SysUserNotice;
-import cn.ac.fage.accessmesh.admin.entity.table.SysNoticeTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserNoticeTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysNoticeMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserNoticeMapper;
@@ -23,7 +20,6 @@ import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,12 +120,7 @@ public class NoticeServiceImpl implements NoticeService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // FIX: 通过ID查找，而非title
-        SysNotice notice = noticeMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.ID.eq(req.id()))
-                .and(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-        );
+        SysNotice notice = noticeMapper.selectByIdSafe(tenantId, req.id());
 
         if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(),
@@ -170,12 +161,7 @@ public class NoticeServiceImpl implements NoticeService {
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.NOTICE, resourceCodes, AdminOperationCode.DELETE);
 
         // Batch query valid notices (performance fix: avoid N+1 queries)
-        List<SysNotice> notices = noticeMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.ID.in(req.ids()))
-                .and(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-        );
+        List<SysNotice> notices = noticeMapper.selectByIdsSafe(tenantId, req.ids());
         if (!notices.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = notices.stream().map(SysNotice::getId).collect(java.util.stream.Collectors.toList());
@@ -196,12 +182,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     public NoticeResp getNotice(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysNotice notice = noticeMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.ID.eq(id))
-                .and(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-        );
+        SysNotice notice = noticeMapper.selectByIdSafe(tenantId, id);
         if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
@@ -223,11 +204,7 @@ public class NoticeServiceImpl implements NoticeService {
     public PaginatedResult<NoticeResp> pageNotices(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
         Page<SysNotice> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysNotice> result = noticeMapper.paginate(page,
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-                .orderBy(SysNoticeTableDef.SYS_NOTICE.CREATED_AT.desc()));
+        Page<SysNotice> result = noticeMapper.paginateByTenant(page, tenantId);
 
         List<NoticeResp> items = result.getRecords().stream()
             .map(n -> new NoticeResp(n.getId(), n.getTitle(), n.getContent(),
@@ -254,12 +231,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Transactional(rollbackFor = Exception.class)
     public void publishNotice(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysNotice notice = noticeMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.ID.eq(id))
-                .and(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-        );
+        SysNotice notice = noticeMapper.selectByIdSafe(tenantId, id);
         if (notice == null) {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
@@ -286,12 +258,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markNoticeAsRead(Long noticeId, Long userId) {
-        SysUserNotice existing = userNoticeMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserNoticeTableDef.SYS_USER_NOTICE.NOTICE_ID.eq(noticeId))
-                .and(SysUserNoticeTableDef.SYS_USER_NOTICE.USER_ID.eq(userId))
-                .and(SysUserNoticeTableDef.SYS_USER_NOTICE.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-        );
+        SysUserNotice existing = userNoticeMapper.selectByNoticeAndUser(noticeId, userId, TenantContextHolder.getTenantId());
         if (existing != null) {
             existing.setIsRead(true);
             existing.setReadAt(LocalDateTime.now());
@@ -321,22 +288,11 @@ public class NoticeServiceImpl implements NoticeService {
     public List<UserNoticeItem> listMyNotices(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
         // Fallback: use two separate queries since MyBatis-Flex doesn't support raw SQL easily
-        List<SysNotice> notices = noticeMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysNoticeTableDef.SYS_NOTICE.TENANT_ID.eq(tenantId))
-                .and(SysNoticeTableDef.SYS_NOTICE.DELETE_FLAG.eq(0))
-                .and(SysNoticeTableDef.SYS_NOTICE.STATUS.eq(1))
-                .orderBy(SysNoticeTableDef.SYS_NOTICE.CREATED_AT.desc())
-        );
+        List<SysNotice> notices = noticeMapper.selectPublishedByTenant(tenantId);
 
         List<Long> noticeIds = notices.stream().map(SysNotice::getId).toList();
         List<SysUserNotice> userNotices = noticeIds.isEmpty() ? List.of() :
-            userNoticeMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(SysUserNoticeTableDef.SYS_USER_NOTICE.USER_ID.eq(userId))
-                    .and(SysUserNoticeTableDef.SYS_USER_NOTICE.NOTICE_ID.in(noticeIds))
-                    .and(SysUserNoticeTableDef.SYS_USER_NOTICE.TENANT_ID.eq(tenantId))
-            );
+            userNoticeMapper.selectByUserAndNoticeIds(userId, noticeIds, tenantId);
 
         var readMap = userNotices.stream()
             .collect(java.util.stream.Collectors.toMap(SysUserNotice::getNoticeId, un -> un));

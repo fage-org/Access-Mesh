@@ -28,7 +28,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -126,7 +125,7 @@ class PermissionServiceImplCheckInterfaceTest {
     void shouldDenyWhenInterfaceNotRegistered() {
         CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
+        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of());
 
         CheckInterfaceResp resp = service.checkInterface(1L, req);
 
@@ -153,7 +152,7 @@ class PermissionServiceImplCheckInterfaceTest {
         ResourceApiMapping m2 = new ResourceApiMapping();
         m2.setResourceEntityId(101L);
         m2.setPathPattern("/api/user/list");
-        when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(m1, m2));
+        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of(m1, m2));
 
         ResourceEntity r1 = new ResourceEntity();
         r1.setId(100L); r1.setDeleteFlag(0L); r1.setResourceType(1); r1.setCode("api:user:list:1");
@@ -197,7 +196,7 @@ class PermissionServiceImplCheckInterfaceTest {
         ResourceApiMapping mapping = new ResourceApiMapping();
         mapping.setResourceEntityId(100L);
         mapping.setPathPattern("/api/user/list");
-        when(apiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(mapping));
+        when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of(mapping));
 
         ResourceEntity r1 = new ResourceEntity();
         r1.setId(100L); r1.setDeleteFlag(0L); r1.setResourceType(1); r1.setCode("api:user:list:1");

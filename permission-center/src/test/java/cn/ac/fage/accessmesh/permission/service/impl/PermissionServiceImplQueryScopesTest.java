@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
+import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
@@ -22,7 +24,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -171,7 +172,8 @@ class PermissionServiceImplQueryScopesTest {
         scopeAllPerm.setScopeAll(true);
         scopeAllPerm.setDependOn(400L);
         scopeAllPerm.setDeleteFlag(0L);
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(parentPerm), List.of(scopeAllPerm));
+        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
         op.setId(300L);
@@ -222,7 +224,8 @@ class PermissionServiceImplQueryScopesTest {
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(parentPerm), List.of(scopeAllPerm));
+        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
         op.setId(300L);
@@ -273,7 +276,8 @@ class PermissionServiceImplQueryScopesTest {
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(parentPerm), List.of(scopeAllPerm));
+        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
         op.setId(300L);
@@ -340,8 +344,8 @@ class PermissionServiceImplQueryScopesTest {
         dependentScope.setScopeAll(false);
         dependentScope.setDeleteFlag(0L);
 
-        when(rolePermMapper.selectListByQuery(any(QueryWrapper.class)))
-            .thenReturn(List.of(parentPerm), List.of(directScope, dependentScope));
+        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
         op.setId(300L);

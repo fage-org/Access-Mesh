@@ -18,7 +18,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainServ
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -28,8 +27,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
 
 /**
  * 资源依赖管理服务实现类
@@ -152,13 +149,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
      */
     @Override
     public List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-            .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0));
-        if (resourceEntityId != null) {
-            qw.and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(resourceEntityId));
-        }
-        List<ResourceDependency> dependencies = dependencyMapper.selectListByQuery(qw);
+        List<ResourceDependency> dependencies = dependencyMapper.selectByTenantAndResourceEntityId(tenantId, resourceEntityId);
 
         // 批量加载 ResourceEntity 避免 N+1 查询
         Set<Long> resourceIds = extractResourceIds(dependencies);
@@ -181,11 +172,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
      */
     @Override
     public List<ResourceDependencyResp> listAllDependencies(Long tenantId) {
-        List<ResourceDependency> dependencies = dependencyMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceDependency> dependencies = dependencyMapper.selectByTenantId(tenantId);
 
         // 批量加载 ResourceEntity 避免 N+1 查询
         Set<Long> resourceIds = extractResourceIds(dependencies);
@@ -267,11 +254,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         if (Objects.equals(sourceId, targetId)) {
             return true;
         }
-        List<ResourceDependency> allDeps = dependencyMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceDependency> allDeps = dependencyMapper.selectByTenantId(tenantId);
         Map<Long, Set<Long>> graph = new HashMap<>();
         for (ResourceDependency dep : allDeps) {
             graph.computeIfAbsent(dep.getResourceEntityId(), k -> new HashSet<>())
@@ -354,12 +337,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
 
         engine.validateBatch(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, validInputIds, OperationCodeConstants.DELETE);
 
-        List<ResourceDependency> entities = dependencyMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.ID.in(validInputIds))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceDependency> entities = dependencyMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(ResourceDependency::getId).collect(Collectors.toSet());
@@ -400,25 +378,14 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         LocalDateTime now = LocalDateTime.now();
 
         if (isFullSync) {
-            List<ResourceDependency> existingDeps = dependencyMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.OWNER_SERVICE_CODE.eq(req.serviceCode()))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.MAINTAIN_SOURCE.eq(req.maintainSource()))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-            );
+            List<ResourceDependency> existingDeps = dependencyMapper.selectByOwnerService(tenantId, req.serviceCode(), req.maintainSource());
 
             Set<Long> allResourceIds = existingDeps.stream()
                 .flatMap(dep -> Stream.of(dep.getResourceEntityId(), dep.getDependsOnResourceEntityId()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             Map<Long, ResourceEntity> resourceMap = allResourceIds.isEmpty() ? Map.of()
-                : resourceEntityMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(allResourceIds))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-                ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+                : resourceEntityMapper.selectValidByIds(tenantId, allResourceIds).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
             // 收集需要删除的ID（性能优化：使用批量SQL代替循环更新）
             List<Long> idsToDelete = new java.util.ArrayList<>();
@@ -472,13 +439,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         // 构建现有依赖关系的复合键映射
         Map<String, ResourceDependency> existingDepMap = new HashMap<>();
         if (!sourceResourceIds.isEmpty() || !targetResourceIds.isEmpty()) {
-            List<ResourceDependency> existingDeps = dependencyMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.in(sourceResourceIds))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DEPENDS_ON_RESOURCE_ENTITY_ID.in(targetResourceIds))
-                    .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-            );
+            List<ResourceDependency> existingDeps = dependencyMapper.selectBySourceAndTargetIds(tenantId, sourceResourceIds, targetResourceIds);
             for (ResourceDependency dep : existingDeps) {
                 String key = dep.getResourceEntityId() + ":" + dep.getDependsOnResourceEntityId();
                 existingDepMap.put(key, dep);
@@ -602,12 +563,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return Map.of();
         }
-        return resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+        return resourceEntityMapper.selectValidByIds(tenantId, resourceIds).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
     }
 
     /**

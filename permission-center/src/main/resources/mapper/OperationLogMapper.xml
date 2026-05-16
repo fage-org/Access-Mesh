@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.permission.mapper.OperationLogMapper">
+
+    <select id="selectByTenantModuleAction" resultType="cn.ac.fage.accessmesh.permission.entity.OperationLog">
+        SELECT * FROM operation_log
+        WHERE tenant_id = #{tenantId}
+        <if test="module != null">
+          AND module = #{module}
+        </if>
+        <if test="action != null">
+          AND action = #{action}
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTenantModuleAction" resultType="long">
+        SELECT COUNT(*) FROM operation_log
+        WHERE tenant_id = #{tenantId}
+        <if test="module != null">
+          AND module = #{module}
+        </if>
+        <if test="action != null">
+          AND action = #{action}
+        </if>
+    </select>
+
+</mapper>

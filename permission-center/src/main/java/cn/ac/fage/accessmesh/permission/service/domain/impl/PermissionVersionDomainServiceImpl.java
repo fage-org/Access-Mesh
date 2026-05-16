@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.permission.entity.PermissionVersion;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionVersionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -21,7 +20,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import cn.ac.fage.accessmesh.permission.entity.table.PermissionVersionTableDef;
 
 /**
  * 权限版本领域服务实现类
@@ -82,13 +80,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         }
 
         // 数据库查询最新版本记录
-        PermissionVersion latest = versionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(PermissionVersionTableDef.PERMISSION_VERSION.TENANT_ID.eq(tenantId))
-                .and(PermissionVersionTableDef.PERMISSION_VERSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .orderBy(PermissionVersionTableDef.PERMISSION_VERSION.VERSION_NO.desc())
-                .limit(1)
-        );
+        PermissionVersion latest = versionMapper.selectLatestByRole(tenantId, roleId);
         long version = latest != null ? latest.getVersionNo() : 1L;
 
         // 写入双层缓存
@@ -191,12 +183,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         }
 
         // 1. 批量查询所有roleId的版本记录（按版本号降序，便于取最大值）
-        List<PermissionVersion> allVersions = versionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionVersionTableDef.PERMISSION_VERSION.TENANT_ID.eq(tenantId))
-                .and(PermissionVersionTableDef.PERMISSION_VERSION.ABSTRACT_ROLE_ID.in(roleIds))
-                .orderBy(PermissionVersionTableDef.PERMISSION_VERSION.VERSION_NO.desc())
-        );
+        List<PermissionVersion> allVersions = versionMapper.selectAllByRolesOrdered(tenantId, roleIds);
 
         // 构建roleId -> 最大版本号映射（利用排序，每个roleId第一次出现即为最大值）
         Map<Long, Long> roleIdToVersion = new HashMap<>();

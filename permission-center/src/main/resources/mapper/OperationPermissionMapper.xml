@@ -3,6 +3,23 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper">
 
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT id, tenant_id, resource_type, code, name, binary_bit, inherit_mask,
+               created_by, updated_by, deleted_by, created_at, updated_at, deleted_at, delete_flag
+        FROM operation_permission
+        WHERE tenant_id = #{tenantId} AND id = #{operationId} AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT id, tenant_id, resource_type, code, name, binary_bit, inherit_mask,
+               created_by, updated_by, deleted_by, created_at, updated_at, deleted_at, delete_flag
+        FROM operation_permission
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <update id="softDeleteBatch">
         UPDATE operation_permission
         SET delete_flag = id, deleted_at = #{deletedAt}
@@ -12,5 +29,65 @@
         </foreach>
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
+
+    <select id="selectByTenantResourceTypesAndOpCodes" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type IN
+          <foreach collection="resourceTypeValues" item="rtv" open="(" separator="," close=")">
+              #{rtv}
+          </foreach>
+          AND code IN
+          <foreach collection="operationCodes" item="oc" open="(" separator="," close=")">
+              #{oc}
+          </foreach>
+    </select>
+
+    <select id="selectByTenantAndResourceType" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          <if test="resourceType != null">
+              AND resource_type = #{resourceType}
+          </if>
+    </select>
+
+    <select id="selectByResourceTypeAndCode" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code = #{operationCode}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByCode" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND code = #{operationCode}
+          AND delete_flag = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectByResourceTypeAndCodes" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code IN
+        <foreach collection="operationCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByCodes" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND code IN
+        <foreach collection="operationCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND delete_flag = 0
+    </select>
 
 </mapper>

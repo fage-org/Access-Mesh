@@ -23,4 +23,221 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
+    <select id="selectByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectAutoGrantsByResource" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND grant_source = 'AUTO_DEP'
+          AND resource_entity_id = #{resourceEntityId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="countByCompositeKey" resultType="long">
+        SELECT COUNT(*) FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND resource_entity_id = #{resourceId}
+          AND operation_permission_id = #{operationId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectExistingAutoGrants" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND resource_entity_id IN
+        <foreach collection="targetResourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND grant_source = 'AUTO_DEP'
+          AND grant_dep_id IN
+        <foreach collection="depIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE id IN
+        <foreach collection="permissionIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND abstract_role_id = #{roleId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE id = #{permissionId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="roleId != null">
+          AND abstract_role_id = #{roleId}
+        </if>
+    </select>
+
+    <select id="selectSoftDeletedByCompositeKey" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND resource_entity_id = #{resourceId}
+          AND operation_permission_id = #{operationId}
+          AND delete_flag != 0
+    </select>
+
+    <select id="selectValidPermIdsByResourceIds" resultType="java.lang.Long">
+        SELECT id FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_entity_id IN
+        <foreach collection="resourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByRoleIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByRoleIdsAndResourceIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND resource_entity_id IN
+        <foreach collection="resourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND scope_all != true
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByRoleIdAndDependIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND depend_on IN
+        <foreach collection="dependIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByRoleIdAndResourceId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND resource_entity_id = #{resourceEntityId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTenantRolesResourceTypesAndOpPermIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND abstract_role_id IN
+          <foreach collection="abstractRoleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND resource_type IN
+          <foreach collection="resourceTypeValues" item="rtv" open="(" separator="," close=")">
+              #{rtv}
+          </foreach>
+          AND operation_permission_id IN
+          <foreach collection="opPermIds" item="opid" open="(" separator="," close=")">
+              #{opid}
+          </foreach>
+    </select>
+
+    <select id="selectValidByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{abstractRoleId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByResourceEntityId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_entity_id = #{resourceEntityId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectPagedByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="countByRoleId" resultType="long">
+        SELECT COUNT(*) FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id = #{roleId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectScopeAllPerms" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = true
+          AND delete_flag = 0
+          <if test="resourceTypes != null and !resourceTypes.isEmpty()">
+          AND resource_type IN
+          <foreach collection="resourceTypes" item="rtv" open="(" separator="," close=")">
+              #{rtv}
+          </foreach>
+          </if>
+          <if test="operationPermissionIds != null and !operationPermissionIds.isEmpty()">
+          AND operation_permission_id IN
+          <foreach collection="operationPermissionIds" item="opid" open="(" separator="," close=")">
+              #{opid}
+          </foreach>
+          </if>
+    </select>
+
+    <select id="selectInstancePerms" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = false
+          AND delete_flag = 0
+          <if test="resourceEntityIds != null and !resourceEntityIds.isEmpty()">
+          AND resource_entity_id IN
+          <foreach collection="resourceEntityIds" item="eid" open="(" separator="," close=")">
+              #{eid}
+          </foreach>
+          </if>
+          <if test="operationPermissionIds != null and !operationPermissionIds.isEmpty()">
+          AND operation_permission_id IN
+          <foreach collection="operationPermissionIds" item="opid" open="(" separator="," close=")">
+              #{opid}
+          </foreach>
+          </if>
+    </select>
+
 </mapper>

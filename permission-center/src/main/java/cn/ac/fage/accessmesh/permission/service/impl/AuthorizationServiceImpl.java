@@ -12,7 +12,6 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
  * 授权服务实现类
@@ -136,6 +133,7 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             .collect(Collectors.toSet());
         Set<String> operationCodes = permissions.stream()
             .map(GrantCheckKey::operationCode)
+            .map(String::toUpperCase)
             .collect(Collectors.toSet());
 
         // 2. 批量解析资源类型，避免N+1查询
@@ -151,13 +149,8 @@ public class AuthorizationServiceImpl implements AuthorizationService {
 
         // 3. 批量查询操作权限
         Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
-        List<OperationPermission> allOpPerms = operationPermissionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.CODE.in(operationCodes.stream().map(String::toUpperCase).collect(Collectors.toSet())))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<OperationPermission> allOpPerms = operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
+            tenantId, resourceTypeValues, operationCodes);
 
         Map<String, OperationPermission> opPermByKey = new HashMap<>();
         Map<Long, OperationPermission> opPermById = new HashMap<>();
@@ -186,14 +179,8 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
 
-        List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(operatorRoleIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.in(resourceTypeValues))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(opPermIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectByTenantRolesResourceTypesAndOpPermIds(
+            tenantId, operatorRoleIds, resourceTypeValues, opPermIds);
 
         // 6. 构建查找映射
         Map<String, List<RoleResourcePermission>> permsBySpecificResource = new HashMap<>();

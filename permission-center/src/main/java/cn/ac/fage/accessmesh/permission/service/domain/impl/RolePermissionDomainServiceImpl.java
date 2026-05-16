@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,9 +16,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
  * 角色权限领域服务实现类
@@ -50,9 +47,6 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
     /**
      * 获取角色的权限快照
-     * <p>
-     * 查询角色的所有权限配置，包含版本号，用于权限校验
-     * </p>
      *
      * @param tenantId 租户ID
      * @param roleId   角色ID
@@ -60,12 +54,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
      */
     @Override
     public RolePermSnapshot getRolePermissions(Long tenantId, Long roleId) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectByRoleId(tenantId, roleId);
 
         long version = permissionVersionDomainService.getCurrentVersion(tenantId, roleId);
 
@@ -85,10 +74,6 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
     /**
      * 批量授予角色权限
-     * <p>
-     * 批量插入权限记录，事务提交后递增版本号。
-     * 版本递增使用TransactionSynchronization确保在事务提交后执行。
-     * </p>
      *
      * @param tenantId     租户ID
      * @param roleId       角色ID
@@ -104,14 +89,8 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
         // Check for soft-deleted records with same composite key and reactivate them
         for (RolePermSnapshot.RolePermEntry entry : entries) {
-            List<RoleResourcePermission> existing = rolePermMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(entry.resourceEntityId()))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(entry.operationPermissionId()))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.ne(0))
-            );
+            List<RoleResourcePermission> existing = rolePermMapper.selectSoftDeletedByCompositeKey(
+                tenantId, roleId, entry.resourceEntityId(), entry.operationPermissionId());
             if (!existing.isEmpty()) {
                 // Reactivate the soft-deleted record instead of inserting a new one
                 RoleResourcePermission reactivated = existing.get(0);
@@ -161,10 +140,6 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
     /**
      * 批量撤销角色权限
-     * <p>
-     * 先验证权限归属，然后批量软删除。
-     * 同时级联删除依赖该权限的子权限。
-     * </p>
      *
      * @param tenantId     租户ID
      * @param roleId       角色ID
@@ -179,13 +154,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         LocalDateTime now = LocalDateTime.now();
 
         // 查询实际属于该角色的有效权限ID
-        List<RoleResourcePermission> validPerms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.in(permissionIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> validPerms = rolePermMapper.selectValidByIds(tenantId, roleId, permissionIds);
         if (validPerms.isEmpty()) {
             return;
         }
@@ -211,9 +180,6 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
 
     /**
      * 撤销单个权限并级联删除子权限
-     * <p>
-     * 软删除指定权限，同时删除所有依赖该权限的子权限
-     * </p>
      *
      * @param tenantId   租户ID
      * @param roleId     角色ID
@@ -249,13 +215,6 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         if (permissionId == null) {
             return null;
         }
-        QueryWrapper qw = QueryWrapper.create()
-            .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ID.eq(permissionId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
-        if (roleId != null) {
-            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId));
-        }
-        return rolePermMapper.selectOneByQuery(qw);
+        return rolePermMapper.selectValidById(tenantId, roleId, permissionId);
     }
 }

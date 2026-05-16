@@ -50,7 +50,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -69,12 +68,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
 
 /**
  * 权限服务实现类
@@ -229,13 +222,8 @@ public class PermissionServiceImpl implements PermissionService {
         if (userId == null) return CheckInterfaceResp.deny("USER_NOT_FOUND");
 
         // 查询API映射配置
-        List<ResourceApiMapping> mappings = apiMappingMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.HTTP_METHOD.eq(req.httpMethod()))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ENABLED.eq(true)));
+        List<ResourceApiMapping> mappings = apiMappingMapper.selectForInterfaceCheck(
+            tenantId, req.serviceCode(), req.httpMethod());
         if (mappings.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
 
         // 匹配路径模式
@@ -528,12 +516,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // 查询所有角色权限
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(validRoleIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleIds(tenantId, validRoleIds);
 
         // 1. 获取类型级权限的资源类型（scopeAll=true）
         Set<Integer> scopeAllResourceTypes = allPerms.stream()
@@ -546,12 +529,8 @@ public class PermissionServiceImpl implements PermissionService {
 
         // 2. 对scopeAll=true的资源类型，批量查询所有资源
         if (!scopeAllResourceTypes.isEmpty()) {
-            List<ResourceEntity> allTypeResources = resourceEntityMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.in(scopeAllResourceTypes))
-                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            );
+            List<ResourceEntity> allTypeResources = resourceEntityMapper.selectValidByResourceTypes(
+                tenantId, scopeAllResourceTypes);
             allowedResourceIds.addAll(allTypeResources.stream()
                 .map(ResourceEntity::getId)
                 .toList());
@@ -566,14 +545,8 @@ public class PermissionServiceImpl implements PermissionService {
         // 查询API映射并构建响应
         List<ApiPermissionEntry> entries = new ArrayList<>();
         if (!allowedResourceIds.isEmpty()) {
-            List<ResourceApiMapping> apiMappings = apiMappingMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                    .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(req.serviceCode()))
-                    .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.in(allowedResourceIds))
-                    .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-                    .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ENABLED.eq(true))
-            );
+            List<ResourceApiMapping> apiMappings = apiMappingMapper.selectForSnapshot(
+                tenantId, req.serviceCode(), allowedResourceIds);
             // Build permission map indexed by resourceEntityId for O(n+m) lookup
             Map<Long, List<RoleResourcePermission>> permsByResource = allPerms.stream()
                 .filter(p -> p.getResourceEntityId() != null)
@@ -632,14 +605,8 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // 查询所有实例级权限
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceEntityIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.ne(true))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleIdsAndResourceIds(
+            tenantId, roleIds, resourceEntityIds);
 
         if (perms.isEmpty()) {
             return List.of();
@@ -808,12 +775,8 @@ public class PermissionServiceImpl implements PermissionService {
      * </p>
      */
     private Map<Long, List<RoleResourcePermission>> buildPermissionMap(Long tenantId, TreeContext context) {
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(context.validRoleIds))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleIds(
+            tenantId, context.validRoleIds);
 
         return allPerms.stream()
             .filter(p -> p.getResourceEntityId() != null)
@@ -826,11 +789,7 @@ public class PermissionServiceImpl implements PermissionService {
     private PermissionTreeResp buildPermissionTreeResponse(Long tenantId, TreeContext context,
                                                             Map<Long, List<RoleResourcePermission>> permsByResource) {
         // 批量加载所有资源
-        List<ResourceEntity> allResources = resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
         Map<Long, ResourceEntity> allResourceMap = allResources.stream()
             .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 

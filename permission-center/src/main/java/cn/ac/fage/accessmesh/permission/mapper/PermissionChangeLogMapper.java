@@ -93,4 +93,32 @@ public interface PermissionChangeLogMapper extends BaseMapper<PermissionChangeLo
                       @Param("since") LocalDateTime since,
                       @Param("until") LocalDateTime until,
                       @Param("eventTypes") List<String> eventTypes);
+
+    /**
+     * 根据租户ID和可选实体类型/实体ID查询变更日志列表（按创建时间倒序）
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型，可为null
+     * @param entityId   实体ID，可为null
+     * @param offset     分页偏移量
+     * @param limit      分页大小
+     * @return 变更日志列表
+     */
+    List<PermissionChangeLog> selectByTenantEntityTypeEntityId(@Param("tenantId") Long tenantId,
+                                                                 @Param("entityType") String entityType,
+                                                                 @Param("entityId") Long entityId,
+                                                                 @Param("offset") int offset,
+                                                                 @Param("limit") int limit);
+
+    /**
+     * 根据租户ID和可选实体类型/实体ID统计变更日志数量
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型，可为null
+     * @param entityId   实体ID，可为null
+     * @return 变更日志总数
+     */
+    long countByTenantEntityTypeEntityId(@Param("tenantId") Long tenantId,
+                                          @Param("entityType") String entityType,
+                                          @Param("entityId") Long entityId);
 }

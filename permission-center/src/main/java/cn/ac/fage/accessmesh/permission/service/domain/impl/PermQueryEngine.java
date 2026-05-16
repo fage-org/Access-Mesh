@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -19,18 +18,17 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
- * 统一权限查询引擎 — 所有权限校验的唯一入口。
+ * 统一权限查询引擎 -- 所有权限校验的唯一入口。
  *
  * <h3>查询流程</h3>
  * <ol>
- *   <li>解析用户角色（缓存L1→L2→DB）</li>
+ *   <li>解析用户角色（缓存L1->L2->DB）</li>
  *   <li>解析资源类型码和操作码为内部ID（批量）</li>
- *   <li>查询类型级权限（scopeAll=true）— 1条SQL</li>
+ *   <li>查询类型级权限（scopeAll=true）-- 1条SQL</li>
  *   <li>如果scopeAll匹配则提前返回</li>
- *   <li>查询实例级权限 — 1条SQL</li>
+ *   <li>查询实例级权限 -- 1条SQL</li>
  *   <li>评估条件和冲突（按参数标志）</li>
  *   <li>加载辅助实体（按参数标志）</li>
  *   <li>构建统一PermResult结果</li>
@@ -90,25 +88,25 @@ public class PermQueryEngine {
      * @return 权限查询结果
      */
     public PermResult query(PermQuery q) {
-        // ── 1. 解析角色 ──
+        // -- 1. 解析角色 --
         Set<Long> roleIds = resolveRoleIds(q);
         if (roleIds.isEmpty()) {
             return PermResult.deny("NO_ROLE");
         }
 
-        // ── 2. 解析资源类型 ──
+        // -- 2. 解析资源类型 --
         Set<Integer> resourceTypes = resolveResourceTypes(q);
 
-        // ── 3. 解析操作ID ──
+        // -- 3. 解析操作ID --
         Set<Long> opIds = resolveOperationIds(q);
 
-        // ── 4. 查询类型级权限（scopeAll=true） ──
+        // -- 4. 查询类型级权限（scopeAll=true） --
         List<RolePermEntry> scopeAllEntries = List.of();
         if (q.queryScopeAll() && !resourceTypes.isEmpty() && !opIds.isEmpty()) {
             scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, resourceTypes, opIds);
         }
 
-        // ── 5. scopeAll匹配时提前返回 ──
+        // -- 5. scopeAll匹配时提前返回 --
         if (!scopeAllEntries.isEmpty() && q.earlyReturnOnScopeAll()) {
             scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
             if (scopeAllEntries.isEmpty()) {
@@ -123,7 +121,7 @@ public class PermQueryEngine {
             return builder.build();
         }
 
-        // ── 6. 解析并查询实例级权限 ──
+        // -- 6. 解析并查询实例级权限 --
         Set<Long> entityIds = resolveEntityIds(q);
         List<RolePermEntry> instanceEntries = List.of();
         Map<Long, OperationPermission> opCache = Map.of();
@@ -150,7 +148,7 @@ public class PermQueryEngine {
             }
         }
 
-        // ── 7. 合并scopeAll和实例级结果 ──
+        // -- 7. 合并scopeAll和实例级结果 --
         List<RolePermEntry> combined = new ArrayList<>(scopeAllEntries);
         combined.addAll(instanceEntries);
         if (combined.isEmpty()) {
@@ -225,7 +223,7 @@ public class PermQueryEngine {
     }
 
     /**
-     * 批量权限检查 — 优化版，最小化数据库查询。
+     * 批量权限检查 -- 优化版，最小化数据库查询。
      * <p>
      * 相比N次单独查询，此方法：
      * <ol>
@@ -373,7 +371,7 @@ public class PermQueryEngine {
      * @return 权限条目列表
      */
     public List<RolePermEntry> queryTypeLevelPerms(Long tenantId, Set<Long> roleIds,
-                                                     Integer resourceType,
+                                                 Integer resourceType,
                                                      Set<Long> operationPermissionIds) {
         return queryScopeAll(tenantId, roleIds, Set.of(resourceType), operationPermissionIds);
     }
@@ -388,8 +386,8 @@ public class PermQueryEngine {
      */
     public Set<Integer> getResourceTypesWithScopeAll(Long tenantId, Set<Long> roleIds,
                                                       Set<Long> operationIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            buildTypeLevel(tenantId, roleIds, Set.of(), operationIds));
+        List<RoleResourcePermission> perms = rolePermMapper.selectScopeAllPerms(
+            tenantId, roleIds, null, operationIds);
         return perms.stream().map(RoleResourcePermission::getResourceType).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
@@ -446,7 +444,7 @@ public class PermQueryEngine {
         if (q.useRoleCache()) {
             return userRoleDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
         }
-        // bypass cache — direct batch resolve
+        // bypass cache -- direct batch resolve
         Map<Long, Set<Long>> batch = userRoleDomainService.batchResolveEffectiveRoles(
             q.tenantId(), Set.of(q.userId()));
         return batch.getOrDefault(q.userId(), Set.of());
@@ -510,8 +508,8 @@ public class PermQueryEngine {
      */
     private List<RolePermEntry> queryScopeAll(Long tenantId, Set<Long> roleIds,
                                                Set<Integer> types, Set<Long> opIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            buildTypeLevel(tenantId, roleIds, types, opIds));
+        List<RoleResourcePermission> perms = rolePermMapper.selectScopeAllPerms(
+            tenantId, roleIds, types, opIds);
         return perms.stream().map(entryMapper::toEntry).toList();
     }
 
@@ -520,9 +518,8 @@ public class PermQueryEngine {
      */
     private List<RolePermEntry> queryInstance(Long tenantId, Set<Long> roleIds,
                                                Set<Long> entityIds, Set<Long> opIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            buildInstance(tenantId, roleIds, entityIds,
-                opIds.isEmpty() ? null : opIds));
+        List<RoleResourcePermission> perms = rolePermMapper.selectInstancePerms(
+            tenantId, roleIds, entityIds, opIds);
         return perms.stream().map(entryMapper::toEntry).toList();
     }
 
@@ -540,48 +537,6 @@ public class PermQueryEngine {
             entries = conflictDomainService.filterPermMutex(q.tenantId(), entries);
         }
         return entries;
-    }
-
-    // ===== 内联SQL构建器（替代PermQueryConditions） =====
-
-    /**
-     * 构建类型级权限查询条件
-     */
-    private QueryWrapper buildTypeLevel(Long tenantId, Set<Long> roleIds,
-                                         Set<Integer> resourceTypes,
-                                         Set<Long> operationPermissionIds) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(true))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
-        if (resourceTypes != null && !resourceTypes.isEmpty()) {
-            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_TYPE.in(resourceTypes));
-        }
-        if (operationPermissionIds != null && !operationPermissionIds.isEmpty()) {
-            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(operationPermissionIds));
-        }
-        return qw;
-    }
-
-    /**
-     * 构建实例级权限查询条件
-     */
-    private QueryWrapper buildInstance(Long tenantId, Set<Long> roleIds,
-                                        Set<Long> resourceEntityIds,
-                                        Set<Long> operationPermissionIds) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.SCOPE_ALL.eq(false))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
-        if (resourceEntityIds != null && !resourceEntityIds.isEmpty()) {
-            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(resourceEntityIds));
-        }
-        if (operationPermissionIds != null && !operationPermissionIds.isEmpty()) {
-            qw.and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.in(operationPermissionIds));
-        }
-        return qw;
     }
 
     /**

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,6 +21,34 @@ import java.util.Set;
  */
 @Mapper
 public interface SysOrgMapper extends BaseMapper<SysOrg> {
+
+    /**
+     * 分页查询组织列表
+     *
+     * @param page     分页参数
+     * @param tenantId 租户ID
+     * @param orgName  组织名称模糊过滤，可选
+     * @param orgType  组织类型过滤，可选
+     * @param status   状态过滤，可选
+     * @return 分页结果
+     */
+    Page<SysOrg> paginateOrgs(@Param("page") Page<SysOrg> page,
+                              @Param("tenantId") Long tenantId,
+                              @Param("orgName") String orgName,
+                              @Param("orgType") String orgType,
+                              @Param("status") Integer status);
+
+    /**
+     * 查询组织列表（用于构建树）
+     *
+     * @param tenantId 租户ID
+     * @param orgType  组织类型过滤，可选
+     * @param status   状态过滤，可选
+     * @return 组织列表
+     */
+    List<SysOrg> selectOrgsForTree(@Param("tenantId") Long tenantId,
+                                   @Param("orgType") String orgType,
+                                   @Param("status") Integer status);
 
     /**
      * 批量软删除组织
@@ -92,4 +121,64 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
         private Long orgId;
         private Long descendantId;
     }
+
+    /**
+     * 根据主键ID查询有效组织（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param orgId    组织ID
+     * @return 组织实体，不存在则返回null
+     */
+    SysOrg selectValidById(@Param("tenantId") Long tenantId,
+                           @Param("orgId") Long orgId);
+
+    /**
+     * 根据组织ID集合批量查询有效组织（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param orgIds   组织ID集合
+     * @return 组织实体列表
+     */
+    List<SysOrg> selectValidByIds(@Param("tenantId") Long tenantId,
+                                  @Param("orgIds") Set<Long> orgIds);
+
+    /**
+     * 根据组织ID集合查询组织（租户隔离 + 未删除），用于祖先链加载
+     *
+     * @param tenantId 租户ID
+     * @param orgIds   组织ID集合
+     * @return 组织实体列表
+     */
+    List<SysOrg> selectByIdsForAncestors(@Param("tenantId") Long tenantId,
+                                         @Param("orgIds") Set<Long> orgIds);
+
+    /**
+     * 统计指定组织的子组织数量（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param orgId    父组织ID
+     * @return 子组织数量
+     */
+    long countChildren(@Param("tenantId") Long tenantId,
+                       @Param("orgId") Long orgId);
+
+    /**
+     * 根据组织编码查询组织（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param code     组织编码
+     * @return 组织实体，不存在则返回null
+     */
+    SysOrg selectByCode(@Param("tenantId") Long tenantId,
+                        @Param("code") String code);
+
+    /**
+     * 根据组织编码集合查询已存在的组织（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param codes    组织编码集合
+     * @return 组织实体列表
+     */
+    List<SysOrg> selectExistingByCodes(@Param("tenantId") Long tenantId,
+                                       @Param("codes") Set<String> codes);
 }

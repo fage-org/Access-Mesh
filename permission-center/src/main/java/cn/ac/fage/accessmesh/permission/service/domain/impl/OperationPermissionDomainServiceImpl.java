@@ -3,11 +3,10 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
+import java.util.Set;
 
 /**
  * 操作权限领域服务实现类
@@ -45,48 +44,6 @@ public class OperationPermissionDomainServiceImpl implements OperationPermission
     @Override
     public OperationPermission selectOneById(Long id) {
         return operationPermissionMapper.selectOneById(id);
-    }
-
-    /**
-     * 根据查询条件查询操作权限列表
-     * <p>
-     * 调用Mapper的selectListByQuery方法，支持复杂查询条件。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 操作权限列表
-     */
-    @Override
-    public List<OperationPermission> selectListByQuery(QueryWrapper qw) {
-        return operationPermissionMapper.selectListByQuery(qw);
-    }
-
-    /**
-     * 根据查询条件查询单个操作权限
-     * <p>
-     * 调用Mapper的selectOneByQuery方法，返回第一条匹配记录。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 操作权限实体，不存在返回null
-     */
-    @Override
-    public OperationPermission selectOneByQuery(QueryWrapper qw) {
-        return operationPermissionMapper.selectOneByQuery(qw);
-    }
-
-    /**
-     * 根据查询条件统计操作权限数量
-     * <p>
-     * 调用Mapper的selectCountByQuery方法。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 匹配的操作权限数量
-     */
-    @Override
-    public long selectCountByQuery(QueryWrapper qw) {
-        return operationPermissionMapper.selectCountByQuery(qw);
     }
 
     /**
@@ -132,11 +89,33 @@ public class OperationPermissionDomainServiceImpl implements OperationPermission
         if (operationId == null) {
             return null;
         }
-        return operationPermissionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.eq(operationId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        return operationPermissionMapper.selectValidById(tenantId, operationId);
+    }
+
+    /**
+     * 根据租户ID、资源类型集合和操作码集合查询操作权限列表
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypeValues 资源类型值集合
+     * @param operationCodes   操作码集合
+     * @return 操作权限列表
+     */
+    @Override
+    public List<OperationPermission> selectByTenantResourceTypesAndOpCodes(Long tenantId,
+                                                                            Set<Integer> resourceTypeValues,
+                                                                            Set<String> operationCodes) {
+        return operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resourceTypeValues, operationCodes);
+    }
+
+    /**
+     * 根据租户ID查询操作权限列表（可选资源类型过滤）
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可为null
+     * @return 操作权限列表
+     */
+    @Override
+    public List<OperationPermission> selectByTenantAndResourceType(Long tenantId, Integer resourceType) {
+        return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType);
     }
 }

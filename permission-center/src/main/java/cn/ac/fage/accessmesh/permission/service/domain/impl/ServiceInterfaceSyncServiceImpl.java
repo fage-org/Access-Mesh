@@ -1,8 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
@@ -19,12 +17,10 @@ import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncModeStrategy;
 import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncModeStrategyFactory;
 import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncResult;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import cn.ac.fage.accessmesh.permission.entity.table.ServiceConfigTableDef;
 
 /**
  * 服务接口同步服务实现类
@@ -93,18 +89,11 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
 
     /**
      * 同步服务接口
-     * <p>
-     * 根据服务配置和同步请求同步资源实体和API映射。
-     * 使用策略模式支持不同的同步模式。
-     * 需要SYSTEM_CONFIG_MANAGE权限。
-     * </p>
      *
      * @param tenantId   租户ID
-     * @param req        同步请求，包含服务编码、同步模式、接口列表等
+     * @param req        同步请求
      * @param operatorId 操作者ID，可选
-     * @return 同步响应，包含创建/更新的资源和映射数量统计
-     * @throws SecurityException     无权限时抛出
-     * @throws IllegalArgumentException 服务配置不存在时抛出
+     * @return 同步响应
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -143,9 +132,6 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
 
     /**
      * 验证同步操作权限
-     * <p>
-     * 检查操作者是否有SYSTEM_CONFIG的MANAGE权限。
-     * </p>
      *
      * @param tenantId   租户ID
      * @param operatorId 操作者ID
@@ -159,10 +145,6 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
 
     /**
      * 准备服务配置
-     * <p>
-     * 获取已存在的服务配置，验证服务编码有效性。
-     * 如果请求中提供basePath，更新服务配置的基础路径。
-     * </p>
      *
      * @param tenantId   租户ID
      * @param req        同步请求
@@ -171,12 +153,7 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
      * @throws IllegalArgumentException 服务配置不存在时抛出
      */
     private ServiceConfig prepareServiceConfig(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
-        ServiceConfig config = serviceConfigMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(ServiceConfigTableDef.SERVICE_CONFIG.TENANT_ID.eq(tenantId))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.SERVICE_CODE.eq(req.serviceCode()))
-                .and(ServiceConfigTableDef.SERVICE_CONFIG.DELETE_FLAG.eq(0))
-        );
+        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
 
         if (config == null) {
             throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
@@ -194,9 +171,6 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
 
     /**
      * 记录同步结果日志
-     * <p>
-     * 异步记录同步操作的详细结果，包括创建/更新/删除的资源数量和映射数量。
-     * </p>
      *
      * @param tenantId   租户ID
      * @param serviceCode 服务编码
@@ -225,12 +199,6 @@ public class ServiceInterfaceSyncServiceImpl implements ServiceInterfaceSyncServ
 
     /**
      * 规范化基础路径
-     * <p>
-     * 处理基础路径格式：
-     * - 前导/：确保路径以/开头
-     * - 尾部/：移除尾部斜杠
-     * - 空值：返回空字符串
-     * </p>
      *
      * @param basePath 基础路径
      * @return 规范化后的路径

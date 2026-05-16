@@ -22,4 +22,70 @@
           AND delete_flag = 0
     </update>
 
+    <select id="selectByResourceEntityId" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND resource_entity_id = #{resourceEntityId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectAutoGrantByResourceIds" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND resource_entity_id IN
+        <foreach collection="resourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND auto_grant = true
+          AND delete_flag = 0
+    </select>
+
+
+    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTenantAndResourceEntityId" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          <if test="resourceEntityId != null">
+              AND resource_entity_id = #{resourceEntityId}
+          </if>
+    </select>
+
+    <select id="selectByOwnerService" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND owner_service_code = #{ownerServiceCode}
+          AND maintain_source = #{maintainSource}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="selectBySourceAndTargetIds" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceDependency">
+        SELECT * FROM resource_dependency
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_entity_id IN
+        <foreach collection="sourceResourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND depends_on_resource_entity_id IN
+        <foreach collection="targetResourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
 </mapper>

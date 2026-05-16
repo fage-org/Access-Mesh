@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.ConflictRuleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef;
 
 /**
  * 权限冲突规则管理服务实现类
@@ -108,12 +106,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
      */
     @Override
     public ConflictRuleResp getConflictRule(Long tenantId, Long ruleId) {
-        PermissionConflictRule rule = conflictRuleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.eq(ruleId))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-        );
+        PermissionConflictRule rule = conflictRuleMapper.selectValidById(ruleId, tenantId);
         return rule != null ? toConflictRuleResp(rule) : null;
     }
 
@@ -128,11 +121,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
      */
     @Override
     public List<ConflictRuleResp> listConflictRules(Long tenantId) {
-        return conflictRuleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-        ).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
+        return conflictRuleMapper.selectByTenantId(tenantId).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
     }
 
     /**
@@ -185,14 +174,8 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
      */
     @Override
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
-        List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(req.resourceTypeValue() == null
-                    ? PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.isNotNull()
-                    : PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.RESOURCE_TYPE_VALUE.eq(req.resourceTypeValue()))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-        );
+        Integer resourceTypeValue = req.resourceTypeValue();
+        List<PermissionConflictRule> rules = conflictRuleMapper.selectByTenantAndResourceType(tenantId, resourceTypeValue);
         List<ConflictRuleResp> matched = rules.stream().filter(rule ->
             (Objects.equals(rule.getFirstOperationPermissionId(), req.firstOperationPermissionId())
                 && Objects.equals(rule.getSecondOperationPermissionId(), req.secondOperationPermissionId()))
@@ -253,12 +236,7 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
 
         engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
 
-        List<PermissionConflictRule> entities = conflictRuleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.ID.in(validInputIds))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-        );
+        List<PermissionConflictRule> entities = conflictRuleMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(PermissionConflictRule::getId).collect(Collectors.toSet());

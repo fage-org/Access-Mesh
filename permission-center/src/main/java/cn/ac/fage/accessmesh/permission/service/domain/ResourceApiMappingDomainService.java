@@ -1,10 +1,10 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
-import com.mybatisflex.core.query.QueryWrapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 资源API映射领域服务接口
@@ -25,30 +25,6 @@ public interface ResourceApiMappingDomainService {
     ResourceApiMapping selectOneById(Long id);
 
     /**
-     * 根据查询条件查询映射列表
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 资源API映射列表
-     */
-    List<ResourceApiMapping> selectListByQuery(QueryWrapper qw);
-
-    /**
-     * 根据查询条件查询单个映射
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 资源API映射实体，不存在返回null
-     */
-    ResourceApiMapping selectOneByQuery(QueryWrapper qw);
-
-    /**
-     * 根据查询条件统计映射数量
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 匹配的映射数量
-     */
-    long selectCountByQuery(QueryWrapper qw);
-
-    /**
      * 插入资源API映射
      *
      * @param entity 资源API映射实体
@@ -65,10 +41,6 @@ public interface ResourceApiMappingDomainService {
 
     /**
      * 根据ID查询有效映射
-     * <p>
-     * 查询未删除的资源API映射实体，包含租户校验。
-     * 如果映射不存在、已删除或不属于租户，返回null。
-     * </p>
      *
      * @param tenantId 租户ID
      * @param mappingId 映射ID
@@ -78,14 +50,59 @@ public interface ResourceApiMappingDomainService {
 
     /**
      * 批量软删除映射
-     * <p>
-     * 批量设置映射的deleteFlag为ID值，记录删除时间。
-     * </p>
      *
      * @param tenantId  租户ID
      * @param ids       待删除的映射ID列表
-     * @param deletedAt 删除时间戳
+     * @param deletedAt 删除时间
      * @return 删除影响的行数
      */
     int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt);
+
+    /**
+     * 根据租户ID和ID集合查询有效映射列表
+     *
+     * @param tenantId 租户ID
+     * @param ids      映射ID集合
+     * @return 映射列表
+     */
+    List<ResourceApiMapping> selectValidByIds(Long tenantId, Set<Long> ids);
+
+    /**
+     * 根据租户ID和服务编码查询有效映射列表
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 映射列表
+     */
+    List<ResourceApiMapping> selectByTenantAndServiceCode(Long tenantId, String serviceCode);
+
+    /**
+     * 根据租户ID、资源实体ID、服务编码、HTTP方法和路径模式查询有效映射
+     *
+     * @param tenantId        租户ID
+     * @param resourceEntityId 资源实体ID
+     * @param serviceCode     服务编码
+     * @param httpMethod      HTTP方法
+     * @param pathPattern     路径模式
+     * @return 映射实体，不存在返回null
+     */
+    ResourceApiMapping selectByUniqueKey(Long tenantId, Long resourceEntityId,
+                                          String serviceCode, String httpMethod, String pathPattern);
+
+    /**
+     * 根据租户ID查询有效映射列表
+     *
+     * @param tenantId 租户ID
+     * @return 映射列表
+     */
+    List<ResourceApiMapping> selectByTenantId(Long tenantId);
+
+    /**
+     * 根据租户ID和资源实体ID集合查询有效映射列表
+     *
+     * @param tenantId         租户ID
+     * @param resourceEntityIds 资源实体ID集合
+     * @return 映射列表
+     */
+    List<ResourceApiMapping> selectByTenantAndResourceEntityIds(Long tenantId, Set<Long> resourceEntityIds);
 }

@@ -14,19 +14,15 @@ import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.Oauth2ClientService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.dev33.satoken.secure.BCrypt;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysOauth2ClientTableDef;
 
 /**
  * OAuth2客户端管理服务实现类
@@ -74,12 +70,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
         permissionValidator.checkTypeLevel(AdminResourceType.OAUTH2_CLIENT, AdminOperationCode.CREATE);
 
         // 检查clientId是否已存在
-        SysOauth2Client existing = oauth2ClientMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(req.clientId()))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
-        );
+        SysOauth2Client existing = oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), req.clientId());
         if (existing != null) {
             throw new BizException(AdminErrorCode.CLIENT_ID_EXISTS.getCode(), AdminErrorCode.CLIENT_ID_EXISTS.getMessage());
         }
@@ -125,9 +116,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
             AdminOperationCode.UPDATE
         );
 
-        SysOauth2Client existing = TenantSafeQuery.selectOneByIdSafe(
-            oauth2ClientMapper, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), req.id());
+        SysOauth2Client existing = oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), req.id());
         if (existing == null) {
             throw new BizException(AdminErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
         }
@@ -197,9 +186,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     public SysOauth2Client getClientEntity(Long id) {
-        return TenantSafeQuery.selectOneByIdSafe(
-            oauth2ClientMapper, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        return oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
     }
 
     /**
@@ -215,9 +202,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     public Oauth2ClientResp getClientResp(Long id) {
-        SysOauth2Client entity = TenantSafeQuery.selectOneByIdSafe(
-            oauth2ClientMapper, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID, SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysOauth2Client entity = oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         if (entity == null) {
             throw new BizException(AdminErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
         }
@@ -236,12 +221,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     public SysOauth2Client getClientByClientId(String clientId) {
-        return oauth2ClientMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_ID.eq(clientId))
-                .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0))
-        );
+        return oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), clientId);
     }
 
     /**
@@ -256,20 +236,9 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     public PaginatedResult<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-            .and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.DELETE_FLAG.eq(0));
-
-        if (req.clientName() != null) {
-            qw.and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CLIENT_NAME.like(req.clientName()));
-        }
-        if (req.status() != null) {
-            qw.and(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.STATUS.eq(req.status()));
-        }
-        qw.orderBy(SysOauth2ClientTableDef.SYS_OAUTH2_CLIENT.CREATED_AT.desc());
-
         Page<SysOauth2Client> page = Page.of(req.getPageNum(), req.getPageSize());
-        Page<SysOauth2Client> result = oauth2ClientMapper.paginate(page, qw);
+        Page<SysOauth2Client> result = oauth2ClientMapper.paginateByCondition(
+            page, TenantContextHolder.getTenantId(), req.clientName(), req.status());
 
         List<Oauth2ClientResp> items = result.getRecords().stream()
             .map(Oauth2ClientResp::fromEntity)

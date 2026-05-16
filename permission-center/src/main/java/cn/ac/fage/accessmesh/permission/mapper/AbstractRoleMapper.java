@@ -73,4 +73,139 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
      */
     List<Long> selectDescendantIdsBatch(@Param("tenantId") Long tenantId, @Param("roleIds") Set<Long> roleIds);
     List<Long> selectAncestorGroupRoleIds(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
+
+    /**
+     * 根据ID和租户ID查询有效角色
+     *
+     * @param id       角色ID
+     * @param tenantId 租户ID
+     * @return 角色实体，不存在或已删除返回null
+     */
+    AbstractRole selectValidById(@Param("id") Long id, @Param("tenantId") Long tenantId);
+
+    /**
+     * 根据角色ID集合批量查询有效角色
+     *
+     * @param tenantId 租户ID
+     * @param ids      角色ID集合
+     * @return 角色列表
+     */
+    List<AbstractRole> selectValidByIds(@Param("tenantId") Long tenantId, @Param("ids") Set<Long> ids);
+
+    /**
+     * 根据角色ID集合和可选过滤条件批量查询角色（用于filterRoleIds）
+     *
+     * @param tenantId           租户ID
+     * @param ids                角色ID集合
+     * @param externalId         角色外部ID，可选
+     * @param roleType           角色类型值，可选
+     * @return 角色列表
+     */
+    List<AbstractRole> selectFilteredByIds(@Param("tenantId") Long tenantId,
+                                            @Param("ids") Set<Long> ids,
+                                            @Param("externalId") String externalId,
+                                            @Param("roleType") Integer roleType);
+
+    /**
+     * 查询角色树（所有有效且启用的角色）
+     *
+     * @param tenantId 租户ID
+     * @return 角色列表
+     */
+    List<AbstractRole> selectEnabledRoleTree(@Param("tenantId") Long tenantId);
+
+    /**
+     * 分页查询角色列表（带过滤条件）
+     *
+     * @param tenantId      租户ID
+     * @param roleType      角色类型值，可选
+     * @param keyword       搜索关键字，可选（LIKE匹配name或external_id）
+     * @param matchNone     是否匹配空结果（用于域过滤不匹配时）
+     * @param offset        偏移量
+     * @param limit         每页数量
+     * @return 角色列表
+     */
+    List<AbstractRole> selectRoleListPaged(@Param("tenantId") Long tenantId,
+                                            @Param("roleType") Integer roleType,
+                                            @Param("keyword") String keyword,
+                                            @Param("matchNone") boolean matchNone,
+                                            @Param("offset") int offset,
+                                            @Param("limit") int limit);
+
+    /**
+     * 统计角色数量（带过滤条件）
+     *
+     * @param tenantId      租户ID
+     * @param roleType      角色类型值，可选
+     * @param keyword       搜索关键字，可选
+     * @param matchNone     是否匹配空结果
+     * @return 角色总数
+     */
+    long selectRoleListCount(@Param("tenantId") Long tenantId,
+                              @Param("roleType") Integer roleType,
+                              @Param("keyword") String keyword,
+                              @Param("matchNone") boolean matchNone);
+
+    /**
+     * 根据角色ID集合查询有效且启用的角色ID列表
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 有效且启用的角色ID列表
+     */
+    List<Long> selectEnabledIdsByIds(@Param("tenantId") Long tenantId,
+                                     @Param("roleIds") Set<Long> roleIds);
+
+    /**
+     * 根据角色类型和外部ID批量查询有效角色
+     *
+     * @param tenantId    租户ID
+     * @param roleType    角色类型值
+     * @param externalIds 外部ID集合
+     * @return 角色列表
+     */
+    List<AbstractRole> selectByTypeAndExternalIds(@Param("tenantId") Long tenantId,
+                                                   @Param("roleType") Integer roleType,
+                                                   @Param("externalIds") Set<String> externalIds);
+
+    /**
+     * 根据角色类型和外部ID查询有效角色（单条）
+     *
+     * @param tenantId    租户ID
+     * @param roleType    角色类型值
+     * @param externalId  外部ID
+     * @return 角色实体
+     */
+    AbstractRole selectByTypeAndExternalId(@Param("tenantId") Long tenantId,
+                                           @Param("roleType") Integer roleType,
+                                           @Param("externalId") String externalId);
+
+    /**
+     * 根据角色编码查询有效角色
+     *
+     * @param tenantId 租户ID
+     * @param roleCode 角色编码
+     * @return 角色实体
+     */
+    AbstractRole selectByCode(@Param("tenantId") Long tenantId,
+                              @Param("roleCode") String roleCode);
+
+    /**
+     * 根据角色编码集合批量查询有效角色
+     *
+     * @param tenantId  租户ID
+     * @param roleCodes 角色编码集合
+     * @return 角色列表
+     */
+    List<AbstractRole> selectByCodes(@Param("tenantId") Long tenantId,
+                                     @Param("roleCodes") Set<String> roleCodes);
+
+    /**
+     * 查询指定父角色下的子角色列表
+     *
+     * @param tenantId 租户ID
+     * @param parentId 父角色ID
+     * @return 子角色列表
+     */
+    List<AbstractRole> selectChildren(@Param("tenantId") Long tenantId, @Param("parentId") Long parentId);
 }

@@ -10,7 +10,6 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -20,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
 
 /**
  * 操作权限管理服务实现类
@@ -122,12 +120,7 @@ public class OperationManageServiceImpl implements OperationManageService {
      */
     @Override
     public OperationPermissionResp getOperation(Long tenantId, Long operationId) {
-        OperationPermission op = operationPermissionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.eq(operationId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        OperationPermission op = operationPermissionMapper.selectValidById(operationId, tenantId);
         return op != null ? toResp(op) : null;
     }
 
@@ -149,13 +142,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         }
-        QueryWrapper qw = QueryWrapper.create()
-            .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0));
-        if (resourceType != null) {
-            qw.and(OperationPermissionTableDef.OPERATION_PERMISSION.RESOURCE_TYPE.eq(resourceType));
-        }
-        return operationPermissionMapper.selectListByQuery(qw)
+        return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
             .stream().map(this::toResp).collect(Collectors.toList());
     }
 
@@ -264,12 +251,7 @@ public class OperationManageServiceImpl implements OperationManageService {
         }
 
         // 批量查询（避免N+1）
-        List<OperationPermission> entities = operationPermissionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(validInputIds))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<OperationPermission> entities = operationPermissionMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             return;

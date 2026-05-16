@@ -2,7 +2,9 @@ package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.admin.entity.SysLoginLog;
+import com.mybatisflex.core.paginate.Page;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 系统登录日志数据访问接口
@@ -13,4 +15,14 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface SysLoginLogMapper extends BaseMapper<SysLoginLog> {
+
+    /**
+     * 分页查询指定租户的登录日志，按登录时间倒序排列
+     *
+     * @param page     分页参数
+     * @param tenantId 租户ID
+     * @return 分页结果
+     */
+    Page<SysLoginLog> paginateByTenantId(@Param("page") Page<SysLoginLog> page,
+                                         @Param("tenantId") Long tenantId);
 }

@@ -8,13 +8,10 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionVersionService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
  * 权限版本服务实现类
@@ -67,23 +64,13 @@ public class PermissionVersionServiceImpl implements PermissionVersionService {
             return new PermissionVersionResp(null, req.roleTypeCode(), req.roleExternalId(), 0L);
         }
 
-        AbstractRole role = abstractRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         String roleTypeCode = req.roleTypeCode();
         String roleExternalId = req.roleExternalId();
 
         // 计算版本号：取该角色所有活跃权限的updatedAt的最大值转换为Unix时间戳
         // 如果没有权限记录，版本号为0
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
 
         long version = perms.stream()
             .filter(p -> p.getUpdatedAt() != null)

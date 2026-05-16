@@ -11,7 +11,7 @@ import java.util.Set;
  * <p>
  * 封装按业务域过滤资源类型的查询条件。
  * 支持三种过滤策略：不过滤、仅指定域、全局+指定域。
- * 调用者通过 apply 方法将过滤条件应用到 QueryWrapper，无需关心实现细节。
+ * 调用者通过 includeValues/excludeValues 将过滤条件应用到 SQL 查询，无需关心实现细节。
  * </p>
  */
 @Getter

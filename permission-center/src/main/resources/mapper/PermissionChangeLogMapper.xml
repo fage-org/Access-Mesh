@@ -51,4 +51,29 @@
         SELECT COUNT(*) FROM permission_change_log
         <include refid="FilteredWhere"/>
     </select>
+
+    <select id="selectByTenantEntityTypeEntityId" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog">
+        SELECT * FROM permission_change_log
+        WHERE tenant_id = #{tenantId}
+        <if test="entityType != null">
+          AND entity_type = #{entityType}
+        </if>
+        <if test="entityId != null">
+          AND entity_id = #{entityId}
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTenantEntityTypeEntityId" resultType="long">
+        SELECT COUNT(*) FROM permission_change_log
+        WHERE tenant_id = #{tenantId}
+        <if test="entityType != null">
+          AND entity_type = #{entityType}
+        </if>
+        <if test="entityId != null">
+          AND entity_id = #{entityId}
+        </if>
+    </select>
+
 </mapper>

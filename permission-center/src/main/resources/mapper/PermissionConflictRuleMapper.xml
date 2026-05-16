@@ -3,6 +3,14 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper">
 
+    <select id="selectByConflictType" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule">
+        SELECT id, tenant_id, conflict_type, first_abstract_role_id, second_abstract_role_id,
+               first_operation_permission_id, second_operation_permission_id,
+               created_by, updated_by, deleted_by, created_at, updated_at, deleted_at, delete_flag
+        FROM permission_conflict_rule
+        WHERE tenant_id = #{tenantId} AND conflict_type = #{conflictType} AND delete_flag = 0
+    </select>
+
     <update id="softDeleteBatch">
         UPDATE permission_conflict_rule
         SET delete_flag = id, deleted_at = #{deletedAt}
@@ -12,5 +20,38 @@
         </foreach>
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
+
+
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule">
+        SELECT * FROM permission_conflict_rule
+        WHERE id = #{ruleId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule">
+        SELECT * FROM permission_conflict_rule
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTenantAndResourceType" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule">
+        SELECT * FROM permission_conflict_rule
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          <if test="resourceTypeValue != null">
+              AND resource_type_value = #{resourceTypeValue}
+          </if>
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule">
+        SELECT * FROM permission_conflict_rule
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 
 </mapper>

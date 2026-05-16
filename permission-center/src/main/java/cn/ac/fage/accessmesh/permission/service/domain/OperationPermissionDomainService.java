@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
-import com.mybatisflex.core.query.QueryWrapper;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 操作权限领域服务接口
@@ -22,30 +22,6 @@ public interface OperationPermissionDomainService {
      * @return 操作权限实体，不存在返回null
      */
     OperationPermission selectOneById(Long id);
-
-    /**
-     * 根据查询条件查询操作权限列表
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 操作权限列表
-     */
-    List<OperationPermission> selectListByQuery(QueryWrapper qw);
-
-    /**
-     * 根据查询条件查询单个操作权限
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 操作权限实体，不存在返回null
-     */
-    OperationPermission selectOneByQuery(QueryWrapper qw);
-
-    /**
-     * 根据查询条件统计操作权限数量
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 匹配的操作权限数量
-     */
-    long selectCountByQuery(QueryWrapper qw);
 
     /**
      * 插入操作权限
@@ -74,4 +50,25 @@ public interface OperationPermissionDomainService {
      * @return 操作权限实体，不存在或已删除返回null
      */
     OperationPermission selectValidById(Long tenantId, Long operationId);
+
+    /**
+     * 根据租户ID、资源类型集合和操作码集合查询操作权限列表
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypeValues 资源类型值集合
+     * @param operationCodes   操作码集合
+     * @return 操作权限列表
+     */
+    List<OperationPermission> selectByTenantResourceTypesAndOpCodes(Long tenantId,
+                                                                     Set<Integer> resourceTypeValues,
+                                                                     Set<String> operationCodes);
+
+    /**
+     * 根据租户ID查询操作权限列表（可选资源类型过滤）
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可为null（不过滤）
+     * @return 操作权限列表
+     */
+    List<OperationPermission> selectByTenantAndResourceType(Long tenantId, Integer resourceType);
 }

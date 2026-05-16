@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysFile;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -17,6 +18,36 @@ import java.util.List;
  */
 @Mapper
 public interface SysFileMapper extends BaseMapper<SysFile> {
+
+    /**
+     * 根据ID查询有效文件（租户隔离+未删除）
+     *
+     * @param tenantId 租户ID
+     * @param id       文件ID
+     * @return 文件实体，不存在返回null
+     */
+    SysFile selectValidById(@Param("tenantId") Long tenantId, @Param("id") Long id);
+
+    /**
+     * 批量查询有效文件（租户隔离+未删除）
+     *
+     * @param tenantId 租户ID
+     * @param ids      文件ID列表
+     * @return 有效文件列表
+     */
+    List<SysFile> selectValidByIds(@Param("tenantId") Long tenantId, @Param("ids") List<Long> ids);
+
+    /**
+     * 分页查询文件列表
+     *
+     * @param page     分页参数
+     * @param tenantId 租户ID
+     * @param bizType  业务类型过滤条件，可选
+     * @return 分页结果
+     */
+    Page<SysFile> paginateFiles(@Param("page") Page<SysFile> page,
+                                @Param("tenantId") Long tenantId,
+                                @Param("bizType") String bizType);
 
     /**
      * 批量软删除文件

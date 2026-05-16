@@ -9,7 +9,6 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.permission.service.LogQueryService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -17,8 +16,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationLogTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.PermissionChangeLogTableDef;
 
 /**
  * 日志查询服务实现类
@@ -73,11 +70,7 @@ public class LogQueryServiceImpl implements LogQueryService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        QueryWrapper qw = changeLogBaseQuery(tenantId, entityType, entityId);
-        qw.orderBy(PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG.CREATED_AT.desc())
-          .limit(limit)
-          .offset(offset);
-        return changeLogMapper.selectListByQuery(qw)
+        return changeLogMapper.selectByTenantEntityTypeEntityId(tenantId, entityType, entityId, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
@@ -100,7 +93,7 @@ public class LogQueryServiceImpl implements LogQueryService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        return changeLogMapper.selectCountByQuery(changeLogBaseQuery(tenantId, entityType, entityId));
+        return changeLogMapper.countByTenantEntityTypeEntityId(tenantId, entityType, entityId);
     }
 
     /**
@@ -205,28 +198,7 @@ public class LogQueryServiceImpl implements LogQueryService {
         return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
     }
 
-    /**
-     * 构建变更日志基础查询条件
-     * <p>
-     * 根据租户ID、实体类型、实体ID构建QueryWrapper。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型，可选
-     * @param entityId   实体ID，可选
-     * @return QueryWrapper查询条件
-     */
-    private QueryWrapper changeLogBaseQuery(Long tenantId, String entityType, Long entityId) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG.TENANT_ID.eq(tenantId));
-        if (entityType != null) {
-            qw.and(PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG.ENTITY_TYPE.eq(entityType));
-        }
-        if (entityId != null) {
-            qw.and(PermissionChangeLogTableDef.PERMISSION_CHANGE_LOG.ENTITY_ID.eq(entityId));
-        }
-        return qw;
-    }
+    
 
     // ===== 操作日志查询 =====
 
@@ -251,11 +223,7 @@ public class LogQueryServiceImpl implements LogQueryService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        QueryWrapper qw = operationLogBaseQuery(tenantId, module, action);
-        qw.orderBy(OperationLogTableDef.OPERATION_LOG.CREATED_AT.desc())
-          .limit(limit)
-          .offset(offset);
-        return operationLogMapper.selectListByQuery(qw)
+        return operationLogMapper.selectByTenantModuleAction(tenantId, module, action, offset, limit)
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
@@ -278,31 +246,10 @@ public class LogQueryServiceImpl implements LogQueryService {
         Long operatorId = OperatorContext.getOperatorId();
         engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
 
-        return operationLogMapper.selectCountByQuery(operationLogBaseQuery(tenantId, module, action));
+        return operationLogMapper.countByTenantModuleAction(tenantId, module, action);
     }
 
-    /**
-     * 构建操作日志基础查询条件
-     * <p>
-     * 根据租户ID、模块、操作类型构建QueryWrapper。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可选
-     * @param action   操作类型，可选
-     * @return QueryWrapper查询条件
-     */
-    private QueryWrapper operationLogBaseQuery(Long tenantId, String module, String action) {
-        QueryWrapper qw = QueryWrapper.create()
-            .where(OperationLogTableDef.OPERATION_LOG.TENANT_ID.eq(tenantId));
-        if (module != null) {
-            qw.and(OperationLogTableDef.OPERATION_LOG.MODULE.eq(module));
-        }
-        if (action != null) {
-            qw.and(OperationLogTableDef.OPERATION_LOG.ACTION.eq(action));
-        }
-        return qw;
-    }
+    
 
     // ===== 实体转换方法 =====
 

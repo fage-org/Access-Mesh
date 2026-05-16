@@ -3,12 +3,11 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceApiMappingDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
+import java.util.Set;
 
 /**
  * 资源API映射领域服务实现类
@@ -48,48 +47,6 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
     @Override
     public ResourceApiMapping selectOneById(Long id) {
         return resourceApiMappingMapper.selectOneById(id);
-    }
-
-    /**
-     * 根据查询条件查询映射列表
-     * <p>
-     * 调用Mapper的selectListByQuery方法，支持复杂查询条件。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 资源API映射列表
-     */
-    @Override
-    public List<ResourceApiMapping> selectListByQuery(QueryWrapper qw) {
-        return resourceApiMappingMapper.selectListByQuery(qw);
-    }
-
-    /**
-     * 根据查询条件查询单个映射
-     * <p>
-     * 调用Mapper的selectOneByQuery方法，返回第一条匹配记录。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 资源API映射实体，不存在返回null
-     */
-    @Override
-    public ResourceApiMapping selectOneByQuery(QueryWrapper qw) {
-        return resourceApiMappingMapper.selectOneByQuery(qw);
-    }
-
-    /**
-     * 根据查询条件统计映射数量
-     * <p>
-     * 调用Mapper的selectCountByQuery方法。
-     * </p>
-     *
-     * @param qw QueryWrapper查询条件
-     * @return 匹配的映射数量
-     */
-    @Override
-    public long selectCountByQuery(QueryWrapper qw) {
-        return resourceApiMappingMapper.selectCountByQuery(qw);
     }
 
     /**
@@ -135,12 +92,7 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
         if (mappingId == null) {
             return null;
         }
-        return resourceApiMappingMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.ID.eq(mappingId))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-        );
+        return resourceApiMappingMapper.selectValidById(tenantId, mappingId);
     }
 
     /**
@@ -161,5 +113,71 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
             return 0;
         }
         return resourceApiMappingMapper.softDeleteBatch(tenantId, ids, deletedAt);
+    }
+
+    /**
+     * 根据租户ID和ID集合查询有效映射列表
+     *
+     * @param tenantId 租户ID
+     * @param ids      映射ID集合
+     * @return 映射列表
+     */
+    @Override
+    public List<ResourceApiMapping> selectValidByIds(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return resourceApiMappingMapper.selectValidByIds(tenantId, ids);
+    }
+
+    /**
+     * 根据租户ID和服务编码查询有效映射列表
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 映射列表
+     */
+    @Override
+    public List<ResourceApiMapping> selectByTenantAndServiceCode(Long tenantId, String serviceCode) {
+        return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
+    }
+
+    /**
+     * 根据租户ID、资源实体ID、服务编码、HTTP方法和路径模式查询有效映射
+     *
+     * @param tenantId        租户ID
+     * @param resourceEntityId 资源实体ID
+     * @param serviceCode     服务编码
+     * @param httpMethod      HTTP方法
+     * @param pathPattern     路径模式
+     * @return 映射实体，不存在返回null
+     */
+    @Override
+    public ResourceApiMapping selectByUniqueKey(Long tenantId, Long resourceEntityId,
+                                                 String serviceCode, String httpMethod, String pathPattern) {
+        return resourceApiMappingMapper.selectByUniqueKey(tenantId, resourceEntityId, serviceCode, httpMethod, pathPattern);
+    }
+
+    /**
+     * 根据租户ID查询有效映射列表
+     *
+     * @param tenantId 租户ID
+     * @return 映射列表
+     */
+    @Override
+    public List<ResourceApiMapping> selectByTenantId(Long tenantId) {
+        return resourceApiMappingMapper.selectByTenantId(tenantId);
+    }
+
+    /**
+     * 根据租户ID和资源实体ID集合查询有效映射列表
+     *
+     * @param tenantId         租户ID
+     * @param resourceEntityIds 资源实体ID集合
+     * @return 映射列表
+     */
+    @Override
+    public List<ResourceApiMapping> selectByTenantAndResourceEntityIds(Long tenantId, Set<Long> resourceEntityIds) {
+        return resourceApiMappingMapper.selectByTenantAndResourceEntityIds(tenantId, resourceEntityIds);
     }
 }

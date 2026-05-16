@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.ServiceInterfaceSyncService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -101,10 +100,10 @@ class ConfigManageServiceImplTest {
         config.setServiceCode("admin-service");
         config.setBasePath("/admin");
         config.setDeleteFlag(0L);
-        when(serviceConfigMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(config);
+        when(serviceConfigMapper.selectByTenantAndServiceCode(any(), any())).thenReturn(config);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(1);
-        when(resourceEntityMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
-        when(resourceApiMappingMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of());
+        // TODO: syncServiceInterfaces now delegates to serviceInterfaceSyncService.syncInterfaces()
+        // Replace these mapper mocks with serviceInterfaceSyncService mock after full test rework
 
         doAnswer(inv -> {
             List<ResourceEntity> entities = inv.getArgument(0);

@@ -15,8 +15,6 @@ import cn.ac.fage.accessmesh.admin.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.admin.entity.SysJobLog;
-import cn.ac.fage.accessmesh.admin.entity.table.SysJobTableDef;
-import cn.ac.fage.accessmesh.admin.entity.table.SysJobLogTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysJobMapper;
@@ -24,7 +22,6 @@ import cn.ac.fage.accessmesh.admin.service.JobService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,12 +116,7 @@ public class JobServiceImpl implements JobService {
         for (Long tenantId : tenantIds) {
             try {
                 TenantContextHolder.setTenantId(tenantId);
-                List<SysJob> enabledJobs = jobMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                        .and(SysJobTableDef.SYS_JOB.STATUS.eq(JOB_STATUS_ENABLED))
-                        .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-                );
+                List<SysJob> enabledJobs = jobMapper.selectEnabledJobs(tenantId);
                 for (SysJob job : enabledJobs) {
                     try {
                         scheduleJob(job);
@@ -196,12 +188,7 @@ public class JobServiceImpl implements JobService {
     @Transactional(rollbackFor = Exception.class)
     public void updateJob(JobUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysJob existing = jobMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.eq(req.id()))
-                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
+        SysJob existing = jobMapper.selectValidById(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
@@ -254,12 +241,7 @@ public class JobServiceImpl implements JobService {
         }
 
         // Batch query valid jobs (performance fix: avoid N+1 queries for SELECT)
-        List<SysJob> jobs = jobMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.in(req.ids()))
-                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
+        List<SysJob> jobs = jobMapper.selectValidByIds(tenantId, req.ids());
 
         // Batch soft delete (performance fix: use single SQL instead of loop)
         if (!jobs.isEmpty()) {
@@ -285,12 +267,7 @@ public class JobServiceImpl implements JobService {
     @Transactional(rollbackFor = Exception.class)
     public void toggleJobStatus(Long id, Integer status) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysJob job = jobMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
-                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
+        SysJob job = jobMapper.selectValidById(tenantId, id);
         if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
@@ -325,12 +302,7 @@ public class JobServiceImpl implements JobService {
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), AdminOperationCode.TRIGGER);
 
         Long tenantId = TenantContextHolder.getTenantId();
-        SysJob job = jobMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
-                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
+        SysJob job = jobMapper.selectValidById(tenantId, id);
         if (job == null) {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
@@ -349,12 +321,7 @@ public class JobServiceImpl implements JobService {
     @Override
     public JobResp getJob(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        SysJob job = jobMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysJobTableDef.SYS_JOB.ID.eq(id))
-                .and(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-                .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0))
-        );
+        SysJob job = jobMapper.selectValidById(tenantId, id);
         return JobResp.from(job);
     }
 
@@ -371,14 +338,8 @@ public class JobServiceImpl implements JobService {
     @Override
     public PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysJobTableDef.SYS_JOB.TENANT_ID.eq(tenantId))
-            .and(SysJobTableDef.SYS_JOB.DELETE_FLAG.eq(0));
-        if (jobGroup != null) qw.and(SysJobTableDef.SYS_JOB.JOB_GROUP.eq(jobGroup));
-        qw.orderBy(SysJobTableDef.SYS_JOB.CREATED_AT.desc());
 
-        Page<SysJob> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysJob> result = jobMapper.paginate(page, qw);
+        Page<SysJob> result = jobMapper.paginateJobs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobGroup);
 
         List<JobResp> items = result.getRecords().stream()
             .map(JobResp::from)
@@ -403,15 +364,8 @@ public class JobServiceImpl implements JobService {
     @Override
     public PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
-        QueryWrapper qw = QueryWrapper.create()
-            .where(SysJobLogTableDef.SYS_JOB_LOG.TENANT_ID.eq(tenantId))
-            .orderBy(SysJobLogTableDef.SYS_JOB_LOG.CREATED_AT.desc());
-        if (jobId != null) {
-            qw.and(SysJobLogTableDef.SYS_JOB_LOG.JOB_ID.eq(jobId));
-        }
 
-        Page<SysJobLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysJobLog> result = jobLogMapper.paginate(page, qw);
+        Page<SysJobLog> result = jobLogMapper.paginateJobLogs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobId);
 
         List<JobLogResp> items = result.getRecords().stream()
             .map(JobLogResp::from)

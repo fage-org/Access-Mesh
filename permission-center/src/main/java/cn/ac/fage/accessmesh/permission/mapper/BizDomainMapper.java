@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 业务域数据访问接口
@@ -16,6 +17,26 @@ import java.util.List;
  * </p>
  */
 public interface BizDomainMapper extends BaseMapper<BizDomain> {
+
+    /**
+     * 根据租户和域编码查询有效业务域
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 域编码
+     * @return 业务域实体
+     */
+    BizDomain selectByCode(@Param("tenantId") Long tenantId,
+                           @Param("domainCode") String domainCode);
+
+    /**
+     * 批量根据域编码查询有效业务域
+     *
+     * @param tenantId    租户ID
+     * @param domainCodes 域编码集合
+     * @return 业务域列表
+     */
+    List<BizDomain> selectByCodes(@Param("tenantId") Long tenantId,
+                                  @Param("domainCodes") Set<String> domainCodes);
 
     /**
      * 批量软删除业务域
@@ -32,4 +53,56 @@ public interface BizDomainMapper extends BaseMapper<BizDomain> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据ID集合批量查询有效业务域
+     *
+     * @param tenantId 租户ID
+     * @param ids      业务域ID集合
+     * @return 业务域列表
+     */
+    List<BizDomain> selectValidByIds(@Param("tenantId") Long tenantId,
+                                      @Param("ids") Set<Long> ids);
+
+    /**
+     * 根据ID和租户ID查询有效业务域
+     *
+     * @param domainId 业务域ID
+     * @param tenantId 租户ID
+     * @return 业务域实体，不存在返回null
+     */
+    BizDomain selectValidById(@Param("domainId") Long domainId,
+                               @Param("tenantId") Long tenantId);
+
+    /**
+     * 根据租户ID查询所有有效业务域列表
+     *
+     * @param tenantId 租户ID
+     * @return 业务域列表
+     */
+    List<BizDomain> selectByTenantId(@Param("tenantId") Long tenantId);
+
+    /**
+     * 查询租户下所有非全局的有效业务域
+     *
+     * @param tenantId 租户ID
+     * @return 非全局业务域列表
+     */
+    List<BizDomain> selectNonGlobalByTenant(@Param("tenantId") Long tenantId);
+
+    /**
+     * 查询租户的全局域
+     *
+     * @param tenantId 租户ID
+     * @return 全局域实体，不存在返回null
+     */
+    BizDomain selectGlobalByTenant(@Param("tenantId") Long tenantId);
+
+    /**
+     * 统计租户全局域数量
+     *
+     * @param tenantId 租户ID
+     * @return 全局域数量
+     */
+    long countGlobalByTenant(@Param("tenantId") Long tenantId);
 }

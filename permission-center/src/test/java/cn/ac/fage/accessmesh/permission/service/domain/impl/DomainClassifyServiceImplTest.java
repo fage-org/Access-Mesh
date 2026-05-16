@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,9 +76,9 @@ class DomainClassifyServiceImplTest {
             return result;
         });
         when(bizDomainMapper.selectOneById(10L)).thenReturn(opsDomain);
-        when(bizDomainMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(opsDomain, hrDomain));
+        when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain, hrDomain));
         AtomicInteger configCallIndex = new AtomicInteger();
-        when(domainConfigMapper.selectOneByQuery(any(QueryWrapper.class))).thenAnswer(invocation -> {
+        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenAnswer(invocation -> {
             int currentIndex = configCallIndex.getAndIncrement() % 3;
             if (currentIndex == 2) {
                 return classifyConfig("BUTTON");
@@ -105,9 +104,9 @@ class DomainClassifyServiceImplTest {
         BizDomain opsDomain = domain(10L, 1L, false, "OPS");
         BizDomain globalDomain = domain(99L, 1L, true, "GLOBAL");
 
-        when(bizDomainMapper.selectListByQuery(any(QueryWrapper.class))).thenReturn(List.of(opsDomain));
-        when(domainConfigMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(classifyConfig("MENU"));
-        when(bizDomainMapper.selectOneByQuery(any(QueryWrapper.class))).thenReturn(globalDomain);
+        when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain));
+        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenReturn(classifyConfig("MENU"));
+        when(bizDomainMapper.selectGlobalByTenant(any())).thenReturn(globalDomain);
 
         assertEquals(99L, service.findDomainIdByTypeCode(1L, "API"));
     }

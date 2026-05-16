@@ -19,7 +19,6 @@ import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuSyncHandler;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysMenuTableDef;
 
 /**
  * 菜单管理服务实现类
@@ -314,12 +311,7 @@ public class MenuServiceImpl implements MenuService {
     @Override
     public List<MenuResp> treeMenu() {
         Long tenantId = TenantContextHolder.getTenantId();
-        List<SysMenu> all = menuMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysMenuTableDef.SYS_MENU.TENANT_ID.eq(tenantId))
-                .and(SysMenuTableDef.SYS_MENU.DELETE_FLAG.eq(0))
-                .orderBy(SysMenuTableDef.SYS_MENU.SORT_ORDER.asc(), SysMenuTableDef.SYS_MENU.CREATED_AT.asc())
-        );
+        List<SysMenu> all = menuMapper.selectMenusForTree(tenantId);
         return buildTree(all, 0L);
     }
 

@@ -9,7 +9,6 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncContext;
 import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncMappingsResult;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -20,8 +19,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceApiMappingTableDef;
 
 /**
  * API映射同步处理器实现类
@@ -74,14 +71,8 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 String syncKey = context.req().serviceCode() + "|" + api.resourceCode();
 
                 // 获取资源实体
-                ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                        .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(context.tenantId()))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.RESOURCE_TYPE.eq(context.apiType()))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE.eq(api.resourceCode()))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.CODE_TYPE.eq(PermConstants.CodeType.DEFAULT))
-                        .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-                );
+                ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
+                    context.tenantId(), context.apiType(), api.resourceCode(), PermConstants.CodeType.DEFAULT);
 
                 if (resource == null) {
                     // 应该已由ResourceSyncHandler创建
@@ -90,15 +81,11 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 }
 
                 // 查找已有映射
-                ResourceApiMapping mapping = resourceApiMappingMapper.selectOneByQuery(
-                    QueryWrapper.create()
-                        .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(context.tenantId()))
-                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.RESOURCE_ENTITY_ID.eq(resource.getId()))
-                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(context.req().serviceCode()))
-                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.HTTP_METHOD.eq(api.httpMethod().toUpperCase()))
-                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.PATH_PATTERN.eq(fullPath))
-                        .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-                );
+                ResourceApiMapping mapping = resourceApiMappingMapper.selectByUniqueKey(
+                    context.tenantId(), resource.getId(),
+                    context.req().serviceCode(),
+                    api.httpMethod().toUpperCase(),
+                    fullPath);
 
                 if (mapping == null) {
                     // 创建新映射
@@ -149,12 +136,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         int deletedCount = 0;
 
         // 获取该服务的所有已有映射
-        List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.TENANT_ID.eq(tenantId))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.SERVICE_CODE.eq(serviceCode))
-                .and(ResourceApiMappingTableDef.RESOURCE_API_MAPPING.DELETE_FLAG.eq(0))
-        );
+        List<ResourceApiMapping> existingMappings = resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
 
         if (existingMappings.isEmpty()) {
             return 0;
@@ -167,11 +149,8 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
             .collect(Collectors.toSet());
 
         Map<Long, ResourceEntity> resourceMap = mappingResourceIds.isEmpty() ? Map.of()
-            : resourceEntityMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(mappingResourceIds))
-                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+            : resourceEntityMapper.selectValidByIds(tenantId, mappingResourceIds)
+                .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
         // 性能优化：收集ID并批量软删除
         LocalDateTime now = LocalDateTime.now();

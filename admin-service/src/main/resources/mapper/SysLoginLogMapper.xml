@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.admin.mapper.SysLoginLogMapper">
+
+    <select id="paginateByTenantId" resultType="cn.ac.fage.accessmesh.admin.entity.SysLoginLog">
+        SELECT * FROM sys_login_log
+        WHERE tenant_id = #{tenantId}
+        ORDER BY login_at DESC
+    </select>
+
+</mapper>

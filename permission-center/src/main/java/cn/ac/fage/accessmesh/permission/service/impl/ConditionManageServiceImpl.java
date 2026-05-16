@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermissionConditionDomainServiceImpl;
 import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -23,7 +22,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.PermissionConditionTableDef;
 
 /**
  * 权限条件管理服务实现类
@@ -114,12 +112,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
      */
     @Override
     public ConditionResp getCondition(Long tenantId, Long conditionId) {
-        PermissionCondition condition = conditionMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(PermissionConditionTableDef.PERMISSION_CONDITION.ID.eq(conditionId))
-                .and(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
-        );
+        PermissionCondition condition = conditionMapper.selectValidById(conditionId, tenantId);
         return condition != null ? toConditionResp(condition) : null;
     }
 
@@ -182,11 +175,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
      */
     @Override
     public List<ConditionResp> listConditions(Long tenantId) {
-        return conditionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
-        ).stream().map(this::toConditionResp).collect(Collectors.toList());
+        return conditionMapper.selectByTenantId(tenantId).stream().map(this::toConditionResp).collect(Collectors.toList());
     }
 
     /**
@@ -254,12 +243,7 @@ public class ConditionManageServiceImpl implements ConditionManageService {
 
         engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
 
-        List<PermissionCondition> entities = conditionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConditionTableDef.PERMISSION_CONDITION.TENANT_ID.eq(tenantId))
-                .and(PermissionConditionTableDef.PERMISSION_CONDITION.ID.in(validInputIds))
-                .and(PermissionConditionTableDef.PERMISSION_CONDITION.DELETE_FLAG.eq(0))
-        );
+        List<PermissionCondition> entities = conditionMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) return;
 
         Set<Long> validIds = entities.stream().map(PermissionCondition::getId).collect(Collectors.toSet());

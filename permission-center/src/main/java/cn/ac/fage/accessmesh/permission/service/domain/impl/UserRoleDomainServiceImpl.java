@@ -8,11 +8,9 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
-import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -22,8 +20,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 /**
  * 用户角色领域服务实现类
@@ -169,14 +165,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
         // 2. 批量查询所有未命中缓存的用户的UserRole记录
         LocalDateTime now = LocalDateTime.now();
-        List<UserRole> allUserRoles = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(UserRoleTableDef.USER_ROLE.ABSTRACT_USER_ID.in(uncachedUserIds))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-                .and(UserRoleTableDef.USER_ROLE.VALID_FROM.le(now).or(UserRoleTableDef.USER_ROLE.VALID_FROM.isNull()))
-                .and(UserRoleTableDef.USER_ROLE.VALID_TO.ge(now).or(UserRoleTableDef.USER_ROLE.VALID_TO.isNull()))
-        );
+        List<UserRole> allUserRoles = userRoleMapper.selectValidByUserIdsWithValidity(tenantId, uncachedUserIds, now);
 
         // 3. 按userId分组，收集所有涉及的roleId和groupId
         Map<Long, Set<Long>> userToRoleIds = new HashMap<>();
@@ -222,13 +211,8 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         // 6. 批量查询所有AbstractRole并过滤状态
         Set<Long> enabledRoleIds = new HashSet<>();
         if (!allCandidateRoleIds.isEmpty()) {
-            QueryWrapper qw = QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(allCandidateRoleIds))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.STATUS.eq(PermissionConstants.ENABLED_STATUS))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0));
-            List<AbstractRole> enabledRoles = abstractRoleMapper.selectListByQuery(qw);
-            enabledRoleIds = enabledRoles.stream().map(AbstractRole::getId).collect(Collectors.toSet());
+            List<Long> enabledIdList = abstractRoleMapper.selectEnabledIdsByIds(tenantId, allCandidateRoleIds);
+            enabledRoleIds = new HashSet<>(enabledIdList);
         }
 
         // 7. 在内存中为每个userId组装有效角色列表
@@ -307,7 +291,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      */
     private Set<Long> expandInMemory(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
                                      Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds, Set<Long> visited) {
-        if (roleId == null || visited.contains(roleId)) {
+     if (roleId == null || visited.contains(roleId)) {
             return Set.of();
         }
         visited.add(roleId);
@@ -404,23 +388,15 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     @Override
     public void invalidateRoleCacheByRole(Long tenantId, Long roleId) {
         // 1. 直接分配该角色的用户
-        Set<Long> userIds = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(roleId))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        ).stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet());
+        Set<Long> userIds = userRoleMapper.selectValidByTargetIdAndType(tenantId, roleId, PermConstants.TargetType.ROLE)
+            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet());
 
         // 2. 通过GROUP_ROLE间接拥有该角色的用户
         List<Long> ancestorGroupRoleIds = abstractRoleMapper.selectAncestorGroupRoleIds(tenantId, roleId);
         if (!ancestorGroupRoleIds.isEmpty()) {
-            userIds.addAll(userRoleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_ID.in(ancestorGroupRoleIds))
-                    .and(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
-                    .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-            ).stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+            userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
+                tenantId, new HashSet<>(ancestorGroupRoleIds), PermConstants.TargetType.GROUP_ROLE)
+            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
         }
 
         if (userIds.isEmpty()) {

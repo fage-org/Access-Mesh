@@ -3,6 +3,12 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.admin.mapper.SysMenuMapper">
 
+    <select id="selectMenusForTree" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        ORDER BY sort_order ASC, created_at ASC
+    </select>
+
     <update id="softDeleteBatch">
         UPDATE sys_menu
         SET delete_flag = id, deleted_at = #{deletedAt}
@@ -62,6 +68,63 @@
             WHERE m.tenant_id = #{tenantId} AND m.delete_flag = 0
         )
         SELECT root_id AS menuId, descendant_id AS descendantId FROM descendants
+    </select>
+
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE id = #{menuId} AND tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND id IN
+        <foreach collection="menuIds" item="menuId" open="(" separator="," close=")">
+            #{menuId}
+        </foreach>
+    </select>
+
+    <select id="selectByIdsForAncestors" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND id IN
+        <foreach collection="menuIds" item="menuId" open="(" separator="," close=")">
+            #{menuId}
+        </foreach>
+    </select>
+
+    <select id="countChildren" resultType="long">
+        SELECT COUNT(*) FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND parent_id = #{parentId} AND delete_flag = 0
+    </select>
+
+    <select id="selectByPermCode" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND perm_code = #{permCode} AND delete_flag = 0
+    </select>
+
+    <select id="selectByPermCodes" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND perm_code IN
+        <foreach collection="permCodes" item="permCode" open="(" separator="," close=")">
+            #{permCode}
+        </foreach>
+    </select>
+
+    <select id="selectExistingByPermCodes" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND perm_code IN
+        <foreach collection="permCodes" item="permCode" open="(" separator="," close=")">
+            #{permCode}
+        </foreach>
+    </select>
+
+    <select id="selectAllValid" resultType="cn.ac.fage.accessmesh.admin.entity.SysMenu">
+        SELECT * FROM sys_menu
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        ORDER BY sort_order ASC
     </select>
 
 </mapper>

@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 用户角色关联数据访问接口
@@ -19,10 +20,6 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
 
     /**
      * 批量软删除用户角色关联
-     * <p>
-     * 将指定关联记录的delete_flag设置为id，deleted_at设置为当前时间。
-     * 用于批量删除场景，避免物理删除。
-     * </p>
      *
      * @param tenantId  租户ID
      * @param ids       待删除的用户角色关联ID列表
@@ -32,4 +29,130 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据租户ID和用户ID集合查询有效用户角色关联（用于批量删除用户时查找关联）
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIds(@Param("tenantId") Long tenantId,
+                                         @Param("userIds") Set<Long> userIds);
+
+    /**
+     * 根据租户ID、用户ID集合、目标ID集合和目标类型查询有效用户角色关联（用于assignRole检查）
+     *
+     * @param tenantId  租户ID
+     * @param userIds   用户ID集合
+     * @param targetIds 目标ID集合
+     * @param targetType 目标类型
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdsAndTargetIds(@Param("tenantId") Long tenantId,
+                                                     @Param("userIds") Set<Long> userIds,
+                                                     @Param("targetIds") Set<Long> targetIds,
+                                                     @Param("targetType") String targetType);
+
+    /**
+     * 根据租户ID、用户ID集合、单个目标ID和目标类型查询有效用户角色关联（用于assignRolesBatch检查）
+     *
+     * @param tenantId  租户ID
+     * @param userIds   用户ID集合
+     * @param targetId  目标ID
+     * @param targetType 目标类型
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdsAndTargetId(@Param("tenantId") Long tenantId,
+                                                    @Param("userIds") Set<Long> userIds,
+                                                    @Param("targetId") Long targetId,
+                                                    @Param("targetType") String targetType);
+
+    /**
+     * 根据租户ID、用户ID集合、目标类型和目标ID集合查询有效用户角色关联（用于revokeRolesBatch）
+     *
+     * @param tenantId  租户ID
+     * @param userIds   用户ID集合
+     * @param targetType 目标类型
+     * @param targetIds 目标ID集合
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdsTypeAndTargetIds(@Param("tenantId") Long tenantId,
+                                                         @Param("userIds") Set<Long> userIds,
+                                                         @Param("targetType") String targetType,
+                                                         @Param("targetIds") Set<Long> targetIds);
+
+    /**
+     * 根据用户ID和租户ID查询有效的用户角色关联（含有效期过滤）
+     *
+     * @param userId   用户ID
+     * @param tenantId 租户ID
+     * @param now      当前时间
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdWithValidity(@Param("userId") Long userId,
+                                                     @Param("tenantId") Long tenantId,
+                                                     @Param("now") LocalDateTime now);
+
+    /**
+     * 批量查询多个用户的有效角色关联（含有效期过滤）
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     * @param now      当前时间
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdsWithValidity(@Param("tenantId") Long tenantId,
+                                                      @Param("userIds") Set<Long> userIds,
+                                                      @Param("now") LocalDateTime now);
+
+    /**
+     * 查询指定角色和目标类型的有效用户角色关联
+     *
+     * @param tenantId   租户ID
+     * @param targetId   目标ID
+     * @param targetType 目标类型
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByTargetIdAndType(@Param("tenantId") Long tenantId,
+                                                 @Param("targetId") Long targetId,
+                                                 @Param("targetType") String targetType);
+
+    /**
+     * 查询指定角色集合的有效用户角色关联
+     *
+     * @param tenantId 租户ID
+     * @param targetIds 目标ID集合
+     * @param targetType 目标类型
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByTargetIdsAndType(@Param("tenantId") Long tenantId,
+                                                   @Param("targetIds") Set<Long> targetIds,
+                                                   @Param("targetType") String targetType);
+
+    /**
+     * 根据租户ID、目标类型、目标ID和关联ID查询有效用户角色
+     *
+     * @param tenantId    租户ID
+     * @param targetType  目标类型
+     * @param targetId    目标ID
+     * @param relationId  关联ID
+     * @return 用户角色实体，不存在返回null
+     */
+    UserRole selectValidByTargetAndRelation(@Param("tenantId") Long tenantId,
+                                              @Param("targetType") String targetType,
+                                              @Param("targetId") Long targetId,
+                                              @Param("relationId") Long relationId);
+
+    /**
+     * 根据租户ID、目标类型和目标ID查询有效用户角色列表
+     *
+     * @param tenantId   租户ID
+     * @param targetType 目标类型
+     * @param targetId   目标ID
+     * @return 用户角色列表
+     */
+    List<UserRole> selectByTargetTypeAndTargetId(@Param("tenantId") Long tenantId,
+                                                    @Param("targetType") String targetType,
+                                                    @Param("targetId") Long targetId);
 }

@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper.DescendantResult;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,8 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTableDef;
 
 /**
  * 组织领域服务实现类
@@ -160,12 +157,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
 
         // 循环加载所有组织及其祖先
         while (!toLoad.isEmpty()) {
-            List<SysOrg> loaded = orgMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                    .and(SysOrgTableDef.SYS_ORG.ID.in(toLoad))
-                    .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-            );
+            List<SysOrg> loaded = orgMapper.selectByIdsForAncestors(tenantId, toLoad);
             toLoad.clear();
             for (SysOrg org : loaded) {
                 entityMap.put(org.getId(), org);
@@ -215,12 +207,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         if (orgId == null) {
             return null;
         }
-        return orgMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.ID.eq(orgId))
-                .and(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        return orgMapper.selectValidById(tenantId, orgId);
     }
 
     /**
@@ -239,12 +226,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         if (orgIds == null || orgIds.isEmpty()) {
             return List.of();
         }
-        return orgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.ID.in(orgIds))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        return orgMapper.selectValidByIds(tenantId, orgIds);
     }
 
     /**
@@ -298,12 +280,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
      */
     @Override
     public boolean hasChildren(Long tenantId, Long orgId) {
-        long count = orgMapper.selectCountByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.PARENT_ID.eq(orgId))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        long count = orgMapper.countChildren(tenantId, orgId);
         return count > 0;
     }
 
@@ -323,12 +300,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         if (code == null || code.isBlank()) {
             return null;
         }
-        return orgMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.CODE.eq(code))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        return orgMapper.selectByCode(tenantId, code);
     }
 
     /**
@@ -347,12 +319,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         if (codes == null || codes.isEmpty()) {
             return Set.of();
         }
-        List<SysOrg> existingOrgs = orgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.CODE.in(codes))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        List<SysOrg> existingOrgs = orgMapper.selectExistingByCodes(tenantId, codes);
         return existingOrgs.stream()
             .map(SysOrg::getCode)
             .filter(c -> c != null && !c.isBlank())
@@ -374,12 +341,7 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         if (ids == null || ids.isEmpty()) {
             return Map.of();
         }
-        List<SysOrg> orgs = orgMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTableDef.SYS_ORG.TENANT_ID.eq(tenantId))
-                .and(SysOrgTableDef.SYS_ORG.ID.in(ids))
-                .and(SysOrgTableDef.SYS_ORG.DELETE_FLAG.eq(0))
-        );
+        List<SysOrg> orgs = orgMapper.selectValidByIds(tenantId, ids);
         return orgs.stream().collect(Collectors.toMap(SysOrg::getId, o -> o));
     }
 

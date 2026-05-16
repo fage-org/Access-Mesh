@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.admin.service.domain.impl;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,8 +10,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import cn.ac.fage.accessmesh.admin.entity.table.SysUserTableDef;
 
 /**
  * 用户领域服务实现类
@@ -51,12 +48,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (userId == null) {
             return null;
         }
-        return userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.ID.eq(userId))
-                .and(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        return userMapper.selectValidById(tenantId, userId);
     }
 
     /**
@@ -75,12 +67,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (userIds == null || userIds.isEmpty()) {
             return List.of();
         }
-        return userMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.ID.in(userIds))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        return userMapper.selectValidByIds(tenantId, userIds);
     }
 
     /**
@@ -138,12 +125,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (username == null || username.isBlank()) {
             return null;
         }
-        return userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.USERNAME.eq(username))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        return userMapper.selectByUsername(tenantId, username);
     }
 
     /**
@@ -162,12 +144,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (phone == null || phone.isBlank()) {
             return null;
         }
-        return userMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.PHONE.eq(phone))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        return userMapper.selectByPhone(tenantId, phone);
     }
 
     /**
@@ -216,12 +193,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (usernames == null || usernames.isEmpty()) {
             return Set.of();
         }
-        List<SysUser> existingUsers = userMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.USERNAME.in(usernames))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        List<SysUser> existingUsers = userMapper.selectExistingByUsernames(tenantId, usernames);
         return existingUsers.stream().map(SysUser::getUsername).collect(Collectors.toSet());
     }
 
@@ -249,12 +221,7 @@ public class UserDomainServiceImpl implements UserDomainService {
         if (validPhones.isEmpty()) {
             return Set.of();
         }
-        List<SysUser> existingUsers = userMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysUserTableDef.SYS_USER.TENANT_ID.eq(tenantId))
-                .and(SysUserTableDef.SYS_USER.PHONE.in(validPhones))
-                .and(SysUserTableDef.SYS_USER.DELETE_FLAG.eq(0))
-        );
+        List<SysUser> existingUsers = userMapper.selectExistingByPhones(tenantId, validPhones);
         return existingUsers.stream().map(SysUser::getPhone).collect(Collectors.toSet());
     }
 

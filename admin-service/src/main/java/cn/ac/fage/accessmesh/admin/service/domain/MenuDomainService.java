@@ -70,6 +70,19 @@ public interface MenuDomainService {
     List<Long> getAncestorIds(Long tenantId, Long menuId);
 
     /**
+     * 批量获取多个菜单的祖先菜单ID
+     * <p>
+     * 对多个菜单同时执行祖先查询，返回 ID 到祖先列表的映射。
+     * 用于批量操作场景，减少数据库往返次数。
+     * </p>
+     *
+     * @param tenantId 租户ID，用于多租户隔离
+     * @param menuIds  菜单ID集合，多个遍历起点
+     * @return menuId 到祖先ID列表的映射
+     */
+    Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> menuIds);
+
+    /**
      * 查询有效的菜单实体
      * <p>
      * 查询未删除且属于指定租户的菜单记录。

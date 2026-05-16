@@ -22,6 +22,14 @@ import java.util.Set;
 public interface SysMenuMapper extends BaseMapper<SysMenu> {
 
     /**
+     * 查询菜单列表（用于构建树）
+     *
+     * @param tenantId 租户ID
+     * @return 菜单列表，按排序字段和创建时间排序
+     */
+    List<SysMenu> selectMenusForTree(@Param("tenantId") Long tenantId);
+
+    /**
      * 批量软删除菜单
      * <p>
      * 将指定菜单的delete_flag设置为id（行自身ID），deleted_at设置为当前时间。
@@ -92,4 +100,82 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
         private Long menuId;
         private Long descendantId;
     }
+
+    /**
+     * 根据主键ID查询有效菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param menuId   菜单ID
+     * @return 菜单实体，不存在则返回null
+     */
+    SysMenu selectValidById(@Param("tenantId") Long tenantId,
+                            @Param("menuId") Long menuId);
+
+    /**
+     * 根据菜单ID集合批量查询有效菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID集合
+     * @return 菜单实体列表
+     */
+    List<SysMenu> selectValidByIds(@Param("tenantId") Long tenantId,
+                                   @Param("menuIds") Set<Long> menuIds);
+
+    /**
+     * 根据菜单ID集合查询菜单（租户隔离 + 未删除），用于祖先链加载
+     *
+     * @param tenantId 租户ID
+     * @param menuIds  菜单ID集合
+     * @return 菜单实体列表
+     */
+    List<SysMenu> selectByIdsForAncestors(@Param("tenantId") Long tenantId,
+                                          @Param("menuIds") Set<Long> menuIds);
+
+    /**
+     * 统计指定菜单的子菜单数量（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param parentId 父菜单ID
+     * @return 子菜单数量
+     */
+    long countChildren(@Param("tenantId") Long tenantId,
+                       @Param("parentId") Long parentId);
+
+    /**
+     * 根据权限标识查询有效菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param permCode 权限标识
+     * @return 菜单实体，不存在则返回null
+     */
+    SysMenu selectByPermCode(@Param("tenantId") Long tenantId,
+                             @Param("permCode") String permCode);
+
+    /**
+     * 根据权限标识集合批量查询有效菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId  租户ID
+     * @param permCodes 权限标识集合
+     * @return 菜单实体列表
+     */
+    List<SysMenu> selectByPermCodes(@Param("tenantId") Long tenantId,
+                                    @Param("permCodes") Set<String> permCodes);
+
+    /**
+     * 根据权限标识集合查询已存在的菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId  租户ID
+     * @param permCodes 权限标识集合
+     * @return 菜单实体列表
+     */
+    List<SysMenu> selectExistingByPermCodes(@Param("tenantId") Long tenantId,
+                                            @Param("permCodes") Set<String> permCodes);
+
+    /**
+     * 查询租户下所有有效菜单（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @return 菜单实体列表
+     */
+    List<SysMenu> selectAllValid(@Param("tenantId") Long tenantId);
 }

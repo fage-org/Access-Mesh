@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.permission.service.domain;
 
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule;
-import com.mybatisflex.core.query.QueryWrapper;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 高级功能领域服务接口
@@ -20,36 +20,47 @@ public interface AdvancedFeatureDomainService {
     // ===== 权限条件操作 =====
 
     /**
-     * 根据ID查询权限条件
+     * 根据ID和租户ID查询有效权限条件
      *
-     * @param id 权限条件ID
+     * @param conditionId 条件ID
+     * @param tenantId    租户ID
      * @return 权限条件实体，不存在返回null
      */
-    PermissionCondition selectConditionById(Long id);
+    PermissionCondition selectConditionById(Long conditionId, Long tenantId);
 
     /**
-     * 根据查询条件查询权限条件列表
+     * 根据租户ID查询所有有效权限条件列表
      *
-     * @param qw QueryWrapper查询条件
+     * @param tenantId 租户ID
      * @return 权限条件列表
      */
-    List<PermissionCondition> selectConditionsByQuery(QueryWrapper qw);
+    List<PermissionCondition> selectConditionsByTenantId(Long tenantId);
 
     /**
-     * 根据查询条件查询单个权限条件
+     * 根据租户ID和条件编码集合批量查询有效权限条件
      *
-     * @param qw QueryWrapper查询条件
+     * @param tenantId 租户ID
+     * @param codes    条件编码集合
+     * @return 权限条件列表
+     */
+    List<PermissionCondition> selectConditionsByCodes(Long tenantId, Set<String> codes);
+
+    /**
+     * 根据租户ID和条件编码查询有效权限条件
+     *
+     * @param tenantId 租户ID
+     * @param code     条件编码
      * @return 权限条件实体，不存在返回null
      */
-    PermissionCondition selectConditionByQuery(QueryWrapper qw);
+    PermissionCondition selectConditionByCode(Long tenantId, String code);
 
     /**
-     * 根据查询条件统计权限条件数量
+     * 根据租户ID统计有效权限条件数量
      *
-     * @param qw QueryWrapper查询条件
+     * @param tenantId 租户ID
      * @return 匹配的权限条件数量
      */
-    long countConditionsByQuery(QueryWrapper qw);
+    long countConditionsByTenantId(Long tenantId);
 
     /**
      * 插入权限条件
@@ -69,52 +80,56 @@ public interface AdvancedFeatureDomainService {
     /**
      * 删除单个权限条件
      *
-     * @param id 权限条件ID
+     * @param id       条件ID
+     * @param tenantId 租户ID
      * @return 删除影响的行数
      */
-    int deleteCondition(Long id);
+    int deleteCondition(Long id, Long tenantId);
 
     /**
      * 批量删除权限条件
      *
-     * @param ids 权限条件ID列表
+     * @param ids      条件ID列表
+     * @param tenantId 租户ID
      * @return 删除影响的行数
      */
-    int deleteConditionsByIds(List<Long> ids);
+    int deleteConditionsByIds(List<Long> ids, Long tenantId);
 
     // ===== 权限冲突规则操作 =====
 
     /**
-     * 根据ID查询权限冲突规则
+     * 根据ID和租户ID查询有效权限冲突规则
      *
-     * @param id 权限冲突规则ID
+     * @param id       冲突规则ID
+     * @param tenantId 租户ID
      * @return 权限冲突规则实体，不存在返回null
      */
-    PermissionConflictRule selectConflictRuleById(Long id);
+    PermissionConflictRule selectConflictRuleById(Long id, Long tenantId);
 
     /**
-     * 根据查询条件查询权限冲突规则列表
+     * 根据租户ID查询所有有效权限冲突规则列表
      *
-     * @param qw QueryWrapper查询条件
+     * @param tenantId 租户ID
      * @return 权限冲突规则列表
      */
-    List<PermissionConflictRule> selectConflictRulesByQuery(QueryWrapper qw);
+    List<PermissionConflictRule> selectConflictRulesByTenantId(Long tenantId);
 
     /**
-     * 根据查询条件查询单个权限冲突规则
+     * 根据租户ID和冲突类型查询有效权限冲突规则列表
      *
-     * @param qw QueryWrapper查询条件
-     * @return 权限冲突规则实体，不存在返回null
+     * @param tenantId    租户ID
+     * @param conflictType 冲突类型值
+     * @return 权限冲突规则列表
      */
-    PermissionConflictRule selectConflictRuleByQuery(QueryWrapper qw);
+    List<PermissionConflictRule> selectConflictRulesByType(Long tenantId, Integer conflictType);
 
     /**
-     * 根据查询条件统计权限冲突规则数量
+     * 根据租户ID统计有效权限冲突规则数量
      *
-     * @param qw QueryWrapper查询条件
+     * @param tenantId 租户ID
      * @return 匹配的权限冲突规则数量
      */
-    long countConflictRulesByQuery(QueryWrapper qw);
+    long countConflictRulesByTenantId(Long tenantId);
 
     /**
      * 插入权限冲突规则
@@ -134,16 +149,18 @@ public interface AdvancedFeatureDomainService {
     /**
      * 删除单个权限冲突规则
      *
-     * @param id 权限冲突规则ID
+     * @param id       冲突规则ID
+     * @param tenantId 租户ID
      * @return 删除影响的行数
      */
-    int deleteConflictRule(Long id);
+    int deleteConflictRule(Long id, Long tenantId);
 
     /**
      * 批量删除权限冲突规则
      *
-     * @param ids 权限冲突规则ID列表
+     * @param ids      冲突规则ID列表
+     * @param tenantId 租户ID
      * @return 删除影响的行数
      */
-    int deleteConflictRulesByIds(List<Long> ids);
+    int deleteConflictRulesByIds(List<Long> ids, Long tenantId);
 }

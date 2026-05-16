@@ -15,7 +15,6 @@ import cn.ac.fage.accessmesh.permission.service.GroupRoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -26,8 +25,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 /**
  * 组角色管理服务实现类
@@ -105,23 +102,13 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
 
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.ASSIGN);
 
-        AbstractRole groupRole = abstractRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(groupId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        AbstractRole groupRole = abstractRoleMapper.selectValidById(groupId, tenantId);
         Integer groupRoleTypeValue = typeResolutionService.resolveTypeValue(tenantId, "role_type", PermConstants.TargetType.GROUP_ROLE);
         if (groupRole == null || groupRoleTypeValue == null || !groupRoleTypeValue.equals(groupRole.getRoleType())) {
             throw new IllegalArgumentException("Not a valid GROUP_ROLE: " + req.groupRoleExternalId());
         }
 
-        AbstractRole basicRole = abstractRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(basicRoleId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        AbstractRole basicRole = abstractRoleMapper.selectValidById(basicRoleId, tenantId);
         if (basicRole == null) {
             throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
         }
@@ -181,14 +168,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
 
         engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.REVOKE);
 
-        UserRole ur = userRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .where(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
-                .and(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(groupId))
-                .and(UserRoleTableDef.USER_ROLE.RELATION_ID.eq(basicRoleId))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        );
+        UserRole ur = userRoleMapper.selectValidByTargetAndRelation(tenantId, PermConstants.TargetType.GROUP_ROLE, groupId, basicRoleId);
         if (ur != null) {
             ur.setDeleteFlag(ur.getId());
             ur.setDeletedAt(LocalDateTime.now());
@@ -226,25 +206,15 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
         if (groupId == null) {
             return List.of();
         }
-        Set<Long> basicRoleIds = userRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(UserRoleTableDef.USER_ROLE.TENANT_ID.eq(tenantId))
-                .where(UserRoleTableDef.USER_ROLE.TARGET_TYPE.eq(PermConstants.TargetType.GROUP_ROLE))
-                .where(UserRoleTableDef.USER_ROLE.TARGET_ID.eq(groupId))
-                .and(UserRoleTableDef.USER_ROLE.DELETE_FLAG.eq(0))
-        ).stream()
+        Set<Long> basicRoleIds = userRoleMapper.selectByTargetTypeAndTargetId(tenantId, PermConstants.TargetType.GROUP_ROLE, groupId)
+            .stream()
             .map(UserRole::getRelationId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         if (basicRoleIds.isEmpty()) {
             return List.of();
         }
-        return abstractRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(basicRoleIds))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        ).stream()
+        return abstractRoleMapper.selectValidByIds(tenantId, basicRoleIds).stream()
             .map(r -> new RoleSummaryResp(
                 r.getId(),
                 typeResolutionService.resolveTypeCode(tenantId, "role_type", r.getRoleType()),

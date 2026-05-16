@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -34,4 +35,50 @@ public interface SysOrgTreeConfigMapper extends BaseMapper<SysOrgTreeConfig> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据主键ID安全查询配置（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param id       主键ID
+     * @return 配置实体，不存在则返回null
+     */
+    SysOrgTreeConfig selectByIdSafe(@Param("tenantId") Long tenantId,
+                                    @Param("id") Long id);
+
+    /**
+     * 分页查询配置列表（租户隔离 + 未删除，按创建时间倒序）
+     *
+     * @param page     分页参数（MyBatis-Flex自动拦截）
+     * @param tenantId 租户ID
+     * @return 分页结果
+     */
+    Page<SysOrgTreeConfig> paginateAll(Page<SysOrgTreeConfig> page,
+                                       @Param("tenantId") Long tenantId);
+
+    /**
+     * 查询当前租户下所有默认配置（租户隔离 + 未删除 + is_default=true）
+     *
+     * @param tenantId 租户ID
+     * @return 默认配置列表
+     */
+    List<SysOrgTreeConfig> selectDefaultConfigs(@Param("tenantId") Long tenantId);
+
+    /**
+     * 清除当前租户下所有配置的默认标记（租户隔离 + 未删除 + is_default=true）
+     *
+     * @param tenantId   租户ID
+     * @param updatedAt  更新时间
+     * @return 更新的行数
+     */
+    int clearAllDefaults(@Param("tenantId") Long tenantId,
+                         @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 查询租户下所有组织树配置（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @return 组织树配置列表
+     */
+    List<SysOrgTreeConfig> selectAllByTenantId(@Param("tenantId") Long tenantId);
 }

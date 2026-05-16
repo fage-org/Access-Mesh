@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.admin.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
-import cn.ac.fage.accessmesh.admin.entity.table.SysOrgTreeConfigTableDef;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
@@ -16,9 +15,7 @@ import cn.ac.fage.accessmesh.admin.service.OrgTreeConfigService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.mybatis.TenantSafeQuery;
 import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -104,9 +101,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, req.id().toString(), AdminOperationCode.UPDATE);
 
-        SysOrgTreeConfig existing = TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
-            tenantId, req.id());
+        SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
@@ -165,9 +160,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
 
-        SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         if (config == null) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
@@ -188,9 +181,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     public OrgTreeConfigResp getOrgTreeConfig(Long id) {
-        SysOrgTreeConfig config = TenantSafeQuery.selectOneByIdSafe(
-            orgTreeConfigMapper, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID, SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG,
-            TenantContextHolder.getTenantId(), id);
+        SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         return OrgTreeConfigResp.from(config);
     }
 
@@ -207,11 +198,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     public PaginatedResult<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
         Page<SysOrgTreeConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysOrgTreeConfig> result = orgTreeConfigMapper.paginate(page,
-            QueryWrapper.create()
-                .where(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
-                .orderBy(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.CREATED_AT.desc()));
+        Page<SysOrgTreeConfig> result = orgTreeConfigMapper.paginateAll(page, TenantContextHolder.getTenantId());
 
         List<OrgTreeConfigResp> items = result.getRecords().stream()
             .map(OrgTreeConfigResp::from)
@@ -231,24 +218,10 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     /**
      * 清除默认配置标记
      * <p>
-     * 将所有配置的默认标记设为false，确保只有一个默认配置。
-     * 当前使用循环更新方式，后续可优化为批量更新SQL。
+     * 使用单条SQL批量清除所有配置的默认标记，确保只有一个默认配置。
      * </p>
      */
     private void clearDefault() {
-        // Performance optimization opportunity: could use custom batch update SQL
-        // For now, loop update is used due to MyBatis-Flex API limitations
-        List<SysOrgTreeConfig> configs = orgTreeConfigMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.TENANT_ID.eq(TenantContextHolder.getTenantId()))
-                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.DELETE_FLAG.eq(0))
-                .and(SysOrgTreeConfigTableDef.SYS_ORG_TREE_CONFIG.IS_DEFAULT.eq(true))
-        );
-        LocalDateTime now = LocalDateTime.now();
-        for (SysOrgTreeConfig config : configs) {
-            config.setIsDefault(false);
-            config.setUpdatedAt(now);
-            orgTreeConfigMapper.update(config);
-        }
+        orgTreeConfigMapper.clearAllDefaults(TenantContextHolder.getTenantId(), LocalDateTime.now());
     }
 }

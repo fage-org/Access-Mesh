@@ -24,6 +24,7 @@ import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
@@ -31,19 +32,11 @@ import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractUserTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.BizDomainTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.UserRoleTableDef;
 
 /**
  * 权限视图服务实现类
@@ -69,6 +62,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final RoleResourcePermissionMapper rolePermMapper;
     private final UserRoleDomainService userRoleDomainService;
     private final DomainClassifyService domainClassifyService;
+    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermissionService permissionService;
     private final LogQueryService logQueryService;
@@ -99,6 +93,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      RoleResourcePermissionMapper rolePermMapper,
                                      UserRoleDomainService userRoleDomainService,
                                      DomainClassifyService domainClassifyService,
+                                     EntityBatchLoadDomainService entityBatchLoadDomainService,
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
                                      LogQueryService logQueryService,
@@ -112,6 +107,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.rolePermMapper = rolePermMapper;
         this.userRoleDomainService = userRoleDomainService;
         this.domainClassifyService = domainClassifyService;
+        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
         this.typeResolutionService = typeResolutionService;
         this.permissionService = permissionService;
         this.logQueryService = logQueryService;
@@ -141,12 +137,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             PermConstants.TargetType.USER, null, null, null, null, null, null, null, null, null,
             false, false, true, 20, 1, 50
         ));
-        AbstractUser user = abstractUserMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.ID.eq(userId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(tenantId))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        AbstractUser user = abstractUserMapper.selectValidById(userId, tenantId);
         if (user == null) {
             return null;
         }
@@ -261,12 +252,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         context.setPageSize(PageUtil.pageSize(context.getRequest().pageSize()));
         context.setOffset(Math.max((context.getPageNum() - 1) * context.getPageSize(), 0));
 
-        AbstractUser user = abstractUserMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractUserTableDef.ABSTRACT_USER.ID.eq(context.getUserId()))
-                .and(AbstractUserTableDef.ABSTRACT_USER.TENANT_ID.eq(context.getTenantId()))
-                .and(AbstractUserTableDef.ABSTRACT_USER.DELETE_FLAG.eq(0))
-        );
+        AbstractUser user = abstractUserMapper.selectValidById(context.getUserId(), context.getTenantId());
         context.setUser(user);
 
         if (user != null) {
@@ -318,12 +304,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @param context 权限查询上下文
      */
     private void loadPermissions(PermissionQueryContext context) {
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(context.getTenantId()))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(context.getFilteredRoleIds()))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleIds(
+            context.getTenantId(), context.getFilteredRoleIds());
         context.setAllPermissions(allPerms);
 
         if (allPerms.isEmpty()) {
@@ -623,12 +605,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (roleIds.isEmpty()) {
             return Map.of();
         }
-        return abstractRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(roleIds))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        ).stream().collect(Collectors.toMap(AbstractRole::getId, role -> role));
+        return abstractRoleMapper.selectValidByIds(tenantId, roleIds).stream()
+            .collect(Collectors.toMap(AbstractRole::getId, role -> role));
     }
 
     /**
@@ -644,12 +622,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (operationIds.isEmpty()) {
             return Map.of();
         }
-        return operationPermissionMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(operationIds))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0L))
-        ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
+        return entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
     }
 
     /**
@@ -666,12 +639,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (resourceIds.isEmpty()) {
             return Map.of();
         }
-        return resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(resourceIds))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        ).stream().collect(Collectors.toMap(ResourceEntity::getId, resource -> resource));
+        return entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
     }
 
     /**
@@ -732,12 +700,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (domainIds.isEmpty()) {
             return Map.of();
         }
-        return bizDomainMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(BizDomainTableDef.BIZ_DOMAIN.TENANT_ID.eq(tenantId))
-                .and(BizDomainTableDef.BIZ_DOMAIN.ID.in(domainIds))
-                .and(BizDomainTableDef.BIZ_DOMAIN.DELETE_FLAG.eq(0))
-        ).stream().collect(Collectors.toMap(BizDomain::getId, BizDomain::getCode));
+        return bizDomainMapper.selectValidByIds(tenantId, domainIds).stream()
+            .collect(Collectors.toMap(BizDomain::getId, BizDomain::getCode));
     }
 
     /**
@@ -759,16 +723,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         }
         Integer roleTypeValue = roleTypeCode == null || roleTypeCode.isBlank()
             ? null : typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
-        return abstractRoleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(roleIds))
-                .and(sourceRoleExternalId == null || sourceRoleExternalId.isBlank()
-                    ? AbstractRoleTableDef.ABSTRACT_ROLE.ID.isNotNull()
-                    : AbstractRoleTableDef.ABSTRACT_ROLE.EXTERNAL_ID.eq(sourceRoleExternalId))
-                .and(roleTypeValue == null ? AbstractRoleTableDef.ABSTRACT_ROLE.ID.isNotNull() : AbstractRoleTableDef.ABSTRACT_ROLE.ROLE_TYPE.eq(roleTypeValue))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        ).stream().map(AbstractRole::getId).collect(Collectors.toSet());
+        return abstractRoleMapper.selectFilteredByIds(tenantId, roleIds,
+            sourceRoleExternalId, roleTypeValue).stream()
+            .map(AbstractRole::getId).collect(Collectors.toSet());
     }
 
     /**
@@ -801,20 +758,11 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (resourceEntityId == null) {
             return null;
         }
-        ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.eq(resourceEntityId))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        );
+        ResourceEntity resource = resourceEntityMapper.selectValidById(tenantId, resourceEntityId);
         if (resource == null) return null;
 
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByResourceEntityId(
+            tenantId, resourceEntityId);
 
         Map<Long, List<RoleResourcePermission>> byRole = perms.stream()
             .collect(Collectors.groupingBy(RoleResourcePermission::getAbstractRoleId));
@@ -891,20 +839,10 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (roleId == null) {
             return null;
         }
-        AbstractRole role = abstractRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         if (role == null) return null;
 
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
 
         // 批量加载资源实体避免N+1查询
         Set<Long> resourceIds = perms.stream()
@@ -983,12 +921,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
         int offset = Math.max((pageNum - 1) * pageSize, 0);
-        QueryWrapper base = QueryWrapper.create()
-            .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-            .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0));
-        long total = rolePermMapper.selectCountByQuery(base);
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(base.clone().limit(pageSize).offset(offset));
+        long total = rolePermMapper.countByRoleId(tenantId, roleId);
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
         // 批量加载资源实体避免N+1查询
         Set<Long> resourceIds = perms.stream()
             .map(RoleResourcePermission::getResourceEntityId)
@@ -1076,12 +1010,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                 Long roleId = typeResolutionService.resolveRoleId(
                     tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
                 if (roleId != null) {
-                    AbstractRole r = abstractRoleMapper.selectOneByQuery(
-                        QueryWrapper.create()
-                            .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
-                            .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                            .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-                    );
+                    AbstractRole r = abstractRoleMapper.selectValidById(roleId, tenantId);
                     if (r != null) {
                         sourceRoles = List.of(new PermissionExplainResp.SourceRole(
                             typeResolutionService.resolveTypeCode(tenantId, "role_type", r.getRoleType()),
@@ -1092,17 +1021,13 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                     }
                 }
             } else if (checkResp.matchedRoleIds() != null && !checkResp.matchedRoleIds().isEmpty()) {
-                sourceRoles = abstractRoleMapper.selectListByQuery(
-                    QueryWrapper.create()
-                        .where(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                        .and(AbstractRoleTableDef.ABSTRACT_ROLE.ID.in(checkResp.matchedRoleIds()))
-                        .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-                ).stream().map(role -> new PermissionExplainResp.SourceRole(
-                    typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()),
-                    role.getExternalId(),
-                    role.getName(),
-                    List.of()
-                )).toList();
+                sourceRoles = abstractRoleMapper.selectValidByIds(tenantId, new java.util.HashSet<>(checkResp.matchedRoleIds())).stream()
+                    .map(role -> new PermissionExplainResp.SourceRole(
+                        typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()),
+                        role.getExternalId(),
+                        role.getName(),
+                        List.of()
+                    )).toList();
             }
         }
 
@@ -1237,12 +1162,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (roleId == null) {
             return AuthCheckResp.deny("ROLE_NOT_FOUND");
         }
-        AbstractRole role = abstractRoleMapper.selectOneByQuery(
-            QueryWrapper.create()
-                .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.TENANT_ID.eq(tenantId))
-                .and(AbstractRoleTableDef.ABSTRACT_ROLE.DELETE_FLAG.eq(0))
-        );
+        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         if (role == null || role.getStatus() == null || role.getStatus() != PermissionConstants.ENABLED_STATUS) {
             return AuthCheckResp.deny("ROLE_NOT_FOUND");
         }
@@ -1258,13 +1178,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return AuthCheckResp.deny("OPERATION_NOT_FOUND");
         }
 
-        List<RoleResourcePermission> perms = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleIdAndResourceId(
+            tenantId, roleId, resourceEntityId);
         OperationPermission targetOp = operationPermissionMapper.selectOneById(operationPermissionId);
         if (targetOp == null || targetOp.getBinaryBit() == null || targetOp.getBinaryBit() == 0L) {
             return AuthCheckResp.deny("NO_PERMISSION");
@@ -1425,12 +1340,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return List.of();
         }
 
-        List<ResourceEntity> entities = resourceEntityMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.in(permittedIds))
-                .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceEntity> entities = resourceEntityMapper.selectValidByIds(tenantId, permittedIds).stream().toList();
 
         Map<Long, ResourcePermissionView> viewMap = paged.items().stream()
             .filter(v -> v.resourceEntityId() != null)

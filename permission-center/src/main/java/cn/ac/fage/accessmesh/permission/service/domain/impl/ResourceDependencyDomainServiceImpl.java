@@ -1,8 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
-import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.ResourceDependency;
+import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
@@ -11,7 +12,6 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceDependencyDomainService;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,9 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceDependencyTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.ResourceEntityTableDef;
-import cn.ac.fage.accessmesh.permission.entity.table.RoleResourcePermissionTableDef;
 
 /**
  * 资源依赖领域服务实现类
@@ -95,12 +92,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void processDependencies(Long tenantId, Long roleId, Long resourceEntityId, Long operationBits) {
-        List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceDependency> deps = dependencyMapper.selectByResourceEntityId(tenantId, resourceEntityId);
 
         for (ResourceDependency dep : deps) {
             if (dep.getAutoGrant() != null && dep.getAutoGrant()
@@ -126,14 +118,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cleanupDependencies(Long tenantId, Long roleId, Long resourceEntityId) {
-        List<RoleResourcePermission> autoGrants = rolePermMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(resourceEntityId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        List<RoleResourcePermission> autoGrants = rolePermMapper.selectAutoGrantsByResource(tenantId, roleId, resourceEntityId);
 
         Set<Long> affectedRoles = new HashSet<>();
         // 批量软删除（性能优化：使用单条SQL代替循环）
@@ -201,23 +186,13 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
         Map<Long, OperationPermission> opPermCache = new HashMap<>();
         if (!opIds.isEmpty()) {
-            for (OperationPermission op : operationPermissionMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.ID.in(opIds))
-                    .and(cn.ac.fage.accessmesh.permission.entity.table.OperationPermissionTableDef.OPERATION_PERMISSION.DELETE_FLAG.eq(0))
-            )) {
+            for (OperationPermission op : operationPermissionMapper.selectValidByIds(tenantId, opIds)) {
                 opPermCache.put(op.getId(), op);
             }
         }
 
         // 查找源资源在待授权资源中的依赖规则
-        List<ResourceDependency> deps = dependencyMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.TENANT_ID.eq(tenantId))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.RESOURCE_ENTITY_ID.in(resourceIds))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.AUTO_GRANT.eq(true))
-                .and(ResourceDependencyTableDef.RESOURCE_DEPENDENCY.DELETE_FLAG.eq(0))
-        );
+        List<ResourceDependency> deps = dependencyMapper.selectAutoGrantByResourceIds(tenantId, resourceIds);
 
         // 预加载所有现有自动授权记录，避免嵌套循环中的N+1查询
         Set<Long> targetResourceIds = deps.stream()
@@ -230,15 +205,8 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             .collect(Collectors.toSet());
 
         Map<Long, Map<Long, RoleResourcePermission>> existingAutoGrants = targetResourceIds.isEmpty() ? Map.of()
-            : rolePermMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.in(targetResourceIds))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_SOURCE.eq(GrantSource.AUTO_DEP.getValue()))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.GRANT_DEP_ID.in(depIds))
-                    .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-            ).stream().collect(Collectors.groupingBy(
+            : rolePermMapper.selectExistingAutoGrants(tenantId, roleId, targetResourceIds, depIds)
+            .stream().collect(Collectors.groupingBy(
                 RoleResourcePermission::getResourceEntityId,
                 Collectors.toMap(RoleResourcePermission::getGrantDepId, Function.identity(), (a, b) -> a)
             ));
@@ -351,14 +319,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
 
         // Duplicate check: skip if an active permission with same composite key already exists
-        long existingCount = rolePermMapper.selectCountByQuery(
-            QueryWrapper.create()
-                .where(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.TENANT_ID.eq(tenantId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.eq(roleId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.RESOURCE_ENTITY_ID.eq(dep.getDependsOnResourceEntityId()))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.OPERATION_PERMISSION_ID.eq(requiredOpId))
-                .and(RoleResourcePermissionTableDef.ROLE_RESOURCE_PERMISSION.DELETE_FLAG.eq(0))
-        );
+        long existingCount = rolePermMapper.countByCompositeKey(tenantId, roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
         if (existingCount > 0) {
             log.info("Skipping duplicate auto-grant: role={}, resource={}, op={}", roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
             return;
@@ -412,12 +373,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
         Integer resourceType = null;
         if (resourceEntityId != null) {
-            ResourceEntity resource = resourceEntityMapper.selectOneByQuery(
-                QueryWrapper.create()
-                    .where(ResourceEntityTableDef.RESOURCE_ENTITY.ID.eq(resourceEntityId))
-                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-                    .and(ResourceEntityTableDef.RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-            );
+            ResourceEntity resource = resourceEntityMapper.selectValidById(tenantId, resourceEntityId);
             if (resource != null) {
                 resourceType = resource.getResourceType();
             }

@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
-import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import cn.ac.fage.accessmesh.permission.entity.table.PermissionConflictRuleTableDef;
 
 /**
  * 权限冲突领域服务实现类
@@ -83,12 +81,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             List<RoleMutexPair> list = (List<RoleMutexPair>) cached;
             mutexPairs = list;
         } else {
-            List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
-                QueryWrapper.create()
-                    .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                    .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.ROLE_MUTEX.getValue()))
-                    .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-            );
+            List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
+                tenantId, ConflictType.ROLE_MUTEX.getValue());
             mutexPairs = rules.stream()
                 .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
                 .collect(Collectors.toList());
@@ -119,12 +113,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     @Override
     public List<RolePermSnapshot.RolePermEntry> filterPermMutex(Long tenantId, List<RolePermSnapshot.RolePermEntry> passedEntries) {
-        List<PermissionConflictRule> rules = conflictRuleMapper.selectListByQuery(
-            QueryWrapper.create()
-                .where(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.TENANT_ID.eq(tenantId))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.CONFLICT_TYPE.eq(ConflictType.PERM_MUTEX.getValue()))
-                .and(PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE.DELETE_FLAG.eq(0))
-        );
+        List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
+            tenantId, ConflictType.PERM_MUTEX.getValue());
 
         Set<Long> opIds = passedEntries.stream()
             .map(RolePermSnapshot.RolePermEntry::operationPermissionId)

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
+import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -35,4 +36,59 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 根据主键ID安全查询客户端（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param id       主键ID
+     * @return 客户端实体，不存在则返回null
+     */
+    SysOauth2Client selectByIdSafe(@Param("tenantId") Long tenantId,
+                                   @Param("id") Long id);
+
+    /**
+     * 根据客户端ID查询客户端（租户隔离 + 未删除）
+     *
+     * @param tenantId 租户ID
+     * @param clientId OAuth2客户端ID（非主键）
+     * @return 客户端实体，不存在则返回null
+     */
+    SysOauth2Client selectByClientId(@Param("tenantId") Long tenantId,
+                                     @Param("clientId") String clientId);
+
+    /**
+     * 分页查询客户端列表（租户隔离 + 未删除，可选过滤条件）
+     *
+     * @param page       分页参数（MyBatis-Flex自动拦截）
+     * @param tenantId   租户ID
+     * @param clientName 客户端名称（可选，模糊匹配）
+     * @param status     状态（可选，精确匹配）
+     * @return 分页结果
+     */
+    Page<SysOauth2Client> paginateByCondition(Page<SysOauth2Client> page,
+                                              @Param("tenantId") Long tenantId,
+                                              @Param("clientName") String clientName,
+                                              @Param("status") Integer status);
+
+    /**
+     * 根据客户端ID查询客户端（可选租户隔离 + 未删除）
+     * <p>
+     * 当tenantId不为null时增加租户过滤条件。
+     * </p>
+     *
+     * @param tenantId 租户ID，可选（null时不限制租户）
+     * @param clientId OAuth2客户端ID（非主键）
+     * @return 客户端实体，不存在则返回null
+     */
+    SysOauth2Client selectByClientIdOptionalTenant(@Param("tenantId") Long tenantId,
+                                                    @Param("clientId") String clientId);
+
+    /**
+     * 根据客户端ID查询启用状态的客户端（未删除 + 已启用）
+     *
+     * @param clientId OAuth2客户端ID（非主键）
+     * @return 客户端实体，不存在则返回null
+     */
+    SysOauth2Client selectActiveByClientId(@Param("clientId") String clientId);
 }
