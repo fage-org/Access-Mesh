@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * 用户组织关联领域服务接口
@@ -91,17 +90,4 @@ public interface UserOrgDomainService {
      * @return 组织简要信息列表
      */
     List<UserPageItemResp.OrgBrief> getUserOrgBriefs(Long tenantId, Long userId);
-
-    /**
-     * 批量查询用户的组织关联
-     * <p>
-     * 对多个用户同时查询组织关联，返回用户ID到关联列表的映射。
-     * 用于批量加载用户组织信息避免 N+1 查询问题。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param userIds  用户ID集合
-     * @return userId 到用户组织关联列表的映射
-     */
-    java.util.Map<Long, List<SysUserOrg>> batchFindByUserIds(Long tenantId, Set<Long> userIds);
 }

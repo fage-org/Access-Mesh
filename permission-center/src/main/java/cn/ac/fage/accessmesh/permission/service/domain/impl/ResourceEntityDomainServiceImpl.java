@@ -289,20 +289,4 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         return resourceEntityMapper.softDeleteBatch(tenantId, ids, deletedAt);
     }
 
-    /**
-     * 根据类型和编码查找资源ID
-     *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值
-     * @param code         资源编码
-     * @return 资源ID，不存在返回null
-     */
-    @Override
-    public Long findByTypeAndCode(Long tenantId, Integer resourceType, String code) {
-        if (tenantId == null || resourceType == null || code == null || code.isBlank()) {
-            return null;
-        }
-        ResourceEntity entity = resourceEntityMapper.selectByTypeAndCode(tenantId, resourceType, code);
-        return entity != null ? entity.getId() : null;
     }
-}

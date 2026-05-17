@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -170,37 +169,5 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
             String orgType = org != null ? org.getOrgType() : null;
             return new UserPageItemResp.OrgBrief(uo.getOrgId(), orgName, orgType, Boolean.TRUE.equals(uo.getIsPrimary()));
         }).collect(Collectors.toList());
-    }
-
-    /**
-     * 批量查询多个用户的组织关联
-     * <p>
-     * 根据用户ID集合批量查询用户组织关联。
-     * 使用单次SQL查询所有关联，再按用户ID分组。
-     * 为每个输入用户ID初始化空列表，确保结果完整性。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于租户隔离
-     * @param userIds  用户ID集合
-     * @return 用户ID到组织关联列表的映射
-     */
-    @Override
-    public Map<Long, List<SysUserOrg>> batchFindByUserIds(Long tenantId, Set<Long> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return Map.of();
-        }
-
-        List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsSet(tenantId, userIds);
-
-        // 为每个用户ID初始化空列表
-        Map<Long, List<SysUserOrg>> result = new HashMap<>();
-        for (Long userId : userIds) {
-            result.put(userId, new java.util.ArrayList<>());
-        }
-        // 按用户ID分组填充结果
-        for (SysUserOrg uo : allUserOrgs) {
-            result.computeIfAbsent(uo.getUserId(), k -> new java.util.ArrayList<>()).add(uo);
-        }
-        return result;
     }
 }

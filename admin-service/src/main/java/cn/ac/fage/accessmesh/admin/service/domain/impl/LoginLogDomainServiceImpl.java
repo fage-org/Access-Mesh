@@ -30,23 +30,6 @@ public class LoginLogDomainServiceImpl implements LoginLogDomainService {
     }
 
     /**
-     * 插入登录日志
-     * <p>
-     * 将完整的登录日志实体插入数据库。
-     * 用于需要自定义日志字段的场景。
-     * </p>
-     *
-     * @param log 登录日志实体
-     */
-    @Override
-    public void insert(SysLoginLog log) {
-        if (log == null) {
-            return;
-        }
-        loginLogMapper.insert(log);
-    }
-
-    /**
      * 快捷记录登录日志
      * <p>
      * 创建并插入一条登录日志，记录登录行为。

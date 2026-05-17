@@ -15,14 +15,4 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectByConfigKeys" resultType="cn.ac.fage.accessmesh.permission.entity.SystemConfig">
-        SELECT * FROM system_config
-        WHERE tenant_id = #{tenantId}
-          AND delete_flag = 0
-          AND config_key IN
-        <foreach collection="configKeys" item="key" open="(" separator="," close=")">
-            #{key}
-        </foreach>
-    </select>
-
 </mapper>

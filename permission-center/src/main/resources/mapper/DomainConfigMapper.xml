@@ -13,14 +13,6 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
-    <select id="selectValidByType" resultType="cn.ac.fage.accessmesh.permission.entity.DomainConfig">
-        SELECT * FROM domain_config
-        WHERE tenant_id = #{tenantId}
-          AND biz_domain_id = #{bizDomainId}
-          AND config_type = #{configType}
-          AND delete_flag = 0
-    </select>
-
     <select id="selectValidByTypeString" resultType="cn.ac.fage.accessmesh.permission.entity.DomainConfig">
         SELECT * FROM domain_config
         WHERE tenant_id = #{tenantId}

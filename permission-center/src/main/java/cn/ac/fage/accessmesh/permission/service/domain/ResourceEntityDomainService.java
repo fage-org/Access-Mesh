@@ -162,17 +162,4 @@ public interface ResourceEntityDomainService {
      */
     int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt);
 
-    /**
-     * 根据类型和编码查找资源ID
-     * <p>
-     * 根据资源类型和编码查询资源实体ID。
-     * 用于查找SERVICE资源等特定类型资源。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值
-     * @param code         资源编码
-     * @return 资源ID，不存在返回null
-     */
-    Long findByTypeAndCode(Long tenantId, Integer resourceType, String code);
-}
+    }

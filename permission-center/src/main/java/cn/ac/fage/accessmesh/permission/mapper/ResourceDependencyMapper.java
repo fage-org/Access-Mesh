@@ -55,24 +55,6 @@ public interface ResourceDependencyMapper extends BaseMapper<ResourceDependency>
                         @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
-     * 按服务来源批量软删除资源依赖关系
-     * <p>
-     * 根据服务编码和维护来源批量删除依赖关系，用于全量同步场景。
-     * 将匹配记录的delete_flag设置为id，deleted_at设置为当前时间。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param ownerServiceCode 所属服务编码
-     * @param maintainSource   维护来源
-     * @param deletedAt        删除时间戳
-     * @return 更新的行数
-     */
-    int softDeleteBatchByOwnerService(@Param("tenantId") Long tenantId,
-                                       @Param("ownerServiceCode") String ownerServiceCode,
-                                       @Param("maintainSource") String maintainSource,
-                                       @Param("deletedAt") LocalDateTime deletedAt);
-
-    /**
      * 根据租户ID查询所有有效资源依赖列表
      *
      * @param tenantId 租户ID

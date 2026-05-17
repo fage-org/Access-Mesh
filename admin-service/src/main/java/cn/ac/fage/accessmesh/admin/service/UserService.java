@@ -1,11 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.UserBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
-import cn.ac.fage.accessmesh.admin.dto.resp.BatchResultResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -14,7 +12,7 @@ import cn.ac.fage.accessmesh.common.model.PaginatedResult;
  * 用户服务接口
  * <p>
  * 提供用户管理相关的服务方法，包括用户的创建、更新、删除、查询等。
- * 支持单个创建和批量创建，以及用户的启用、禁用和密码重置。
+ * 支持用户的启用和密码重置。
  * </p>
  */
 public interface UserService {
@@ -30,18 +28,6 @@ public interface UserService {
      * @return 创建的用户ID
      */
     Long createUser(UserCreateReq req);
-
-    /**
-     * 批量创建用户
-     * <p>
-     * 批量创建多个用户账号。
-     * 用于用户数据导入或初始化场景。
-     * </p>
-     *
-     * @param req 批量创建请求
-     * @return 批量操作结果，包含成功和失败的记录
-     */
-    BatchResultResp batchCreateUsers(UserBatchCreateReq req);
 
     /**
      * 更新用户
@@ -75,17 +61,6 @@ public interface UserService {
      * @param req 待启用的用户ID列表请求
      */
     void enableUser(IdsReq req);
-
-    /**
-     * 禁用用户
-     * <p>
-     * 批量禁用多个用户账号。
-     * 禁止用户登录和操作。
-     * </p>
-     *
-     * @param req 待禁用的用户ID列表请求
-     */
-    void disableUser(IdsReq req);
 
     /**
      * 获取用户详情
@@ -122,16 +97,4 @@ public interface UserService {
      * @param newPassword 新密码
      */
     void resetPassword(Long userId, String newPassword);
-
-    /**
-     * 批量重置用户密码
-     * <p>
-     * 批量重置多个用户的密码。
-     * 用于批量密码初始化场景。
-     * </p>
-     *
-     * @param req         待重置的用户ID列表请求
-     * @param newPassword 新密码
-     */
-    void batchResetPassword(IdsReq req, String newPassword);
 }

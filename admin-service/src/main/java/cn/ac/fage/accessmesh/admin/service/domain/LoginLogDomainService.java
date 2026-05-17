@@ -1,19 +1,10 @@
 package cn.ac.fage.accessmesh.admin.service.domain;
 
-import cn.ac.fage.accessmesh.admin.entity.SysLoginLog;
-
 /**
  * 登录日志领域服务
  * 封装登录日志记录核心领域逻辑
  */
 public interface LoginLogDomainService {
-
-    /**
-     * 记录登录日志
-     *
-     * @param log 登录日志实体
-     */
-    void insert(SysLoginLog log);
 
     /**
      * 记录登录日志（便捷方法）

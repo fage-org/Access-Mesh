@@ -9,15 +9,6 @@ import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 public interface OAuth2ClientDomainService {
 
     /**
-     * 根据clientId查询有效的客户端
-     *
-     * @param tenantId 租户ID（可为null，表示不限定租户）
-     * @param clientId 客户端ID
-     * @return 客户端实体，不存在返回null
-     */
-    SysOauth2Client findByClientId(Long tenantId, String clientId);
-
-    /**
      * 查询有效的客户端（未删除、属于指定租户）
      *
      * @param tenantId 租户ID

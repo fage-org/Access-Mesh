@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.permission.entity.SystemConfig;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * 系统配置数据访问接口
@@ -33,14 +32,4 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
      * @return 系统配置列表
      */
     List<SystemConfig> selectByTenantId(@Param("tenantId") Long tenantId);
-
-    /**
-     * 根据租户ID和配置键集合查询有效系统配置列表
-     *
-     * @param tenantId   租户ID
-     * @param configKeys 配置键集合
-     * @return 系统配置列表
-     */
-    List<SystemConfig> selectByConfigKeys(@Param("tenantId") Long tenantId,
-                                           @Param("configKeys") Set<String> configKeys);
 }

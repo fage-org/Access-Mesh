@@ -179,16 +179,4 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         }
         rulesCacheManager.evictBatch(tenantId, conditionIds);
     }
-
-    /**
-     * 获取缓存管理器
-     * <p>
-     * 供外部调用，用于直接操作缓存
-     * </p>
-     *
-     * @return 条件规则缓存管理器实例
-     */
-    public GenericCacheManager<Long, JsonNode> getRulesCacheManager() {
-        return rulesCacheManager;
-    }
 }

@@ -30,18 +30,6 @@ public interface DomainConfigMapper extends BaseMapper<DomainConfig> {
                         @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
-     * 根据租户ID、业务域ID和配置类型查询有效域配置
-     *
-     * @param tenantId    租户ID
-     * @param bizDomainId 业务域ID
-     * @param configType  配置类型值
-     * @return 域配置实体，不存在返回null
-     */
-    DomainConfig selectValidByType(@Param("tenantId") Long tenantId,
-                                    @Param("bizDomainId") Long bizDomainId,
-                                    @Param("configType") Integer configType);
-
-    /**
      * 根据租户ID、业务域ID和配置类型字符串查询有效域配置
      *
      * @param tenantId    租户ID

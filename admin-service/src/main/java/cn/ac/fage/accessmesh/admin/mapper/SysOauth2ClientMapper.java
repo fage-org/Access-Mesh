@@ -72,19 +72,6 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
                                               @Param("status") Integer status);
 
     /**
-     * 根据客户端ID查询客户端（可选租户隔离 + 未删除）
-     * <p>
-     * 当tenantId不为null时增加租户过滤条件。
-     * </p>
-     *
-     * @param tenantId 租户ID，可选（null时不限制租户）
-     * @param clientId OAuth2客户端ID（非主键）
-     * @return 客户端实体，不存在则返回null
-     */
-    SysOauth2Client selectByClientIdOptionalTenant(@Param("tenantId") Long tenantId,
-                                                    @Param("clientId") String clientId);
-
-    /**
      * 根据客户端ID查询启用状态的客户端（未删除 + 已启用）
      *
      * @param clientId OAuth2客户端ID（非主键）

@@ -1,11 +1,8 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
-import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.MenuBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.MenuUpdateReq;
-import cn.ac.fage.accessmesh.admin.dto.resp.BatchResultResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
@@ -25,19 +22,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 菜单管理服务实现类
  * <p>
- * 提供菜单的CRUD操作、树形查询、批量操作等功能。
+ * 提供菜单的CRUD操作、树形查询功能。
  * 实现跨服务数据同步机制，通过记录同步任务模式确保菜单变更同步到permission-center。
  * 支持菜单层级深度限制（最多5级）、权限标识唯一性校验。
- * 使用MenuDomainService处理菜单数据查询和批量操作。
+ * 使用MenuDomainService处理菜单数据查询。
  * </p>
  */
 @Service
@@ -46,7 +41,6 @@ public class MenuServiceImpl implements MenuService {
     private static final Logger log = LoggerFactory.getLogger(MenuServiceImpl.class);
 
     private final SysMenuMapper menuMapper;
-    private final cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService;
     private final MenuDomainService menuDomainService;
     private final MenuSyncHandler menuSyncHandler;
     private final AdminPermissionValidator permissionValidator;
@@ -57,22 +51,19 @@ public class MenuServiceImpl implements MenuService {
      * 构造函数注入依赖
      *
      * @param menuMapper 菜单数据访问Mapper
-     * @param roleProxyService 角色代理服务，获取用户角色和权限
-     * @param menuDomainService 菜单领域服务，处理菜单数据查询和批量操作
+     * @param menuDomainService 菜单领域服务，处理菜单数据查询
      * @param menuSyncHandler 菜单同步处理器，同步菜单数据到permission-center
      * @param permissionValidator 权限校验器，校验菜单操作权限
      * @param syncRetryService 同步重试服务，记录同步失败任务
      * @param objectMapper JSON序列化工具
      */
     public MenuServiceImpl(SysMenuMapper menuMapper,
-                           cn.ac.fage.accessmesh.admin.service.RoleProxyService roleProxyService,
                            MenuDomainService menuDomainService,
                            MenuSyncHandler menuSyncHandler,
                            AdminPermissionValidator permissionValidator,
                            SyncRetryService syncRetryService,
                            ObjectMapper objectMapper) {
         this.menuMapper = menuMapper;
-        this.roleProxyService = roleProxyService;
         this.menuDomainService = menuDomainService;
         this.menuSyncHandler = menuSyncHandler;
         this.permissionValidator = permissionValidator;
@@ -313,222 +304,6 @@ public class MenuServiceImpl implements MenuService {
         Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectMenusForTree(tenantId);
         return buildTree(all, 0L);
-    }
-
-    /**
-     * 获取用户按钮级权限列表
-     * <p>
-     * 通过RoleProxyService加载用户的角色和权限，返回按钮级权限列表。
-     * </p>
-     *
-     * @param userId 用户ID
-     * @return 权限码列表
-     */
-    @Override
-    public List<String> getUserPermissions(Long userId) {
-        cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
-        return info != null ? info.permissions() : List.of();
-    }
-
-    /**
-     * 批量创建菜单
-     * <p>
-     * 批量创建多个菜单，校验权限标识唯一性和菜单层级深度。
-     * 使用批量查询检查权限标识和父菜单深度（优化性能）。
-     * 返回部分成功结果，包含成功ID列表和失败消息列表。
-     * </p>
-     *
-     * @param req 批量创建请求，包含多个菜单创建请求
-     * @return 批量操作结果，包含成功ID列表和失败消息列表
-     * @throws BizException 同步任务记录失败
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public BatchResultResp batchCreateMenus(MenuBatchCreateReq req) {
-        // Permission check - type-level CREATE
-        permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-        List<Long> successIds = new ArrayList<>();
-        List<String> failedMessages = new ArrayList<>();
-
-        // Performance fix: Batch collect all permCodes and parentIds
-        Set<String> allPermCodes = req.menus().stream()
-            .map(MenuCreateReq::perms)
-            .filter(p -> p != null && !p.isBlank())
-            .collect(Collectors.toSet());
-        Set<Long> allParentIds = req.menus().stream()
-            .map(MenuCreateReq::parentId)
-            .filter(id -> id != null && id > 0)
-            .collect(Collectors.toSet());
-
-        // Batch query existing permCodes and parent depths
-        Set<String> existingPermCodes = menuDomainService.findExistingPermCodes(tenantId, allPermCodes);
-        Map<Long, Integer> parentDepthMap = menuDomainService.batchCalculateDepth(tenantId, allParentIds);
-
-        // Build menus to insert
-        List<SysMenu> menusToInsert = new ArrayList<>();
-        List<MenuCreateReq> validMenuReqs = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
-
-        for (MenuCreateReq menuReq : req.menus()) {
-            // Check permCode duplicate
-            if (menuReq.perms() != null && !menuReq.perms().isBlank()
-                && existingPermCodes.contains(menuReq.perms())) {
-                failedMessages.add("权限标识已存在: " + menuReq.perms());
-                continue;
-            }
-
-            // Calculate depth
-            int depth = 1;
-            if (menuReq.parentId() != null && menuReq.parentId() > 0) {
-                Integer parentDepth = parentDepthMap.get(menuReq.parentId());
-                if (parentDepth == null) {
-                    failedMessages.add("父菜单不存在: " + menuReq.parentId());
-                    continue;
-                }
-                depth = parentDepth + 1;
-            }
-
-            if (depth > 5) {
-                failedMessages.add("菜单层级超过限制: " + menuReq.menuName());
-                continue;
-            }
-
-            // Build menu entity
-            SysMenu menu = new SysMenu();
-            menu.setTenantId(tenantId);
-            menu.setParentId(menuReq.parentId() != null && menuReq.parentId() > 0 ? menuReq.parentId() : 0L);
-            menu.setMenuType(String.valueOf(menuReq.menuType()));
-            menu.setName(menuReq.menuName());
-            menu.setPath(menuReq.path());
-            menu.setComponent(menuReq.component());
-            menu.setPermCode(menuReq.perms());
-            menu.setIcon(menuReq.icon());
-            menu.setSortOrder(menuReq.sort());
-            menu.setVisible(menuReq.visible() != null && menuReq.visible() == 1);
-            menu.setStatus(menuReq.status() != null ? menuReq.status() : 1);
-            menu.setCreatedAt(now);
-            menu.setUpdatedAt(now);
-            menu.setDeleteFlag(0L);
-
-            menusToInsert.add(menu);
-            validMenuReqs.add(menuReq);
-        }
-
-        // Batch insert
-        if (!menusToInsert.isEmpty()) {
-            menuDomainService.insertBatch(menusToInsert);
-
-            // Record sync tasks for inserted menus
-            for (int i = 0; i < menusToInsert.size(); i++) {
-                SysMenu menu = menusToInsert.get(i);
-                successIds.add(menu.getId());
-
-                try {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "menuId", menu.getId(),
-                        "menuName", menu.getName(),
-                        "tenantId", tenantId
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "menu:create:" + menu.getId(),
-                        "permission-center",
-                        "resource_entity",
-                        String.valueOf(menu.getId()),
-                        "create",
-                        payload,
-                        null
-                    );
-                } catch (Exception syncEx) {
-                    log.error("Failed to record sync task for batch menu creation: menuId={}, error={}",
-                        menu.getId(), syncEx.getMessage());
-                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
-                }
-            }
-        }
-
-        return BatchResultResp.partial(req.menus().size(), successIds.size(), successIds, failedMessages);
-    }
-
-    /**
-     * 批量删除菜单
-     * <p>
-     * 批量软删除菜单及其所有子菜单。
-     * 执行批量实例级权限校验，使用批量查询获取子菜单ID。
-     * 先本地软删除再记录同步任务。
-     * </p>
-     *
-     * @param req ID集合请求，包含待删除的菜单ID列表
-     * @throws BizException 同步任务记录失败
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void batchDeleteMenus(IdsReq req) {
-        // Permission check - batch instance-level DELETE
-        List<String> resourceCodes = req.ids().stream()
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.MENU, resourceCodes, AdminOperationCode.DELETE);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // Performance fix: Batch load menus and descendants
-        Set<Long> menuIdSet = new java.util.HashSet<>(req.ids());
-        List<SysMenu> menus = menuDomainService.selectValidByIds(tenantId, menuIdSet);
-
-        // Get all descendant IDs in batch
-        Map<Long, List<Long>> descendantMap = menuDomainService.batchGetDescendantIds(tenantId, menuIdSet);
-
-        // Collect all IDs to delete (including self)
-        Set<Long> allIdsToDelete = new java.util.HashSet<>();
-        for (SysMenu menu : menus) {
-            Long menuId = menu.getId();
-            // Add self
-            allIdsToDelete.add(menuId);
-            // Add descendants
-            List<Long> descendants = descendantMap.getOrDefault(menuId, List.of());
-            allIdsToDelete.addAll(descendants);
-        }
-
-        // 1. 先执行本地批量软删除
-        if (!allIdsToDelete.isEmpty()) {
-            menuDomainService.softDeleteBatch(tenantId, List.copyOf(allIdsToDelete));
-        }
-
-        // 2. 记录删除同步任务
-        for (SysMenu menu : menus) {
-            try {
-                syncRetryService.recordSyncFailure(
-                    "menu:delete:" + menu.getId(),
-                    "permission-center",
-                    "resource_entity",
-                    String.valueOf(menu.getId()),
-                    "delete",
-                    null,
-                    null
-                );
-                log.info("Recorded delete sync task for menu: menuId={}", menu.getId());
-            } catch (Exception e) {
-                log.error("Failed to record delete sync task for menu: menuId={}, error={}", menu.getId(), e.getMessage());
-                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
-            }
-        }
-    }
-
-    /**
-     * 获取菜单的所有子菜单ID（包含自身）
-     * <p>
-     * 递归查询菜单的所有后代菜单ID，用于级联删除等操作。
-     * </p>
-     *
-     * @param menuId 菜单ID
-     * @return 子菜单ID列表（包含自身）
-     */
-    @Override
-    public List<Long> getDescendantMenuIds(Long menuId) {
-        Long tenantId = TenantContextHolder.getTenantId();
-        return menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId);
     }
 
     /**

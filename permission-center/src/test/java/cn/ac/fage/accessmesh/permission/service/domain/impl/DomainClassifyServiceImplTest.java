@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -75,10 +76,10 @@ class DomainClassifyServiceImplTest {
             }
             return result;
         });
-        when(bizDomainMapper.selectOneById(10L)).thenReturn(opsDomain);
+        when(bizDomainMapper.selectValidById(10L, 1L)).thenReturn(opsDomain);
         when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain, hrDomain));
         AtomicInteger configCallIndex = new AtomicInteger();
-        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenAnswer(invocation -> {
+        when(domainConfigMapper.selectValidByTypeString(any(), any(), anyString())).thenAnswer(invocation -> {
             int currentIndex = configCallIndex.getAndIncrement() % 3;
             if (currentIndex == 2) {
                 return classifyConfig("BUTTON");
@@ -105,7 +106,7 @@ class DomainClassifyServiceImplTest {
         BizDomain globalDomain = domain(99L, 1L, true, "GLOBAL");
 
         when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain));
-        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenReturn(classifyConfig("MENU"));
+        when(domainConfigMapper.selectValidByTypeString(any(), any(), anyString())).thenReturn(classifyConfig("MENU"));
         when(bizDomainMapper.selectGlobalByTenant(any())).thenReturn(globalDomain);
 
         assertEquals(99L, service.findDomainIdByTypeCode(1L, "API"));

@@ -180,13 +180,6 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectPagedByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
-        SELECT * FROM role_resource_permission
-        WHERE tenant_id = #{tenantId}
-          AND abstract_role_id = #{roleId}
-          AND delete_flag = 0
-    </select>
-
     <select id="countByRoleId" resultType="long">
         SELECT COUNT(*) FROM role_resource_permission
         WHERE tenant_id = #{tenantId}

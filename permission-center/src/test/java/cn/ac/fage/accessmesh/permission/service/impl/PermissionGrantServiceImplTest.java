@@ -35,6 +35,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -136,7 +137,7 @@ class PermissionGrantServiceImplTest {
 
         DomainConfig config = new DomainConfig();
         config.setExtra("USER,DEPT");
-        when(domainConfigMapper.selectValidByType(any(), any(), any())).thenReturn(config);
+        when(domainConfigMapper.selectValidByTypeString(any(), any(), anyString())).thenReturn(config);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SER")).thenReturn(3);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(

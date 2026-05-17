@@ -17,21 +17,4 @@ public interface OrgTreeConfigDomainService {
      * @return 默认配置列表
      */
     List<SysOrgTreeConfig> findDefaultConfigs(Long tenantId);
-
-    /**
-     * 查询租户的所有组织树配置
-     *
-     * @param tenantId 租户ID
-     * @return 配置列表
-     */
-    List<SysOrgTreeConfig> findAllByTenantId(Long tenantId);
-
-    /**
-     * 根据ID查询有效的组织树配置
-     *
-     * @param tenantId 租户ID
-     * @param id       配置ID
-     * @return 配置实体，不存在返回null
-     */
-    SysOrgTreeConfig selectValidById(Long tenantId, Long id);
 }

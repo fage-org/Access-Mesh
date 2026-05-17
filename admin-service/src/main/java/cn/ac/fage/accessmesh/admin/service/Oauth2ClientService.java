@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.Oauth2ClientResp;
-import cn.ac.fage.accessmesh.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 
 /**
@@ -51,18 +50,6 @@ public interface Oauth2ClientService {
     void deleteClients(IdsReq req);
 
     /**
-     * 获取OAuth2客户端详情（返回实体）
-     * <p>
-     * 根据ID查询客户端完整信息，包括敏感字段（如clientSecret）。
-     * 用于内部服务调用，不对外暴露。
-     * </p>
-     *
-     * @param id 客户端ID
-     * @return OAuth2客户端实体
-     */
-    SysOauth2Client getClientEntity(Long id);
-
-    /**
      * 获取OAuth2客户端详情（返回DTO）
      * <p>
      * 根据ID查询客户端信息，排除敏感字段。
@@ -73,18 +60,6 @@ public interface Oauth2ClientService {
      * @return OAuth2客户端响应DTO
      */
     Oauth2ClientResp getClientResp(Long id);
-
-    /**
-     * 根据clientId获取客户端
-     * <p>
-     * 根据OAuth2 clientId查询客户端配置。
-     * 用于OAuth2认证流程，需要返回clientSecret进行验证。
-     * </p>
-     *
-     * @param clientId OAuth2客户端标识
-     * @return OAuth2客户端实体
-     */
-    SysOauth2Client getClientByClientId(String clientId);
 
     /**
      * 分页查询OAuth2客户端

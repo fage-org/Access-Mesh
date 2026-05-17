@@ -4,13 +4,11 @@ import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgSyncHandler;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
-import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -81,52 +79,6 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
             return permResourceId;
         }
         return null;
-    }
-
-    /**
-     * 批量同步组织到权限中心
-     *
-     * @param tenantId 租户ID
-     * @param orgs     组织列表
-     * @return 同步成功数量
-     */
-    @Override
-    public int batchSyncOrgs(Long tenantId, Iterable<SysOrg> orgs) {
-        int successCount = 0;
-        for (SysOrg org : orgs) {
-            Long permResourceId = syncOrgToPermissionCenter(tenantId, org);
-            if (permResourceId != null) {
-                successCount++;
-            }
-        }
-        return successCount;
-    }
-
-    /**
-     * 从权限中心删除组织资源
-     * <p>
-     * 通过Feign调用权限中心删除指定的资源实体。
-     * </p>
-     *
-     * @param tenantId       租户ID
-     * @param permResourceId 权限中心的资源ID
-     * @return 是否成功
-     */
-    @Override
-    public boolean deleteOrgFromPermissionCenter(Long tenantId, Long permResourceId) {
-        if (permResourceId == null) {
-            return true; // 未同步过，视为成功
-        }
-
-        IdsReq req = new IdsReq(List.of(permResourceId));
-        PermResult<Void> result = permissionFeignClient.deleteResources(req);
-        if (result == null || result.getCode() != 200) {
-            log.warn("从权限中心删除组织失败: permResourceId={}", permResourceId);
-            return false;
-        }
-
-        log.info("从权限中心删除组织成功: permResourceId={}", permResourceId);
-        return true;
     }
 
     /**

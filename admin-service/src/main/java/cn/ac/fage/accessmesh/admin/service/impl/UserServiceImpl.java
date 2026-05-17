@@ -2,11 +2,9 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.UserBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
-import cn.ac.fage.accessmesh.admin.dto.resp.BatchResultResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
@@ -34,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -457,194 +454,6 @@ public class UserServiceImpl implements UserService {
         user.setPassword(BCrypt.hashpw(newPassword));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
-    }
-
-    /**
-     * 批量创建用户
-     * <p>
-     * 批量创建多个用户，生成随机初始密码。
-     * 使用批量查询检查用户名和手机号唯一性（2次DB查询替代N次）。
-     * 批量插入用户后记录同步任务（Outbox Pattern）。
-     * 返回部分成功结果，包含成功ID列表和失败消息列表。
-     * </p>
-     *
-     * @param req 批量创建请求，包含多个用户创建请求
-     * @return 批量操作结果，包含成功ID列表和失败消息列表
-     * @throws BizException 同步任务记录失败
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public BatchResultResp batchCreateUsers(UserBatchCreateReq req) {
-        Long tenantId = TenantContextHolder.getTenantId();
-        List<Long> successIds = new ArrayList<>();
-        List<String> failedMessages = new ArrayList<>();
-
-        // 1. 批量收集所有用户名和手机号
-        Set<String> allUsernames = req.users().stream()
-            .map(UserCreateReq::username)
-            .collect(Collectors.toSet());
-        Set<String> allPhones = req.users().stream()
-            .map(UserCreateReq::phone)
-            .filter(p -> p != null && !p.isBlank())
-            .collect(Collectors.toSet());
-
-        // 2. 批量查询已存在的用户名和手机号（优化：2次数据库查询替代N次）
-        Set<String> existingUsernames = userDomainService.findExistingUsernames(tenantId, allUsernames);
-        Set<String> existingPhones = userDomainService.findExistingPhones(tenantId, allPhones);
-
-        // 3. 构建待插入的用户列表
-        List<SysUser> usersToInsert = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
-
-        for (UserCreateReq userReq : req.users()) {
-            // 检查用户名重复（使用批量查询结果）
-            if (existingUsernames.contains(userReq.username())) {
-                failedMessages.add("用户名已存在: " + userReq.username());
-                continue;
-            }
-            // 检查手机号重复（使用批量查询结果）
-            if (userReq.phone() != null && !userReq.phone().isBlank() && existingPhones.contains(userReq.phone())) {
-                failedMessages.add("手机号已存在: " + userReq.phone());
-                continue;
-            }
-
-            // 构建用户实体
-            SysUser user = new SysUser();
-            user.setTenantId(tenantId);
-            user.setUsername(userReq.username());
-            user.setName(userReq.name());
-            user.setPhone(userReq.phone());
-            user.setEmail(userReq.email());
-            String initialPassword = generateRandomPassword();
-            user.setPassword(BCrypt.hashpw(initialPassword));
-            log.info("Generated initial password for batch user: username={}", userReq.username());
-            user.setStatus(userReq.status() != null ? userReq.status() : 1);
-            user.setCreatedAt(now);
-            user.setUpdatedAt(now);
-            user.setDeleteFlag(0L);
-            usersToInsert.add(user);
-        }
-
-        // 4. 批量插入（优化：1次数据库操作替代N次）
-        if (!usersToInsert.isEmpty()) {
-            userDomainService.insertBatch(usersToInsert);
-
-            // 5. 记录同步任务（Outbox Pattern：确保原子性）
-            for (SysUser user : usersToInsert) {
-                try {
-                    String payload = objectMapper.writeValueAsString(Map.of(
-                        "userId", user.getId(),
-                        "username", user.getUsername(),
-                        "tenantId", tenantId
-                    ));
-                    syncRetryService.recordSyncFailure(
-                        "user:create:" + user.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(user.getId()),
-                        "create",
-                        payload,
-                        null
-                    );
-                    successIds.add(user.getId());
-                } catch (Exception syncEx) {
-                    log.error("Failed to record sync task for batch user creation: userId={}, error={}",
-                        user.getId(), syncEx.getMessage());
-                    failedMessages.add("同步任务记录失败: " + user.getUsername());
-                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
-                }
-            }
-        }
-
-        return BatchResultResp.partial(req.users().size(), successIds.size(), successIds, failedMessages);
-    }
-
-    /**
-     * 批量禁用用户
-     * <p>
-     * 将多个用户状态设置为禁用(0)。
-     * 执行批量实例级权限校验，更新后记录同步任务到permission-center。
-     * </p>
-     *
-     * @param req ID集合请求，包含待禁用的用户ID列表
-     * @throws BizException 用户不存在、同步任务记录失败等
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void disableUser(IdsReq req) {
-        // Permission check - batch instance-level DISABLE
-        List<String> resourceCodes = req.ids().stream()
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.DISABLE);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用批量查询验证有效ID（避免N+1问题）
-        List<SysUser> existingUsers = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
-        Set<Long> validIds = existingUsers.stream().map(SysUser::getId).collect(Collectors.toSet());
-
-        if (!validIds.isEmpty()) {
-            userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 0);
-
-            // 同步禁用状态到权限中心 - 记录同步任务
-            for (SysUser user : existingUsers) {
-                if (user.getPermUserId() != null) {
-                    try {
-                        String payload = objectMapper.writeValueAsString(Map.of(
-                            "permUserId", user.getPermUserId(),
-                            "enabled", false
-                        ));
-                        syncRetryService.recordSyncFailure(
-                            "user:disable:" + user.getId(),
-                            "permission-center",
-                            "abstract_user",
-                            String.valueOf(user.getPermUserId()),
-                            "update",
-                            payload,
-                            null
-                        );
-                        log.info("Recorded disable sync task for user: userId={}", user.getId());
-                    } catch (Exception e) {
-                        log.error("Failed to record disable sync task for user: userId={}, error={}", user.getId(), e.getMessage());
-                        throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 批量重置密码
-     * <p>
-     * 为多个用户设置相同的密码。
-     * 执行批量实例级权限校验，使用批量更新SQL提高效率。
-     * </p>
-     *
-     * @param req ID集合请求，包含待重置密码的用户ID列表
-     * @param newPassword 新密码（明文）
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void batchResetPassword(IdsReq req, String newPassword) {
-        // Permission check - batch instance-level RESET_PASSWORD
-        List<String> resourceCodes = req.ids().stream()
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.RESET_PASSWORD);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
-        if (users.isEmpty()) {
-            return;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        String hashedPassword = BCrypt.hashpw(newPassword);
-
-        List<Long> userIds = users.stream().map(SysUser::getId).toList();
-        userMapper.batchUpdatePassword(tenantId, userIds, hashedPassword, now);
     }
 
     /**

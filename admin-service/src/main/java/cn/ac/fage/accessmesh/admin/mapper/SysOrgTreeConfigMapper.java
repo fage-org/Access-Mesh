@@ -73,12 +73,4 @@ public interface SysOrgTreeConfigMapper extends BaseMapper<SysOrgTreeConfig> {
      */
     int clearAllDefaults(@Param("tenantId") Long tenantId,
                          @Param("updatedAt") LocalDateTime updatedAt);
-
-    /**
-     * 查询租户下所有组织树配置（租户隔离 + 未删除）
-     *
-     * @param tenantId 租户ID
-     * @return 组织树配置列表
-     */
-    List<SysOrgTreeConfig> selectAllByTenantId(@Param("tenantId") Long tenantId);
 }

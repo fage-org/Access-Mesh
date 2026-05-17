@@ -175,21 +175,6 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
     }
 
     /**
-     * 获取OAuth2客户端实体
-     * <p>
-     * 根据客户端主键ID查询客户端实体，用于内部服务调用。
-     * 使用租户安全查询确保数据隔离。
-     * </p>
-     *
-     * @param id 客户端主键ID
-     * @return 客户端实体，不存在则返回null
-     */
-    @Override
-    public SysOauth2Client getClientEntity(Long id) {
-        return oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
-    }
-
-    /**
      * 获取OAuth2客户端详情响应
      * <p>
      * 根据客户端主键ID查询客户端，转换为API响应格式。
@@ -207,21 +192,6 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
             throw new BizException(AdminErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
         }
         return Oauth2ClientResp.fromEntity(entity);
-    }
-
-    /**
-     * 根据客户端ID查询客户端实体
-     * <p>
-     * 用于OAuth2认证流程中验证客户端身份。
-     * 按租户ID和客户端ID查询，确保租户隔离。
-     * </p>
-     *
-     * @param clientId OAuth2客户端ID（非主键）
-     * @return 客户端实体，不存在则返回null
-     */
-    @Override
-    public SysOauth2Client getClientByClientId(String clientId) {
-        return oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), clientId);
     }
 
     /**

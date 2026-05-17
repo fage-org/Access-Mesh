@@ -35,9 +35,4 @@
         WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND is_default = true
     </update>
 
-    <select id="selectAllByTenantId" resultType="cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig">
-        SELECT * FROM sys_org_tree_config
-        WHERE tenant_id = #{tenantId} AND delete_flag = 0
-    </select>
-
 </mapper>

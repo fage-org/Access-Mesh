@@ -48,40 +48,4 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
         return orgTreeConfigMapper.selectDefaultConfigs(tenantId);
     }
 
-    /**
-     * 查询租户的所有组织树配置
-     * <p>
-     * 获取指定租户下所有的组织树配置方案。
-     * 用于组织树配置管理页面的列表展示。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于租户隔离
-     * @return 组织树配置列表
-     */
-    @Override
-    public List<SysOrgTreeConfig> findAllByTenantId(Long tenantId) {
-        if (tenantId == null) {
-            return List.of();
-        }
-        return orgTreeConfigMapper.selectAllByTenantId(tenantId);
     }
-
-    /**
-     * 查询有效的组织树配置
-     * <p>
-     * 根据主键ID查询配置，带租户隔离和删除标记过滤。
-     * 用于配置更新、设置默认等操作前的校验。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于租户隔离
-     * @param id       配置主键ID
-     * @return 组织树配置实体，不存在返回null
-     */
-    @Override
-    public SysOrgTreeConfig selectValidById(Long tenantId, Long id) {
-        if (id == null) {
-            return null;
-        }
-        return orgTreeConfigMapper.selectByIdSafe(tenantId, id);
-    }
-}

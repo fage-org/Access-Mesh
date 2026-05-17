@@ -4,14 +4,12 @@ import cn.ac.fage.accessmesh.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuSyncHandler;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
-import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -142,52 +140,6 @@ public class MenuSyncHandlerImpl implements MenuSyncHandler {
         log.info("更新权限中心菜单成功: menuId={}, permResourceId={}",
             menu.getId(), menu.getPermResourceId());
         return menu.getPermResourceId();
-    }
-
-    /**
-     * 批量同步菜单到权限中心
-     *
-     * @param tenantId 租户ID
-     * @param menus    菜单列表
-     * @return 同步成功数量
-     */
-    @Override
-    public int batchSyncMenus(Long tenantId, Iterable<SysMenu> menus) {
-        int successCount = 0;
-        for (SysMenu menu : menus) {
-            Long permResourceId = syncMenuToPermissionCenter(tenantId, menu);
-            if (permResourceId != null) {
-                successCount++;
-            }
-        }
-        return successCount;
-    }
-
-    /**
-     * 从权限中心删除菜单资源
-     * <p>
-     * 通过Feign调用权限中心删除指定的资源实体。
-     * </p>
-     *
-     * @param tenantId       租户ID
-     * @param permResourceId 权限中心的资源ID
-     * @return 是否成功
-     */
-    @Override
-    public boolean deleteMenuFromPermissionCenter(Long tenantId, Long permResourceId) {
-        if (permResourceId == null) {
-            return true; // 未同步过，视为成功
-        }
-
-        IdsReq req = new IdsReq(List.of(permResourceId));
-        PermResult<Void> result = permissionFeignClient.deleteResources(req);
-        if (result == null || result.getCode() != 200) {
-            log.warn("从权限中心删除菜单失败: permResourceId={}", permResourceId);
-            return false;
-        }
-
-        log.info("从权限中心删除菜单成功: permResourceId={}", permResourceId);
-        return true;
     }
 
     /**

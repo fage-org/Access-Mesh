@@ -56,18 +56,6 @@ public interface AbstractRoleDomainService {
     List<AbstractRole> listChildren(Long tenantId, Long parentId);
 
     /**
-     * 解析子孙角色ID列表
-     * <p>
-     * 获取指定角色的所有子孙角色ID。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 子孙角色ID列表
-     */
-    List<Long> resolveDescendantIds(Long tenantId, Long roleId);
-
-    /**
      * 根据ID查询有效角色
      * <p>
      * 查询未删除的角色实体，包含租户校验。

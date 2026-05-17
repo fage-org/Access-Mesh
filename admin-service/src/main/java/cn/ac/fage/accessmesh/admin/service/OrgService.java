@@ -1,12 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service;
 
-import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.admin.dto.req.OrgBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgQuery;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgUpdateReq;
-import cn.ac.fage.accessmesh.admin.dto.resp.BatchResultResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgResp;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 
@@ -16,7 +13,7 @@ import java.util.List;
  * 组织服务接口
  * <p>
  * 提供组织管理相关的服务方法，包括组织的创建、更新、删除、查询等。
- * 支持单个创建和批量创建，以及组织树结构查询。
+ * 支持组织树结构查询。
  * 组织用于构建企业的组织架构，支持层级结构。
  * </p>
  */
@@ -33,18 +30,6 @@ public interface OrgService {
      * @return 创建的组织ID
      */
     Long createOrg(OrgCreateReq req);
-
-    /**
-     * 批量创建组织
-     * <p>
-     * 批量创建多个组织节点。
-     * 用于组织数据导入或初始化场景。
-     * </p>
-     *
-     * @param req 批量创建请求
-     * @return 批量操作结果，包含成功和失败的记录
-     */
-    BatchResultResp batchCreateOrgs(OrgBatchCreateReq req);
 
     /**
      * 更新组织
@@ -67,17 +52,6 @@ public interface OrgService {
      * @param id 组织ID
      */
     void deleteOrg(Long id);
-
-    /**
-     * 批量删除组织
-     * <p>
-     * 批量删除多个组织及其所有子组织。
-     * 使用软删除方式，保留数据记录。
-     * </p>
-     *
-     * @param req 待删除的组织ID列表请求
-     */
-    void batchDeleteOrgs(IdsReq req);
 
     /**
      * 获取组织详情
@@ -113,16 +87,4 @@ public interface OrgService {
      * @return 组织树列表
      */
     List<OrgResp> treeOrgs(OrgQuery query);
-
-    /**
-     * 获取组织的所有子孙组织ID
-     * <p>
-     * 使用递归查询获取指定组织的所有子孙组织ID。
-     * 用于级联删除和权限计算场景。
-     * </p>
-     *
-     * @param orgId 组织ID
-     * @return 子孙组织ID列表
-     */
-    List<Long> getDescendantOrgIds(Long orgId);
 }

@@ -28,26 +28,6 @@ public class OAuth2ClientDomainServiceImpl implements OAuth2ClientDomainService 
     }
 
     /**
-     * 根据客户端ID查询OAuth2客户端
-     * <p>
-     * 用于OAuth2授权流程中验证客户端身份。
-     * 支持可选的租户隔离（tenantId为null时不限制租户）。
-     * 带删除标记过滤。
-     * </p>
-     *
-     * @param tenantId 租户ID，可选（null时不限制租户）
-     * @param clientId 客户端ID（OAuth2标识）
-     * @return OAuth2客户端实体，不存在返回null
-     */
-    @Override
-    public SysOauth2Client findByClientId(Long tenantId, String clientId) {
-        if (clientId == null || clientId.isBlank()) {
-            return null;
-        }
-        return oauth2ClientMapper.selectByClientIdOptionalTenant(tenantId, clientId);
-    }
-
-    /**
      * 查询有效的OAuth2客户端
      * <p>
      * 根据主键ID查询客户端，带租户隔离和删除标记过滤。

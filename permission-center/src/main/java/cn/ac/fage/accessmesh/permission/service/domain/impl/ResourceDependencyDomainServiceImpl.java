@@ -266,23 +266,6 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     /**
-     * 获取操作权限的有效操作位
-     * <p>
-     * 查询操作权限实体并返回其effectiveBits值。
-     * 用于判断依赖触发条件。
-     * </p>
-     *
-     * @param opId 操作权限ID
-     * @return 有效操作位，不存在返回0
-     */
-    private Long getEffectiveOpBits(Long opId) {
-        if (opId == null) return 0L;
-        OperationPermission op = operationPermissionMapper.selectOneById(opId);
-        if (op == null) return 0L;
-        return op.getEffectiveBits();
-    }
-
-    /**
      * 从预加载缓存获取有效操作位（性能优化）
      * <p>
      * 用于嵌套循环中避免N+1查询。

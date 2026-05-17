@@ -27,32 +27,6 @@ public interface OrgSyncHandler {
     Long syncOrgToPermissionCenter(Long tenantId, SysOrg org);
 
     /**
-     * 批量同步组织到权限中心
-     * <p>
-     * 遍历组织列表逐个同步到 permission-center。
-     * 用于组织数据初始化或批量导入场景。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param orgs     组织列表，支持 Iterable 类型便于大数据量处理
-     * @return 同步成功的组织数量
-     */
-    int batchSyncOrgs(Long tenantId, Iterable<SysOrg> orgs);
-
-    /**
-     * 从权限中心删除组织资源
-     * <p>
-     * 在 permission-center 软删除对应的 resource_entity 记录。
-     * 用于组织删除后同步清理权限中心的资源数据。
-     * </p>
-     *
-     * @param tenantId       租户ID，用于多租户隔离
-     * @param permResourceId 权限中心中的资源实体ID
-     * @return 删除成功返回 true，失败返回 false
-     */
-    boolean deleteOrgFromPermissionCenter(Long tenantId, Long permResourceId);
-
-    /**
      * 生成组织资源编码
      * <p>
      * 使用组织的编码作为权限中心的资源编码。

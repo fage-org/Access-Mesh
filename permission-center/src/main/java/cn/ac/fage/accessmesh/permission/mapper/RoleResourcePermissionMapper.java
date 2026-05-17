@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.permission.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import org.apache.ibatis.annotations.Param;
 
@@ -228,18 +227,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
      */
     List<RoleResourcePermission> selectValidByResourceEntityId(@Param("tenantId") Long tenantId,
                                                                 @Param("resourceEntityId") Long resourceEntityId);
-
-    /**
-     * 根据角色ID分页查询权限记录
-     *
-     * @param page     分页参数
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 分页权限记录
-     */
-    List<RoleResourcePermission> selectPagedByRoleId(@Param("page") Page<RoleResourcePermission> page,
-                                                      @Param("tenantId") Long tenantId,
-                                                      @Param("roleId") Long roleId);
 
     /**
      * 根据角色ID统计权限记录数

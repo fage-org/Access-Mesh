@@ -92,20 +92,6 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     }
 
     @Override
-    public List<Long> resolveDescendantIds(Long tenantId, Long roleId) {
-        List<Long> descendantIds = abstractRoleMapper.selectDescendantIds(tenantId, roleId);
-        return descendantIds != null ? descendantIds : new ArrayList<>();
-    }
-
-    private void softDeleteRole(Long roleId, LocalDateTime now) {
-        AbstractRole role = new AbstractRole();
-        role.setId(roleId);
-        role.setDeleteFlag(roleId);
-        role.setDeletedAt(now);
-        abstractRoleMapper.update(role);
-    }
-
-    @Override
     public AbstractRole selectValidById(Long tenantId, Long roleId) {
         if (roleId == null) {
             return null;
