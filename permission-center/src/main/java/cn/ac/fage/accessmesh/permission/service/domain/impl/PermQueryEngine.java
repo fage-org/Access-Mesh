@@ -293,10 +293,10 @@ public class PermQueryEngine {
             return new LinkedHashSet<>(resourceIds); // 无有效ID = 全部拒绝
         }
 
-        // 6. Query instance-level permissions in batch (1 query)
+        // 6. 批量查询实例级权限（1次查询）
         List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, resourceEntityIds, Set.of(operationId));
 
-        // 7. Filter by operation permission bits
+        // 7. 按操作权限位过滤
         if (!instanceEntries.isEmpty()) {
             Map<Long, OperationPermission> opCache = entityBatchLoadService.batchLoadOperations(
                 tenantId, Set.of(operationId));
@@ -306,7 +306,7 @@ public class PermQueryEngine {
             }
         }
 
-        // 8. Evaluate conditions and conflicts on instance entries
+        // 8. 评估实例级权限的条件和冲突
         if (!instanceEntries.isEmpty()) {
             instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, Map.of());
         }
@@ -314,7 +314,7 @@ public class PermQueryEngine {
             instanceEntries = conflictDomainService.filterPermMutex(tenantId, instanceEntries);
         }
 
-        // 9. Collect allowed resource IDs
+        // 9. 收集允许的资源ID
         Set<Long> allowedEntityIds = new HashSet<>();
         for (RolePermEntry entry : instanceEntries) {
             if (entry.resourceEntityId() != null) {
@@ -322,7 +322,7 @@ public class PermQueryEngine {
             }
         }
 
-        // 10. Compute denied IDs (memory operation)
+        // 10. 计算被拒绝的ID（内存操作）
         Set<ID> denied = new LinkedHashSet<>();
         for (ID id : resourceIds) {
             Long entityId = toLongId(id);
