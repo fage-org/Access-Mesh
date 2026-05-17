@@ -35,7 +35,8 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
@@ -56,11 +57,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -97,7 +102,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionConditionDomainService permissionConditionDomainService;
     private final RolePermissionDomainService rolePermissionDomainService;
     private final TypeResolutionService typeResolutionService;
-    private final PermCacheDomainService permCacheDomainService;
+    private final CacheService cacheService;
     private final PermissionVersionDomainService permissionVersionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final EntityBatchLoadDomainService entityBatchLoadDomainService;
@@ -118,7 +123,7 @@ public class PermissionServiceImpl implements PermissionService {
                                  PermissionConditionDomainService permissionConditionDomainService,
                                  RolePermissionDomainService rolePermissionDomainService,
                                  TypeResolutionService typeResolutionService,
-                                 PermCacheDomainService permCacheDomainService,
+                                 CacheService cacheService,
                                  PermissionVersionDomainService permissionVersionDomainService,
                                  ResourceEntityDomainService resourceEntityDomainService,
                                  EntityBatchLoadDomainService entityBatchLoadDomainService,
@@ -135,7 +140,7 @@ public class PermissionServiceImpl implements PermissionService {
         this.permissionConditionDomainService = permissionConditionDomainService;
         this.rolePermissionDomainService = rolePermissionDomainService;
         this.typeResolutionService = typeResolutionService;
-        this.permCacheDomainService = permCacheDomainService;
+        this.cacheService = cacheService;
         this.permissionVersionDomainService = permissionVersionDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.entityBatchLoadDomainService = entityBatchLoadDomainService;
@@ -476,43 +481,39 @@ public class PermissionServiceImpl implements PermissionService {
      * 获取接口权限快照
      * <p>
      * 获取用户在指定服务下所有可访问的API列表。
-     * 使用缓存提升性能，支持版本号判断是否需要更新。
+     * 使用权限令牌隔离不同权限状态下的快照缓存，避免跨用户串用与旧快照误判。
      * </p>
      *
      * @param tenantId 租户ID
-     * @param req      接口快照请求，包含用户、服务编码、版本号等
-     * @return 接口快照响应，包含可访问的API列表和版本号
+     * @param req      接口快照请求，包含用户、服务编码、权限令牌等
+     * @return 接口快照响应，包含可访问的API列表和当前权限令牌
      */
     @Override
     @Transactional(readOnly = true)
     public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return new InterfaceSnapshotResp(false, 0, List.of());
+        if (userId == null) return new InterfaceSnapshotResp(false, "", List.of());
 
-        // 检查缓存
-        var cached = permCacheDomainService.getInterfaceSnapshot(tenantId, req.serviceCode());
-        if (cached.isPresent()) {
-            long cachedVersion = cached.get().version();
-            if (req.permissionVersion() != null && req.permissionVersion().equals(cachedVersion)) {
-                return new InterfaceSnapshotResp(true, cachedVersion, List.of());
-            }
-            List<ApiPermissionEntry> entries = cached.get().entries().stream()
-                .map(e -> new ApiPermissionEntry(e.serviceCode(), e.httpMethod(), e.pathPattern(),
-                    e.hasCondition(), e.conditionId()))
-                .collect(Collectors.toList());
-            return new InterfaceSnapshotResp(false, cachedVersion, entries);
+        // 先计算当前权限令牌，再根据 service + token 读取快照缓存。
+        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
+        Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
+            ? Set.of()
+            : permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
+        String permissionVersion = buildInterfacePermissionVersion(tenantId, validRoleIds);
+
+        if (permissionVersion.equals(req.permissionVersion())) {
+            return new InterfaceSnapshotResp(true, permissionVersion, List.of());
         }
 
-        // 解析用户有效角色
-        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
-        if (effectiveRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
-        Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
-        if (validRoleIds.isEmpty()) return new InterfaceSnapshotResp(false, 0, List.of());
+        String cacheIdentifier = buildInterfaceSnapshotCacheIdentifier(req.serviceCode(), permissionVersion);
+        InterfaceSnapshot cached = cacheService.get(PermCacheCatalog.INTERFACE_SNAPSHOT, tenantId, cacheIdentifier);
+        if (cached != null) {
+            return new InterfaceSnapshotResp(false, permissionVersion, toApiPermissionEntries(cached.entries()));
+        }
 
-        // 计算当前版本
-        long currentVersion = permissionVersionDomainService.calculateMaxVersion(tenantId, validRoleIds);
-        if (req.permissionVersion() != null && req.permissionVersion().equals(currentVersion)) {
-            return new InterfaceSnapshotResp(true, currentVersion, List.of());
+        if (validRoleIds.isEmpty()) {
+            cacheInterfaceSnapshot(tenantId, req.serviceCode(), permissionVersion, List.of(), cacheIdentifier);
+            return new InterfaceSnapshotResp(false, permissionVersion, List.of());
         }
 
         // 查询所有角色权限
@@ -576,18 +577,63 @@ public class PermissionServiceImpl implements PermissionService {
             .toList();
 
         // 缓存结果
+        cacheInterfaceSnapshot(tenantId, req.serviceCode(), permissionVersion, dedupedEntries, cacheIdentifier);
+        return new InterfaceSnapshotResp(false, permissionVersion, dedupedEntries);
+    }
+
+    private String buildInterfacePermissionVersion(Long tenantId, Set<Long> validRoleIds) {
+        StringBuilder raw = new StringBuilder("perm:v2|");
+        List<Long> sortedRoleIds = validRoleIds.stream()
+            .sorted()
+            .toList();
+
+        if (sortedRoleIds.isEmpty()) {
+            raw.append("empty");
+        } else {
+            for (Long roleId : sortedRoleIds) {
+                raw.append(roleId)
+                    .append(":")
+                    .append(permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
+                    .append(";");
+            }
+        }
+
+        return "perm:v2:" + sha256Hex(raw.toString());
+    }
+
+    private String buildInterfaceSnapshotCacheIdentifier(String serviceCode, String permissionVersion) {
+        return serviceCode + "|" + permissionVersion;
+    }
+
+    private void cacheInterfaceSnapshot(Long tenantId, String serviceCode, String permissionVersion,
+                                         List<ApiPermissionEntry> entries, String cacheIdentifier) {
         InterfaceSnapshot snapshot = new InterfaceSnapshot(
             tenantId,
-            req.serviceCode(),
-            currentVersion,
-            dedupedEntries.stream()
+            serviceCode,
+            permissionVersion,
+            entries.stream()
                 .map(item -> new InterfaceSnapshot.InterfacePermEntry(
                     item.serviceCode(), item.httpMethod(), item.pathPattern(), item.hasCondition(), item.conditionId()
                 ))
                 .toList()
         );
-        permCacheDomainService.setInterfaceSnapshot(tenantId, req.serviceCode(), snapshot);
-        return new InterfaceSnapshotResp(false, currentVersion, dedupedEntries);
+        cacheService.put(PermCacheCatalog.INTERFACE_SNAPSHOT, tenantId, cacheIdentifier, snapshot);
+    }
+
+    private List<ApiPermissionEntry> toApiPermissionEntries(List<InterfaceSnapshot.InterfacePermEntry> entries) {
+        return entries.stream()
+            .map(e -> new ApiPermissionEntry(e.serviceCode(), e.httpMethod(), e.pathPattern(),
+                e.hasCondition(), e.conditionId()))
+            .collect(Collectors.toList());
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+        }
     }
 
     // =========== 内部辅助方法 ==========

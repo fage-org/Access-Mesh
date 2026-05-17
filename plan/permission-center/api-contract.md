@@ -13,11 +13,11 @@
 
 ## 2. 接口分层
 
-| 分层 | 路径前缀 | 调用方 | 特点 |
-|------|----------|--------|------|
-| 管理配置 API | `/api/perm/*` | 管理端、admin-service、接入系统后台 | 资源、角色、授权、条件、域配置、日志 |
-| 运行时鉴权/权限查询 API | `/api/perm/auth/*` | Gateway、业务服务 SDK | 高 QPS、可缓存、强稳定 |
-| 服务接入 API | `/api/perm/service-config/*` | 接入服务、SDK Starter、管理端 | 服务注册、接口同步、接口资源树 |
+| 分层                    | 路径前缀                     | 调用方                              | 特点                                 |
+| ----------------------- | ---------------------------- | ----------------------------------- | ------------------------------------ |
+| 管理配置 API            | `/api/perm/*`                | 管理端、admin-service、接入系统后台 | 资源、角色、授权、条件、域配置、日志 |
+| 运行时鉴权/权限查询 API | `/api/perm/auth/*`           | Gateway、业务服务 SDK               | 高 QPS、可缓存、强稳定               |
+| 服务接入 API            | `/api/perm/service-config/*` | 接入服务、SDK Starter、管理端       | 服务注册、接口同步、接口资源树       |
 
 > 不再定义 `/internal/perm/*` 主契约；本项目未上线，后续实现直接以 `/api/perm/*` 为准。
 
@@ -25,13 +25,13 @@
 
 ### 3.1 Header
 
-| Header | 必填 | 说明 |
-|--------|------|------|
-| `Authorization` | 管理 API 必填 | `Bearer <token>` |
-| `X-Tenant-Id` | 必填 | 当前租户 ID，由 Gateway 或可信服务注入；请求体不再保留 `tenantId` |
-| `X-Request-Id` | 可选 | 未传时由 Gateway 生成 |
-| `X-Service-Code` | 内部/SDK 必填 | 调用方服务编码，用于内部来源校验 |
-| `X-Api-Version` | 可选 | 契约版本，默认 `2026-04-26` |
+| Header           | 必填          | 说明                                                              |
+| ---------------- | ------------- | ----------------------------------------------------------------- |
+| `Authorization`  | 管理 API 必填 | `Bearer <token>`                                                  |
+| `X-Tenant-Id`    | 必填          | 当前租户 ID，由 Gateway 或可信服务注入；请求体不再保留 `tenantId` |
+| `X-Request-Id`   | 可选          | 未传时由 Gateway 生成                                             |
+| `X-Service-Code` | 内部/SDK 必填 | 调用方服务编码，用于内部来源校验                                  |
+| `X-Api-Version`  | 可选          | 契约版本，默认 `2026-04-26`                                       |
 
 可信边界：
 
@@ -83,16 +83,16 @@
 
 本契约取消通用 `Ref` 对象，改为按对象类型使用固定扁平字段。每个接口只使用一套明确定位方式。
 
-| 对象 | 标准入参字段 | 说明 |
-|------|--------------|------|
-| 租户 | `X-Tenant-Id` | 只放 Header，不放 Body |
-| 用户/主体 | `subjectTypeCode` + `subjectExternalId` | `subjectTypeCode` 对应 `type_definition(type_key='user_type').type_code` |
-| 角色 | `domainCode` + `roleTypeCode` + `roleExternalId` | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
-| 业务域 | `domainCode` | 可空；为空表示全局域 |
-| 资源 | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default` |
-| 操作 | `operationCode` | 在 `resourceTypeCode` 范围内解析；全局操作允许不绑定资源类型 |
-| 条件 | `conditionCode` | 可空 |
-| 明细记录 | `id` 或 `ids` | 仅用于更新/删除权限关系、日志详情等权限中心已返回的记录 |
+| 对象      | 标准入参字段                                                    | 说明                                                                     |
+| --------- | --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 租户      | `X-Tenant-Id`                                                   | 只放 Header，不放 Body                                                   |
+| 用户/主体 | `subjectTypeCode` + `subjectExternalId`                         | `subjectTypeCode` 对应 `type_definition(type_key='user_type').type_code` |
+| 角色      | `domainCode` + `roleTypeCode` + `roleExternalId`                | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
+| 业务域    | `domainCode`                                                    | 可空；为空表示全局域                                                     |
+| 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
+| 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析；全局操作允许不绑定资源类型             |
+| 条件      | `conditionCode`                                                 | 可空                                                                     |
+| 明细记录  | `id` 或 `ids`                                                   | 仅用于更新/删除权限关系、日志详情等权限中心已返回的记录                  |
 
 原则：
 
@@ -107,164 +107,164 @@
 
 ## 4. 动词规范
 
-| Action | 语义 |
-|--------|------|
-| `list` | 分页或非分页列表，响应必须包装 `{items,...}` |
-| `tree` | 树结构查询 |
-| `detail` | 单条详情 |
-| `create` | 创建 |
-| `update` | 局部更新 |
-| `save` | 幂等创建或更新 |
-| `remove` | 批量软删除，请求体统一 `{ "ids": [...] }` |
-| `assign` | 分配用户角色关系 |
-| `revoke` | 回收用户角色或权限关系 |
-| `grant` | 权限授权，偏业务语义 |
-| `sync` | 外部系统全量同步 |
-| `check` | 判定 |
-| `query` | 运行时权限事实查询，返回可访问资源或范围权限集合 |
-| `detect` | 检测但不落库 |
+| Action   | 语义                                             |
+| -------- | ------------------------------------------------ |
+| `list`   | 分页或非分页列表，响应必须包装 `{items,...}`     |
+| `tree`   | 树结构查询                                       |
+| `detail` | 单条详情                                         |
+| `create` | 创建                                             |
+| `update` | 局部更新                                         |
+| `save`   | 幂等创建或更新                                   |
+| `remove` | 批量软删除，请求体统一 `{ "ids": [...] }`        |
+| `assign` | 分配用户角色关系                                 |
+| `revoke` | 回收用户角色或权限关系                           |
+| `grant`  | 权限授权，偏业务语义                             |
+| `sync`   | 外部系统全量同步                                 |
+| `check`  | 判定                                             |
+| `query`  | 运行时权限事实查询，返回可访问资源或范围权限集合 |
+| `detect` | 检测但不落库                                     |
 
 ## 5. API 清单
 
 ### 5.1 类型与域
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/type-definition/list` | 查询类型定义 |
-| `POST /api/perm/type-definition/detail` | 查询类型详情 |
-| `POST /api/perm/type-definition/create` | 创建类型 |
-| `POST /api/perm/type-definition/update` | 更新类型 |
-| `POST /api/perm/type-definition/remove` | 删除类型，支持批量 |
-| `POST /api/perm/biz-domain/list` | 查询业务域 |
-| `POST /api/perm/biz-domain/detail` | 查询业务域详情 |
-| `POST /api/perm/biz-domain/create` | 创建业务域 |
-| `POST /api/perm/biz-domain/update` | 更新业务域 |
-| `POST /api/perm/biz-domain/remove` | 删除业务域，支持批量 |
+| 接口                                    | 说明                 |
+| --------------------------------------- | -------------------- |
+| `POST /api/perm/type-definition/list`   | 查询类型定义         |
+| `POST /api/perm/type-definition/detail` | 查询类型详情         |
+| `POST /api/perm/type-definition/create` | 创建类型             |
+| `POST /api/perm/type-definition/update` | 更新类型             |
+| `POST /api/perm/type-definition/remove` | 删除类型，支持批量   |
+| `POST /api/perm/biz-domain/list`        | 查询业务域           |
+| `POST /api/perm/biz-domain/detail`      | 查询业务域详情       |
+| `POST /api/perm/biz-domain/create`      | 创建业务域           |
+| `POST /api/perm/biz-domain/update`      | 更新业务域           |
+| `POST /api/perm/biz-domain/remove`      | 删除业务域，支持批量 |
 
 ### 5.2 主体与角色
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/abstract-user/list` | 查询主体列表 |
-| `POST /api/perm/abstract-user/detail` | 查询主体详情 |
-| `POST /api/perm/abstract-user/create` | 创建主体，适合管理端 |
-| `POST /api/perm/abstract-user/sync` | 幂等同步外部主体 |
-| `POST /api/perm/abstract-user/update` | 更新主体 |
-| `POST /api/perm/abstract-user/remove` | 删除主体，支持批量 |
-| `POST /api/perm/abstract-role/list` | 查询角色列表 |
-| `POST /api/perm/abstract-role/tree` | 查询角色树 |
-| `POST /api/perm/abstract-role/detail` | 查询角色详情 |
-| `POST /api/perm/abstract-role/create` | 创建角色 |
-| `POST /api/perm/abstract-role/update` | 更新角色 |
-| `POST /api/perm/abstract-role/move` | 移动角色树节点 |
-| `POST /api/perm/abstract-role/remove` | 删除角色，支持批量 |
-| `POST /api/perm/abstract-role/extra-roles/list` | 查询分组角色额外基本角色 |
-| `POST /api/perm/abstract-role/extra-roles/add` | 分组角色添加基本角色 |
-| `POST /api/perm/abstract-role/extra-roles/remove` | 分组角色移除基本角色 |
+| 接口                                              | 说明                     |
+| ------------------------------------------------- | ------------------------ |
+| `POST /api/perm/abstract-user/list`               | 查询主体列表             |
+| `POST /api/perm/abstract-user/detail`             | 查询主体详情             |
+| `POST /api/perm/abstract-user/create`             | 创建主体，适合管理端     |
+| `POST /api/perm/abstract-user/sync`               | 幂等同步外部主体         |
+| `POST /api/perm/abstract-user/update`             | 更新主体                 |
+| `POST /api/perm/abstract-user/remove`             | 删除主体，支持批量       |
+| `POST /api/perm/abstract-role/list`               | 查询角色列表             |
+| `POST /api/perm/abstract-role/tree`               | 查询角色树               |
+| `POST /api/perm/abstract-role/detail`             | 查询角色详情             |
+| `POST /api/perm/abstract-role/create`             | 创建角色                 |
+| `POST /api/perm/abstract-role/update`             | 更新角色                 |
+| `POST /api/perm/abstract-role/move`               | 移动角色树节点           |
+| `POST /api/perm/abstract-role/remove`             | 删除角色，支持批量       |
+| `POST /api/perm/abstract-role/extra-roles/list`   | 查询分组角色额外基本角色 |
+| `POST /api/perm/abstract-role/extra-roles/add`    | 分组角色添加基本角色     |
+| `POST /api/perm/abstract-role/extra-roles/remove` | 分组角色移除基本角色     |
 
 ### 5.3 资源与操作
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/operation-permission/list` | 查询操作权限 |
-| `POST /api/perm/operation-permission/detail` | 查询操作详情 |
-| `POST /api/perm/operation-permission/create` | 创建操作 |
-| `POST /api/perm/operation-permission/update` | 更新操作 |
-| `POST /api/perm/operation-permission/remove` | 删除操作，支持批量 |
-| `POST /api/perm/resource-entity/tree` | 查询资源树 |
-| `POST /api/perm/resource-entity/list` | 查询资源列表 |
-| `POST /api/perm/resource-entity/detail` | 查询资源详情 |
-| `POST /api/perm/resource-entity/create` | 创建资源 |
-| `POST /api/perm/resource-entity/batch-create` | 批量创建资源 |
-| `POST /api/perm/resource-entity/update` | 更新资源 |
-| `POST /api/perm/resource-entity/move` | 移动资源树节点 |
-| `POST /api/perm/resource-entity/remove` | 删除资源，支持批量 |
+| 接口                                          | 说明               |
+| --------------------------------------------- | ------------------ |
+| `POST /api/perm/operation-permission/list`    | 查询操作权限       |
+| `POST /api/perm/operation-permission/detail`  | 查询操作详情       |
+| `POST /api/perm/operation-permission/create`  | 创建操作           |
+| `POST /api/perm/operation-permission/update`  | 更新操作           |
+| `POST /api/perm/operation-permission/remove`  | 删除操作，支持批量 |
+| `POST /api/perm/resource-entity/tree`         | 查询资源树         |
+| `POST /api/perm/resource-entity/list`         | 查询资源列表       |
+| `POST /api/perm/resource-entity/detail`       | 查询资源详情       |
+| `POST /api/perm/resource-entity/create`       | 创建资源           |
+| `POST /api/perm/resource-entity/batch-create` | 批量创建资源       |
+| `POST /api/perm/resource-entity/update`       | 更新资源           |
+| `POST /api/perm/resource-entity/move`         | 移动资源树节点     |
+| `POST /api/perm/resource-entity/remove`       | 删除资源，支持批量 |
 
 ### 5.4 服务与接口映射
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/service-config/list` | 查询接入服务 |
-| `POST /api/perm/service-config/detail` | 查询服务详情 |
-| `POST /api/perm/service-config/save` | 幂等保存服务 |
-| `POST /api/perm/service-config/remove` | 删除服务，支持批量 |
-| `POST /api/perm/service-config/sync` | 全量同步服务接口，权限中心做 diff |
-| `POST /api/perm/service-config/apis` | 查询服务接口资源树 |
-| `POST /api/perm/resource-api-mapping/list` | 查询接口映射 |
-| `POST /api/perm/resource-api-mapping/create` | 创建接口映射 |
-| `POST /api/perm/resource-api-mapping/update` | 更新接口映射 |
-| `POST /api/perm/resource-api-mapping/remove` | 删除接口映射，支持批量 |
+| 接口                                         | 说明                              |
+| -------------------------------------------- | --------------------------------- |
+| `POST /api/perm/service-config/list`         | 查询接入服务                      |
+| `POST /api/perm/service-config/detail`       | 查询服务详情                      |
+| `POST /api/perm/service-config/save`         | 幂等保存服务                      |
+| `POST /api/perm/service-config/remove`       | 删除服务，支持批量                |
+| `POST /api/perm/service-config/sync`         | 全量同步服务接口，权限中心做 diff |
+| `POST /api/perm/service-config/apis`         | 查询服务接口资源树                |
+| `POST /api/perm/resource-api-mapping/list`   | 查询接口映射                      |
+| `POST /api/perm/resource-api-mapping/create` | 创建接口映射                      |
+| `POST /api/perm/resource-api-mapping/update` | 更新接口映射                      |
+| `POST /api/perm/resource-api-mapping/remove` | 删除接口映射，支持批量            |
 
 ### 5.5 授权关系
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/user-role/list` | 查询用户角色关系 |
-| `POST /api/perm/user-role/assign` | 批量分配角色或分组 |
-| `POST /api/perm/user-role/revoke` | 批量回收角色关系 |
-| `POST /api/perm/user-role/batch-assign` | 按角色视角批量分配多个用户 |
-| `POST /api/perm/role-resource-permission/list` | 查询角色权限配置 |
-| `POST /api/perm/role-resource-permission/save` | 三段式批量保存授权，`add/update/remove` 同事务 |
-| `POST /api/perm/role-resource-permission/revoke` | 批量回收授权 |
-| `POST /api/perm/role-resource-permission/children` | 查询主权限的子权限 |
-| `POST /api/perm/role-resource-permission/add-child` | 添加子权限/数据权限 |
-| `POST /api/perm/role-resource-permission/remove-child` | 删除子权限 |
+| 接口                                                   | 说明                                           |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `POST /api/perm/user-role/list`                        | 查询用户角色关系                               |
+| `POST /api/perm/user-role/assign`                      | 批量分配角色或分组                             |
+| `POST /api/perm/user-role/revoke`                      | 批量回收角色关系                               |
+| `POST /api/perm/user-role/batch-assign`                | 按角色视角批量分配多个用户                     |
+| `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置                               |
+| `POST /api/perm/role-resource-permission/save`         | 三段式批量保存授权，`add/update/remove` 同事务 |
+| `POST /api/perm/role-resource-permission/revoke`       | 批量回收授权                                   |
+| `POST /api/perm/role-resource-permission/children`     | 查询主权限的子权限                             |
+| `POST /api/perm/role-resource-permission/add-child`    | 添加子权限/数据权限                            |
+| `POST /api/perm/role-resource-permission/remove-child` | 删除子权限                                     |
 
 ### 5.6 高级能力
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/permission-condition/list` | 查询权限条件 |
-| `POST /api/perm/permission-condition/detail` | 查询条件详情 |
-| `POST /api/perm/permission-condition/create` | 创建条件 |
-| `POST /api/perm/permission-condition/update` | 更新条件 |
-| `POST /api/perm/permission-condition/remove` | 删除条件，支持批量 |
-| `POST /api/perm/domain-config/list` | 查询域配置 |
-| `POST /api/perm/domain-config/detail` | 查询单条域配置 |
-| `POST /api/perm/domain-config/save` | 幂等保存域配置 |
-| `POST /api/perm/domain-config/remove` | 删除域配置 |
-| `POST /api/perm/resource-dependency/list` | 查询资源依赖 |
-| `POST /api/perm/resource-dependency/create` | 创建资源依赖 |
-| `POST /api/perm/resource-dependency/update` | 更新资源依赖 |
-| `POST /api/perm/resource-dependency/remove` | 删除资源依赖，支持批量 |
-| `POST /api/perm/resource-dependency/batch-sync` | 按资源全量同步依赖 |
-| `POST /api/perm/resource-dependency/graph` | 查询依赖图 |
-| `POST /api/perm/resource-dependency/check` | 检查依赖是否成环 |
-| `POST /api/perm/conflict-rule/list` | 查询冲突规则 |
-| `POST /api/perm/conflict-rule/detail` | 查询冲突规则详情 |
-| `POST /api/perm/conflict-rule/create` | 创建冲突规则 |
-| `POST /api/perm/conflict-rule/update` | 更新冲突规则 |
-| `POST /api/perm/conflict-rule/remove` | 删除冲突规则，支持批量 |
-| `POST /api/perm/conflict-rule/detect` | 冲突检测 |
+| 接口                                            | 说明                   |
+| ----------------------------------------------- | ---------------------- |
+| `POST /api/perm/permission-condition/list`      | 查询权限条件           |
+| `POST /api/perm/permission-condition/detail`    | 查询条件详情           |
+| `POST /api/perm/permission-condition/create`    | 创建条件               |
+| `POST /api/perm/permission-condition/update`    | 更新条件               |
+| `POST /api/perm/permission-condition/remove`    | 删除条件，支持批量     |
+| `POST /api/perm/domain-config/list`             | 查询域配置             |
+| `POST /api/perm/domain-config/detail`           | 查询单条域配置         |
+| `POST /api/perm/domain-config/save`             | 幂等保存域配置         |
+| `POST /api/perm/domain-config/remove`           | 删除域配置             |
+| `POST /api/perm/resource-dependency/list`       | 查询资源依赖           |
+| `POST /api/perm/resource-dependency/create`     | 创建资源依赖           |
+| `POST /api/perm/resource-dependency/update`     | 更新资源依赖           |
+| `POST /api/perm/resource-dependency/remove`     | 删除资源依赖，支持批量 |
+| `POST /api/perm/resource-dependency/batch-sync` | 按资源全量同步依赖     |
+| `POST /api/perm/resource-dependency/graph`      | 查询依赖图             |
+| `POST /api/perm/resource-dependency/check`      | 检查依赖是否成环       |
+| `POST /api/perm/conflict-rule/list`             | 查询冲突规则           |
+| `POST /api/perm/conflict-rule/detail`           | 查询冲突规则详情       |
+| `POST /api/perm/conflict-rule/create`           | 创建冲突规则           |
+| `POST /api/perm/conflict-rule/update`           | 更新冲突规则           |
+| `POST /api/perm/conflict-rule/remove`           | 删除冲突规则，支持批量 |
+| `POST /api/perm/conflict-rule/detect`           | 冲突检测               |
 
 ### 5.7 运行时鉴权与权限查询
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/auth/check` | 单次资源权限判定 |
-| `POST /api/perm/auth/batch-check` | 批量资源权限判定 |
-| `POST /api/perm/auth/query-resources` | 查询主体在指定资源类型和操作下可访问或可管理的资源集合 |
-| `POST /api/perm/auth/query-scopes` | 查询主体在某个主资源上下文内可用的范围资源权限集合 |
-| `POST /api/perm/auth/check-interface` | Gateway 接口级判定 |
-| `POST /api/perm/auth/interface-snapshot` | Gateway 接口权限快照，可选优化接口 |
-| `POST /api/perm/permission-version/query` | 查询权限版本 |
+| 接口                                      | 说明                                                   |
+| ----------------------------------------- | ------------------------------------------------------ |
+| `POST /api/perm/auth/check`               | 单次资源权限判定                                       |
+| `POST /api/perm/auth/batch-check`         | 批量资源权限判定                                       |
+| `POST /api/perm/auth/query-resources`     | 查询主体在指定资源类型和操作下可访问或可管理的资源集合 |
+| `POST /api/perm/auth/query-scopes`        | 查询主体在某个主资源上下文内可用的范围资源权限集合     |
+| `POST /api/perm/auth/check-interface`     | Gateway 接口级判定                                     |
+| `POST /api/perm/auth/interface-snapshot`  | Gateway 接口权限快照，可选优化接口                     |
+| `POST /api/perm/permission-version/query` | 查询权限版本                                           |
 
 ### 5.8 视图与审计
 
-| 接口 | 说明 |
-|------|------|
-| `POST /api/perm/permission-view/effective-roles` | 查询用户有效角色 |
-| `POST /api/perm/permission-view/effective-permissions` | 分页筛选查询用户或角色当前有效权限 |
-| `POST /api/perm/permission-view/resource-tree` | 查询用户资源树 |
-| `POST /api/perm/permission-view/resource-users` | 查询拥有资源权限的用户 |
-| `POST /api/perm/permission-view/role-permissions` | 查询角色权限视图 |
-| `POST /api/perm/permission-view/explain` | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
-| `POST /api/perm/permission-view/recent-changes` | 查询近期可能影响用户或角色权限的变更事件 |
-| `POST /api/perm/operation-log/list` | 操作日志 |
-| `POST /api/perm/permission-change-log/list` | 权限变更日志 |
-| `POST /api/perm/system-config/list` | 查询系统配置 |
-| `POST /api/perm/system-config/detail` | 查询系统配置详情 |
-| `POST /api/perm/system-config/save` | 保存系统配置 |
+| 接口                                                   | 说明                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------ |
+| `POST /api/perm/permission-view/effective-roles`       | 查询用户有效角色                                       |
+| `POST /api/perm/permission-view/effective-permissions` | 分页筛选查询用户或角色当前有效权限                     |
+| `POST /api/perm/permission-view/resource-tree`         | 查询用户资源树                                         |
+| `POST /api/perm/permission-view/resource-users`        | 查询拥有资源权限的用户                                 |
+| `POST /api/perm/permission-view/role-permissions`      | 查询角色权限视图                                       |
+| `POST /api/perm/permission-view/explain`               | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
+| `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件               |
+| `POST /api/perm/operation-log/list`                    | 操作日志                                               |
+| `POST /api/perm/permission-change-log/list`            | 权限变更日志                                           |
+| `POST /api/perm/system-config/list`                    | 查询系统配置                                           |
+| `POST /api/perm/system-config/detail`                  | 查询系统配置详情                                       |
+| `POST /api/perm/system-config/save`                    | 保存系统配置                                           |
 
 ## 6. 核心请求契约
 
@@ -349,6 +349,49 @@
 - 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许。
 - 响应使用 `matchedResources[]` 返回所有命中的映射资源及各自鉴权结果；只要其中任一项 `allowed=true`，顶层 `allowed=true`。
 - 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
+
+### 6.2.1 Gateway 接口权限快照
+
+`POST /api/perm/auth/interface-snapshot`
+
+用于 Gateway 按服务拉取当前主体可访问的 API 快照。`permissionVersion` 是一个不透明字符串令牌，由权限中心根据当前有效角色集合和各角色权限版本摘要生成。
+
+请求：
+
+```json
+{
+  "subjectTypeCode": "USER",
+  "subjectExternalId": "u-10001",
+  "serviceCode": "admin-service",
+  "permissionVersion": "perm:v2:6f4f10cfa4a99f4d8d7a7f0f97b2d6d4c796f8d5d5b154d5c55f9e42d16dc3c4"
+}
+```
+
+响应：
+
+```json
+{
+  "notModified": false,
+  "permissionVersion": "perm:v2:6f4f10cfa4a99f4d8d7a7f0f97b2d6d4c796f8d5d5b154d5c55f9e42d16dc3c4",
+  "allowedApis": [
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": "POST",
+      "pathPattern": "/api/user/list",
+      "hasCondition": false,
+      "conditionId": null
+    }
+  ]
+}
+```
+
+规则：
+
+- 服务端必须先计算当前 `permissionVersion`，再决定是否返回 `notModified=true`。
+- 快照缓存键必须至少包含 `serviceCode + permissionVersion`，不能只按 `serviceCode` 共享。
+- `permissionVersion` 是不透明令牌，调用方只能回传比较，不能解析其内部结构。
+- 当 `req.permissionVersion == resp.permissionVersion` 时，服务端可返回 `notModified=true` 且 `allowedApis=[]`。
+- 当权限令牌变化时，服务端必须重新构建或读取新键下的快照，旧快照不能复用。
 
 ### 6.3 服务接口全量同步
 
@@ -634,11 +677,11 @@
 
 admin-service 查询示例：
 
-| 查询目标 | 建模方式 | 查询参数 |
-|----------|----------|----------|
-| 可管理组织 | 组织同步为资源，例如 `resourceTypeCode=ORG`、`resourceCode=org:{orgId}` | `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]` |
+| 查询目标   | 建模方式                                                                           | 查询参数                                                                  |
+| ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 可管理组织 | 组织同步为资源，例如 `resourceTypeCode=ORG`、`resourceCode=org:{orgId}`            | `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]`                  |
 | 可管理角色 | 角色同步为资源，例如 `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
-| 可见菜单 | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}` | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true` |
+| 可见菜单   | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
 
 规则：
 
@@ -905,7 +948,13 @@ admin-service 查询示例：
   "domainCode": "example",
   "since": "2026-03-29T00:00:00",
   "until": "2026-04-29T23:59:59",
-  "eventTypes": ["USER_ROLE_CHANGE", "ROLE_PERMISSION_CHANGE", "ROLE_STATUS_CHANGE", "RESOURCE_STATUS_CHANGE", "CONDITION_CHANGE"],
+  "eventTypes": [
+    "USER_ROLE_CHANGE",
+    "ROLE_PERMISSION_CHANGE",
+    "ROLE_STATUS_CHANGE",
+    "RESOURCE_STATUS_CHANGE",
+    "CONDITION_CHANGE"
+  ],
   "pageNum": 1,
   "pageSize": 20
 }
@@ -1163,19 +1212,19 @@ admin-service 查询示例：
 
 ## 7. 错误原因建议
 
-| reason | 说明 |
-|--------|------|
-| `USER_NOT_FOUND` | 主体不存在 |
-| `USER_DISABLED` | 主体停用 |
-| `ROLE_DISABLED` | 命中角色停用 |
-| `RESOURCE_DISABLED` | 资源停用 |
-| `SERVICE_DISABLED` | 服务停用 |
-| `NO_ROLE` | 无有效角色 |
-| `NO_PERMISSION` | 无授权 |
-| `CONDITION_NOT_MET` | 条件不满足 |
-| `CONFLICT_DETECTED` | 权限互斥导致失效 |
-| `API_NOT_REGISTERED` | 接口未注册 |
-| `OBJECT_KEY_NOT_FOUND` | 标准业务键无法定位对象 |
+| reason                  | 说明                                     |
+| ----------------------- | ---------------------------------------- |
+| `USER_NOT_FOUND`        | 主体不存在                               |
+| `USER_DISABLED`         | 主体停用                                 |
+| `ROLE_DISABLED`         | 命中角色停用                             |
+| `RESOURCE_DISABLED`     | 资源停用                                 |
+| `SERVICE_DISABLED`      | 服务停用                                 |
+| `NO_ROLE`               | 无有效角色                               |
+| `NO_PERMISSION`         | 无授权                                   |
+| `CONDITION_NOT_MET`     | 条件不满足                               |
+| `CONFLICT_DETECTED`     | 权限互斥导致失效                         |
+| `API_NOT_REGISTERED`    | 接口未注册                               |
+| `OBJECT_KEY_NOT_FOUND`  | 标准业务键无法定位对象                   |
 | `OBJECT_KEY_DUPLICATED` | 标准业务键命中多个对象，需修正数据唯一性 |
 
 ## 8. 验收标准

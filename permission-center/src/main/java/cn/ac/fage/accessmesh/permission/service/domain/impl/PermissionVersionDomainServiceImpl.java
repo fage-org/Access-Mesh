@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.entity.PermissionVersion;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionVersionMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
@@ -17,42 +16,37 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
  * 权限版本领域服务实现类
  * <p>
  * 实现权限版本号的查询、递增和缓存管理。
- * 通过 PermCacheDomainService 委托统一 CacheService 管理 L1/L2 缓存。
+ * 直接使用 CacheService 管理 L1/L2 缓存。
  * </p>
  */
 @Service
 public class PermissionVersionDomainServiceImpl implements PermissionVersionDomainService {
 
     private final PermissionVersionMapper versionMapper;
-    private final PermCacheDomainService permCacheDomainService;
     private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param versionMapper         版本数据访问层
-     * @param permCacheDomainService 权限缓存领域服务（委托 CacheService）
-     * @param cacheService          统一缓存服务
+     * @param versionMapper 版本数据访问层
+     * @param cacheService  统一缓存服务
      */
     public PermissionVersionDomainServiceImpl(PermissionVersionMapper versionMapper,
-                                               PermCacheDomainService permCacheDomainService,
                                                CacheService cacheService) {
         this.versionMapper = versionMapper;
-        this.permCacheDomainService = permCacheDomainService;
         this.cacheService = cacheService;
     }
 
     /**
      * 获取角色的当前权限版本号
      * <p>
-     * 通过 PermCacheDomainService 委托 CacheService 管理 L1/L2 缓存。
+     * 直接调用 CacheService 管理 L1/L2 缓存。
      * 数据库查询结果自动填充缓存。
      * </p>
      *
@@ -62,16 +56,16 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
      */
     @Override
     public long getCurrentVersion(Long tenantId, Long roleId) {
-        // 通过 PermCacheDomainService 查缓存（已处理 L1 + L2）
-        Optional<Long> cached = permCacheDomainService.getPermVersion(tenantId, roleId);
-        if (cached.isPresent()) return cached.get();
+        // 直接调用 CacheService 查缓存（已处理 L1 + L2）
+        Long cached = cacheService.get(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleId);
+        if (cached != null) return cached;
 
         // miss 后查数据库
         PermissionVersion latest = versionMapper.selectLatestByRole(tenantId, roleId);
         long version = latest != null ? latest.getVersionNo() : 1L;
 
         // 回填缓存
-        permCacheDomainService.setPermVersion(tenantId, roleId, version);
+        cacheService.put(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleId, version);
         return version;
     }
 
@@ -148,12 +142,12 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permCacheDomainService.setPermVersion(finalTenantId, finalRoleId, finalNewVersion);
+                    cacheService.put(PermCacheCatalog.PERMISSION_VERSION, finalTenantId, finalRoleId, finalNewVersion);
                 }
             });
         } else {
             // 无事务时直接写入
-            permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
+            cacheService.put(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleId, newVersion);
         }
 
         return newVersion;
@@ -215,14 +209,14 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
                 @Override
                 public void afterCommit() {
                     for (Map.Entry<Long, Long> entry : finalRoleIdToNewVersion.entrySet()) {
-                        permCacheDomainService.setPermVersion(finalTenantId, entry.getKey(), entry.getValue());
+                        cacheService.put(PermCacheCatalog.PERMISSION_VERSION, finalTenantId, entry.getKey(), entry.getValue());
                     }
                 }
             });
         } else {
             // 无事务时直接写入
             for (Map.Entry<Long, Long> entry : roleIdToNewVersion.entrySet()) {
-                permCacheDomainService.setPermVersion(tenantId, entry.getKey(), entry.getValue());
+                cacheService.put(PermCacheCatalog.PERMISSION_VERSION, tenantId, entry.getKey(), entry.getValue());
             }
         }
     }

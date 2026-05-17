@@ -15,7 +15,8 @@ import cn.ac.fage.accessmesh.permission.service.RoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
@@ -60,7 +61,7 @@ public class RoleManageServiceImpl implements RoleManageService {
 
     private final AbstractRoleMapper abstractRoleMapper;
     private final AbstractRoleDomainService abstractRoleDomainService;
-    private final PermCacheDomainService permCacheDomainService;
+    private final CacheService cacheService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
     private final ObjectMapper objectMapper;
@@ -71,7 +72,7 @@ public class RoleManageServiceImpl implements RoleManageService {
 
     public RoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  AbstractRoleDomainService abstractRoleDomainService,
-                                 PermCacheDomainService permCacheDomainService,
+                                 CacheService cacheService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
                                  ObjectMapper objectMapper,
@@ -81,7 +82,7 @@ public class RoleManageServiceImpl implements RoleManageService {
                                  PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.abstractRoleDomainService = abstractRoleDomainService;
-        this.permCacheDomainService = permCacheDomainService;
+        this.cacheService = cacheService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.objectMapper = objectMapper;
@@ -185,7 +186,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permCacheDomainService.evictRolePermSnapshot(tenantId, roleIdForCache);
+                    cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIdForCache);
                 }
             });
         }
@@ -276,9 +277,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Long roleId : roleIdsToEvictForCache) {
-                        permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
-                    }
+                    cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIdsToEvictForCache);
                 }
             });
         }

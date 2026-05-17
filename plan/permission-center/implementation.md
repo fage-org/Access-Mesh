@@ -264,10 +264,11 @@ public interface PermCacheDomainService {
     void setPermVersion(Long tenantId, Long roleId, long version);
 
     // ---- 接口权限快照（gateway 消费）----
-    /** key: perm:gateway:interface-snapshot:{tenantId}:{serviceCode} */
-    Optional<InterfaceSnapshot> getInterfaceSnapshot(Long tenantId, String serviceCode);
-    void setInterfaceSnapshot(Long tenantId, String serviceCode, InterfaceSnapshot snapshot);
-    void evictInterfaceSnapshot(Long tenantId, String serviceCode);
+    /** key: perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionVersion} */
+    Optional<InterfaceSnapshot> getInterfaceSnapshot(Long tenantId, String cacheIdentifier);
+    void setInterfaceSnapshot(Long tenantId, String cacheIdentifier, InterfaceSnapshot snapshot);
+    // 通常无需主动调用；permissionVersion 变化后会自动切换到新快照键
+    void evictInterfaceSnapshot(Long tenantId, String cacheIdentifier);
 }
 ```
 
@@ -329,14 +330,14 @@ public interface PermissionConditionDomainService {
 
 ### 3.1 接口定义
 
-| 接口         | 路径                                        | 说明                                  |
-| ------------ | ------------------------------------------- | ------------------------------------- |
-| 单次鉴权     | `POST /api/perm/auth/check`                 | 精确判定一个用户对一个资源+操作的权限 |
-| 批量鉴权     | `POST /api/perm/auth/batch-check`           | 一次请求判定多个资源+操作组合         |
-| 资源权限查询 | `POST /api/perm/auth/query-resources`       | 查询主体可操作的资源业务键集合       |
-| 范围权限查询 | `POST /api/perm/auth/query-scopes`          | 查询主资源上下文内的直接范围和子权限 |
-| 接口权限快照 | `POST /api/perm/auth/interface-snapshot`    | 返回 gateway 消费的接口权限快照       |
-| 接口级判定   | `POST /api/perm/auth/check-interface`       | 按 serviceCode+method+path 判定（Gateway 回调入口，含 context 条件评估）|
+| 接口         | 路径                                     | 说明                                                                     |
+| ------------ | ---------------------------------------- | ------------------------------------------------------------------------ |
+| 单次鉴权     | `POST /api/perm/auth/check`              | 精确判定一个用户对一个资源+操作的权限                                    |
+| 批量鉴权     | `POST /api/perm/auth/batch-check`        | 一次请求判定多个资源+操作组合                                            |
+| 资源权限查询 | `POST /api/perm/auth/query-resources`    | 查询主体可操作的资源业务键集合                                           |
+| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 查询主资源上下文内的直接范围和子权限                                     |
+| 接口权限快照 | `POST /api/perm/auth/interface-snapshot` | 返回 gateway 消费的接口权限快照                                          |
+| 接口级判定   | `POST /api/perm/auth/check-interface`    | 按 serviceCode+method+path 判定（Gateway 回调入口，含 context 条件评估） |
 
 ---
 
@@ -511,12 +512,12 @@ public record InterfaceSnapshotReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
     @NotNull String serviceCode,
-    Long permissionVersion   // 可空；传入时若与 Redis 版本一致则返回 NOT_MODIFIED
+    String permissionVersion   // 可空；权限令牌，传入时若与当前令牌一致则返回 NOT_MODIFIED
 ) {}
 
 public record InterfaceSnapshotResp(
-    boolean notModified,           // true 表示版本未变化，gateway 使用本地缓存即可
-    long currentVersion,           // 当前最新版本（所有有效角色中最大的 permissionVersion）
+    boolean notModified,           // true 表示权限令牌未变化，gateway 使用本地缓存即可
+    String permissionVersion,      // 当前权限令牌（有效角色集合 + 角色版本的摘要）
     List<ApiPermissionEntry> allowedApis   // 允许访问的接口列表（含条件权限标记 hasCondition）
 ) {}
 
@@ -545,28 +546,28 @@ sequenceDiagram
 
     C->>AS: getInterfaceSnapshot(req)
 
-    AS->>CACHE: getInterfaceSnapshot(tenantId, serviceCode)
-    alt L1/L2 快照命中
-        CACHE-->>AS: InterfaceSnapshot（含版本号）
-        Note over AS: 比较传入 permissionVersion 与快照版本
-        alt 版本一致
-            AS-->>GW: notModified=true（gateway 使用本地缓存）
-        else 版本不一致
-            AS-->>GW: notModified=false, 返回新快照
+    AS->>URD: resolveEffectiveRoles(tenantId, userId, null)
+    URD-->>AS: effectiveRoleIds
+
+    AS->>PVD: getCurrentVersion(tenantId, roleId) for each role
+    PVD-->>AS: roleId -> versionNo
+    AS->>AS: build permissionVersion token
+
+    alt req.permissionVersion == permissionVersion
+        AS-->>GW: notModified=true（gateway 使用本地缓存）
+    else 令牌变化或首次拉取
+        AS->>CACHE: getInterfaceSnapshot(tenantId, serviceCode + permissionVersion)
+        alt L1/L2 快照命中
+            CACHE-->>AS: InterfaceSnapshot（含 permissionVersion）
+            AS-->>GW: notModified=false, 返回缓存快照
+        else 未命中
+            AS->>RPD: queryApiPermissions(tenantId, effectiveRoleIds, serviceCode)
+            Note over RPD: 联查 role_resource_permission + resource_api_mapping<br/>条件权限标记 hasCondition=true，存入快照但 Gateway 鉴权时需条件评估
+            RPD-->>AS: List<ApiPermissionEntry>
+
+            AS->>CACHE: setInterfaceSnapshot(tenantId, serviceCode + permissionVersion, snapshot)
+            AS-->>GW: InterfaceSnapshotResp（快照数据）
         end
-    else 未命中
-        AS->>URD: resolveEffectiveRoles(tenantId, userId, null)
-        URD-->>AS: effectiveRoleIds
-
-        AS->>PVD: getCurrentVersion(tenantId, roleId) for each role
-        PVD-->>AS: max(versionNos) → currentVersion
-
-        AS->>RPD: queryApiPermissions(tenantId, effectiveRoleIds, serviceCode)
-        Note over RPD: 联查 role_resource_permission + resource_api_mapping<br/>条件权限标记 hasCondition=true，存入快照但 Gateway 鉴权时需条件评估
-        RPD-->>AS: List<ApiPermissionEntry>
-
-        AS->>CACHE: setInterfaceSnapshot(tenantId, serviceCode, snapshot)
-        AS-->>GW: InterfaceSnapshotResp（快照数据）
     end
 ```
 
@@ -616,14 +617,14 @@ public interface RolePermissionDomainService {
 
 ### 4.1 接口定义
 
-| 接口               | 路径                                         | 说明                                 |
-| ------------------ | -------------------------------------------- | ------------------------------------ |
-| 三段式保存授权     | `POST /api/perm/role-resource-permission/save`     | 为角色批量新增/更新/删除资源权限 |
-| 查询角色权限       | `POST /api/perm/role-resource-permission/list`     | 查询角色已有权限列表（含子权限展开） |
-| 批量回收授权       | `POST /api/perm/role-resource-permission/revoke`   | 按权限记录批量回收授权 |
-| 查询子权限         | `POST /api/perm/role-resource-permission/children` | 查询主权限下子权限 |
-| 添加子权限         | `POST /api/perm/role-resource-permission/add-child` | 添加依赖主权限的范围/子权限 |
-| 删除子权限         | `POST /api/perm/role-resource-permission/remove-child` | 删除子权限 |
+| 接口           | 路径                                                   | 说明                                 |
+| -------------- | ------------------------------------------------------ | ------------------------------------ |
+| 三段式保存授权 | `POST /api/perm/role-resource-permission/save`         | 为角色批量新增/更新/删除资源权限     |
+| 查询角色权限   | `POST /api/perm/role-resource-permission/list`         | 查询角色已有权限列表（含子权限展开） |
+| 批量回收授权   | `POST /api/perm/role-resource-permission/revoke`       | 按权限记录批量回收授权               |
+| 查询子权限     | `POST /api/perm/role-resource-permission/children`     | 查询主权限下子权限                   |
+| 添加子权限     | `POST /api/perm/role-resource-permission/add-child`    | 添加依赖主权限的范围/子权限          |
+| 删除子权限     | `POST /api/perm/role-resource-permission/remove-child` | 删除子权限                           |
 
 ---
 
@@ -742,9 +743,9 @@ sequenceDiagram
     PS->>PVD: increment(tenantId, abstractRoleId)
     PVD-->>PS: newVersion
 
-    Note over PS: ⑦ 缓存失效
+    Note over PS: ⑦ 缓存处理
     PS->>CACHE: evictRolePermSnapshot(tenantId, abstractRoleId)
-    PS->>CACHE: evictInterfaceSnapshot(tenantId, serviceCode) for all affected services
+    Note over PS,CACHE: 接口快照使用 permissionVersion 令牌分桶，<br/>角色权限变更后新令牌会自动切换到新快照键，旧键自然冷却
     PS->>URD: invalidateRoleCacheByRole(tenantId, abstractRoleId)
 
     PS-->>C: RolePermBatchGrantResp
@@ -798,9 +799,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
     private void evictCaches(Long tenantId, Long roleId) {
         permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
-        // 找出该角色关联的所有服务，逐一失效接口快照
-        List<String> serviceCodes = rolePermissionDomainService.findRelatedServiceCodes(tenantId, roleId);
-        serviceCodes.forEach(sc -> permCacheDomainService.evictInterfaceSnapshot(tenantId, sc));
+        // 接口快照按 serviceCode + permissionVersion 分桶，版本变化后会自然切换到新键
         // 失效所有关联此角色的用户角色缓存
         userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleId);
     }
@@ -811,17 +810,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
 ### 4.3 重要业务规则
 
-| 规则                       | 处理位置                                                   | 说明                                                                          |
-| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 操作与资源类型必须匹配     | `OperationPermissionDomainService.batchValidateCompatible` | `operation_permission.resource_type` 必须等于 `resource_entity.resource_type` |
-| `depend_on` 不能指向子权限 | `RolePermissionDomainService.validateDependOnIds`          | 目标记录的 `depend_on` 必须为 null，防止多层嵌套                              |
-| 删除父权限级联软删子权限   | `RolePermissionDomainService.batchDelete`                  | 删除时查 `depend_on IN (deleteIds)` 一并软删                                  |
-| 自动补全不重复             | `ResourceDependencyDomainService.autoGrant`                | 若角色已拥有依赖资源的权限则跳过，补全记录 grant_source='AUTO_DEP' + grant_dep_id |
-| 授权来源标记                 | `RolePermissionDomainService.batchInsert`                  | 手动授权 grant_source='MANUAL'（默认），自动补全 grant_source='AUTO_DEP'，记录触发规则 id |
-| 依赖规则变更清理             | `ResourceDependencyDomainService.onRuleChanged`            | 规则删除/修改时按 grant_dep_id 精准清理 + 重新评估补全，递增受影响角色 version |
+| 规则                       | 处理位置                                                   | 说明                                                                                            |
+| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 操作与资源类型必须匹配     | `OperationPermissionDomainService.batchValidateCompatible` | `operation_permission.resource_type` 必须等于 `resource_entity.resource_type`                   |
+| `depend_on` 不能指向子权限 | `RolePermissionDomainService.validateDependOnIds`          | 目标记录的 `depend_on` 必须为 null，防止多层嵌套                                                |
+| 删除父权限级联软删子权限   | `RolePermissionDomainService.batchDelete`                  | 删除时查 `depend_on IN (deleteIds)` 一并软删                                                    |
+| 自动补全不重复             | `ResourceDependencyDomainService.autoGrant`                | 若角色已拥有依赖资源的权限则跳过，补全记录 grant_source='AUTO_DEP' + grant_dep_id               |
+| 授权来源标记               | `RolePermissionDomainService.batchInsert`                  | 手动授权 grant_source='MANUAL'（默认），自动补全 grant_source='AUTO_DEP'，记录触发规则 id       |
+| 依赖规则变更清理           | `ResourceDependencyDomainService.onRuleChanged`            | 规则删除/修改时按 grant_dep_id 精准清理 + 重新评估补全，递增受影响角色 version                  |
 | 委托授权不扩大             | `PermissionGrantService` 前置校验                          | `canManage=true` 只允许授权同一权限给他人，不能扩大资源、操作或范围；候选被授权人由业务服务控制 |
-| 版本递增在事务外           | `afterCommit` 钩子                                         | 防止事务回滚后版本已递增导致缓存失效不一致                                    |
-| 接口快照失效范围           | 通过 `resource_api_mapping` 查受影响 serviceCode           | 只失效变更涉及的服务，减少无效失效                                            |
+| 版本递增在事务外           | `afterCommit` 钩子                                         | 防止事务回滚后版本已递增导致缓存失效不一致                                                      |
+| 接口快照失效范围           | 通过 `resource_api_mapping` 查受影响 serviceCode           | 只失效变更涉及的服务，减少无效失效                                                              |
 
 ### 4.4 ResourceDependencyDomainService 资源依赖自动补全与变更处理
 
@@ -868,21 +867,21 @@ public interface ResourceDependencyDomainService {
 
 ### 5.1 缓存 Key 与 TTL 汇总
 
-| 缓存内容                    | Redis Key 模式                                             | L1 TTL    | L2 TTL               |
-| --------------------------- | ---------------------------------------------------------- | --------- | -------------------- |
-| 用户有效角色集合            | `perm:user:effective-roles:{tenantId}:{userId}`            | 60 秒     | 5 分钟               |
-| 角色权限快照（资源+操作位） | `perm:role:perms:{tenantId}:{roleId}`                      | 60 秒     | 5 分钟               |
-| 角色权限版本号              | `perm:permission-version:role:{tenantId}:{roleId}`         | 不缓存 L1 | 永不过期（主动更新） |
-| Gateway 接口快照            | `perm:gateway:interface-snapshot:{tenantId}:{serviceCode}` | 30 秒     | 3 分钟               |
-| 角色互斥规则                | `perm:conflict-rule:role-mutex:{tenantId}`                 | 5 分钟    | 10 分钟              |
-| 权限互斥规则                | `perm:conflict-rule:perm-mutex:{tenantId}`                 | 5 分钟    | 10 分钟              |
+| 缓存内容                    | Redis Key 模式                                                                 | L1 TTL    | L2 TTL               |
+| --------------------------- | ------------------------------------------------------------------------------ | --------- | -------------------- |
+| 用户有效角色集合            | `perm:user:effective-roles:{tenantId}:{userId}`                                | 60 秒     | 5 分钟               |
+| 角色权限快照（资源+操作位） | `perm:role:perms:{tenantId}:{roleId}`                                          | 60 秒     | 5 分钟               |
+| 角色权限版本号              | `perm:permission-version:role:{tenantId}:{roleId}`                             | 不缓存 L1 | 永不过期（主动更新） |
+| Gateway 接口快照            | `perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionVersion}` | 30 秒     | 3 分钟               |
+| 角色互斥规则                | `perm:conflict-rule:role-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
+| 权限互斥规则                | `perm:conflict-rule:perm-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
 
 ### 5.2 缓存失效触发点
 
 ```
 权限变更（role_resource_permission）
   → 角色权限快照失效（evictRolePermSnapshot）
-  → 接口快照失效（evictInterfaceSnapshot，按 serviceCode）
+    → 接口快照切换到新 permissionVersion 键（旧键自然冷却）
   → 角色版本递增（setPermVersion）
   → 关联用户角色缓存失效（查询 user_role WHERE target_id=roleId，逐一失效）
 
@@ -1007,6 +1006,7 @@ record ChangeLogEntry(String entityType, Long entityId, String operation,
 `role_resource_permission.can_grant` 字段表示该权限条目是否可被当前角色关联的用户授予（委托）给他人。
 
 **关键区分**：
+
 - **`canGrant` ≠ 管理权限**：`canGrant` 只用于授权流程判断，不用于鉴权判断
 - **管理权限判断**：应通过 `operation_permission.code = "MANAGE"` 实现
 - **授权流程**：用户想将某权限授予他人时，需检查该用户对该权限是否拥有 `canGrant=true`
@@ -1017,6 +1017,7 @@ record ChangeLogEntry(String entityType, Long entityId, String operation,
 | `can_manage` | `can_grant` | 可管理该资源 | 可授权给他人 |
 
 **使用场景**：
+
 - 授权时校验：授权者必须拥有目标权限且 `canGrant=true` 才能将同一权限授予他人
 - 委托限制：授权者只能授权自己已有的权限，不能扩大资源、操作或范围
 - 被授权对象：由业务服务控制候选范围，permission-center 不负责生成候选列表
@@ -1030,6 +1031,7 @@ record ChangeLogEntry(String entityType, Long entityId, String operation,
 用于 permission-center 内部各 Service 统一调用，避免分散的权限检查逻辑。
 
 **入参 DTO**：
+
 ```java
 public record PermissionCheckReq(
     Long operatorId,           // 操作者用户ID
@@ -1040,6 +1042,7 @@ public record PermissionCheckReq(
 ```
 
 **返回 DTO**：
+
 ```java
 public record PermissionCheckResp(
     Map<String, Boolean> results  // key=operationCode, value=是否有权限
@@ -1069,6 +1072,7 @@ public record PermissionCheckResp(
 用于批量检查多个目标的权限，避免 N+1 查询问题。
 
 **入参 DTO**：
+
 ```java
 public record PermissionCheckBatchReq(
     Long operatorId,           // 操作者用户ID
@@ -1079,6 +1083,7 @@ public record PermissionCheckBatchReq(
 ```
 
 **返回 DTO**：
+
 ```java
 public record PermissionCheckBatchResp(
     Map<Long, PermissionCheckResp> results  // key=targetId, value=该目标的权限结果
@@ -1157,6 +1162,7 @@ public final class PermissionCheckUtils {
 ```
 
 **返回结果结构**：
+
 ```java
 public record PermissionBatchResult(
     Set<Long> allowedIds,   // 有权限的目标ID集合
@@ -1197,6 +1203,7 @@ PermissionCheckUtils.validateCanManageRolesOrThrow(authorizationService, tenantI
 **接口路径**：`POST /api/perm/auth/query-permission-tree`
 
 **入参 DTO**：
+
 ```java
 public record PermissionTreeReq(
     @NotBlank String subjectTypeCode,
@@ -1213,6 +1220,7 @@ public record PermissionTreeReq(
 ```
 
 **返回 DTO**：
+
 ```java
 public record PermissionTreeResp(
     TreeNode root,                          // 起点节点
@@ -1265,6 +1273,7 @@ public record PermissionTreeResp(
 ### 7.7 授权安全校验（Grant Validation）
 
 **问题背景**：原 `batchGrant` 方法只检查 operator 是否有 MANAGE 权限，未检查是否能授予特定权限。这导致：
+
 - 用户可授予自己不拥有的权限
 - 用户可授予自己拥有但 `canGrant=false` 的权限
 - 用户可授予 `scopeAll=true` 但自己只有特定资源权限的权限
@@ -1343,29 +1352,30 @@ record GrantCheckResult(
 
 #### 错误码
 
-| reason | 说明 |
-|--------|------|
-| `NO_ROLE` | operator 无有效角色 |
-| `NO_PERMISSION` | operator 无该权限 |
-| `NO_GRANT_RIGHT` | operator 有权限但 `canGrant=false` |
-| `RESOURCE_NOT_FOUND` | 资源不存在 |
-| `INVALID_RESOURCE_TYPE` | 资源类型无效 |
-| `INVALID_OPERATION` | 操作类型无效 |
+| reason                  | 说明                               |
+| ----------------------- | ---------------------------------- |
+| `NO_ROLE`               | operator 无有效角色                |
+| `NO_PERMISSION`         | operator 无该权限                  |
+| `NO_GRANT_RIGHT`        | operator 有权限但 `canGrant=false` |
+| `RESOURCE_NOT_FOUND`    | 资源不存在                         |
+| `INVALID_RESOURCE_TYPE` | 资源类型无效                       |
+| `INVALID_OPERATION`     | 操作类型无效                       |
 
 #### 批量查询优化（避免 N+1）
 
 `checkGrantPermissionsBatch` 实现采用批量查询策略，将 N 次数据库访问优化为固定 4 次：
 
-| 步骤 | 查询内容 | 查询次数 |
-|------|----------|----------|
-| 1 | 获取 operator 的有效角色 | 1 次 |
-| 2 | 批量查询所有涉及的 operationPermissions | 1 次 |
-| 3 | 批量解析所有 resourceEntityIds（通过 typeResolutionService） | N 次（可优化为批量） |
-| 4 | 批量查询所有 roleResourcePermissions | 1 次 |
+| 步骤 | 查询内容                                                     | 查询次数             |
+| ---- | ------------------------------------------------------------ | -------------------- |
+| 1    | 获取 operator 的有效角色                                     | 1 次                 |
+| 2    | 批量查询所有涉及的 operationPermissions                      | 1 次                 |
+| 3    | 批量解析所有 resourceEntityIds（通过 typeResolutionService） | N 次（可优化为批量） |
+| 4    | 批量查询所有 roleResourcePermissions                         | 1 次                 |
 
 **优化后查询次数**：2-3 次固定查询 + N 次 resourceEntityId 解析（typeResolutionService 可进一步优化为批量）
 
 **核心思路**：
+
 1. 预加载所有 `operationPermissions` 到 `Map<Long, OperationPermission>`
 2. 预加载所有 `roleResourcePermissions` 到两个 Map：
    - `permsBySpecificResource`: key = `resourceType:opCode:resourceEntityId`

@@ -12,11 +12,11 @@ import jakarta.validation.constraints.NotBlank;
  * @param subjectTypeCode   用户类型编码，必填
  * @param subjectExternalId 用户外部标识，必填
  * @param serviceCode       服务编码，必填
- * @param permissionVersion 权限版本号，用于缓存一致性检查，可选
+ * @param permissionVersion 权限令牌，用于缓存一致性检查，可选
  */
 public record InterfaceSnapshotReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
     @NotBlank String serviceCode,
-    Long permissionVersion
+    String permissionVersion
 ) {}

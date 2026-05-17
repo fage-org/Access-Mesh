@@ -89,7 +89,7 @@ public final class PermCacheCatalog {
     /**
      * 接口权限快照缓存
      * <p>
-     * Key: serviceCode
+        * Key: serviceCode + "|" + permissionVersion
      * Value: InterfaceSnapshot
      * </p>
      */

@@ -6,7 +6,8 @@ import cn.ac.fage.accessmesh.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
  * 用户角色领域服务实现类
  * <p>
  * 实现用户角色的解析与缓存管理，支持组角色递归展开、有效期过滤等功能。
- * 通过 PermCacheDomainService 委托统一 CacheService 管理 L1/L2 缓存。
+ * 直接使用 CacheService 管理 L1/L2 缓存。
  * </p>
  */
 @Service
@@ -33,7 +34,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
-    private final PermCacheDomainService permCacheDomainService;
+    private final CacheService cacheService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -41,16 +42,16 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      *
      * @param userRoleMapper        用户角色数据访问层
      * @param abstractRoleMapper    抽象角色数据访问层
-     * @param permCacheDomainService 权限缓存领域服务（委托 CacheService）
+     * @param cacheService          统一缓存服务
      * @param objectMapper          JSON解析器
      */
     public UserRoleDomainServiceImpl(UserRoleMapper userRoleMapper,
                                      AbstractRoleMapper abstractRoleMapper,
-                                     PermCacheDomainService permCacheDomainService,
+                                     CacheService cacheService,
                                      ObjectMapper objectMapper) {
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
-        this.permCacheDomainService = permCacheDomainService;
+        this.cacheService = cacheService;
         this.objectMapper = objectMapper;
     }
 
@@ -94,7 +95,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * 批量解析多个用户的有效角色（内部实现）
      * <p>
      * 实现真正的批量查询逻辑：
-     * 1. 先通过 PermCacheDomainService 检查 L1/L2 缓存
+     * 1. 先通过 CacheService 检查 L1/L2 缓存
      * 2. 批量查询未命中用户的UserRole记录
      * 3. 批量展开组角色
      * 4. 批量过滤角色状态
@@ -109,11 +110,11 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         Map<Long, Set<Long>> result = new HashMap<>();
         Set<Long> uncachedUserIds = new HashSet<>();
 
-        // 1. 先检查缓存（通过 PermCacheDomainService，内部已处理 L1 + L2）
+        // 1. 先检查缓存（通过 CacheService，内部已处理 L1 + L2）
         for (Long userId : userIds) {
-            Optional<Set<Long>> cached = permCacheDomainService.getEffectiveRoles(tenantId, userId);
-            if (cached.isPresent()) {
-                result.put(userId, cached.get());
+            Set<Long> cached = cacheService.get(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+            if (cached != null) {
+                result.put(userId, cached);
             } else {
                 uncachedUserIds.add(userId);
             }
@@ -182,8 +183,8 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             Set<Long> effectiveRoles = new HashSet<>(userRoleIds);
             effectiveRoles.retainAll(enabledRoleIds);
 
-            // 写入缓存（通过 PermCacheDomainService，统一管理 L1 + L2）
-            permCacheDomainService.setEffectiveRoles(tenantId, userId, effectiveRoles);
+            // 写入缓存（通过 CacheService，统一管理 L1 + L2）
+            cacheService.put(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, effectiveRoles);
 
             result.put(userId, effectiveRoles);
         }
@@ -321,7 +322,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     /**
      * 失效单个用户的角色缓存
      * <p>
-     * 通过 PermCacheDomainService 统一失效 L1 + L2 缓存
+     * 直接调用 CacheService 失效 L1 + L2 缓存
      * </p>
      *
      * @param tenantId 租户ID
@@ -329,14 +330,14 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      */
     @Override
     public void invalidateRoleCache(Long tenantId, Long userId) {
-        permCacheDomainService.evictEffectiveRoles(tenantId, userId);
+        cacheService.evict(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
     }
 
     /**
      * 失效角色关联的所有用户缓存
      * <p>
      * 查询所有拥有该角色的用户，批量清除其缓存。
-     * 通过 PermCacheDomainService 统一管理批量失效
+     * 直接调用 CacheService 管理批量失效
      * </p>
      *
      * @param tenantId 租户ID
@@ -360,10 +361,8 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             return;
         }
 
-        // 批量失效缓存（通过 PermCacheDomainService）
-        for (Long userId : userIds) {
-            permCacheDomainService.evictEffectiveRoles(tenantId, userId);
-        }
+        // 批量失效缓存（直接调用 CacheService）
+        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
 
 }

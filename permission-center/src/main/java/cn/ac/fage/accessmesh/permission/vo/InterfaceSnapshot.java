@@ -11,13 +11,13 @@ import java.util.List;
  *
  * @param tenantId    租户ID
  * @param serviceCode 服务编码
- * @param version     权限版本号，用于缓存一致性检查
+ * @param permissionVersion 权限令牌，用于缓存一致性检查
  * @param entries     接口权限条目列表
  */
 public record InterfaceSnapshot(
     Long tenantId,
     String serviceCode,
-    long version,
+    String permissionVersion,
     List<InterfacePermEntry> entries
 ) {
     /**

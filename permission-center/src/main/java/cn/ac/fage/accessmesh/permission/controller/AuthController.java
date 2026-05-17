@@ -125,12 +125,12 @@ public class AuthController {
     /**
      * 获取接口权限快照
      * <p>
-     * 获取指定服务的所有API接口及其权限配置信息。
-     * 用于Gateway缓存预热、权限配置导出等场景。
+        * 获取指定主体在指定服务下可访问的 API 快照。
+        * 用于 Gateway 以权限令牌为条件执行增量拉取。
      * </p>
      *
-     * @param req 接口快照请求，包含服务编码
-     * @return 服务接口权限配置列表
+        * @param req 接口快照请求，包含主体、服务编码和可选权限令牌
+        * @return 主体维度的服务接口权限快照
      */
     @PostMapping("/interface-snapshot")
     public PermResult<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {

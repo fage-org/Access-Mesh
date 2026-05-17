@@ -6,16 +6,16 @@ import java.util.List;
  * 接口快照响应体
  * <p>
  * 供Gateway消费的接口权限快照响应。
- * 包租户的服务接口权限配置，支持版本检查避免重复传输。
+ * 包含租户的服务接口权限配置，支持基于权限令牌的增量刷新。
  * </p>
  *
- * @param notModified    是否未修改（版本未变化时为true）
- * @param currentVersion 当前权限版本号
- * @param allowedApis    允许访问的API权限条目列表
+ * @param notModified       是否未修改（权限令牌未变化时为true）
+ * @param permissionVersion 当前权限令牌
+ * @param allowedApis       允许访问的API权限条目列表
  */
 public record InterfaceSnapshotResp(
     boolean notModified,
-    long currentVersion,
+    String permissionVersion,
     List<ApiPermissionEntry> allowedApis
 ) {
     /**

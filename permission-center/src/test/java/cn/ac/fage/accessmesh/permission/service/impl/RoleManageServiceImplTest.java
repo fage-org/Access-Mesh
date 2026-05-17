@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -29,7 +29,7 @@ class RoleManageServiceImplTest {
 
     @Mock private AbstractRoleMapper abstractRoleMapper;
     @Mock private AbstractRoleDomainService abstractRoleDomainService;
-    @Mock private PermCacheDomainService permCacheDomainService;
+    @Mock private CacheService cacheService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private OperationLogDomainService operationLogDomainService;
@@ -44,7 +44,7 @@ class RoleManageServiceImplTest {
         service = new RoleManageServiceImpl(
             abstractRoleMapper,
             abstractRoleDomainService,
-            permCacheDomainService,
+            cacheService,
             typeResolutionService,
             domainClassifyService,
             new ObjectMapper(),
