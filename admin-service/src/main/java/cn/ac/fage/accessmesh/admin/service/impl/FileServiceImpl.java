@@ -167,7 +167,7 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long uploadFile(MultipartFile file, String bizType) {
-        // Permission check - type-level CREATE on FILE
+        // 权限检查 — FILE 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.FILE, AdminOperationCode.CREATE);
 
         // 1. 检查文件是否为空
@@ -280,12 +280,12 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public void deleteFiles(IdsReq req) {
-        // Permission check - batch instance-level DELETE on FILE
+        // 权限检查 — FILE 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.FILE, resourceCodes, AdminOperationCode.DELETE);
 
         Long tenantId = TenantContextHolder.getTenantId();
-        // Batch query valid files
+        // 批量查询有效文件
         List<SysFile> files = fileMapper.selectValidByIds(tenantId, req.ids());
 
         if (files.isEmpty()) {

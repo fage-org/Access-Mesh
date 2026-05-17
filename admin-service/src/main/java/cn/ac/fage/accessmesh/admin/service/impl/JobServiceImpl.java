@@ -193,10 +193,10 @@ public class JobServiceImpl implements JobService {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, req.id().toString(), AdminOperationCode.UPDATE);
 
-        // If currently running, unschedule first
+        // 若当前正在运行，先取消调度
         if (existing.getStatus() == JOB_STATUS_ENABLED) {
             unscheduleJob(req.id());
         }
@@ -231,19 +231,19 @@ public class JobServiceImpl implements JobService {
     public void deleteJobs(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.JOB, resourceCodes, AdminOperationCode.DELETE);
 
-        // Unschedule jobs first (must remain as loop for scheduler operation)
+        // 先取消调度（必须循环执行调度器操作）
         for (Long id : req.ids()) {
             unscheduleJob(id);
         }
 
-        // Batch query valid jobs (performance fix: avoid N+1 queries for SELECT)
+        // 批量查询有效任务（性能优化：避免 N+1 SELECT 查询）
         List<SysJob> jobs = jobMapper.selectValidByIds(tenantId, req.ids());
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：单次 SQL 替代循环）
         if (!jobs.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = jobs.stream().map(SysJob::getId).collect(java.util.stream.Collectors.toList());
@@ -272,7 +272,7 @@ public class JobServiceImpl implements JobService {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
-        // Permission check - instance-level ENABLE/DISABLE
+        // 权限检查 — 实例级 ENABLE/DISABLE
         String operationCode = status == JOB_STATUS_ENABLED ? AdminOperationCode.ENABLE : AdminOperationCode.DISABLE;
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), operationCode);
 
@@ -298,7 +298,7 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     public void triggerJob(Long id) {
-        // Permission check - instance-level TRIGGER
+        // 权限检查 — 实例级 TRIGGER
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), AdminOperationCode.TRIGGER);
 
         Long tenantId = TenantContextHolder.getTenantId();

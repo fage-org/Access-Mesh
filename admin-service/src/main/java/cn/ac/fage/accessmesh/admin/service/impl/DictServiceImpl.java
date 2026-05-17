@@ -79,7 +79,7 @@ public class DictServiceImpl implements DictService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createDictType(DictTypeCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.DICT, AdminOperationCode.CREATE);
 
         SysDictType type = new SysDictType();
@@ -93,7 +93,7 @@ public class DictServiceImpl implements DictService {
         type.setDeleteFlag(0L);
         dictTypeMapper.insert(type);
 
-        // Evict cache after commit
+        // 提交后失效缓存
         cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, TenantContextHolder.getTenantId(), "all");
 
         return type.getId();
@@ -116,16 +116,16 @@ public class DictServiceImpl implements DictService {
     public void deleteDictType(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.DICT, resourceCodes, AdminOperationCode.DELETE);
 
-        // Batch query to check for data and filter valid IDs (performance fix: avoid N+1 queries)
+        // 批量查询检查数据并过滤有效ID（性能优化：避免 N+1 查询）
         List<SysDictType> types = dictTypeMapper.selectByIdsAndTenant(tenantId, req.ids());
 
-        // Batch check if any type has associated data (performance fix: single query with GROUP BY)
+        // 批量检查是否有类型关联数据（性能优化：单次 GROUP BY 查询）
         if (!types.isEmpty()) {
             List<String> dictTypes = types.stream()
                 .map(SysDictType::getDictType)
@@ -138,14 +138,14 @@ public class DictServiceImpl implements DictService {
             }
         }
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：单次 SQL 替代循环）
         if (!types.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = types.stream().map(SysDictType::getId).collect(Collectors.toList());
             dictTypeMapper.softDeleteBatch(tenantId, validIds, now);
         }
 
-        // Evict cache after commit
+        // 提交后失效缓存
         cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
@@ -246,7 +246,7 @@ public class DictServiceImpl implements DictService {
     public Long createDictData(DictDataCreateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - type-level CREATE for dict data
+        // 权限检查 — 字典数据类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.DICT_DATA, AdminOperationCode.CREATE);
 
         SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
@@ -266,7 +266,7 @@ public class DictServiceImpl implements DictService {
         data.setDeleteFlag(0L);
         dictDataMapper.insert(data);
 
-        // Evict cache after commit
+        // 提交后失效缓存
         cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
 
         return data.getId();
@@ -288,7 +288,7 @@ public class DictServiceImpl implements DictService {
     public void updateDictData(DictDataUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - instance-level UPDATE on the data record
+        // 权限检查 — 字典数据实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.DICT_DATA,
             String.valueOf(req.id()), AdminOperationCode.UPDATE);
 
@@ -317,7 +317,7 @@ public class DictServiceImpl implements DictService {
         data.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.update(data);
 
-        // Evict cache after commit
+        // 提交后失效缓存
         cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
@@ -336,7 +336,7 @@ public class DictServiceImpl implements DictService {
     public void deleteDictData(IdReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - instance-level DELETE
+        // 权限检查 — 实例级 DELETE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.DICT_DATA,
             String.valueOf(req.id()),
@@ -349,7 +349,7 @@ public class DictServiceImpl implements DictService {
         data.setDeletedAt(LocalDateTime.now());
         dictDataMapper.update(data);
 
-        // Evict cache after commit
+        // 提交后失效缓存
         cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 

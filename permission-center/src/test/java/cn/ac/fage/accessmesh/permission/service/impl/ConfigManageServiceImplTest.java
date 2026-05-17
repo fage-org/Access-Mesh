@@ -102,8 +102,8 @@ class ConfigManageServiceImplTest {
         config.setDeleteFlag(0L);
         when(serviceConfigMapper.selectByTenantAndServiceCode(any(), any())).thenReturn(config);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(1);
-        // TODO: syncServiceInterfaces now delegates to serviceInterfaceSyncService.syncInterfaces()
-        // Replace these mapper mocks with serviceInterfaceSyncService mock after full test rework
+        // TODO: syncServiceInterfaces 已委托给 serviceInterfaceSyncService.syncInterfaces()
+        // 待全面重构测试后，将这些 mapper mock 替换为 serviceInterfaceSyncService mock
 
         doAnswer(inv -> {
             List<ResourceEntity> entities = inv.getArgument(0);
@@ -126,7 +126,7 @@ class ConfigManageServiceImplTest {
 
         service.syncServiceInterfaces(1L, req, null);
 
-        // Verify batch insert was called and capture the list
+        // 验证批量插入被调用，并捕获列表
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ResourceApiMapping>> mappingCaptor = ArgumentCaptor.forClass(List.class);
         org.mockito.Mockito.verify(resourceApiMappingMapper).insertBatch(mappingCaptor.capture());

@@ -93,7 +93,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     @Override
     public Long createRoleForOrg(String roleName, Long orgId, Long tenantId) {
-        // Permission check - type-level CREATE on ADMIN_ROLE
+        // 权限检查 — ADMIN_ROLE 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ROLE, AdminOperationCode.CREATE);
 
         RoleCreateReq req = new RoleCreateReq(
@@ -130,7 +130,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     @Override
     public void grantMenuToRole(Long tenantId, Long roleId, Long menuId, String opCode) {
-        // Permission check - instance-level GRANT on ADMIN_ROLE
+        // 权限检查 — ADMIN_ROLE 实例级 GRANT
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ROLE,
             String.valueOf(roleId),
@@ -200,7 +200,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     @Override
     public void revokeMenuFromRole(Long tenantId, Long roleId, Long menuId) {
-        // Permission check - instance-level REVOKE on ADMIN_ROLE
+        // 权限检查 — ADMIN_ROLE 实例级 REVOKE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ROLE,
             String.valueOf(roleId),
@@ -325,10 +325,10 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             .map(uo -> new UserInfoResp.OrgInfo(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());
 
-        // Fetch roles from permission-center via /api/user/roles
+        // 通过 /api/user/roles 从 permission-center 获取角色
         List<UserInfoResp.RoleInfo> roles = List.of();
 
-        // Fetch permissions from permission-center via /api/permission-view/user
+        // 通过 /api/permission-view/user 从 permission-center 获取权限
         List<String> permissions = List.of();
 
         return new UserInfoResp(userId, null, null, null, null, null, null, roles, permissions, orgInfos);
@@ -383,7 +383,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         if (result == null || result.getData() == null) {
             throw new IllegalStateException("Failed to list operations for tenant " + tenantId);
         }
-        // The response is a Map, extract operation list from it
+        // 响应是 Map，从中提取操作列表
         Object itemsObj = result.getData().get("items");
         if (itemsObj instanceof List<?> items) {
             Map<String, Long> ops = new HashMap<>();

@@ -123,7 +123,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markSuccess(Long id) {
-        // Permission check - instance-level UPDATE on SYNC_RETRY
+        // 权限检查 — SYNC_RETRY 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
 
         SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
@@ -148,7 +148,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void markFailed(Long id, String error) {
-        // Permission check - instance-level UPDATE on SYNC_RETRY
+        // 权限检查 — SYNC_RETRY 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.UPDATE);
 
         SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
@@ -189,7 +189,7 @@ public class SyncRetryServiceImpl implements SyncRetryService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteProcessed(Long id) {
-        // Permission check - instance-level DELETE on SYNC_RETRY
+        // 权限检查 — SYNC_RETRY 实例级 DELETE
         permissionValidator.checkInstanceLevel(AdminResourceType.SYNC_RETRY, id.toString(), AdminOperationCode.DELETE);
 
         SysSyncRetry record = syncRetryMapper.selectByIdSafe(id, TenantContextHolder.getTenantId());
@@ -289,11 +289,11 @@ public class SyncRetryServiceImpl implements SyncRetryService {
         if (target == null || target.isBlank()) {
             return null;
         }
-        // If target already contains protocol, use as-is
+        // 若目标已包含协议，直接使用
         if (target.startsWith("http://") || target.startsWith("https://")) {
             return target + "/" + record.getOperationType();
         }
-        // Use lb:// protocol for service discovery
+        // 使用 lb:// 协议进行服务发现
         String serviceUrl = target.startsWith("lb://") ? target : "lb://" + target;
         return serviceUrl + "/api/sync/" + record.getOperationType();
     }

@@ -87,7 +87,7 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -165,7 +165,7 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(req.id()),
@@ -180,7 +180,7 @@ public class OrgServiceImpl implements OrgService {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        // Validate parent change only if a new parent is specified
+        // 仅在指定新父级时验证父级变更
         if (req.parentOrgId() != null) {
             long newParentId = req.parentOrgId();
             if (newParentId != org.getParentId()) {
@@ -249,7 +249,7 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
-        // Permission check - instance-level DELETE
+        // 权限检查 — 实例级 DELETE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(id),

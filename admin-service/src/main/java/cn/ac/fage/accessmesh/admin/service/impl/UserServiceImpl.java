@@ -102,7 +102,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createUser(UserCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -176,7 +176,7 @@ public class UserServiceImpl implements UserService {
     public void updateUser(UserUpdateReq req) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // Self-modification exemption: user can update own info without permission check
+        // 自我修改豁免：用户可更新自己的信息无需权限检查
         if (!req.id().equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.USER,
@@ -251,14 +251,14 @@ public class UserServiceImpl implements UserService {
         Long tenantId = TenantContextHolder.getTenantId();
         long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // Check cannot delete self (business rule)
+        // 检查不能删除自己（业务规则）
         for (Long id : req.ids()) {
             if (id.equals(currentUserId)) {
                 throw new BizException(AdminErrorCode.CANNOT_DELETE_SELF.getCode(), AdminErrorCode.CANNOT_DELETE_SELF.getMessage());
             }
         }
 
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
@@ -298,7 +298,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enableUser(IdsReq req) {
-        // Permission check - batch instance-level ENABLE
+        // 权限检查 — 批量实例级 ENABLE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
@@ -434,7 +434,7 @@ public class UserServiceImpl implements UserService {
     public void resetPassword(Long userId, String newPassword) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // Self-modification exemption: user can reset own password without permission check
+        // 自我修改豁免：用户可重置自己的密码无需权限检查
         if (!userId.equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.USER,

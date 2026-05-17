@@ -172,7 +172,7 @@ class PermissionServiceImplQueryScopesTest {
         scopeAllPerm.setScopeAll(true);
         scopeAllPerm.setDependOn(400L);
         scopeAllPerm.setDeleteFlag(0L);
-        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        // TODO: 待全面重构测试后，替换为 engine.query(PermQuery) mock
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
@@ -224,7 +224,7 @@ class PermissionServiceImplQueryScopesTest {
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
-        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        // TODO: 待全面重构测试后，替换为 engine.query(PermQuery) mock
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
@@ -276,7 +276,7 @@ class PermissionServiceImplQueryScopesTest {
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
-        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        // TODO: 待全面重构测试后，替换为 engine.query(PermQuery) mock
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();
@@ -344,7 +344,7 @@ class PermissionServiceImplQueryScopesTest {
         dependentScope.setScopeAll(false);
         dependentScope.setDeleteFlag(0L);
 
-        // TODO: Replace with engine.query(PermQuery) mock after full test rework
+        // TODO: 待全面重构测试后，替换为 engine.query(PermQuery) mock
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(false, null).build());
 
         OperationPermission op = new OperationPermission();

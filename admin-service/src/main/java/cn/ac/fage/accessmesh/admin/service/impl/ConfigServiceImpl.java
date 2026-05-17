@@ -107,7 +107,7 @@ public class ConfigServiceImpl implements ConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateConfig(ConfigUpdateReq req) {
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.CONFIG,
             String.valueOf(req.id()),
@@ -142,16 +142,16 @@ public class ConfigServiceImpl implements ConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(IdsReq req) {
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
-        // Batch query to check system config and filter valid IDs
+        // 批量查询检查系统配置并过滤有效ID
         List<SysConfig> configs = configMapper.selectListByIdsAndTenantId(TenantContextHolder.getTenantId(), req.ids());
 
-        // Check if any config is system config (immutable)
+        // 检查是否有系统内置配置（不可修改）
         for (SysConfig config : configs) {
             if (Boolean.TRUE.equals(config.getIsSystem())) {
                 throw new BizException(AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getCode(),
@@ -159,7 +159,7 @@ public class ConfigServiceImpl implements ConfigService {
             }
         }
 
-        // Batch soft delete
+        // 批量软删除
         if (!configs.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
             List<Long> validIds = configs.stream().map(SysConfig::getId).collect(java.util.stream.Collectors.toList());

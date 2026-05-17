@@ -423,7 +423,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
-            // Mark user status as locked in DB
+            // 在数据库中标记用户状态为锁定
             SysUser user = userDomainService.findByUsername(tenantId, username);
             if (user != null) {
                 userDomainService.batchUpdateStatus(tenantId, List.of(user.getId()), 2);

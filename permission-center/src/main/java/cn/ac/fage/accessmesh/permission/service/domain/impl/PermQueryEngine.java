@@ -247,39 +247,39 @@ public class PermQueryEngine {
             return Set.of();
         }
 
-        // 1. Resolve user roles (1 query)
+        // 1. 解析用户角色（1次查询）
         Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (roleIds.isEmpty()) {
-            return new LinkedHashSet<>(resourceIds); // No roles = all denied
+            return new LinkedHashSet<>(resourceIds); // 无角色 = 全部拒绝
         }
 
-        // 2. Resolve type and operation IDs (batch)
+        // 2. 解析类型和操作ID（批量）
         Integer resourceTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceTypeValue == null) {
-            return new LinkedHashSet<>(resourceIds); // Unknown type = all denied
+            return new LinkedHashSet<>(resourceIds); // 未知类型 = 全部拒绝
         }
         Long operationId = typeResolutionService.resolveOperationId(tenantId, resourceTypeCode, operationCode);
         if (operationId == null) {
-            return new LinkedHashSet<>(resourceIds); // Unknown operation = all denied
+            return new LinkedHashSet<>(resourceIds); // 未知操作 = 全部拒绝
         }
 
-        // 3. Query type-level permissions (scopeAll=true) - 1 query
+        // 3. 查询类型级权限（scopeAll=true）— 1次查询
         List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds,
             Set.of(resourceTypeValue), Set.of(operationId));
 
-        // 4. If scopeAll matched, all resources are allowed
+        // 4. 若scopeAll匹配，则所有资源均允许
         if (!scopeAllEntries.isEmpty()) {
-            // Evaluate conditions if needed
+            // 评估条件（如有需要）
             List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, Map.of());
             if (!evaluated.isEmpty()) {
                 evaluated = conflictDomainService.filterPermMutex(tenantId, evaluated);
                 if (!evaluated.isEmpty()) {
-                    return Set.of(); // All allowed via scopeAll
+                    return Set.of(); // 通过scopeAll全部允许
                 }
             }
         }
 
-        // 5. Convert resourceIds to Long for batch query
+        // 5. 将resourceIds转换为Long以批量查询
         Set<Long> resourceEntityIds = new HashSet<>();
         Map<Long, ID> entityIdToOriginalId = new HashMap<>();
         for (ID id : resourceIds) {
@@ -290,7 +290,7 @@ public class PermQueryEngine {
             }
         }
         if (resourceEntityIds.isEmpty()) {
-            return new LinkedHashSet<>(resourceIds); // No valid IDs = all denied
+            return new LinkedHashSet<>(resourceIds); // 无有效ID = 全部拒绝
         }
 
         // 6. Query instance-level permissions in batch (1 query)
@@ -444,7 +444,7 @@ public class PermQueryEngine {
         if (q.useRoleCache()) {
             return userRoleDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
         }
-        // bypass cache -- direct batch resolve
+        // 绕过缓存，直接批量解析
         Map<Long, Set<Long>> batch = userRoleDomainService.batchResolveEffectiveRoles(
             q.tenantId(), Set.of(q.userId()));
         return batch.getOrDefault(q.userId(), Set.of());
@@ -551,7 +551,7 @@ public class PermQueryEngine {
             if (e.resourceEntityId() != null) allEntityIds.add(e.resourceEntityId());
             if (e.operationPermissionId() != null) allOpIds.add(e.operationPermissionId());
         });
-        // also include resourceEntityIds from query (for scopeAll where perms have null entityId)
+        // 同时包含查询参数中的resourceEntityIds（scopeAll权限的entityId可能为null）
         if (q.resourceEntityIds() != null) allEntityIds.addAll(q.resourceEntityIds());
 
         if (q.includeResources()) {

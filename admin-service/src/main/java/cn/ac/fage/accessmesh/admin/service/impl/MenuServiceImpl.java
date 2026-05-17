@@ -85,7 +85,7 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createMenu(MenuCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -162,7 +162,7 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateMenu(MenuUpdateReq req) {
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.MENU,
             String.valueOf(req.id()),
@@ -227,7 +227,7 @@ public class MenuServiceImpl implements MenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteMenu(Long id) {
-        // Permission check - instance-level DELETE
+        // 权限检查 — 实例级 DELETE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.MENU,
             String.valueOf(id),

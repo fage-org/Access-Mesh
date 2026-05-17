@@ -99,7 +99,7 @@ class CacheCatalogEntryTest {
             .valueType(new TypeRef<String>() {})
             .build();
 
-        // Defaults from Builder
+        // Builder 默认值
         assertEquals(CacheMode.L1_L2, entry.getMode());
         assertEquals(10, entry.getL1TtlMinutes());
         assertEquals(1000, entry.getL1MaxSize());

@@ -81,7 +81,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createNotice(NoticeCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.NOTICE, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -127,7 +127,7 @@ public class NoticeServiceImpl implements NoticeService {
                 AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
 
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE,
             String.valueOf(req.id()), AdminOperationCode.UPDATE);
 
@@ -156,11 +156,11 @@ public class NoticeServiceImpl implements NoticeService {
     public void deleteNotice(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.NOTICE, resourceCodes, AdminOperationCode.DELETE);
 
-        // Batch query valid notices (performance fix: avoid N+1 queries)
+        // 批量查询有效通知（性能优化：避免 N+1 查询）
         List<SysNotice> notices = noticeMapper.selectByIdsSafe(tenantId, req.ids());
         if (!notices.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
@@ -236,7 +236,7 @@ public class NoticeServiceImpl implements NoticeService {
             throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
 
-        // Permission check - instance-level PUBLISH
+        // 权限检查 — 实例级 PUBLISH
         permissionValidator.checkInstanceLevel(AdminResourceType.NOTICE, notice.getId().toString(), AdminOperationCode.PUBLISH);
 
         notice.setStatus(2);
@@ -287,7 +287,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     public List<UserNoticeItem> listMyNotices(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
-        // Fallback: use two separate queries since MyBatis-Flex doesn't support raw SQL easily
+        // 降级方案：使用两次查询，因 MyBatis-Flex 不便直接执行原生 SQL
         List<SysNotice> notices = noticeMapper.selectPublishedByTenant(tenantId);
 
         List<Long> noticeIds = notices.stream().map(SysNotice::getId).toList();
@@ -325,7 +325,7 @@ public class NoticeServiceImpl implements NoticeService {
             return;
         }
 
-        // Parse to Long set
+        // 解析为 Long 集合
         Set<Long> userIds = new HashSet<>();
         List<String> invalidIds = new ArrayList<>();
 
@@ -349,12 +349,12 @@ public class NoticeServiceImpl implements NoticeService {
             return;
         }
 
-        // Validate user existence and tenant isolation
+        // 验证用户存在性和租户隔离
         List<SysUser> validUsers = userDomainService.selectValidByIds(tenantId, userIds);
         Map<Long, SysUser> validUserMap = validUsers.stream()
             .collect(Collectors.toMap(SysUser::getId, Function.identity()));
 
-        // Find non-existent user IDs
+        // 找出不存在的用户ID
         Set<Long> missingUserIds = userIds.stream()
             .filter(id -> !validUserMap.containsKey(id))
             .collect(Collectors.toSet());

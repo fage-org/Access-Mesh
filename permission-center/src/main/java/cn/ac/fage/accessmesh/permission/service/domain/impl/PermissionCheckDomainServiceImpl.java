@@ -146,7 +146,7 @@ public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainSe
     public AuthCheckResp checkInternal(Long tenantId, Long userId, Long resourceEntityId,
                                         Long operationPermissionId,
                                         String inheritMode, Map<String, Object> context) {
-        // Resolve resourceTypeCode from resourceEntityId
+        // 从资源实体ID解析资源类型编码
         String resourceTypeCode = null;
         if (resourceEntityId != null) {
             Map<Long, ResourceEntity> resourceMap = entityBatchLoadService.batchLoadResources(tenantId, Set.of(resourceEntityId));

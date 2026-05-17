@@ -71,7 +71,7 @@ public class UserOrgServiceImpl implements UserOrgService {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
-        // Self-assignment exemption: user can assign own orgs without permission check
+        // 自我分配豁免：用户可分配自己的组织无需权限检查
         if (!req.userId().equals(operatorId)) {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.USER,
@@ -91,7 +91,7 @@ public class UserOrgServiceImpl implements UserOrgService {
         userOrgDomainService.deleteByUserId(tenantId, req.userId());
 
         LocalDateTime now = LocalDateTime.now();
-        // Performance fix: collect entities for batch insert
+        // 性能优化：收集实体进行批量插入
         List<SysUserOrg> toInsert = new ArrayList<>();
         for (Long orgId : req.orgIds()) {
             SysUserOrg assoc = new SysUserOrg();
@@ -125,7 +125,7 @@ public class UserOrgServiceImpl implements UserOrgService {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
-        // Self-removal exemption: user can remove own org association
+        // 自我移除豁免：用户可移除自己的组织关联
         if (!userId.equals(operatorId)) {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.USER,
@@ -153,7 +153,7 @@ public class UserOrgServiceImpl implements UserOrgService {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = StpUtil.getLoginIdAsLong();
 
-        // Self-modification exemption: user can set own primary org
+        // 自我修改豁免：用户可设置自己的主组织
         if (!userId.equals(operatorId)) {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.USER,

@@ -548,7 +548,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (!allowedResourceIds.isEmpty()) {
             List<ResourceApiMapping> apiMappings = apiMappingMapper.selectForSnapshot(
                 tenantId, req.serviceCode(), allowedResourceIds);
-            // Build permission map indexed by resourceEntityId for O(n+m) lookup
+            // 构建按资源实体ID索引的权限映射，实现 O(n+m) 查询
             Map<Long, List<RoleResourcePermission>> permsByResource = allPerms.stream()
                 .filter(p -> p.getResourceEntityId() != null)
                 .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));

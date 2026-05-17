@@ -98,7 +98,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     public void updateOrgTreeConfig(OrgTreeConfigUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
+        // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, req.id().toString(), AdminOperationCode.UPDATE);
 
         SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
@@ -133,11 +133,11 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
         if (req.ids() == null || req.ids().isEmpty()) {
             return;
         }
-        // Permission check - batch instance-level DELETE on ORG_TREE_CONFIG
+        // 权限检查 — ORG_TREE_CONFIG 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
-        // Performance fix: use batch soft delete instead of loop updates
+        // 性能优化：使用批量软删除替代循环更新
         LocalDateTime now = LocalDateTime.now();
         orgTreeConfigMapper.softDeleteBatch(TenantContextHolder.getTenantId(), req.ids(), now);
     }
@@ -157,7 +157,7 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setDefault(Long id) {
-        // Permission check - instance-level UPDATE on ORG_TREE_CONFIG
+        // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
 
         SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);

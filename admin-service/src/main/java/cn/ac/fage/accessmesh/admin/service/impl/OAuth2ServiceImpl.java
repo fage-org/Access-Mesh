@@ -207,7 +207,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // Validate client exists and is active
+            // 验证客户端存在且有效
             SysOauth2Client client = getValidClient(clientId);
 
             // 使用 Lua 脚本原子性地获取并删除 refresh token，防止重复使用
@@ -229,21 +229,21 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // Set tenant context from refresh token
+            // 从 refresh token 设置租户上下文
             TenantContextHolder.setTenantId(refreshTokenData.getTenantId());
 
-            // Verify client_id matches (refreshToken bound to specific client)
+            // 验证 client_id 匹配（refreshToken 绑定特定客户端）
             if (!refreshTokenData.getClientId().equals(clientId)) {
                 throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
                     AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
-            // Generate new access token
+            // 生成新的访问令牌
             String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId, refreshTokenData.getScope());
             int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
             int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
 
-            // Generate new refresh token
+            // 生成新的刷新令牌
             String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
             RefreshTokenData newRefreshTokenData = new RefreshTokenData();
             newRefreshTokenData.setUserId(refreshTokenData.getUserId());
@@ -277,7 +277,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     @Override
     public void revokeToken(String accessToken) {
         if (accessToken != null && !accessToken.isBlank()) {
-            // For JWT tokens, we add to a blacklist in Redis
+            // JWT 令牌：添加到 Redis 黑名单
             String blackKey = "oauth2:blacklist:" + extractJti(accessToken);
             long ttl = getTokenRemainingTtl(accessToken);
             if (ttl > 0) {
@@ -365,7 +365,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 AdminErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
 
-        // Set tenant context from auth code
+        // 从授权码设置租户上下文
         TenantContextHolder.setTenantId(codeData.getTenantId());
 
         // 5. Validate redirect_uri matches
@@ -394,7 +394,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
-        // Store refresh token
+        // 存储刷新令牌
         RefreshTokenData refreshData = new RefreshTokenData();
         refreshData.setUserId(codeData.getUserId());
         refreshData.setTenantId(codeData.getTenantId());
@@ -590,7 +590,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     private void validateScope(SysOauth2Client client, String scope) {
         if (client.getScopes() == null || client.getScopes().isBlank()) {
-            return; // no scope restriction
+            return; // 无授权范围限制
         }
         String[] allowedScopes = client.getScopes().split(",");
         Set<String> allowedSet = new HashSet<>();
@@ -635,7 +635,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     private String extractJti(String token) {
         try {
-            // JWT format: header.payload.signature
+            // JWT 格式：header.payload.signature
             String[] parts = token.split("\\.");
             if (parts.length < 2) return token;
             String payloadJson = new String(
@@ -662,7 +662,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     private long getTokenRemainingTtl(String token) {
         try {
-            // JWT format: header.payload.signature
+            // JWT 格式：header.payload.signature
             String[] parts = token.split("\\.");
             if (parts.length < 2) return 86400;
             String payloadJson = new String(

@@ -87,12 +87,12 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             return;
         }
 
-        // Check for soft-deleted records with same composite key and reactivate them
+        // 检查相同复合键的软删除记录并重新激活
         for (RolePermSnapshot.RolePermEntry entry : entries) {
             List<RoleResourcePermission> existing = rolePermMapper.selectSoftDeletedByCompositeKey(
                 tenantId, roleId, entry.resourceEntityId(), entry.operationPermissionId());
             if (!existing.isEmpty()) {
-                // Reactivate the soft-deleted record instead of inserting a new one
+                // 重新激活软删除记录，而非插入新记录
                 RoleResourcePermission reactivated = existing.get(0);
                 reactivated.setDeleteFlag(0L);
                 reactivated.setUpdatedAt(LocalDateTime.now());
@@ -107,7 +107,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
                 continue;
             }
 
-            // No existing record (active or soft-deleted), insert new
+            // 无现有记录（活跃或软删除），插入新记录
             RoleResourcePermission rp = new RoleResourcePermission();
             rp.setTenantId(tenantId);
             rp.setAbstractRoleId(roleId);

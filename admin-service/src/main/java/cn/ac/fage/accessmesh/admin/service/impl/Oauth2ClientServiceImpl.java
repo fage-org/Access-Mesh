@@ -66,7 +66,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createClient(Oauth2ClientCreateReq req) {
-        // Permission check - type-level CREATE
+        // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.OAUTH2_CLIENT, AdminOperationCode.CREATE);
 
         // 检查clientId是否已存在
@@ -109,7 +109,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateClient(Oauth2ClientUpdateReq req) {
-        // Permission check - instance-level UPDATE
+        // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.OAUTH2_CLIENT,
             String.valueOf(req.id()),
@@ -163,13 +163,13 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteClients(IdsReq req) {
-        // Permission check - batch instance-level DELETE
+        // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.OAUTH2_CLIENT, resourceCodes, AdminOperationCode.DELETE);
 
-        // Batch soft delete (performance fix: use single SQL instead of loop)
+        // 批量软删除（性能优化：单次 SQL 替代循环）
         LocalDateTime now = LocalDateTime.now();
         oauth2ClientMapper.softDeleteBatch(TenantContextHolder.getTenantId(), req.ids(), now);
     }

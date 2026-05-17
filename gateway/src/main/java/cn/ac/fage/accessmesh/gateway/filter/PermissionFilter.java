@@ -140,7 +140,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                     permissionCheckCache.put(cacheKey, true);
                     return chain.filter(exchange);
                 } else {
-                    // Denial decisions are not cached — permission grants should take effect quickly
+                    // 拒绝决策不缓存，确保权限授予后立即生效
                     String reason = resp != null && resp.getData() != null
                         ? resp.getData().getDenyReason() : null;
                     return writeForbidden(exchange, mapReasonToMessage(reason));

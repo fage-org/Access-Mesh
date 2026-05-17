@@ -301,7 +301,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
             return;
         }
 
-        // Duplicate check: skip if an active permission with same composite key already exists
+        // 重复检查：若相同复合键的活跃权限已存在则跳过
         long existingCount = rolePermMapper.countByCompositeKey(tenantId, roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
         if (existingCount > 0) {
             log.info("Skipping duplicate auto-grant: role={}, resource={}, op={}", roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
