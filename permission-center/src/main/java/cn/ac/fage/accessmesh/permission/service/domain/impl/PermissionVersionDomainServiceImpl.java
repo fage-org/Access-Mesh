@@ -4,8 +4,8 @@ import cn.ac.fage.accessmesh.permission.entity.PermissionVersion;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionVersionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermCacheDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -19,44 +19,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 权限版本领域服务实现类
  * <p>
  * 实现权限版本号的查询、递增和缓存管理。
- * 采用双层缓存架构（L1 Caffeine + L2 Redis）存储版本号。
+ * 通过 PermCacheDomainService 委托统一 CacheService 管理 L1/L2 缓存。
  * </p>
  */
 @Service
 public class PermissionVersionDomainServiceImpl implements PermissionVersionDomainService {
 
-    private static final String VERSION_KEY_PREFIX = "perm:permission-version:role:";
-    private static final long VERSION_CACHE_TTL_HOURS = 1;
-
     private final PermissionVersionMapper versionMapper;
     private final PermCacheDomainService permCacheDomainService;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
      *
      * @param versionMapper         版本数据访问层
-     * @param permCacheDomainService 权限缓存领域服务
-     * @param redisTemplate         Redis操作模板
+     * @param permCacheDomainService 权限缓存领域服务（委托 CacheService）
+     * @param cacheService          统一缓存服务
      */
     public PermissionVersionDomainServiceImpl(PermissionVersionMapper versionMapper,
                                                PermCacheDomainService permCacheDomainService,
-                                               RedisTemplate<String, Object> redisTemplate) {
+                                               CacheService cacheService) {
         this.versionMapper = versionMapper;
         this.permCacheDomainService = permCacheDomainService;
-        this.redisTemplate = redisTemplate;
+        this.cacheService = cacheService;
     }
 
     /**
      * 获取角色的当前权限版本号
      * <p>
-     * 采用双层缓存策略：先查L1 Caffeine，再查L2 Redis，最后查数据库。
+     * 通过 PermCacheDomainService 委托 CacheService 管理 L1/L2 缓存。
      * 数据库查询结果自动填充缓存。
      * </p>
      *
@@ -66,26 +62,16 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
      */
     @Override
     public long getCurrentVersion(Long tenantId, Long roleId) {
-        // L1缓存查询
+        // 通过 PermCacheDomainService 查缓存（已处理 L1 + L2）
         Optional<Long> cached = permCacheDomainService.getPermVersion(tenantId, roleId);
         if (cached.isPresent()) return cached.get();
 
-        // L2 Redis缓存查询
-        String l2Key = VERSION_KEY_PREFIX + tenantId + ":" + roleId;
-        Object l2Val = redisTemplate.opsForValue().get(l2Key);
-        if (l2Val instanceof Long) {
-            long v = (Long) l2Val;
-            permCacheDomainService.setPermVersion(tenantId, roleId, v);
-            return v;
-        }
-
-        // 数据库查询最新版本记录
+        // miss 后查数据库
         PermissionVersion latest = versionMapper.selectLatestByRole(tenantId, roleId);
         long version = latest != null ? latest.getVersionNo() : 1L;
 
-        // 写入双层缓存
+        // 回填缓存
         permCacheDomainService.setPermVersion(tenantId, roleId, version);
-        redisTemplate.opsForValue().set(l2Key, version, VERSION_CACHE_TTL_HOURS, TimeUnit.HOURS);
         return version;
     }
 
@@ -132,7 +118,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
      * 递增角色的权限版本号
      * <p>
      * 当角色权限变更时调用，版本号加1并写入数据库和缓存。
-     * 事务操作确保数据一致性。
+     * 事务操作确保数据一致性，缓存写入在事务提交后执行（避免回滚污染）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -154,22 +140,30 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         versionMapper.insert(pv);
 
         // 缓存写入延迟到事务提交后，避免回滚污染缓存
+        // 正确做法：注册 afterCommit 钩子写入新版本，而不是先 evict 再 write
+        final Long finalTenantId = tenantId;
+        final Long finalRoleId = roleId;
+        final long finalNewVersion = newVersion;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
-                    redisTemplate.opsForValue().set(VERSION_KEY_PREFIX + tenantId + ":" + roleId, newVersion, VERSION_CACHE_TTL_HOURS, TimeUnit.HOURS);
+                    permCacheDomainService.setPermVersion(finalTenantId, finalRoleId, finalNewVersion);
                 }
             });
+        } else {
+            // 无事务时直接写入
+            permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
         }
+
         return newVersion;
     }
 
     /**
      * 批量递增多个角色的权限版本号
      * <p>
-     * 使用批量插入减少数据库网络往返，使用Pipeline批量写入Redis提升性能。
+     * 使用批量插入减少数据库网络往返。
+     * 缓存写入在事务提交后执行，避免回滚污染。
      * </p>
      *
      * @param tenantId 租户ID
@@ -194,7 +188,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         // 2. 批量创建新版本记录
         LocalDateTime now = LocalDateTime.now();
         List<PermissionVersion> newVersions = new ArrayList<>(roleIds.size());
-        Map<String, Long> redisKeyToVersion = new HashMap<>(roleIds.size());
+        Map<Long, Long> roleIdToNewVersion = new HashMap<>();
 
         for (Long roleId : roleIds) {
             Long currentVersion = roleIdToVersion.getOrDefault(roleId, 1L);
@@ -207,36 +201,29 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
             pv.setCreatedAt(now);
             newVersions.add(pv);
 
-            // 准备Redis批量写入数据
-            String l2Key = VERSION_KEY_PREFIX + tenantId + ":" + roleId;
-            redisKeyToVersion.put(l2Key, newVersion);
+            roleIdToNewVersion.put(roleId, newVersion);
         }
 
         // 3. 批量插入数据库
         versionMapper.insertBatch(newVersions);
 
         // 4. 缓存写入延迟到事务提交后，避免回滚污染缓存
+        final Long finalTenantId = tenantId;
+        final Map<Long, Long> finalRoleIdToNewVersion = roleIdToNewVersion;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    // L1缓存写入
-                    for (Long roleId : roleIds) {
-                        Long newVersion = roleIdToVersion.getOrDefault(roleId, 1L) + 1;
-                        permCacheDomainService.setPermVersion(tenantId, roleId, newVersion);
+                    for (Map.Entry<Long, Long> entry : finalRoleIdToNewVersion.entrySet()) {
+                        permCacheDomainService.setPermVersion(finalTenantId, entry.getKey(), entry.getValue());
                     }
-                    // L2缓存批量写入（使用Pipeline提高性能）
-                    redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-                        for (Map.Entry<String, Long> entry : redisKeyToVersion.entrySet()) {
-                            byte[] keyBytes = entry.getKey().getBytes();
-                            byte[] valueBytes = entry.getValue().toString().getBytes();
-                            connection.set(keyBytes, valueBytes);
-                            connection.expire(keyBytes, VERSION_CACHE_TTL_HOURS * 3600);
-                        }
-                        return null;
-                    });
                 }
             });
+        } else {
+            // 无事务时直接写入
+            for (Map.Entry<Long, Long> entry : roleIdToNewVersion.entrySet()) {
+                permCacheDomainService.setPermVersion(tenantId, entry.getKey(), entry.getValue());
+            }
         }
     }
 }

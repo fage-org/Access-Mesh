@@ -17,12 +17,12 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.DictService;
+import cn.ac.fage.accessmesh.admin.cache.AdminCacheCatalog;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * <p>
  * 提供字典类型和字典数据的CRUD操作、分页查询、列表查询等功能。
  * 字典类型定义字典分类，字典数据定义具体选项值。
- * 使用Spring Cache缓存字典类型列表，修改时自动清除缓存。
+ * 使用统一 CacheService 缓存字典类型列表，修改时自动清除缓存。
  * 支持批量操作和层级校验（删除类型前检查是否有关联数据）。
  * </p>
  */
@@ -47,6 +47,7 @@ public class DictServiceImpl implements DictService {
     private final SysDictTypeMapper dictTypeMapper;
     private final SysDictDataMapper dictDataMapper;
     private final AdminPermissionValidator permissionValidator;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
@@ -54,12 +55,14 @@ public class DictServiceImpl implements DictService {
      * @param dictTypeMapper 字典类型数据访问Mapper
      * @param dictDataMapper 字典数据数据访问Mapper
      * @param permissionValidator 权限校验器，校验字典操作权限
+     * @param cacheService 统一缓存服务
      */
     public DictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper,
-                           AdminPermissionValidator permissionValidator) {
+                           AdminPermissionValidator permissionValidator, CacheService cacheService) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
         this.permissionValidator = permissionValidator;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -75,7 +78,6 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictType(DictTypeCreateReq req) {
         // Permission check - type-level CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.DICT, AdminOperationCode.CREATE);
@@ -90,6 +92,10 @@ public class DictServiceImpl implements DictService {
         type.setUpdatedAt(LocalDateTime.now());
         type.setDeleteFlag(0L);
         dictTypeMapper.insert(type);
+
+        // Evict cache after commit
+        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, TenantContextHolder.getTenantId(), "all");
+
         return type.getId();
     }
 
@@ -107,7 +113,6 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictType(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -139,6 +144,9 @@ public class DictServiceImpl implements DictService {
             List<Long> validIds = types.stream().map(SysDictType::getId).collect(Collectors.toList());
             dictTypeMapper.softDeleteBatch(tenantId, validIds, now);
         }
+
+        // Evict cache after commit
+        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**
@@ -152,10 +160,16 @@ public class DictServiceImpl implements DictService {
      * @return 字典类型响应列表，每个类型包含其下的字典数据列表
      */
     @Override
-    @Cacheable(value = "dictTypes", key = "'all'")
     public List<DictTypeResp> listDictTypes() {
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // ① 查缓存
+        List<DictTypeResp> cached = cacheService.get(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        if (cached != null) {
+            return cached;
+        }
+
+        // ② miss 后查 DB
         // 1. Query all dict types
         List<SysDictType> types = dictTypeMapper.selectByTenantId(tenantId);
 
@@ -175,7 +189,7 @@ public class DictServiceImpl implements DictService {
             .collect(Collectors.groupingBy(SysDictData::getDictType));
 
         // 4. Build response (in-memory operation)
-        return types.stream().map(t -> {
+        List<DictTypeResp> result = types.stream().map(t -> {
             List<SysDictData> dataList = dataByDictType.getOrDefault(t.getDictType(), List.of());
             List<DictDataResp> dataRespList = dataList.stream()
                 .map(d -> new DictDataResp(d.getId(), t.getId(), d.getDictLabel(), d.getDictValue(),
@@ -183,6 +197,11 @@ public class DictServiceImpl implements DictService {
                 .collect(Collectors.toList());
             return new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), dataRespList);
         }).collect(Collectors.toList());
+
+        // ③ 回填缓存
+        cacheService.put(AdminCacheCatalog.DICT_TYPES, tenantId, "all", result);
+
+        return result;
     }
 
     /**
@@ -224,17 +243,18 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "dictTypes", allEntries = true)
     public Long createDictData(DictDataCreateReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
         // Permission check - type-level CREATE for dict data
         permissionValidator.checkTypeLevel(AdminResourceType.DICT_DATA, AdminOperationCode.CREATE);
 
-        SysDictType type = dictTypeMapper.selectByIdSafe(TenantContextHolder.getTenantId(), req.dictTypeId());
+        SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
         if (type == null) {
             throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
         SysDictData data = new SysDictData();
-        data.setTenantId(TenantContextHolder.getTenantId());
+        data.setTenantId(tenantId);
         data.setDictType(type.getDictType());
         data.setDictLabel(req.dictLabel());
         data.setDictValue(req.dictValue());
@@ -245,6 +265,10 @@ public class DictServiceImpl implements DictService {
         data.setUpdatedAt(LocalDateTime.now());
         data.setDeleteFlag(0L);
         dictDataMapper.insert(data);
+
+        // Evict cache after commit
+        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+
         return data.getId();
     }
 
@@ -261,7 +285,6 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "dictTypes", allEntries = true)
     public void updateDictData(DictDataUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -293,6 +316,9 @@ public class DictServiceImpl implements DictService {
         }
         data.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.update(data);
+
+        // Evict cache after commit
+        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**
@@ -307,8 +333,9 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "dictTypes", allEntries = true)
     public void deleteDictData(IdReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
         // Permission check - instance-level DELETE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.DICT_DATA,
@@ -316,11 +343,14 @@ public class DictServiceImpl implements DictService {
             AdminOperationCode.DELETE
         );
 
-        SysDictData data = dictDataMapper.selectByIdSafe(TenantContextHolder.getTenantId(), req.id());
+        SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());
         if (data == null) return;
         data.setDeleteFlag(data.getId());
         data.setDeletedAt(LocalDateTime.now());
         dictDataMapper.update(data);
+
+        // Evict cache after commit
+        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**

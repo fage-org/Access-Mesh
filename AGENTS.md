@@ -85,30 +85,49 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 
 ### dual-layer-cache-framework
 
-**自动触发条件**: 涉及缓存相关代码、创建新 CacheManager、修改 AbstractGenericCacheManager、
-使用 GenericCacheManager 接口、缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、
-"evict"、"put"、"getBatch"、CacheProperties、CacheAutoConfiguration。
+**自动触发条件**: 涉及缓存相关代码、`CacheService`、`CacheCatalogEntry`、`CacheMode`、
+`CombinedL1L2Store`、`RedissonBucketStore`、`CaffeineLocalCacheStore`、
+`CacheAutoConfiguration`、`RedissonCacheAutoConfiguration`、缓存失效逻辑、关键词 "cache"、"缓存"、
+"Caffeine"、"Redis"、"Redisson"、"evictAfterCommit"、"getBatch"、`CacheProperties`。
 
 **核心要点**:
 
 - **框架位置**: `common/cache/` 模块，所有服务可复用
-- **键格式**: `namespace:tenantId:key`
-- **写入顺序**: 先 L2 (Redis) 后 L1 (Caffeine)
-- **失效顺序**: 先 L2 后 L1（防止竞态条件）
-- **读取顺序**: L1 → L2 → Loader
-- **空值缓存**: 使用 `NULL_MARKER`，较短 TTL 防止穿透
-- **键验证**: 长度限制 500 字符，清理控制字符
-- **禁止事项**: 禁止 KEYS 命令（用 SCAN）、禁止循环单条查询（用批量）、禁止变更后不失效
+- **唯一入口**: 业务层只注入 `CacheService`，不再创建 `CacheManager` / region 类
+- **装配模型**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只提供 Redisson store
+- **键格式**: `{tenantId}:{catalogCode}:{identifier}`
+- **使用模式**: `get` → miss 后业务加载 → `put` → 写路径使用 `evictAfterCommit`
+- **模式划分**: `L1_L2` 使用 `CombinedL1L2Store`，`L2_ONLY` 使用 `RedissonBucketStore`，`L1_ONLY` 使用 `CaffeineLocalCacheStore`
+- **禁止事项**: 禁止 loader 回调缓存 API、禁止直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`、禁止业务缓存继续使用 Spring Cache 注解、禁止循环单条查询、禁止 `KEYS`
 
-**创建新缓存管理器**:
+**Catalog 定义示例**:
 
 ```java
-@Component
-public class MyCacheManager extends AbstractGenericCacheManager<Long, MyData> {
-    @Override public String getNamespace() { return "my:namespace"; }
-    @Override public Class<MyData> getValueClass() { return MyData.class; }
-    // ... 配置 TTL、maximumSize
+public final class MyCacheCatalog {
+    public static final CacheCatalogEntry<MyData> DETAIL =
+        CacheCatalogEntry.<MyData>builder()
+            .code("my:detail")
+            .mode(CacheMode.L1_L2)
+            .l1TtlMinutes(5)
+            .l1MaxSize(1000)
+            .l2TtlMinutes(30)
+            .valueType(new TypeRef<MyData>() {})
+            .build();
 }
+```
+
+**业务调用示例**:
+
+```java
+MyData data = cacheService.get(MyCacheCatalog.DETAIL, tenantId, id);
+if (data == null) {
+    data = mapper.selectById(id);
+    if (data != null) {
+        cacheService.put(MyCacheCatalog.DETAIL, tenantId, id, data);
+    }
+}
+
+cacheService.evictAfterCommit(MyCacheCatalog.DETAIL, tenantId, id);
 ```
 
 ### resource-permission-validator

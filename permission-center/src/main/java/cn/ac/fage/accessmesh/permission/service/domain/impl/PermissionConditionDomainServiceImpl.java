@@ -1,10 +1,10 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.common.cache.GenericCacheManager;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.permission.service.cache.impl.ConditionRulesCacheManager;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 import cn.ac.fage.accessmesh.permission.util.ConditionEvalUtils;
@@ -23,7 +23,8 @@ import java.util.stream.Collectors;
 /**
  * 权限条件领域服务实现类
  * <p>
- * 负责权限条件的评估与缓存管理，支持日期范围、时间范围、IP黑白名单等条件类型
+ * 负责权限条件的评估与缓存管理，支持日期范围、时间范围、IP黑白名单等条件类型。
+ * 使用统一 CacheService + PermCacheCatalog 管理缓存。
  * </p>
  */
 @Service
@@ -33,21 +34,21 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
-    private final GenericCacheManager<Long, JsonNode> rulesCacheManager;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param conditionMapper   条件数据访问层
-     * @param objectMapper      JSON解析器
-     * @param rulesCacheManager 条件规则缓存管理器
+     * @param conditionMapper 条件数据访问层
+     * @param objectMapper    JSON解析器
+     * @param cacheService    统一缓存服务
      */
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
                                                  ObjectMapper objectMapper,
-                                                 ConditionRulesCacheManager rulesCacheManager) {
+                                                 CacheService cacheService) {
         this.conditionMapper = conditionMapper;
         this.objectMapper = objectMapper;
-        this.rulesCacheManager = rulesCacheManager;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -91,23 +92,28 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * @return 条件评估结果，true表示条件满足
      */
     private boolean evaluateCondition(Long tenantId, Long conditionId, Map<String, Object> context) {
-        // 使用缓存管理器，通过BiFunction传递tenantId
-        JsonNode rules = rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
-            // 从数据库加载条件规则
-            PermissionCondition condition = conditionMapper.selectOneById(cid);
+        // ① 查缓存（null = miss）
+        JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
+
+        // ② miss 后查 DB
+        if (rules == null) {
+            PermissionCondition condition = conditionMapper.selectOneById(conditionId);
             if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
-                || !tid.equals(condition.getTenantId())) {
-                return null; // 返回null会被缓存为空值
+                || !tenantId.equals(condition.getTenantId())) {
+                return false;
             }
 
             try {
-                return objectMapper.readTree(condition.getConditionRules());
+                rules = objectMapper.readTree(condition.getConditionRules());
+                // ③ 回填缓存
+                if (rules != null) {
+                    cacheService.put(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId, rules);
+                }
             } catch (Exception e) {
-                log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", cid, e);
-                // fail-close: 不缓存失败结果，抛异常阻止缓存
-                throw new RuntimeException("Condition rules JSON parse failed for conditionId: " + cid, e);
+                log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);
+                return false;
             }
-        });
+        }
 
         // 如果规则为空（条件不存在、禁用或解析失败），返回false
         if (rules == null) {
@@ -128,7 +134,6 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             return allMatch;
         } catch (Exception e) {
             log.error("CRITICAL: Unexpected error evaluating condition, conditionId: {}", conditionId, e);
-            // fail-close: 异常时拒绝权限
             return false;
         }
     }
@@ -161,7 +166,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * @param conditionId 条件ID
      */
     public void evictConditionCache(Long tenantId, Long conditionId) {
-        rulesCacheManager.evict(tenantId, conditionId);
+        cacheService.evictAfterCommit(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
     }
 
     /**
@@ -177,6 +182,6 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         if (conditionIds == null || conditionIds.isEmpty()) {
             return;
         }
-        rulesCacheManager.evictBatch(tenantId, conditionIds);
+        cacheService.evictBatchAfterCommit(PermCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
     }
 }

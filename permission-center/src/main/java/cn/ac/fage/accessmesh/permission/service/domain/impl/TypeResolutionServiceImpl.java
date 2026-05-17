@@ -16,7 +16,8 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import org.springframework.data.redis.core.RedisTemplate;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -24,24 +25,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * 类型解析服务实现类
  * <p>
  * 将外部稳定的业务键解析为内部数据库ID。
- * 支持Redis缓存以提升解析性能。
+ * 通过统一 CacheService 管理缓存以提升解析性能。
  * </p>
  */
 @Service
 public class TypeResolutionServiceImpl implements TypeResolutionService {
-
-    private static final String TYPE_VALUE_CACHE_KEY_PREFIX = "perm:type:value:";
-    private static final String TYPE_CODE_CACHE_KEY_PREFIX = "perm:type:code:";
-    private static final long TYPE_CACHE_TTL_HOURS = 1; // 字典/枚举配置类数据，L2 TTL为1小时
-    private static final long NULL_CACHE_TTL_SECONDS = 30; // NULL值缓存TTL不超过30秒，防止缓存穿透
-    private static final String NULL_MARKER = "##NULL##";
 
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final AbstractUserMapper abstractUserMapper;
@@ -49,7 +43,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     private final BizDomainMapper bizDomainMapper;
     private final AbstractRoleMapper abstractRoleMapper;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
@@ -64,47 +58,41 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                                      BizDomainMapper bizDomainMapper,
                                      AbstractRoleMapper abstractRoleMapper,
                                      OperationPermissionMapper operationPermissionMapper,
-                                     RedisTemplate<String, Object> redisTemplate) {
+                                     CacheService cacheService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.redisTemplate = redisTemplate;
+        this.cacheService = cacheService;
     }
 
     /**
      * 解析type_code到内部type_value
      * <p>
-     * 使用Redis缓存，NULL值使用特殊标记防止缓存穿透
+     * 通过 CacheService 缓存，null 值不缓存（miss 时返回 null）
      * </p>
      */
     @Override
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {
-        String cacheKey = TYPE_VALUE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeCode;
+        String cacheKey = typeKey + ":" + typeCode;
 
-        // 尝试从缓存获取
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
-        if (cached != null) {
-            if (NULL_MARKER.equals(cached)) {
-                return null;
-            }
-            if (cached instanceof Integer) {
-                return (Integer) cached;
-            }
+        // ① 查缓存
+        Map<String, Integer> cached = cacheService.get(PermCacheCatalog.TYPE_VALUE, tenantId, cacheKey);
+        if (cached != null && cached.containsKey(typeCode)) {
+            return cached.get(typeCode);
         }
 
-        // 缓存未命中，查询数据库
+        // ② miss 后查数据库
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, typeKey, typeCode);
-
         Integer result = td != null ? td.getTypeValue() : null;
 
-        // 缓存结果（NULL值使用NULL_MARKER标记，区别于缓存未命中）
+        // ③ 回填缓存（只缓存非 null 值）
         if (result != null) {
-            redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
-        } else {
-            redisTemplate.opsForValue().set(cacheKey, NULL_MARKER, NULL_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            Map<String, Integer> toCache = new HashMap<>();
+            toCache.put(typeCode, result);
+            cacheService.put(PermCacheCatalog.TYPE_VALUE, tenantId, cacheKey, toCache);
         }
 
         return result;
@@ -135,29 +123,21 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             return null;
         }
 
-        String cacheKey = TYPE_CODE_CACHE_KEY_PREFIX + tenantId + ":" + typeKey + ":" + typeValue;
+        String cacheKey = typeKey + ":" + typeValue;
 
-        // 尝试从缓存获取
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        // ① 查缓存
+        String cached = cacheService.get(PermCacheCatalog.TYPE_CODE, tenantId, cacheKey);
         if (cached != null) {
-            if (NULL_MARKER.equals(cached)) {
-                return null;
-            }
-            if (cached instanceof String) {
-                return (String) cached;
-            }
+            return cached;
         }
 
-        // 缓存未命中，查询数据库
+        // ② miss 后查数据库
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndValue(tenantId, typeKey, typeValue);
-
         String result = td != null ? td.getTypeCode() : null;
 
-        // 缓存结果
+        // ③ 回填缓存（只缓存非 null 值）
         if (result != null) {
-            redisTemplate.opsForValue().set(cacheKey, result, TYPE_CACHE_TTL_HOURS, TimeUnit.HOURS);
-        } else {
-            redisTemplate.opsForValue().set(cacheKey, NULL_MARKER, NULL_CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            cacheService.put(PermCacheCatalog.TYPE_CODE, tenantId, cacheKey, result);
         }
 
         return result;

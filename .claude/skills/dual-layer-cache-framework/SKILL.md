@@ -1,358 +1,179 @@
 ---
 name: dual-layer-cache-framework
 description: >-
-  双层缓存框架（L1 Caffeine + L2 Redis）使用规范。
-  TRIGGER when: 涉及缓存相关代码、创建新 CacheManager、修改 AbstractGenericCacheManager、
-  使用 GenericCacheManager 接口、缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、
-  "evict"、"put"、"getBatch"、CacheProperties、CacheAutoConfiguration。
+  AccessMesh 统一缓存框架规范。
+  TRIGGER when: 涉及缓存相关代码、`CacheService`、`CacheCatalogEntry`、`CacheMode`、
+  `CombinedL1L2Store`、`RedissonBucketStore`、`CaffeineLocalCacheStore`、
+  `CacheAutoConfiguration`、`RedissonCacheAutoConfiguration`、缓存失效逻辑、关键词 "cache"、"缓存"、
+  "Redis"、"Redisson"、"Caffeine"、"evictAfterCommit"、"getBatch"、`CacheProperties`。
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.0.0"
+  version: "2.0.0"
 ---
 
-# 双层缓存框架规范
+# 统一缓存框架规范
 
-双层缓存框架（L1 Caffeine + L2 Redis）的统一使用规范。
+本技能描述 AccessMesh 当前生效的统一缓存方案。缓存基础设施已经从旧的 `GenericCacheManager` / `AbstractGenericCacheManager` 模型收敛为 `CacheService + CacheCatalogEntry + Store SPI`。
 
 ## 框架位置
 
 `common/src/main/java/cn/ac/fage/accessmesh/common/cache/`
 
 **核心组件**:
-- `GenericCacheManager<K, V>` - 通用缓存管理器接口
-- `AbstractGenericCacheManager<K, V>` - 抽象实现类
-- `CacheProperties` - L1/L2 配置属性
-- `CacheAutoConfiguration` - 自动配置类
+
+- `CacheService` - 业务侧唯一缓存入口
+- `DefaultCacheService` - 默认实现，按 `CacheMode` 路由到可用 store
+- `CacheCatalogEntry<V>` - 类型化缓存描述符
+- `CacheMode` - `L1_L2` / `L2_ONLY` / `L1_ONLY`
+- `CacheKeyUtil` - 统一 key 生成工具
+- `CacheProperties` - 代码默认值 + YAML 运维覆盖
+- `CacheAutoConfiguration` - 始终创建唯一 `CacheService`
+- `RedissonCacheAutoConfiguration` - 仅在 Redisson 可用时补充 store bean
+
+## 当前装配模型
+
+### 1. 只有一个 CacheService bean
+
+- `CacheAutoConfiguration` 始终创建唯一的 `CacheService`
+- `RedissonCacheAutoConfiguration` 不再创建第二个 `CacheService`
+- Redisson 自动配置只负责贡献：
+  - `CombinedL1L2Store`
+  - `RedissonBucketStore`
+- 无 Redisson 依赖时：`CacheService` 仅支持 `L1_ONLY`
+- 有 Redisson 依赖时：同一个 `CacheService` 自动接入 `L1_L2` 与 `L2_ONLY`
+
+### 2. 三种缓存模式
+
+| 模式      | 实现                      | 用途                                            |
+| --------- | ------------------------- | ----------------------------------------------- |
+| `L1_L2`   | `CombinedL1L2Store`       | Caffeine L1 + Redisson `RBucket` L2，条目级 TTL |
+| `L2_ONLY` | `RedissonBucketStore`     | 纯分布式缓存，例如权限版本号                    |
+| `L1_ONLY` | `CaffeineLocalCacheStore` | 纯本地缓存，例如 gateway 短 TTL 场景            |
 
 ## 键格式
 
-```
-namespace:tenantId:key
+```text
+{tenantId}:{catalogCode}:{identifier}
 ```
 
 示例：
-- `perm:condition:rules:1:123` - 租户1的条件规则123
-- `perm:user:effective-roles:1:456` - 租户1的用户456的有效角色
 
-## 操作顺序（关键）
+- `1:perm:effective-roles:456`
+- `1:perm:permission-version:1001`
+- `1:admin:dict-types:all`
 
-| 操作 | 顺序 | 原因 |
-|------|------|------|
-| **写入** | 先 L2 后 L1 | 确保 Redis 优先，分布式一致性 |
-| **失效** | 先 L2 后 L1 | 防止竞态条件（L1 清除但 L2 还有旧数据） |
-| **读取** | 先 L1 → L2 → Loader | 本地优先，减少网络开销 |
+要求：
 
-## TTL 配置
+- `catalogCode` 必须带服务前缀，如 `perm:*`、`admin:*`、`gw:*`
+- 全部小写，使用 `:` 分隔
+- 禁止直接拼接未经规整的原始用户输入
 
-| 层级 | 默认 TTL | 说明 |
-|------|----------|------|
-| L1 (Caffeine) | 10-30 分钟 | 本地缓存，快速过期 |
-| L2 (Redis) | 30-60 分钟 | 分布式缓存，较长有效期 |
-| 空值/失败标记 | TTL 的 50% | 防止缓存穿透，较短有效期 |
+## 业务使用模式
 
-## 创建新缓存管理器
+业务侧统一采用显式 Cache Aside 四步模式，**不提供 loader 回调**：
 
 ```java
-@Component
-public class ConditionRulesCacheManager
-    extends AbstractGenericCacheManager<Long, JsonNode> {
-
-    private final CacheProperties cacheProperties;
-
-    public ConditionRulesCacheManager(
-            RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper,
-            MeterRegistry meterRegistry,
-            CacheProperties cacheProperties) {
-        super(redisTemplate, objectMapper, meterRegistry);
-        this.cacheProperties = cacheProperties;
+Set<Long> roles = cacheService.get(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+if (roles == null) {
+    roles = userRoleMapper.selectRoleIds(tenantId, userId);
+    if (roles != null) {
+        cacheService.put(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, roles);
     }
+}
+return roles;
+```
 
-    @Override
-    public String getNamespace() {
-        return "perm:condition:rules";
-    }
+写路径统一在事务提交后失效：
 
-    @Override
-    public Class<JsonNode> getValueClass() {
-        return JsonNode.class;
-    }
+```java
+cacheService.evictAfterCommit(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+cacheService.evictBatchAfterCommit(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+```
 
-    @Override
-    public int getL1TtlMinutes() {
-        return cacheProperties.getL1().getExpireMinutes();
-    }
+## Catalog 设计规范
 
-    @Override
-    public int getL2TtlMinutes() {
-        return cacheProperties.getL2().getTtlMinutes();
-    }
+每个模块维护自己的 catalog 常量类，不在业务代码里传字符串：
 
-    @Override
-    public long getL1MaximumSize() {
-        return cacheProperties.getL1().getMaximumSize();
-    }
+```java
+public final class PermCacheCatalog {
+    public static final CacheCatalogEntry<Set<Long>> EFFECTIVE_ROLES =
+        CacheCatalogEntry.<Set<Long>>builder()
+            .code("perm:effective-roles")
+            .mode(CacheMode.L1_L2)
+            .l1TtlMinutes(5)
+            .l1MaxSize(2000)
+            .l2TtlMinutes(30)
+            .valueType(new TypeRef<Set<Long>>() {})
+            .build();
+
+    public static final CacheCatalogEntry<Long> PERMISSION_VERSION =
+        CacheCatalogEntry.<Long>builder()
+            .code("perm:permission-version")
+            .mode(CacheMode.L2_ONLY)
+            .l2TtlMinutes(60)
+            .valueType(new TypeRef<Long>() {})
+            .build();
 }
 ```
 
-## 在业务服务中使用
+要求：
 
-```java
-@Service
-public class PermissionConditionDomainServiceImpl {
+- `CacheCatalogEntry` 是业务缓存的唯一描述方式
+- 默认 TTL 和容量优先写在 catalog 常量中
+- 运维需要覆盖时再用 `accessmesh.cache.default.*` 和 `accessmesh.cache.catalogs.*`
 
-    private final ConditionRulesCacheManager rulesCacheManager;
+## 事务与失效规范
 
-    // 单条查询
-    public JsonNode getRules(Long tenantId, Long conditionId) {
-        return rulesCacheManager.get(tenantId, conditionId, (tid, cid) -> {
-            PermissionCondition cond = conditionMapper.selectOneById(cid);
-            if (cond == null) return null;
-            try {
-                return objectMapper.readTree(cond.getConditionRules());
-            } catch (Exception e) {
-                log.warn("Failed to parse conditionRules: {}", cid);
-                return null;
-            }
-        });
-    }
-
-    // 批量查询
-    public Map<Long, JsonNode> getRulesBatch(Long tenantId, Set<Long> conditionIds) {
-        return rulesCacheManager.getBatch(tenantId, conditionIds, (tid, ids) -> {
-            List<PermissionCondition> conditions = conditionMapper.selectListByIds(ids);
-            Map<Long, JsonNode> result = new HashMap<>();
-            for (PermissionCondition cond : conditions) {
-                try {
-                    result.put(cond.getId(), objectMapper.readTree(cond.getConditionRules()));
-                } catch (Exception e) {
-                    log.warn("Failed to parse: {}", cond.getId());
-                }
-            }
-            return result;
-        });
-    }
-
-    // 失效缓存
-    public void evictConditionCache(Long tenantId, Long conditionId) {
-        rulesCacheManager.evict(tenantId, conditionId);
-    }
-
-    // 批量失效
-    public void evictConditionCacheBatch(Long tenantId, Set<Long> conditionIds) {
-        rulesCacheManager.evictBatch(tenantId, conditionIds);
-    }
-}
-```
-
-## 失效触发时机
-
-**必须在数据变更时主动失效缓存**：
-
-```java
-@Service
-public class ConditionManageServiceImpl {
-
-    @Transactional(rollbackFor = Exception.class)
-    public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
-        // ... 更新数据库
-        conditionMapper.update(condition);
-
-        // 失效缓存（事务提交后）
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                conditionDomainService.evictConditionCache(tenantId, req.conditionId());
-            }
-        });
-
-        return toConditionResp(condition);
-    }
-
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteConditionsByIds(Long tenantId, Set<Long> conditionIds, Long operatorId) {
-        // ... 批量删除
-        conditionMapper.softDeleteBatch(conditionIds);
-
-        // 批量失效缓存
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                conditionDomainService.evictConditionCacheBatch(tenantId, conditionIds);
-            }
-        });
-    }
-}
-```
-
-## 方法选择
-
-| 场景 | 方法 | 说明 |
-|------|------|------|
-| 单条查询，可能需要加载 | `get(tenantId, key, loader)` | 自动加载并缓存 |
-| 单条查询，不加载 | `getOnly(tenantId, key)` | 仅查缓存，不触发加载 |
-| 批量查询 | `getBatch(tenantId, keys, loader)` | 批量加载，减少网络往返 |
-| 单条写入 | `put(tenantId, key, value)` | 同时写 L1 和 L2 |
-| 批量写入 | `putBatch(tenantId, data)` | Pipeline 优化 |
-| 单条失效 | `evict(tenantId, key)` | 先 L2 后 L1 |
-| 批量失效 | `evictBatch(tenantId, keys)` | 批量删除 L2，循环失效 L1 |
-| 全量失效 | `evictAll(tenantId)` | SCAN 分批删除 |
-
-## 关键特性
-
-### 1. 空值缓存（防止穿透）
-
-```java
-// 空值使用 NULL_MARKER 标记，较短 TTL
-protected static final String NULL_MARKER = "__NULL__";
-
-// 当 loader 返回 null 时，缓存空值标记
-if (value == null) {
-    putNullMarker(tenantId, key);  // TTL = L2Ttl / 2
-}
-```
-
-### 2. 解析失败标记（防止重复解析）
-
-```java
-protected static final String PARSE_FAILED_MARKER = "__PARSE_FAILED__";
-
-try {
-    return objectMapper.readValue(json, valueType);
-} catch (JsonProcessingException e) {
-    // 缓存失败标记，避免重复尝试解析无效 JSON
-    redisTemplate.opsForValue().set(fullKey, PARSE_FAILED_MARKER,
-        Duration.ofMinutes(getL2TtlMinutes() / 2));
-    return null;
-}
-```
-
-### 3. 键验证（防止注入和超长键）
-
-```java
-private static final int MAX_KEY_LENGTH = 500;
-private static final Pattern ILLEGAL_CHAR_PATTERN =
-    Pattern.compile("[\\x00-\\x1F\\x7F]");  // 控制字符
-
-protected String validateAndCleanKey(String key) {
-    // 移除控制字符
-    String cleaned = ILLEGAL_CHAR_PATTERN.matcher(key).replaceAll("");
-    // 长度限制（超长键使用哈希后缀）
-    if (cleaned.length() > MAX_KEY_LENGTH) {
-        String hash = Integer.toHexString(cleaned.hashCode());
-        cleaned = cleaned.substring(0, MAX_KEY_LENGTH - hash.length() - 1) + ":" + hash;
-    }
-    return cleaned;
-}
-```
-
-### 4. Redis 异常处理（降级策略）
-
-```java
-// 所有 L2 操作都有 try-catch
-protected V getFromL2(String fullKey) {
-    try {
-        String json = redisTemplate.opsForValue().get(fullKey);
-        if (json == null) return null;
-        return objectMapper.readValue(json, valueType);
-    } catch (Exception e) {
-        log.error("L2 cache get failed: {}", fullKey, e);
-        incrementCounter(l2ErrorCounter);
-        return null;  // 降级：返回 null，依赖 L1 或 Loader
-    }
-}
-```
-
-### 5. SCAN 替代 KEYS（生产安全）
-
-```java
-// evictAll 使用 SCAN 分批删除，避免阻塞 Redis
-public void evictAll(Long tenantId) {
-    String pattern = getNamespace() + ":" + tenantId + ":*";
-    ScanOptions options = ScanOptions.scanOptions()
-        .match(pattern)
-        .count(100)  // 每次扫描 100 个键
-        .build();
-
-    List<String> keysToDelete = new ArrayList<>();
-    try (var cursor = redisTemplate.scan(options)) {
-        while (cursor.hasNext()) {
-            keysToDelete.add(cursor.next());
-            if (keysToDelete.size() >= 100) {
-                redisTemplate.delete(keysToDelete);
-                keysToDelete.clear();
-            }
-        }
-        if (!keysToDelete.isEmpty()) {
-            redisTemplate.delete(keysToDelete);
-        }
-    }
-    l1Cache.invalidateAll();
-}
-```
-
-### 6. Pipeline 批量写入（性能优化）
-
-```java
-// 批量写入使用 Pipeline，一次网络往返
-protected void batchPutToL2(Map<String, V> data) {
-    long ttlSeconds = getL2TtlMinutes() * 60;
-    redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-        for (Map.Entry<String, V> entry : data.entrySet()) {
-            byte[] keyBytes = entry.getKey().getBytes();
-            byte[] valueBytes = objectMapper.writeValueAsBytes(entry.getValue());
-            connection.setEx(keyBytes, ttlSeconds, valueBytes);  // 带 TTL
-        }
-        return null;
-    });
-}
-```
-
-### 7. Micrometer 监控指标
-
-```java
-// 自动注册的监控指标
-- cache.l1.hits          # L1 命中次数
-- cache.l1.misses        # L1 未命中次数
-- cache.l1.size          # L1 缓存大小
-- cache.l1.hit_rate      # L1 命中率
-- cache.l2.hits          # L2 命中次数
-- cache.l2.misses        # L2 未命中次数
-- cache.l2.errors        # L2 错误次数
-- cache.l2.read.duration # L2 读延迟
-- cache.l2.write.duration # L2 写延迟
-```
-
-## 配置
-
-### application.yml
-
-```yaml
-accessmesh:
-  cache:
-    l1:
-      maximum-size: 10000      # L1 最大容量
-      expire-minutes: 10       # L1 过期时间（分钟）
-    l2:
-      ttl-minutes: 30          # L2 过期时间（分钟）
-```
+- 查询 miss 后可调用 `put` / `putBatch`
+- 数据变更路径统一调用 `evictAfterCommit` / `evictBatchAfterCommit`
+- 业务侧禁止手写 `TransactionSynchronizationManager.registerSynchronization(...)`
+- 业务侧不需要感知 store 内部的 L1/L2 协调细节
 
 ## 禁止事项
 
-- ❌ 禁止在循环中调用 `get()` 单条查询（使用 `getBatch()`）
-- ❌ 禁止使用 Redis KEYS 命令（使用 SCAN）
-- ❌ 禁止先失效 L1 后失效 L2（顺序必须是 L2 → L1）
-- ❌ 禁止先写 L1 后写 L2（顺序必须是 L2 → L1）
-- ❌ 禁止在缓存键中包含未验证的用户输入
-- ❌ 禁止在数据变更后不触发缓存失效
-- ❌ 禁止使用 `ConcurrentHashMap` 替代 Caffeine（缺少 TTL、容量限制）
+- ❌ 禁止继续使用 `GenericCacheManager` / `AbstractGenericCacheManager`
+- ❌ 禁止创建单缓存 `CacheManager`、region 类或 loader 回调适配层
+- ❌ 禁止业务缓存直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`
+- ❌ 禁止业务缓存继续使用 `@Cacheable` / `@CacheEvict`
+- ❌ 禁止在循环中逐个发起缓存 miss 加载或逐个 DB 查询，优先批量 `getBatch` / `putBatch`
+- ❌ 禁止使用 Redis `KEYS` 命令，批量删除必须走 SCAN/分批删除
+- ❌ 禁止在写事务中直接手工失效业务缓存，应优先使用 `evictAfterCommit`
+
+## 设计取舍
+
+### 为什么保留 fallback CacheService
+
+- gateway 等模块可能不依赖 Redisson
+- 这类模块仍需复用统一的 `CacheService` 与 key/catalog 规范
+- 因此 fallback 路径只负责 `L1_ONLY`
+- 但 fallback 不能再与 Redisson 路径创建第二个 `CacheService` 竞争
+
+### 为什么 L1_L2 不再使用 RLocalCachedMap
+
+- 当前实现采用 `CombinedL1L2Store`
+- L2 基于 `RBucket`，TTL 按条目生效
+- 这样可以避免整体容器 TTL 与目录定义语义不一致的问题
+
+## 验证清单
+
+修改缓存相关代码后，至少检查：
+
+1. 是否仍然只注入 `CacheService`，而不是私有 manager
+2. 是否使用模块内的 `CacheCatalogEntry` 常量，而不是硬编码 key
+3. 写路径是否改为 `evictAfterCommit` / `evictBatchAfterCommit`
+4. gateway 无 Redisson 依赖时，是否仍只使用 `L1_ONLY`
+5. permission-center / admin-service 有 Redisson 时，是否能拿到 `CombinedL1L2Store` 与 `RedissonBucketStore`
 
 ## 相关文件
 
-| 文件 | 说明 |
-|------|------|
-| `common/cache/GenericCacheManager.java` | 接口定义 |
-| `common/cache/AbstractGenericCacheManager.java` | 抽象实现（约 800 行） |
-| `common/cache/CacheProperties.java` | 配置属性 |
-| `common/cache/CacheAutoConfiguration.java` | 自动配置 |
+| 文件                                               | 说明                    |
+| -------------------------------------------------- | ----------------------- |
+| `common/cache/CacheService.java`                   | 统一缓存接口            |
+| `common/cache/DefaultCacheService.java`            | 唯一服务实现            |
+| `common/cache/CacheCatalogEntry.java`              | 类型化缓存描述符        |
+| `common/cache/CacheAutoConfiguration.java`         | 基础自动配置            |
+| `common/cache/RedissonCacheAutoConfiguration.java` | Redisson store 自动配置 |
+| `common/cache/impl/CombinedL1L2Store.java`         | L1_L2 实现              |
+| `common/cache/impl/RedissonBucketStore.java`       | L2_ONLY 实现            |
+| `common/cache/impl/CaffeineLocalCacheStore.java`   | L1_ONLY 实现            |

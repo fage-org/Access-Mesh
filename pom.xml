@@ -45,6 +45,9 @@
         <guava.version>33.1.0-jre</guava.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <jsqlparser.version>4.9</jsqlparser.version>
+
+        <!-- Cache -->
+        <redisson.version>3.37.0</redisson.version>
     </properties>
 
     <dependencyManagement>

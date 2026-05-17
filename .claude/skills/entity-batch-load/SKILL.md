@@ -66,14 +66,14 @@ public class SomeServiceImpl {
 ## 与 Dual-Layer Cache 的关系
 
 `EntityBatchLoadDomainService` 直接从 DB 查询，不经过缓存。
-需要缓存的查询应使用 `GenericCacheManager` 接口（见 `dual-layer-cache-framework` skill）。
+需要缓存的查询应使用 `CacheService` + 各模块 `CacheCatalogEntry` 常量（见 `dual-layer-cache-framework` skill）。
 
 ## 相关文件
 
-| 文件 | 说明 |
-|------|------|
-| `EntityBatchLoadDomainServiceImpl.java` | 实现类 |
-| `EntityBatchLoadDomainService.java` | 接口 |
-| `PermissionViewServiceImpl.java` | 已改用此服务 |
-| `PermissionGrantServiceImpl.java` | 已改用此服务 |
-| `PermissionServiceImpl.java` | 已改用此服务 |
+| 文件                                    | 说明         |
+| --------------------------------------- | ------------ |
+| `EntityBatchLoadDomainServiceImpl.java` | 实现类       |
+| `EntityBatchLoadDomainService.java`     | 接口         |
+| `PermissionViewServiceImpl.java`        | 已改用此服务 |
+| `PermissionGrantServiceImpl.java`       | 已改用此服务 |
+| `PermissionServiceImpl.java`            | 已改用此服务 |

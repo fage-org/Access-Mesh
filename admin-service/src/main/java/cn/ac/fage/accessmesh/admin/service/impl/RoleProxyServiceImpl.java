@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.admin.service.impl;
 
-import cn.ac.fage.accessmesh.admin.cache.OperationCodeCacheManager;
+import cn.ac.fage.accessmesh.admin.cache.AdminCacheCatalog;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  * admin-service与permission-center之间的代理层，负责概念转换。
  * 将admin-domain概念（用户、组织、菜单）转换为permission-center概念（角色、资源、权限）。
  * 提供组织角色创建、菜单权限授予/撤销、用户角色和权限加载等功能。
- * 通过Feign调用permission-center服务，使用双层缓存（L1 Caffeine + L2 Redis）缓存操作码映射。
+ * 通过Feign调用permission-center服务，使用统一 CacheService 管理缓存。
  * </p>
  */
 @Service
@@ -53,7 +54,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     private final UserOrgDomainService userOrgDomainService;
     private final MenuDomainService menuDomainService;
     private final AdminPermissionValidator permissionValidator;
-    private final OperationCodeCacheManager opCodeCacheManager;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
@@ -62,18 +63,18 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * @param userOrgDomainService 用户组织关联领域服务
      * @param menuDomainService 菜单领域服务
      * @param permissionValidator 权限校验器
-     * @param opCodeCacheManager 操作码缓存管理器，双层缓存
+     * @param cacheService 统一缓存服务
      */
     public RoleProxyServiceImpl(PermissionFeignClient permissionFeignClient,
                             UserOrgDomainService userOrgDomainService,
                             MenuDomainService menuDomainService,
                             AdminPermissionValidator permissionValidator,
-                            OperationCodeCacheManager opCodeCacheManager) {
+                            CacheService cacheService) {
         this.permissionFeignClient = permissionFeignClient;
         this.userOrgDomainService = userOrgDomainService;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
-        this.opCodeCacheManager = opCodeCacheManager;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -337,7 +338,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * 解析操作码为操作权限ID
      * <p>
      * 将操作码（如VIEW）转换为permission-center的操作权限ID。
-     * 使用双层缓存（L1 Caffeine + L2 Redis）确保多实例一致性。
+     * 使用统一 CacheService 管理缓存。
      * </p>
      *
      * @param tenantId 租户ID
@@ -346,8 +347,19 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * @throws IllegalStateException 操作码不存在
      */
     private Long resolveOperationPermissionId(Long tenantId, String opCode) {
-        Map<String, Long> ops = opCodeCacheManager.get(tenantId, tenantId, this::loadOperations);
-        Long opId = ops.get(opCode);
+        // ① 查缓存
+        Map<String, Long> ops = cacheService.get(AdminCacheCatalog.OPERATION_CODE, tenantId, tenantId);
+
+        // ② miss 后查 DB (通过 Feign)
+        if (ops == null) {
+            ops = loadOperations(tenantId);
+            // ③ 回填缓存
+            if (ops != null) {
+                cacheService.put(AdminCacheCatalog.OPERATION_CODE, tenantId, tenantId, ops);
+            }
+        }
+
+        Long opId = ops != null ? ops.get(opCode) : null;
         if (opId == null) {
             throw new IllegalStateException("Operation code '" + opCode + "' not found for tenant " + tenantId);
         }
@@ -359,15 +371,13 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * <p>
      * 通过Feign调用permission-center获取MENU资源类型的操作列表。
      * 返回操作码到操作权限ID的映射。
-     * BiFunction签名：(tenantId, key) -> Map<String, Long>
      * </p>
      *
      * @param tenantId 租户ID
-     * @param key 缓存键（与tenantId相同）
      * @return 操作码到ID的映射
      * @throws IllegalStateException 加载失败
      */
-    private Map<String, Long> loadOperations(Long tenantId, Long key) {
+    private Map<String, Long> loadOperations(Long tenantId) {
         OperationListReq req = new OperationListReq("MENU"); // resourceTypeCode
         PermResult<Map<String, Object>> result = permissionFeignClient.listOperations(req);
         if (result == null || result.getData() == null) {

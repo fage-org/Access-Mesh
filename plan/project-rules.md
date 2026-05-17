@@ -752,75 +752,93 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 ### 12.0 双层缓存框架（统一实现）
 
-> **完整规范见 `.claude/skills/dual-layer-cache-framework.md`**
+> **完整规范见 `.claude/skills/dual-layer-cache-framework/SKILL.md`**
 
-项目已实现统一的 `GenericCacheManager` 框架（位于 `common/cache/` 模块），所有缓存操作必须使用此框架：
+项目已统一到 `common/cache/` 模块，所有业务缓存必须使用以下组件：
 
-- **接口**: `GenericCacheManager<K, V>`
-- **抽象实现**: `AbstractGenericCacheManager<K, V>`
-- **配置**: `CacheProperties`（application.yml 配置 L1/L2 TTL、maximumSize）
+- **唯一入口**: `CacheService`
+- **类型描述符**: `CacheCatalogEntry<V>`
+- **模式枚举**: `CacheMode`
+- **L1_L2 实现**: `CombinedL1L2Store`
+- **L2_ONLY 实现**: `RedissonBucketStore`
+- **L1_ONLY 实现**: `CaffeineLocalCacheStore`
+- **配置**: `CacheProperties`（代码默认值 + `accessmesh.cache.default` / `accessmesh.cache.catalogs.*` 运维覆盖）
+- **自动配置**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只在 Redisson 可用时补充 store bean
 
 **核心规范**：
 
-| 操作     | 顺序             | 说明                                    |
-| -------- | ---------------- | --------------------------------------- |
-| **写入** | 先 L2 后 L1      | 确保 Redis 优先，分布式一致性           |
-| **失效** | 先 L2 后 L1      | 防止竞态条件（L1 清除但 L2 还有旧数据） |
-| **读取** | L1 → L2 → Loader | 本地优先，减少网络开销                  |
+| 项目             | 规范                                                 | 说明                                                      |
+| ---------------- | ---------------------------------------------------- | --------------------------------------------------------- |
+| **业务调用模式** | `get` → miss 后业务加载 → `put` → `evictAfterCommit` | 统一使用显式 Cache Aside，不提供 loader 回调 API          |
+| **键格式**       | `{tenantId}:{catalogCode}:{identifier}`              | `catalogCode` 必须自带服务前缀，如 `perm:effective-roles` |
+| **L1_L2**        | `CombinedL1L2Store`                                  | Caffeine L1 + Redisson `RBucket` L2，支持条目级 TTL       |
+| **L2_ONLY**      | `RedissonBucketStore`                                | 纯 Redis 分布式缓存                                       |
+| **L1_ONLY**      | `CaffeineLocalCacheStore`                            | 纯本地缓存，适用于 gateway 等无 Redisson 依赖模块         |
+| **事务后失效**   | `evictAfterCommit` / `evictBatchAfterCommit`         | 由 `CacheService` 内部感知事务状态                        |
 
-**键格式**: `namespace:tenantId:key`（示例：`perm:condition:rules:1:123`）
+业务服务只允许注入 `CacheService`，不再为单个缓存创建 `CacheManager`、region 类或 loader 回调适配层。
 
 **禁止事项**：
 
 - ❌ 禁止使用 `ConcurrentHashMap` 替代 Caffeine（缺少 TTL、容量限制）
 - ❌ 禁止使用 Redis KEYS 命令（用 SCAN）
-- ❌ 禁止先失效 L1 后失效 L2
+- ❌ 禁止继续使用 `GenericCacheManager` / `AbstractGenericCacheManager`
+- ❌ 禁止创建单缓存 `CacheManager` / region 类
+- ❌ 禁止提供 loader 回调式缓存 API
+- ❌ 禁止业务缓存直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`
+- ❌ 禁止业务缓存继续使用 `@Cacheable` / `@CacheEvict`
 - ❌ 禁止在循环中调用单条查询方法（用批量方法）
 - ❌ 禁止数据变更后不触发缓存失效
+- ❌ 禁止业务侧手写 `TransactionSynchronizationManager.registerSynchronization` 做缓存失效
 
 ---
 
 ### 12.1 缓存策略（已由框架统一实现）
 
-- 采用 **L1（本地缓存 Caffeine）+ L2（Redis）两级缓存**策略。
-- 缓存一致性模式：统一使用 **Cache Aside（旁路缓存）**模式。
-  - 读：先读 L1 → 读 L2 → 读 DB，逐级回填。
-  - 写：先写 DB → 删除 L2 缓存 → 删除 L1 缓存。
+- 采用 **L1（本地 Caffeine）+ L2（Redis）** 的统一抽象，但是否启用由 `CacheMode` 决定。
+- 缓存一致性模式：统一使用 **显式 Cache Aside** 模式。
+  - 读：先 `cacheService.get(...)`，miss 后由业务代码查询 DB 或领域服务，再显式 `put` / `putBatch`。
+  - 写：先写 DB，再调用 `cacheService.evictAfterCommit(...)` 或 `evictBatchAfterCommit(...)`。
+- 业务代码不需要感知 store 内部细节，也不要自行规定 L1/L2 的内部操作顺序。
 
 ### 12.2 缓存 Key 命名规范
 
 ```
-{serviceCode}:{bizModule}:{dataType}:{identifier}
+{tenantId}:{catalogCode}:{identifier}
 ```
 
 示例：
 
-| Key                                   | 说明                 |
-| ------------------------------------- | -------------------- |
-| `perm:role:detail:1234`               | 权限中心角色详情     |
-| `admin:user:detail:10086`             | 管理服务用户详情     |
-| `perm:permission_version:roleId:5678` | 权限版本（角色维度） |
+| Key                              | 说明                  |
+| -------------------------------- | --------------------- |
+| `1:perm:effective-roles:1234`    | 租户 1 的用户有效角色 |
+| `1:admin:dict-types:all`         | 租户 1 的字典类型列表 |
+| `1:perm:permission-version:5678` | 租户 1 的权限版本     |
 
 规则：
 
+- `catalogCode` 必须使用服务前缀，推荐形如 `perm:effective-roles`、`admin:dict-types`、`gw:perm-check`。
 - 全部小写，段之间用 `:` 分隔。
-- Key 必须包含**租户维度**时，加在最前：`{tenantId}:{serviceCode}:...`。
-- 禁止在 Key 中拼接用户输入的原始字符串（防止 Key 冲突/注入）。
+- 禁止在 Key 中拼接未经规整的原始用户输入（防止 Key 冲突/注入）。
 
 ### 12.3 缓存 TTL 规范
 
-| 数据类型      | L1 TTL        | L2 TTL           |
-| ------------- | ------------- | ---------------- |
-| 权限快照      | 60 秒         | 5 分钟           |
-| 用户信息      | 60 秒         | 5 分钟           |
-| 字典/枚举配置 | 10 分钟       | 1 小时           |
-| Token 会话    | 无（不走 L1） | 由 Sa-Token 管理 |
+| 维度       | 规范                                                               |
+| ---------- | ------------------------------------------------------------------ |
+| 默认值来源 | 优先使用 `CacheCatalogEntry` 中声明的 TTL / size                   |
+| 运维覆盖   | 使用 `accessmesh.cache.default.*` 与 `accessmesh.cache.catalogs.*` |
+| L1_ONLY    | 只配置 L1 TTL 与 size                                              |
+| L2_ONLY    | 只配置 L2 TTL                                                      |
+| L1_L2      | 同时配置 L1 与 L2                                                  |
+
+具体 TTL 应按 catalog 粒度定义，不再使用模块私有的分散常量或 Spring Cache region 配置。
 
 ### 12.4 缓存使用禁止项
 
 - **禁止缓存超大对象**（单个 Key value > 1MB，需拆分或分页）。
-- **禁止在事务内操作缓存**（参见 §9.3）。
-- **禁止缓存 null 值超过 30 秒**（防止缓存穿透，可用短 TTL 空值兜底）。
+- **禁止在写事务里直接执行业务缓存失效**，必须优先使用 `evictAfterCommit` / `evictBatchAfterCommit`。
+- **禁止缓存接口提供 loader 回调、匿名函数回填或 manager 继承模板**。
+- **禁止把业务缓存实现散落到模块内的私有 Caffeine / RedisTemplate 封装中**。
 
 ---
 

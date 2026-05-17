@@ -6,14 +6,16 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -23,7 +25,7 @@ import java.util.stream.Collectors;
  * 支持两种冲突类型：
  * - ROLE_MUTEX（角色互斥）：两个角色不能同时拥有，发生冲突时同时移除
  * - PERM_MUTEX（权限互斥）：两个操作权限不能同时授予，发生冲突时同时移除
- * 角色互斥规则使用Redis缓存提高查询性能。
+ * 角色互斥规则通过统一 CacheService 缓存提高查询性能。
  * 检测到权限冲突时，异步记录操作日志并发出通知。
  * </p>
  */
@@ -31,25 +33,27 @@ import java.util.stream.Collectors;
 public class PermissionConflictDomainServiceImpl implements PermissionConflictDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionConflictDomainServiceImpl.class);
-    private static final String ROLE_MUTEX_KEY = "perm:conflict-rule:role-mutex:";
-    private static final long CACHE_TTL_MINUTES = 5;
 
     private final PermissionConflictRuleMapper conflictRuleMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final CacheService cacheService;
+    private final ObjectMapper objectMapper;
     private final OperationLogDomainService operationLogDomainService;
 
     /**
      * 构造函数注入依赖
      *
      * @param conflictRuleMapper        权限冲突规则数据访问层
-     * @param redisTemplate             Redis模板，用于缓存角色互斥规则
+     * @param cacheService              统一缓存服务，用于缓存角色互斥规则
+     * @param objectMapper              JSON解析器
      * @param operationLogDomainService 操作日志领域服务，用于记录冲突通知
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
-                                                RedisTemplate<String, Object> redisTemplate,
+                                                CacheService cacheService,
+                                                ObjectMapper objectMapper,
                                                 OperationLogDomainService operationLogDomainService) {
         this.conflictRuleMapper = conflictRuleMapper;
-        this.redisTemplate = redisTemplate;
+        this.cacheService = cacheService;
+        this.objectMapper = objectMapper;
         this.operationLogDomainService = operationLogDomainService;
     }
 
@@ -58,8 +62,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * <p>
      * 根据角色互斥规则过滤有效角色集合。
      * 如果用户同时拥有互斥的两个角色，则同时移除这两个角色。
-     * 角色互斥规则从Redis缓存加载，缓存不存在时从数据库查询并缓存。
-     * TODO: Redis操作竞态条件风险，建议使用分布式锁或singleflight模式合并并发请求。
+     * 角色互斥规则通过 CacheService 缓存（JSON格式）。
      * </p>
      *
      * @param tenantId        租户ID
@@ -68,35 +71,59 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     @Override
     public Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds) {
-        // TODO: Redis 操作竞态条件风险
-        // 问题：当前 get + set 操作不具备原子性，并发请求可能导致缓存穿透
-        // 建议：使用分布式锁或 singleflight 模式合并并发请求
-        // 优先级：P2（性能优化，可关注但不强制整改）
-        // 从缓存获取角色互斥规则
-        String cacheKey = ROLE_MUTEX_KEY + tenantId;
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        // 从缓存获取角色互斥规则（JSON格式）
+        String cachedJson = cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all");
+
         List<RoleMutexPair> mutexPairs;
-        if (cached instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<RoleMutexPair> list = (List<RoleMutexPair>) cached;
-            mutexPairs = list;
+        if (cachedJson != null) {
+            try {
+                List<Map<String, Long>> cachedRules = objectMapper.readValue(cachedJson,
+                    new TypeReference<List<Map<String, Long>>>() {});
+                mutexPairs = cachedRules.stream()
+                    .map(m -> new RoleMutexPair(m.get("first"), m.get("second")))
+                    .collect(Collectors.toList());
+            } catch (Exception e) {
+                log.warn("Failed to parse cached mutex rules, fallback to DB: tenantId={}", tenantId);
+                mutexPairs = loadMutexRulesFromDb(tenantId);
+            }
         } else {
-            List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
-                tenantId, ConflictType.ROLE_MUTEX.getValue());
-            mutexPairs = rules.stream()
-                .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
-                .collect(Collectors.toList());
-            redisTemplate.opsForValue().set(cacheKey, mutexPairs, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+            mutexPairs = loadMutexRulesFromDb(tenantId);
         }
 
         Set<Long> result = new HashSet<>(effectiveRoleIds);
         for (RoleMutexPair pair : mutexPairs) {
-            if (result.contains(pair.first) && result.contains(pair.second)) {
+            if (pair.first != null && pair.second != null
+                && result.contains(pair.first) && result.contains(pair.second)) {
                 result.remove(pair.first);
                 result.remove(pair.second);
             }
         }
         return result;
+    }
+
+    /**
+     * 从数据库加载角色互斥规则并缓存
+     */
+    private List<RoleMutexPair> loadMutexRulesFromDb(Long tenantId) {
+        List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
+            tenantId, ConflictType.ROLE_MUTEX.getValue());
+        List<RoleMutexPair> mutexPairs = rules.stream()
+            .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
+            .collect(Collectors.toList());
+
+        // 回填缓存（JSON格式）
+        if (!mutexPairs.isEmpty()) {
+            try {
+                List<Map<String, Long>> toCache = mutexPairs.stream()
+                    .map(p -> Map.of("first", p.first, "second", p.second))
+                    .collect(Collectors.toList());
+                String json = objectMapper.writeValueAsString(toCache);
+                cacheService.put(PermCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all", json);
+            } catch (Exception e) {
+                log.warn("Failed to serialize mutex rules for caching: tenantId={}", tenantId);
+            }
+        }
+        return mutexPairs;
     }
 
     /**

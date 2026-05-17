@@ -16,6 +16,10 @@
     <dependencies>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-gateway-spring-boot-starter</artifactId>
         </dependency>
         <dependency>

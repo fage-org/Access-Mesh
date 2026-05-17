@@ -13,32 +13,27 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * 用户角色领域服务实现类
  * <p>
- * 实现用户角色的解析与双层缓存管理，支持组角色递归展开、有效期过滤等功能。
- * 采用L1 Caffeine本地缓存 + L2 Redis分布式缓存的架构。
+ * 实现用户角色的解析与缓存管理，支持组角色递归展开、有效期过滤等功能。
+ * 通过 PermCacheDomainService 委托统一 CacheService 管理 L1/L2 缓存。
  * </p>
  */
 @Service
 public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(UserRoleDomainServiceImpl.class);
-    private static final String ROLES_KEY_PREFIX = "perm:user:effective-roles:";
-    private static final long CACHE_TTL_MINUTES = 30;
 
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
     private final PermCacheDomainService permCacheDomainService;
-    private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
     /**
@@ -46,19 +41,16 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      *
      * @param userRoleMapper        用户角色数据访问层
      * @param abstractRoleMapper    抽象角色数据访问层
-     * @param permCacheDomainService 权限缓存领域服务
-     * @param redisTemplate         Redis操作模板
+     * @param permCacheDomainService 权限缓存领域服务（委托 CacheService）
      * @param objectMapper          JSON解析器
      */
     public UserRoleDomainServiceImpl(UserRoleMapper userRoleMapper,
                                      AbstractRoleMapper abstractRoleMapper,
                                      PermCacheDomainService permCacheDomainService,
-                                     RedisTemplate<String, Object> redisTemplate,
                                      ObjectMapper objectMapper) {
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.permCacheDomainService = permCacheDomainService;
-        this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
 
@@ -102,7 +94,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * 批量解析多个用户的有效角色（内部实现）
      * <p>
      * 实现真正的批量查询逻辑：
-     * 1. 先检查L1和L2缓存
+     * 1. 先通过 PermCacheDomainService 检查 L1/L2 缓存
      * 2. 批量查询未命中用户的UserRole记录
      * 3. 批量展开组角色
      * 4. 批量过滤角色状态
@@ -117,27 +109,14 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         Map<Long, Set<Long>> result = new HashMap<>();
         Set<Long> uncachedUserIds = new HashSet<>();
 
-        // 1. 先检查缓存（L1 + L2）
+        // 1. 先检查缓存（通过 PermCacheDomainService，内部已处理 L1 + L2）
         for (Long userId : userIds) {
-            // L1本地缓存
-            Optional<Set<Long>> l1Cached = permCacheDomainService.getEffectiveRoles(tenantId, userId);
-            if (l1Cached.isPresent()) {
-                result.put(userId, l1Cached.get());
-                continue;
+            Optional<Set<Long>> cached = permCacheDomainService.getEffectiveRoles(tenantId, userId);
+            if (cached.isPresent()) {
+                result.put(userId, cached.get());
+            } else {
+                uncachedUserIds.add(userId);
             }
-
-            // L2 Redis缓存
-            String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
-            Object l2Value = redisTemplate.opsForValue().get(l2Key);
-            if (l2Value instanceof Set) {
-                @SuppressWarnings("unchecked")
-                Set<Long> roles = (Set<Long>) l2Value;
-                permCacheDomainService.setEffectiveRoles(tenantId, userId, roles);
-                result.put(userId, roles);
-                continue;
-            }
-
-            uncachedUserIds.add(userId);
         }
 
         // 如果所有用户都命中缓存，直接返回
@@ -203,9 +182,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             Set<Long> effectiveRoles = new HashSet<>(userRoleIds);
             effectiveRoles.retainAll(enabledRoleIds);
 
-            // 写入缓存
-            String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
-            redisTemplate.opsForValue().set(l2Key, effectiveRoles, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+            // 写入缓存（通过 PermCacheDomainService，统一管理 L1 + L2）
             permCacheDomainService.setEffectiveRoles(tenantId, userId, effectiveRoles);
 
             result.put(userId, effectiveRoles);
@@ -344,7 +321,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     /**
      * 失效单个用户的角色缓存
      * <p>
-     * 同时清除L1 Caffeine缓存和L2 Redis缓存
+     * 通过 PermCacheDomainService 统一失效 L1 + L2 缓存
      * </p>
      *
      * @param tenantId 租户ID
@@ -352,8 +329,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      */
     @Override
     public void invalidateRoleCache(Long tenantId, Long userId) {
-        String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
-        redisTemplate.delete(l2Key);
         permCacheDomainService.evictEffectiveRoles(tenantId, userId);
     }
 
@@ -361,7 +336,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * 失效角色关联的所有用户缓存
      * <p>
      * 查询所有拥有该角色的用户，批量清除其缓存。
-     * 使用批量删除减少Redis网络往返次数
+     * 通过 PermCacheDomainService 统一管理批量失效
      * </p>
      *
      * @param tenantId 租户ID
@@ -385,16 +360,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             return;
         }
 
-        // 批量构建L2 Redis keys
-        String keyPrefix = ROLES_KEY_PREFIX + tenantId + ":";
-        List<String> l2Keys = userIds.stream()
-            .map(userId -> keyPrefix + userId)
-            .collect(Collectors.toList());
-
-        // 批量删除L2 Redis缓存（一次网络往返）
-        redisTemplate.delete(l2Keys);
-
-        // 批量失效L1 Caffeine缓存（本地操作，可循环处理）
+        // 批量失效缓存（通过 PermCacheDomainService）
         for (Long userId : userIds) {
             permCacheDomainService.evictEffectiveRoles(tenantId, userId);
         }
