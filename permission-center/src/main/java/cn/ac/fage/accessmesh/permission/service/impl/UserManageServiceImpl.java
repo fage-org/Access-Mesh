@@ -271,9 +271,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Long userId : existingUserIdsForCache) {
-                        userRoleDomainService.invalidateRoleCache(tenantId, userId);
-                    }
+                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, existingUserIdsForCache);
                 }
             });
         }
@@ -418,9 +416,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Long uid : userIdsForCache) {
-                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
-                    }
+                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
                 }
             });
         }
@@ -520,9 +516,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Long uid : userIdsForCache) {
-                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
-                    }
+                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
                 }
             });
         }
@@ -670,9 +664,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Long uid : uniqueUsersForCache) {
-                        userRoleDomainService.invalidateRoleCache(tenantId, uid);
-                    }
+                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, uniqueUsersForCache);
                 }
             });
         }

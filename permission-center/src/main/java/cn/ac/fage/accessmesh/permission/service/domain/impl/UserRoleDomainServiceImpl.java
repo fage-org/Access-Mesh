@@ -107,18 +107,10 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * @return 用户ID到角色ID集合的映射
      */
     private Map<Long, Set<Long>> resolveEffectiveRolesBatch(Long tenantId, Set<Long> userIds) {
-        Map<Long, Set<Long>> result = new HashMap<>();
-        Set<Long> uncachedUserIds = new HashSet<>();
-
-        // 1. 先检查缓存（通过 CacheService，内部已处理 L1 + L2）
-        for (Long userId : userIds) {
-            Set<Long> cached = cacheService.get(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
-            if (cached != null) {
-                result.put(userId, cached);
-            } else {
-                uncachedUserIds.add(userId);
-            }
-        }
+        Map<Long, Set<Long>> result = new HashMap<>(
+            cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds));
+        Set<Long> uncachedUserIds = new HashSet<>(userIds);
+        uncachedUserIds.removeAll(result.keySet());
 
         // 如果所有用户都命中缓存，直接返回
         if (uncachedUserIds.isEmpty()) {
@@ -177,17 +169,18 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             enabledRoleIds = new HashSet<>(enabledIdList);
         }
 
-        // 7. 在内存中为每个userId组装有效角色列表
+        // 7. 在内存中为每个userId组装有效角色列表，并批量回填缓存
+        Map<Long, Set<Long>> uncachedResults = new HashMap<>();
         for (Long userId : uncachedUserIds) {
             Set<Long> userRoleIds = userToRoleIds.getOrDefault(userId, Collections.emptySet());
             Set<Long> effectiveRoles = new HashSet<>(userRoleIds);
             effectiveRoles.retainAll(enabledRoleIds);
 
-            // 写入缓存（通过 CacheService，统一管理 L1 + L2）
-            cacheService.put(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, effectiveRoles);
-
+            uncachedResults.put(userId, effectiveRoles);
             result.put(userId, effectiveRoles);
         }
+
+        cacheService.putBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, uncachedResults);
 
         return result;
     }
@@ -331,6 +324,23 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     @Override
     public void invalidateRoleCache(Long tenantId, Long userId) {
         cacheService.evict(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+    }
+
+    /**
+     * 批量失效多个用户的角色缓存
+     * <p>
+     * 直接调用 CacheService 批量失效 L1 + L2 缓存
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     */
+    @Override
+    public void invalidateRoleCacheBatch(Long tenantId, Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
 
     /**

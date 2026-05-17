@@ -98,7 +98,7 @@ class PermissionServiceImplInterfaceSnapshotTest {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-        when(permissionVersionDomainService.getCurrentVersion(1L, 200L)).thenReturn(7L);
+        when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(200L))).thenReturn(List.of(resourcePerm(200L, 100L, false, null)));
         when(apiMappingMapper.selectForSnapshot(1L, "admin-service", Set.of(100L)))
             .thenReturn(List.of(apiMapping(100L, "admin-service", "POST", "/api/user/list")));
@@ -124,7 +124,8 @@ class PermissionServiceImplInterfaceSnapshotTest {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-        when(permissionVersionDomainService.getCurrentVersion(1L, 200L)).thenReturn(7L, 8L);
+        when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L)))
+            .thenReturn(Map.of(200L, 7L), Map.of(200L, 8L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(200L)))
             .thenReturn(List.of(resourcePerm(200L, 100L, false, null)))
             .thenReturn(List.of(resourcePerm(200L, 101L, false, null)));
@@ -155,8 +156,8 @@ class PermissionServiceImplInterfaceSnapshotTest {
         when(userRoleDomainService.resolveEffectiveRoles(1L, 11L)).thenReturn(Set.of(201L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
-        when(permissionVersionDomainService.getCurrentVersion(1L, 200L)).thenReturn(7L);
-        when(permissionVersionDomainService.getCurrentVersion(1L, 201L)).thenReturn(7L);
+        when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));
+        when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(201L))).thenReturn(Map.of(201L, 7L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(200L))).thenReturn(List.of(resourcePerm(200L, 100L, false, null)));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(201L))).thenReturn(List.of(resourcePerm(201L, 101L, false, null)));
         when(apiMappingMapper.selectForSnapshot(1L, "admin-service", Set.of(100L)))

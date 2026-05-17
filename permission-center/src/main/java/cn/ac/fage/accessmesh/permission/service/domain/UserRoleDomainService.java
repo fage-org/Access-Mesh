@@ -48,6 +48,17 @@ public interface UserRoleDomainService {
     void invalidateRoleCache(Long tenantId, Long userId);
 
     /**
+     * 批量失效多个用户的角色缓存
+     * <p>
+     * 当批量分配/撤销角色时调用，避免循环触发单条缓存失效
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     */
+    void invalidateRoleCacheBatch(Long tenantId, Set<Long> userIds);
+
+    /**
      * 失效角色关联的所有用户缓存
      * <p>
      * 当角色配置发生变化时调用，批量清除所有拥有该角色的用户的缓存

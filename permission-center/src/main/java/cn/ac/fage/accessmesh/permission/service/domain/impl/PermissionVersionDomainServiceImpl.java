@@ -13,7 +13,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +72,59 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
     }
 
     /**
+     * 批量获取多个角色的当前权限版本号
+     * <p>
+     * 优先走统一缓存批量读取，未命中再批量查询数据库并回填缓存。
+     * 无版本记录的角色默认返回1，并写入缓存，避免后续重复回源。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 角色ID到当前版本号的映射
+     */
+    @Override
+    public Map<Long, Long> batchGetCurrentVersions(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Set<Long> normalizedRoleIds = new LinkedHashSet<>();
+        for (Long roleId : roleIds) {
+            if (roleId != null) {
+                normalizedRoleIds.add(roleId);
+            }
+        }
+
+        if (normalizedRoleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, Long> result = new HashMap<>(
+            cacheService.getBatch(PermCacheCatalog.PERMISSION_VERSION, tenantId, normalizedRoleIds));
+        Set<Long> uncachedRoleIds = new LinkedHashSet<>(normalizedRoleIds);
+        uncachedRoleIds.removeAll(result.keySet());
+        if (uncachedRoleIds.isEmpty()) {
+            return result;
+        }
+
+        List<PermissionVersion> versions = versionMapper.selectAllByRolesOrdered(tenantId, uncachedRoleIds);
+        Map<Long, Long> latestVersionMap = new HashMap<>();
+        for (PermissionVersion version : versions) {
+            latestVersionMap.putIfAbsent(version.getAbstractRoleId(), version.getVersionNo());
+        }
+
+        Map<Long, Long> toCache = new HashMap<>();
+        for (Long roleId : uncachedRoleIds) {
+            Long currentVersion = latestVersionMap.getOrDefault(roleId, 1L);
+            result.put(roleId, currentVersion);
+            toCache.put(roleId, currentVersion);
+        }
+
+        cacheService.putBatch(PermCacheCatalog.PERMISSION_VERSION, tenantId, toCache);
+        return result;
+    }
+
+    /**
      * 计算多个角色的最大版本号
      * <p>
      * 用于判断用户权限缓存是否需要更新，取所有角色的最新版本号
@@ -84,8 +139,8 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         if (roleIds == null || roleIds.isEmpty()) {
             return 0L;
         }
-        return roleIds.stream()
-            .mapToLong(roleId -> getCurrentVersion(tenantId, roleId))
+        return batchGetCurrentVersions(tenantId, roleIds).values().stream()
+            .mapToLong(Long::longValue)
             .max()
             .orElse(0L);
     }
@@ -203,21 +258,17 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
 
         // 4. 缓存写入延迟到事务提交后，避免回滚污染缓存
         final Long finalTenantId = tenantId;
-        final Map<Long, Long> finalRoleIdToNewVersion = roleIdToNewVersion;
+        final Map<Long, Long> finalRoleIdToNewVersion = new HashMap<>(roleIdToNewVersion);
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    for (Map.Entry<Long, Long> entry : finalRoleIdToNewVersion.entrySet()) {
-                        cacheService.put(PermCacheCatalog.PERMISSION_VERSION, finalTenantId, entry.getKey(), entry.getValue());
-                    }
+                    cacheService.putBatch(PermCacheCatalog.PERMISSION_VERSION, finalTenantId, finalRoleIdToNewVersion);
                 }
             });
         } else {
             // 无事务时直接写入
-            for (Map.Entry<Long, Long> entry : roleIdToNewVersion.entrySet()) {
-                cacheService.put(PermCacheCatalog.PERMISSION_VERSION, tenantId, entry.getKey(), entry.getValue());
-            }
+            cacheService.putBatch(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleIdToNewVersion);
         }
     }
 }

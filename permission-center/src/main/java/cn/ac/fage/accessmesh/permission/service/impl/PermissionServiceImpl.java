@@ -586,6 +586,10 @@ public class PermissionServiceImpl implements PermissionService {
         List<Long> sortedRoleIds = validRoleIds.stream()
             .sorted()
             .toList();
+        Map<Long, Long> currentVersions = permissionVersionDomainService.batchGetCurrentVersions(
+            tenantId,
+            new LinkedHashSet<>(sortedRoleIds)
+        );
 
         if (sortedRoleIds.isEmpty()) {
             raw.append("empty");
@@ -593,7 +597,7 @@ public class PermissionServiceImpl implements PermissionService {
             for (Long roleId : sortedRoleIds) {
                 raw.append(roleId)
                     .append(":")
-                    .append(permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
+                    .append(currentVersions.getOrDefault(roleId, 1L))
                     .append(";");
             }
         }

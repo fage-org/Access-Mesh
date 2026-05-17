@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,6 +21,18 @@ public interface PermissionVersionDomainService {
      * @return 当前版本号，无记录时默认返回1
      */
     long getCurrentVersion(Long tenantId, Long roleId);
+
+    /**
+     * 批量获取多个角色的当前权限版本号
+     * <p>
+     * 优先走统一缓存批量读取，未命中时再批量回源数据库并回填缓存。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 角色ID到当前版本号的映射
+     */
+    Map<Long, Long> batchGetCurrentVersions(Long tenantId, Set<Long> roleIds);
 
     /**
      * 计算多个角色的最大版本号

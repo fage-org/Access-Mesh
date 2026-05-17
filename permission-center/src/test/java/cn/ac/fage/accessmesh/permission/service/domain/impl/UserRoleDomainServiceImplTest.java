@@ -1,0 +1,70 @@
+package cn.ac.fage.accessmesh.permission.service.domain.impl;
+
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class UserRoleDomainServiceImplTest {
+
+    @Mock private UserRoleMapper userRoleMapper;
+    @Mock private AbstractRoleMapper abstractRoleMapper;
+    @Mock private CacheService cacheService;
+
+    private UserRoleDomainServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        service = new UserRoleDomainServiceImpl(
+            userRoleMapper,
+            abstractRoleMapper,
+            cacheService,
+            new ObjectMapper()
+        );
+    }
+
+    @Test
+    void batchResolveEffectiveRolesShouldUseBatchCacheGetAndPut() {
+        Set<Long> userIds = new LinkedHashSet<>(Set.of(1L, 2L));
+
+        when(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
+            .thenReturn(Map.of(1L, Set.of(10L)));
+        when(userRoleMapper.selectValidByUserIdsWithValidity(eq(1L), eq(Set.of(2L)), any(LocalDateTime.class)))
+            .thenReturn(List.of());
+
+        Map<Long, Set<Long>> result = service.batchResolveEffectiveRoles(1L, userIds);
+
+        assertEquals(Set.of(10L), result.get(1L));
+        assertEquals(Set.of(), result.get(2L));
+        verify(cacheService).getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
+        verify(cacheService).putBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, Map.of(2L, Set.of()));
+    }
+
+    @Test
+    void invalidateRoleCacheBatchShouldDelegateToBatchEvict() {
+        Set<Long> userIds = Set.of(1L, 2L, 3L);
+
+        service.invalidateRoleCacheBatch(1L, userIds);
+
+        verify(cacheService).evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
+    }
+}
