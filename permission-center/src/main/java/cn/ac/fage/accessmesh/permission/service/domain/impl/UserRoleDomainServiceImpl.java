@@ -65,8 +65,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     /**
      * 解析用户的有效角色
      * <p>
-     * 采用双层缓存策略：先查L1本地缓存，再查L2 Redis缓存，最后查数据库。
-     * 数据库查询委托给批量方法处理，自动填充缓存。
+     * 直接委托给批量方法，缓存检查统一在批量方法中处理。
      * </p>
      *
      * @param tenantId    租户ID
@@ -75,23 +74,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      */
     @Override
     public Set<Long> resolveEffectiveRoles(Long tenantId, Long userId) {
-        // L1本地缓存
-        Optional<Set<Long>> cached = permCacheDomainService.getEffectiveRoles(tenantId, userId);
-        if (cached.isPresent()) {
-            return cached.get();
-        }
-
-        // L2 Redis缓存
-        String l2Key = ROLES_KEY_PREFIX + tenantId + ":" + userId;
-        Object l2Value = redisTemplate.opsForValue().get(l2Key);
-        if (l2Value instanceof Set) {
-            @SuppressWarnings("unchecked")
-            Set<Long> roles = (Set<Long>) l2Value;
-            permCacheDomainService.setEffectiveRoles(tenantId, userId, roles);
-            return roles;
-        }
-
-        // 委托给批量方法处理数据库查询和缓存写入
         Map<Long, Set<Long>> batchResult = resolveEffectiveRolesBatch(tenantId, Set.of(userId));
         return batchResult.getOrDefault(userId, Collections.emptySet());
     }
