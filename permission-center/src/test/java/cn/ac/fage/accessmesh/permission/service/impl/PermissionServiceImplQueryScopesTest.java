@@ -24,6 +24,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -135,6 +136,105 @@ class PermissionServiceImplQueryScopesTest {
         );
     }
 
+    @Test
+    void shouldIncludeViewScopeWhenManagePermissionCoversView() {
+        QueryScopesReq req = new QueryScopesReq(
+            "USER",
+            "u-1",
+            "MENU",
+            "sys:user",
+            "default",
+            List.of("VIEW"),
+            List.of("DEPT"),
+            List.of("VIEW"),
+            "default",
+            null,
+            Map.of()
+        );
+
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+        when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DEPT")))
+            .thenReturn(Map.of("DEPT", 2));
+        when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 601L));
+        when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
+
+        RolePermEntry parentEntry = new RolePermEntry(
+            401L,
+            200L,
+            100L,
+            "sys:user",
+            1,
+            1L,
+            "VIEW",
+            1L,
+            "MANUAL",
+            false,
+            null,
+            false,
+            null
+        );
+
+        RolePermEntry scopeEntry = new RolePermEntry(
+            501L,
+            200L,
+            300L,
+            "dept-a",
+            2,
+            8L,
+            "MANAGE",
+            9L,
+            "MANUAL",
+            true,
+            null,
+            false,
+            null
+        );
+
+        ResourceEntity scopeResource = new ResourceEntity();
+        scopeResource.setId(300L);
+        scopeResource.setCode("dept-a");
+        scopeResource.setCodeType("default");
+        scopeResource.setName("部门A");
+        scopeResource.setResourceType(2);
+        scopeResource.setDeleteFlag(0L);
+
+        OperationPermission viewOp = new OperationPermission();
+        viewOp.setId(601L);
+        viewOp.setResourceType(2);
+        viewOp.setCode("VIEW");
+        viewOp.setBinaryBit(1L);
+        viewOp.setInheritMask(0L);
+
+        OperationPermission manageOp = new OperationPermission();
+        manageOp.setId(602L);
+        manageOp.setResourceType(2);
+        manageOp.setCode("MANAGE");
+        manageOp.setBinaryBit(8L);
+        manageOp.setInheritMask(1L);
+
+        PermResult parentResult = PermResult.builder(true, null)
+            .instanceEntries(List.of(parentEntry))
+            .build();
+        PermResult scopeResult = PermResult.builder(true, null)
+            .instanceEntries(List.of(scopeEntry))
+            .resourceMap(Map.of(300L, scopeResource))
+            .operationMap(Map.of(601L, viewOp, 602L, manageOp))
+            .build();
+
+        when(engine.query(any(PermQuery.class))).thenReturn(parentResult, scopeResult);
+        when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        QueryScopesResp resp = service.queryScopes(1L, req);
+
+        assertTrue(resp.allowed());
+        assertEquals(1, resp.items().size());
+        assertEquals(List.of("VIEW"), resp.items().get(0).operations());
+        assertEquals("dept-a", resp.items().get(0).resourceCode());
+    }
+
     /**
      * 测试角色拥有全局作用域权限时的返回逻辑
      * <p>
@@ -159,14 +259,14 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission parentPerm = new RoleResourcePermission();
         parentPerm.setId(400L);
         parentPerm.setAbstractRoleId(200L);
-        parentPerm.setOperationPermissionId(300L);
+        parentPerm.setGrantedBits(1L);
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
 
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
         scopeAllPerm.setAbstractRoleId(200L);
-        scopeAllPerm.setOperationPermissionId(300L);
+        scopeAllPerm.setGrantedBits(1L);
         scopeAllPerm.setResourceType(1);
         scopeAllPerm.setResourceEntityId(null);
         scopeAllPerm.setScopeAll(true);
@@ -210,7 +310,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
         scopeAllPerm.setId(500L);
         scopeAllPerm.setAbstractRoleId(200L);
-        scopeAllPerm.setOperationPermissionId(300L);
+        scopeAllPerm.setGrantedBits(1L);
         scopeAllPerm.setResourceType(1);
         scopeAllPerm.setResourceEntityId(null);
         scopeAllPerm.setScopeAll(true);
@@ -220,7 +320,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission parentPerm = new RoleResourcePermission();
         parentPerm.setId(401L);
         parentPerm.setAbstractRoleId(200L);
-        parentPerm.setOperationPermissionId(300L);
+        parentPerm.setGrantedBits(1L);
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
@@ -263,7 +363,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
         scopeAllPerm.setId(501L);
         scopeAllPerm.setAbstractRoleId(200L);
-        scopeAllPerm.setOperationPermissionId(300L);
+        scopeAllPerm.setGrantedBits(1L);
         scopeAllPerm.setResourceType(1);
         scopeAllPerm.setResourceEntityId(null);
         scopeAllPerm.setScopeAll(true);
@@ -272,7 +372,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission parentPerm = new RoleResourcePermission();
         parentPerm.setId(402L);
         parentPerm.setAbstractRoleId(200L);
-        parentPerm.setOperationPermissionId(300L);
+        parentPerm.setGrantedBits(1L);
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
@@ -319,7 +419,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission parentPerm = new RoleResourcePermission();
         parentPerm.setId(410L);
         parentPerm.setAbstractRoleId(200L);
-        parentPerm.setOperationPermissionId(300L);
+        parentPerm.setGrantedBits(1L);
         parentPerm.setResourceType(1);
         parentPerm.setResourceEntityId(100L);
         parentPerm.setDeleteFlag(0L);
@@ -327,7 +427,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission directScope = new RoleResourcePermission();
         directScope.setId(411L);
         directScope.setAbstractRoleId(200L);
-        directScope.setOperationPermissionId(300L);
+        directScope.setGrantedBits(1L);
         directScope.setResourceType(1);
         directScope.setResourceEntityId(101L);
         directScope.setDependOn(null);
@@ -337,7 +437,7 @@ class PermissionServiceImplQueryScopesTest {
         RoleResourcePermission dependentScope = new RoleResourcePermission();
         dependentScope.setId(412L);
         dependentScope.setAbstractRoleId(200L);
-        dependentScope.setOperationPermissionId(300L);
+        dependentScope.setGrantedBits(1L);
         dependentScope.setResourceType(1);
         dependentScope.setResourceEntityId(102L);
         dependentScope.setDependOn(410L);

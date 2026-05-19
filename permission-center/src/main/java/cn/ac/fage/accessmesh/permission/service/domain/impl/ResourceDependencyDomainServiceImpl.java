@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceDependencyDomainService;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,9 @@ import java.util.stream.Collectors;
  * - cleanupDependencies：清理权限撤销时的级联权限
  * - autoGrantForInsert：批量插入时预计算自动授权
  * 版本递增在事务提交后执行，防止缓存被回滚数据污染。
+ * </p>
+ * <p>
+ * 注意：grantedBits 存储 OperationPermission.binaryBit 值。
  * </p>
  */
 @Service
@@ -87,7 +91,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
      * @param tenantId        租户ID
      * @param roleId          角色ID
      * @param resourceEntityId 源资源实体ID
-     * @param operationBits   授予的操作位掩码
+     * @param operationBits   授予的操作位掩码（binaryBit）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -178,16 +182,17 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         }
 
         // 性能优化：预加载操作权限缓存用于嵌套循环O(1)查找
-        Set<Long> opIds = new HashSet<>();
-        for (RoleResourcePermission rp : toInsert) {
-            if (rp.getOperationPermissionId() != null) {
-                opIds.add(rp.getOperationPermissionId());
-            }
-        }
-        Map<Long, OperationPermission> opPermCache = new HashMap<>();
-        if (!opIds.isEmpty()) {
-            for (OperationPermission op : operationPermissionMapper.selectValidByIds(tenantId, opIds)) {
-                opPermCache.put(op.getId(), op);
+        Map<String, OperationPermission> opPermCache = new HashMap<>();
+        // 加载所有操作权限用于 binaryBit 匹配
+        if (!toInsert.isEmpty()) {
+            Set<Integer> resourceTypes = toInsert.stream()
+                .map(RoleResourcePermission::getResourceType)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            for (Integer resourceType : resourceTypes) {
+                for (OperationPermission op : operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)) {
+                    opPermCache.put(resourceType + ":" + op.getBinaryBit(), op);
+                }
             }
         }
 
@@ -214,22 +219,22 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         for (ResourceDependency dep : deps) {
             for (RoleResourcePermission rp : toInsert) {
                 if (Objects.equals(rp.getResourceEntityId(), dep.getResourceEntityId())
-                    && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBitsFromCache(rp.getOperationPermissionId(), opPermCache))) {
+                    && isTriggered(dep.getSourceOperationBits(), getEffectiveOpBitsFromGrantedBits(rp.getGrantedBits(), rp.getResourceType(), opPermCache))) {
                     // 使用预加载缓存检查是否已授权（无查询）
                     Map<Long, RoleResourcePermission> resourceGrants = existingAutoGrants.get(dep.getDependsOnResourceEntityId());
                     boolean alreadyGranted = resourceGrants != null && resourceGrants.containsKey(dep.getId());
 
                     if (!alreadyGranted) {
-                        Long requiredOpId = resolveOperationPermissionId(
+                        Long requiredOpBinaryBit = resolveOperationPermissionBinaryBit(
                             tenantId, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationBits(), null);
-                        if (requiredOpId == null) {
+                        if (requiredOpBinaryBit == null) {
                             continue;
                         }
                         RoleResourcePermission autoRp = new RoleResourcePermission();
                         autoRp.setTenantId(tenantId);
                         autoRp.setAbstractRoleId(roleId);
                         autoRp.setResourceEntityId(dep.getDependsOnResourceEntityId());
-                        autoRp.setOperationPermissionId(requiredOpId);
+                        autoRp.setGrantedBits(requiredOpBinaryBit);
                         autoRp.setResourceType(resolveResourceType(dep.getDependsOnResourceEntityId()));
                         autoRp.setDependOn(null);
                         autoRp.setScopeAll(false);
@@ -257,7 +262,7 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
      * </p>
      *
      * @param sourceBits   依赖规则要求的源操作位
-     * @param operationBits 授予的操作位掩码
+     * @param operationBits 授予的操作位掩码（binaryBit 或 effectiveBits）
      * @return 是否触发依赖
      */
     private boolean isTriggered(Long sourceBits, Long operationBits) {
@@ -266,21 +271,20 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     /**
-     * 从预加载缓存获取有效操作位（性能优化）
+     * 从 grantedBits 获取有效操作位
      * <p>
-     * 用于嵌套循环中避免N+1查询。
-     * 直接从缓存Map中获取操作权限实体。
+     * 根据 grantedBits（binaryBit）从缓存中查找 OperationPermission，
+     * 返回其 effectiveBits（binaryBit | inheritMask）。
      * </p>
      *
-     * @param opId  操作权限ID
-     * @param cache 预加载的操作权限缓存
+     * @param grantedBits 授予的 binaryBit
+     * @param cache       预加载的操作权限缓存
      * @return 有效操作位，不存在返回0
      */
-    private Long getEffectiveOpBitsFromCache(Long opId, Map<Long, OperationPermission> cache) {
-        if (opId == null) return 0L;
-        OperationPermission op = cache.get(opId);
-        if (op == null) return 0L;
-        return op.getEffectiveBits();
+    private Long getEffectiveOpBitsFromGrantedBits(Long grantedBits, Integer resourceType, Map<String, OperationPermission> cache) {
+        if (grantedBits == null) return 0L;
+        OperationPermission operation = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(cache, resourceType, grantedBits);
+        return operation == null ? 0L : operation.getEffectiveBits();
     }
 
     /**
@@ -296,23 +300,22 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
      * @param dep      触发的依赖规则
      */
     private void autoGrantDependency(Long tenantId, Long roleId, ResourceDependency dep) {
-        Long requiredOpId = resolveOperationPermissionId(tenantId, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationBits(), null);
-        if (requiredOpId == null) {
+        Long requiredOpBinaryBit = resolveOperationPermissionBinaryBit(
+            tenantId, dep.getDependsOnResourceEntityId(), dep.getRequiredOperationBits(), null);
+        if (requiredOpBinaryBit == null) {
             return;
         }
 
-        // 重复检查：若相同复合键的活跃权限已存在则跳过
-        long existingCount = rolePermMapper.countByCompositeKey(tenantId, roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
-        if (existingCount > 0) {
-            log.info("Skipping duplicate auto-grant: role={}, resource={}, op={}", roleId, dep.getDependsOnResourceEntityId(), requiredOpId);
+        if (rolePermMapper.countByCompositeKey(tenantId, roleId, dep.getDependsOnResourceEntityId(), requiredOpBinaryBit) > 0) {
             return;
         }
+        log.info("Auto-granting dependency: role={}, resource={}, binaryBit={}", roleId, dep.getDependsOnResourceEntityId(), requiredOpBinaryBit);
 
         RoleResourcePermission rp = new RoleResourcePermission();
         rp.setTenantId(tenantId);
         rp.setAbstractRoleId(roleId);
         rp.setResourceEntityId(dep.getDependsOnResourceEntityId());
-        rp.setOperationPermissionId(requiredOpId);
+        rp.setGrantedBits(requiredOpBinaryBit);
         rp.setResourceType(resolveResourceType(dep.getDependsOnResourceEntityId()));
         rp.setScopeAll(false);
         rp.setGrantSource(GrantSource.AUTO_DEP.getValue());
@@ -337,22 +340,22 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
     }
 
     /**
-     * 解析操作权限ID
+     * 解析操作权限的 binaryBit 值
      * <p>
-     * 根据资源类型和操作位掩码查找匹配的操作权限。
+     * 根据资源类型和操作位掩码查找匹配的操作权限的 binaryBit。
      * 使用SQL位运算过滤，避免全表加载。
-     * 如果requiredBits为空或零，返回fallbackOperationId。
+     * 如果requiredBits为空或零，返回fallbackBinaryBit。
      * </p>
      *
      * @param tenantId        租户ID
      * @param resourceEntityId 资源实体ID
      * @param requiredBits    要求的操作位掩码
-     * @param fallbackOperationId 失败时的回退操作权限ID
-     * @return 操作权限ID，未找到返回fallback
+     * @param fallbackBinaryBit 失败时的回退 binaryBit
+     * @return binaryBit 值，未找到返回fallback
      */
-    private Long resolveOperationPermissionId(Long tenantId, Long resourceEntityId, Long requiredBits, Long fallbackOperationId) {
+    private Long resolveOperationPermissionBinaryBit(Long tenantId, Long resourceEntityId, Long requiredBits, Long fallbackBinaryBit) {
         if (requiredBits == null || requiredBits == 0L) {
-            return fallbackOperationId;
+            return fallbackBinaryBit;
         }
         Integer resourceType = null;
         if (resourceEntityId != null) {
@@ -364,10 +367,20 @@ public class ResourceDependencyDomainServiceImpl implements ResourceDependencyDo
         // 使用SQL位运算过滤避免全表加载
         List<OperationPermission> matchingOps = operationPermissionMapper.selectByEffectiveBitsMatch(
             tenantId, resourceType, requiredBits);
-        if (!matchingOps.isEmpty()) {
-            return matchingOps.get(0).getId();
+        if (matchingOps.isEmpty()) {
+            return fallbackBinaryBit;
         }
-        return fallbackOperationId;
+        for (OperationPermission operation : matchingOps) {
+            if (Objects.equals(operation.getBinaryBit(), requiredBits)) {
+                return operation.getBinaryBit();
+            }
+        }
+        for (OperationPermission operation : matchingOps) {
+            if (Objects.equals(operation.getEffectiveBits(), requiredBits)) {
+                return operation.getBinaryBit();
+            }
+        }
+        return fallbackBinaryBit;
     }
 
     private Integer resolveResourceType(Long resourceEntityId) {

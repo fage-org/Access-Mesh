@@ -33,6 +33,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import org.slf4j.Logger;
@@ -241,20 +242,19 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of()
                 : entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
 
-            // 批量查询操作权限
-            Set<Long> operationIds = existingPerms.stream()
-                .map(RoleResourcePermission::getOperationPermissionId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-            Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of()
-                : entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
-
             // 批量解析资源类型编码
             Set<Integer> resourceTypeValues = existingPerms.stream()
                 .map(RoleResourcePermission::getResourceType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+            Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
+                entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
+                    .values()
+                    .stream()
+                    .flatMap(List::stream)
+                    .toList()
+            );
 
             // 校验每个更新项
             for (RoleGrantReq.GrantUpdateItem updateItem : updateItems) {
@@ -270,7 +270,11 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 // 从预加载的映射中获取资源信息
                 ResourceEntity resource = existing.getResourceEntityId() == null ? null
                     : resourceMap.get(existing.getResourceEntityId());
-                OperationPermission operation = operationMap.get(existing.getOperationPermissionId());
+                OperationPermission operation = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                    opByTypeAndBit,
+                    existing.getResourceType(),
+                    existing.getGrantedBits()
+                );
                 String resourceTypeCode = resourceTypeCodeMap.get(existing.getResourceType());
 
                 // 校验操作者是否可以授权该权限
@@ -373,7 +377,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setTenantId(tenantId);
             rp.setAbstractRoleId(roleId);
             rp.setResourceEntityId(scopeAll ? null : resourceEntityId);
-            rp.setOperationPermissionId(operationId);
+            rp.setGrantedBits(operation.getBinaryBit());
             Integer finalResourceType = resourceTypeValueMap.get(item.resourceTypeCode());
             if (finalResourceType == null) {
                 throw new IllegalArgumentException("resourceTypeCode not found: " + item.resourceTypeCode());
@@ -691,7 +695,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             }
             Map<String, Long> opMap = operationIdMapByType.getOrDefault(child.resourceTypeCode(), Map.of());
             Long operationId = opMap.get(child.operationCode());
-            if (operationId == null) {
+            OperationPermission operation = operationId != null
+                ? operationPermissionDomainService.selectValidById(tenantId, operationId) : null;
+            if (operation == null) {
                 throw new IllegalArgumentException("operationCode not found: " + child.operationCode());
             }
             boolean scopeAll = Boolean.TRUE.equals(child.scopeAll());
@@ -718,7 +724,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setTenantId(tenantId);
             rp.setAbstractRoleId(parent.getAbstractRoleId());
             rp.setResourceEntityId(resourceId);
-            rp.setOperationPermissionId(operationId);
+            rp.setGrantedBits(operation.getBinaryBit());
             rp.setResourceType(resourceType);
             rp.setDependOn(parent.getId());
             rp.setScopeAll(scopeAll);
@@ -831,14 +837,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of() :
             entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
 
-        // 批量加载操作权限避免N+1查询
-        Set<Long> operationIds = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
-            .filter(java.util.Objects::nonNull)
-            .collect(java.util.stream.Collectors.toSet());
-        Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of() :
-            entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
-
         // 批量加载权限条件避免N+1查询
         Set<Long> conditionIds = perms.stream()
             .map(RoleResourcePermission::getConditionId)
@@ -854,10 +852,21 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+        Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
+            entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
+                .values()
+                .stream()
+                .flatMap(List::stream)
+                .toList()
+        );
 
         return perms.stream().map(perm -> {
             ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceMap.get(perm.getResourceEntityId());
-            OperationPermission operation = operationMap.get(perm.getOperationPermissionId());
+            OperationPermission operation = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                opByTypeAndBit,
+                perm.getResourceType(),
+                perm.getGrantedBits()
+            );
             String resourceTypeCode = resourceTypeCodeMap.get(perm.getResourceType());
             PermissionCondition condition = perm.getConditionId() == null ? null : conditionMap.get(perm.getConditionId());
             return new RolePermissionItemResp(

@@ -1,10 +1,13 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.permission.enums.ConflictType;
+import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
@@ -38,6 +41,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
     private final OperationLogDomainService operationLogDomainService;
+    private final OperationPermissionMapper operationPermissionMapper;
 
     /**
      * 构造函数注入依赖
@@ -46,15 +50,18 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @param cacheService              统一缓存服务，用于缓存角色互斥规则
      * @param objectMapper              JSON解析器
      * @param operationLogDomainService 操作日志领域服务，用于记录冲突通知
+     * @param operationPermissionMapper 操作权限数据访问层，用于查找冲突操作权限
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                                 CacheService cacheService,
                                                 ObjectMapper objectMapper,
-                                                OperationLogDomainService operationLogDomainService) {
+                                                OperationLogDomainService operationLogDomainService,
+                                                OperationPermissionMapper operationPermissionMapper) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
         this.operationLogDomainService = operationLogDomainService;
+        this.operationPermissionMapper = operationPermissionMapper;
     }
 
     /**
@@ -143,26 +150,49 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.PERM_MUTEX.getValue());
 
-        Set<Long> opIds = passedEntries.stream()
-            .map(RolePermSnapshot.RolePermEntry::operationPermissionId)
+        Set<Integer> resourceTypes = passedEntries.stream()
+            .map(RolePermSnapshot.RolePermEntry::resourceType)
+            .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
-        Set<Long> conflictingOps = new HashSet<>();
+        List<OperationPermission> allOps = resourceTypes.stream()
+            .flatMap(resourceType -> operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType).stream())
+            .toList();
+        Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(allOps);
+
+        Set<Long> opIds = passedEntries.stream()
+            .map(entry -> OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                opByTypeAndBit,
+                entry.resourceType(),
+                entry.grantedBits()
+            ))
+            .filter(Objects::nonNull)
+            .map(OperationPermission::getId)
+            .collect(Collectors.toSet());
+
+        Set<Long> conflictingOpIds = new HashSet<>();
         for (PermissionConflictRule rule : rules) {
             if (rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null) {
                 if (opIds.contains(rule.getFirstOperationPermissionId()) && opIds.contains(rule.getSecondOperationPermissionId())) {
-                    conflictingOps.add(rule.getFirstOperationPermissionId());
-                    conflictingOps.add(rule.getSecondOperationPermissionId());
+                    conflictingOpIds.add(rule.getFirstOperationPermissionId());
+                    conflictingOpIds.add(rule.getSecondOperationPermissionId());
                 }
             }
         }
 
         // 检测到权限冲突时触发异步通知
-        if (!conflictingOps.isEmpty()) {
-            notifyPermConflict(tenantId, conflictingOps, rules);
+        if (!conflictingOpIds.isEmpty()) {
+            notifyPermConflict(tenantId, conflictingOpIds, rules);
         }
         return passedEntries.stream()
-            .filter(e -> !conflictingOps.contains(e.operationPermissionId()))
+            .filter(entry -> {
+                OperationPermission granted = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                    opByTypeAndBit,
+                    entry.resourceType(),
+                    entry.grantedBits()
+                );
+                return granted == null || !conflictingOpIds.contains(granted.getId());
+            })
             .collect(Collectors.toList());
     }
 

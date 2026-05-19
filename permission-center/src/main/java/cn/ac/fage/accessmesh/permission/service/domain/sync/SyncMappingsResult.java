@@ -1,8 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -13,8 +10,6 @@ import java.util.Set;
  * 包含创建数、更新数、传入映射键集合（用于后续清理判断）。
  * </p>
  */
-@Getter
-@Setter
 public class SyncMappingsResult {
     /**
      * 创建的映射数量
@@ -49,6 +44,26 @@ public class SyncMappingsResult {
         this.createdCount = createdCount;
         this.updatedCount = updatedCount;
         this.incomingKeys = incomingKeys != null ? incomingKeys : new HashSet<>();
+    }
+
+    public int getCreatedCount() {
+        return createdCount;
+    }
+
+    public void setCreatedCount(int createdCount) {
+        this.createdCount = createdCount;
+    }
+
+    public int getUpdatedCount() {
+        return updatedCount;
+    }
+
+    public void setUpdatedCount(int updatedCount) {
+        this.updatedCount = updatedCount;
+    }
+
+    public Set<String> getIncomingKeys() {
+        return incomingKeys;
     }
 
     public void setIncomingKeys(Set<String> incomingKeys) {

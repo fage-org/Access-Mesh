@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
+import cn.ac.fage.accessmesh.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
@@ -88,22 +89,33 @@ public class PermQueryEngine {
      * @return 权限查询结果
      */
     public PermResult query(PermQuery q) {
+        // -- 0. 创建 ResolveContext，预解析所有类型 --
+        ResolveContext ctx = new ResolveContext(q.tenantId(), typeResolutionService);
+        if (q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
+            ctx.prepareResourceTypes(q.resourceTypeCodes());
+        }
+        if (q.operationCodes() != null && !q.operationCodes().isEmpty()
+            && q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
+            ctx.prepareOperations(q.resourceTypeCodes(), q.operationCodes());
+        }
+
         // -- 1. 解析角色 --
         Set<Long> roleIds = resolveRoleIds(q);
         if (roleIds.isEmpty()) {
             return PermResult.deny("NO_ROLE");
         }
 
-        // -- 2. 解析资源类型 --
-        Set<Integer> resourceTypes = resolveResourceTypes(q);
+        // -- 2. 解析资源类型（使用 ResolveContext）--
+        Set<Integer> resourceTypes = resolveResourceTypes(q, ctx);
 
-        // -- 3. 解析操作ID --
-        Set<Long> opIds = resolveOperationIds(q);
+        // -- 3. 解析操作ID（使用 ResolveContext）--
+        Set<Long> opIds = resolveOperationIds(q, ctx);
+        Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
 
         // -- 4. 查询类型级权限（scopeAll=true） --
         List<RolePermEntry> scopeAllEntries = List.of();
-        if (q.queryScopeAll() && !resourceTypes.isEmpty() && !opIds.isEmpty()) {
-            scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, resourceTypes, opIds);
+        if (q.queryScopeAll() && !bitMasks.isEmpty()) {
+            scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
         }
 
         // -- 5. scopeAll匹配时提前返回 --
@@ -112,8 +124,8 @@ public class PermQueryEngine {
             if (scopeAllEntries.isEmpty()) {
                 return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
             }
-            Map<String, Object> ctx = q.context();
-            if (ctx == null) ctx = Map.of();
+            Map<String, Object> evalCtx = q.context();
+            if (evalCtx == null) evalCtx = Map.of();
             PermResult.Builder builder = PermResult.builder(true, null)
                 .scopeAllMatched(true)
                 .scopeAllEntries(scopeAllEntries);
@@ -124,28 +136,9 @@ public class PermQueryEngine {
         // -- 6. 解析并查询实例级权限 --
         Set<Long> entityIds = resolveEntityIds(q);
         List<RolePermEntry> instanceEntries = List.of();
-        Map<Long, OperationPermission> opCache = Map.of();
 
         if (q.queryInstance() && !entityIds.isEmpty()) {
-            instanceEntries = queryInstance(q.tenantId(), roleIds, entityIds, opIds);
-            // matchesBit过滤
-            if (q.evaluateMatchesBit() && !opIds.isEmpty()) {
-                opCache = entityBatchLoadService.batchLoadOperations(q.tenantId(), opIds);
-                List<RolePermEntry> filtered = new ArrayList<>();
-                for (RolePermEntry e : instanceEntries) {
-                    OperationPermission granted = opCache.get(e.operationPermissionId());
-                    if (granted != null) {
-                        for (Long targetOpId : opIds) {
-                            OperationPermission target = opCache.get(targetOpId);
-                            if (OperationPermissionUtils.covers(granted, target)) {
-                                filtered.add(e);
-                                break;
-                            }
-                        }
-                    }
-                }
-                instanceEntries = filtered;
-            }
+            instanceEntries = queryInstance(q.tenantId(), roleIds, entityIds, bitMasks);
         }
 
         // -- 7. 合并scopeAll和实例级结果 --
@@ -253,19 +246,23 @@ public class PermQueryEngine {
             return new LinkedHashSet<>(resourceIds); // 无角色 = 全部拒绝
         }
 
-        // 2. 解析类型和操作ID（批量）
-        Integer resourceTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        // 2. 创建 ResolveContext，预解析类型和操作ID（避免重复调用）
+        ResolveContext ctx = new ResolveContext(tenantId, typeResolutionService);
+        ctx.prepareResourceTypes(Set.of(resourceTypeCode));
+        ctx.prepareOperations(resourceTypeCode, Set.of(operationCode));
+
+        Integer resourceTypeValue = ctx.getResourceTypeValue(resourceTypeCode);
         if (resourceTypeValue == null) {
             return new LinkedHashSet<>(resourceIds); // 未知类型 = 全部拒绝
         }
-        Long operationId = typeResolutionService.resolveOperationId(tenantId, resourceTypeCode, operationCode);
+        Long operationId = ctx.getOperationId(resourceTypeCode, operationCode);
         if (operationId == null) {
             return new LinkedHashSet<>(resourceIds); // 未知操作 = 全部拒绝
         }
 
         // 3. 查询类型级权限（scopeAll=true）— 1次查询
-        List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds,
-            Set.of(resourceTypeValue), Set.of(operationId));
+        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId));
+        List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds, bitMasks);
 
         // 4. 若scopeAll匹配，则所有资源均允许
         if (!scopeAllEntries.isEmpty()) {
@@ -294,17 +291,12 @@ public class PermQueryEngine {
         }
 
         // 6. 批量查询实例级权限（1次查询）
-        List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, resourceEntityIds, Set.of(operationId));
-
-        // 7. 按操作权限位过滤
-        if (!instanceEntries.isEmpty()) {
-            Map<Long, OperationPermission> opCache = entityBatchLoadService.batchLoadOperations(
-                tenantId, Set.of(operationId));
-            OperationPermission targetOp = opCache.get(operationId);
-            if (targetOp != null) {
-                instanceEntries = OperationPermissionUtils.filterByOperation(instanceEntries, opCache, targetOp);
-            }
-        }
+        List<RolePermEntry> instanceEntries = queryInstance(
+            tenantId,
+            roleIds,
+            resourceEntityIds,
+            resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId))
+        );
 
         // 8. 评估实例级权限的条件和冲突
         if (!instanceEntries.isEmpty()) {
@@ -373,7 +365,11 @@ public class PermQueryEngine {
     public List<RolePermEntry> queryTypeLevelPerms(Long tenantId, Set<Long> roleIds,
                                                  Integer resourceType,
                                                      Set<Long> operationPermissionIds) {
-        return queryScopeAll(tenantId, roleIds, Set.of(resourceType), operationPermissionIds);
+        return queryScopeAll(
+            tenantId,
+            roleIds,
+            resolveBitMasks(tenantId, Set.of(resourceType), operationPermissionIds)
+        );
     }
 
     /**
@@ -386,9 +382,16 @@ public class PermQueryEngine {
      */
     public Set<Integer> getResourceTypesWithScopeAll(Long tenantId, Set<Long> roleIds,
                                                       Set<Long> operationIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectScopeAllPerms(
-            tenantId, roleIds, null, operationIds);
-        return perms.stream().map(RoleResourcePermission::getResourceType).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, entityBatchLoadService.batchLoadOperations(tenantId, operationIds)
+            .values()
+            .stream()
+            .map(OperationPermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet()), operationIds);
+        return queryScopeAll(tenantId, roleIds, bitMasks).stream()
+            .map(RolePermEntry::resourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -407,13 +410,16 @@ public class PermQueryEngine {
                                                     String inheritMode) {
         Set<Long> entityIds = new HashSet<>();
         entityIds.add(resourceEntityId);
-        List<RolePermEntry> entries = queryInstance(tenantId, roleIds, entityIds, Set.of(operationPermissionId));
-        if (entries.isEmpty()) return entries;
-        // matchesBit过滤
-        Map<Long, OperationPermission> opCache = entityBatchLoadService.batchLoadOperations(tenantId, Set.of(operationPermissionId));
-        OperationPermission targetOp = opCache.get(operationPermissionId);
-        if (targetOp == null) return List.of();
-        return OperationPermissionUtils.filterByOperation(entries, opCache, targetOp);
+        OperationPermission targetOp = entityBatchLoadService.batchLoadOperations(tenantId, Set.of(operationPermissionId)).get(operationPermissionId);
+        if (targetOp == null || targetOp.getResourceType() == null) {
+            return List.of();
+        }
+        return queryInstance(
+            tenantId,
+            roleIds,
+            entityIds,
+            resolveBitMasks(tenantId, Set.of(targetOp.getResourceType()), Set.of(operationPermissionId))
+        );
     }
 
     /**
@@ -426,7 +432,10 @@ public class PermQueryEngine {
      */
     public List<RolePermEntry> queryInstancePermsBatch(Long tenantId, Set<Long> roleIds,
                                                          Set<Long> resourceEntityIds) {
-        return queryInstance(tenantId, roleIds, resourceEntityIds, Set.of());
+        return rolePermMapper.selectInstancePerms(tenantId, roleIds, resourceEntityIds, null)
+            .stream()
+            .map(entryMapper::toEntry)
+            .toList();
     }
 
     // ===== 私有步骤方法 =====
@@ -451,7 +460,27 @@ public class PermQueryEngine {
     }
 
     /**
-     * 解析查询参数中的资源类型值
+     * 解析查询参数中的资源类型值（使用 ResolveContext）
+     */
+    private Set<Integer> resolveResourceTypes(PermQuery q, ResolveContext ctx) {
+        if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
+        return new HashSet<>(ctx.getResourceTypeValues(q.resourceTypeCodes()).values());
+    }
+
+    /**
+     * 解析查询参数中的操作ID（使用 ResolveContext）
+     */
+    private Set<Long> resolveOperationIds(PermQuery q, ResolveContext ctx) {
+        if (q.operationPermissionIds() != null && !q.operationPermissionIds().isEmpty()) {
+            return q.operationPermissionIds();
+        }
+        if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
+        if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
+        return ctx.getOperationIds(q.resourceTypeCodes(), q.operationCodes());
+    }
+
+    /**
+     * 解析查询参数中的资源类型值（旧方法，保留兼容）
      */
     private Set<Integer> resolveResourceTypes(PermQuery q) {
         if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
@@ -461,7 +490,7 @@ public class PermQueryEngine {
     }
 
     /**
-     * 解析查询参数中的操作ID
+     * 解析查询参数中的操作ID（旧方法，保留兼容）
      */
     private Set<Long> resolveOperationIds(PermQuery q) {
         if (q.operationPermissionIds() != null && !q.operationPermissionIds().isEmpty()) {
@@ -507,20 +536,41 @@ public class PermQueryEngine {
      * 查询类型级权限（scopeAll=true）
      */
     private List<RolePermEntry> queryScopeAll(Long tenantId, Set<Long> roleIds,
-                                               Set<Integer> types, Set<Long> opIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectScopeAllPerms(
-            tenantId, roleIds, types, opIds);
-        return perms.stream().map(entryMapper::toEntry).toList();
+                                               Map<Integer, Long> bitMasks) {
+        if (bitMasks == null || bitMasks.isEmpty()) {
+            return List.of();
+        }
+        List<RolePermEntry> result = new ArrayList<>();
+        for (Map.Entry<Integer, Long> entry : bitMasks.entrySet()) {
+            result.addAll(rolePermMapper.selectScopeAllPermsByBits(
+                tenantId,
+                roleIds,
+                Set.of(entry.getKey()),
+                entry.getValue()
+            ).stream().map(entryMapper::toEntry).toList());
+        }
+        return result;
     }
 
     /**
      * 查询实例级权限
      */
     private List<RolePermEntry> queryInstance(Long tenantId, Set<Long> roleIds,
-                                               Set<Long> entityIds, Set<Long> opIds) {
-        List<RoleResourcePermission> perms = rolePermMapper.selectInstancePerms(
-            tenantId, roleIds, entityIds, opIds);
-        return perms.stream().map(entryMapper::toEntry).toList();
+                                               Set<Long> entityIds, Map<Integer, Long> bitMasks) {
+        if (bitMasks == null || bitMasks.isEmpty()) {
+            return List.of();
+        }
+        List<RolePermEntry> result = new ArrayList<>();
+        for (Map.Entry<Integer, Long> entry : bitMasks.entrySet()) {
+            result.addAll(rolePermMapper.selectInstancePermsByBits(
+                tenantId,
+                roleIds,
+                entityIds,
+                Set.of(entry.getKey()),
+                entry.getValue()
+            ).stream().map(entryMapper::toEntry).toList());
+        }
+        return result;
     }
 
     /**
@@ -546,10 +596,13 @@ public class PermQueryEngine {
                                 List<RolePermEntry> scopeAll, List<RolePermEntry> instance,
                                 Set<Long> roleIds) {
         Set<Long> allEntityIds = new HashSet<>();
-        Set<Long> allOpIds = new HashSet<>();
+        Set<Long> targetOpIds = resolveOperationIds(q);
+        Map<Integer, Set<Long>> grantedBitsByType = new LinkedHashMap<>();
         Stream.concat(scopeAll.stream(), instance.stream()).forEach(e -> {
             if (e.resourceEntityId() != null) allEntityIds.add(e.resourceEntityId());
-            if (e.operationPermissionId() != null) allOpIds.add(e.operationPermissionId());
+            if (e.resourceType() != null && e.grantedBits() != null) {
+                grantedBitsByType.computeIfAbsent(e.resourceType(), _unused -> new LinkedHashSet<>()).add(e.grantedBits());
+            }
         });
         // 同时包含查询参数中的resourceEntityIds（scopeAll权限的entityId可能为null）
         if (q.resourceEntityIds() != null) allEntityIds.addAll(q.resourceEntityIds());
@@ -558,10 +611,51 @@ public class PermQueryEngine {
             builder.resourceMap(entityBatchLoadService.batchLoadResources(q.tenantId(), allEntityIds));
         }
         if (q.includeOperations()) {
-            builder.operationMap(entityBatchLoadService.batchLoadOperations(q.tenantId(), allOpIds));
+            Map<Long, OperationPermission> operationMap = new LinkedHashMap<>(entityBatchLoadService.batchLoadOperations(q.tenantId(), targetOpIds));
+            Map<Integer, List<OperationPermission>> operationsByType = entityBatchLoadService.batchLoadOperationsByResourceTypes(
+                q.tenantId(),
+                grantedBitsByType.keySet()
+            );
+            for (Map.Entry<Integer, Set<Long>> entry : grantedBitsByType.entrySet()) {
+                for (OperationPermission operation : operationsByType.getOrDefault(entry.getKey(), List.of())) {
+                    if (entry.getValue().contains(operation.getBinaryBit())) {
+                        operationMap.put(operation.getId(), operation);
+                    }
+                }
+            }
+            builder.operationMap(operationMap);
         }
         if (q.includeRoles() && roleIds != null && !roleIds.isEmpty()) {
             builder.roleMap(entityBatchLoadService.batchLoadRoles(q.tenantId(), roleIds));
         }
+    }
+
+    private Map<Integer, Long> resolveBitMasks(Long tenantId, Set<Integer> resourceTypes, Set<Long> opIds) {
+        if (resourceTypes == null || resourceTypes.isEmpty() || opIds == null || opIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, OperationPermission> targetOps = entityBatchLoadService.batchLoadOperations(tenantId, opIds);
+        if (targetOps.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, List<OperationPermission>> operationsByType = entityBatchLoadService.batchLoadOperationsByResourceTypes(tenantId, resourceTypes);
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            List<OperationPermission> operations = operationsByType.getOrDefault(resourceType, List.of());
+            if (operations.isEmpty()) {
+                continue;
+            }
+            long mask = 0L;
+            for (OperationPermission targetOp : targetOps.values()) {
+                if (!Objects.equals(resourceType, targetOp.getResourceType())) {
+                    continue;
+                }
+                mask |= OperationPermissionUtils.computeCoveringBitMask(operations, targetOp.getBinaryBit());
+            }
+            if (mask != 0L) {
+                result.put(resourceType, mask);
+            }
+        }
+        return result;
     }
 }

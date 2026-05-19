@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,8 +20,10 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -153,12 +156,19 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             tenantId, resourceTypeValues, operationCodes);
 
         Map<String, OperationPermission> opPermByKey = new HashMap<>();
-        Map<Long, OperationPermission> opPermById = new HashMap<>();
+        Map<Integer, List<OperationPermission>> operationsByType = new LinkedHashMap<>();
         for (OperationPermission op : allOpPerms) {
             String key = op.getResourceType() + ":" + op.getCode().toUpperCase();
             opPermByKey.put(key, op);
-            opPermById.put(op.getId(), op);
         }
+        for (Integer resourceTypeValue : resourceTypeValues) {
+            operationsByType.put(resourceTypeValue, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceTypeValue));
+        }
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
+            operationsByType.values().stream().flatMap(List::stream).toList()
+        );
+        Map<Integer, List<OperationPermission>> targetOpsByType = allOpPerms.stream()
+            .collect(Collectors.groupingBy(OperationPermission::getResourceType));
 
         // 4. 批量解析资源实体ID
         List<ResourceResolveRequest> resourceRequests = permissions.stream()
@@ -174,30 +184,37 @@ public class AuthorizationServiceImpl implements AuthorizationService {
             resourceEntityIdByCode.put(key.resourceTypeCode().toUpperCase() + ":" + key.resourceCode(), entry.getValue());
         }
 
-        // 5. 批量查询角色资源权限
-        Set<Long> opPermIds = allOpPerms.stream()
-            .map(OperationPermission::getId)
-            .collect(Collectors.toSet());
+        // 5. 批量查询角色资源权限（按角色和资源类型过滤）
+        List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectValidByRoleIds(
+            tenantId, operatorRoleIds);
 
-        List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectByTenantRolesResourceTypesAndOpPermIds(
-            tenantId, operatorRoleIds, resourceTypeValues, opPermIds);
+        allPerms = allPerms.stream()
+            .filter(p -> p.getResourceType() != null && resourceTypeValues.contains(p.getResourceType()))
+            .collect(Collectors.toList());
 
         // 6. 构建查找映射
         Map<String, List<RoleResourcePermission>> permsBySpecificResource = new HashMap<>();
         Map<String, List<RoleResourcePermission>> permsByScopeAll = new HashMap<>();
 
         for (RoleResourcePermission perm : allPerms) {
-            OperationPermission op = opPermById.get(perm.getOperationPermissionId());
-            if (op == null) continue;
-
-            Integer resType = perm.getResourceType();
-            String opCode = op.getCode().toUpperCase();
-            String baseKey = resType + ":" + opCode;
-
-            if (Boolean.TRUE.equals(perm.getScopeAll())) {
-                permsByScopeAll.computeIfAbsent(baseKey, k -> new ArrayList<>()).add(perm);
-            } else if (perm.getResourceEntityId() != null) {
-                permsBySpecificResource.computeIfAbsent(baseKey + ":" + perm.getResourceEntityId(), k -> new ArrayList<>()).add(perm);
+            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                grantedOpIndex,
+                perm.getResourceType(),
+                perm.getGrantedBits()
+            );
+            if (grantedOp == null) {
+                continue;
+            }
+            for (OperationPermission targetOp : targetOpsByType.getOrDefault(perm.getResourceType(), List.of())) {
+                if (!OperationPermissionUtils.covers(grantedOp, targetOp)) {
+                    continue;
+                }
+                String baseKey = perm.getResourceType() + ":" + targetOp.getCode().toUpperCase();
+                if (Boolean.TRUE.equals(perm.getScopeAll())) {
+                    permsByScopeAll.computeIfAbsent(baseKey, _unused -> new ArrayList<>()).add(perm);
+                } else if (perm.getResourceEntityId() != null) {
+                    permsBySpecificResource.computeIfAbsent(baseKey + ":" + perm.getResourceEntityId(), _unused -> new ArrayList<>()).add(perm);
+                }
             }
         }
 

@@ -6,8 +6,6 @@ import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.util.List;
 import java.util.Map;
@@ -20,8 +18,6 @@ import java.util.Set;
  * 用于 PermissionViewServiceImpl.getUserPermissionsWithFilters() 方法。
  * </p>
  */
-@Getter
-@Setter
 public class PermissionQueryContext {
 
     // ===== 输入参数（final，无 setter）=====
@@ -72,6 +68,182 @@ public class PermissionQueryContext {
         this.tenantId = tenantId;
         this.userId = userId;
         this.request = request;
+    }
+
+    public Long getTenantId() {
+        return tenantId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public UserPermissionViewReq getRequest() {
+        return request;
+    }
+
+    public AbstractUser getUser() {
+        return user;
+    }
+
+    public void setUser(AbstractUser user) {
+        this.user = user;
+    }
+
+    public int getPageNum() {
+        return pageNum;
+    }
+
+    public void setPageNum(int pageNum) {
+        this.pageNum = pageNum;
+    }
+
+    public int getPageSize() {
+        return pageSize;
+    }
+
+    public void setPageSize(int pageSize) {
+        this.pageSize = pageSize;
+    }
+
+    public int getOffset() {
+        return offset;
+    }
+
+    public void setOffset(int offset) {
+        this.offset = offset;
+    }
+
+    public Long getDomainId() {
+        return domainId;
+    }
+
+    public void setDomainId(Long domainId) {
+        this.domainId = domainId;
+    }
+
+    public Set<Long> getRoleIds() {
+        return roleIds;
+    }
+
+    public void setRoleIds(Set<Long> roleIds) {
+        this.roleIds = roleIds;
+    }
+
+    public Set<Long> getFilteredRoleIds() {
+        return filteredRoleIds;
+    }
+
+    public void setFilteredRoleIds(Set<Long> filteredRoleIds) {
+        this.filteredRoleIds = filteredRoleIds;
+    }
+
+    public Map<Long, AbstractRole> getRoleMap() {
+        return roleMap;
+    }
+
+    public void setRoleMap(Map<Long, AbstractRole> roleMap) {
+        this.roleMap = roleMap;
+    }
+
+    public List<RoleResourcePermission> getAllPermissions() {
+        return allPermissions;
+    }
+
+    public void setAllPermissions(List<RoleResourcePermission> allPermissions) {
+        this.allPermissions = allPermissions;
+    }
+
+    public List<RoleResourcePermission> getFilteredPermissions() {
+        return filteredPermissions;
+    }
+
+    public void setFilteredPermissions(List<RoleResourcePermission> filteredPermissions) {
+        this.filteredPermissions = filteredPermissions;
+    }
+
+    public List<RoleResourcePermission> getPagedPermissions() {
+        return pagedPermissions;
+    }
+
+    public void setPagedPermissions(List<RoleResourcePermission> pagedPermissions) {
+        this.pagedPermissions = pagedPermissions;
+    }
+
+    public Map<Long, List<RoleResourcePermission>> getGroupedByResource() {
+        return groupedByResource;
+    }
+
+    public void setGroupedByResource(Map<Long, List<RoleResourcePermission>> groupedByResource) {
+        this.groupedByResource = groupedByResource;
+    }
+
+    public Map<Long, OperationPermission> getOperationMap() {
+        return operationMap;
+    }
+
+    public void setOperationMap(Map<Long, OperationPermission> operationMap) {
+        this.operationMap = operationMap;
+    }
+
+    public Map<Long, ResourceEntity> getResourceMap() {
+        return resourceMap;
+    }
+
+    public void setResourceMap(Map<Long, ResourceEntity> resourceMap) {
+        this.resourceMap = resourceMap;
+    }
+
+    public Map<Long, String> getDomainCodeMap() {
+        return domainCodeMap;
+    }
+
+    public void setDomainCodeMap(Map<Long, String> domainCodeMap) {
+        this.domainCodeMap = domainCodeMap;
+    }
+
+    public Map<Integer, String> getResourceTypeCodeMap() {
+        return resourceTypeCodeMap;
+    }
+
+    public void setResourceTypeCodeMap(Map<Integer, String> resourceTypeCodeMap) {
+        this.resourceTypeCodeMap = resourceTypeCodeMap;
+    }
+
+    public Map<Integer, String> getRoleTypeCodeMap() {
+        return roleTypeCodeMap;
+    }
+
+    public void setRoleTypeCodeMap(Map<Integer, String> roleTypeCodeMap) {
+        this.roleTypeCodeMap = roleTypeCodeMap;
+    }
+
+    public Integer getApiTypeValue() {
+        return apiTypeValue;
+    }
+
+    public void setApiTypeValue(Integer apiTypeValue) {
+        this.apiTypeValue = apiTypeValue;
+    }
+
+    public long getTotalCount() {
+        return totalCount;
+    }
+
+    public void setTotalCount(long totalCount) {
+        this.totalCount = totalCount;
+    }
+
+    public boolean isHasNext() {
+        return hasNext;
+    }
+
+    public boolean getHasNext() {
+        return hasNext;
+    }
+
+    public void setHasNext(boolean hasNext) {
+        this.hasNext = hasNext;
     }
 
     // ===== 便捷方法 =====

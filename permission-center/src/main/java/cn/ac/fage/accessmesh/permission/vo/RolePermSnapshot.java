@@ -41,13 +41,17 @@ public record RolePermSnapshot(
      * 表示单个权限配置的详细信息。
      * 包含资源、操作、条件、授权来源等完整信息。
      * </p>
+     * <p>
+     * grantedBits 存储 OperationPermission.binaryBit 值，
+     * operationCode/effectiveBits 从 OperationPermission 反查填充。
+     * </p>
      *
      * @param permissionId         权限ID
      * @param roleId               角色ID
      * @param resourceEntityId     资源实体ID
      * @param resourceCode         资源编码
      * @param resourceType         资源类型值
-     * @param operationPermissionId 操作权限ID
+     * @param grantedBits          授予的操作位值
      * @param operationCode        操作编码
      * @param effectiveBits        有效位掩码
      * @param grantSource          授权来源
@@ -83,9 +87,9 @@ public record RolePermSnapshot(
         Integer resourceType,
 
         /**
-         * 操作权限ID
+         * 授予的操作位值
          */
-        Long operationPermissionId,
+        Long grantedBits,
 
         /**
          * 操作编码

@@ -1,8 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
-import lombok.Getter;
-import lombok.Setter;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -13,8 +10,6 @@ import java.util.Set;
  * 包含创建数、更新数、活跃资源ID集合。
  * </p>
  */
-@Getter
-@Setter
 public class SyncResourcesResult {
     /**
      * 创建的资源数量
@@ -49,6 +44,26 @@ public class SyncResourcesResult {
         this.createdCount = createdCount;
         this.updatedCount = updatedCount;
         this.activeResourceIds = activeResourceIds != null ? activeResourceIds : new HashSet<>();
+    }
+
+    public int getCreatedCount() {
+        return createdCount;
+    }
+
+    public void setCreatedCount(int createdCount) {
+        this.createdCount = createdCount;
+    }
+
+    public int getUpdatedCount() {
+        return updatedCount;
+    }
+
+    public void setUpdatedCount(int updatedCount) {
+        this.updatedCount = updatedCount;
+    }
+
+    public Set<Long> getActiveResourceIds() {
+        return activeResourceIds;
     }
 
     public void setActiveResourceIds(Set<Long> activeResourceIds) {

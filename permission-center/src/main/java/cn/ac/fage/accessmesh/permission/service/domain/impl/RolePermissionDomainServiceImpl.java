@@ -62,7 +62,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             .map(p -> new RolePermSnapshot.RolePermEntry(
                 p.getId(), p.getAbstractRoleId(),
                 p.getResourceEntityId(), null, p.getResourceType(),
-                p.getOperationPermissionId(), null, null,
+                p.getGrantedBits(), null, null,
                 p.getGrantSource(),
                 p.getCanGrant(), p.getConditionId(), p.getConditionId() != null,
                 p.getDependOn()
@@ -90,7 +90,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
         // 检查相同复合键的软删除记录并重新激活
         for (RolePermSnapshot.RolePermEntry entry : entries) {
             List<RoleResourcePermission> existing = rolePermMapper.selectSoftDeletedByCompositeKey(
-                tenantId, roleId, entry.resourceEntityId(), entry.operationPermissionId());
+                tenantId, roleId, entry.resourceEntityId(), entry.grantedBits());
             if (!existing.isEmpty()) {
                 // 重新激活软删除记录，而非插入新记录
                 RoleResourcePermission reactivated = existing.get(0);
@@ -112,7 +112,7 @@ public class RolePermissionDomainServiceImpl implements RolePermissionDomainServ
             rp.setTenantId(tenantId);
             rp.setAbstractRoleId(roleId);
             rp.setResourceEntityId(entry.resourceEntityId());
-            rp.setOperationPermissionId(entry.operationPermissionId());
+            rp.setGrantedBits(entry.grantedBits());
             rp.setResourceType(entry.resourceType());
             rp.setDependOn(entry.dependOn());
             rp.setScopeAll(false);

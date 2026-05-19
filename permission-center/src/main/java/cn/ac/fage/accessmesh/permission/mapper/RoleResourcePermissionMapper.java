@@ -46,13 +46,13 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
      * @param tenantId     租户ID
      * @param roleId       角色ID
      * @param resourceId   资源实体ID
-     * @param operationId  操作权限ID
+    * @param operationBits 操作位值
      * @return 数量
      */
     long countByCompositeKey(@Param("tenantId") Long tenantId,
                              @Param("roleId") Long roleId,
                              @Param("resourceId") Long resourceId,
-                             @Param("operationId") Long operationId);
+                        @Param("operationBits") Long operationBits);
 
     /**
      * 查询指定角色和目标资源的现有自动授权记录（按grantDepId分组）
@@ -98,13 +98,13 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
      * @param tenantId     租户ID
      * @param roleId       角色ID
      * @param resourceId   资源实体ID
-     * @param operationId  操作权限ID
+    * @param operationBits 操作位值
      * @return 权限列表
      */
     List<RoleResourcePermission> selectSoftDeletedByCompositeKey(@Param("tenantId") Long tenantId,
                                                                 @Param("roleId") Long roleId,
                                                                 @Param("resourceId") Long resourceId,
-                                                                @Param("operationId") Long operationId);
+                                                    @Param("operationBits") Long operationBits);
 
     /**
      * 查询指定资源ID列表的有效权限ID
@@ -267,4 +267,43 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
         @Param("roleIds") Set<Long> roleIds,
         @Param("resourceEntityIds") Set<Long> resourceEntityIds,
         @Param("operationPermissionIds") Set<Long> operationPermissionIds);
+
+    /**
+     * 按位掩码查询类型级权限（scopeAll=true）
+     * <p>
+     * PostgreSQL 位操作：WHERE granted_bits & bit_mask != 0
+     * 返回所有可能覆盖目标操作的权限条目。
+     * </p>
+     *
+     * @param tenantId      租户ID
+     * @param roleIds       角色ID集合
+     * @param resourceTypes 资源类型值集合，可为null或空（不过滤）
+     * @param bitMask       位掩码值
+     * @return 权限记录列表
+     */
+    List<RoleResourcePermission> selectScopeAllPermsByBits(
+        @Param("tenantId") Long tenantId,
+        @Param("roleIds") Set<Long> roleIds,
+        @Param("resourceTypes") Set<Integer> resourceTypes,
+        @Param("bitMask") Long bitMask);
+
+    /**
+     * 按位掩码查询实例级权限
+     * <p>
+     * PostgreSQL 位操作：WHERE granted_bits & bit_mask != 0
+     * 返回所有可能覆盖目标操作的权限条目。
+     * </p>
+     *
+     * @param tenantId          租户ID
+     * @param roleIds           角色ID集合
+     * @param resourceEntityIds 资源实体ID集合
+     * @param bitMask           位掩码值
+     * @return 权限记录列表
+     */
+    List<RoleResourcePermission> selectInstancePermsByBits(
+        @Param("tenantId") Long tenantId,
+        @Param("roleIds") Set<Long> roleIds,
+        @Param("resourceEntityIds") Set<Long> resourceEntityIds,
+        @Param("resourceTypes") Set<Integer> resourceTypes,
+        @Param("bitMask") Long bitMask);
 }

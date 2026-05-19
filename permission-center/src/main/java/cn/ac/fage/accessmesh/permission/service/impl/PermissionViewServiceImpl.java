@@ -27,6 +27,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
@@ -312,14 +313,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return;
         }
 
-        // 批量加载相关实体
-        Set<Long> operationIds = allPerms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, OperationPermission> operationMap = loadOperations(context.getTenantId(), operationIds);
-        context.setOperationMap(operationMap);
-
         Set<Long> resourceIds = allPerms.stream()
             .map(RoleResourcePermission::getResourceEntityId)
             .filter(Objects::nonNull)
@@ -336,6 +329,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .map(ResourceEntity::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet()));
+        context.setOperationMap(loadOperationsByResourceTypes(context.getTenantId(), allResourceTypes));
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(
             context.getTenantId(), "resource_type", allResourceTypes);
         context.setResourceTypeCodeMap(resourceTypeCodeMap);
@@ -461,7 +455,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
 
         // 操作码过滤
         if (context.hasOperationCodesFilter()) {
-            OperationPermission op = context.getOperationMap().get(perm.getOperationPermissionId());
+            OperationPermission op = findGrantedOperation(context.getOperationMap(), perm.getResourceType(), perm.getGrantedBits());
             if (op == null || op.getCode() == null || !context.getOperationCodesFilter().contains(op.getCode())) {
                 return false;
             }
@@ -532,7 +526,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             boolean includeSourceRoles) {
 
         Set<String> operationCodes = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
+            .map(RoleResourcePermission::getGrantedBits)
             .map(context.getOperationMap()::get)
             .filter(Objects::nonNull)
             .map(OperationPermission::getCode)
@@ -623,6 +617,21 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return Map.of();
         }
         return entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
+    }
+
+    private Map<Long, OperationPermission> loadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Map.of();
+        }
+        return entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypes)
+            .values()
+            .stream()
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(OperationPermission::getId, op -> op, (left, _unused) -> left, LinkedHashMap::new));
+    }
+
+    private OperationPermission findGrantedOperation(Map<Long, OperationPermission> operationMap, Integer resourceType, Long grantedBits) {
+        return OperationPermissionUtils.findByResourceTypeAndBinaryBit(operationMap, resourceType, grantedBits);
     }
 
     /**
@@ -770,12 +779,11 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         // 批量加载角色避免N+1查询
         Map<Long, AbstractRole> roleMap = loadRoles(tenantId, byRole.keySet());
 
-        // 批量加载操作权限避免N+1查询
-        Set<Long> opIds = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
+        Set<Integer> resourceTypeValues = perms.stream()
+            .map(RoleResourcePermission::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
+        Map<Long, OperationPermission> opMap = loadOperationsByResourceTypes(tenantId, resourceTypeValues);
 
         // 批量解析角色类型编码（避免N+1）
         Set<Integer> roleTypeValues = roleMap.values().stream()
@@ -789,7 +797,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             AbstractRole role = roleMap.get(entry.getKey());
             List<String> opCodes = entry.getValue().stream()
                 .map(p -> {
-                    OperationPermission op = opMap.get(p.getOperationPermissionId());
+                    OperationPermission op = findGrantedOperation(opMap, p.getResourceType(), p.getGrantedBits());
                     return op != null ? op.getCode() : null;
                 })
                 .filter(Objects::nonNull)
@@ -851,31 +859,25 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toSet());
         Map<Long, ResourceEntity> resourceMap = loadResources(tenantId, resourceIds);
 
-        // 批量加载操作权限避免N+1查询
-        Set<Long> opIds = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
-
         // 批量解析资源类型编码（避免N+1）
         Set<Integer> resourceTypeValues = perms.stream()
             .map(RoleResourcePermission::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+        Map<Long, OperationPermission> opMap = loadOperationsByResourceTypes(tenantId, resourceTypeValues);
 
         List<PermissionItem> items = perms.stream()
             .map(p -> {
                 ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
-                OperationPermission op = opMap.get(p.getOperationPermissionId());
+                OperationPermission op = findGrantedOperation(opMap, p.getResourceType(), p.getGrantedBits());
                 return new PermissionItem(
                     p.getId(),
                     p.getResourceEntityId(),
                     resource != null ? resource.getCode() : null,
                     resource != null ? resource.getName() : null,
                     resourceTypeCodeMap.get(p.getResourceType()),
-                    p.getOperationPermissionId(),
+                    p.getGrantedBits(),
                     op != null ? op.getCode() : null,
                     op != null ? op.getName() : null,
                     p.getDependOn(),
@@ -930,30 +932,24 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toSet());
         Map<Long, ResourceEntity> resourceMap = loadResources(tenantId, resourceIds);
 
-        // 批量加载操作权限避免N+1查询
-        Set<Long> opIds = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(tenantId, opIds);
-
         // 批量解析资源类型编码（避免N+1）
         Set<Integer> resourceTypeValues = perms.stream()
             .map(RoleResourcePermission::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+        Map<Long, OperationPermission> opMap = loadOperationsByResourceTypes(tenantId, resourceTypeValues);
 
         List<PermissionItem> items = perms.stream().map(p -> {
             ResourceEntity resource = p.getResourceEntityId() == null ? null : resourceMap.get(p.getResourceEntityId());
-            OperationPermission op = opMap.get(p.getOperationPermissionId());
+            OperationPermission op = findGrantedOperation(opMap, p.getResourceType(), p.getGrantedBits());
             return new PermissionItem(
                 p.getId(),
                 p.getResourceEntityId(),
                 resource != null ? resource.getCode() : null,
                 resource != null ? resource.getName() : null,
                 resourceTypeCodeMap.get(p.getResourceType()),
-                p.getOperationPermissionId(),
+                p.getGrantedBits(),
                 op != null ? op.getCode() : null,
                 op != null ? op.getName() : null,
                 p.getDependOn(),
@@ -1185,20 +1181,15 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             return AuthCheckResp.deny("NO_PERMISSION");
         }
 
-        // 批量加载操作权限避免N+1查询
-        Set<Long> grantedOpIds = perms.stream()
-            .map(RoleResourcePermission::getOperationPermissionId)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Long, OperationPermission> opMap = loadOperations(tenantId, grantedOpIds);
+        Map<Long, OperationPermission> opMap = loadOperationsByResourceTypes(tenantId, Set.of(targetOp.getResourceType()));
 
         List<Long> matchedPermissionIds = new ArrayList<>();
         for (RoleResourcePermission perm : perms) {
-            OperationPermission grantedOp = opMap.get(perm.getOperationPermissionId());
+            OperationPermission grantedOp = findGrantedOperation(opMap, perm.getResourceType(), perm.getGrantedBits());
             if (grantedOp == null) {
                 continue;
             }
-            if (grantedOp.matchesBit(targetOp)) {
+            if (OperationPermissionUtils.covers(grantedOp, targetOp)) {
                 matchedPermissionIds.add(perm.getId());
             }
         }

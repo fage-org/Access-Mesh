@@ -1,8 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
-import lombok.Getter;
-import lombok.Setter;
 
 /**
  * 服务接口同步结果类
@@ -12,8 +10,6 @@ import lombok.Setter;
  * 可转换为响应DTO返回给前端。
  * </p>
  */
-@Getter
-@Setter
 public class SyncResult {
     /**
      * 创建的资源数量
@@ -100,5 +96,53 @@ public class SyncResult {
         this.updatedMappings += other.updatedMappings;
         this.deletedMappings += other.deletedMappings;
         this.deletedResources += other.deletedResources;
+    }
+
+    public int getCreatedResources() {
+        return createdResources;
+    }
+
+    public void setCreatedResources(int createdResources) {
+        this.createdResources = createdResources;
+    }
+
+    public int getUpdatedResources() {
+        return updatedResources;
+    }
+
+    public void setUpdatedResources(int updatedResources) {
+        this.updatedResources = updatedResources;
+    }
+
+    public int getCreatedMappings() {
+        return createdMappings;
+    }
+
+    public void setCreatedMappings(int createdMappings) {
+        this.createdMappings = createdMappings;
+    }
+
+    public int getUpdatedMappings() {
+        return updatedMappings;
+    }
+
+    public void setUpdatedMappings(int updatedMappings) {
+        this.updatedMappings = updatedMappings;
+    }
+
+    public int getDeletedMappings() {
+        return deletedMappings;
+    }
+
+    public void setDeletedMappings(int deletedMappings) {
+        this.deletedMappings = deletedMappings;
+    }
+
+    public int getDeletedResources() {
+        return deletedResources;
+    }
+
+    public void setDeletedResources(int deletedResources) {
+        this.deletedResources = deletedResources;
     }
 }

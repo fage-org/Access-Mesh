@@ -12,9 +12,14 @@ import java.time.LocalDateTime;
  * 角色资源权限实体
  * <p>
  * 表示角色对资源的操作权限配置。
- * 定义了角色可以执行哪些操作（operationPermissionId）、
+ * 定义了角色可以执行哪些操作（grantedBits）、
  * 操作的资源范围（resourceEntityId）、权限条件（conditionId）等。
  * 支持权限继承（dependOn）和授权传递（canGrant）。
+ * </p>
+ * <p>
+ * grantedBits 存储 OperationPermission.binaryBit 值。
+ * 用于 PostgreSQL 位操作查询：WHERE granted_bits & target_mask != 0
+ * inheritMask 继承语义由 OperationPermissionCacheService 动态计算。
  * </p>
  *
  * @author AccessMesh Team
@@ -46,9 +51,13 @@ public class RoleResourcePermission {
     private Long resourceEntityId;
 
     /**
-     * 操作权限ID
+     * 授予的操作位值
+     * <p>
+     * 存储 OperationPermission.binaryBit 值。
+     * 用于 PostgreSQL 位操作查询：WHERE granted_bits & target_mask != 0
+     * </p>
      */
-    private Long operationPermissionId;
+    private Long grantedBits;
 
     /**
      * 资源类型

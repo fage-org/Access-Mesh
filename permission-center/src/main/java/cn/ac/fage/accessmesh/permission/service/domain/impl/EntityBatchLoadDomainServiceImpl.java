@@ -14,6 +14,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainServ
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -73,6 +75,21 @@ public class EntityBatchLoadDomainServiceImpl implements EntityBatchLoadDomainSe
         }
         return operationPermissionMapper.selectValidByIds(tenantId, ids)
                 .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
+    }
+
+    @Override
+    public Map<Integer, List<OperationPermission>> batchLoadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, List<OperationPermission>> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            if (resourceType == null) {
+                continue;
+            }
+            result.put(resourceType, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType));
+        }
+        return result;
     }
 
     /**

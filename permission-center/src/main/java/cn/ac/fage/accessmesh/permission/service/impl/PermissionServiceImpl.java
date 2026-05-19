@@ -48,6 +48,7 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
+import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
@@ -61,6 +62,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -414,6 +416,8 @@ public class PermissionServiceImpl implements PermissionService {
             .filter(e -> e.resourceType() != null)
             .collect(Collectors.groupingBy(RolePermEntry::resourceType));
         Map<Long, ResourceEntity> resourceMap = result.resourceMap();
+        Map<Long, OperationPermission> operationMap = result.operationMap() != null ? result.operationMap() : Map.of();
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
 
         Map<String, Integer> scopeTypeValueMap = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type", new HashSet<>(req.scopeResourceTypeCodes()));
@@ -427,10 +431,20 @@ public class PermissionServiceImpl implements PermissionService {
                 tenantId, scopeTypeCode, new HashSet<>(req.scopeOperationCodes()));
 
             processScopeOperations(tenantId, ctx, req, scopeTypeCode, scopeOpIdMap,
-                scopeOpId -> typeEntries.stream()
-                    .filter(entry -> entry.operationPermissionId().equals(scopeOpId))
-                    .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
-                    .toList(), resourceMap, merged);
+                scopeOpId -> {
+                    OperationPermission targetOp = operationMap.get(scopeOpId);
+                    return typeEntries.stream()
+                        .filter(entry -> OperationPermissionUtils.covers(
+                            OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                                grantedOpIndex,
+                                entry.resourceType(),
+                                entry.grantedBits()
+                            ),
+                            targetOp
+                        ))
+                        .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
+                        .toList();
+                }, resourceMap, merged);
         }
         return merged;
     }
@@ -854,7 +868,7 @@ public class PermissionServiceImpl implements PermissionService {
         ResourceEntity rootResource = allResourceMap.get(context.rootResourceId);
         TreeNode root = buildNode(context.rootResourceId, 0,
             getOperationsForResource(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
-            hasCanGrant(permsByResource.get(context.rootResourceId), context.operationIds),
+            hasCanGrant(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
             rootResource != null ? rootResource.getName() : null,
             rootResource, resourceTypeCodeMap);
 
@@ -895,24 +909,60 @@ public class PermissionServiceImpl implements PermissionService {
     private Set<String> getOperationsForResource(List<RoleResourcePermission> perms, Set<Long> operationIds,
                                                   Map<Long, OperationPermission> operationMap) {
         if (perms == null || perms.isEmpty()) return Set.of();
-        return perms.stream()
-            .filter(p -> operationIds.contains(p.getOperationPermissionId()))
-            .map(p -> {
-                OperationPermission op = operationMap.get(p.getOperationPermissionId());
-                return op != null ? op.getCode() : null;
-            })
+        Set<OperationPermission> targetOps = operationIds.stream()
+            .map(operationMap::get)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
+        Set<String> operations = new LinkedHashSet<>();
+        for (RoleResourcePermission perm : perms) {
+            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                grantedOpIndex,
+                perm.getResourceType(),
+                perm.getGrantedBits()
+            );
+            if (grantedOp == null) {
+                continue;
+            }
+            for (OperationPermission targetOp : targetOps) {
+                if (OperationPermissionUtils.covers(grantedOp, targetOp)) {
+                    operations.add(targetOp.getCode());
+                }
+            }
+        }
+        return operations;
     }
 
     /**
      * 检查是否有授权传递权限
      */
-    private boolean hasCanGrant(List<RoleResourcePermission> perms, Set<Long> operationIds) {
+    private boolean hasCanGrant(List<RoleResourcePermission> perms, Set<Long> operationIds,
+                                 Map<Long, OperationPermission> operationMap) {
         if (perms == null || perms.isEmpty()) return false;
-        return perms.stream()
-            .filter(p -> operationIds.contains(p.getOperationPermissionId()))
-            .anyMatch(p -> Boolean.TRUE.equals(p.getCanGrant()));
+        Set<OperationPermission> targetOps = operationIds.stream()
+            .map(operationMap::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
+        for (RoleResourcePermission perm : perms) {
+            if (!Boolean.TRUE.equals(perm.getCanGrant())) {
+                continue;
+            }
+            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                grantedOpIndex,
+                perm.getResourceType(),
+                perm.getGrantedBits()
+            );
+            if (grantedOp == null) {
+                continue;
+            }
+            for (OperationPermission targetOp : targetOps) {
+                if (OperationPermissionUtils.covers(grantedOp, targetOp)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -938,7 +988,7 @@ public class PermissionServiceImpl implements PermissionService {
                 if (!ops.isEmpty()) {
                     ResourceEntity parentResource = allResourceMap.get(resource.getParentId());
                     TreeNode node = buildNode(resource.getParentId(), depth, ops,
-                        hasCanGrant(perms, operationIds), null, parentResource, resourceTypeCodeMap);
+                        hasCanGrant(perms, operationIds, operationMap), null, parentResource, resourceTypeCodeMap);
                     ancestors.add(node);
                 }
                 currentId = resource.getParentId();
@@ -986,7 +1036,7 @@ public class PermissionServiceImpl implements PermissionService {
             Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
             if (!ops.isEmpty()) {
                 TreeNode node = buildNode(child.getId(), currentDepth, ops,
-                    hasCanGrant(perms, operationIds), child.getName(), child, resourceTypeCodeMap);
+                    hasCanGrant(perms, operationIds, operationMap), child.getName(), child, resourceTypeCodeMap);
                 result.add(node);
             }
             collectDescendantsWithPermission(tenantId, child.getId(), permsByResource, operationIds, operationMap,

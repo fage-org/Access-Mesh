@@ -44,7 +44,7 @@
         WHERE tenant_id = #{tenantId}
           AND abstract_role_id = #{roleId}
           AND resource_entity_id = #{resourceId}
-          AND operation_permission_id = #{operationId}
+          AND granted_bits = #{operationBits}
           AND delete_flag = 0
     </select>
 
@@ -90,7 +90,7 @@
         WHERE tenant_id = #{tenantId}
           AND abstract_role_id = #{roleId}
           AND resource_entity_id = #{resourceId}
-          AND operation_permission_id = #{operationId}
+          AND granted_bits = #{operationBits}
           AND delete_flag != 0
     </select>
 
@@ -160,10 +160,12 @@
           <foreach collection="resourceTypeValues" item="rtv" open="(" separator="," close=")">
               #{rtv}
           </foreach>
-          AND operation_permission_id IN
+          <if test="opPermIds != null and !opPermIds.isEmpty()">
+          AND granted_bits IN
           <foreach collection="opPermIds" item="opid" open="(" separator="," close=")">
               #{opid}
           </foreach>
+          </if>
     </select>
 
     <select id="selectValidByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
@@ -203,7 +205,7 @@
           </foreach>
           </if>
           <if test="operationPermissionIds != null and !operationPermissionIds.isEmpty()">
-          AND operation_permission_id IN
+          AND granted_bits IN
           <foreach collection="operationPermissionIds" item="opid" open="(" separator="," close=")">
               #{opid}
           </foreach>
@@ -226,10 +228,56 @@
           </foreach>
           </if>
           <if test="operationPermissionIds != null and !operationPermissionIds.isEmpty()">
-          AND operation_permission_id IN
+          AND granted_bits IN
           <foreach collection="operationPermissionIds" item="opid" open="(" separator="," close=")">
               #{opid}
           </foreach>
+          </if>
+    </select>
+
+    <select id="selectScopeAllPermsByBits" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = true
+          AND delete_flag = 0
+          <if test="resourceTypes != null and !resourceTypes.isEmpty()">
+          AND resource_type IN
+          <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+              #{rt}
+          </foreach>
+          </if>
+          <if test="bitMask != null and bitMask != 0">
+          AND (granted_bits & #{bitMask}) != 0
+          </if>
+    </select>
+
+    <select id="selectInstancePermsByBits" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = false
+          AND delete_flag = 0
+          <if test="resourceEntityIds != null and !resourceEntityIds.isEmpty()">
+          AND resource_entity_id IN
+          <foreach collection="resourceEntityIds" item="eid" open="(" separator="," close=")">
+              #{eid}
+          </foreach>
+          </if>
+        <if test="resourceTypes != null and !resourceTypes.isEmpty()">
+        AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+          #{rt}
+        </foreach>
+        </if>
+          <if test="bitMask != null and bitMask != 0">
+          AND (granted_bits & #{bitMask}) != 0
           </if>
     </select>
 

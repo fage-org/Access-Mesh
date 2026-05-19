@@ -34,6 +34,20 @@ public final class PermResultUtils {
      */
     private PermResultUtils() {}
 
+    /**
+     * 按 binaryBit 查找 OperationPermission
+     *
+     * @param opMap    操作权限映射（id → op）
+     * @param binaryBit binaryBit 值
+     * @return 匹配的 OperationPermission，未找到返回 null
+     */
+    private static OperationPermission findOpByBinaryBit(
+            Map<Long, OperationPermission> opMap,
+            Integer resourceType,
+            Long binaryBit) {
+        return OperationPermissionUtils.findByResourceTypeAndBinaryBit(opMap, resourceType, binaryBit);
+    }
+
     // ===== 权限校验 =====
 
     /**
@@ -146,7 +160,7 @@ public final class PermResultUtils {
                 List<RolePermEntry> perms = entry.getValue();
                 if (perms.isEmpty()) continue;
                 boolean allowed = true;
-                OperationPermission op = opMap.get(perms.get(0).operationPermissionId());
+                OperationPermission op = findOpByBinaryBit(opMap, perms.get(0).resourceType(), perms.get(0).grantedBits());
                 String opCode = op != null ? op.getCode() : null;
                 List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
                 List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
@@ -191,7 +205,7 @@ public final class PermResultUtils {
             if (res == null) continue;
             List<RolePermEntry> perms = entry.getValue();
             List<String> ops = perms.stream()
-                .map(e -> opMap != null ? opMap.get(e.operationPermissionId()) : null)
+                .map(e -> findOpByBinaryBit(opMap, e.resourceType(), e.grantedBits()))
                 .filter(Objects::nonNull).map(OperationPermission::getCode).distinct().toList();
             List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
             List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();

@@ -31,7 +31,7 @@ public record RolePermissionViewResp(
      * @param resourceCode     资源编码
      * @param resourceName     资源名称
      * @param resourceTypeCode 资源类型编码
-     * @param operationPermissionId 操作权限ID
+     * @param grantedBits      授予的操作位值
      * @param operationCode    操作编码
      * @param operationName    操作名称
      * @param dependOn         依赖的权限ID，无依赖时为null
@@ -45,7 +45,7 @@ public record RolePermissionViewResp(
         String resourceCode,
         String resourceName,
         String resourceTypeCode,
-        Long operationPermissionId,
+        Long grantedBits,
         String operationCode,
         String operationName,
         Long dependOn,

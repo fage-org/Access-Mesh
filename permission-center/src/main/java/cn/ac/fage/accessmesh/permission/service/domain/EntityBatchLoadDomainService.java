@@ -31,6 +31,19 @@ public interface EntityBatchLoadDomainService {
     Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids);
 
     /**
+     * 按资源类型批量加载操作权限
+     * <p>
+     * 根据资源类型集合批量查询对应的操作权限列表，自动过滤租户和软删除记录。
+     * 用于按 resourceType + binaryBit 反查操作定义的场景。
+     * </p>
+     *
+     * @param tenantId      租户ID，用于租户隔离过滤（不可为null）
+     * @param resourceTypes 资源类型集合
+     * @return resourceType 到操作权限列表的映射，输入为空时返回空Map
+     */
+    Map<Integer, java.util.List<OperationPermission>> batchLoadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes);
+
+    /**
      * 批量加载资源实体
      * <p>
      * 根据ID集合批量查询资源实体，自动过滤租户和软删除记录
