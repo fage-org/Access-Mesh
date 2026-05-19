@@ -189,7 +189,7 @@ public final class PermCacheCatalog {
             .build();
 
     /**
-     * 操作权限按资源类型缓存
+     * 操作权限按资源类型缓存（按ID索引）
      * <p>
      * Key: resourceType（缓存 Key 格式："op_perm:" + resourceType）
      * Value: Map<Long, OperationPermission> (id → op)
@@ -199,6 +199,27 @@ public final class PermCacheCatalog {
     public static final CacheCatalogEntry<Map<Long, cn.ac.fage.accessmesh.permission.entity.OperationPermission>> OPERATION_PERMISSIONS_BY_TYPE =
         CacheCatalogEntry.<Map<Long, cn.ac.fage.accessmesh.permission.entity.OperationPermission>>builder()
             .code("perm:operation-permissions-by-type")
+            .mode(CacheMode.L1_L2)
+            .l1TtlMinutes(60)
+            .l1MaxSize(100)
+            .l2TtlMinutes(120)
+            .valueType(new TypeRef<Map<Long, cn.ac.fage.accessmesh.permission.entity.OperationPermission>>() {})
+            .build();
+
+    /**
+     * 操作权限按binaryBit索引缓存
+     * <p>
+     * Key: resourceType（缓存 Key 格式："op_perm_by_bit:" + resourceType）
+     * Value: Map<Long, OperationPermission> (binaryBit → op)
+     * 缓存时间：60分钟
+     * </p>
+     * <p>
+     * 用于高效的 binaryBit 查找，避免 O(n) 线性搜索。
+     * </p>
+     */
+    public static final CacheCatalogEntry<Map<Long, cn.ac.fage.accessmesh.permission.entity.OperationPermission>> OPERATION_PERMISSIONS_BY_BIT =
+        CacheCatalogEntry.<Map<Long, cn.ac.fage.accessmesh.permission.entity.OperationPermission>>builder()
+            .code("perm:operation-permissions-by-bit")
             .mode(CacheMode.L1_L2)
             .l1TtlMinutes(60)
             .l1MaxSize(100)

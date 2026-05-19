@@ -22,11 +22,18 @@ import java.util.stream.Collectors;
  * 缓存时间：60分钟（操作定义通常不变）。
  * </p>
  * <p>
+ * 双索引缓存设计：
+ * - id → OperationPermission（主索引，用于按ID查找）
+ * - binaryBit → OperationPermission（反向索引，用于按位查找）
+ * </p>
+ * <p>
  * 核心方法：
- * - loadByResourceType: 预加载指定资源类型的所有操作权限
+ * - loadByResourceType: 预加载指定资源类型的所有操作权限（按ID索引）
+ * - loadByBinaryBitIndex: 预加载binaryBit反向索引
  * - computeCoveringBits: 计算覆盖目标操作的所有 binaryBit 值
  * - computeTargetBitMask: 计算目标位掩码（用于数据库位操作查询）
- * - findByBinaryBit: 按 binaryBit 反查 OperationPermission
+ * - findByBinaryBit: 按 binaryBit 反查 OperationPermission（O(1)）
+ * - findByBinaryBits: 批量按 binaryBit 反查（O(m)而非O(m×n)）
  * - codeToBinaryBit: 操作码转 binaryBit
  * </p>
  */
@@ -50,7 +57,7 @@ public class OperationPermissionCacheService {
     }
 
     /**
-     * 按资源类型加载所有操作权限
+     * 按资源类型加载所有操作权限（按ID索引）
      * <p>
      * 使用双层缓存（L1_L2），缓存 Key 格式："op_perm:" + resourceType。
      * 缓存时间：60分钟。
@@ -78,6 +85,38 @@ public class OperationPermissionCacheService {
                 tenantId, cacheKey, opMap);
         }
         return opMap;
+    }
+
+    /**
+     * 按资源类型加载 binaryBit 反向索引
+     * <p>
+     * 缓存 Key 格式："op_perm_by_bit:" + resourceType。
+     * 用于高效的 binaryBit 查找，避免 O(n) 线性搜索。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @return 操作权限映射（binaryBit → OperationPermission）
+     */
+    public Map<Long, OperationPermission> loadByBinaryBitIndex(Long tenantId, Integer resourceType) {
+        String cacheKey = buildCacheKeyByBit(resourceType);
+        Map<Long, OperationPermission> cached = cacheService.get(
+            PermCacheCatalog.OPERATION_PERMISSIONS_BY_BIT, tenantId, cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        // 从数据库加载并构建反向索引
+        List<OperationPermission> ops = operationPermissionMapper.selectByTenantAndResourceType(
+            tenantId, resourceType);
+        Map<Long, OperationPermission> byBitMap = ops.stream()
+            .collect(Collectors.toMap(OperationPermission::getBinaryBit, op -> op, (a, b) -> a));
+
+        if (!byBitMap.isEmpty()) {
+            cacheService.put(PermCacheCatalog.OPERATION_PERMISSIONS_BY_BIT,
+                tenantId, cacheKey, byBitMap);
+        }
+        return byBitMap;
     }
 
     /**
@@ -134,9 +173,9 @@ public class OperationPermissionCacheService {
     }
 
     /**
-     * 按 binaryBit 查找 OperationPermission
+     * 按 binaryBit 查找 OperationPermission（O(1)）
      * <p>
-     * 从缓存中反查，用于填充 RolePermEntry.operationCode/effectiveBits。
+     * 使用反向索引缓存直接查找，避免遍历整个列表。
      * </p>
      *
      * @param tenantId     租户ID
@@ -148,15 +187,16 @@ public class OperationPermissionCacheService {
         if (binaryBit == null) {
             return null;
         }
-        Map<Long, OperationPermission> opMap = loadByResourceType(tenantId, resourceType);
-        return opMap.values().stream()
-            .filter(op -> Objects.equals(op.getBinaryBit(), binaryBit))
-            .findFirst()
-            .orElse(null);
+        // 使用反向索引，O(1) 查找
+        Map<Long, OperationPermission> byBitMap = loadByBinaryBitIndex(tenantId, resourceType);
+        return byBitMap.get(binaryBit);
     }
 
     /**
-     * 批量按 binaryBit 查找 OperationPermission
+     * 批量按 binaryBit 查找 OperationPermission（O(m)）
+     * <p>
+     * 使用反向索引缓存批量查找，复杂度从 O(m×n) 优化为 O(m)。
+     * </p>
      *
      * @param tenantId     租户ID
      * @param resourceType 资源类型值
@@ -167,13 +207,11 @@ public class OperationPermissionCacheService {
         if (binaryBits == null || binaryBits.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<Long, OperationPermission> opMap = loadByResourceType(tenantId, resourceType);
+        // 使用反向索引，O(m) 查找
+        Map<Long, OperationPermission> byBitMap = loadByBinaryBitIndex(tenantId, resourceType);
         Map<Long, OperationPermission> result = new HashMap<>();
         for (Long bit : binaryBits) {
-            OperationPermission op = opMap.values().stream()
-                .filter(o -> Objects.equals(o.getBinaryBit(), bit))
-                .findFirst()
-                .orElse(null);
+            OperationPermission op = byBitMap.get(bit);  // O(1) 查找
             if (op != null) {
                 result.put(bit, op);
             }
@@ -227,21 +265,25 @@ public class OperationPermissionCacheService {
     }
 
     /**
-     * 失效指定资源类型的缓存
+     * 失效指定资源类型的缓存（双索引）
      * <p>
-     * 当 OperationPermission 表有变更时调用。
+     * 当 OperationPermission 表有变更时调用，同时失效 ID索引 和 binaryBit索引。
      * </p>
      *
      * @param tenantId     租户ID
      * @param resourceType 资源类型值
      */
     public void evict(Long tenantId, Integer resourceType) {
+        // 失效 ID 索引缓存
         String cacheKey = buildCacheKey(resourceType);
         cacheService.evict(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey);
+        // 失效 binaryBit 索引缓存
+        String cacheKeyByBit = buildCacheKeyByBit(resourceType);
+        cacheService.evict(PermCacheCatalog.OPERATION_PERMISSIONS_BY_BIT, tenantId, cacheKeyByBit);
     }
 
     /**
-     * 失效所有资源类型的缓存
+     * 失效所有资源类型的缓存（双索引）
      * <p>
      * 当 OperationPermission 表有批量变更时调用。
      * </p>
@@ -250,15 +292,26 @@ public class OperationPermissionCacheService {
      */
     public void evictAll(Long tenantId) {
         cacheService.evictAll(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId);
+        cacheService.evictAll(PermCacheCatalog.OPERATION_PERMISSIONS_BY_BIT, tenantId);
     }
 
     /**
-     * 构建缓存 Key
+     * 构建 ID 索引缓存 Key
      *
      * @param resourceType 资源类型值
      * @return 缓存 Key
      */
     private String buildCacheKey(Integer resourceType) {
         return "op_perm:" + resourceType;
+    }
+
+    /**
+     * 构建 binaryBit 索引缓存 Key
+     *
+     * @param resourceType 资源类型值
+     * @return 缓存 Key
+     */
+    private String buildCacheKeyByBit(Integer resourceType) {
+        return "op_perm_by_bit:" + resourceType;
     }
 }
