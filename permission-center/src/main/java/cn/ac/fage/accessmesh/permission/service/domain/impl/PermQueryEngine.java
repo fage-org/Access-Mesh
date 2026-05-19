@@ -6,13 +6,16 @@ import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.ResolveContext;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -41,7 +44,7 @@ import java.util.stream.Stream;
  *   <li>批量ID解析：避免N次单查询</li>
  *   <li>scopeAll优先匹配：匹配后跳过实例级查询</li>
  *   <li>内存筛选：matchesBit过滤、条件评估、冲突过滤</li>
- *   <li>双索引缓存：OperationPermissionCacheService提供ID索引和binaryBit反向索引</li>
+ *   <li>操作权限缓存：通过CacheService缓存ID索引，优化位掩码计算效率</li>
  * </ul>
  */
 @Component
@@ -56,7 +59,8 @@ public class PermQueryEngine {
     private final PermissionConflictDomainService conflictDomainService;
     private final RolePermEntryMapper entryMapper;
     private final TypeResolutionService typeResolutionService;
-    private final OperationPermissionCacheService operationPermissionCacheService;
+    private final CacheService cacheService;
+    private final OperationPermissionMapper operationPermissionMapper;
 
     /**
      * 构造函数注入依赖服务
@@ -68,7 +72,8 @@ public class PermQueryEngine {
      * @param conflictDomainService     权限冲突处理服务
      * @param entryMapper               权限条目映射器
      * @param typeResolutionService     类型解析服务
-     * @param operationPermissionCacheService 操作权限缓存服务（双索引：ID和binaryBit）
+     * @param cacheService              统一缓存服务
+     * @param operationPermissionMapper 操作权限数据访问层
      */
     public PermQueryEngine(UserRoleDomainService userRoleDomainService,
                            RoleResourcePermissionMapper rolePermMapper,
@@ -77,7 +82,8 @@ public class PermQueryEngine {
                            PermissionConflictDomainService conflictDomainService,
                            RolePermEntryMapper entryMapper,
                            TypeResolutionService typeResolutionService,
-                           OperationPermissionCacheService operationPermissionCacheService) {
+                           CacheService cacheService,
+                           OperationPermissionMapper operationPermissionMapper) {
         this.userRoleDomainService = userRoleDomainService;
         this.rolePermMapper = rolePermMapper;
         this.entityBatchLoadService = entityBatchLoadService;
@@ -85,7 +91,8 @@ public class PermQueryEngine {
         this.conflictDomainService = conflictDomainService;
         this.entryMapper = entryMapper;
         this.typeResolutionService = typeResolutionService;
-        this.operationPermissionCacheService = operationPermissionCacheService;
+        this.cacheService = cacheService;
+        this.operationPermissionMapper = operationPermissionMapper;
     }
 
     /**
@@ -643,7 +650,7 @@ public class PermQueryEngine {
      * 解析位掩码映射
      * <p>
      * 为每个资源类型计算位掩码，用于SQL位操作查询。
-     * 使用 OperationPermissionCacheService 的双索引缓存优化查找效率。
+     * 使用 CacheService 缓存操作权限（按ID索引），优化查找效率。
      * </p>
      *
      * @param tenantId      租户ID
@@ -663,9 +670,18 @@ public class PermQueryEngine {
 
         Map<Integer, Long> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
-            // 使用 OperationPermissionCacheService 获取该资源类型的所有操作权限
-            // 该方法会缓存到双索引（ID索引和binaryBit反向索引）
-            Map<Long, OperationPermission> opMap = operationPermissionCacheService.loadByResourceType(tenantId, resourceType);
+            // 内联缓存逻辑：查询并缓存该资源类型的所有操作权限（按ID索引）
+            String cacheKey = "op_perm:" + resourceType;
+            Map<Long, OperationPermission> opMap = cacheService.get(
+                PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey);
+            if (opMap == null) {
+                List<OperationPermission> ops = operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType);
+                opMap = ops.stream()
+                    .collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
+                if (!opMap.isEmpty()) {
+                    cacheService.put(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey, opMap);
+                }
+            }
             if (opMap.isEmpty()) {
                 continue;
             }

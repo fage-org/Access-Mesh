@@ -5,12 +5,17 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
 import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +50,10 @@ class PermQueryEngineTest {
     private PermissionConflictDomainService conflictDomainService;
     @Mock
     private TypeResolutionService typeResolutionService;
+    @Mock
+    private CacheService cacheService;
+    @Mock
+    private OperationPermissionMapper operationPermissionMapper;
 
     private PermQueryEngine engine;
 
@@ -57,7 +66,9 @@ class PermQueryEngineTest {
             conditionDomainService,
             conflictDomainService,
             new RolePermEntryMapper(),
-            typeResolutionService
+            typeResolutionService,
+            cacheService,
+            operationPermissionMapper
         );
     }
 
@@ -76,6 +87,10 @@ class PermQueryEngineTest {
         when(entityBatchLoadService.batchLoadOperationsByResourceTypes(1L, Set.of(1)))
             .thenReturn(Map.of(1, List.of(viewOp, manageOp)));
 
+        // Mock cacheService.get() to return operation permissions map for ID index
+        Map<Long, OperationPermission> opMap = Map.of(101L, viewOp, 102L, manageOp);
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:1"))).thenReturn(opMap);
+
         RoleResourcePermission grantedPerm = new RoleResourcePermission();
         grantedPerm.setId(501L);
         grantedPerm.setAbstractRoleId(20L);
@@ -84,8 +99,10 @@ class PermQueryEngineTest {
         grantedPerm.setGrantedBits(8L);
         grantedPerm.setDeleteFlag(0L);
 
-        when(rolePermMapper.selectScopeAllPermsByBits(1L, Set.of(20L), Set.of(1), 9L)).thenReturn(List.of());
-        when(rolePermMapper.selectInstancePermsByBits(1L, Set.of(20L), Set.of(200L), Set.of(1), 9L))
+        // 使用正确的批量方法名和参数
+        List<BitMaskEntry> bitMaskEntries = List.of(new BitMaskEntry(1, 9L));
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(1L, Set.of(20L), bitMaskEntries)).thenReturn(List.of());
+        when(rolePermMapper.selectInstancePermsByBitsBatch(1L, Set.of(20L), Set.of(200L), bitMaskEntries))
             .thenReturn(List.of(grantedPerm));
         when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
         when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
@@ -105,7 +122,7 @@ class PermQueryEngineTest {
 
         assertEquals(1, result.instanceEntries().size());
         assertTrue(result.operationMap().values().stream().anyMatch(op -> "MANAGE".equals(op.getCode())));
-        verify(rolePermMapper).selectInstancePermsByBits(1L, Set.of(20L), Set.of(200L), Set.of(1), 9L);
+        verify(rolePermMapper).selectInstancePermsByBitsBatch(1L, Set.of(20L), Set.of(200L), bitMaskEntries);
         verify(rolePermMapper, never()).selectInstancePerms(1L, Set.of(20L), Set.of(200L), Set.of(101L));
     }
 

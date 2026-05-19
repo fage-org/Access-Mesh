@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * <p>
  * grantedBits 存储 OperationPermission.binaryBit 值。
  * 用于 PostgreSQL 位操作查询：WHERE granted_bits & target_mask != 0
- * inheritMask 继承语义由 OperationPermissionCacheService 动态计算。
+ * inheritMask 继承语义由 OperationPermissionUtils.effectiveBits 动态计算。
  * </p>
  *
  * @author AccessMesh Team
