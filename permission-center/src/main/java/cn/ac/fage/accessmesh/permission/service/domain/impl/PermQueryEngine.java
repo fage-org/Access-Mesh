@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
@@ -539,43 +540,46 @@ public class PermQueryEngine {
 
     /**
      * 查询类型级权限（scopeAll=true）
+     * <p>
+     * 使用单次SQL批量查询多个资源类型的位掩码条件，避免多次SQL调用。
+     * </p>
      */
     private List<RolePermEntry> queryScopeAll(Long tenantId, Set<Long> roleIds,
                                                Map<Integer, Long> bitMasks) {
         if (bitMasks == null || bitMasks.isEmpty()) {
             return List.of();
         }
-        List<RolePermEntry> result = new ArrayList<>();
-        for (Map.Entry<Integer, Long> entry : bitMasks.entrySet()) {
-            result.addAll(rolePermMapper.selectScopeAllPermsByBits(
-                tenantId,
-                roleIds,
-                Set.of(entry.getKey()),
-                entry.getValue()
-            ).stream().map(entryMapper::toEntry).toList());
-        }
-        return result;
+        // 构建 BitMaskEntry 列表
+        List<BitMaskEntry> entries = bitMasks.entrySet().stream()
+            .map(e -> new BitMaskEntry(e.getKey(), e.getValue()))
+            .toList();
+        // 单次SQL查询
+        return rolePermMapper.selectScopeAllPermsByBitsBatch(tenantId, roleIds, entries)
+            .stream()
+            .map(entryMapper::toEntry)
+            .toList();
     }
 
     /**
      * 查询实例级权限
+     * <p>
+     * 使用单次SQL批量查询多个资源类型的位掩码条件，避免多次SQL调用。
+     * </p>
      */
     private List<RolePermEntry> queryInstance(Long tenantId, Set<Long> roleIds,
                                                Set<Long> entityIds, Map<Integer, Long> bitMasks) {
         if (bitMasks == null || bitMasks.isEmpty()) {
             return List.of();
         }
-        List<RolePermEntry> result = new ArrayList<>();
-        for (Map.Entry<Integer, Long> entry : bitMasks.entrySet()) {
-            result.addAll(rolePermMapper.selectInstancePermsByBits(
-                tenantId,
-                roleIds,
-                entityIds,
-                Set.of(entry.getKey()),
-                entry.getValue()
-            ).stream().map(entryMapper::toEntry).toList());
-        }
-        return result;
+        // 构建 BitMaskEntry 列表
+        List<BitMaskEntry> entries = bitMasks.entrySet().stream()
+            .map(e -> new BitMaskEntry(e.getKey(), e.getValue()))
+            .toList();
+        // 单次SQL查询
+        return rolePermMapper.selectInstancePermsByBitsBatch(tenantId, roleIds, entityIds, entries)
+            .stream()
+            .map(entryMapper::toEntry)
+            .toList();
     }
 
     /**

@@ -281,4 +281,46 @@
           </if>
     </select>
 
+    <select id="selectScopeAllPermsByBitsBatch" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = true
+          AND delete_flag = 0
+          <if test="bitMasks != null and !bitMasks.isEmpty()">
+          AND (
+            <foreach collection="bitMasks" item="entry" separator=" OR">
+              (resource_type = #{entry.resourceType} AND (granted_bits & #{entry.bitMask}) != 0)
+            </foreach>
+          )
+          </if>
+    </select>
+
+    <select id="selectInstancePermsByBitsBatch" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND abstract_role_id IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+          AND scope_all = false
+          AND delete_flag = 0
+          <if test="resourceEntityIds != null and !resourceEntityIds.isEmpty()">
+          AND resource_entity_id IN
+          <foreach collection="resourceEntityIds" item="eid" open="(" separator="," close=")">
+              #{eid}
+          </foreach>
+          </if>
+          <if test="bitMasks != null and !bitMasks.isEmpty()">
+          AND (
+            <foreach collection="bitMasks" item="entry" separator=" OR">
+              (resource_type = #{entry.resourceType} AND (granted_bits & #{entry.bitMask}) != 0)
+            </foreach>
+          )
+          </if>
+    </select>
+
 </mapper>

@@ -288,6 +288,23 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
         @Param("bitMask") Long bitMask);
 
     /**
+     * 批量按位掩码查询类型级权限（单次SQL，多资源类型）
+     * <p>
+     * 使用 OR 条件合并多个 resourceType 的 bitMask，避免多次SQL调用。
+     * SQL: AND ((resource_type = #{entry.resourceType} AND (granted_bits & #{entry.bitMask}) != 0) OR ...)
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param roleIds   角色ID集合
+     * @param bitMasks  位掩码条目列表（resourceType + bitMask）
+     * @return 权限记录列表
+     */
+    List<RoleResourcePermission> selectScopeAllPermsByBitsBatch(
+        @Param("tenantId") Long tenantId,
+        @Param("roleIds") Set<Long> roleIds,
+        @Param("bitMasks") List<BitMaskEntry> bitMasks);
+
+    /**
      * 按位掩码查询实例级权限
      * <p>
      * PostgreSQL 位操作：WHERE granted_bits & bit_mask != 0
@@ -306,4 +323,28 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
         @Param("resourceEntityIds") Set<Long> resourceEntityIds,
         @Param("resourceTypes") Set<Integer> resourceTypes,
         @Param("bitMask") Long bitMask);
+
+    /**
+     * 批量按位掩码查询实例级权限（单次SQL，多资源类型）
+     * <p>
+     * 使用 OR 条件合并多个 resourceType 的 bitMask，避免多次SQL调用。
+     * SQL: AND ((resource_type = #{entry.resourceType} AND (granted_bits & #{entry.bitMask}) != 0) OR ...)
+     * </p>
+     *
+     * @param tenantId          租户ID
+     * @param roleIds           角色ID集合
+     * @param resourceEntityIds 资源实体ID集合
+     * @param bitMasks          位掩码条目列表（resourceType + bitMask）
+     * @return 权限记录列表
+     */
+    List<RoleResourcePermission> selectInstancePermsByBitsBatch(
+        @Param("tenantId") Long tenantId,
+        @Param("roleIds") Set<Long> roleIds,
+        @Param("resourceEntityIds") Set<Long> resourceEntityIds,
+        @Param("bitMasks") List<BitMaskEntry> bitMasks);
+
+    /**
+     * 位掩码条目（用于批量位操作查询）
+     */
+    record BitMaskEntry(Integer resourceType, Long bitMask) {}
 }
