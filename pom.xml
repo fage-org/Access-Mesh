@@ -14,7 +14,6 @@
     <modules>
         <module>common</module>
         <module>perm-entity</module>
-        <module>perm-query</module>
         <module>gateway</module>
         <module>permission-center</module>
         <module>admin-service</module>
