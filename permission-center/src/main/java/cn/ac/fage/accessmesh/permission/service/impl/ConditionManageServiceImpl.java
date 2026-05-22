@@ -81,7 +81,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
+            throw new SecurityException("Permission denied: CREATE on CONDITION");
+        }
 
         PermissionCondition condition = new PermissionCondition();
         condition.setTenantId(tenantId);
@@ -135,7 +137,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.conditionId());
+        }
 
         PermissionCondition condition = conditionMapper.selectOneById(req.conditionId());
         if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
@@ -195,7 +199,9 @@ public class ConditionManageServiceImpl implements ConditionManageService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE)) {
+            throw new SecurityException("Permission denied: DELETE on CONDITION:" + conditionId);
+        }
 
         PermissionCondition condition = conditionMapper.selectOneById(conditionId);
         if (condition != null && condition.getDeleteFlag() == 0L && condition.getTenantId().equals(tenantId)) {

@@ -38,7 +38,9 @@ private Map<Long, OperationPermission> loadOperations(Set<Long> ids) { ... }
 
 ```java
 // ✅ 正确 — 使用 PermQueryEngine 的业务层 API
-engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+}
 engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
 boolean allowed = engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.MANAGE);
 Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
@@ -241,7 +243,9 @@ QueryWrapper qw = QueryWrapper.create()
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 
-engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied");
+}
 engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.CREATE);
 
 // ❌ 禁止 — 使用已删除的 OperationType 枚举
@@ -256,10 +260,12 @@ OperationType.MANAGE  // 类已删除
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 
-engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied");
+}
 
 // ❌ 禁止 — 使用字符串硬编码
-engine.validate(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写错误风险
+if (!engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE")) { ... }  // 拼写错误风险
 ```
 
 ## 14. 已删除的类（禁止引用）

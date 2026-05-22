@@ -186,7 +186,9 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         if (!operatorId.equals(req.userId())) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
+                throw new SecurityException("Permission denied: MANAGE on USER");
+            }
         }
 
         if (req.name() != null) {
@@ -220,7 +222,9 @@ public class UserManageServiceImpl implements UserManageService {
         }
 
         if (!operatorId.equals(userId)) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
+                throw new SecurityException("Permission denied: MANAGE on USER");
+            }
         }
 
         user.setDeleteFlag(user.getId());

@@ -9,8 +9,12 @@ import java.util.Set;
  * 提供专门的授权检查功能，主要用于委托授权验证。
  * 一般权限检查应直接使用PermQueryEngine：
  * <pre>
- * engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
- * engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE);
+ * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+ *     throw new SecurityException("Permission denied");
+ * }
+ * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
+ *     throw new SecurityException("Permission denied");
+ * }
  * </pre>
  * 本服务仅提供canGrant权限检查，用于权限授予流程中的委托验证。
  * </p>

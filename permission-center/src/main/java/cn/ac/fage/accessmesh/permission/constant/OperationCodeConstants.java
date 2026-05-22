@@ -10,7 +10,9 @@ package cn.ac.fage.accessmesh.permission.constant;
  *
  * <p>使用示例：
  * <pre>
- * engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+ * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+ *     throw new SecurityException("Permission denied");
+ * }
  * engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
  * </pre>
  * </p>

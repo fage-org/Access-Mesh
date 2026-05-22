@@ -127,7 +127,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验：创建类型定义需要TYPE_DEFINITION_CREATE权限
-        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
+            throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
+        }
 
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
@@ -162,7 +164,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
         // 权限校验：查看类型定义需要TYPE_DEFINITION_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
+        }
 
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
         return type != null ? toTypeResp(type) : null;
@@ -183,7 +187,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
         // 权限校验：查看类型定义需要TYPE_DEFINITION_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
+        }
 
         return typeDefinitionMapper.selectByTenantId(tenantId)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
@@ -208,7 +214,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
-        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + typeId);
+        }
 
         // 检查是否为系统类型，系统类型不可删除
         TypeDefinition typeDef = typeDefinitionMapper.selectValidById(tenantId, typeId);
@@ -312,7 +320,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
-        engine.validate(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
+        }
 
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
@@ -379,7 +389,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
         // 权限校验：查看业务域需要DOMAIN_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on DOMAIN:" + domainId);
+        }
 
         BizDomain domain = bizDomainMapper.selectValidById(domainId, tenantId);
         return domain != null ? toBizDomainResp(domain) : null;
@@ -399,7 +411,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<BizDomainResp> listBizDomains(Long tenantId) {
         // 权限校验：查看业务域需要DOMAIN_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on DOMAIN");
+        }
 
         return bizDomainMapper.selectByTenantId(tenantId).stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
@@ -596,7 +610,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
         if (bizDomainId == null) {
@@ -621,7 +637,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         if (domainCode != null && !domainCode.isBlank()) {
             Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
@@ -797,7 +815,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
         // 权限校验：查看服务需要SERVICE_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
+        }
 
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
         return config != null ? toServiceConfigResp(config) : null;
@@ -817,7 +837,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         // 权限校验：查看服务需要SERVICE_VIEW权限（类型级别）
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SERVICE");
+        }
 
         return serviceConfigMapper.selectByTenantId(tenantId).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
     }
@@ -906,7 +928,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验：检查SERVICE资源的SYNC_INTERFACE权限
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
+            throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
+        }
 
         return serviceInterfaceSyncService.syncInterfaces(tenantId, req, operatorId);
     }
@@ -1001,7 +1025,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         SystemConfig config = systemConfigMapper.selectByConfigKey(tenantId, configKey);
         return config != null ? toSystemConfigResp(config) : null;
@@ -1021,7 +1047,9 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return systemConfigMapper.selectByTenantId(tenantId).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
     }

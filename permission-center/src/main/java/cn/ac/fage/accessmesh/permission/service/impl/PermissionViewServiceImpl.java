@@ -132,7 +132,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public UserPermissionViewResp getUserPermissions(Long tenantId, Long userId) {
         // 权限校验：查看用户需要USER_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+        }
 
         PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, new UserPermissionViewReq(
             PermConstants.TargetType.USER, null, null, null, null, null, null, null, null, null,
@@ -165,7 +167,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
         // 权限校验：查看权限配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
@@ -758,10 +762,14 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Long operatorId = OperatorContext.getOperatorId();
         Long resourceEntityId = typeResolutionService.resolveResourceId(tenantId, resourceTypeCode, resourceCode, codeType, domainCode);
         if (resourceEntityId != null) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on RESOURCE:" + resourceEntityId);
+            }
         } else {
             // 资源不存在时使用类型级别权限校验
-            engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on RESOURCE");
+            }
         }
 
         if (resourceEntityId == null) {
@@ -838,10 +846,14 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);
         if (roleId != null) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
+            }
         } else {
             // 角色不存在时使用类型级别权限校验
-            engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE");
+            }
         }
 
         if (roleId == null) {
@@ -913,10 +925,14 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);
         if (roleId != null) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
+            }
         } else {
             // 角色不存在时使用类型级别权限校验
-            engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE");
+            }
         }
 
         if (roleId == null) {
@@ -978,7 +994,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
         // 权限校验：解释权限配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         AuthCheckResp checkResp;
         if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
@@ -1069,7 +1087,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public PermissionRecentChangesResp recentChanges(Long tenantId, PermissionRecentChangesReq req) {
         // 权限校验：查看变更日志需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         Long userId = null;
         Long roleId = null;
@@ -1115,10 +1135,14 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         Long operatorId = OperatorContext.getOperatorId();
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId != null) {
-            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+            }
         } else {
             // 用户不存在时使用类型级别权限校验
-            engine.validate(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.VIEW);
+            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on USER");
+            }
         }
 
         if (userId == null) {
@@ -1315,7 +1339,9 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     public List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req) {
         // 权限校验：查看用户需要USER_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+        }
 
         UserPermissionViewReq treeReq = new UserPermissionViewReq(
             PermConstants.TargetType.USER, req.subjectTypeCode(), req.subjectExternalId(), req.domainCode(),

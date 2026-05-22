@@ -274,7 +274,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             throw new IllegalArgumentException("资源不存在: " + req.id());
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + req.id());
+        }
 
         if (req.code() != null) entity.setCode(req.code());
         if (req.name() != null) entity.setName(req.name());
@@ -298,7 +300,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             throw new IllegalArgumentException("资源不存在: " + resourceId);
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + resourceId);
+        }
 
         if (parentId != null) {
             ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
@@ -322,7 +326,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             throw new IllegalArgumentException("资源不存在: " + resourceId);
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + resourceId);
+        }
 
         resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
     }
@@ -461,7 +467,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     @Transactional(rollbackFor = Exception.class)
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.MANAGE_API_MAPPING);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.MANAGE_API_MAPPING)) {
+            throw new SecurityException("Permission denied: MANAGE_API_MAPPING on SERVICE:" + req.serviceCode());
+        }
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.resourceId());
         if (entity == null) {
@@ -548,7 +556,9 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             throw new IllegalArgumentException("API映射不存在: " + req.mappingId());
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCodeConstants.MANAGE_API_MAPPING);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCodeConstants.MANAGE_API_MAPPING)) {
+            throw new SecurityException("Permission denied: MANAGE_API_MAPPING on SERVICE:" + mapping.getServiceCode());
+        }
 
         if (req.httpMethod() != null) {
             mapping.setHttpMethod(req.httpMethod());

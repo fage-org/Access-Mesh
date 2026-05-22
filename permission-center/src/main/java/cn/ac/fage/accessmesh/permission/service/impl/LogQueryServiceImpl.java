@@ -68,7 +68,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.selectByTenantEntityTypeEntityId(tenantId, entityType, entityId, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
@@ -91,7 +93,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.countByTenantEntityTypeEntityId(tenantId, entityType, entityId);
     }
@@ -114,7 +118,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public List<ChangeLogResp> listChangeLogsForUser(Long tenantId, Long userId, int offset, int limit) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.selectByAffectedUser(tenantId, userId, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
@@ -136,7 +142,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public long countChangeLogsForUser(Long tenantId, Long userId) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.countByAffectedUser(tenantId, userId);
     }
@@ -165,7 +173,9 @@ public class LogQueryServiceImpl implements LogQueryService {
                                                        List<String> eventTypes, int offset, int limit) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.selectFiltered(tenantId, userId, roleId, since, until, eventTypes, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
@@ -193,7 +203,9 @@ public class LogQueryServiceImpl implements LogQueryService {
                                          List<String> eventTypes) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
     }
@@ -221,7 +233,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return operationLogMapper.selectByTenantModuleAction(tenantId, module, action, offset, limit)
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
@@ -244,7 +258,9 @@ public class LogQueryServiceImpl implements LogQueryService {
     public long countOperationLogs(Long tenantId, String module, String action) {
         // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
 
         return operationLogMapper.countByTenantModuleAction(tenantId, module, action);
     }

@@ -74,7 +74,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
+            throw new SecurityException("Permission denied: CREATE on CONFLICT_RULE");
+        }
 
         PermissionConflictRule rule = new PermissionConflictRule();
         rule.setTenantId(tenantId);
@@ -142,7 +144,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     @Transactional(rollbackFor = Exception.class)
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
+        }
 
         PermissionConflictRule rule = conflictRuleMapper.selectOneById(req.id());
         if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
@@ -201,7 +205,9 @@ public class ConflictRuleManageServiceImpl implements ConflictRuleManageService 
     @Transactional(rollbackFor = Exception.class)
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE)) {
+            throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + ruleId);
+        }
 
         PermissionConflictRule rule = conflictRuleMapper.selectOneById(ruleId);
         if (rule != null && rule.getDeleteFlag() == 0L && rule.getTenantId().equals(tenantId)) {

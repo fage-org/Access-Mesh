@@ -100,7 +100,9 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
             throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.ASSIGN);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.ASSIGN)) {
+            throw new SecurityException("Permission denied: ASSIGN on ROLE:" + groupId);
+        }
 
         AbstractRole groupRole = abstractRoleMapper.selectValidById(groupId, tenantId);
         Integer groupRoleTypeValue = typeResolutionService.resolveTypeValue(tenantId, "role_type", PermConstants.TargetType.GROUP_ROLE);
@@ -166,7 +168,9 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
             throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.REVOKE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.REVOKE)) {
+            throw new SecurityException("Permission denied: REVOKE on ROLE:" + groupId);
+        }
 
         UserRole ur = userRoleMapper.selectValidByTargetAndRelation(tenantId, PermConstants.TargetType.GROUP_ROLE, groupId, basicRoleId);
         if (ur != null) {

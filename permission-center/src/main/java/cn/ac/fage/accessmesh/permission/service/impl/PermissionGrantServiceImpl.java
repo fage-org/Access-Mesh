@@ -166,7 +166,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 操作者授权校验 - 对角色拥有MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
 
         boolean hasChanges = (req.add() != null && !req.add().isEmpty())
             || (req.update() != null && !req.update().isEmpty())
@@ -506,7 +508,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
 
         List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
 
@@ -619,7 +623,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + parent.getAbstractRoleId());
+        }
 
         if (parent.getDependOn() != null) {
             throw new IllegalArgumentException("parentPermissionId must be a top-level permission");
@@ -784,7 +790,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + child.getAbstractRoleId());
+        }
 
         if (child.getDependOn() == null) {
             throw new IllegalArgumentException("permission is not a child");

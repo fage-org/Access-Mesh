@@ -175,25 +175,7 @@ public class PermQueryEngine {
         return builder.build();
     }
 
-    // ===== 校验器兼容API（替代ResourcePermissionValidator） =====
-
-    /**
-     * 校验单个权限（无权限时抛异常）
-     *
-     * @param tenantId         租户ID
-     * @param operatorId       操作者ID
-     * @param resourceTypeCode 资源类型码
-     * @param resourceId       资源ID（可为null表示类型级）
-     * @param operationCode    操作码
-     * @throws SecurityException 无权限时抛出异常
-     */
-    public void validate(Long tenantId, Long operatorId, String resourceTypeCode,
-                          Object resourceId, String operationCode) {
-        PermQuery q = PermQuery.forValidate(tenantId, operatorId,
-            resourceTypeCode, resourceId != null ? String.valueOf(resourceId) : null, operationCode);
-        PermResultUtils.validateOrThrow(query(q));
-    }
-
+    
     /**
      * 检查是否有权限
      *

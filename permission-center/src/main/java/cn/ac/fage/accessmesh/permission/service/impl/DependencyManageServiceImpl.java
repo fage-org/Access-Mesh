@@ -99,7 +99,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.CREATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.CREATE)) {
+            throw new SecurityException("Permission denied: CREATE on DEPENDENCY");
+        }
 
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
@@ -201,7 +203,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     @Transactional(rollbackFor = Exception.class)
     public ResourceDependencyResp updateDependency(Long tenantId, ResourceDependencyUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, req.id(), OperationCodeConstants.UPDATE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, req.id(), OperationCodeConstants.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on DEPENDENCY:" + req.id());
+        }
 
         ResourceDependency dep = dependencyMapper.selectOneById(req.id());
         if (dep == null || dep.getDeleteFlag() != 0L || !tenantId.equals(dep.getTenantId())) {
@@ -302,7 +306,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteDependency(Long tenantId, Long dependencyId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, dependencyId, OperationCodeConstants.DELETE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, dependencyId, OperationCodeConstants.DELETE)) {
+            throw new SecurityException("Permission denied: DELETE on DEPENDENCY:" + dependencyId);
+        }
 
         ResourceDependency dep = dependencyMapper.selectOneById(dependencyId);
         if (dep != null && dep.getDeleteFlag() == 0L && dep.getTenantId().equals(tenantId)) {
@@ -371,7 +377,9 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     @Transactional(rollbackFor = Exception.class)
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        engine.validate(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.SYNC);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.SYNC)) {
+            throw new SecurityException("Permission denied: SYNC on DEPENDENCY");
+        }
 
         boolean isFullSync = "FULL".equalsIgnoreCase(req.syncMode());
         List<DependencyBatchSyncReq.DependencySyncItem> items = req.items() == null ? List.of() : req.items();

@@ -130,7 +130,9 @@ public class RoleManageServiceImpl implements RoleManageService {
             throw new IllegalArgumentException("角色不存在: " + roleId);
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
 
         if (name != null) role.setName(name);
         if (status != null) role.setStatus(status);
@@ -153,7 +155,9 @@ public class RoleManageServiceImpl implements RoleManageService {
             throw new IllegalArgumentException("角色不存在: " + roleId);
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
 
         if (parentId != null) {
             AbstractRole parent = abstractRoleDomainService.selectValidById(tenantId, parentId);
@@ -177,7 +181,9 @@ public class RoleManageServiceImpl implements RoleManageService {
             throw new IllegalArgumentException("角色不存在: " + roleId);
         }
 
-        engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
 
         abstractRoleDomainService.deleteRole(tenantId, roleId);
 
