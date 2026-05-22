@@ -22,7 +22,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -83,8 +82,6 @@ class PermissionGrantServiceImplTest {
     @Mock private AbstractRoleDomainService abstractRoleDomainService;
     /** 域分类领域服务Mock */
     @Mock private DomainClassifyService domainClassifyService;
-    /** 实体批量加载领域服务Mock */
-    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
     /** 权限查询引擎Mock */
     @Mock private PermQueryEngine engine;
 
@@ -105,7 +102,7 @@ class PermissionGrantServiceImplTest {
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
             operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
             authorizationService, operationPermissionDomainService, abstractRoleDomainService, domainClassifyService,
-            entityBatchLoadDomainService, engine
+            engine
         );
     }
 

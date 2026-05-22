@@ -4,9 +4,13 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
+import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
@@ -54,7 +58,8 @@ public class PermQueryEngine {
 
     private final UserRoleDomainService userRoleDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final EntityBatchLoadDomainService entityBatchLoadService;
+    private final ResourceEntityMapper resourceEntityMapper;
+    private final AbstractRoleMapper abstractRoleMapper;
     private final PermissionConditionDomainService conditionDomainService;
     private final PermissionConflictDomainService conflictDomainService;
     private final RolePermEntryMapper entryMapper;
@@ -67,7 +72,8 @@ public class PermQueryEngine {
      *
      * @param userRoleDomainService     用户角色解析服务
      * @param rolePermMapper            角色权限映射器
-     * @param entityBatchLoadService    实体批量加载服务
+     * @param resourceEntityMapper      资源实体数据访问层
+     * @param abstractRoleMapper        抽象角色数据访问层
      * @param conditionDomainService    权限条件评估服务
      * @param conflictDomainService     权限冲突处理服务
      * @param entryMapper               权限条目映射器
@@ -77,7 +83,8 @@ public class PermQueryEngine {
      */
     public PermQueryEngine(UserRoleDomainService userRoleDomainService,
                            RoleResourcePermissionMapper rolePermMapper,
-                           EntityBatchLoadDomainService entityBatchLoadService,
+                           ResourceEntityMapper resourceEntityMapper,
+                           AbstractRoleMapper abstractRoleMapper,
                            PermissionConditionDomainService conditionDomainService,
                            PermissionConflictDomainService conflictDomainService,
                            RolePermEntryMapper entryMapper,
@@ -86,7 +93,8 @@ public class PermQueryEngine {
                            OperationPermissionMapper operationPermissionMapper) {
         this.userRoleDomainService = userRoleDomainService;
         this.rolePermMapper = rolePermMapper;
-        this.entityBatchLoadService = entityBatchLoadService;
+        this.resourceEntityMapper = resourceEntityMapper;
+        this.abstractRoleMapper = abstractRoleMapper;
         this.conditionDomainService = conditionDomainService;
         this.conflictDomainService = conflictDomainService;
         this.entryMapper = entryMapper;
@@ -377,12 +385,13 @@ public class PermQueryEngine {
      */
     public Set<Integer> getResourceTypesWithScopeAll(Long tenantId, Set<Long> roleIds,
                                                       Set<Long> operationIds) {
-        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, entityBatchLoadService.batchLoadOperations(tenantId, operationIds)
-            .values()
-            .stream()
-            .map(OperationPermission::getResourceType)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet()), operationIds);
+        Map<Long, OperationPermission> targetOps = batchLoadOperations(tenantId, operationIds);
+        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId,
+            targetOps.values().stream()
+                .map(OperationPermission::getResourceType)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()),
+            operationIds);
         return queryScopeAll(tenantId, roleIds, bitMasks).stream()
             .map(RolePermEntry::resourceType)
             .filter(Objects::nonNull)
@@ -405,7 +414,7 @@ public class PermQueryEngine {
                                                     String inheritMode) {
         Set<Long> entityIds = new HashSet<>();
         entityIds.add(resourceEntityId);
-        OperationPermission targetOp = entityBatchLoadService.batchLoadOperations(tenantId, Set.of(operationPermissionId)).get(operationPermissionId);
+        OperationPermission targetOp = batchLoadOperations(tenantId, Set.of(operationPermissionId)).get(operationPermissionId);
         if (targetOp == null || targetOp.getResourceType() == null) {
             return List.of();
         }
@@ -606,11 +615,11 @@ public class PermQueryEngine {
         if (q.resourceEntityIds() != null) allEntityIds.addAll(q.resourceEntityIds());
 
         if (q.includeResources()) {
-            builder.resourceMap(entityBatchLoadService.batchLoadResources(q.tenantId(), allEntityIds));
+            builder.resourceMap(batchLoadResources(q.tenantId(), allEntityIds));
         }
         if (q.includeOperations()) {
-            Map<Long, OperationPermission> operationMap = new LinkedHashMap<>(entityBatchLoadService.batchLoadOperations(q.tenantId(), targetOpIds));
-            Map<Integer, List<OperationPermission>> operationsByType = entityBatchLoadService.batchLoadOperationsByResourceTypes(
+            Map<Long, OperationPermission> operationMap = new LinkedHashMap<>(batchLoadOperations(q.tenantId(), targetOpIds));
+            Map<Integer, List<OperationPermission>> operationsByType = batchLoadOperationsByResourceTypes(
                 q.tenantId(),
                 grantedBitsByType.keySet()
             );
@@ -624,7 +633,7 @@ public class PermQueryEngine {
             builder.operationMap(operationMap);
         }
         if (q.includeRoles() && roleIds != null && !roleIds.isEmpty()) {
-            builder.roleMap(entityBatchLoadService.batchLoadRoles(q.tenantId(), roleIds));
+            builder.roleMap(batchLoadRoles(q.tenantId(), roleIds));
         }
     }
 
@@ -644,8 +653,7 @@ public class PermQueryEngine {
         if (resourceTypes == null || resourceTypes.isEmpty() || opIds == null || opIds.isEmpty()) {
             return Map.of();
         }
-        // 使用 EntityBatchLoadService 获取目标操作权限（按ID）
-        Map<Long, OperationPermission> targetOps = entityBatchLoadService.batchLoadOperations(tenantId, opIds);
+        Map<Long, OperationPermission> targetOps = batchLoadOperations(tenantId, opIds);
         if (targetOps.isEmpty()) {
             return Map.of();
         }
@@ -681,5 +689,57 @@ public class PermQueryEngine {
             }
         }
         return result;
+    }
+
+    // ===== 私有批量加载方法（替代 EntityBatchLoadDomainService） =====
+
+    /**
+     * 批量加载操作权限
+     */
+    private Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return operationPermissionMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
+    }
+
+    /**
+     * 按资源类型批量加载操作权限
+     */
+    private Map<Integer, List<OperationPermission>> batchLoadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, List<OperationPermission>> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            if (resourceType == null) {
+                continue;
+            }
+            result.put(resourceType, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType));
+        }
+        return result;
+    }
+
+    /**
+     * 批量加载资源实体
+     */
+    private Map<Long, ResourceEntity> batchLoadResources(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return resourceEntityMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
+    }
+
+    /**
+     * 批量加载抽象角色
+     */
+    private Map<Long, AbstractRole> batchLoadRoles(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return abstractRoleMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
     }
 }

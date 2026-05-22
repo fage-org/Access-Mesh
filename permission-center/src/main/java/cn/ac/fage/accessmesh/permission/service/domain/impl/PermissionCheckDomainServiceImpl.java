@@ -9,14 +9,16 @@ import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
+import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionCheckDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 权限校验领域服务实现类
@@ -32,21 +34,21 @@ import java.util.Set;
 public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainService {
 
     private final TypeResolutionService typeResolutionService;
-    private final EntityBatchLoadDomainService entityBatchLoadService;
+    private final ResourceEntityMapper resourceEntityMapper;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入依赖
      *
      * @param typeResolutionService 类型解析服务
-     * @param entityBatchLoadService 实体批量加载服务
+     * @param resourceEntityMapper   资源实体数据访问层
      * @param engine                 权限查询引擎
      */
     public PermissionCheckDomainServiceImpl(TypeResolutionService typeResolutionService,
-                                             EntityBatchLoadDomainService entityBatchLoadService,
+                                             ResourceEntityMapper resourceEntityMapper,
                                              PermQueryEngine engine) {
         this.typeResolutionService = typeResolutionService;
-        this.entityBatchLoadService = entityBatchLoadService;
+        this.resourceEntityMapper = resourceEntityMapper;
         this.engine = engine;
     }
 
@@ -149,8 +151,7 @@ public class PermissionCheckDomainServiceImpl implements PermissionCheckDomainSe
         // 从资源实体ID解析资源类型编码
         String resourceTypeCode = null;
         if (resourceEntityId != null) {
-            Map<Long, ResourceEntity> resourceMap = entityBatchLoadService.batchLoadResources(tenantId, Set.of(resourceEntityId));
-            ResourceEntity resource = resourceMap.get(resourceEntityId);
+            ResourceEntity resource = resourceEntityMapper.selectValidById(tenantId, resourceEntityId);
             if (resource != null && resource.getResourceType() != null) {
                 resourceTypeCode = typeResolutionService.resolveTypeCode(tenantId, "resource_type", resource.getResourceType());
             }

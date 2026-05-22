@@ -32,7 +32,6 @@ import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
@@ -57,7 +56,7 @@ import java.util.stream.Collectors;
  * 在事务提交后执行缓存失效和版本递增，确保数据一致性。
  * </p>
  * <p>
- * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+ * TODO: 构造函数依赖过多(16个)，违反单一职责原则
  * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
  * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
  * </p>
@@ -84,13 +83,12 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final OperationPermissionDomainService operationPermissionDomainService;
     private final AbstractRoleDomainService abstractRoleDomainService;
     private final DomainClassifyService domainClassifyService;
-    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入所有依赖
      * <p>
-     * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+     * TODO: 构造函数依赖过多(16个)，违反单一职责原则
      * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
      * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
      * </p>
@@ -112,7 +110,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       OperationPermissionDomainService operationPermissionDomainService,
                                       AbstractRoleDomainService abstractRoleDomainService,
                                       DomainClassifyService domainClassifyService,
-                                      EntityBatchLoadDomainService entityBatchLoadDomainService,
                                       PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
@@ -131,7 +128,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.abstractRoleDomainService = abstractRoleDomainService;
         this.domainClassifyService = domainClassifyService;
-        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
         this.engine = engine;
     }
 
@@ -242,7 +238,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of()
-                : entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
+                : batchLoadResources(tenantId, resourceIds);
 
             // 批量解析资源类型编码
             Set<Integer> resourceTypeValues = existingPerms.stream()
@@ -251,7 +247,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 .collect(Collectors.toSet());
             Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
             Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
-                entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
+                batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
                     .values()
                     .stream()
                     .flatMap(List::stream)
@@ -337,7 +333,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 批量加载资源避免N+1查询
         Map<Long, ResourceEntity> resourceById = resourceIds.isEmpty() ? Map.of()
-            : entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
+            : batchLoadResources(tenantId, resourceIds);
 
         // 校验所有资源是否存在
         for (Long resId : resourceIds) {
@@ -843,7 +839,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
         Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of() :
-            entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
+            batchLoadResources(tenantId, resourceIds);
 
         // 批量加载权限条件避免N+1查询
         Set<Long> conditionIds = perms.stream()
@@ -861,7 +857,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             .collect(java.util.stream.Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
         Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
-            entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
+            batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
                 .values()
                 .stream()
                 .flatMap(List::stream)
@@ -930,5 +926,35 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             item.resourceCode() == null ? "*" : item.resourceCode(),
             item.operationCode(),
             Boolean.TRUE.equals(item.scopeAll()) ? "ALL" : "SPECIFIC");
+    }
+
+    // ===== 私有批量加载方法 =====
+
+    /**
+     * 批量加载资源实体
+     */
+    private Map<Long, ResourceEntity> batchLoadResources(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return resourceEntityMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
+    }
+
+    /**
+     * 按资源类型批量加载操作权限
+     */
+    private Map<Integer, List<OperationPermission>> batchLoadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, List<OperationPermission>> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            if (resourceType == null) {
+                continue;
+            }
+            result.put(resourceType, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType));
+        }
+        return result;
     }
 }

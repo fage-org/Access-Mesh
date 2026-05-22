@@ -34,7 +34,6 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
@@ -83,7 +82,7 @@ import java.util.stream.Collectors;
  * 使用PermQueryEngine作为统一查询入口，支持条件评估、冲突解决等高级功能。
  * </p>
  * <p>
- * TODO: 构造函数依赖过多(17个)，违反单一职责原则
+ * TODO: 构造函数依赖过多(16个)，违反单一职责原则
  * 建议：拆分为PermissionQueryService/PermissionCheckService/PermissionTreeService
  * </p>
  */
@@ -107,7 +106,6 @@ public class PermissionServiceImpl implements PermissionService {
     private final CacheService cacheService;
     private final PermissionVersionDomainService permissionVersionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
-    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
     private final RolePermEntryMapper rolePermEntryMapper;
     private final PermQueryEngine engine;
 
@@ -128,7 +126,6 @@ public class PermissionServiceImpl implements PermissionService {
                                  CacheService cacheService,
                                  PermissionVersionDomainService permissionVersionDomainService,
                                  ResourceEntityDomainService resourceEntityDomainService,
-                                 EntityBatchLoadDomainService entityBatchLoadDomainService,
                                  RolePermEntryMapper rolePermEntryMapper,
                                  PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
@@ -145,7 +142,6 @@ public class PermissionServiceImpl implements PermissionService {
         this.cacheService = cacheService;
         this.permissionVersionDomainService = permissionVersionDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
-        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
         this.rolePermEntryMapper = rolePermEntryMapper;
         this.engine = engine;
     }
@@ -815,7 +811,7 @@ public class PermissionServiceImpl implements PermissionService {
         Set<Long> operationIds = resolveOperationIds(tenantId, req);
 
         // 批量加载操作权限
-        Map<Long, OperationPermission> operationMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
+        Map<Long, OperationPermission> operationMap = batchLoadOperations(tenantId, operationIds);
 
         int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
         String direction = req.direction() != null ? req.direction().toUpperCase() : "BOTH";
@@ -1042,5 +1038,18 @@ public class PermissionServiceImpl implements PermissionService {
             collectDescendantsWithPermission(tenantId, child.getId(), permsByResource, operationIds, operationMap,
                 currentDepth + 1, maxDepth, result, allResourceMap, resourceTypeCodeMap);
         }
+    }
+
+    // ===== 私有批量加载方法 =====
+
+    /**
+     * 批量加载操作权限
+     */
+    private Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return operationPermissionMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 }

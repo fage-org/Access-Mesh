@@ -24,7 +24,6 @@ import cn.ac.fage.accessmesh.permission.service.PermissionService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
@@ -48,7 +47,7 @@ import java.util.stream.Collectors;
  * 权限视图查询采用六阶段处理流程：准备上下文、加载角色、加载权限、过滤权限、分页结果、组装响应。
  * </p>
  *
- * TODO: 构造函数依赖过多(12个)，违反单一职责原则
+ * TODO: 构造函数依赖过多(11个)，违反单一职责原则
  * 建议：拆分权限视图查询/变更日志查询职责
  * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
  */
@@ -63,7 +62,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final RoleResourcePermissionMapper rolePermMapper;
     private final UserRoleDomainService userRoleDomainService;
     private final DomainClassifyService domainClassifyService;
-    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermissionService permissionService;
     private final LogQueryService logQueryService;
@@ -94,7 +92,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      RoleResourcePermissionMapper rolePermMapper,
                                      UserRoleDomainService userRoleDomainService,
                                      DomainClassifyService domainClassifyService,
-                                     EntityBatchLoadDomainService entityBatchLoadDomainService,
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
                                      LogQueryService logQueryService,
@@ -108,7 +105,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.rolePermMapper = rolePermMapper;
         this.userRoleDomainService = userRoleDomainService;
         this.domainClassifyService = domainClassifyService;
-        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
         this.typeResolutionService = typeResolutionService;
         this.permissionService = permissionService;
         this.logQueryService = logQueryService;
@@ -620,18 +616,22 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (operationIds.isEmpty()) {
             return Map.of();
         }
-        return entityBatchLoadDomainService.batchLoadOperations(tenantId, operationIds);
+        return operationPermissionMapper.selectValidByIds(tenantId, operationIds)
+            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 
     private Map<Long, OperationPermission> loadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
         if (resourceTypes == null || resourceTypes.isEmpty()) {
             return Map.of();
         }
-        return entityBatchLoadDomainService.batchLoadOperationsByResourceTypes(tenantId, resourceTypes)
-            .values()
-            .stream()
-            .flatMap(List::stream)
-            .collect(Collectors.toMap(OperationPermission::getId, op -> op, (left, _unused) -> left, LinkedHashMap::new));
+        Map<Long, OperationPermission> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            if (resourceType == null) continue;
+            for (OperationPermission op : operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)) {
+                result.put(op.getId(), op);
+            }
+        }
+        return result;
     }
 
     private OperationPermission findGrantedOperation(Map<Long, OperationPermission> operationMap, Integer resourceType, Long grantedBits) {
@@ -652,7 +652,8 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         if (resourceIds.isEmpty()) {
             return Map.of();
         }
-        return entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
+        return resourceEntityMapper.selectValidByIds(tenantId, resourceIds)
+            .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
     }
 
     /**

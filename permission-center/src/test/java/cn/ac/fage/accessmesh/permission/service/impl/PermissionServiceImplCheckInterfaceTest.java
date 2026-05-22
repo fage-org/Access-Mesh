@@ -20,7 +20,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomain
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
@@ -86,8 +85,6 @@ class PermissionServiceImplCheckInterfaceTest {
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
     /** 资源实体领域服务Mock */
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
-    /** 实体批量加载领域服务Mock */
-    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
     /** 角色权限条目Mapper Mock */
     @Mock private RolePermEntryMapper rolePermEntryMapper;
     /** 权限查询引擎Mock */
@@ -109,7 +106,7 @@ class PermissionServiceImplCheckInterfaceTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
-            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService,
+            permissionVersionDomainService, resourceEntityDomainService,
             rolePermEntryMapper, engine
         );
     }

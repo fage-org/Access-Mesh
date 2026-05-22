@@ -2,13 +2,15 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
@@ -43,7 +45,9 @@ class PermQueryEngineTest {
     @Mock
     private RoleResourcePermissionMapper rolePermMapper;
     @Mock
-    private EntityBatchLoadDomainService entityBatchLoadService;
+    private ResourceEntityMapper resourceEntityMapper;
+    @Mock
+    private AbstractRoleMapper abstractRoleMapper;
     @Mock
     private PermissionConditionDomainService conditionDomainService;
     @Mock
@@ -62,7 +66,8 @@ class PermQueryEngineTest {
         engine = new PermQueryEngine(
             userRoleDomainService,
             rolePermMapper,
-            entityBatchLoadService,
+            resourceEntityMapper,
+            abstractRoleMapper,
             conditionDomainService,
             conflictDomainService,
             new RolePermEntryMapper(),
@@ -83,9 +88,8 @@ class PermQueryEngineTest {
         OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
         OperationPermission manageOp = operation(102L, 1, "MANAGE", 8L, 1L);
 
-        when(entityBatchLoadService.batchLoadOperations(1L, Set.of(101L))).thenReturn(Map.of(101L, viewOp));
-        when(entityBatchLoadService.batchLoadOperationsByResourceTypes(1L, Set.of(1)))
-            .thenReturn(Map.of(1, List.of(viewOp, manageOp)));
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(viewOp, manageOp));
 
         // Mock cacheService.get() to return operation permissions map for ID index
         Map<Long, OperationPermission> opMap = Map.of(101L, viewOp, 102L, manageOp);
@@ -113,7 +117,7 @@ class PermQueryEngineTest {
         resource.setCodeType("default");
         resource.setName("用户资源");
         resource.setResourceType(1);
-        when(entityBatchLoadService.batchLoadResources(1L, Set.of(200L))).thenReturn(Map.of(200L, resource));
+        when(resourceEntityMapper.selectValidByIds(1L, Set.of(200L))).thenReturn(List.of(resource));
 
         PermQuery query = PermQuery.forFullQuery(1L, 10L, Set.of("MENU"), Set.of("sys:user"), Set.of("VIEW"));
         query.setResourceEntityIds(Set.of(200L));

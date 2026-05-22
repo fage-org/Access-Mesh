@@ -17,17 +17,29 @@ metadata:
 
 ## 1. 批量实体加载
 
-**MUST** 使用 `EntityBatchLoadDomainService`，禁止在 service impl 中写私有加载方法。
+**MUST** 使用对应的 Mapper 批量查询方法，禁止在 service impl 中写私有加载方法。
 
 ```java
-// ✅ 正确
-Map<Long, ResourceEntity> resourceMap = entityBatchLoadDomainService.batchLoadResources(tenantId, resourceIds);
-Map<Long, OperationPermission> opMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, opIds);
-Map<Long, AbstractRole> roleMap = entityBatchLoadDomainService.batchLoadRoles(tenantId, roleIds);
+// ✅ 正确 — 使用 Mapper 批量查询方法
+Map<Long, ResourceEntity> resourceMap = resourceEntityMapper.selectValidByIds(tenantId, resourceIds)
+    .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+Map<Long, OperationPermission> opMap = operationPermissionMapper.selectValidByIds(tenantId, opIds)
+    .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
+Map<Long, AbstractRole> roleMap = abstractRoleMapper.selectValidByIds(tenantId, roleIds)
+    .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role));
+
+// ✅ 正确 — 按资源类型批量加载操作权限
+Map<Integer, List<OperationPermission>> opByType = new LinkedHashMap<>();
+for (Integer resourceType : resourceTypes) {
+    opByType.put(resourceType, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType));
+}
 
 // ❌ 禁止：私有 load 方法
 private Map<Long, ResourceEntity> loadResources(Long tenantId, Set<Long> ids) { ... }
 private Map<Long, OperationPermission> loadOperations(Set<Long> ids) { ... }
+
+// ❌ 禁止：使用已删除的 EntityBatchLoadDomainService
+entityBatchLoadDomainService.batchLoadResources(...);  // 类已删除
 ```
 
 ## 2. 权限查询 — 统一入口
@@ -274,6 +286,8 @@ if (!engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE")) { ...
 
 | 类 | 替代方案 |
 |---|---------|
+| `EntityBatchLoadDomainService` | 使用对应 Mapper 批量查询方法 |
+| `EntityBatchLoadDomainServiceImpl` | 使用对应 Mapper 批量查询方法 |
 | `ResourcePermissionValidator` | 使用 `PermQueryEngine` |
 | `OperationType` 枚举 | 使用 `OperationCodeConstants` |
 | `ResourcePermissionStrategy` 接口 | ID 转换由 Engine 内部处理 |

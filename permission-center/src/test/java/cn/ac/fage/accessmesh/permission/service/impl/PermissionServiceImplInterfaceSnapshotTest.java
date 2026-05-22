@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
@@ -64,7 +63,6 @@ class PermissionServiceImplInterfaceSnapshotTest {
     @Mock private CacheService cacheService;
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
-    @Mock private EntityBatchLoadDomainService entityBatchLoadDomainService;
     @Mock private RolePermEntryMapper rolePermEntryMapper;
     @Mock private PermQueryEngine engine;
 
@@ -77,7 +75,7 @@ class PermissionServiceImplInterfaceSnapshotTest {
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
             resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
-            permissionVersionDomainService, resourceEntityDomainService, entityBatchLoadDomainService,
+            permissionVersionDomainService, resourceEntityDomainService,
             rolePermEntryMapper, engine
         );
 

@@ -11,10 +11,10 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.DependencyManageService;
-import cn.ac.fage.accessmesh.permission.service.domain.EntityBatchLoadDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -47,35 +47,31 @@ public class DependencyManageServiceImpl implements DependencyManageService {
 
     private final ResourceDependencyMapper dependencyMapper;
     private final ResourceEntityMapper resourceEntityMapper;
+    private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
-    private final EntityBatchLoadDomainService entityBatchLoadDomainService;
     private final OperationLogDomainService operationLogDomainService;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入依赖
-     * <p>
-     * TODO: 构造函数依赖达到6个，刚超过阈值，建议拆分批量同步逻辑。
-     * 优先级：P4（临界情况，可关注但不强制整改）
-     * </p>
      *
      * @param dependencyMapper            资源依赖数据访问层
      * @param resourceEntityMapper        资源实体数据访问层
+     * @param operationPermissionMapper   操作权限数据访问层
      * @param typeResolutionService       类型解析服务
-     * @param entityBatchLoadDomainService 实体批量加载领域服务
      * @param operationLogDomainService   操作日志领域服务
      * @param engine                      权限查询引擎
      */
     public DependencyManageServiceImpl(ResourceDependencyMapper dependencyMapper,
                                         ResourceEntityMapper resourceEntityMapper,
+                                        OperationPermissionMapper operationPermissionMapper,
                                         TypeResolutionService typeResolutionService,
-                                        EntityBatchLoadDomainService entityBatchLoadDomainService,
                                         OperationLogDomainService operationLogDomainService,
                                         PermQueryEngine engine) {
         this.dependencyMapper = dependencyMapper;
         this.resourceEntityMapper = resourceEntityMapper;
+        this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
-        this.entityBatchLoadDomainService = entityBatchLoadDomainService;
         this.operationLogDomainService = operationLogDomainService;
         this.engine = engine;
     }
@@ -526,7 +522,7 @@ public class DependencyManageServiceImpl implements DependencyManageService {
         Set<Long> opIds = codeToIdMap.values().stream().filter(Objects::nonNull).collect(Collectors.toSet());
         if (opIds.isEmpty()) return 0L;
 
-        Map<Long, OperationPermission> opMap = entityBatchLoadDomainService.batchLoadOperations(tenantId, opIds);
+        Map<Long, OperationPermission> opMap = batchLoadOperations(tenantId, opIds);
         Long bits = 0L;
         for (OperationPermission op : opMap.values()) {
             if (op.getBinaryBit() != null) bits |= op.getBinaryBit();
@@ -588,5 +584,18 @@ public class DependencyManageServiceImpl implements DependencyManageService {
             .flatMap(d -> Stream.of(d.getResourceEntityId(), d.getDependsOnResourceEntityId()))
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
+    }
+
+    // ===== 私有批量加载方法 =====
+
+    /**
+     * 批量加载操作权限
+     */
+    private Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return operationPermissionMapper.selectValidByIds(tenantId, ids)
+            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 }
