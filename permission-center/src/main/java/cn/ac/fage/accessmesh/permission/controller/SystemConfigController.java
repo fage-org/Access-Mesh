@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.SystemConfigResp;
-import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
+import cn.ac.fage.accessmesh.permission.service.SystemConfigAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,15 +27,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/perm/system-config")
 public class SystemConfigController {
 
-    private final ConfigManageService configManageService;
+    private final SystemConfigAppService systemConfigAppService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param configManageService 配置管理服务
+     * @param systemConfigAppService 系统配置应用服务
      */
-    public SystemConfigController(ConfigManageService configManageService) {
-        this.configManageService = configManageService;
+    public SystemConfigController(SystemConfigAppService systemConfigAppService) {
+        this.systemConfigAppService = systemConfigAppService;
     }
 
     /**
@@ -49,7 +49,7 @@ public class SystemConfigController {
      */
     @PostMapping("/save")
     public PermResult<SystemConfigResp> upsertSystemConfig(@Valid @RequestBody SystemConfigReq req) {
-        return PermResult.success(configManageService.upsertSystemConfig(TenantContextHolder.getTenantId(), req));
+        return PermResult.success(systemConfigAppService.upsertSystemConfig(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -63,7 +63,7 @@ public class SystemConfigController {
      */
     @PostMapping("/detail")
     public PermResult<SystemConfigResp> getSystemConfig(@Valid @RequestBody SystemConfigGetReq req) {
-        return PermResult.success(configManageService.getSystemConfig(TenantContextHolder.getTenantId(), req.configKey()));
+        return PermResult.success(systemConfigAppService.getSystemConfig(TenantContextHolder.getTenantId(), req.configKey()));
     }
 
     /**
@@ -78,6 +78,6 @@ public class SystemConfigController {
      */
     @PostMapping("/list")
     public PermResult<ItemsResp<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(configManageService.listSystemConfigs(TenantContextHolder.getTenantId())));
+        return PermResult.success(new ItemsResp<>(systemConfigAppService.listSystemConfigs(TenantContextHolder.getTenantId())));
     }
 }

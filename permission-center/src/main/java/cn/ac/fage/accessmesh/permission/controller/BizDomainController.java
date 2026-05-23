@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
+import cn.ac.fage.accessmesh.permission.service.BizDomainAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,15 +31,15 @@ import java.util.List;
 @RequestMapping("/api/perm/biz-domain")
 public class BizDomainController {
 
-    private final ConfigManageService configManageService;
+    private final BizDomainAppService bizDomainAppService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param configManageService 配置管理服务
+     * @param bizDomainAppService 业务域应用服务
      */
-    public BizDomainController(ConfigManageService configManageService) {
-        this.configManageService = configManageService;
+    public BizDomainController(BizDomainAppService bizDomainAppService) {
+        this.bizDomainAppService = bizDomainAppService;
     }
 
     /**
@@ -53,7 +53,7 @@ public class BizDomainController {
      */
     @PostMapping("/create")
     public PermResult<BizDomainResp> createBizDomain(@Valid @RequestBody BizDomainCreateReq req) {
-        return PermResult.success(configManageService.createBizDomain(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(bizDomainAppService.createBizDomain(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -67,7 +67,7 @@ public class BizDomainController {
      */
     @PostMapping("/detail")
     public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody IdReq req) {
-        return PermResult.success(configManageService.getBizDomain(TenantContextHolder.getTenantId(), req.id()));
+        return PermResult.success(bizDomainAppService.getBizDomain(TenantContextHolder.getTenantId(), req.id()));
     }
 
     /**
@@ -82,7 +82,7 @@ public class BizDomainController {
     @PostMapping("/list")
     public PermResult<ItemsResp<BizDomainResp>> listBizDomains(@Valid @RequestBody EmptyReq req) {
         return PermResult.success(new ItemsResp<>(
-            configManageService.listBizDomains(TenantContextHolder.getTenantId())
+            bizDomainAppService.listBizDomains(TenantContextHolder.getTenantId())
         ));
     }
 
@@ -97,7 +97,7 @@ public class BizDomainController {
      */
     @PostMapping("/remove")
     public PermResult<Void> deleteBizDomain(@Valid @RequestBody IdsReq req) {
-        configManageService.deleteBizDomainsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
+        bizDomainAppService.deleteBizDomainsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 
@@ -112,6 +112,6 @@ public class BizDomainController {
      */
     @PostMapping("/update")
     public PermResult<BizDomainResp> updateBizDomain(@Valid @RequestBody BizDomainUpdateReq req) {
-        return PermResult.success(configManageService.updateBizDomain(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(bizDomainAppService.updateBizDomain(TenantContextHolder.getTenantId(), req, null));
     }
 }

@@ -12,7 +12,8 @@ import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
-import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
+import cn.ac.fage.accessmesh.permission.service.ServiceConfigAppService;
+import cn.ac.fage.accessmesh.permission.service.ServiceSyncAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,15 +35,13 @@ import java.util.List;
 @RequestMapping("/api/perm/service-config")
 public class ServiceConfigController {
 
-    private final ConfigManageService configManageService;
+    private final ServiceConfigAppService serviceConfigAppService;
+    private final ServiceSyncAppService serviceSyncAppService;
 
-    /**
-     * 构造函数注入依赖
-     *
-     * @param configManageService 配置管理服务
-     */
-    public ServiceConfigController(ConfigManageService configManageService) {
-        this.configManageService = configManageService;
+    public ServiceConfigController(ServiceConfigAppService serviceConfigAppService,
+                                   ServiceSyncAppService serviceSyncAppService) {
+        this.serviceConfigAppService = serviceConfigAppService;
+        this.serviceSyncAppService = serviceSyncAppService;
     }
 
     /**
@@ -56,7 +55,7 @@ public class ServiceConfigController {
      */
     @PostMapping("/save")
     public PermResult<ServiceConfigResp> saveServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
-        return PermResult.success(configManageService.saveServiceConfig(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(serviceConfigAppService.saveServiceConfig(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -70,7 +69,7 @@ public class ServiceConfigController {
      */
     @PostMapping("/detail")
     public PermResult<ServiceConfigResp> getServiceConfig(@Valid @RequestBody ServiceConfigGetReq req) {
-        return PermResult.success(configManageService.getServiceConfig(TenantContextHolder.getTenantId(), req.serviceCode()));
+        return PermResult.success(serviceConfigAppService.getServiceConfig(TenantContextHolder.getTenantId(), req.serviceCode()));
     }
 
     /**
@@ -86,7 +85,7 @@ public class ServiceConfigController {
     @PostMapping("/list")
     public PermResult<ItemsResp<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody EmptyReq req) {
         return PermResult.success(new ItemsResp<>(
-            configManageService.listServiceConfigs(TenantContextHolder.getTenantId())
+            serviceConfigAppService.listServiceConfigs(TenantContextHolder.getTenantId())
         ));
     }
 
@@ -101,7 +100,7 @@ public class ServiceConfigController {
      */
     @PostMapping("/remove")
     public PermResult<Void> deleteServiceConfig(@Valid @RequestBody IdsReq req) {
-        configManageService.deleteServiceConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
+        serviceConfigAppService.deleteServiceConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 
@@ -117,7 +116,7 @@ public class ServiceConfigController {
      */
     @PostMapping("/sync")
     public PermResult<ServiceConfigSyncResp> syncServiceConfig(@Valid @RequestBody ServiceConfigSyncReq req) {
-        return PermResult.success(configManageService.syncServiceInterfaces(TenantContextHolder.getTenantId(), req, null));
+        return PermResult.success(serviceSyncAppService.syncInterfaces(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -133,7 +132,7 @@ public class ServiceConfigController {
     @PostMapping("/apis")
     public PermResult<ItemsResp<ApiMappingResp>> listServiceApis(@Valid @RequestBody ServiceConfigApisReq req) {
         return PermResult.success(new ItemsResp<>(
-            configManageService.listServiceApis(TenantContextHolder.getTenantId(), req.serviceCode())
+            serviceConfigAppService.listServiceApis(TenantContextHolder.getTenantId(), req.serviceCode())
         ));
     }
 }

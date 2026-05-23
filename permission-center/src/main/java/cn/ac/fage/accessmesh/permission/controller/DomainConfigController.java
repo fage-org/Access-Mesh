@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.permission.service.ConfigManageService;
+import cn.ac.fage.accessmesh.permission.service.DomainConfigAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,15 +30,15 @@ import java.util.List;
 @RequestMapping("/api/perm/domain-config")
 public class DomainConfigController {
 
-    private final ConfigManageService configManageService;
+    private final DomainConfigAppService domainConfigAppService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param configManageService 配置管理服务
+     * @param domainConfigAppService 域配置应用服务
      */
-    public DomainConfigController(ConfigManageService configManageService) {
-        this.configManageService = configManageService;
+    public DomainConfigController(DomainConfigAppService domainConfigAppService) {
+        this.domainConfigAppService = domainConfigAppService;
     }
 
     /**
@@ -52,7 +52,7 @@ public class DomainConfigController {
      */
     @PostMapping("/save")
     public PermResult<DomainConfigResp> upsertDomainConfig(@Valid @RequestBody DomainConfigReq req) {
-        return PermResult.success(configManageService.upsertDomainConfig(TenantContextHolder.getTenantId(), req));
+        return PermResult.success(domainConfigAppService.upsertDomainConfig(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -66,7 +66,7 @@ public class DomainConfigController {
      */
     @PostMapping("/detail")
     public PermResult<DomainConfigResp> getDomainConfig(@Valid @RequestBody DomainConfigGetReq req) {
-        return PermResult.success(configManageService.getDomainConfig(TenantContextHolder.getTenantId(), req.domainCode(), req.configType()));
+        return PermResult.success(domainConfigAppService.getDomainConfig(TenantContextHolder.getTenantId(), req.domainCode(), req.configType()));
     }
 
     /**
@@ -82,7 +82,7 @@ public class DomainConfigController {
     @PostMapping("/list")
     public PermResult<ItemsResp<DomainConfigResp>> listDomainConfigs(@Valid @RequestBody DomainConfigListReq req) {
         return PermResult.success(new ItemsResp<>(
-            configManageService.listDomainConfigs(TenantContextHolder.getTenantId(), req.domainCode())
+            domainConfigAppService.listDomainConfigs(TenantContextHolder.getTenantId(), req.domainCode())
         ));
     }
 
@@ -97,7 +97,7 @@ public class DomainConfigController {
      */
     @PostMapping("/remove")
     public PermResult<Void> deleteDomainConfig(@Valid @RequestBody IdsReq req) {
-        configManageService.deleteDomainConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
+        domainConfigAppService.deleteDomainConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
         return PermResult.success();
     }
 }
