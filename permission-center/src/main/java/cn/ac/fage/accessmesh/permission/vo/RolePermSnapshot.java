@@ -59,6 +59,7 @@ public record RolePermSnapshot(
      * @param conditionId          条件ID
      * @param hasCondition         是否有条件
      * @param dependOn             依赖权限ID
+     * @param scopeAll             是否全部范围
      */
     public record RolePermEntry(
         /**
@@ -124,6 +125,11 @@ public record RolePermSnapshot(
         /**
          * 依赖权限ID
          */
-        Long dependOn
+        Long dependOn,
+
+        /**
+         * 是否全部范围（true=全部范围，false=限定范围）
+         */
+        Boolean scopeAll
     ) {}
 }

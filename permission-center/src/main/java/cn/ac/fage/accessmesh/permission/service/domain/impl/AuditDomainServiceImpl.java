@@ -127,11 +127,10 @@ public class AuditDomainServiceImpl implements AuditDomainService {
      * 查询近期变更历史
      */
     @Override
-    public List<Object> queryRecentChanges(Long tenantId, Long userId, Long roleId,
-                                            LocalDateTime since, LocalDateTime until,
-                                            List<String> eventTypes, int offset, int limit) {
-        List<PermissionChangeLog> logs = changeLogMapper.selectFiltered(tenantId, userId, roleId, since, until, eventTypes, offset, limit);
-        return new ArrayList<>(logs);
+    public List<PermissionChangeLog> queryRecentChanges(Long tenantId, Long userId, Long roleId,
+                                                          LocalDateTime since, LocalDateTime until,
+                                                          List<String> eventTypes, int offset, int limit) {
+        return changeLogMapper.selectFiltered(tenantId, userId, roleId, since, until, eventTypes, offset, limit);
     }
 
     /**

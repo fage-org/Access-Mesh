@@ -55,6 +55,11 @@ public class PermQuery {
      */
     private String inheritMode;
 
+    /**
+     * 业务域编码
+     */
+    private String domainCode;
+
     // ── 操作相关 ──
 
     /**
@@ -272,6 +277,36 @@ public class PermQuery {
     
     
     /**
+     * 创建资源检查查询
+     * <p>
+     * 全范围+实例查询，完整评估（条件/冲突/位匹配），包含资源和操作信息。
+     * 与 {@link #forResourceQuery} 相比，此方法开启条件评估和冲突评估。
+     * </p>
+     *
+     * @param tenantId          租户ID
+     * @param userId            用户ID
+     * @param resourceTypeCodes 资源类型编码集合
+     * @param operationCodes    操作编码集合
+     * @return 权限查询实例
+     */
+    public static PermQuery forResourceCheck(Long tenantId, Long userId,
+                                              Set<String> resourceTypeCodes,
+                                              Set<String> operationCodes) {
+        PermQuery q = new PermQuery(tenantId);
+        q.userId = userId;
+        q.resourceTypeCodes = resourceTypeCodes;
+        q.operationCodes = operationCodes;
+        q.queryScopeAll = true;
+        q.queryInstance = true;
+        q.evaluateConditions = true;
+        q.evaluateConflicts = true;
+        q.evaluateMatchesBit = true;
+        q.includeResources = true;
+        q.includeOperations = true;
+        return q;
+    }
+
+    /**
      * 创建管理操作验证查询
      * <p>
      * 类型+实例查询，全范围匹配时提前返回，不评估，最小输出。
@@ -418,6 +453,13 @@ public class PermQuery {
      * @return 继承模式
      */
     public String inheritMode() { return inheritMode; }
+
+    /**
+     * 获取业务域编码
+     *
+     * @return 业务域编码
+     */
+    public String domainCode() { return domainCode; }
 
     /**
      * 获取操作编码集合
@@ -580,11 +622,39 @@ public class PermQuery {
     public void setResourceEntityIds(Set<Long> resourceEntityIds) { this.resourceEntityIds = resourceEntityIds; }
 
     /**
-     * 设置继承模式
+     * 设置继承模式，同时将字符串转换为布尔位
+     * <ul>
+     *   <li>"PARENT" → inheritParents=true</li>
+     *   <li>"CHILD" → inheritChildren=true</li>
+     *   <li>"BOTH" → 两者都true</li>
+     *   <li>"NONE" 或其他 → 两者都false</li>
+     * </ul>
      *
      * @param inheritMode 继承模式
      */
-    public void setInheritMode(String inheritMode) { this.inheritMode = inheritMode; }
+    public void setInheritMode(String inheritMode) {
+        this.inheritMode = inheritMode;
+        if ("PARENT".equalsIgnoreCase(inheritMode)) {
+            this.inheritParents = true;
+            this.inheritChildren = false;
+        } else if ("CHILD".equalsIgnoreCase(inheritMode)) {
+            this.inheritParents = false;
+            this.inheritChildren = true;
+        } else if ("BOTH".equalsIgnoreCase(inheritMode)) {
+            this.inheritParents = true;
+            this.inheritChildren = true;
+        } else {
+            this.inheritParents = false;
+            this.inheritChildren = false;
+        }
+    }
+
+    /**
+     * 设置业务域编码
+     *
+     * @param domainCode 业务域编码
+     */
+    public void setDomainCode(String domainCode) { this.domainCode = domainCode; }
 
     /**
      * 设置操作编码集合

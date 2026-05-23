@@ -168,6 +168,12 @@ public class PermQueryEngine {
             instanceEntries = queryInstance(q.tenantId(), roleIds, entityIds, bitMasks);
         }
 
+        // -- 6.5 根据继承模式展开资源 --
+        if (q.queryInstance() && (q.inheritParents() || q.inheritChildren()) && !instanceEntries.isEmpty()) {
+            instanceEntries = expandByInheritMode(q.tenantId(), instanceEntries,
+                q.inheritParents(), q.inheritChildren());
+        }
+
         // -- 7. 合并scopeAll和实例级结果 --
         List<RolePermEntry> combined = new ArrayList<>(scopeAllEntries);
         combined.addAll(instanceEntries);
@@ -434,7 +440,7 @@ public class PermQueryEngine {
         Set<Long> allResolved = new HashSet<>();
         for (String rtCode : q.resourceTypeCodes()) {
             List<ResourceResolveRequest> requests = q.resourceCodes().stream()
-                .map(code -> new ResourceResolveRequest(rtCode, code, q.codeType(), null))
+                .map(code -> new ResourceResolveRequest(rtCode, code, q.codeType(), q.domainCode()))
                 .toList();
 
             Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(q.tenantId(), requests);
@@ -649,6 +655,138 @@ public class PermQueryEngine {
         }
         return abstractRoleMapper.selectValidByIds(tenantId, ids)
             .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
+    }
+
+    // ===== 资源继承展开 =====
+
+    /**
+     * 根据继承模式展开实例级权限条目
+     * <p>
+     * 加载全部有效资源构建父子关系图，然后：
+     * <ul>
+     *   <li>inheritParents时：向上遍历父链，为每个祖先资源克隆权限条目</li>
+     *   <li>inheritChildren时：向下递归收集所有子孙，为每个后代资源克隆权限条目</li>
+     * </ul>
+     * 克隆条目的grantSource设为"INHERITED"，其他字段保持不变。
+     * scopeAll条目（resourceEntityId为null）不参与展开。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param entries          原始实例级权限条目
+     * @param inheritParents   是否继承父资源权限
+     * @param inheritChildren  是否继承子资源权限
+     * @return 合并后的权限条目列表（原条目 + 继承条目）
+     */
+    private List<RolePermEntry> expandByInheritMode(Long tenantId, List<RolePermEntry> entries,
+                                                      boolean inheritParents, boolean inheritChildren) {
+        // 收集有资源实体ID的条目
+        Set<Long> entityIds = entries.stream()
+            .map(RolePermEntry::resourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+
+        if (entityIds.isEmpty()) {
+            return entries;
+        }
+
+        // 加载全部有效资源（用于构建完整的父子关系图）
+        List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
+        if (allResources.isEmpty()) {
+            return entries;
+        }
+
+        // 构建资源映射和父子关系图
+        Map<Long, ResourceEntity> idToResource = allResources.stream()
+            .collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
+        Map<Long, List<Long>> parentIdToChildren = new LinkedHashMap<>();
+        Map<Long, Long> idToParentId = new LinkedHashMap<>();
+        for (ResourceEntity resource : allResources) {
+            if (resource.getParentId() != null && resource.getParentId() != 0L) {
+                parentIdToChildren.computeIfAbsent(resource.getParentId(), _unused -> new ArrayList<>())
+                    .add(resource.getId());
+                idToParentId.put(resource.getId(), resource.getParentId());
+            }
+        }
+
+        // 收集继承条目
+        List<RolePermEntry> inheritedEntries = new ArrayList<>();
+        Set<String> inheritedKeys = new HashSet<>(); // 用于去重：entityId+"|"+permissionId
+
+        for (RolePermEntry entry : entries) {
+            Long srcEntityId = entry.resourceEntityId();
+            if (srcEntityId == null) {
+                continue; // scopeAll条目不参与展开
+            }
+
+            if (inheritChildren) {
+                Set<Long> descendants = new LinkedHashSet<>();
+                collectDescendants(srcEntityId, parentIdToChildren, descendants);
+                for (Long descId : descendants) {
+                    String key = descId + "|" + entry.permissionId();
+                    if (inheritedKeys.add(key)) {
+                        inheritedEntries.add(cloneWithInherited(entry, descId));
+                    }
+                }
+            }
+
+            if (inheritParents) {
+                Long current = idToParentId.get(srcEntityId);
+                while (current != null) {
+                    String key = current + "|" + entry.permissionId();
+                    if (inheritedKeys.add(key)) {
+                        inheritedEntries.add(cloneWithInherited(entry, current));
+                    }
+                    current = idToParentId.get(current);
+                }
+            }
+        }
+
+        // 合并原始条目和继承条目
+        List<RolePermEntry> result = new ArrayList<>(entries);
+        result.addAll(inheritedEntries);
+        return result;
+    }
+
+    /**
+     * 递归收集所有后代资源ID
+     *
+     * @param parentId      父资源ID
+     * @param childrenMap   父ID→子ID列表映射
+     * @param result        收集结果的集合
+     */
+    private void collectDescendants(Long parentId, Map<Long, List<Long>> childrenMap, Set<Long> result) {
+        List<Long> children = childrenMap.getOrDefault(parentId, List.of());
+        for (Long childId : children) {
+            if (result.add(childId)) {
+                collectDescendants(childId, childrenMap, result);
+            }
+        }
+    }
+
+    /**
+     * 克隆权限条目，将grantSource设为"INHERITED"，resourceEntityId设为目标实体ID
+     *
+     * @param source       原始权限条目
+     * @param targetEntityId 目标资源实体ID
+     * @return 克隆后的权限条目
+     */
+    private RolePermEntry cloneWithInherited(RolePermEntry source, Long targetEntityId) {
+        return new RolePermEntry(
+            source.permissionId(),
+            source.roleId(),
+            targetEntityId,
+            source.resourceCode(),
+            source.resourceType(),
+            source.grantedBits(),
+            source.operationCode(),
+            source.effectiveBits(),
+            "INHERITED",
+            source.canGrant(),
+            source.conditionId(),
+            source.hasCondition(),
+            source.dependOn(),
+            source.scopeAll()
+        );
     }
 
     // ===== forUserView 专用方法 =====

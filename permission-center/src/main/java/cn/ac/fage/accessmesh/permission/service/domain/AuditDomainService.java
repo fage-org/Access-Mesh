@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
+import cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -55,9 +57,9 @@ public interface AuditDomainService {
      * @param limit      每页条数
      * @return 变更日志列表
      */
-    List<Object> queryRecentChanges(Long tenantId, Long userId, Long roleId,
-                                    LocalDateTime since, LocalDateTime until,
-                                    List<String> eventTypes, int offset, int limit);
+    List<PermissionChangeLog> queryRecentChanges(Long tenantId, Long userId, Long roleId,
+                                                  LocalDateTime since, LocalDateTime until,
+                                                  List<String> eventTypes, int offset, int limit);
 
     /**
      * 统计近期变更数量

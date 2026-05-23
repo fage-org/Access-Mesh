@@ -39,7 +39,8 @@ public class RolePermEntryMapper {
             p.getCanGrant(),
             p.getConditionId(),
             p.getConditionId() != null,
-            p.getDependOn()
+            p.getDependOn(),
+            p.getScopeAll()
         );
     }
 
@@ -64,7 +65,8 @@ public class RolePermEntryMapper {
             p.getCanGrant(),
             p.getConditionId(),
             p.getConditionId() != null,
-            p.getDependOn()
+            p.getDependOn(),
+            p.getScopeAll()
         );
     }
 
@@ -97,7 +99,7 @@ public class RolePermEntryMapper {
                 op != null ? op.getCode() : null,
                 op != null ? op.getEffectiveBits() : null,
                 e.grantSource(), e.canGrant(), e.conditionId(),
-                e.hasCondition(), e.dependOn()
+                e.hasCondition(), e.dependOn(), e.scopeAll()
             );
         }).toList();
     }
@@ -120,7 +122,7 @@ public class RolePermEntryMapper {
             op.getCode(),
             op.getEffectiveBits(),
             entry.grantSource(), entry.canGrant(), entry.conditionId(),
-            entry.hasCondition(), entry.dependOn()
+            entry.hasCondition(), entry.dependOn(), entry.scopeAll()
         );
     }
 }

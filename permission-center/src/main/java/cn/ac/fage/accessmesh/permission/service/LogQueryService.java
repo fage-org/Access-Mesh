@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service;
 
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionRecentChangesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionRecentChangesResp;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -94,4 +96,15 @@ public interface LogQueryService {
      * @return 操作日志数量
      */
     long countOperationLogs(Long tenantId, String module, String action);
+
+    // ===== 最近变更查询 =====
+
+    /**
+     * 获取权限最近变更列表（含权限校验和ID解析）
+     *
+     * @param tenantId 租户ID
+     * @param req      最近变更查询请求
+     * @return 权限最近变更响应
+     */
+    PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req);
 }

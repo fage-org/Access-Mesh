@@ -65,6 +65,17 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
         @Param("resourceType") Integer resourceType);
 
     /**
+     * 根据租户ID和资源类型集合批量查询操作权限
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return 操作权限列表
+     */
+    List<OperationPermission> selectByTenantAndResourceTypes(
+        @Param("tenantId") Long tenantId,
+        @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
      * 根据ID和租户ID查询有效的操作权限
      *
      * @param operationId 操作权限ID

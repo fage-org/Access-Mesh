@@ -63,7 +63,7 @@ class AuditDomainServiceImplTest {
             eq(1L), eq(100L), eq(20L), any(), any(), any(), eq(0), eq(10)))
             .thenReturn(List.of(log));
 
-        List<Object> results = service.queryRecentChanges(1L, 100L, 20L,
+        List<PermissionChangeLog> results = service.queryRecentChanges(1L, 100L, 20L,
             LocalDateTime.now().minusDays(7), LocalDateTime.now(),
             List.of("INSERT"), 0, 10);
 

@@ -379,7 +379,16 @@
       "httpMethod": "POST",
       "pathPattern": "/api/user/list",
       "hasCondition": false,
-      "conditionId": null
+      "conditionId": null,
+	      "scopeAll": false
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
     }
   ]
 }
@@ -392,6 +401,7 @@
 - `permissionVersion` 是不透明令牌，调用方只能回传比较，不能解析其内部结构。
 - 当 `req.permissionVersion == resp.permissionVersion` 时，服务端可返回 `notModified=true` 且 `allowedApis=[]`。
 - 当权限令牌变化时，服务端必须重新构建或读取新键下的快照，旧快照不能复用。
+- `scopeAll=true` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开 scopeAll 为逐条 API。实例级条目（`scopeAll=false`）仍按 `httpMethod + pathPattern` 精确匹配。
 
 ### 6.3 服务接口全量同步
 
@@ -446,6 +456,14 @@
       "codeType": "default",
       "operationCode": "VIEW",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "canGrant": false,
       "conditionCode": null
     }
@@ -495,6 +513,14 @@
       "codeType": "default",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "canGrant": false,
       "conditionCode": null
     }
@@ -515,6 +541,14 @@
       "resourceCode": "report:sales",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "dependOn": null
     }
   ]
@@ -535,6 +569,14 @@
       "codeType": "default",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "conditionCode": null
     },
     {
@@ -543,6 +585,14 @@
       "codeType": "default",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "conditionCode": null
     }
   ]
@@ -560,6 +610,14 @@
       "resourceCode": "data:city:shanghai",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "dependOn": 200
     },
     {
@@ -568,6 +626,14 @@
       "resourceCode": "data:city:hangzhou",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "dependOn": 200
     }
   ]
@@ -596,6 +662,14 @@
       "resourceName": "上海数据",
       "operationCode": "DATA_READ",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "dependOn": 200
     }
   ]
@@ -734,18 +808,33 @@ admin-service 查询示例：
       "resourceName": "A部门数据",
       "codeType": "default",
       "scopeAll": false,
+    },
+    {
+    },
+      "resourceTypeCode": "DATA",
+      "resourceCode": null,
+      "resourceName": null,
+      "codeType": null,
+      "scopeAll": true,
       "operations": ["DATA_READ", "DATA_EDIT"],
       "sources": ["DIRECT"],
       "matchedRoleIds": [10],
       "matchedPermissionIds": [301, 302],
       "dependOnPermissionIds": []
-    },
     {
       "resourceTypeCode": "DATA",
       "resourceCode": "data:dept:B",
       "resourceName": "B部门数据",
       "codeType": "default",
       "scopeAll": false,
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       "operations": ["DATA_READ"],
       "sources": ["DEPENDENT"],
       "matchedRoleIds": [12],
@@ -844,20 +933,32 @@ admin-service 查询示例：
       "codeType": "default",
       "operationCodes": ["DATA_READ"],
       "scopeAll": false,
+    },
+    {
+      "resourceTypeCode": "REPORT",
+      "resourceCode": null,
+      "resourceName": null,
+      "codeType": null,
+      "operationCodes": ["DATA_READ"],
+      "scopeAll": true,
       "sourceRoles": [
         {
           "roleTypeCode": "BASIC_ROLE",
-          "roleExternalId": "role_report_viewer",
-          "roleName": "报表查看员",
-          "via": ["GROUP_ROLE:finance_admin"]
+          "roleExternalId": "role_admin",
+          "roleName": "管理员",
+          "via": []
         }
+      ],
+      "sourceRoleCount": 1,
+      "sourceRolesTruncated": false,
+      "matchedPermissionIds": [201]
       ],
       "sourceRoleCount": 1,
       "sourceRolesTruncated": false,
       "matchedPermissionIds": [200]
     }
   ],
-  "total": 1,
+  "total": 2,
   "pageNum": 1,
   "pageSize": 50,
   "hasNext": false
@@ -873,6 +974,7 @@ admin-service 查询示例：
 - 默认 `includeApiResources=false`，不返回 API 类型资源；排查接口权限时由调用方显式传 `resourceTypeCodes=["API"]` 或开启该字段。
 - 用户视角默认只返回来源角色摘要；`sourceRoles` 最多返回 `sourceRoleLimit` 条，同时返回 `sourceRoleCount` 和 `sourceRolesTruncated`。
 - 需要查看某条权限的完整来源角色时，应使用 `permission-view/explain` 或按权限键二次查询，不要求列表接口展开全部来源。
+- `scopeAll=true` 的条目表示该 `resourceTypeCode` 下全量范围权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null。不展开 scopeAll 为逐条资源实例。实例级条目（`scopeAll=false`）按 `resourceCode + codeType` 精确表示。
 
 #### 解释单个权限
 
@@ -912,6 +1014,14 @@ admin-service 查询示例：
     "codeType": "default",
     "operationCode": "DATA_EDIT",
     "scopeAll": false
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
   },
   "sourceRoles": [],
   "matchedPermissionIds": [],
@@ -978,6 +1088,14 @@ admin-service 查询示例：
         "codeType": "default",
         "operationCode": "DATA_EDIT",
         "scopeAll": false
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       },
       "sourceRole": {
         "roleTypeCode": "BASIC_ROLE",
@@ -990,7 +1108,7 @@ admin-service 查询示例：
       "createdAt": "2026-04-20T10:30:00"
     }
   ],
-  "total": 1,
+  "total": 2,
   "pageNum": 1,
   "pageSize": 20,
   "hasNext": false
@@ -1025,6 +1143,14 @@ admin-service 查询示例：
         "codeType": "default",
         "operationCode": "DATA_EDIT",
         "scopeAll": false
+    },
+    {
+      "serviceCode": "admin-service",
+      "httpMethod": null,
+      "pathPattern": null,
+      "hasCondition": true,
+      "conditionId": 5,
+      "scopeAll": true
       },
       "role": {
         "roleTypeCode": "BASIC_ROLE",

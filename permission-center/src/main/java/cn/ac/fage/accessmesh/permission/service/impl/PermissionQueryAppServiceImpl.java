@@ -1,67 +1,48 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
-import cn.ac.fage.accessmesh.permission.constant.PermConstants;
-import cn.ac.fage.accessmesh.permission.dto.req.AuthCheckReq;
-import cn.ac.fage.accessmesh.permission.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.permission.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
-import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
-import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
-import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult;
-import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp.TreeNode;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp.ResourceEntry;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp.ScopeEntry;
-import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
-import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.PermissionService;
+import cn.ac.fage.accessmesh.permission.service.PermissionQueryAppService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
+import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
+import cn.ac.fage.accessmesh.permission.util.SnapshotAssembler;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.AntPathMatcher;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -73,199 +54,291 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 权限服务实现类
+ * 权限查询应用服务实现
  * <p>
- * 提供权限校验、资源查询、范围查询、权限树查询、接口快照等核心功能。
- * 使用PermQueryEngine作为统一查询入口，支持条件评估、冲突解决等高级功能。
- * </p>
- * <p>
- * TODO: 构造函数依赖过多(16个)，违反单一职责原则
- * 建议：拆分为PermissionQueryService/PermissionCheckService/PermissionTreeService
+ * 提供高级查询功能：资源查询、范围查询、权限树查询、接口快照。
+ * 从 PermissionServiceImpl 提取。
  * </p>
  */
 @Service
-public class PermissionServiceImpl implements PermissionService {
+public class PermissionQueryAppServiceImpl implements PermissionQueryAppService {
 
-    private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+    private static final Logger log = LoggerFactory.getLogger(PermissionQueryAppServiceImpl.class);
 
-    private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
-    private final ResourceApiMappingMapper apiMappingMapper;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final RoleResourcePermissionMapper rolePermMapper;
     private final SubjectDomainService subjectDomainService;
     private final PermissionConflictDomainService permissionConflictDomainService;
     private final PermissionConditionDomainService permissionConditionDomainService;
     private final TypeResolutionService typeResolutionService;
     private final CacheService cacheService;
     private final PermissionVersionDomainService permissionVersionDomainService;
-    private final ResourceEntityDomainService resourceEntityDomainService;
+    private final DomainClassifyService domainClassifyService;
     private final PermQueryEngine engine;
+    private final SnapshotAssembler snapshotAssembler;
 
-    /**
-     * 构造函数注入所有依赖
-     */
-    public PermissionServiceImpl(AbstractUserMapper abstractUserMapper,
-                                 ResourceEntityMapper resourceEntityMapper,
-                                 ResourceApiMappingMapper apiMappingMapper,
-                                 OperationPermissionMapper operationPermissionMapper,
-                                 RoleResourcePermissionMapper rolePermMapper,
-                                 SubjectDomainService subjectDomainService,
-                                 PermissionConflictDomainService permissionConflictDomainService,
-                                 PermissionConditionDomainService permissionConditionDomainService,
-                                 TypeResolutionService typeResolutionService,
-                                 CacheService cacheService,
-                                 PermissionVersionDomainService permissionVersionDomainService,
-                                 ResourceEntityDomainService resourceEntityDomainService,
-                                 PermQueryEngine engine) {
-        this.abstractUserMapper = abstractUserMapper;
+    public PermissionQueryAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
+                                          OperationPermissionMapper operationPermissionMapper,
+                                          SubjectDomainService subjectDomainService,
+                                          PermissionConflictDomainService permissionConflictDomainService,
+                                          PermissionConditionDomainService permissionConditionDomainService,
+                                          TypeResolutionService typeResolutionService,
+                                          CacheService cacheService,
+                                          PermissionVersionDomainService permissionVersionDomainService,
+                                          DomainClassifyService domainClassifyService,
+                                          PermQueryEngine engine,
+                                          SnapshotAssembler snapshotAssembler) {
         this.resourceEntityMapper = resourceEntityMapper;
-        this.apiMappingMapper = apiMappingMapper;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.rolePermMapper = rolePermMapper;
         this.subjectDomainService = subjectDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
         this.permissionConditionDomainService = permissionConditionDomainService;
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
         this.permissionVersionDomainService = permissionVersionDomainService;
-        this.resourceEntityDomainService = resourceEntityDomainService;
+        this.domainClassifyService = domainClassifyService;
         this.engine = engine;
+        this.snapshotAssembler = snapshotAssembler;
     }
 
-    /**
-     * 单次权限校验
-     * <p>
-     * 检查用户对指定资源是否有指定操作的权限。
-     * 使用PermQueryEngine作为统一查询入口。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      权限校验请求，包含用户、资源、操作等参数
-     * @return 权限校验响应，包含是否允许、拒绝原因、匹配的权限等信息
-     */
+    // ===== queryResources =====
+
     @Override
     @Transactional(readOnly = true)
-    public AuthCheckResp check(Long tenantId, AuthCheckReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return AuthCheckResp.deny("USER_NOT_FOUND");
-
-        PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-            req.resourceTypeCode(), req.resourceCode(), req.operationCode());
-        q.setCodeType(req.codeType());
-        if (req.inheritMode() != null) q.setInheritMode(req.inheritMode());
-        q.setContext(req.context());
-
-        return PermResultUtils.toAuthCheckResp(engine.query(q));
-    }
-
-    /**
-     * 批量权限校验
-     * <p>
-     * 批量检查用户对多个资源的权限，返回每个资源的校验结果。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      批量权限校验请求，包含多个校验项
-     * @return 批量权限校验响应，包含每个项的结果
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public BatchAuthCheckResp batchCheck(Long tenantId, BatchAuthCheckReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) {
-            return new BatchAuthCheckResp(req.items().stream()
-                .map(item -> new AuthCheckItemResult(
-                    item.resourceTypeCode(), item.resourceCode(), item.operationCode(), false, "USER_NOT_FOUND",
-                    List.of(), List.of()))
-                .toList());
-        }
-        Map<String, PermResult> resultsByKey = new LinkedHashMap<>();
-        for (var item : req.items()) {
-            PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-                item.resourceTypeCode(), item.resourceCode(), item.operationCode());
-            q.setCodeType(item.codeType());
-            q.setInheritMode(item.inheritMode());
-            q.setContext(req.context());
-            String key = item.resourceCode() != null && !item.resourceCode().isBlank()
-                ? item.resourceCode() : item.resourceTypeCode() + ":" + item.operationCode();
-            resultsByKey.put(key, engine.query(q));
-        }
-        return PermResultUtils.toBatchAuthCheckResp(resultsByKey);
-    }
-
-    /**
-     * 接口级权限校验
-     * <p>
-     * 检查用户是否有访问指定API接口的权限。
-     * 根据服务编码、HTTP方法、路径匹配API映射配置。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      接口校验请求，包含服务编码、HTTP方法、路径等
-     * @return 接口校验响应，包含是否允许、拒绝原因
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public CheckInterfaceResp checkInterface(Long tenantId, CheckInterfaceReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return CheckInterfaceResp.deny("USER_NOT_FOUND");
-
-        // 查询API映射配置
-        List<ResourceApiMapping> mappings = apiMappingMapper.selectForInterfaceCheck(
-            tenantId, req.serviceCode(), req.httpMethod());
-        if (mappings.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
-
-        // 匹配路径模式
-        List<ResourceApiMapping> matched = mappings.stream()
-            .filter(m -> pathMatches(m.getPathPattern(), req.path())).toList();
-        if (matched.isEmpty()) return CheckInterfaceResp.deny("API_NOT_REGISTERED");
-
-        // 提取资源实体ID集合
-        Set<Long> entityIds = matched.stream()
-            .map(ResourceApiMapping::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
-
-        // 使用PermQueryEngine进行权限校验
-        PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
-        q.setContext(req.context());
-        return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
-    }
-
-    /**
-     * 查询用户可访问的资源列表
-     * <p>
-     * 根据用户角色和权限配置，返回用户有权限访问的资源。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      资源查询请求，包含资源类型、操作等参数
-     * @return 资源查询响应，包含资源列表
-     */
     public QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new QueryResourcesResp(List.of(), "", 60);
 
-        PermQuery q = PermQuery.forResourceQuery(tenantId, userId,
-            req.resourceTypeCodes() != null ? new HashSet<>(req.resourceTypeCodes()) : Set.of(),
-            req.operationCodes() != null ? new HashSet<>(req.operationCodes()) : Set.of());
+        // Use forUserView to get all permissions (both scopeAll and instance-level)
+        PermQuery q = PermQuery.forUserView(tenantId, userId);
+        if (req.context() != null) {
+            q.setContext(req.context());
+        }
         PermResult r = engine.query(q);
-        return PermResultUtils.toQueryResourcesResp(r, 60);
+        Set<Long> effectiveRoles = r.matchedRoleIds();
+        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, effectiveRoles);
+        return buildQueryResourcesResponse(r, req, permissionVersion, tenantId);
+    }
+
+    private QueryResourcesResp buildQueryResourcesResponse(PermResult r, QueryResourcesReq req,
+                                                            String permissionVersion, Long tenantId) {
+        Set<String> resourceTypeCodes = new HashSet<>(req.resourceTypeCodes());
+        Set<String> operationCodes = new HashSet<>(req.operationCodes());
+        String codeType = req.codeType();
+        String domainCode = req.domainCode();
+        Map<Long, ResourceEntity> resMap = r.resourceMap() != null
+            ? new LinkedHashMap<>(r.resourceMap()) : new LinkedHashMap<>();
+        Map<Long, OperationPermission> opMap = r.operationMap() != null ? r.operationMap() : Map.of();
+
+        // TODO: treeMode — 需要树结构响应 DTO 支持
+
+        // Expand entries based on includeInherited / includeChildren
+        List<RolePermEntry> allEntries = r.allEntries();
+        if (Boolean.TRUE.equals(req.includeChildren()) || Boolean.TRUE.equals(req.includeInherited())) {
+            List<RolePermEntry> expandedEntries = expandResourceScope(tenantId, r, req, resMap);
+            allEntries = new ArrayList<>(r.allEntries());
+            allEntries.addAll(expandedEntries);
+        }
+
+        // Collect all resource types for batch resolution
+        Set<Integer> resourceTypesNeeded = new HashSet<>();
+        for (RolePermEntry e : allEntries) {
+            if (e.resourceType() != null) {
+                resourceTypesNeeded.add(e.resourceType());
+            }
+        }
+        Map<Integer, String> resourceTypeCodeMap = !resourceTypesNeeded.isEmpty()
+            ? typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypesNeeded)
+            : Map.of();
+
+        // 按操作码过滤
+        // 先构建 code→OperationPermission 索引用于 opMatch
+        Map<String, OperationPermission> opByCode = opMap.values().stream()
+            .collect(Collectors.toMap(
+                o -> o.getResourceType() + ":" + o.getCode(),
+                o -> o, (a, b) -> a));
+
+        // 使用引擎的 covers() 覆盖判定：MANAGE 覆盖 VIEW 等
+        java.util.function.Predicate<RolePermEntry> opMatch = entry -> {
+            if (entry.grantedBits() == null || entry.resourceType() == null) return false;
+            if (operationCodes.isEmpty()) return true;
+            OperationPermission granted = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
+                opMap, entry.resourceType(), entry.grantedBits());
+            if (granted == null) return false;
+            // 检查授予的操作是否覆盖请求中的任一操作
+            return operationCodes.stream().anyMatch(reqOp -> {
+                OperationPermission target = opByCode.get(entry.resourceType() + ":" + reqOp);
+                return target != null && OperationPermissionUtils.covers(granted, target);
+            });
+        };
+
+        // 按 domainCode 过滤
+        java.util.function.Predicate<RolePermEntry> domainMatch = entry -> {
+            if (domainCode == null || domainCode.isBlank()) return true;
+            if (entry.resourceType() == null) return false;
+            String rtCode = resourceTypeCodeMap.get(entry.resourceType());
+            return rtCode != null && domainClassifyService.matchesTypeCode(
+                tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, rtCode);
+        };
+
+        // 按 codeType 过滤
+        java.util.function.Predicate<RolePermEntry> codeTypeMatch = entry -> {
+            if (codeType == null || codeType.isBlank()) return true;
+            if (entry.resourceEntityId() == null) return true; // scopeAll 不限 codeType
+            ResourceEntity res = resMap.get(entry.resourceEntityId());
+            return res == null || res.getCodeType() == null
+                || codeType.equalsIgnoreCase(res.getCodeType());
+        };
+
+        List<QueryResourcesResp.ResourceEntry> entries = new ArrayList<>();
+
+        // 1. scopeAll entries — filter by operationCodes, domainCode, codeType
+        Map<Integer, List<RolePermEntry>> scopeAllByType = allEntries.stream()
+            .filter(e -> Boolean.TRUE.equals(e.scopeAll()) && e.resourceEntityId() == null)
+            .collect(Collectors.groupingBy(RolePermEntry::resourceType, LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<Integer, List<RolePermEntry>> e : scopeAllByType.entrySet()) {
+            String rtCode = resourceTypeCodeMap.get(e.getKey());
+            if (rtCode == null || (!resourceTypeCodes.isEmpty() && !resourceTypeCodes.contains(rtCode))) {
+                continue;
+            }
+            // 先按 operationCodes / domainCode / codeType 过滤条目
+            List<RolePermEntry> matchedPerms = e.getValue().stream()
+                .filter(opMatch).filter(domainMatch).filter(codeTypeMatch).toList();
+            if (matchedPerms.isEmpty()) continue;
+
+            Set<String> ops = matchedPerms.stream()
+                .map(entry -> OperationPermissionUtils.findByResourceTypeAndBinaryBit(opMap, entry.resourceType(), entry.grantedBits()))
+                .filter(Objects::nonNull).map(OperationPermission::getCode).filter(Objects::nonNull)
+                .filter(op -> operationCodes.isEmpty() || operationCodes.contains(op))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (ops.isEmpty() && !operationCodes.isEmpty()) continue;
+
+            List<Long> roleIds = matchedPerms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
+            List<Long> permIds = matchedPerms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
+            List<String> sources = matchedPerms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
+            entries.add(new QueryResourcesResp.ResourceEntry(
+                rtCode, null, null, null, false, true,
+                new ArrayList<>(ops), roleIds, permIds, sources));
+        }
+
+        // 2. Instance-level entries — filter by resourceType, operationCodes, domainCode, codeType
+        Map<Long, List<RolePermEntry>> byResource = allEntries.stream()
+            .filter(e -> e.resourceEntityId() != null)
+            .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId, LinkedHashMap::new, Collectors.toList()));
+        for (Map.Entry<Long, List<RolePermEntry>> e : byResource.entrySet()) {
+            ResourceEntity res = resMap.get(e.getKey());
+            if (res == null) continue;
+            String rtCode = resourceTypeCodeMap.get(res.getResourceType());
+            if (rtCode == null || (!resourceTypeCodes.isEmpty() && !resourceTypeCodes.contains(rtCode))) {
+                continue;
+            }
+            // 先按 operationCodes / domainCode / codeType 过滤条目
+            List<RolePermEntry> matchedPerms = e.getValue().stream()
+                .filter(opMatch).filter(domainMatch).filter(codeTypeMatch).toList();
+            if (matchedPerms.isEmpty()) continue;
+
+            Set<String> ops = matchedPerms.stream()
+                .map(entry -> OperationPermissionUtils.findByResourceTypeAndBinaryBit(opMap, entry.resourceType(), entry.grantedBits()))
+                .filter(Objects::nonNull).map(OperationPermission::getCode).filter(Objects::nonNull)
+                .filter(op -> operationCodes.isEmpty() || operationCodes.contains(op))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (ops.isEmpty() && !operationCodes.isEmpty()) continue;
+
+            List<Long> roleIds = matchedPerms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
+            List<Long> permIds = matchedPerms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
+            List<String> sources = matchedPerms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
+            boolean canGrant = matchedPerms.stream().anyMatch(p -> Boolean.TRUE.equals(p.canGrant()));
+            entries.add(new QueryResourcesResp.ResourceEntry(
+                rtCode, res.getCode(), res.getCodeType(), res.getName(),
+                canGrant, false,
+                new ArrayList<>(ops), roleIds, permIds, sources));
+        }
+
+        return new QueryResourcesResp(entries, permissionVersion, 60);
     }
 
     /**
-     * 查询用户的数据范围
-     * <p>
-     * 基于父资源的权限，查询用户在子资源类型上的数据范围。
-     * 支持条件评估和冲突解决。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      范围查询请求
-     * @return 范围查询响应，包含可访问的范围列表
+     * Expand resource scope by collecting descendants (includeChildren) and ancestors (includeInherited),
+     * cloning the original permission entries for newly-included resources.
      */
+    private List<RolePermEntry> expandResourceScope(Long tenantId, PermResult r, QueryResourcesReq req,
+                                                     Map<Long, ResourceEntity> resMap) {
+        // Load all valid resources for parent-child relationship traversal
+        List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
+        Map<Long, ResourceEntity> allResMap = allResources.stream()
+            .collect(Collectors.toMap(ResourceEntity::getId, re -> re, (a, b) -> a));
+
+        // Build parentId -> childrenIds and id -> parentId maps
+        Map<Long, List<Long>> childrenMap = new LinkedHashMap<>();
+        Map<Long, Long> parentMap = new LinkedHashMap<>();
+        for (ResourceEntity re : allResources) {
+            if (re.getParentId() != null) {
+                childrenMap.computeIfAbsent(re.getParentId(), k -> new ArrayList<>()).add(re.getId());
+                parentMap.put(re.getId(), re.getParentId());
+            }
+        }
+
+        List<RolePermEntry> expandedEntries = new ArrayList<>();
+        for (RolePermEntry entry : r.allEntries()) {
+            Long resourceEntityId = entry.resourceEntityId();
+            if (resourceEntityId == null) continue; // skip scopeAll entries
+
+            if (Boolean.TRUE.equals(req.includeChildren())) {
+                Set<Long> descendants = new LinkedHashSet<>();
+                collectDescendants(resourceEntityId, childrenMap, descendants);
+                for (Long descendantId : descendants) {
+                    ResourceEntity descendantRes = allResMap.get(descendantId);
+                    if (descendantRes == null) continue;
+                    resMap.putIfAbsent(descendantId, descendantRes);
+                    expandedEntries.add(buildExpandedEntry(entry, descendantRes));
+                }
+            }
+
+            if (Boolean.TRUE.equals(req.includeInherited())) {
+                Set<Long> ancestors = new LinkedHashSet<>();
+                collectAncestors(resourceEntityId, parentMap, ancestors);
+                for (Long ancestorId : ancestors) {
+                    ResourceEntity ancestorRes = allResMap.get(ancestorId);
+                    if (ancestorRes == null) continue;
+                    resMap.putIfAbsent(ancestorId, ancestorRes);
+                    expandedEntries.add(buildExpandedEntry(entry, ancestorRes));
+                }
+            }
+        }
+        return expandedEntries;
+    }
+
+    private void collectDescendants(Long id, Map<Long, List<Long>> childrenMap, Set<Long> result) {
+        List<Long> children = childrenMap.getOrDefault(id, List.of());
+        for (Long child : children) {
+            if (result.add(child)) {
+                collectDescendants(child, childrenMap, result);
+            }
+        }
+    }
+
+    private void collectAncestors(Long id, Map<Long, Long> parentMap, Set<Long> result) {
+        Long parentId = parentMap.get(id);
+        while (parentId != null && result.add(parentId)) {
+            parentId = parentMap.get(parentId);
+        }
+    }
+
+    private RolePermEntry buildExpandedEntry(RolePermEntry source, ResourceEntity res) {
+        return new RolePermEntry(
+            source.permissionId(), source.roleId(), res.getId(),
+            res.getCode(), res.getResourceType(),
+            source.grantedBits(), source.operationCode(), source.effectiveBits(),
+            "INHERITED", source.canGrant(), source.conditionId(),
+            source.hasCondition(), source.dependOn(), false
+        );
+    }
+
+    // ===== queryScopes =====
+
+    @Override
+    @Transactional(readOnly = true)
     public QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req) {
-        // 1. 参数验证
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new QueryScopesResp(false, "USER_NOT_FOUND", List.of(), List.of(), List.of(), "UNION", "", 60);
 
@@ -277,27 +350,18 @@ public class PermissionServiceImpl implements PermissionService {
 
         Map<String, Object> ctx = req.context() != null ? req.context() : Map.of();
 
-        // 2. 验证父资源权限
         ParentPermissionsResult parentResult = validateParentPermissions(tenantId, userId,
             req, parentResourceEntityId, ctx);
         if (parentResult == null) {
             return new QueryScopesResp(false, "NO_PERMISSION", List.of(), List.of(), List.of(), "UNION", "", 60);
         }
 
-        // 3. 处理范围权限
         Map<String, ScopeAccumulator> merged = processScopePermissions(tenantId, userId,
             req, parentResult.parentPermissionIds, ctx);
 
-        // 4. 构建响应
         return buildQueryScopesResponse(merged, userId, tenantId, parentResult);
     }
 
-    /**
-     * 构建范围累加器
-     * <p>
-     * 根据权限条目构建范围累加器对象，用于合并相同范围的操作
-     * </p>
-     */
     private ScopeAccumulator buildScopeAccumulator(RolePermEntry entry, String scopeTypeCode,
                                                     Map<Long, ResourceEntity> scopeResourceMap,
                                                     Map<String, ScopeAccumulator> merged) {
@@ -321,9 +385,6 @@ public class PermissionServiceImpl implements PermissionService {
         );
     }
 
-    /**
-     * 构建范围查询响应
-     */
     private QueryScopesResp buildQueryScopesResponse(Map<String, ScopeAccumulator> merged,
                                                       Long userId, Long tenantId,
                                                       ParentPermissionsResult parentResult) {
@@ -341,7 +402,8 @@ public class PermissionServiceImpl implements PermissionService {
                 new ArrayList<>(item.dependOnPermissionIds)
             ))
             .toList();
-        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, Set.of());
+        Set<Long> effectiveRoles = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, effectiveRoles);
         return new QueryScopesResp(
             true,
             null,
@@ -354,12 +416,6 @@ public class PermissionServiceImpl implements PermissionService {
         );
     }
 
-    /**
-     * 验证父资源权限
-     * <p>
-     * 检查用户对父资源是否有任一操作的权限
-     * </p>
-     */
     private ParentPermissionsResult validateParentPermissions(Long tenantId, Long userId,
                                                                QueryScopesReq req, Long parentResourceEntityId,
                                                                Map<String, Object> ctx) {
@@ -368,6 +424,7 @@ public class PermissionServiceImpl implements PermissionService {
         for (String parentOpCode : req.parentOperationCodes()) {
             PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
                 req.parentResourceTypeCode(), req.parentResourceCode(), parentOpCode);
+            q.setCodeType(req.parentCodeType());
             q.setContext(ctx);
             PermResult r = engine.query(q);
             if (r.allowed()) {
@@ -379,12 +436,6 @@ public class PermissionServiceImpl implements PermissionService {
         return new ParentPermissionsResult(matchedParentOps, parentPermissionIds);
     }
 
-    /**
-     * 处理范围权限
-     * <p>
-     * 查询用户在子资源类型上的权限，应用条件评估和冲突解决
-     * </p>
-     */
     private Map<String, ScopeAccumulator> processScopePermissions(Long tenantId, Long userId,
                                                                    QueryScopesReq req,
                                                                    Set<Long> parentPermissionIds,
@@ -433,12 +484,6 @@ public class PermissionServiceImpl implements PermissionService {
         return merged;
     }
 
-    /**
-     * 处理范围操作权限
-     * <p>
-     * 对每个操作进行条件评估和冲突解决，然后累加结果
-     * </p>
-     */
     private void processScopeOperations(Long tenantId, Map<String, Object> ctx,
                                          QueryScopesReq req, String scopeTypeCode,
                                          Map<String, Long> scopeOpIdMap,
@@ -463,9 +508,6 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
-    /**
-     * 父资源权限验证结果
-     */
     private static class ParentPermissionsResult {
         final Set<String> matchedParentOps;
         final Set<Long> parentPermissionIds;
@@ -475,24 +517,41 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
-    /**
-     * 获取接口权限快照
-     * <p>
-     * 获取用户在指定服务下所有可访问的API列表。
-     * 使用权限令牌隔离不同权限状态下的快照缓存，避免跨用户串用与旧快照误判。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      接口快照请求，包含用户、服务编码、权限令牌等
-     * @return 接口快照响应，包含可访问的API列表和当前权限令牌
-     */
+    private static final class ScopeAccumulator {
+        private final String resourceTypeCode;
+        private final String resourceCode;
+        private final String codeType;
+        private final String resourceName;
+        private final boolean scopeAll;
+        private final Set<String> operations = new LinkedHashSet<>();
+        private final Set<String> sources = new LinkedHashSet<>();
+        private final Set<Long> matchedRoleIds = new LinkedHashSet<>();
+        private final Set<Long> matchedPermissionIds = new LinkedHashSet<>();
+        private final Set<Long> dependOnPermissionIds = new LinkedHashSet<>();
+
+        private ScopeAccumulator(
+            String resourceTypeCode,
+            String resourceCode,
+            String codeType,
+            String resourceName,
+            boolean scopeAll
+        ) {
+            this.resourceTypeCode = resourceTypeCode;
+            this.resourceCode = resourceCode;
+            this.codeType = codeType;
+            this.resourceName = resourceName;
+            this.scopeAll = scopeAll;
+        }
+    }
+
+    // ===== interfaceSnapshot =====
+
     @Override
     @Transactional(readOnly = true)
     public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new InterfaceSnapshotResp(false, "", List.of());
 
-        // 先计算当前权限令牌，再根据 service + token 读取快照缓存。
         Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
             ? Set.of()
@@ -514,55 +573,13 @@ public class PermissionServiceImpl implements PermissionService {
             return new InterfaceSnapshotResp(false, permissionVersion, List.of());
         }
 
-        // 查询所有角色权限
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleIds(tenantId, validRoleIds);
+        // 调引擎获取全量权限，通过 SnapshotAssembler 过滤 API 类型并构建快照条目
+        PermQuery query = PermQuery.forUserView(tenantId, userId);
+        query.setRoleIds(validRoleIds); // 使用已过滤互斥的角色
+        PermResult result = engine.query(query);
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
+        List<ApiPermissionEntry> entries = snapshotAssembler.buildSnapshot(tenantId, result, req.serviceCode(), apiType);
 
-        // 1. 获取类型级权限的资源类型（scopeAll=true）
-        Set<Integer> scopeAllResourceTypes = allPerms.stream()
-            .filter(p -> Boolean.TRUE.equals(p.getScopeAll()))
-            .map(RoleResourcePermission::getResourceType)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-
-        Set<Long> allowedResourceIds = new HashSet<>();
-
-        // 2. 对scopeAll=true的资源类型，批量查询所有资源
-        if (!scopeAllResourceTypes.isEmpty()) {
-            List<ResourceEntity> allTypeResources = resourceEntityMapper.selectValidByResourceTypes(
-                tenantId, scopeAllResourceTypes);
-            allowedResourceIds.addAll(allTypeResources.stream()
-                .map(ResourceEntity::getId)
-                .toList());
-        }
-
-        // 3. 添加实例级权限的资源ID
-        allowedResourceIds.addAll(allPerms.stream()
-            .filter(p -> p.getResourceEntityId() != null && !Boolean.TRUE.equals(p.getScopeAll()))
-            .map(RoleResourcePermission::getResourceEntityId)
-            .collect(Collectors.toSet()));
-
-        // 查询API映射并构建响应
-        List<ApiPermissionEntry> entries = new ArrayList<>();
-        if (!allowedResourceIds.isEmpty()) {
-            List<ResourceApiMapping> apiMappings = apiMappingMapper.selectForSnapshot(
-                tenantId, req.serviceCode(), allowedResourceIds);
-            // 构建按资源实体ID索引的权限映射，实现 O(n+m) 查询
-            Map<Long, List<RoleResourcePermission>> permsByResource = allPerms.stream()
-                .filter(p -> p.getResourceEntityId() != null)
-                .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
-
-            for (ResourceApiMapping mapping : apiMappings) {
-                List<RoleResourcePermission> resourcePerms = permsByResource.getOrDefault(mapping.getResourceEntityId(), List.of());
-                boolean hasCondition = resourcePerms.stream().anyMatch(p -> p.getConditionId() != null);
-                Long conditionId = resourcePerms.stream()
-                    .filter(p -> p.getConditionId() != null)
-                    .map(RoleResourcePermission::getConditionId).findFirst().orElse(null);
-                entries.add(new ApiPermissionEntry(mapping.getServiceCode(), mapping.getHttpMethod(),
-                    mapping.getPathPattern(), hasCondition, conditionId));
-            }
-        }
-
-        // 去重处理
         List<ApiPermissionEntry> dedupedEntries = entries.stream()
             .collect(Collectors.toMap(
                 item -> item.serviceCode() + "|" + item.httpMethod() + "|" + item.pathPattern(),
@@ -574,7 +591,6 @@ public class PermissionServiceImpl implements PermissionService {
             .stream()
             .toList();
 
-        // 缓存结果
         cacheInterfaceSnapshot(tenantId, req.serviceCode(), permissionVersion, dedupedEntries, cacheIdentifier);
         return new InterfaceSnapshotResp(false, permissionVersion, dedupedEntries);
     }
@@ -615,7 +631,7 @@ public class PermissionServiceImpl implements PermissionService {
             permissionVersion,
             entries.stream()
                 .map(item -> new InterfaceSnapshot.InterfacePermEntry(
-                    item.serviceCode(), item.httpMethod(), item.pathPattern(), item.hasCondition(), item.conditionId()
+                    item.serviceCode(), item.httpMethod(), item.pathPattern(), item.hasCondition(), item.conditionId(), item.scopeAll()
                 ))
                 .toList()
         );
@@ -625,7 +641,7 @@ public class PermissionServiceImpl implements PermissionService {
     private List<ApiPermissionEntry> toApiPermissionEntries(List<InterfaceSnapshot.InterfacePermEntry> entries) {
         return entries.stream()
             .map(e -> new ApiPermissionEntry(e.serviceCode(), e.httpMethod(), e.pathPattern(),
-                e.hasCondition(), e.conditionId()))
+                e.hasCondition(), e.conditionId(), e.scopeAll()))
             .collect(Collectors.toList());
     }
 
@@ -638,67 +654,11 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
-    // =========== 内部辅助方法 ==========
+    // ===== queryPermissionTree =====
 
-/**
-     * 范围累加器
-     * <p>
-     * 用于合并相同范围的操作权限
-     * </p>
-     */
-    private static final class ScopeAccumulator {
-        private final String resourceTypeCode;
-        private final String resourceCode;
-        private final String codeType;
-        private final String resourceName;
-        private final boolean scopeAll;
-        private final Set<String> operations = new LinkedHashSet<>();
-        private final Set<String> sources = new LinkedHashSet<>();
-        private final Set<Long> matchedRoleIds = new LinkedHashSet<>();
-        private final Set<Long> matchedPermissionIds = new LinkedHashSet<>();
-        private final Set<Long> dependOnPermissionIds = new LinkedHashSet<>();
-
-        private ScopeAccumulator(
-            String resourceTypeCode,
-            String resourceCode,
-            String codeType,
-            String resourceName,
-            boolean scopeAll
-        ) {
-            this.resourceTypeCode = resourceTypeCode;
-            this.resourceCode = resourceCode;
-            this.codeType = codeType;
-            this.resourceName = resourceName;
-            this.scopeAll = scopeAll;
-        }
-    }
-
-    /**
-     * 路径匹配
-     * <p>
-     * 使用AntPathMatcher进行路径模式匹配，支持*、**、{xxx}通配符
-     * </p>
-     */
-    private boolean pathMatches(String pattern, String path) {
-        if (pattern.equals(path)) return true;
-        return PATH_MATCHER.match(pattern, path);
-    }
-
-    /**
-     * 查询权限树
-     * <p>
-     * 从指定资源开始，向上/向下遍历资源树，返回有权限的节点。
-     * 支持祖先、子孙、双向三种遍历方向。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      权限树查询请求
-     * @return 权限树响应，包含根节点、祖先列表、子孙列表
-     */
     @Override
     @Transactional(readOnly = true)
     public PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req) {
-        // 1. 准备上下文
         TreeContext context = prepareTreeContext(tenantId, req);
         if (context.userId == null) {
             return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
@@ -712,16 +672,10 @@ public class PermissionServiceImpl implements PermissionService {
                 List.of(), List.of(), null, 60);
         }
 
-        // 2. 构建权限映射
-        Map<Long, List<RoleResourcePermission>> permissionMap = buildPermissionMap(tenantId, context);
-
-        // 3. 构建树
+        Map<Long, List<RolePermEntry>> permissionMap = buildPermissionMap(tenantId, context);
         return buildPermissionTreeResponse(tenantId, context, permissionMap);
     }
 
-    /**
-     * 权限树查询上下文
-     */
     private static class TreeContext {
         final Long userId;
         final Long rootResourceId;
@@ -730,10 +684,11 @@ public class PermissionServiceImpl implements PermissionService {
         final Map<Long, OperationPermission> operationMap;
         final int maxDepth;
         final String direction;
+        final Map<String, Object> context;
 
         TreeContext(Long userId, Long rootResourceId, Set<Long> validRoleIds,
                     Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
-                    int maxDepth, String direction) {
+                    int maxDepth, String direction, Map<String, Object> context) {
             this.userId = userId;
             this.rootResourceId = rootResourceId;
             this.validRoleIds = validRoleIds;
@@ -741,91 +696,75 @@ public class PermissionServiceImpl implements PermissionService {
             this.operationMap = operationMap;
             this.maxDepth = maxDepth;
             this.direction = direction;
+            this.context = context;
         }
     }
 
-    /**
-     * 准备权限树查询上下文
-     */
     private TreeContext prepareTreeContext(Long tenantId, PermissionTreeReq req) {
-        // 1. 解析用户ID
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
-            return new TreeContext(null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
         }
 
-        // 2. 解析根资源ID
         Long rootResourceId = typeResolutionService.resolveResourceId(
             tenantId, req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.domainCode()
         );
         if (rootResourceId == null) {
-            return new TreeContext(userId, null, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, null, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
         }
 
-        // 3. 获取有效角色
         Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         if (effectiveRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
         }
         Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
         if (validRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
+            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
         }
 
-        // 4. 解析操作ID
         Set<Long> operationIds = resolveOperationIds(tenantId, req);
 
-        // 批量加载操作权限
-        Map<Long, OperationPermission> operationMap = batchLoadOperations(tenantId, operationIds);
+        Map<Long, OperationPermission> operationMap = operationIds.isEmpty()
+            ? Collections.emptyMap()
+            : operationPermissionMapper.selectValidByIds(tenantId, operationIds)
+                .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
 
         int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
         String direction = req.direction() != null ? req.direction().toUpperCase() : "BOTH";
 
-        return new TreeContext(userId, rootResourceId, validRoleIds, operationIds, operationMap, maxDepth, direction);
+        return new TreeContext(userId, rootResourceId, validRoleIds, operationIds, operationMap, maxDepth, direction, req.context());
     }
 
-    /**
-     * 解析操作ID集合
-     */
     private Set<Long> resolveOperationIds(Long tenantId, PermissionTreeReq req) {
         Set<String> opCodes = new HashSet<>(req.operationCodes());
         Map<String, Long> opIdMap = typeResolutionService.batchResolveOperationIds(tenantId, req.resourceTypeCode(), opCodes);
         return new HashSet<>(opIdMap.values());
     }
 
-    /**
-     * 构建权限映射
-     * <p>
-     * 查询所有角色权限并按资源ID分组
-     * </p>
-     */
-    private Map<Long, List<RoleResourcePermission>> buildPermissionMap(Long tenantId, TreeContext context) {
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleIds(
-            tenantId, context.validRoleIds);
-
-        return allPerms.stream()
-            .filter(p -> p.getResourceEntityId() != null)
-            .collect(Collectors.groupingBy(RoleResourcePermission::getResourceEntityId));
+    private Map<Long, List<RolePermEntry>> buildPermissionMap(Long tenantId, TreeContext context) {
+        PermQuery query = PermQuery.forUserView(tenantId, context.userId);
+        query.setRoleIds(context.validRoleIds); // 使用已过滤互斥的角色
+        if (context.context != null) {
+            query.setContext(context.context);
+        }
+        PermResult result = engine.query(query);
+        return result.allEntries().stream()
+            .filter(e -> e.resourceEntityId() != null)
+            .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId));
     }
 
-    /**
-     * 构建权限树响应
-     */
     private PermissionTreeResp buildPermissionTreeResponse(Long tenantId, TreeContext context,
-                                                            Map<Long, List<RoleResourcePermission>> permsByResource) {
-        // 批量加载所有资源
+                                                            Map<Long, List<RolePermEntry>> permsByResource) {
         List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
         Map<Long, ResourceEntity> allResourceMap = allResources.stream()
             .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
 
-        // 批量解析资源类型编码
         Set<Integer> allResourceTypes = allResources.stream()
             .map(ResourceEntity::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", allResourceTypes);
 
-        // 构建根节点
         ResourceEntity rootResource = allResourceMap.get(context.rootResourceId);
         TreeNode root = buildNode(context.rootResourceId, 0,
             getOperationsForResource(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
@@ -833,7 +772,6 @@ public class PermissionServiceImpl implements PermissionService {
             rootResource != null ? rootResource.getName() : null,
             rootResource, resourceTypeCodeMap);
 
-        // 遍历祖先和子孙
         List<TreeNode> ancestors = List.of();
         List<TreeNode> descendants = List.of();
 
@@ -851,9 +789,6 @@ public class PermissionServiceImpl implements PermissionService {
         return new PermissionTreeResp(root, ancestors, descendants, permissionVersion, 60);
     }
 
-    /**
-     * 构建树节点
-     */
     private TreeNode buildNode(Long resourceId, int depth,
                                Set<String> operations, boolean canGrant, String name,
                                ResourceEntity resource, Map<Integer, String> resourceTypeCodeMap) {
@@ -864,10 +799,7 @@ public class PermissionServiceImpl implements PermissionService {
         return new TreeNode(resourceId, typeCode, resource.getCode(), resource.getName(), depth, operations, canGrant, null);
     }
 
-    /**
-     * 获取资源的操作列表
-     */
-    private Set<String> getOperationsForResource(List<RoleResourcePermission> perms, Set<Long> operationIds,
+    private Set<String> getOperationsForResource(List<RolePermEntry> perms, Set<Long> operationIds,
                                                   Map<Long, OperationPermission> operationMap) {
         if (perms == null || perms.isEmpty()) return Set.of();
         Set<OperationPermission> targetOps = operationIds.stream()
@@ -876,11 +808,11 @@ public class PermissionServiceImpl implements PermissionService {
             .collect(Collectors.toSet());
         Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
         Set<String> operations = new LinkedHashSet<>();
-        for (RoleResourcePermission perm : perms) {
+        for (RolePermEntry perm : perms) {
             OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
                 grantedOpIndex,
-                perm.getResourceType(),
-                perm.getGrantedBits()
+                perm.resourceType(),
+                perm.grantedBits()
             );
             if (grantedOp == null) {
                 continue;
@@ -894,10 +826,7 @@ public class PermissionServiceImpl implements PermissionService {
         return operations;
     }
 
-    /**
-     * 检查是否有授权传递权限
-     */
-    private boolean hasCanGrant(List<RoleResourcePermission> perms, Set<Long> operationIds,
+    private boolean hasCanGrant(List<RolePermEntry> perms, Set<Long> operationIds,
                                  Map<Long, OperationPermission> operationMap) {
         if (perms == null || perms.isEmpty()) return false;
         Set<OperationPermission> targetOps = operationIds.stream()
@@ -905,14 +834,14 @@ public class PermissionServiceImpl implements PermissionService {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
-        for (RoleResourcePermission perm : perms) {
-            if (!Boolean.TRUE.equals(perm.getCanGrant())) {
+        for (RolePermEntry perm : perms) {
+            if (!Boolean.TRUE.equals(perm.canGrant())) {
                 continue;
             }
             OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
                 grantedOpIndex,
-                perm.getResourceType(),
-                perm.getGrantedBits()
+                perm.resourceType(),
+                perm.grantedBits()
             );
             if (grantedOp == null) {
                 continue;
@@ -926,11 +855,8 @@ public class PermissionServiceImpl implements PermissionService {
         return false;
     }
 
-    /**
-     * 向上遍历祖先节点
-     */
     private List<TreeNode> traverseAncestors(Long tenantId, Long startResourceId,
-                                              Map<Long, List<RoleResourcePermission>> permsByResource,
+                                              Map<Long, List<RolePermEntry>> permsByResource,
                                               Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
                                               int maxDepth, Map<Long, ResourceEntity> allResourceMap,
                                               Map<Integer, String> resourceTypeCodeMap) {
@@ -944,7 +870,7 @@ public class PermissionServiceImpl implements PermissionService {
                 break;
             }
             if (resource.getParentId() != null) {
-                List<RoleResourcePermission> perms = permsByResource.get(resource.getParentId());
+                List<RolePermEntry> perms = permsByResource.get(resource.getParentId());
                 Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
                 if (!ops.isEmpty()) {
                     ResourceEntity parentResource = allResourceMap.get(resource.getParentId());
@@ -961,11 +887,8 @@ public class PermissionServiceImpl implements PermissionService {
         return ancestors;
     }
 
-    /**
-     * 向下遍历子孙节点
-     */
     private List<TreeNode> traverseDescendants(Long tenantId, Long startResourceId,
-                                                Map<Long, List<RoleResourcePermission>> permsByResource,
+                                                Map<Long, List<RolePermEntry>> permsByResource,
                                                 Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
                                                 int maxDepth, Map<Long, ResourceEntity> allResourceMap,
                                                 Map<Integer, String> resourceTypeCodeMap) {
@@ -975,11 +898,8 @@ public class PermissionServiceImpl implements PermissionService {
         return descendants;
     }
 
-    /**
-     * 递归收集有权限的子孙节点
-     */
     private void collectDescendantsWithPermission(Long tenantId, Long parentId,
-                                                   Map<Long, List<RoleResourcePermission>> permsByResource,
+                                                   Map<Long, List<RolePermEntry>> permsByResource,
                                                    Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
                                                    int currentDepth, int maxDepth,
                                                    List<TreeNode> result,
@@ -987,13 +907,12 @@ public class PermissionServiceImpl implements PermissionService {
                                                    Map<Integer, String> resourceTypeCodeMap) {
         if (currentDepth > maxDepth) return;
 
-        // 从预加载资源中过滤子节点
         List<ResourceEntity> children = allResourceMap.values().stream()
             .filter(r -> Objects.equals(r.getParentId(), parentId) && r.getDeleteFlag() == 0L && r.getTenantId().equals(tenantId))
             .collect(Collectors.toList());
 
         for (ResourceEntity child : children) {
-            List<RoleResourcePermission> perms = permsByResource.get(child.getId());
+            List<RolePermEntry> perms = permsByResource.get(child.getId());
             Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
             if (!ops.isEmpty()) {
                 TreeNode node = buildNode(child.getId(), currentDepth, ops,
@@ -1005,16 +924,4 @@ public class PermissionServiceImpl implements PermissionService {
         }
     }
 
-    // ===== 私有批量加载方法 =====
-
-    /**
-     * 批量加载操作权限
-     */
-    private Map<Long, OperationPermission> batchLoadOperations(Long tenantId, Set<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return operationPermissionMapper.selectValidByIds(tenantId, ids)
-            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
-    }
 }

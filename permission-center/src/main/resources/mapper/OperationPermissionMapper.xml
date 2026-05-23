@@ -53,6 +53,16 @@
           </if>
     </select>
 
+    <select id="selectByTenantAndResourceTypes" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
+        SELECT * FROM operation_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type IN
+          <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+              #{rt}
+          </foreach>
+    </select>
+
     <select id="selectByResourceTypeAndCode" resultType="cn.ac.fage.accessmesh.permission.entity.OperationPermission">
         SELECT * FROM operation_permission
         WHERE tenant_id = #{tenantId}

@@ -40,6 +40,7 @@ public record QueryResourcesResp(
         String codeType,
         String resourceName,
         boolean canGrant,
+        boolean scopeAll,
         List<String> operations,
         List<Long> matchedRoleIds,
         List<Long> matchedPermissionIds,

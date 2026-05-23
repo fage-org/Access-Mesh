@@ -22,8 +22,8 @@ class PermResultUtilsTest {
         ResourceEntity menuResource = resource(1L, 1, "menu:view", "菜单查看");
         ResourceEntity userResource = resource(2L, 2, "user:create", "用户创建");
 
-        RolePermEntry menuEntry = new RolePermEntry(11L, 101L, 1L, "menu:view", 1, 1L, null, null, "MANUAL", false, null, false, null);
-        RolePermEntry userEntry = new RolePermEntry(12L, 102L, 2L, "user:create", 2, 1L, null, null, "MANUAL", false, null, false, null);
+        RolePermEntry menuEntry = new RolePermEntry(11L, 101L, 1L, "menu:view", 1, 1L, null, null, "MANUAL", false, null, false, null, null);
+        RolePermEntry userEntry = new RolePermEntry(12L, 102L, 2L, "user:create", 2, 1L, null, null, "MANUAL", false, null, false, null, null);
 
         OperationPermission userCreate = operation(201L, 2, "CREATE", 1L, 0L);
         OperationPermission menuView = operation(101L, 1, "VIEW", 1L, 0L);

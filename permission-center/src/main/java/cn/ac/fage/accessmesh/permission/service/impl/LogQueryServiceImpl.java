@@ -1,14 +1,22 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.dto.req.PermissionRecentChangesReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.PermissionRecentChangesResp;
+import cn.ac.fage.accessmesh.permission.dto.resp.RecentChangeResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationLog;
 import cn.ac.fage.accessmesh.permission.entity.PermissionChangeLog;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.permission.service.LogQueryService;
+import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.PageUtil;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -31,42 +39,25 @@ public class LogQueryServiceImpl implements LogQueryService {
     private final PermissionChangeLogMapper changeLogMapper;
     private final OperationLogMapper operationLogMapper;
     private final PermQueryEngine engine;
+    private final TypeResolutionService typeResolutionService;
+    private final ObjectMapper objectMapper;
 
-    /**
-     * 构造函数注入依赖
-     *
-     * @param changeLogMapper      权限变更日志数据访问层
-     * @param operationLogMapper   操作日志数据访问层
-     * @param engine               权限查询引擎
-     */
     public LogQueryServiceImpl(PermissionChangeLogMapper changeLogMapper,
                                 OperationLogMapper operationLogMapper,
-                                PermQueryEngine engine) {
+                                PermQueryEngine engine,
+                                TypeResolutionService typeResolutionService,
+                                ObjectMapper objectMapper) {
         this.changeLogMapper = changeLogMapper;
         this.operationLogMapper = operationLogMapper;
         this.engine = engine;
+        this.typeResolutionService = typeResolutionService;
+        this.objectMapper = objectMapper;
     }
 
     // ===== 变更日志查询 =====
 
-    /**
-     * 查询变更日志列表
-     * <p>
-     * 根据实体类型和实体ID过滤查询变更日志。
-     * 按创建时间倒序排列。需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型，可选过滤条件
-     * @param entityId   实体ID，可选过滤条件
-     * @param offset     分页偏移量
-     * @param limit      分页大小
-     * @return 变更日志响应列表
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -76,22 +67,8 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
-    /**
-     * 统计变更日志数量
-     * <p>
-     * 根据实体类型和实体ID过滤统计变更日志数量。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型，可选过滤条件
-     * @param entityId   实体ID，可选过滤条件
-     * @return 变更日志总数
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -100,29 +77,10 @@ public class LogQueryServiceImpl implements LogQueryService {
         return changeLogMapper.countByTenantEntityTypeEntityId(tenantId, entityType, entityId);
     }
 
-    /**
-     * 多条件过滤查询变更日志
-     * <p>
-     * 支持按用户、角色、时间范围、事件类型等多维度过滤查询。
-     * 用于权限变更历史的高级查询。需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param userId     用户ID，可选过滤条件
-     * @param roleId     角色ID，可选过滤条件
-     * @param since      开始时间，可选过滤条件
-     * @param until      结束时间，可选过滤条件
-     * @param eventTypes 事件类型列表，可选过滤条件
-     * @param offset     分页偏移量
-     * @param limit      分页大小
-     * @return 变更日志响应列表
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                                        LocalDateTime since, LocalDateTime until,
                                                        List<String> eventTypes, int offset, int limit) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -132,27 +90,10 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
-    /**
-     * 多条件过滤统计变更日志数量
-     * <p>
-     * 支持按用户、角色、时间范围、事件类型等多维度过滤统计。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param userId     用户ID，可选过滤条件
-     * @param roleId     角色ID，可选过滤条件
-     * @param since      开始时间，可选过滤条件
-     * @param until      结束时间，可选过滤条件
-     * @param eventTypes 事件类型列表，可选过滤条件
-     * @return 变更日志总数
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                          LocalDateTime since, LocalDateTime until,
                                          List<String> eventTypes) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -161,28 +102,45 @@ public class LogQueryServiceImpl implements LogQueryService {
         return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
     }
 
-    
+    // ===== 最近变更查询 =====
+
+    @Override
+    public PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
+
+        Long userId = null;
+        Long roleId = null;
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
+            userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
+            roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
+        }
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
+        int offset = Math.max((pageNum - 1) * pageSize, 0);
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && userId == null) {
+            return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
+        }
+        if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && roleId == null) {
+            return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
+        }
+        long total = countChangeLogsFiltered(
+            tenantId, userId, roleId, req.since(), req.until(), req.eventTypes());
+        List<ChangeLogResp> logs = listChangeLogsFiltered(
+            tenantId, userId, roleId, req.since(), req.until(), req.eventTypes(), offset, pageSize);
+        List<RecentChangeResp> items = logs.stream().map(this::toRecentChange).toList();
+        int totalInt = total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+        return new PermissionRecentChangesResp(
+            items, totalInt, pageNum, pageSize, offset + items.size() < total);
+    }
 
     // ===== 操作日志查询 =====
 
-    /**
-     * 查询操作日志列表
-     * <p>
-     * 根据模块和操作类型过滤查询操作日志。
-     * 按创建时间倒序排列。需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可选过滤条件
-     * @param action   操作类型，可选过滤条件
-     * @param offset   分页偏移量
-     * @param limit    分页大小
-     * @return 操作日志响应列表
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -192,22 +150,8 @@ public class LogQueryServiceImpl implements LogQueryService {
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
-    /**
-     * 统计操作日志数量
-     * <p>
-     * 根据模块和操作类型过滤统计操作日志数量。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可选过滤条件
-     * @param action   操作类型，可选过滤条件
-     * @return 操作日志总数
-     * @throws SecurityException 无权限时抛出
-     */
     @Override
     public long countOperationLogs(Long tenantId, String module, String action) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
@@ -216,16 +160,8 @@ public class LogQueryServiceImpl implements LogQueryService {
         return operationLogMapper.countByTenantModuleAction(tenantId, module, action);
     }
 
-    
-
     // ===== 实体转换方法 =====
 
-    /**
-     * 将PermissionChangeLog实体转换为响应对象
-     *
-     * @param c 权限变更日志实体
-     * @return 变更日志响应对象
-     */
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getEntityType(),
@@ -235,17 +171,77 @@ public class LogQueryServiceImpl implements LogQueryService {
         );
     }
 
-    /**
-     * 将OperationLog实体转换为响应对象
-     *
-     * @param l 操作日志实体
-     * @return 操作日志响应对象
-     */
     private OperationLogResp toOperationLogResp(OperationLog l) {
         return new OperationLogResp(
             l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
             l.getTargetType(), l.getTargetId(), l.getSummary(), l.getOperatorId(),
             l.getOperatorName(), l.getIpAddress(), l.getRequestId(), l.getCreatedAt()
         );
+    }
+
+    private RecentChangeResp toRecentChange(ChangeLogResp log) {
+        return new RecentChangeResp(
+            log.id(),
+            parseText(log.diffSnapshot(), "eventType"),
+            parseText(log.diffSnapshot(), "items[0].changeType"),
+            "POSSIBLE",
+            parseText(log.diffSnapshot(), "items[0].message"),
+            new RecentChangeResp.PermissionKey(
+                parseText(log.diffSnapshot(), "items[0].permission.domainCode"),
+                parseText(log.diffSnapshot(), "items[0].permission.resourceTypeCode"),
+                parseText(log.diffSnapshot(), "items[0].permission.resourceCode"),
+                parseText(log.diffSnapshot(), "items[0].permission.codeType"),
+                parseText(log.diffSnapshot(), "items[0].permission.operationCode"),
+                parseBoolean(log.diffSnapshot(), "items[0].permission.scopeAll")
+            ),
+            new RecentChangeResp.SourceRole(
+                parseText(log.diffSnapshot(), "items[0].role.roleTypeCode"),
+                parseText(log.diffSnapshot(), "items[0].role.roleExternalId"),
+                parseText(log.diffSnapshot(), "items[0].role.roleName")
+            ),
+            null,
+            null,
+            log.changeReason(),
+            log.createdAt()
+        );
+    }
+
+    private String parseText(String json, String path) {
+        JsonNode node = parsePath(json, path);
+        return node == null || node.isNull() ? null : node.asText();
+    }
+
+    private Boolean parseBoolean(String json, String path) {
+        JsonNode node = parsePath(json, path);
+        return node == null || node.isNull() ? null : node.asBoolean();
+    }
+
+    private JsonNode parsePath(String json, String path) {
+        if (json == null || json.isBlank() || path == null || path.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode current = objectMapper.readTree(json);
+            String[] segments = path.split("\\.");
+            for (String segment : segments) {
+                if (segment.endsWith("]") && segment.contains("[")) {
+                    String field = segment.substring(0, segment.indexOf('['));
+                    int idx = Integer.parseInt(segment.substring(segment.indexOf('[') + 1, segment.length() - 1));
+                    current = current.path(field);
+                    if (!current.isArray() || current.size() <= idx) {
+                        return null;
+                    }
+                    current = current.get(idx);
+                } else {
+                    current = current.path(segment);
+                }
+                if (current.isMissingNode()) {
+                    return null;
+                }
+            }
+            return current;
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

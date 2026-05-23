@@ -25,16 +25,18 @@ public record InterfaceSnapshotResp(
      * </p>
      *
      * @param serviceCode  服务编码
-     * @param httpMethod   HTTP方法
-     * @param pathPattern  路径模式
+     * @param httpMethod   HTTP方法，scopeAll为true时为null
+     * @param pathPattern  路径模式，scopeAll为true时为null
      * @param hasCondition 是否有条件权限
      * @param conditionId  条件ID，无条件时为null
+     * @param scopeAll     是否为全量范围权限（不限定具体接口），为true时httpMethod和pathPattern为null
      */
     public record ApiPermissionEntry(
         String serviceCode,
         String httpMethod,
         String pathPattern,
         boolean hasCondition,
-        Long conditionId
+        Long conditionId,
+        boolean scopeAll
     ) {}
 }

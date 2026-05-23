@@ -68,6 +68,11 @@ public class PermViewResult {
     private final Map<Long, RoleInfo> sourceRoleMap;
 
     /**
+     * 资源类型码映射（key: resourceId → resourceTypeCode）
+     */
+    private final Map<Long, String> resourceTypeCodeMap;
+
+    /**
      * 域编码映射（key: resourceId → domainCode）
      * <p>
      * 通过 DomainClassifyService 按资源类型码反查域编码。
@@ -95,6 +100,7 @@ public class PermViewResult {
         this.pageSize = b.pageSize;
         this.hasNext = b.hasNext;
         this.sourceRoleMap = b.sourceRoleMap == null ? Map.of() : Map.copyOf(b.sourceRoleMap);
+        this.resourceTypeCodeMap = b.resourceTypeCodeMap == null ? Map.of() : Map.copyOf(b.resourceTypeCodeMap);
         this.domainCodeMap = b.domainCodeMap == null ? Map.of() : Map.copyOf(b.domainCodeMap);
     }
 
@@ -187,6 +193,10 @@ public class PermViewResult {
         return sourceRoleMap;
     }
 
+    public Map<Long, String> getResourceTypeCodeMap() {
+        return resourceTypeCodeMap;
+    }
+
     public Map<Long, String> getDomainCodeMap() {
         return domainCodeMap;
     }
@@ -209,6 +219,7 @@ public class PermViewResult {
         private int pageSize;
         private boolean hasNext;
         private Map<Long, RoleInfo> sourceRoleMap;
+        private Map<Long, String> resourceTypeCodeMap;
         private Map<Long, String> domainCodeMap;
 
         private Builder() {
@@ -304,6 +315,11 @@ public class PermViewResult {
 
         public Builder sourceRoleMap(Map<Long, RoleInfo> v) {
             this.sourceRoleMap = v;
+            return this;
+        }
+
+        public Builder resourceTypeCodeMap(Map<Long, String> v) {
+            this.resourceTypeCodeMap = v;
             return this;
         }
 

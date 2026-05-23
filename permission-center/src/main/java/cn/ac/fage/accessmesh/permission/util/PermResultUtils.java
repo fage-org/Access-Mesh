@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.permission.util;
 
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
@@ -65,28 +64,6 @@ public final class PermResultUtils {
     }
 
     /**
-     * 转换资源编码权限结果映射为BatchAuthCheckResp
-     * <p>
-     * 将按资源编码分组的权限查询结果转换为批量权限校验响应DTO。
-     * </p>
-     *
-     * @param resultsByResourceCode 按资源编码分组的权限结果映射
-     * @return 批量权限校验响应
-     */
-    public static BatchAuthCheckResp toBatchAuthCheckResp(
-            Map<String, PermResult> resultsByResourceCode) {
-        List<BatchAuthCheckResp.AuthCheckItemResult> items = new ArrayList<>();
-        for (var entry : resultsByResourceCode.entrySet()) {
-            PermResult r = entry.getValue();
-            AuthCheckResp a = toAuthCheckResp(r);
-            items.add(new BatchAuthCheckResp.AuthCheckItemResult(
-                null, entry.getKey(), null, a.allowed(), a.reason(),
-                a.matchedRoleIds(), a.matchedPermissionIds()));
-        }
-        return new BatchAuthCheckResp(List.copyOf(items));
-    }
-
-    /**
      * 转换PermResult为CheckInterfaceResp
      * <p>
      * 将权限查询结果转换为接口校验响应DTO。
@@ -144,8 +121,12 @@ public final class PermResultUtils {
      * @return 资源查询响应
      */
     public static QueryResourcesResp toQueryResourcesResp(PermResult r, int cacheTtlSeconds) {
+        return toQueryResourcesResp(r, cacheTtlSeconds, null);
+    }
+
+    public static QueryResourcesResp toQueryResourcesResp(PermResult r, int cacheTtlSeconds, String permissionVersion) {
         Map<Long, ResourceEntity> resMap = r.resourceMap();
-        if (resMap == null) return new QueryResourcesResp(List.of(), null, cacheTtlSeconds);
+        if (resMap == null) return new QueryResourcesResp(List.of(), permissionVersion, cacheTtlSeconds);
 
         Map<Long, List<RolePermEntry>> byResource = new LinkedHashMap<>();
         for (RolePermEntry e : r.allEntries()) {
@@ -166,11 +147,12 @@ public final class PermResultUtils {
             List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
             List<String> sources = perms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
             entries.add(new QueryResourcesResp.ResourceEntry(
-                null,  // resourceTypeCode 由调用方填充
+                null,
                 res.getCode(), res.getCodeType(), res.getName(),
                 perms.stream().anyMatch(e -> Boolean.TRUE.equals(e.canGrant())),
+                false,
                 ops, roleIds, permIds, sources));
         }
-        return new QueryResourcesResp(entries, null, cacheTtlSeconds);
+        return new QueryResourcesResp(entries, permissionVersion, cacheTtlSeconds);
     }
 }
