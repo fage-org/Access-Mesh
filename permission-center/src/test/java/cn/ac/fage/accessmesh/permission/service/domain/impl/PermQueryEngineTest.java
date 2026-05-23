@@ -133,6 +133,99 @@ class PermQueryEngineTest {
         verify(rolePermMapper).selectInstancePermsByBitsBatch(1L, Set.of(20L), Set.of(200L), bitMaskEntries);
     }
 
+    @Test
+    void testForUserView() {
+        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+
+        RoleResourcePermission perm1 = new RoleResourcePermission();
+        perm1.setId(501L);
+        perm1.setAbstractRoleId(20L);
+        perm1.setResourceEntityId(200L);
+        perm1.setResourceType(1);
+        perm1.setGrantedBits(8L);
+        perm1.setDeleteFlag(0L);
+        perm1.setConditionId(null);
+        perm1.setCanGrant(true);
+        perm1.setGrantSource("DIRECT");
+
+        RoleResourcePermission perm2 = new RoleResourcePermission();
+        perm2.setId(502L);
+        perm2.setAbstractRoleId(20L);
+        perm2.setResourceEntityId(201L);
+        perm2.setResourceType(2);
+        perm2.setGrantedBits(4L);
+        perm2.setDeleteFlag(0L);
+        perm2.setConditionId(null);
+        perm2.setCanGrant(false);
+        perm2.setGrantSource("INHERITED");
+
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of(perm1, perm2));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
+        ResourceEntity resource1 = new ResourceEntity();
+        resource1.setId(200L);
+        resource1.setCode("sys:user");
+        resource1.setName("用户资源");
+        resource1.setResourceType(1);
+        ResourceEntity resource2 = new ResourceEntity();
+        resource2.setId(201L);
+        resource2.setCode("sys:role");
+        resource2.setName("角色资源");
+        resource2.setResourceType(2);
+        when(resourceEntityMapper.selectValidByIds(1L, Set.of(200L, 201L)))
+            .thenReturn(List.of(resource1, resource2));
+
+        OperationPermission op1 = operation(101L, 1, "VIEW", 1L, 0L);
+        OperationPermission op2 = operation(102L, 1, "MANAGE", 8L, 1L);
+        OperationPermission op3 = operation(201L, 2, "EDIT", 4L, 0L);
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(op1, op2));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 2)).thenReturn(List.of(op3));
+
+        AbstractRole role = new AbstractRole();
+        role.setId(20L);
+        role.setName("测试角色");
+        role.setDeleteFlag(0L);
+        when(abstractRoleMapper.selectValidByIds(1L, Set.of(20L))).thenReturn(List.of(role));
+
+        PermQuery query = PermQuery.forUserView(1L, 10L);
+        PermResult result = engine.query(query);
+
+        assertTrue(result.allowed());
+        assertEquals(2, result.allEntries().size());
+        assertEquals(2, result.resourceMap().size());
+        assertTrue(result.resourceMap().containsKey(200L));
+        assertTrue(result.resourceMap().containsKey(201L));
+        assertTrue(result.operationMap().size() >= 3);
+        assertEquals(1, result.roleMap().size());
+        assertTrue(result.roleMap().containsKey(20L));
+
+        verify(rolePermMapper).selectValidByRoleIds(1L, Set.of(20L));
+    }
+
+    @Test
+    void testForUserViewEmptyRolesShouldDeny() {
+        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+
+        PermQuery query = PermQuery.forUserView(1L, 10L);
+        PermResult result = engine.query(query);
+
+        assertEquals(false, result.allowed());
+        assertEquals("NO_ROLE", result.reason());
+    }
+
+    @Test
+    void testForUserViewEmptyPermissionsShouldDeny() {
+        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
+
+        PermQuery query = PermQuery.forUserView(1L, 10L);
+        PermResult result = engine.query(query);
+
+        assertEquals(false, result.allowed());
+        assertEquals("NO_PERMISSION", result.reason());
+    }
+
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {
         OperationPermission operationPermission = new OperationPermission();
         operationPermission.setId(id);

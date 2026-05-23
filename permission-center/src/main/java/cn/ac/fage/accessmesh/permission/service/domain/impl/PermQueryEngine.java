@@ -110,6 +110,11 @@ public class PermQueryEngine {
      * @return 权限查询结果
      */
     public PermResult query(PermQuery q) {
+        // -- forUserView 分支 --
+        if (q.forUserView()) {
+            return queryForUserView(q);
+        }
+
         // -- 0. 创建 ResolveContext，预解析所有类型 --
         ResolveContext ctx = new ResolveContext(q.tenantId(), typeResolutionService);
         if (q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
@@ -643,5 +648,101 @@ public class PermQueryEngine {
         }
         return abstractRoleMapper.selectValidByIds(tenantId, ids)
             .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
+    }
+
+    // ===== forUserView 专用方法 =====
+
+    /**
+     * 执行用户视图查询
+     * <p>
+     * 查询该用户全部角色权限记录，不按资源类型/操作码/位掩码过滤。
+     * 查询流程：
+     * <ol>
+     *   <li>解析用户角色</li>
+     *   <li>查询全部角色权限记录（scopeAll + instance）</li>
+     *   <li>评估条件和冲突（按参数标志）</li>
+     *   <li>加载辅助实体（资源、操作、角色）</li>
+     *   <li>构建结果</li>
+     * </ol>
+     * </p>
+     *
+     * @param q 权限查询参数（forUserView=true）
+     * @return 权限查询结果
+     */
+    private PermResult queryForUserView(PermQuery q) {
+        // 1. 解析角色
+        Set<Long> roleIds = resolveRoleIds(q);
+        if (roleIds.isEmpty()) {
+            return PermResult.deny("NO_ROLE");
+        }
+
+        // 2. 查询全部角色权限（scopeAll + instance）
+        List<RolePermEntry> allEntries = rolePermMapper.selectValidByRoleIds(q.tenantId(), roleIds)
+            .stream()
+            .map(entryMapper::toEntry)
+            .toList();
+
+        if (allEntries.isEmpty()) {
+            return PermResult.deny("NO_PERMISSION");
+        }
+
+        // 3. 评估条件和冲突
+        allEntries = evaluateIfNeeded(q, allEntries);
+        if (allEntries.isEmpty()) {
+            return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
+        }
+
+        // 4. 构建结果（forUserView 不做 scopeAll/instance 语义断言，全部归入实例条目）
+        PermResult.Builder builder = PermResult.builder(true, null)
+            .scopeAllMatched(false)
+            .scopeAllEntries(List.of())
+            .instanceEntries(allEntries);
+
+        // 5. 加载辅助实体（资源、操作、角色）
+        loadAncillaryForView(q, builder, allEntries, roleIds);
+
+        return builder.build();
+    }
+
+    /**
+     * 为视图查询加载辅助实体（资源、操作、角色）
+     * <p>
+     * 从权限条目中提取所有关联的资源实体ID、资源类型，
+     * 批量加载对应的资源、操作权限和角色信息。
+     * </p>
+     *
+     * @param q      权限查询参数
+     * @param builder 结果构建器
+     * @param entries 权限条目列表
+     * @param roleIds 角色ID集合
+     */
+    private void loadAncillaryForView(PermQuery q, PermResult.Builder builder,
+                                       List<RolePermEntry> entries, Set<Long> roleIds) {
+        Set<Long> allEntityIds = new HashSet<>();
+        for (RolePermEntry e : entries) {
+            if (e.resourceEntityId() != null) {
+                allEntityIds.add(e.resourceEntityId());
+            }
+        }
+
+        if (q.includeResources()) {
+            builder.resourceMap(batchLoadResources(q.tenantId(), allEntityIds));
+        }
+        if (q.includeOperations()) {
+            // 按所有资源类型批量加载操作权限
+            Set<Integer> allResourceTypes = entries.stream()
+                .map(RolePermEntry::resourceType)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
+            for (Integer rt : allResourceTypes) {
+                operationPermissionMapper.selectByTenantAndResourceType(q.tenantId(), rt)
+                    .forEach(op -> opMap.put(op.getId(), op));
+            }
+            builder.operationMap(opMap);
+        }
+        if (q.includeRoles() && roleIds != null && !roleIds.isEmpty()) {
+            builder.roleMap(batchLoadRoles(q.tenantId(), roleIds));
+        }
     }
 }

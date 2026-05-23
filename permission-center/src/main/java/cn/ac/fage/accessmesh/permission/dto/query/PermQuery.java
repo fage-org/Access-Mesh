@@ -109,6 +109,15 @@ public class PermQuery {
      */
     private boolean evaluateMatchesBit = true;
 
+    /**
+     * 是否为用户视图查询模式
+     * <p>
+     * 当 {@code true} 时，引擎跳过资源类型/操作ID/位掩码解析流程，
+     * 直接查询该用户全部角色权限记录，不再按位过滤。
+     * </p>
+     */
+    private boolean forUserView;
+
     // ── 返回内容 ──
 
     /**
@@ -324,6 +333,34 @@ public class PermQuery {
         return q;
     }
 
+    /**
+     * 创建用户视图查询
+     * <p>
+     * 查询该用户的全部权限，不指定具体资源或操作。
+     * 引擎跳过资源类型/操作ID/位掩码解析，直接用 {@code selectValidByRoleIds}
+     * 查询全部角色权限记录，不按位过滤，返回完整数据。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @return 权限查询实例
+     */
+    public static PermQuery forUserView(Long tenantId, Long userId) {
+        PermQuery q = new PermQuery(tenantId);
+        q.userId = userId;
+        q.forUserView = true;
+        q.queryScopeAll = true;
+        q.queryInstance = true;
+        q.earlyReturnOnScopeAll = false;
+        q.evaluateConditions = true;
+        q.evaluateConflicts = true;
+        q.evaluateMatchesBit = false;
+        q.includeResources = true;
+        q.includeOperations = true;
+        q.includeRoles = true;
+        return q;
+    }
+
     // ===== Getter方法 =====
 
     /**
@@ -453,6 +490,13 @@ public class PermQuery {
     public boolean evaluateMatchesBit() { return evaluateMatchesBit; }
 
     /**
+     * 获取是否为用户视图查询模式
+     *
+     * @return 是否为用户视图查询模式
+     */
+    public boolean forUserView() { return forUserView; }
+
+    /**
      * 获取是否包含资源信息
      *
      * @return 是否包含资源信息
@@ -473,7 +517,10 @@ public class PermQuery {
      */
     public boolean includeRoles() { return includeRoles; }
 
-    
+    public boolean includeDomains() { return includeDomains; }
+
+    public boolean includeConditions() { return includeConditions; }
+
     /**
      * 获取是否使用角色缓存
      *
@@ -619,6 +666,13 @@ public class PermQuery {
     public void setEvaluateMatchesBit(boolean v) { this.evaluateMatchesBit = v; }
 
     /**
+     * 设置是否为用户视图查询模式
+     *
+     * @param v 是否为用户视图模式
+     */
+    public void setForUserView(boolean v) { this.forUserView = v; }
+
+    /**
      * 设置是否包含资源信息
      *
      * @param v 是否包含
@@ -639,7 +693,10 @@ public class PermQuery {
      */
     public void setIncludeRoles(boolean v) { this.includeRoles = v; }
 
-    
+    public void setIncludeDomains(boolean v) { this.includeDomains = v; }
+
+    public void setIncludeConditions(boolean v) { this.includeConditions = v; }
+
     /**
      * 设置是否使用角色缓存
      *
