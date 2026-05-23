@@ -8,32 +8,6 @@ package cn.ac.fage.accessmesh.permission.enums;
  * </p>
  */
 public enum ConfigType {
-    /**
-     * 范围配置
-     * <p>
-     * 定义权限查询的范围限制配置。
-     * 例如：限制用户只能查看特定组织的数据。
-     * </p>
-     */
-    SCOPE("SCOPE"),
-
-    /**
-     * 关系配置
-     * <p>
-     * 定义实体之间的关系配置。
-     * 例如：角色与组织的绑定关系。
-     * </p>
-     */
-    RELATION("RELATION"),
-
-    /**
-     * 绑定配置
-     * <p>
-     * 定义权限绑定的配置。
-     * 例如：自动绑定默认角色的规则。
-     * </p>
-     */
-    BINDING("BINDING"),
 
     /**
      * 子权限配置
@@ -71,18 +45,4 @@ public enum ConfigType {
      * @return 类型编码
      */
     public String getValue() { return value; }
-
-    /**
-     * 根据类型编码解析枚举
-     *
-     * @param value 类型编码
-     * @return 对应的配置类型枚举
-     * @throws IllegalArgumentException 如果类型编码不存在
-     */
-    public static ConfigType fromValue(String value) {
-        for (ConfigType t : values()) {
-            if (t.value.equals(value)) return t;
-        }
-        throw new IllegalArgumentException("Unknown ConfigType value: " + value);
-    }
 }

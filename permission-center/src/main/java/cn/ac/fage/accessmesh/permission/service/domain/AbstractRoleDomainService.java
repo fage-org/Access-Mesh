@@ -35,27 +35,6 @@ public interface AbstractRoleDomainService {
                     String externalId, String name, Integer sortOrder, String extra);
 
     /**
-     * 删除角色及其子孙角色
-     * <p>
-     * 软删除指定角色。如果角色类型为组角色或组织角色，
-     * 会级联删除其所有子孙角色。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     */
-    void deleteRole(Long tenantId, Long roleId);
-
-    /**
-     * 查询子角色列表
-     *
-     * @param tenantId 租户ID
-     * @param parentId 父角色ID
-     * @return 子角色列表
-     */
-    List<AbstractRole> listChildren(Long tenantId, Long parentId);
-
-    /**
      * 根据ID查询有效角色
      * <p>
      * 查询未删除的角色实体，包含租户校验。

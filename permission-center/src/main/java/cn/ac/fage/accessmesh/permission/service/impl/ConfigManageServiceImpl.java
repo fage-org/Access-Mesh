@@ -196,43 +196,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
     }
 
     /**
-     * 删除单个类型定义
-     * <p>
-     * 软删除指定的类型定义。系统类型（isSystem=true）不可删除。
-     * 需要TYPE_DEFINITION_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param typeId     类型定义ID
-     * @param operatorId 操作者ID，可选
-     * @throws SecurityException     无权限时抛出
-     * @throws IllegalStateException  尝试删除系统类型时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteType(Long tenantId, Long typeId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        // 权限校验：管理类型定义需要TYPE_DEFINITION_MANAGE权限（实例级别）
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + typeId);
-        }
-
-        // 检查是否为系统类型，系统类型不可删除
-        TypeDefinition typeDef = typeDefinitionMapper.selectValidById(tenantId, typeId);
-        if (typeDef != null && Boolean.TRUE.equals(typeDef.getIsSystem())) {
-            throw new IllegalStateException("Cannot delete system type: " + typeId);
-        }
-
-        TypeDefinition type = typeDefinitionMapper.selectOneById(typeId);
-        if (type != null && type.getDeleteFlag() == 0L && type.getTenantId().equals(tenantId)) {
-            type.setDeleteFlag(type.getId());
-            type.setDeletedAt(LocalDateTime.now());
-            typeDefinitionMapper.update(type);
-        }
-    }
-
-    /**
      * 批量删除类型定义
      * <p>
      * 批量软删除类型定义。系统类型会被过滤掉不删除。
@@ -416,35 +379,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         }
 
         return bizDomainMapper.selectByTenantId(tenantId).stream().map(this::toBizDomainResp).collect(Collectors.toList());
-    }
-
-    /**
-     * 删除单个业务域
-     * <p>
-     * 软删除指定的业务域。需要SYSTEM_CONFIG_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param domainId   业务域ID
-     * @param operatorId 操作者ID，可选
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteBizDomain(Long tenantId, Long domainId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("No permission to delete biz domain");
-        }
-
-        BizDomain domain = bizDomainMapper.selectOneById(domainId);
-        if (domain != null && domain.getDeleteFlag() == 0L && domain.getTenantId().equals(tenantId)) {
-            domain.setDeleteFlag(domain.getId());
-            domain.setDeletedAt(LocalDateTime.now());
-            bizDomainMapper.update(domain);
-        }
     }
 
     /**
@@ -745,7 +679,22 @@ public class ConfigManageServiceImpl implements ConfigManageService {
 
         ServiceConfigResp existing = getServiceConfig(tenantId, req.serviceCode());
         if (existing == null) {
-            return createServiceConfig(tenantId, req, operatorId);
+            // 创建新配置
+            ServiceConfig config = new ServiceConfig();
+            config.setTenantId(tenantId);
+            config.setServiceCode(req.serviceCode());
+            config.setName(req.name());
+            config.setBasePath(req.basePath());
+            config.setDescription(req.description());
+            config.setStatus(req.status() != null ? req.status() : 1);
+            config.setExtra(req.extra());
+            config.setCreatedBy(operatorId);
+            LocalDateTime now = LocalDateTime.now();
+            config.setCreatedAt(now);
+            config.setUpdatedAt(now);
+            config.setDeleteFlag(0L);
+            serviceConfigMapper.insert(config);
+            return toServiceConfigResp(config);
         }
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
         if (config == null) {
@@ -758,45 +707,6 @@ public class ConfigManageServiceImpl implements ConfigManageService {
         if (req.extra() != null) config.setExtra(req.extra());
         config.setUpdatedAt(LocalDateTime.now());
         serviceConfigMapper.update(config);
-        return toServiceConfigResp(config);
-    }
-
-    /**
-     * 创建服务配置
-     * <p>
-     * 创建新的服务配置。服务配置用于定义服务的API接口映射等。
-     * 需要SYSTEM_CONFIG_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param req        服务配置请求
-     * @param operatorId 操作者ID，可选
-     * @return 服务配置响应
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("No permission to create service config");
-        }
-        ServiceConfig config = new ServiceConfig();
-        config.setTenantId(tenantId);
-        config.setServiceCode(req.serviceCode());
-        config.setName(req.name());
-        config.setBasePath(req.basePath());
-        config.setDescription(req.description());
-        config.setStatus(req.status() != null ? req.status() : 1);
-        config.setExtra(req.extra());
-        config.setCreatedBy(operatorId);
-        LocalDateTime now = LocalDateTime.now();
-        config.setCreatedAt(now);
-        config.setUpdatedAt(now);
-        config.setDeleteFlag(0L);
-        serviceConfigMapper.insert(config);
         return toServiceConfigResp(config);
     }
 

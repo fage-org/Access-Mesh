@@ -1,7 +1,5 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
-import cn.ac.fage.accessmesh.permission.constant.PermConstants;
-
 /**
  * 资源解析键
  * <p>
@@ -20,19 +18,4 @@ public record ResourceResolveKey(
     String codeType,
     String domainCode
 ) {
-    /**
-     * 构建唯一的字符串键
-     * <p>
-     * 用于Map查找，将组合键转换为字符串格式。
-     * </p>
-     *
-     * @return 字符串格式的唯一键
-     */
-    public String toMapKey() {
-        return String.format("%s:%s:%s:%s",
-            resourceTypeCode != null ? resourceTypeCode : "",
-            resourceCode != null ? resourceCode : "",
-            codeType != null ? codeType : PermConstants.CodeType.DEFAULT,
-            domainCode != null ? domainCode : "");
-    }
 }

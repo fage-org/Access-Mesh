@@ -119,15 +119,18 @@ class PermQueryEngineTest {
         resource.setResourceType(1);
         when(resourceEntityMapper.selectValidByIds(1L, Set.of(200L))).thenReturn(List.of(resource));
 
-        PermQuery query = PermQuery.forFullQuery(1L, 10L, Set.of("MENU"), Set.of("sys:user"), Set.of("VIEW"));
+        PermQuery query = PermQuery.forScopeQuery(1L, 10L, Set.of("MENU"), Set.of("VIEW"));
+        query.setResourceCodes(Set.of("sys:user"));
         query.setResourceEntityIds(Set.of(200L));
+        query.setEvaluateConditions(true);
+        query.setEvaluateConflicts(true);
+        query.setEvaluateMatchesBit(true);
 
         PermResult result = engine.query(query);
 
         assertEquals(1, result.instanceEntries().size());
         assertTrue(result.operationMap().values().stream().anyMatch(op -> "MANAGE".equals(op.getCode())));
         verify(rolePermMapper).selectInstancePermsByBitsBatch(1L, Set.of(20L), Set.of(200L), bitMaskEntries);
-        verify(rolePermMapper, never()).selectInstancePerms(1L, Set.of(20L), Set.of(200L), Set.of(101L));
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

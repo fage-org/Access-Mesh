@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
+import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
@@ -15,11 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,33 +57,10 @@ class DomainClassifyServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "BUTTON")).thenReturn(2);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(3);
-        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), any())).thenAnswer(invocation -> {
-            Set<String> codes = invocation.getArgument(2);
-            Map<String, Integer> result = new HashMap<>();
-            if (codes == null) {
-                return result;
-            }
-            if (codes.contains("MENU")) {
-                result.put("MENU", 1);
-            }
-            if (codes.contains("BUTTON")) {
-                result.put("BUTTON", 2);
-            }
-            if (codes.contains("API")) {
-                result.put("API", 3);
-            }
-            return result;
-        });
         when(bizDomainMapper.selectValidById(10L, 1L)).thenReturn(opsDomain);
         when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain, hrDomain));
-        AtomicInteger configCallIndex = new AtomicInteger();
-        when(domainConfigMapper.selectValidByTypeString(any(), any(), anyString())).thenAnswer(invocation -> {
-            int currentIndex = configCallIndex.getAndIncrement() % 3;
-            if (currentIndex == 2) {
-                return classifyConfig("BUTTON");
-            }
-            return classifyConfig("MENU");
-        });
+        when(domainConfigMapper.selectValidByTypeString(eq(1L), eq(10L), anyString())).thenReturn(classifyConfig("MENU"));
+        when(domainConfigMapper.selectValidByTypeString(eq(1L), eq(20L), anyString())).thenReturn(classifyConfig("BUTTON"));
 
         assertTrue(service.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "OPS", "MENU"));
         assertFalse(service.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "OPS", "BUTTON"));
@@ -98,6 +73,33 @@ class DomainClassifyServiceImplTest {
         when(typeResolutionService.resolveDomainId(1L, "UNKNOWN")).thenReturn(null);
 
         assertFalse(service.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "UNKNOWN", "MENU"));
+    }
+
+    @Test
+    void shouldOnlyMatchUnclaimedTypesForGlobalDomainInGlobalPlusMode() {
+        BizDomain opsDomain = domain(10L, 1L, false, "OPS");
+        BizDomain globalDomain = domain(99L, 1L, true, "GLOBAL");
+
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
+        when(typeResolutionService.resolveDomainId(1L, "GLOBAL")).thenReturn(99L);
+        when(bizDomainMapper.selectValidById(99L, 1L)).thenReturn(globalDomain);
+        when(bizDomainMapper.selectNonGlobalByTenant(1L)).thenReturn(List.of(opsDomain));
+        when(domainConfigMapper.selectValidByTypeString(eq(1L), eq(10L), anyString())).thenReturn(classifyConfig("MENU"));
+        when(typeDefinitionMapper.selectByTenantAndTypeKey(1L, "resource_type")).thenReturn(List.of(
+            typeDefinition("MENU"),
+            typeDefinition("API")
+        ));
+
+        assertFalse(service.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "GLOBAL", "MENU"));
+        assertTrue(service.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "GLOBAL", "API"));
+    }
+
+    @Test
+    void shouldReturnFalseForUnknownResourceTypeCodeEvenInAllMode() {
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "UNKNOWN")).thenReturn(null);
+
+        assertFalse(service.matchesTypeCode(1L, DomainQueryMode.ALL, null, "UNKNOWN"));
     }
 
     @Test
@@ -129,5 +131,11 @@ class DomainClassifyServiceImplTest {
         }
         config.setExtra("{\"resourceTypeCodes\":[" + String.join(",", codes) + "]}");
         return config;
+    }
+
+    private TypeDefinition typeDefinition(String typeCode) {
+        TypeDefinition typeDefinition = new TypeDefinition();
+        typeDefinition.setTypeCode(typeCode);
+        return typeDefinition;
     }
 }

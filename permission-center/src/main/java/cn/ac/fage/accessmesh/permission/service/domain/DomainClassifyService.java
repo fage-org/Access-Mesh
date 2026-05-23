@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
-import cn.ac.fage.accessmesh.permission.dto.query.DomainTypeFilter;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 
 import java.util.Set;
@@ -15,16 +14,6 @@ import java.util.Set;
  * </p>
  */
 public interface DomainClassifyService {
-
-    /**
-     * 根据查询模式构建资源类型过滤条件
-     *
-     * @param tenantId   租户ID
-     * @param mode       查询模式
-     * @param domainCode 业务域编码，mode=ALL时可为null
-     * @return 资源类型过滤条件
-     */
-    DomainTypeFilter buildTypeFilter(Long tenantId, DomainQueryMode mode, String domainCode);
 
     /**
      * 获取指定域声明的资源类型码集合
@@ -62,15 +51,4 @@ public interface DomainClassifyService {
      * @return 业务域ID，未找到返回null
      */
     Long findDomainIdByTypeCode(Long tenantId, String resourceTypeCode);
-
-    /**
-     * 确保租户的全局域存在
-     * <p>
-     * 如果租户还没有全局域，自动创建一个。
-     * 应在租户初始化时调用。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     */
-    void ensureGlobalDomain(Long tenantId);
 }

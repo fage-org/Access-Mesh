@@ -115,15 +115,6 @@ public interface TypeResolutionService {
     // ===== 批量解析方法（避免N+1查询）=====
 
     /**
-     * 批量解析domainCodes -> domainIds
-     *
-     * @param tenantId    租户ID
-     * @param domainCodes 待解析的域编码集合，null/空时返回空Map
-     * @return domainCode到domainId的映射，输入为空时返回空Map
-     */
-    Map<String, Long> batchResolveDomainIds(Long tenantId, Set<String> domainCodes);
-
-    /**
      * 批量解析operationCodes -> operationIds（指定资源类型）
      *
      * @param tenantId         租户ID
@@ -163,12 +154,4 @@ public interface TypeResolutionService {
      */
     Map<String, Long> batchResolveRoleIds(Long tenantId, String roleTypeCode, Set<String> externalIds, String domainCode);
 
-    /**
-     * 检查类型定义是否为系统预设（不可删除）
-     *
-     * @param tenantId 租户ID
-     * @param typeDefId 类型定义ID
-     * @return true表示系统预设类型，不可删除
-     */
-    boolean isSystemType(Long tenantId, Long typeDefId);
-}
+    }

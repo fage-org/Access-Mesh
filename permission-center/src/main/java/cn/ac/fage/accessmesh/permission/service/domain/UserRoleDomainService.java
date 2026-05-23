@@ -37,17 +37,6 @@ public interface UserRoleDomainService {
     Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds);
 
     /**
-     * 失效单个用户的角色缓存
-     * <p>
-     * 当用户角色发生变化时调用，清除L1和L2缓存
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     */
-    void invalidateRoleCache(Long tenantId, Long userId);
-
-    /**
      * 批量失效多个用户的角色缓存
      * <p>
      * 当批量分配/撤销角色时调用，避免循环触发单条缓存失效

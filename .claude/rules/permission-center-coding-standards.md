@@ -5,7 +5,7 @@ description: >-
   Rule type: ALWAYS — applies to all permission-center module code changes.
   Covers: entity batch loading, PermQueryEngine, PermQuery/PermResult, RolePermEntry,
   OperationPermissionUtils, ConditionEvalUtils, role resolution, OperationCodeConstants, ResourceTypeCode,
-  DomainClassifyService, DomainTypeFilter, DomainQueryMode.
+    DomainClassifyService, DomainQueryMode.
 origin: project
 metadata:
   project: AccessMesh
@@ -112,15 +112,16 @@ userRoleMapper.selectListByQuery(...)
 **MUST** 通过 `DomainClassifyService` 进行管理查询的域范围过滤。权限查询管线不感知业务域。
 
 ```java
-// ✅ 正确 — 管理查询按域过滤
-DomainTypeFilter filter = domainClassifyService.buildTypeFilter(tenantId, DomainQueryMode.GLOBAL_PLUS, "HR");
-// 应用到查询: filter.getIncludeValues() / filter.getExcludeValues()
+// ✅ 正确 — 管理查询按域判断资源类型是否可见
+boolean visible = domainClassifyService.matchesTypeCode(
+    tenantId, DomainQueryMode.GLOBAL_PLUS, "HR", ResourceTypeCode.USER
+);
+
+// ✅ 正确 — 获取域声明的类型码范围
+Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "HR");
 
 // ✅ 正确 — 通过资源类型码反查域
 Long domainId = domainClassifyService.findDomainIdByTypeCode(tenantId, "ORG");
-
-// ✅ 正确 — 获取域的类型码范围
-Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "HR");
 
 // ❌ 禁止 — 在实体上使用 bizDomainId 字段（已从 abstract_role, resource_entity 等表中删除）
 role.setBizDomainId(domainId);  // 字段已删除
@@ -142,7 +143,7 @@ userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);  // 
 
 - 每个租户有且仅有一个全局域（`biz_domain.global = true`）
 - 全局域的范围隐式包含未被其他域认领的资源类型，无需配置 CLASSIFY
-- 通过 `domainClassifyService.ensureGlobalDomain(tenantId)` 初始化
+- `DomainClassifyService` 仅负责查询与匹配，不再承担全局域创建职责
 
 ## 6. 类型解析
 

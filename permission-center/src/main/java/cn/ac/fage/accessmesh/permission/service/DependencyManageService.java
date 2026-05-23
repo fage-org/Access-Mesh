@@ -80,18 +80,6 @@ public interface DependencyManageService {
     boolean hasDependencyCycle(Long tenantId, ResourceDependencyCheckReq req);
 
     /**
-     * 删除依赖关系
-     * <p>
-     * 删除指定的资源依赖关系。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param dependencyId 依赖关系ID
-     * @param operatorId   操作者ID
-     */
-    void deleteDependency(Long tenantId, Long dependencyId, Long operatorId);
-
-    /**
      * 批量删除依赖关系
      * <p>
      * 批量删除多个资源依赖关系。

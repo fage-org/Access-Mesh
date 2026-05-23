@@ -84,18 +84,6 @@ public interface ResourceManageService {
     void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId);
 
     /**
-     * 删除资源
-     * <p>
-     * 软删除资源实体及其所有子资源。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param resourceId 资源ID
-     * @param operatorId 操作者ID
-     */
-    void deleteResource(Long tenantId, Long resourceId, Long operatorId);
-
-    /**
      * 批量删除资源
      * <p>
      * 批量软删除多个资源实体。

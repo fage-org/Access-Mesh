@@ -38,38 +38,11 @@ public enum SecurityEventType {
     INVALID_SIGNATURE,
 
     /**
-     * 租户不匹配
-     * <p>
-     * 表示检测到租户ID不匹配。
-     * 用于检测跨租户访问尝试。
-     * </p>
-     */
-    TENANT_MISMATCH,
-
-    /**
-     * 未授权访问
-     * <p>
-     * 表示未授权的访问尝试。
-     * 用于记录需要身份认证但未提供的请求。
-     * </p>
-     */
-    UNAUTHORIZED_ACCESS,
-
-    /**
      * 可疑输入
      * <p>
      * 表示检测到可疑输入（可能的注入攻击）。
      * 用于记录潜在的SQL注入、XSS等攻击尝试。
      * </p>
      */
-    SUSPICIOUS_INPUT,
-
-    /**
-     * 速率限制超出
-     * <p>
-     * 表示请求速率超出限制。
-     * 用于检测可能的DoS攻击或滥用行为。
-     * </p>
-     */
-    RATE_LIMIT_EXCEEDED
+    SUSPICIOUS_INPUT
 }

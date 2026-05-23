@@ -101,55 +101,6 @@ public class LogQueryServiceImpl implements LogQueryService {
     }
 
     /**
-     * 查询用户相关的变更日志
-     * <p>
-     * 查询影响指定用户的权限变更日志。
-     * 用于用户查看自己的权限变更历史。需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @param offset   分页偏移量
-     * @param limit    分页大小
-     * @return 变更日志响应列表
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    public List<ChangeLogResp> listChangeLogsForUser(Long tenantId, Long userId, int offset, int limit) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
-        }
-
-        return changeLogMapper.selectByAffectedUser(tenantId, userId, offset, limit)
-            .stream().map(this::toChangeLogResp).collect(Collectors.toList());
-    }
-
-    /**
-     * 统计用户相关的变更日志数量
-     * <p>
-     * 统计影响指定用户的权限变更日志数量。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @return 变更日志总数
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    public long countChangeLogsForUser(Long tenantId, Long userId) {
-        // 权限校验：查看系统配置需要SYSTEM_CONFIG_VIEW权限
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
-        }
-
-        return changeLogMapper.countByAffectedUser(tenantId, userId);
-    }
-
-    /**
      * 多条件过滤查询变更日志
      * <p>
      * 支持按用户、角色、时间范围、事件类型等多维度过滤查询。

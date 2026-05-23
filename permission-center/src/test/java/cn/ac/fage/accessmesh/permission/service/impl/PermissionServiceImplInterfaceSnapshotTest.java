@@ -73,10 +73,10 @@ class PermissionServiceImplInterfaceSnapshotTest {
     void setUp() {
         service = new PermissionServiceImpl(
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
-            resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
+            userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
             permissionVersionDomainService, resourceEntityDomainService,
-            rolePermEntryMapper, engine
+            engine
         );
 
         snapshotCache = new HashMap<>();

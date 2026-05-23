@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.util;
 
-import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.BatchAuthCheckResp;
@@ -22,11 +21,6 @@ import java.util.*;
 public final class PermResultUtils {
 
     /**
-     * 权限拒绝错误码
-     */
-    private static final int PERM_DENIED_CODE = 403;
-
-    /**
      * 私有构造函数
      * <p>
      * 工具类不允许实例化。
@@ -46,45 +40,6 @@ public final class PermResultUtils {
             Integer resourceType,
             Long binaryBit) {
         return OperationPermissionUtils.findByResourceTypeAndBinaryBit(opMap, resourceType, binaryBit);
-    }
-
-    // ===== 权限校验 =====
-
-    /**
-     * 校验权限结果，不通过则抛出异常
-     * <p>
-     * 如果权限结果为不允许，抛出BizException(403, reason)。
-     * 用于强制权限校验场景。
-     * </p>
-     *
-     * @param result 权限查询结果
-     * @throws BizException 如果权限不通过
-     */
-    public static void validateOrThrow(PermResult result) {
-        if (!result.allowed()) {
-            throw new BizException(PERM_DENIED_CODE,
-                result.reason() != null ? result.reason() : "PERMISSION_DENIED");
-        }
-    }
-
-    /**
-     * 提取批量校验结果中被拒绝的ID集合
-     * <p>
-     * 从批量权限校验结果映射中提取所有被拒绝的ID。
-     * 用于批量权限判定后筛选拒绝项。
-     * </p>
-     *
-     * @param results 批量权限校验结果映射
-     * @return 被拒绝的ID集合
-     */
-    public static <ID> Set<ID> getDeniedIds(Map<ID, PermResult> results) {
-        Set<ID> denied = new LinkedHashSet<>();
-        for (var entry : results.entrySet()) {
-            if (!entry.getValue().allowed()) {
-                denied.add(entry.getKey());
-            }
-        }
-        return denied;
     }
 
     // ===== DTO转换 =====

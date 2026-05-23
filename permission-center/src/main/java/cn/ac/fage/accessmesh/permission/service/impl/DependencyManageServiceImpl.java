@@ -287,34 +287,6 @@ public class DependencyManageServiceImpl implements DependencyManageService {
     }
 
     /**
-     * 删除单个资源依赖关系
-     * <p>
-     * 软删除指定的资源依赖关系。
-     * 需要DEPENDENCY_DELETE权限。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param dependencyId 资源依赖ID
-     * @param operatorId   操作者ID，可选
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteDependency(Long tenantId, Long dependencyId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, dependencyId, OperationCodeConstants.DELETE)) {
-            throw new SecurityException("Permission denied: DELETE on DEPENDENCY:" + dependencyId);
-        }
-
-        ResourceDependency dep = dependencyMapper.selectOneById(dependencyId);
-        if (dep != null && dep.getDeleteFlag() == 0L && dep.getTenantId().equals(tenantId)) {
-            dep.setDeleteFlag(dep.getId());
-            dep.setDeletedAt(LocalDateTime.now());
-            dependencyMapper.update(dep);
-        }
-    }
-
-    /**
      * 批量删除资源依赖关系
      * <p>
      * 批量软删除资源依赖关系。

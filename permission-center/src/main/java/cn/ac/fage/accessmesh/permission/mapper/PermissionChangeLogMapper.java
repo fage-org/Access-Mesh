@@ -18,36 +18,6 @@ import java.util.List;
 public interface PermissionChangeLogMapper extends BaseMapper<PermissionChangeLog> {
 
     /**
-     * 查询指定用户的权限变更日志
-     * <p>
-     * 查询影响指定用户的权限变更记录，用于用户查看自己的权限变更历史。
-     * 支持分页查询。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   受影响的用户ID
-     * @param offset   分页偏移量
-     * @param limit    每页条数
-     * @return 权限变更日志列表
-     */
-    List<PermissionChangeLog> selectByAffectedUser(@Param("tenantId") Long tenantId,
-                                                   @Param("userId") Long userId,
-                                                   @Param("offset") int offset,
-                                                   @Param("limit") int limit);
-
-    /**
-     * 统计指定用户的权限变更日志数量
-     * <p>
-     * 统计影响指定用户的权限变更记录总数，用于分页计算。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   受影响的用户ID
-     * @return 变更日志数量
-     */
-    long countByAffectedUser(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
-
-    /**
      * 筛选查询权限变更日志
      * <p>
      * 支持多条件筛选查询：用户、角色、时间范围、事件类型。

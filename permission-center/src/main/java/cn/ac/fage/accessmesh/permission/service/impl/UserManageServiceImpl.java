@@ -31,7 +31,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
-import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -209,27 +208,6 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp getUser(Long tenantId, Long userId) {
         AbstractUser user = abstractUserMapper.selectValidById(userId, tenantId);
         return user != null ? toUserResp(user) : null;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteUser(Long tenantId, Long userId) {
-        Long operatorId = OperatorContext.getOperatorId();
-
-        AbstractUser user = abstractUserDomainService.selectValidById(tenantId, userId);
-        if (user == null) {
-            throw new IllegalArgumentException("User not found: " + userId);
-        }
-
-        if (!operatorId.equals(userId)) {
-            if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
-                throw new SecurityException("Permission denied: MANAGE on USER");
-            }
-        }
-
-        user.setDeleteFlag(user.getId());
-        user.setDeletedAt(LocalDateTime.now());
-        abstractUserMapper.update(user);
     }
 
     @Override

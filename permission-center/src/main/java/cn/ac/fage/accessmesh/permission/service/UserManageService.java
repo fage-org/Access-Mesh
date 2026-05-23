@@ -71,17 +71,6 @@ public interface UserManageService {
     UserResp getUser(Long tenantId, Long userId);
 
     /**
-     * 删除用户
-     * <p>
-     * 软删除用户实体。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     */
-    void deleteUser(Long tenantId, Long userId);
-
-    /**
      * 批量删除用户
      * <p>
      * 批量软删除多个用户实体。

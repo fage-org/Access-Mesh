@@ -83,21 +83,6 @@ public class SyncResult {
         );
     }
 
-    /**
-     * 将另一个同步结果累加到当前结果
-     *
-     * @param other 另一个同步结果
-     */
-    public void add(SyncResult other) {
-        if (other == null) return;
-        this.createdResources += other.createdResources;
-        this.updatedResources += other.updatedResources;
-        this.createdMappings += other.createdMappings;
-        this.updatedMappings += other.updatedMappings;
-        this.deletedMappings += other.deletedMappings;
-        this.deletedResources += other.deletedResources;
-    }
-
     public int getCreatedResources() {
         return createdResources;
     }

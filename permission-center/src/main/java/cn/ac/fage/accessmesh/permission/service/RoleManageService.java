@@ -71,18 +71,6 @@ public interface RoleManageService {
     void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId);
 
     /**
-     * 删除角色
-     * <p>
-     * 软删除角色及其所有子角色。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param roleId     角色ID
-     * @param operatorId 操作者ID
-     */
-    void deleteRole(Long tenantId, Long roleId, Long operatorId);
-
-    /**
      * 批量删除角色
      * <p>
      * 批量软删除多个角色实体。

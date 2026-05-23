@@ -32,19 +32,6 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     List<AbstractRole> selectRoleTreeByGroupIds(@Param("groupRoleIds") Set<Long> groupRoleIds, @Param("tenantId") Long tenantId);
 
     /**
-     * 使用PostgreSQL递归CTE查询所有后代角色ID
-     * <p>
-     * 从指定角色开始，递归查询所有子孙角色的ID。
-     * 用于批量删除或权限计算场景。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleId   起始角色ID
-     * @return 所有后代角色ID列表（不含起始角色）
-     */
-    List<Long> selectDescendantIds(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
-
-    /**
      * 批量软删除抽象角色
      * <p>
      * 将指定角色的delete_flag设置为id，deleted_at设置为当前时间。
@@ -179,33 +166,4 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     AbstractRole selectByTypeAndExternalId(@Param("tenantId") Long tenantId,
                                            @Param("roleType") Integer roleType,
                                            @Param("externalId") String externalId);
-
-    /**
-     * 根据角色编码查询有效角色
-     *
-     * @param tenantId 租户ID
-     * @param roleCode 角色编码
-     * @return 角色实体
-     */
-    AbstractRole selectByCode(@Param("tenantId") Long tenantId,
-                              @Param("roleCode") String roleCode);
-
-    /**
-     * 根据角色编码集合批量查询有效角色
-     *
-     * @param tenantId  租户ID
-     * @param roleCodes 角色编码集合
-     * @return 角色列表
-     */
-    List<AbstractRole> selectByCodes(@Param("tenantId") Long tenantId,
-                                     @Param("roleCodes") Set<String> roleCodes);
-
-    /**
-     * 查询指定父角色下的子角色列表
-     *
-     * @param tenantId 租户ID
-     * @param parentId 父角色ID
-     * @return 子角色列表
-     */
-    List<AbstractRole> selectChildren(@Param("tenantId") Long tenantId, @Param("parentId") Long parentId);
 }

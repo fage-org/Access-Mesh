@@ -37,18 +37,7 @@ public record AuthCheckResp(
         return new AuthCheckResp(true, null, matchedRoleIds, matchedPermissionIds, conditionEvaluated);
     }
 
-    /**
-     * 创建简化的允许响应
-     * <p>
-     * 权限校验通过时简化响应，不返回匹配的角色和权限信息。
-     * </p>
-     *
-     * @return 简化的允许响应对象
-     */
-    public static AuthCheckResp allow() {
-        return new AuthCheckResp(true, null, List.of(), List.of(), false);
-    }
-
+    
     /**
      * 创建拒绝的响应
      * <p>

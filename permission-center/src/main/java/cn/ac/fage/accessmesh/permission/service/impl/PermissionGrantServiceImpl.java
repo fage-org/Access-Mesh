@@ -77,7 +77,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final PermissionChangeDomainService permissionChangeDomainService;
     private final OperationLogDomainService operationLogDomainService;
     private final UserRoleDomainService userRoleDomainService;
-    private final ResourceDependencyDomainService resourceDependencyDomainService;
     private final TypeResolutionService typeResolutionService;
     private final AuthorizationService authorizationService;
     private final OperationPermissionDomainService operationPermissionDomainService;
@@ -104,7 +103,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       PermissionChangeDomainService permissionChangeDomainService,
                                       OperationLogDomainService operationLogDomainService,
                                       UserRoleDomainService userRoleDomainService,
-                                      ResourceDependencyDomainService resourceDependencyDomainService,
                                       TypeResolutionService typeResolutionService,
                                       AuthorizationService authorizationService,
                                       OperationPermissionDomainService operationPermissionDomainService,
@@ -122,7 +120,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.permissionChangeDomainService = permissionChangeDomainService;
         this.operationLogDomainService = operationLogDomainService;
         this.userRoleDomainService = userRoleDomainService;
-        this.resourceDependencyDomainService = resourceDependencyDomainService;
         this.typeResolutionService = typeResolutionService;
         this.authorizationService = authorizationService;
         this.operationPermissionDomainService = operationPermissionDomainService;
@@ -393,11 +390,6 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setDeleteFlag(0L);
             toInsert.add(rp);
         }
-
-        // 自动授予依赖权限
-        List<RoleResourcePermission> autoGranted = resourceDependencyDomainService
-            .autoGrantForInsert(tenantId, roleId, toInsert);
-        toInsert.addAll(autoGranted);
 
         // 批量软删除权限避免N+1查询
         if (!removeItems.isEmpty()) {

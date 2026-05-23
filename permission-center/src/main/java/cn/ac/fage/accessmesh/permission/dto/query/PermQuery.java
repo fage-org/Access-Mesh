@@ -5,8 +5,8 @@ import java.util.*;
 /**
  * 统一权限查询输入类
  * <p>
- * 所有查询场景（check/batchCheck/checkInterface/queryResources/queryScopes/canGrant/view）
- * 使用此单一DTO。调用者使用8个静态工厂方法之一创建；自定义字段可在创建后设置。
+ * 所有查询场景使用此单一DTO。
+ * 调用者使用静态工厂方法创建；自定义字段可在创建后设置。
  * </p>
  */
 public class PermQuery {
@@ -162,7 +162,7 @@ public class PermQuery {
         this.tenantId = Objects.requireNonNull(tenantId);
     }
 
-    // ===== 8个工厂方法 =====
+    // ===== 工厂方法 =====
 
     /**
      * 创建单条权限校验查询
@@ -194,28 +194,7 @@ public class PermQuery {
         return q;
     }
 
-    /**
-     * 创建批量权限校验查询列表
-     * <p>
-     * 与forAuthCheck相同默认值，但接受多个资源编码。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param userId           用户ID
-     * @param resourceTypeCode 资源类型编码
-     * @param resourceCodes    资源编码列表
-     * @param operationCode    操作编码
-     * @return 权限查询列表
-     */
-    public static List<PermQuery> forBatchCheck(Long tenantId, Long userId,
-                                                 String resourceTypeCode,
-                                                 List<String> resourceCodes,
-                                                 String operationCode) {
-        return resourceCodes.stream()
-            .map(rc -> forAuthCheck(tenantId, userId, resourceTypeCode, rc, operationCode))
-            .toList();
-    }
-
+    
     /**
      * 创建接口权限校验查询
      * <p>
@@ -281,68 +260,8 @@ public class PermQuery {
         return q;
     }
 
-    /**
-     * 创建权限视图查询
-     * <p>
-     * 仅实例级查询，不评估，返回所有辅助信息。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param userId           用户ID
-     * @param roleIds          角色ID集合
-     * @param resourceTypeCodes 资源类型编码集合
-     * @return 权限查询实例
-     */
-    public static PermQuery forPermissionView(Long tenantId, Long userId,
-                                               Set<Long> roleIds,
-                                               Set<String> resourceTypeCodes) {
-        PermQuery q = new PermQuery(tenantId);
-        q.userId = userId;
-        q.roleIds = roleIds;
-        q.resourceTypeCodes = resourceTypeCodes;
-        q.queryScopeAll = false;
-        q.queryInstance = true;
-        q.evaluateConditions = false;
-        q.evaluateConflicts = false;
-        q.evaluateMatchesBit = false;
-        q.includeResources = true;
-        q.includeOperations = true;
-        q.includeRoles = true;
-        q.includeDomains = true;
-        q.includeConditions = true;
-        return q;
-    }
-
-    /**
-     * 创建授权能力查询
-     * <p>
-     * 类型+实例查询，无提前返回，不评估，返回所有辅助信息。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param operatorId       操作者ID
-     * @param resourceTypeCodes 资源类型编码集合
-     * @param operationCodes   操作编码集合
-     * @return 权限查询实例
-     */
-    public static PermQuery forCanGrant(Long tenantId, Long operatorId,
-                                         Set<String> resourceTypeCodes,
-                                         Set<String> operationCodes) {
-        PermQuery q = new PermQuery(tenantId);
-        q.userId = operatorId;
-        q.resourceTypeCodes = resourceTypeCodes;
-        q.operationCodes = operationCodes;
-        q.queryScopeAll = true;
-        q.queryInstance = true;
-        q.earlyReturnOnScopeAll = false;
-        q.evaluateConditions = false;
-        q.evaluateConflicts = false;
-        q.evaluateMatchesBit = false;
-        q.includeResources = true;
-        q.includeOperations = true;
-        return q;
-    }
-
+    
+    
     /**
      * 创建管理操作验证查询
      * <p>
@@ -373,42 +292,7 @@ public class PermQuery {
         return q;
     }
 
-    /**
-     * 创建完整查询
-     * <p>
-     * 无提前返回，完整评估，返回所有辅助信息。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param userId           用户ID
-     * @param resourceTypeCodes 资源类型编码集合
-     * @param resourceCodes    资源编码集合
-     * @param operationCodes   操作编码集合
-     * @return 权限查询实例
-     */
-    public static PermQuery forFullQuery(Long tenantId, Long userId,
-                                          Set<String> resourceTypeCodes,
-                                          Set<String> resourceCodes,
-                                          Set<String> operationCodes) {
-        PermQuery q = new PermQuery(tenantId);
-        q.userId = userId;
-        q.resourceTypeCodes = resourceTypeCodes;
-        q.resourceCodes = resourceCodes;
-        q.operationCodes = operationCodes;
-        q.queryScopeAll = true;
-        q.queryInstance = true;
-        q.earlyReturnOnScopeAll = false;
-        q.evaluateConditions = true;
-        q.evaluateConflicts = true;
-        q.evaluateMatchesBit = true;
-        q.includeResources = true;
-        q.includeOperations = true;
-        q.includeRoles = true;
-        q.includeDomains = true;
-        q.includeConditions = true;
-        return q;
-    }
-
+    
     /**
      * 创建范围查询
      * <p>
@@ -589,20 +473,7 @@ public class PermQuery {
      */
     public boolean includeRoles() { return includeRoles; }
 
-    /**
-     * 获取是否包含业务域信息
-     *
-     * @return 是否包含业务域信息
-     */
-    public boolean includeDomains() { return includeDomains; }
-
-    /**
-     * 获取是否包含条件信息
-     *
-     * @return 是否包含条件信息
-     */
-    public boolean includeConditions() { return includeConditions; }
-
+    
     /**
      * 获取是否使用角色缓存
      *
@@ -768,20 +639,7 @@ public class PermQuery {
      */
     public void setIncludeRoles(boolean v) { this.includeRoles = v; }
 
-    /**
-     * 设置是否包含业务域信息
-     *
-     * @param v 是否包含
-     */
-    public void setIncludeDomains(boolean v) { this.includeDomains = v; }
-
-    /**
-     * 设置是否包含条件信息
-     *
-     * @param v 是否包含
-     */
-    public void setIncludeConditions(boolean v) { this.includeConditions = v; }
-
+    
     /**
      * 设置是否使用角色缓存
      *

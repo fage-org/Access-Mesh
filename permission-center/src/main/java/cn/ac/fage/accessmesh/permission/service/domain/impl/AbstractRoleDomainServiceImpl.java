@@ -67,31 +67,6 @@ public class AbstractRoleDomainServiceImpl implements AbstractRoleDomainService 
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteRole(Long tenantId, Long roleId) {
-        AbstractRole role = selectValidById(tenantId, roleId);
-        if (role == null) return;
-
-        LocalDateTime now = LocalDateTime.now();
-
-        if (role.getRoleType() != null
-            && (role.getRoleType() == RoleType.GROUP_ROLE.getValue()
-                || role.getRoleType() == RoleType.ORG.getValue())) {
-            List<Long> descendantIds = abstractRoleMapper.selectDescendantIds(tenantId, roleId);
-            if (!descendantIds.isEmpty()) {
-                abstractRoleMapper.softDeleteBatch(tenantId, descendantIds, now);
-            }
-        }
-
-        abstractRoleMapper.softDeleteBatch(tenantId, java.util.List.of(roleId), now);
-    }
-
-    @Override
-    public List<AbstractRole> listChildren(Long tenantId, Long parentId) {
-        return abstractRoleMapper.selectChildren(tenantId, parentId);
-    }
-
-    @Override
     public AbstractRole selectValidById(Long tenantId, Long roleId) {
         if (roleId == null) {
             return null;

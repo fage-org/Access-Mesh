@@ -104,10 +104,10 @@ class PermissionServiceImplCheckInterfaceTest {
     void setUp() {
         service = new PermissionServiceImpl(
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
-            resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
+            userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
             permissionVersionDomainService, resourceEntityDomainService,
-            rolePermEntryMapper, engine
+            engine
         );
     }
 

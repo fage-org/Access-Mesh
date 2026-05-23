@@ -247,15 +247,4 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
         response.getWriter().write(json);
     }
 
-    /**
-     * 清理ThreadLocal Mac实例
-     * <p>
-     * 手动清理ThreadLocal，防止线程池环境下的内存泄漏。
-     * </p>
-     */
-    public void cleanup() {
-        if (macThreadLocal != null) {
-            macThreadLocal.remove();
-        }
     }
-}

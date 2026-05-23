@@ -26,18 +26,6 @@ import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 public interface PermissionViewService {
 
     /**
-     * 获取用户的有效权限
-     * <p>
-     * 查看用户拥有的所有有效权限，按资源分组展示。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @return 用户权限视图响应
-     */
-    UserPermissionViewResp getUserPermissions(Long tenantId, Long userId);
-
-    /**
      * 获取用户的有效权限（带筛选和分页）
      * <p>
      * 查看用户的有效权限，支持按条件筛选和分页。
@@ -80,23 +68,6 @@ public interface PermissionViewService {
      * @return 角色权限视图响应
      */
     RolePermissionViewResp getRolePermissions(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, boolean expandSub);
-
-    /**
-     * 分页获取角色权限项
-     * <p>
-     * 获取角色的权限项列表，支持分页查询。
-     * </p>
-     *
-     * @param tenantId       租户ID
-     * @param domainCode     业务域编码
-     * @param roleTypeCode   角色类型编码
-     * @param roleExternalId 角色外部ID
-     * @param pageNum        页码
-     * @param pageSize       每页大小
-     * @return 分页的权限项响应
-     */
-    PaginatedResp<RolePermissionViewResp.PermissionItem> getRolePermissionItemsPaged(
-        Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, int pageNum, int pageSize);
 
     /**
      * 解释权限判定结果

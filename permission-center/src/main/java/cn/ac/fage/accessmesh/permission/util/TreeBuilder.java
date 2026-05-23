@@ -44,28 +44,6 @@ public class TreeBuilder<E, N> {
     }
 
     /**
-     * 从指定根节点构建树结构
-     * <p>
-     * 以指定的实体为根，从所有实体列表中递归构建完整的树结构。
-     * 使用预分组优化查询效率，实现O(1)的子节点查找。
-     * </p>
-     *
-     * @param root        根实体
-     * @param allEntities 所有实体列表（包含根节点和所有子孙节点）
-     * @return 包含所有子孙节点的树节点
-     */
-    public N buildTree(E root, List<E> allEntities) {
-        // 按parentId预分组，实现O(1)查找
-        Map<Long, List<E>> byParentId = allEntities.stream()
-            .collect(Collectors.groupingBy(
-                e -> parentIdExtractor.apply(e) != null ? parentIdExtractor.apply(e) : -1L
-            ));
-
-        Set<Long> visited = new HashSet<>();
-        return buildNode(root, byParentId, visited);
-    }
-
-    /**
      * 从多个根节点构建树结构列表
      * <p>
      * 以多个实体为根，从所有实体列表中递归构建多个树结构。

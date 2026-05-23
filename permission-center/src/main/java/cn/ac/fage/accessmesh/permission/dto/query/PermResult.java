@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.dto.query;
 
-import cn.ac.fage.accessmesh.permission.entity.*;
+import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
+import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 
 import java.util.*;
@@ -56,16 +58,6 @@ public class PermResult {
     private final Map<Long, AbstractRole> roleMap;
 
     /**
-     * 业务域映射
-     */
-    private final Map<Long, BizDomain> domainMap;
-
-    /**
-     * 权限条件映射
-     */
-    private final Map<Long, PermissionCondition> conditionMap;
-
-    /**
      * 构造权限结果
      * <p>
      * 通过Builder构造，确保不可变。
@@ -82,8 +74,6 @@ public class PermResult {
         this.resourceMap = b.resourceMap == null ? null : Map.copyOf(b.resourceMap);
         this.operationMap = b.operationMap == null ? null : Map.copyOf(b.operationMap);
         this.roleMap = b.roleMap == null ? null : Map.copyOf(b.roleMap);
-        this.domainMap = b.domainMap == null ? null : Map.copyOf(b.domainMap);
-        this.conditionMap = b.conditionMap == null ? null : Map.copyOf(b.conditionMap);
     }
 
     // ===== 工厂方法 =====
@@ -109,16 +99,7 @@ public class PermResult {
         return builder(false, reason).build();
     }
 
-    /**
-     * 创建允许结果
-     *
-     * @param scopeAllMatched 全范围是否匹配
-     * @return 允许结果实例
-     */
-    public static PermResult allow(boolean scopeAllMatched) {
-        return builder(true, null).scopeAllMatched(scopeAllMatched).build();
-    }
-
+    
     // ===== Getter方法 =====
 
     /**
@@ -142,13 +123,7 @@ public class PermResult {
      */
     public boolean scopeAllMatched() { return scopeAllMatched; }
 
-    /**
-     * 获取全范围权限条目列表
-     *
-     * @return 全范围权限条目列表
-     */
-    public List<RolePermEntry> scopeAllEntries() { return scopeAllEntries; }
-
+    
     /**
      * 获取实例级权限条目列表
      *
@@ -177,20 +152,7 @@ public class PermResult {
      */
     public Map<Long, AbstractRole> roleMap() { return roleMap; }
 
-    /**
-     * 获取业务域映射
-     *
-     * @return 业务域映射
-     */
-    public Map<Long, BizDomain> domainMap() { return domainMap; }
-
-    /**
-     * 获取权限条件映射
-     *
-     * @return 权限条件映射
-     */
-    public Map<Long, PermissionCondition> conditionMap() { return conditionMap; }
-
+    
     // ===== 便捷方法 =====
 
     /**
@@ -233,18 +195,7 @@ public class PermResult {
             .collect(java.util.stream.Collectors.toSet());
     }
 
-    /**
-     * 检查是否有可授权权限
-     * <p>
-     * 检查是否存在canGrant=true的权限条目。
-     * </p>
-     *
-     * @return 是否有可授权权限
-     */
-    public boolean hasCanGrant() {
-        return allEntries().stream().anyMatch(e -> Boolean.TRUE.equals(e.canGrant()));
-    }
-
+    
     // ===== Builder类 =====
 
     /**
@@ -262,8 +213,6 @@ public class PermResult {
         private Map<Long, ResourceEntity> resourceMap;
         private Map<Long, OperationPermission> operationMap;
         private Map<Long, AbstractRole> roleMap;
-        private Map<Long, BizDomain> domainMap;
-        private Map<Long, PermissionCondition> conditionMap;
 
         /**
          * 构造Builder
@@ -324,22 +273,7 @@ public class PermResult {
          */
         public Builder roleMap(Map<Long, AbstractRole> v) { this.roleMap = v; return this; }
 
-        /**
-         * 设置业务域映射
-         *
-         * @param v 业务域映射
-         * @return Builder实例
-         */
-        public Builder domainMap(Map<Long, BizDomain> v) { this.domainMap = v; return this; }
-
-        /**
-         * 设置权限条件映射
-         *
-         * @param v 权限条件映射
-         * @return Builder实例
-         */
-        public Builder conditionMap(Map<Long, PermissionCondition> v) { this.conditionMap = v; return this; }
-
+        
         /**
          * 构建PermResult实例
          *

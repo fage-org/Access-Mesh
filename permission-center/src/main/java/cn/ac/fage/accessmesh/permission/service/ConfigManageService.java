@@ -62,15 +62,6 @@ public interface ConfigManageService {
     TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId);
 
     /**
-     * 删除类型定义
-     *
-     * @param tenantId   租户ID
-     * @param typeId     类型定义ID
-     * @param operatorId 操作者ID
-     */
-    void deleteType(Long tenantId, Long typeId, Long operatorId);
-
-    /**
      * 批量删除类型定义
      *
      * @param tenantId   租户ID
@@ -117,15 +108,6 @@ public interface ConfigManageService {
      * @return 更新后的业务域详情
      */
     BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId);
-
-    /**
-     * 删除业务域
-     *
-     * @param tenantId   租户ID
-     * @param domainId   业务域ID
-     * @param operatorId 操作者ID
-     */
-    void deleteBizDomain(Long tenantId, Long domainId, Long operatorId);
 
     /**
      * 批量删除业务域
@@ -186,16 +168,6 @@ public interface ConfigManageService {
      * @return 保存后的服务配置详情
      */
     ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
-
-    /**
-     * 创建服务配置
-     *
-     * @param tenantId   租户ID
-     * @param req        服务配置请求
-     * @param operatorId 操作者ID
-     * @return 创建的服务配置详情
-     */
-    ServiceConfigResp createServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId);
 
     /**
      * 获取服务配置详情

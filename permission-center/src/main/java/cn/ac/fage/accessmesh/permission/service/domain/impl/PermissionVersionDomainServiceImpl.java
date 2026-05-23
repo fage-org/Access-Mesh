@@ -11,8 +11,6 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -46,7 +44,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
     }
 
     /**
-     * 获取角色的当前权限版本号
+     * 获取角色的当前权限版本号（内部方法）
      * <p>
      * 直接调用 CacheService 管理 L1/L2 缓存。
      * 数据库查询结果自动填充缓存。
@@ -56,8 +54,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
      * @param roleId   角色ID
      * @return 当前版本号，无记录时默认返回1
      */
-    @Override
-    public long getCurrentVersion(Long tenantId, Long roleId) {
+    private long getCurrentVersion(Long tenantId, Long roleId) {
         // 直接调用 CacheService 查缓存（已处理 L1 + L2）
         Long cached = cacheService.get(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleId);
         if (cached != null) return cached;
@@ -125,7 +122,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
     }
 
     /**
-     * 计算多个角色的最大版本号
+     * 计算多个角色的最大版本号（内部方法）
      * <p>
      * 用于判断用户权限缓存是否需要更新，取所有角色的最新版本号
      * </p>
@@ -134,8 +131,7 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
      * @param roleIds  角色ID集合
      * @return 最大版本号
      */
-    @Override
-    public long calculateMaxVersion(Long tenantId, Set<Long> roleIds) {
+    private long calculateMaxVersion(Long tenantId, Set<Long> roleIds) {
         if (roleIds == null || roleIds.isEmpty()) {
             return 0L;
         }
@@ -206,69 +202,5 @@ public class PermissionVersionDomainServiceImpl implements PermissionVersionDoma
         }
 
         return newVersion;
-    }
-
-    /**
-     * 批量递增多个角色的权限版本号
-     * <p>
-     * 使用批量插入减少数据库网络往返。
-     * 缓存写入在事务提交后执行，避免回滚污染。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleIds  角色ID集合
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void batchIncrement(Long tenantId, Collection<Long> roleIds) {
-        if (roleIds == null || roleIds.isEmpty()) {
-            return;
-        }
-
-        // 1. 批量查询所有roleId的版本记录（按版本号降序，便于取最大值）
-        List<PermissionVersion> allVersions = versionMapper.selectAllByRolesOrdered(tenantId, roleIds);
-
-        // 构建roleId -> 最大版本号映射（利用排序，每个roleId第一次出现即为最大值）
-        Map<Long, Long> roleIdToVersion = new HashMap<>();
-        for (PermissionVersion pv : allVersions) {
-            roleIdToVersion.putIfAbsent(pv.getAbstractRoleId(), pv.getVersionNo());
-        }
-
-        // 2. 批量创建新版本记录
-        LocalDateTime now = LocalDateTime.now();
-        List<PermissionVersion> newVersions = new ArrayList<>(roleIds.size());
-        Map<Long, Long> roleIdToNewVersion = new HashMap<>();
-
-        for (Long roleId : roleIds) {
-            Long currentVersion = roleIdToVersion.getOrDefault(roleId, 1L);
-            Long newVersion = currentVersion + 1;
-
-            PermissionVersion pv = new PermissionVersion();
-            pv.setTenantId(tenantId);
-            pv.setAbstractRoleId(roleId);
-            pv.setVersionNo(newVersion);
-            pv.setCreatedAt(now);
-            newVersions.add(pv);
-
-            roleIdToNewVersion.put(roleId, newVersion);
-        }
-
-        // 3. 批量插入数据库
-        versionMapper.insertBatch(newVersions);
-
-        // 4. 缓存写入延迟到事务提交后，避免回滚污染缓存
-        final Long finalTenantId = tenantId;
-        final Map<Long, Long> finalRoleIdToNewVersion = new HashMap<>(roleIdToNewVersion);
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    cacheService.putBatch(PermCacheCatalog.PERMISSION_VERSION, finalTenantId, finalRoleIdToNewVersion);
-                }
-            });
-        } else {
-            // 无事务时直接写入
-            cacheService.putBatch(PermCacheCatalog.PERMISSION_VERSION, tenantId, roleIdToNewVersion);
-        }
     }
 }

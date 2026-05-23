@@ -68,11 +68,4 @@
         LIMIT 1
     </select>
 
-    <select id="countGlobalByTenant" resultType="long">
-        SELECT COUNT(*) FROM biz_domain
-        WHERE tenant_id = #{tenantId}
-          AND global = true
-          AND delete_flag = 0
-    </select>
-
 </mapper>

@@ -87,32 +87,6 @@ public enum RoleType {
     public String getLabel() { return label; }
 
     /**
-     * 判断是否支持层级结构
-     * <p>
-     * 组织角色和分组角色支持层级结构。
-     * 支持层级结构的角色删除时会级联删除子孙角色。
-     * </p>
-     *
-     * @return 是否支持层级结构
-     */
-    public boolean supportsHierarchy() {
-        return this == ORG || this == GROUP_ROLE;
-    }
-
-    /**
-     * 判断是否可以配置权限
-     * <p>
-     * 除分组角色外的所有角色都可以配置权限。
-     * 分组角色仅作为容器，不参与权限判定。
-     * </p>
-     *
-     * @return 是否可以配置权限
-     */
-    public boolean canConfigurePermissions() {
-        return this != GROUP_ROLE;
-    }
-
-    /**
      * 根据类型值解析枚举
      *
      * @param value 类型值

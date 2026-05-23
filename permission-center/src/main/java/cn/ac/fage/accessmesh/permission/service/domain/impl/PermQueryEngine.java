@@ -354,94 +354,6 @@ public class PermQueryEngine {
         }
     }
 
-    // ===== 公共便捷方法（适用于已解析ID的调用者） =====
-
-    /**
-     * 查询类型级权限
-     *
-     * @param tenantId              租户ID
-     * @param roleIds               角色ID集合
-     * @param resourceType          资源类型值
-     * @param operationPermissionIds 操作权限ID集合
-     * @return 权限条目列表
-     */
-    public List<RolePermEntry> queryTypeLevelPerms(Long tenantId, Set<Long> roleIds,
-                                                 Integer resourceType,
-                                                     Set<Long> operationPermissionIds) {
-        return queryScopeAll(
-            tenantId,
-            roleIds,
-            resolveBitMasks(tenantId, Set.of(resourceType), operationPermissionIds)
-        );
-    }
-
-    /**
-     * 获取拥有scopeAll权限的资源类型集合
-     *
-     * @param tenantId 租户ID
-     * @param roleIds  角色ID集合
-     * @param operationIds 操作ID集合
-     * @return 资源类型值集合
-     */
-    public Set<Integer> getResourceTypesWithScopeAll(Long tenantId, Set<Long> roleIds,
-                                                      Set<Long> operationIds) {
-        Map<Long, OperationPermission> targetOps = batchLoadOperations(tenantId, operationIds);
-        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId,
-            targetOps.values().stream()
-                .map(OperationPermission::getResourceType)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()),
-            operationIds);
-        return queryScopeAll(tenantId, roleIds, bitMasks).stream()
-            .map(RolePermEntry::resourceType)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-    }
-
-    /**
-     * 查询实例级权限（单实体）
-     *
-     * @param tenantId              租户ID
-     * @param roleIds               角色ID集合
-     * @param resourceEntityId      资源实体ID
-     * @param operationPermissionId 操作权限ID
-     * @param inheritMode           继承模式
-     * @return 权限条目列表（已过滤matchesBit）
-     */
-    public List<RolePermEntry> queryInstancePerms(Long tenantId, Set<Long> roleIds,
-                                                    Long resourceEntityId,
-                                                    Long operationPermissionId,
-                                                    String inheritMode) {
-        Set<Long> entityIds = new HashSet<>();
-        entityIds.add(resourceEntityId);
-        OperationPermission targetOp = batchLoadOperations(tenantId, Set.of(operationPermissionId)).get(operationPermissionId);
-        if (targetOp == null || targetOp.getResourceType() == null) {
-            return List.of();
-        }
-        return queryInstance(
-            tenantId,
-            roleIds,
-            entityIds,
-            resolveBitMasks(tenantId, Set.of(targetOp.getResourceType()), Set.of(operationPermissionId))
-        );
-    }
-
-    /**
-     * 查询实例级权限（批量实体）
-     *
-     * @param tenantId        租户ID
-     * @param roleIds         角色ID集合
-     * @param resourceEntityIds 资源实体ID集合
-     * @return 权限条目列表
-     */
-    public List<RolePermEntry> queryInstancePermsBatch(Long tenantId, Set<Long> roleIds,
-                                                         Set<Long> resourceEntityIds) {
-        return rolePermMapper.selectInstancePerms(tenantId, roleIds, resourceEntityIds, null)
-            .stream()
-            .map(entryMapper::toEntry)
-            .toList();
-    }
-
     // ===== 私有步骤方法 =====
 
     /**
@@ -481,16 +393,6 @@ public class PermQueryEngine {
         if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
         if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
         return ctx.getOperationIds(q.resourceTypeCodes(), q.operationCodes());
-    }
-
-    /**
-     * 解析查询参数中的资源类型值（旧方法，保留兼容）
-     */
-    private Set<Integer> resolveResourceTypes(PermQuery q) {
-        if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
-        Map<String, Integer> map = typeResolutionService.batchResolveTypeValues(
-            q.tenantId(), "resource_type", q.resourceTypeCodes());
-        return new HashSet<>(map.values());
     }
 
     /**

@@ -107,24 +107,4 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
     List<AbstractUser> selectByTypeAndExternalIds(@Param("tenantId") Long tenantId,
                                                    @Param("userType") Integer userType,
                                                    @Param("externalIds") Set<String> externalIds);
-
-    /**
-     * 根据用户编码查询有效用户
-     *
-     * @param tenantId 租户ID
-     * @param userCode 用户编码
-     * @return 用户实体
-     */
-    AbstractUser selectByCode(@Param("tenantId") Long tenantId,
-                              @Param("userCode") String userCode);
-
-    /**
-     * 根据用户编码集合批量查询有效用户
-     *
-     * @param tenantId  租户ID
-     * @param userCodes 用户编码集合
-     * @return 用户列表
-     */
-    List<AbstractUser> selectByCodes(@Param("tenantId") Long tenantId,
-                                     @Param("userCodes") Set<String> userCodes);
 }

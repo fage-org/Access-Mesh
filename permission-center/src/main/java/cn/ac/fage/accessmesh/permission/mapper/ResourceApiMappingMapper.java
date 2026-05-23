@@ -120,22 +120,4 @@ public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping>
                                          @Param("serviceCode") String serviceCode,
                                          @Param("httpMethod") String httpMethod,
                                          @Param("pathPattern") String pathPattern);
-
-    /**
-     * 根据租户ID查询所有有效映射
-     *
-     * @param tenantId 租户ID
-     * @return 映射列表
-     */
-    List<ResourceApiMapping> selectByTenantId(@Param("tenantId") Long tenantId);
-
-    /**
-     * 根据租户ID和资源实体ID集合查询有效映射列表
-     *
-     * @param tenantId         租户ID
-     * @param resourceEntityIds 资源实体ID集合
-     * @return 映射列表
-     */
-    List<ResourceApiMapping> selectByTenantAndResourceEntityIds(@Param("tenantId") Long tenantId,
-                                                                 @Param("resourceEntityIds") Set<Long> resourceEntityIds);
 }

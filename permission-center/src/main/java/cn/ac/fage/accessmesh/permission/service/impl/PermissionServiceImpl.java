@@ -30,7 +30,6 @@ import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
-import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionService;
@@ -46,7 +45,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
@@ -97,7 +95,6 @@ public class PermissionServiceImpl implements PermissionService {
     private final ResourceApiMappingMapper apiMappingMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final ResourceDependencyMapper resourceDependencyMapper;
     private final UserRoleDomainService userRoleDomainService;
     private final PermissionConflictDomainService permissionConflictDomainService;
     private final PermissionConditionDomainService permissionConditionDomainService;
@@ -106,7 +103,6 @@ public class PermissionServiceImpl implements PermissionService {
     private final CacheService cacheService;
     private final PermissionVersionDomainService permissionVersionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
-    private final RolePermEntryMapper rolePermEntryMapper;
     private final PermQueryEngine engine;
 
     /**
@@ -117,7 +113,6 @@ public class PermissionServiceImpl implements PermissionService {
                                  ResourceApiMappingMapper apiMappingMapper,
                                  OperationPermissionMapper operationPermissionMapper,
                                  RoleResourcePermissionMapper rolePermMapper,
-                                 ResourceDependencyMapper resourceDependencyMapper,
                                  UserRoleDomainService userRoleDomainService,
                                  PermissionConflictDomainService permissionConflictDomainService,
                                  PermissionConditionDomainService permissionConditionDomainService,
@@ -126,14 +121,12 @@ public class PermissionServiceImpl implements PermissionService {
                                  CacheService cacheService,
                                  PermissionVersionDomainService permissionVersionDomainService,
                                  ResourceEntityDomainService resourceEntityDomainService,
-                                 RolePermEntryMapper rolePermEntryMapper,
                                  PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.rolePermMapper = rolePermMapper;
-        this.resourceDependencyMapper = resourceDependencyMapper;
         this.userRoleDomainService = userRoleDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
         this.permissionConditionDomainService = permissionConditionDomainService;
@@ -142,7 +135,6 @@ public class PermissionServiceImpl implements PermissionService {
         this.cacheService = cacheService;
         this.permissionVersionDomainService = permissionVersionDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
-        this.rolePermEntryMapper = rolePermEntryMapper;
         this.engine = engine;
     }
 
@@ -652,30 +644,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     // =========== 内部辅助方法 ==========
 
-    /**
-     * 批量查询匹配的权限条目
-     * <p>
-     * 查询指定角色集合和资源集合的实例级权限
-     * </p>
-     */
-    private List<RolePermEntry> queryMatchedEntriesBatch(Long tenantId, Set<Long> roleIds,
-                                                          Set<Long> resourceEntityIds) {
-        if (roleIds.isEmpty() || resourceEntityIds.isEmpty()) {
-            return List.of();
-        }
-
-        // 查询所有实例级权限
-        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleIdsAndResourceIds(
-            tenantId, roleIds, resourceEntityIds);
-
-        if (perms.isEmpty()) {
-            return List.of();
-        }
-
-        return rolePermEntryMapper.toEntryList(perms);
-    }
-
-    /**
+/**
      * 范围累加器
      * <p>
      * 用于合并相同范围的操作权限

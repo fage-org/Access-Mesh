@@ -35,48 +35,6 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
     }
 
     /**
-     * 根据ID查询资源API映射
-     * <p>
-     * 直接调用Mapper的selectOneById方法。
-     * 不检查租户和删除标志，用于内部查询。
-     * </p>
-     *
-     * @param id 映射ID
-     * @return 资源API映射实体，不存在返回null
-     */
-    @Override
-    public ResourceApiMapping selectOneById(Long id) {
-        return resourceApiMappingMapper.selectOneById(id);
-    }
-
-    /**
-     * 插入资源API映射
-     * <p>
-     * 调用Mapper的insert方法，插入新映射记录。
-     * </p>
-     *
-     * @param entity 资源API映射实体
-     */
-    @Override
-    public void insert(ResourceApiMapping entity) {
-        resourceApiMappingMapper.insert(entity);
-    }
-
-    /**
-     * 更新资源API映射
-     * <p>
-     * 调用Mapper的update方法，更新已有映射记录。
-     * </p>
-     *
-     * @param entity 资源API映射实体
-     * @return 更新影响的行数
-     */
-    @Override
-    public int update(ResourceApiMapping entity) {
-        return resourceApiMappingMapper.update(entity);
-    }
-
-    /**
      * 根据ID查询有效映射
      * <p>
      * 查询未删除的资源API映射实体，包含租户校验。
@@ -128,56 +86,5 @@ public class ResourceApiMappingDomainServiceImpl implements ResourceApiMappingDo
             return List.of();
         }
         return resourceApiMappingMapper.selectValidByIds(tenantId, ids);
-    }
-
-    /**
-     * 根据租户ID和服务编码查询有效映射列表
-     *
-     * @param tenantId    租户ID
-     * @param serviceCode 服务编码
-     * @return 映射列表
-     */
-    @Override
-    public List<ResourceApiMapping> selectByTenantAndServiceCode(Long tenantId, String serviceCode) {
-        return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode);
-    }
-
-    /**
-     * 根据租户ID、资源实体ID、服务编码、HTTP方法和路径模式查询有效映射
-     *
-     * @param tenantId        租户ID
-     * @param resourceEntityId 资源实体ID
-     * @param serviceCode     服务编码
-     * @param httpMethod      HTTP方法
-     * @param pathPattern     路径模式
-     * @return 映射实体，不存在返回null
-     */
-    @Override
-    public ResourceApiMapping selectByUniqueKey(Long tenantId, Long resourceEntityId,
-                                                 String serviceCode, String httpMethod, String pathPattern) {
-        return resourceApiMappingMapper.selectByUniqueKey(tenantId, resourceEntityId, serviceCode, httpMethod, pathPattern);
-    }
-
-    /**
-     * 根据租户ID查询有效映射列表
-     *
-     * @param tenantId 租户ID
-     * @return 映射列表
-     */
-    @Override
-    public List<ResourceApiMapping> selectByTenantId(Long tenantId) {
-        return resourceApiMappingMapper.selectByTenantId(tenantId);
-    }
-
-    /**
-     * 根据租户ID和资源实体ID集合查询有效映射列表
-     *
-     * @param tenantId         租户ID
-     * @param resourceEntityIds 资源实体ID集合
-     * @return 映射列表
-     */
-    @Override
-    public List<ResourceApiMapping> selectByTenantAndResourceEntityIds(Long tenantId, Set<Long> resourceEntityIds) {
-        return resourceApiMappingMapper.selectByTenantAndResourceEntityIds(tenantId, resourceEntityIds);
     }
 }

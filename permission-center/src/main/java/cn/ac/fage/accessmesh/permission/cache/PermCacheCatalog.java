@@ -172,23 +172,6 @@ public final class PermCacheCatalog {
             .build();
 
     /**
-     * 操作码缓存
-     * <p>
-     * Key: operationId
-     * Value: String 操作码
-     * </p>
-     */
-    public static final CacheCatalogEntry<String> OPERATION_CODE =
-        CacheCatalogEntry.<String>builder()
-            .code("perm:operation-code")
-            .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(30)
-            .l1MaxSize(500)
-            .l2TtlMinutes(120)
-            .valueType(new TypeRef<String>() {})
-            .build();
-
-    /**
      * 操作权限按资源类型缓存（按ID索引）
      * <p>
      * Key: resourceType（缓存 Key 格式："op_perm:" + resourceType）

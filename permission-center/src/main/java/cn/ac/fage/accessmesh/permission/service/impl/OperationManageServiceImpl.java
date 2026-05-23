@@ -187,35 +187,6 @@ public class OperationManageServiceImpl implements OperationManageService {
     }
 
     /**
-     * 删除单个操作权限
-     * <p>
-     * 软删除指定的操作权限。需要OPERATION_MANAGE权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param operationId 操作权限ID
-     * @param operatorId 操作者ID，可选
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteOperation(Long tenantId, Long operationId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("No permission to delete operation");
-        }
-
-        OperationPermission op = operationPermissionMapper.selectOneById(operationId);
-        if (op != null && op.getDeleteFlag() == 0L && op.getTenantId().equals(tenantId)) {
-            op.setDeleteFlag(op.getId());
-            op.setDeletedAt(LocalDateTime.now());
-            operationPermissionMapper.update(op);
-        }
-    }
-
-    /**
      * 批量删除操作权限
      * <p>
      * 批量软删除操作权限。使用批量查询和批量软删除避免N+1问题。

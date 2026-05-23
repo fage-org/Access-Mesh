@@ -186,69 +186,6 @@ public final class OperationPermissionUtils {
         return null;
     }
 
-    // ===== 批量过滤 =====
-
-    /**
-     * 按操作权限过滤角色权限条目
-     * <p>
-     * 过滤出授予操作权限覆盖目标操作权限的所有条目。
-     * 用于权限判定时的批量筛选。
-     * </p>
-     * <p>
-     * 注意：grantedBits 存储 binaryBit，需要通过 effectiveBits 判断覆盖关系。
-     * </p>
-     *
-     * @param entries   角色权限条目列表
-     * @param opCache   操作权限缓存映射（id → op）
-     * @param targetOp  目标操作权限
-     * @return 过滤后的角色权限条目列表
-     */
-    public static List<RolePermEntry> filterByOperation(
-            List<RolePermEntry> entries,
-            Map<Long, OperationPermission> opCache,
-            OperationPermission targetOp) {
-        if (entries.isEmpty() || targetOp == null) return List.of();
-        List<RolePermEntry> result = new ArrayList<>();
-        Long targetBit = targetOp.getBinaryBit();
-        if (targetBit == null || targetBit == 0L) return List.of();
-        for (RolePermEntry e : entries) {
-            OperationPermission granted = findByResourceTypeAndBinaryBit(opCache, e.resourceType(), e.grantedBits());
-            if (granted != null && (effectiveBits(granted) & targetBit) != 0L) {
-                result.add(e);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 按多个操作权限过滤并分组角色权限条目
-     * <p>
-     * 根据目标操作权限ID集合过滤条目，并按操作权限ID分组。
-     * 用于批量权限判定场景。
-     * </p>
-     *
-     * @param entries    角色权限条目列表
-     * @param opCache    操作权限缓存映射
-     * @param targetOpIds 目标操作权限ID集合
-     * @return 按操作权限ID分组的过滤结果映射
-     */
-    public static Map<Long, List<RolePermEntry>> filterByOperations(
-            List<RolePermEntry> entries,
-            Map<Long, OperationPermission> opCache,
-            Set<Long> targetOpIds) {
-        if (entries.isEmpty() || targetOpIds == null || targetOpIds.isEmpty()) return Map.of();
-        Map<Long, List<RolePermEntry>> result = new LinkedHashMap<>();
-        for (Long tid : targetOpIds) {
-            OperationPermission target = opCache.get(tid);
-            if (target == null) continue;
-            List<RolePermEntry> matched = filterByOperation(entries, opCache, target);
-            if (!matched.isEmpty()) {
-                result.put(tid, matched);
-            }
-        }
-        return result;
-    }
-
     private static String composeKey(Integer resourceType, Long binaryBit) {
         return (resourceType == null ? NULL_RESOURCE_TYPE : String.valueOf(resourceType)) + ":" + binaryBit;
     }

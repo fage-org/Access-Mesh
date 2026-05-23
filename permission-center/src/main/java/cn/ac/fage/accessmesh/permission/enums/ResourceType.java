@@ -77,20 +77,6 @@ public enum ResourceType {
     public String getLabel() { return label; }
 
     /**
-     * 根据类型值解析枚举
-     *
-     * @param value 类型值
-     * @return 对应的资源类型枚举
-     * @throws IllegalArgumentException 如果类型值不存在
-     */
-    public static ResourceType fromValue(int value) {
-        for (ResourceType t : values()) {
-            if (t.value == value) return t;
-        }
-        throw new IllegalArgumentException("Unknown ResourceType value: " + value);
-    }
-
-    /**
      * 安全获取类型标签
      * <p>
      * 根据类型值获取标签，如果类型值无效返回空字符串。
@@ -101,10 +87,9 @@ public enum ResourceType {
      * @return 类型标签，无效类型返回空字符串
      */
     public static String safeGetLabel(Integer value) {
-        try {
-            return fromValue(value != null ? value : 0).getLabel();
-        } catch (IllegalArgumentException e) {
-            return "";
+        for (ResourceType t : values()) {
+            if (t.value == (value != null ? value : 0)) return t.label;
         }
+        return "";
     }
 }

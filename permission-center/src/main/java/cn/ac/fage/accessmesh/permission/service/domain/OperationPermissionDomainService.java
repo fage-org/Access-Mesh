@@ -16,29 +16,6 @@ import java.util.Set;
 public interface OperationPermissionDomainService {
 
     /**
-     * 根据ID查询操作权限
-     *
-     * @param id 操作权限ID
-     * @return 操作权限实体，不存在返回null
-     */
-    OperationPermission selectOneById(Long id);
-
-    /**
-     * 插入操作权限
-     *
-     * @param entity 操作权限实体
-     */
-    void insert(OperationPermission entity);
-
-    /**
-     * 更新操作权限
-     *
-     * @param entity 操作权限实体
-     * @return 更新影响的行数
-     */
-    int update(OperationPermission entity);
-
-    /**
      * 根据ID查询有效操作权限
      * <p>
      * 查询未删除的操作权限实体，包含租户校验。
@@ -51,24 +28,4 @@ public interface OperationPermissionDomainService {
      */
     OperationPermission selectValidById(Long tenantId, Long operationId);
 
-    /**
-     * 根据租户ID、资源类型集合和操作码集合查询操作权限列表
-     *
-     * @param tenantId         租户ID
-     * @param resourceTypeValues 资源类型值集合
-     * @param operationCodes   操作码集合
-     * @return 操作权限列表
-     */
-    List<OperationPermission> selectByTenantResourceTypesAndOpCodes(Long tenantId,
-                                                                     Set<Integer> resourceTypeValues,
-                                                                     Set<String> operationCodes);
-
-    /**
-     * 根据租户ID查询操作权限列表（可选资源类型过滤）
-     *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值，可为null（不过滤）
-     * @return 操作权限列表
-     */
-    List<OperationPermission> selectByTenantAndResourceType(Long tenantId, Integer resourceType);
 }

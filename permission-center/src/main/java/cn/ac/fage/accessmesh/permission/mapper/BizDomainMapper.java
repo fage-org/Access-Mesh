@@ -97,12 +97,4 @@ public interface BizDomainMapper extends BaseMapper<BizDomain> {
      * @return 全局域实体，不存在返回null
      */
     BizDomain selectGlobalByTenant(@Param("tenantId") Long tenantId);
-
-    /**
-     * 统计租户全局域数量
-     *
-     * @param tenantId 租户ID
-     * @return 全局域数量
-     */
-    long countGlobalByTenant(@Param("tenantId") Long tenantId);
 }

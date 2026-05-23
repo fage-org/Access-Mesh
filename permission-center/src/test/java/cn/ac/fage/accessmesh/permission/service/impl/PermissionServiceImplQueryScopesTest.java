@@ -126,10 +126,10 @@ class PermissionServiceImplQueryScopesTest {
     void setUp() {
         service = new PermissionServiceImpl(
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
-            resourceDependencyMapper, userRoleDomainService, permissionConflictDomainService,
+            userRoleDomainService, permissionConflictDomainService,
             permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
             permissionVersionDomainService, resourceEntityDomainService,
-            rolePermEntryMapper, engine
+            engine
         );
     }
 
@@ -277,8 +277,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setCode("VIEW");
         op.setBinaryBit(1L);
         op.setInheritMask(0L);
-        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(300L, op));
+        when(operationPermissionMapper.selectValidByIds(eq(1L), any(Set.class)))
+            .thenReturn(List.of(op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
@@ -331,8 +331,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setInheritMask(0L);
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenReturn(List.of());
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(300L, op));
+        when(operationPermissionMapper.selectValidByIds(eq(1L), any(Set.class)))
+            .thenReturn(List.of(op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertFalse(resp.allowed());
@@ -383,8 +383,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setInheritMask(0L);
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenReturn(List.of());
-        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(300L, op));
+        when(operationPermissionMapper.selectValidByIds(eq(1L), any(Set.class)))
+            .thenReturn(List.of(op));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertFalse(resp.allowed());
@@ -449,8 +449,8 @@ class PermissionServiceImplQueryScopesTest {
         op.setCode("VIEW");
         op.setBinaryBit(1L);
         op.setInheritMask(0L);
-        when(entityBatchLoadDomainService.batchLoadOperations(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(300L, op));
+        when(operationPermissionMapper.selectValidByIds(eq(1L), any(Set.class)))
+            .thenReturn(List.of(op));
 
         ResourceEntity directResource = new ResourceEntity();
         directResource.setId(101L);
@@ -464,8 +464,8 @@ class PermissionServiceImplQueryScopesTest {
         dependentResource.setCode("dept:b");
         dependentResource.setCodeType("default");
         dependentResource.setName("Dept B");
-        when(entityBatchLoadDomainService.batchLoadResources(eq(1L), any(Set.class)))
-            .thenReturn(Map.of(101L, directResource, 102L, dependentResource));
+        when(resourceEntityMapper.selectValidByIds(eq(1L), any(Set.class)))
+            .thenReturn(List.of(directResource, dependentResource));
 
         QueryScopesResp resp = service.queryScopes(1L, req);
         assertTrue(resp.allowed());

@@ -40,26 +40,6 @@ public interface LogQueryService {
     long countChangeLogs(Long tenantId, String entityType, Long entityId);
 
     /**
-     * 查询指定用户的变更日志列表
-     *
-     * @param tenantId 租户ID
-     * @param userId   受影响的用户ID
-     * @param offset   分页偏移量
-     * @param limit    每页条数
-     * @return 变更日志列表
-     */
-    List<ChangeLogResp> listChangeLogsForUser(Long tenantId, Long userId, int offset, int limit);
-
-    /**
-     * 统计指定用户的变更日志数量
-     *
-     * @param tenantId 租户ID
-     * @param userId   受影响的用户ID
-     * @return 变更日志数量
-     */
-    long countChangeLogsForUser(Long tenantId, Long userId);
-
-    /**
      * 筛选查询变更日志列表
      *
      * @param tenantId   租户ID

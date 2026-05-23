@@ -113,41 +113,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     }
 
     /**
-     * 获取用户权限视图
-     * <p>
-     * 查询指定用户的所有权限信息，返回用户类型、外部ID、名称及权限列表。
-     * 需要USER_VIEW权限。权限列表默认不包含API资源和作用域权限。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @return 用户权限视图响应，用户不存在返回null
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    public UserPermissionViewResp getUserPermissions(Long tenantId, Long userId) {
-        // 权限校验：查看用户需要USER_VIEW权限
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
-        }
-
-        PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, new UserPermissionViewReq(
-            PermConstants.TargetType.USER, null, null, null, null, null, null, null, null, null,
-            false, false, true, 20, 1, 50
-        ));
-        AbstractUser user = abstractUserMapper.selectValidById(userId, tenantId);
-        if (user == null) {
-            return null;
-        }
-        String subjectTypeCode = typeResolutionService.resolveTypeCode(tenantId, "user_type", user.getUserType());
-        if (subjectTypeCode == null) {
-            subjectTypeCode = PermConstants.TargetType.USER;
-        }
-        return new UserPermissionViewResp(subjectTypeCode, user.getExternalId(), user.getName(), paged.items());
-    }
-
-    /**
      * 获取有效权限列表
      * <p>
      * 查询用户或角色的有效权限。对于用户，查询其通过角色获得的权限；
@@ -603,23 +568,6 @@ public class PermissionViewServiceImpl implements PermissionViewService {
             .collect(Collectors.toMap(AbstractRole::getId, role -> role));
     }
 
-    /**
-     * 批量加载操作权限
-     * <p>
-     * 根据操作权限ID集合批量查询操作权限实体。
-     * </p>
-     *
-     * @param operationIds 操作权限ID集合
-     * @return 操作权限ID到操作权限实体的映射
-     */
-    private Map<Long, OperationPermission> loadOperations(Long tenantId, Set<Long> operationIds) {
-        if (operationIds.isEmpty()) {
-            return Map.of();
-        }
-        return operationPermissionMapper.selectValidByIds(tenantId, operationIds)
-            .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
-    }
-
     private Map<Long, OperationPermission> loadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
         if (resourceTypes == null || resourceTypes.isEmpty()) {
             return Map.of();
@@ -920,8 +868,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @return 分页的权限列表响应
      * @throws SecurityException 无权限时抛出
      */
-    @Override
-    public PaginatedResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, int pageNum, int pageSize) {
+    private PaginatedResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, int pageNum, int pageSize) {
         // 权限校验：查看角色需要ROLE_VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);

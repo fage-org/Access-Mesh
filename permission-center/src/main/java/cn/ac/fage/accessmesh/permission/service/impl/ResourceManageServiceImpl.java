@@ -46,8 +46,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 
-import cn.ac.fage.accessmesh.permission.dto.query.DomainTypeFilter;
-
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
@@ -314,23 +312,6 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         entity.setUpdatedBy(operatorId);
         entity.setUpdatedAt(LocalDateTime.now());
         resourceEntityMapper.update(entity);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteResource(Long tenantId, Long resourceId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, resourceId);
-        if (entity == null) {
-            throw new IllegalArgumentException("资源不存在: " + resourceId);
-        }
-
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + resourceId);
-        }
-
-        resourceEntityDomainService.deleteWithChildren(tenantId, resourceId);
     }
 
     @Override

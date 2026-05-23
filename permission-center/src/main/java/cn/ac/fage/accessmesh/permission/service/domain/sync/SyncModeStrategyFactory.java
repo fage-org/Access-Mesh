@@ -60,13 +60,4 @@ public class SyncModeStrategyFactory {
         return strategy;
     }
 
-    /**
-     * 检查指定模式的策略是否存在
-     *
-     * @param syncMode 同步模式名称
-     * @return 策略是否存在
-     */
-    public boolean hasStrategy(String syncMode) {
-        return syncMode != null && strategies.containsKey(syncMode.toUpperCase());
     }
-}

@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.permission.dto.query.DomainTypeFilter;
 import cn.ac.fage.accessmesh.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
@@ -16,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -60,39 +58,6 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     }
 
     /**
-     * 根据查询模式构建资源类型过滤条件
-     */
-    @Override
-    public DomainTypeFilter buildTypeFilter(Long tenantId, DomainQueryMode mode, String domainCode) {
-        if (mode == DomainQueryMode.ALL) {
-            return DomainTypeFilter.noFilter();
-        }
-        if (domainCode == null || domainCode.isBlank()) {
-            return DomainTypeFilter.noFilter();
-        }
-
-        Long domainId = domainCode != null
-            ? typeResolutionService.resolveDomainId(tenantId, domainCode)
-            : null;
-        if (domainId == null) {
-            return DomainTypeFilter.none();
-        }
-
-        Set<String> domainTypeCodes = isGlobalDomain(tenantId, domainId)
-            ? computeGlobalTypeCodes(tenantId)
-            : loadClassifyTypeCodes(tenantId, domainId);
-        Set<Integer> domainTypeValues = resolveToTypeValues(tenantId, domainTypeCodes);
-
-        if (mode == DomainQueryMode.DOMAIN_ONLY) {
-            return DomainTypeFilter.only(domainTypeValues);
-        }
-
-        // GLOBAL_PLUS: 该域类型 + 未被任何域认领的类型
-        Set<Integer> allClaimedValues = getAllClaimedTypeValues(tenantId);
-        return DomainTypeFilter.globalPlus(domainTypeValues, allClaimedValues);
-    }
-
-    /**
      * 获取指定域声明的资源类型码集合
      */
     @Override
@@ -115,11 +80,40 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
         if (resourceTypeCode == null || resourceTypeCode.isBlank()) {
             return false;
         }
+
         Integer resourceTypeValue = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceTypeValue == null) {
             return false;
         }
-        return buildTypeFilter(tenantId, mode, domainCode).matches(resourceTypeValue);
+
+        if (mode == DomainQueryMode.ALL) {
+            return true;
+        }
+        if (domainCode == null || domainCode.isBlank()) {
+            return true;
+        }
+
+        Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+        if (domainId == null) {
+            return false;
+        }
+
+        Set<String> classifiedCodes = isGlobalDomain(tenantId, domainId)
+            ? computeGlobalTypeCodes(tenantId)
+            : loadClassifyTypeCodes(tenantId, domainId);
+
+        if (mode == DomainQueryMode.DOMAIN_ONLY) {
+            return classifiedCodes.contains(resourceTypeCode);
+        }
+
+        // GLOBAL_PLUS: 该域类型 + 未被任何域认领的类型（全局域的隐式范围）
+        if (classifiedCodes.contains(resourceTypeCode)) {
+            return true;
+        }
+
+        // 未被任何具体域认领的类型属于 GLOBAL_PLUS 的隐式范围。
+        Set<String> allClaimedCodes = getAllClaimedTypeCodes(tenantId);
+        return !allClaimedCodes.contains(resourceTypeCode);
     }
 
     /**
@@ -141,24 +135,6 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
 
         BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
         return globalDomain != null ? globalDomain.getId() : null;
-    }
-
-    /**
-     * 确保租户的全局域存在
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void ensureGlobalDomain(Long tenantId) {
-        boolean exists = bizDomainMapper.countGlobalByTenant(tenantId) > 0;
-        if (!exists) {
-            BizDomain global = new BizDomain();
-            global.setTenantId(tenantId);
-            global.setCode("GLOBAL");
-            global.setName("全局");
-            global.setGlobal(true);
-            global.setDeleteFlag(0L);
-            bizDomainMapper.insert(global);
-        }
     }
 
     // ===== 内部方法 =====
@@ -204,29 +180,11 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     }
 
     /**
-     * 获取所有非全局域声明的类型值（用于 GLOBAL_PLUS 过滤）
-     */
-    private Set<Integer> getAllClaimedTypeValues(Long tenantId) {
-        Set<String> claimedCodes = getAllClaimedTypeCodes(tenantId);
-        return resolveToTypeValues(tenantId, claimedCodes);
-    }
-
-    /**
      * 加载租户下所有 resource_type 类型码
      */
     private Set<String> loadAllResourceTypeCodes(Long tenantId) {
         return typeDefinitionMapper.selectByTenantAndTypeKey(tenantId, "resource_type")
             .stream().map(TypeDefinition::getTypeCode).filter(Objects::nonNull).collect(Collectors.toSet());
-    }
-
-    /**
-     * 将类型码集合解析为类型值集合
-     */
-    private Set<Integer> resolveToTypeValues(Long tenantId, Set<String> typeCodes) {
-        if (typeCodes == null || typeCodes.isEmpty()) return Set.of();
-        Map<String, Integer> map = typeResolutionService.batchResolveTypeValues(
-            tenantId, "resource_type", typeCodes);
-        return new HashSet<>(map.values());
     }
 
     /**

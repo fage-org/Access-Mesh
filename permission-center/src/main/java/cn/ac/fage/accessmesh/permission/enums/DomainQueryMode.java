@@ -40,18 +40,4 @@ public enum DomainQueryMode {
      * @return 查询模式编码
      */
     public String getValue() { return value; }
-
-    /**
-     * 根据编码解析查询模式
-     *
-     * @param value 编码
-     * @return 查询模式枚举
-     * @throws IllegalArgumentException 编码不存在时抛出
-     */
-    public static DomainQueryMode fromValue(String value) {
-        for (DomainQueryMode m : values()) {
-            if (m.value.equals(value)) return m;
-        }
-        throw new IllegalArgumentException("Unknown DomainQueryMode value: " + value);
-    }
 }

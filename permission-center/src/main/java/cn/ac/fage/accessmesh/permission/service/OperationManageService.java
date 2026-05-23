@@ -60,15 +60,6 @@ public interface OperationManageService {
     OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId);
 
     /**
-     * 删除操作权限
-     *
-     * @param tenantId   租户ID
-     * @param operationId 操作权限ID
-     * @param operatorId 操作者ID
-     */
-    void deleteOperation(Long tenantId, Long operationId, Long operatorId);
-
-    /**
      * 批量删除操作权限
      *
      * @param tenantId    租户ID

@@ -313,20 +313,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     }
 
     /**
-     * 失效单个用户的角色缓存
-     * <p>
-     * 直接调用 CacheService 失效 L1 + L2 缓存
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     */
-    @Override
-    public void invalidateRoleCache(Long tenantId, Long userId) {
-        cacheService.evict(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
-    }
-
-    /**
      * 批量失效多个用户的角色缓存
      * <p>
      * 直接调用 CacheService 批量失效 L1 + L2 缓存

@@ -1,13 +1,8 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
-import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
-import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
-
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,17 +31,8 @@ public class ResolveContext {
     /** resourceTypeCode → resourceTypeValue 缓存 */
     private Map<String, Integer> resourceTypeValueCache;
 
-    /** typeKey:typeValue → typeCode 缓存 */
-    private Map<String, String> resourceTypeCodeCache;
-
-    /** domainCode → domainId 缓存 */
-    private Map<String, Long> domainIdCache;
-
     /** resourceTypeCode:operationCode → operationId 缓存 */
     private Map<String, Long> operationIdCache;
-
-    /** ResourceResolveKey → resourceId 缓存 */
-    private Map<ResourceResolveKey, Long> resourceIdCache;
 
     /**
      * 构造解析上下文
@@ -58,10 +44,7 @@ public class ResolveContext {
         this.tenantId = tenantId;
         this.typeResolutionService = typeResolutionService;
         this.resourceTypeValueCache = new HashMap<>();
-        this.resourceTypeCodeCache = new HashMap<>();
-        this.domainIdCache = new HashMap<>();
         this.operationIdCache = new HashMap<>();
-        this.resourceIdCache = new HashMap<>();
     }
 
     // ===== 预解析方法（批量加载）=====
@@ -91,54 +74,6 @@ public class ResolveContext {
         Map<String, Integer> resolved = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type", toResolve);
         resourceTypeValueCache.putAll(resolved);
-    }
-
-    /**
-     * 批量预解析资源类型编码（值→码）
-     *
-     * @param typeValues 资源类型值集合
-     */
-    public void prepareResourceTypeCodes(Set<Integer> typeValues) {
-        if (typeValues == null || typeValues.isEmpty()) {
-            return;
-        }
-        Set<Integer> toResolve = new HashSet<>();
-        for (Integer value : typeValues) {
-            String cacheKey = "resource_type:" + value;
-            if (!resourceTypeCodeCache.containsKey(cacheKey)) {
-                toResolve.add(value);
-            }
-        }
-        if (toResolve.isEmpty()) {
-            return;
-        }
-        Map<Integer, String> resolved = typeResolutionService.batchResolveTypeCodes(
-            tenantId, "resource_type", toResolve);
-        for (Map.Entry<Integer, String> entry : resolved.entrySet()) {
-            resourceTypeCodeCache.put("resource_type:" + entry.getKey(), entry.getValue());
-        }
-    }
-
-    /**
-     * 批量预解析域ID
-     *
-     * @param domainCodes 域编码集合
-     */
-    public void prepareDomainIds(Set<String> domainCodes) {
-        if (domainCodes == null || domainCodes.isEmpty()) {
-            return;
-        }
-        Set<String> toResolve = new HashSet<>();
-        for (String code : domainCodes) {
-            if (!domainIdCache.containsKey(code)) {
-                toResolve.add(code);
-            }
-        }
-        if (toResolve.isEmpty()) {
-            return;
-        }
-        Map<String, Long> resolved = typeResolutionService.batchResolveDomainIds(tenantId, toResolve);
-        domainIdCache.putAll(resolved);
     }
 
     /**
@@ -188,30 +123,6 @@ public class ResolveContext {
         }
     }
 
-    /**
-     * 批量预解析资源ID
-     *
-     * @param requests 资源解析请求列表
-     */
-    public void prepareResources(List<ResourceResolveRequest> requests) {
-        if (requests == null || requests.isEmpty()) {
-            return;
-        }
-        List<ResourceResolveRequest> toResolve = new ArrayList<>();
-        for (ResourceResolveRequest req : requests) {
-            ResourceResolveKey key = req.toKey();
-            if (!resourceIdCache.containsKey(key)) {
-                toResolve.add(req);
-            }
-        }
-        if (toResolve.isEmpty()) {
-            return;
-        }
-        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(
-            tenantId, toResolve);
-        resourceIdCache.putAll(resolved);
-    }
-
     // ===== 获取方法（从缓存取，无则单次解析）=====
 
     /**
@@ -236,47 +147,6 @@ public class ResolveContext {
     }
 
     /**
-     * 获取资源类型编码
-     *
-     * @param typeValue 资源类型值
-     * @return 资源类型编码，未找到返回 null
-     */
-    public String getResourceTypeCode(Integer typeValue) {
-        if (typeValue == null) {
-            return null;
-        }
-        String cacheKey = "resource_type:" + typeValue;
-        if (resourceTypeCodeCache.containsKey(cacheKey)) {
-            return resourceTypeCodeCache.get(cacheKey);
-        }
-        String code = typeResolutionService.resolveTypeCode(tenantId, "resource_type", typeValue);
-        if (code != null) {
-            resourceTypeCodeCache.put(cacheKey, code);
-        }
-        return code;
-    }
-
-    /**
-     * 获取域ID
-     *
-     * @param domainCode 域编码
-     * @return 域ID，未找到返回 null
-     */
-    public Long getDomainId(String domainCode) {
-        if (domainCode == null || domainCode.isBlank()) {
-            return null;
-        }
-        if (domainIdCache.containsKey(domainCode)) {
-            return domainIdCache.get(domainCode);
-        }
-        Long id = typeResolutionService.resolveDomainId(tenantId, domainCode);
-        if (id != null) {
-            domainIdCache.put(domainCode, id);
-        }
-        return id;
-    }
-
-    /**
      * 获取操作ID
      *
      * @param resourceTypeCode 资源类型编码
@@ -294,34 +164,6 @@ public class ResolveContext {
         Long id = typeResolutionService.resolveOperationId(tenantId, operationCode, resourceTypeCode);
         if (id != null) {
             operationIdCache.put(cacheKey, id);
-        }
-        return id;
-    }
-
-    /**
-     * 获取资源ID
-     *
-     * @param resourceTypeCode 资源类型编码
-     * @param resourceCode     资源编码
-     * @param codeType         编码类型
-     * @param domainCode       域编码（可选）
-     * @return 资源ID，未找到返回 null
-     */
-    public Long getResourceId(String resourceTypeCode, String resourceCode,
-                              String codeType, String domainCode) {
-        if (resourceTypeCode == null || resourceCode == null) {
-            return null;
-        }
-        String effectiveCodeType = (codeType != null && !codeType.isBlank()) ? codeType : "default";
-        String effectiveDomainCode = (domainCode != null && !domainCode.isBlank()) ? domainCode : "";
-        ResourceResolveKey key = new ResourceResolveKey(resourceTypeCode, resourceCode, effectiveCodeType, effectiveDomainCode);
-        if (resourceIdCache.containsKey(key)) {
-            return resourceIdCache.get(key);
-        }
-        Long id = typeResolutionService.resolveResourceId(
-            tenantId, resourceTypeCode, resourceCode, codeType, domainCode);
-        if (id != null) {
-            resourceIdCache.put(key, id);
         }
         return id;
     }
@@ -344,29 +186,6 @@ public class ResolveContext {
             Integer value = resourceTypeValueCache.get(code);
             if (value != null) {
                 result.put(code, value);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 批量获取操作ID
-     *
-     * @param resourceTypeCode 资源类型编码
-     * @param operationCodes   操作编码集合
-     * @return operationCode → operationId 映射
-     */
-    public Map<String, Long> getOperationIds(String resourceTypeCode, Set<String> operationCodes) {
-        if (resourceTypeCode == null || operationCodes == null || operationCodes.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        prepareOperations(resourceTypeCode, operationCodes);
-        Map<String, Long> result = new HashMap<>();
-        String cachePrefix = resourceTypeCode + ":";
-        for (String opCode : operationCodes) {
-            Long id = operationIdCache.get(cachePrefix + opCode);
-            if (id != null) {
-                result.put(opCode, id);
             }
         }
         return result;
@@ -400,12 +219,4 @@ public class ResolveContext {
 
     // ===== 辅助方法 =====
 
-    /**
-     * 获取租户ID
-     *
-     * @return 租户ID
-     */
-    public Long getTenantId() {
-        return tenantId;
-    }
 }

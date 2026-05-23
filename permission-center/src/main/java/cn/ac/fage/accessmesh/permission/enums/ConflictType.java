@@ -55,18 +55,4 @@ public enum ConflictType {
      * @return 类型标签
      */
     public String getLabel() { return label; }
-
-    /**
-     * 根据类型编码解析枚举
-     *
-     * @param value 类型编码
-     * @return 对应的冲突类型枚举
-     * @throws IllegalArgumentException 如果类型编码不存在
-     */
-    public static ConflictType fromValue(String value) {
-        for (ConflictType t : values()) {
-            if (t.value.equals(value)) return t;
-        }
-        throw new IllegalArgumentException("Unknown ConflictType value: " + value);
-    }
 }

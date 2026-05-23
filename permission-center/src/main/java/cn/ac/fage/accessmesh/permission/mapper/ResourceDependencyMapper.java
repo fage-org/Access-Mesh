@@ -19,26 +19,6 @@ import java.util.Set;
 public interface ResourceDependencyMapper extends BaseMapper<ResourceDependency> {
 
     /**
-     * 查询指定资源的有效依赖规则
-     *
-     * @param tenantId        租户ID
-     * @param resourceEntityId 源资源实体ID
-     * @return 依赖规则列表
-     */
-    List<ResourceDependency> selectByResourceEntityId(@Param("tenantId") Long tenantId,
-                                                      @Param("resourceEntityId") Long resourceEntityId);
-
-    /**
-     * 批量查询多个资源的自动授权依赖规则
-     *
-     * @param tenantId     租户ID
-     * @param resourceIds  源资源实体ID集合
-     * @return 依赖规则列表
-     */
-    List<ResourceDependency> selectAutoGrantByResourceIds(@Param("tenantId") Long tenantId,
-                                                          @Param("resourceIds") Set<Long> resourceIds);
-
-    /**
      * 批量软删除资源依赖关系
      * <p>
      * 将指定依赖关系的delete_flag设置为id，deleted_at设置为当前时间。

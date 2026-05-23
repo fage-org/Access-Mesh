@@ -15,7 +15,6 @@ import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService
 import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.ResourceDependencyDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
@@ -70,8 +69,6 @@ class PermissionGrantServiceImplTest {
     @Mock private OperationLogDomainService operationLogDomainService;
     /** 用户角色领域服务Mock */
     @Mock private UserRoleDomainService userRoleDomainService;
-    /** 资源依赖领域服务Mock */
-    @Mock private ResourceDependencyDomainService resourceDependencyDomainService;
     /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
     /** 授权服务Mock */
@@ -100,7 +97,7 @@ class PermissionGrantServiceImplTest {
         service = new PermissionGrantServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
-            operationLogDomainService, userRoleDomainService, resourceDependencyDomainService, typeResolutionService,
+            operationLogDomainService, userRoleDomainService, typeResolutionService,
             authorizationService, operationPermissionDomainService, abstractRoleDomainService, domainClassifyService,
             engine
         );

@@ -111,15 +111,6 @@ public final class OperationCodeConstants {
     public static final String SYNC_INTERFACE = "SYNC_INTERFACE";
 
     /**
-     * 授权操作码
-     * <p>
-     * 表示向他人授予资源权限的操作，如将资源权限授予其他用户。
-     * 用于权限委托和共享场景。
-     * </p>
-     */
-    public static final String GRANT = "GRANT";
-
-    /**
      * 私有构造函数
      * <p>
      * 常量类不允许实例化。

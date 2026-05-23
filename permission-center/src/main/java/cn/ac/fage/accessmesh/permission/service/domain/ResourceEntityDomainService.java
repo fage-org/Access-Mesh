@@ -12,86 +12,10 @@ import java.util.Set;
  * <p>
  * 提供资源实体（ResourceEntity）的CRUD操作和树形结构查询功能。
  * 资源实体是权限系统中的受保护对象，如菜单、按钮、API接口等。
- * 使用CTE递归查询高效获取祖先和子孙ID，避免N+1问题。
+ * 使用CTE递归查询高效获取子孙ID，避免N+1问题。
  * </p>
  */
 public interface ResourceEntityDomainService {
-
-    /**
-     * 查询指定父资源下的子资源列表
-     *
-     * @param tenantId 租户ID
-     * @param parentId 父资源ID
-     * @return 子资源列表
-     */
-    List<ResourceEntity> listByParentId(Long tenantId, Long parentId);
-
-    /**
-     * 查询指定类型的资源列表
-     *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值
-     * @return 资源列表
-     */
-    List<ResourceEntity> listByType(Long tenantId, Integer resourceType);
-
-    /**
-     * 删除资源及其子孙资源和关联权限
-     *
-     * @param tenantId   租户ID
-     * @param resourceId 资源ID
-     */
-    void deleteWithChildren(Long tenantId, Long resourceId);
-
-    /**
-     * 获取祖先资源ID列表
-     * <p>
-     * 获取指定资源的所有祖先ID（父、祖父等）。
-     * 向上追溯到根节点或已删除实体为止。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param resourceEntityId 资源实体ID
-     * @return 祖先资源ID列表
-     */
-    List<Long> getAncestorIds(Long tenantId, Long resourceEntityId);
-
-    /**
-     * 批量获取多个资源的祖先ID
-     * <p>
-     * 批量获取所有资源的祖先ID，返回Map按资源ID分组。
-     * </p>
-     *
-     * @param tenantId    租户ID
-     * @param resourceIds 资源ID集合
-     * @return 祖先ID映射表，key为资源ID，value为祖先ID列表
-     */
-    Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> resourceIds);
-
-    /**
-     * 获取子孙资源ID列表
-     * <p>
-     * 使用PostgreSQL CTE递归查询一次性获取所有子孙ID。
-     * 不包含资源本身。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param resourceEntityId 资源实体ID
-     * @return 子孙资源ID列表
-     */
-    List<Long> getDescendantIds(Long tenantId, Long resourceEntityId);
-
-    /**
-     * 获取子孙资源ID列表（包含自身）
-     * <p>
-     * 使用PostgreSQL CTE递归查询一次性获取所有子孙ID，包含资源本身。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param resourceEntityId 资源实体ID
-     * @return 子孙资源ID列表（包含自身）
-     */
-    List<Long> getDescendantIdsIncludingSelf(Long tenantId, Long resourceEntityId);
 
     /**
      * 批量获取多个资源的子孙ID

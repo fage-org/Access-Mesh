@@ -83,21 +83,4 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectByCode" resultType="cn.ac.fage.accessmesh.permission.entity.AbstractUser">
-        SELECT * FROM abstract_user
-        WHERE tenant_id = #{tenantId}
-          AND user_code = #{userCode}
-          AND delete_flag = 0
-    </select>
-
-    <select id="selectByCodes" resultType="cn.ac.fage.accessmesh.permission.entity.AbstractUser">
-        SELECT * FROM abstract_user
-        WHERE tenant_id = #{tenantId}
-          AND user_code IN
-        <foreach collection="userCodes" item="code" open="(" separator="," close=")">
-            #{code}
-        </foreach>
-          AND delete_flag = 0
-    </select>
-
 </mapper>

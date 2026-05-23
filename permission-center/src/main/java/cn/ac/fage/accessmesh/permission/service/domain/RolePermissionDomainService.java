@@ -1,9 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -14,31 +12,6 @@ import java.util.List;
  * </p>
  */
 public interface RolePermissionDomainService {
-
-    /**
-     * 获取角色的权限快照
-     * <p>
-     * 查询角色的所有有效权限配置，返回包含版本号的快照对象
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 角色权限快照
-     */
-    RolePermSnapshot getRolePermissions(Long tenantId, Long roleId);
-
-    /**
-     * 批量授予角色权限
-     * <p>
-     * 批量插入权限记录，事务提交后自动递增版本号
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param roleId       角色ID
-     * @param entries      待授予的权限条目列表
-     * @param changeSource 变更来源
-     */
-    void grantPermissions(Long tenantId, Long roleId, List<RolePermSnapshot.RolePermEntry> entries, String changeSource);
 
     /**
      * 批量撤销角色权限
@@ -52,20 +25,6 @@ public interface RolePermissionDomainService {
      * @param permissionIds 待撤销的权限ID列表
      */
     void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds);
-
-    /**
-     * 撤销单个权限并级联删除子权限
-     * <p>
-     * 软删除指定权限，同时删除所有依赖该权限的子权限。
-     * 不自动递增版本号，需调用方自行处理版本递增。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param roleId     角色ID
-     * @param permissionId 权限ID
-     * @param deletedAt  删除时间
-     */
-    void revokePermissionWithCascade(Long tenantId, Long roleId, Long permissionId, LocalDateTime deletedAt);
 
     /**
      * 根据ID查询有效的权限记录

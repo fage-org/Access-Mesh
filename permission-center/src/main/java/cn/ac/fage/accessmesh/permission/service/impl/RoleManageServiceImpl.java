@@ -24,7 +24,6 @@ import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
-import cn.ac.fage.accessmesh.permission.util.SqlUtil;
 import cn.ac.fage.accessmesh.permission.util.TreeBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -169,33 +168,6 @@ public class RoleManageServiceImpl implements RoleManageService {
         role.setUpdatedBy(operatorId);
         role.setUpdatedAt(LocalDateTime.now());
         abstractRoleMapper.update(role);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteRole(Long tenantId, Long roleId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-
-        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
-        if (role == null) {
-            throw new IllegalArgumentException("角色不存在: " + roleId);
-        }
-
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
-        }
-
-        abstractRoleDomainService.deleteRole(tenantId, roleId);
-
-        final Long roleIdForCache = roleId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIdForCache);
-                }
-            });
-        }
     }
 
     @Override

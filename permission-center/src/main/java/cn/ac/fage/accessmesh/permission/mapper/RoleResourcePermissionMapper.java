@@ -19,56 +19,6 @@ import java.util.Set;
 public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePermission> {
 
     /**
-     * 查询角色的所有有效权限
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 权限列表
-     */
-    List<RoleResourcePermission> selectByRoleId(@Param("tenantId") Long tenantId,
-                                                @Param("roleId") Long roleId);
-
-    /**
-     * 查询指定角色和资源的自动授权权限（grantSource=AUTO_DEP）
-     *
-     * @param tenantId        租户ID
-     * @param roleId          角色ID
-     * @param resourceEntityId 源资源实体ID
-     * @return 权限列表
-     */
-    List<RoleResourcePermission> selectAutoGrantsByResource(@Param("tenantId") Long tenantId,
-                                                            @Param("roleId") Long roleId,
-                                                            @Param("resourceEntityId") Long resourceEntityId);
-
-    /**
-     * 统计指定复合键的有效权限数量（重复检查）
-     *
-     * @param tenantId     租户ID
-     * @param roleId       角色ID
-     * @param resourceId   资源实体ID
-    * @param operationBits 操作位值
-     * @return 数量
-     */
-    long countByCompositeKey(@Param("tenantId") Long tenantId,
-                             @Param("roleId") Long roleId,
-                             @Param("resourceId") Long resourceId,
-                        @Param("operationBits") Long operationBits);
-
-    /**
-     * 查询指定角色和目标资源的现有自动授权记录（按grantDepId分组）
-     *
-     * @param tenantId        租户ID
-     * @param roleId          角色ID
-     * @param targetResourceIds 目标资源实体ID集合
-     * @param depIds          依赖规则ID集合
-     * @return 权限列表
-     */
-    List<RoleResourcePermission> selectExistingAutoGrants(@Param("tenantId") Long tenantId,
-                                                          @Param("roleId") Long roleId,
-                                                          @Param("targetResourceIds") Set<Long> targetResourceIds,
-                                                          @Param("depIds") Set<Long> depIds);
-
-    /**
      * 查询指定ID列表中属于指定角色和租户的有效权限
      *
      * @param tenantId     租户ID
@@ -91,20 +41,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
     RoleResourcePermission selectValidById(@Param("tenantId") Long tenantId,
                                           @Param("roleId") Long roleId,
                                           @Param("permissionId") Long permissionId);
-
-    /**
-     * 查询指定角色和资源的软删除权限（复合键匹配）
-     *
-     * @param tenantId     租户ID
-     * @param roleId       角色ID
-     * @param resourceId   资源实体ID
-    * @param operationBits 操作位值
-     * @return 权限列表
-     */
-    List<RoleResourcePermission> selectSoftDeletedByCompositeKey(@Param("tenantId") Long tenantId,
-                                                                @Param("roleId") Long roleId,
-                                                                @Param("resourceId") Long resourceId,
-                                                    @Param("operationBits") Long operationBits);
 
     /**
      * 查询指定资源ID列表的有效权限ID
@@ -151,18 +87,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                        @Param("roleIds") Set<Long> roleIds);
 
     /**
-     * 根据角色ID和资源ID集合查询有效的非全量权限记录
-     *
-     * @param tenantId    租户ID
-     * @param roleIds     角色ID集合
-     * @param resourceIds 资源ID集合
-     * @return 权限记录列表
-     */
-    List<RoleResourcePermission> selectValidByRoleIdsAndResourceIds(@Param("tenantId") Long tenantId,
-                                                                     @Param("roleIds") Set<Long> roleIds,
-                                                                     @Param("resourceIds") Set<Long> resourceIds);
-
-    /**
      * 根据角色ID和依赖权限ID集合查询有效的权限记录
      *
      * @param tenantId  租户ID
@@ -185,24 +109,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
     List<RoleResourcePermission> selectValidByRoleIdAndResourceId(@Param("tenantId") Long tenantId,
                                                                     @Param("roleId") Long roleId,
                                                                     @Param("resourceEntityId") Long resourceEntityId);
-
-    /**
-     * 根据租户ID、角色ID集合、资源类型集合和操作权限ID集合查询角色资源权限列表
-     * <p>
-     * 用于授权检查场景，批量查询指定角色的权限记录。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param abstractRoleIds  抽象角色ID集合
-     * @param resourceTypeValues 资源类型值集合
-     * @param opPermIds        操作权限ID集合
-     * @return 角色资源权限列表
-     */
-    List<RoleResourcePermission> selectByTenantRolesResourceTypesAndOpPermIds(
-        @Param("tenantId") Long tenantId,
-        @Param("abstractRoleIds") Set<Long> abstractRoleIds,
-        @Param("resourceTypeValues") Set<Integer> resourceTypeValues,
-        @Param("opPermIds") Set<Long> opPermIds);
 
     /**
      * 根据租户ID和角色ID查询角色资源权限列表
@@ -239,55 +145,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                        @Param("roleId") Long roleId);
 
     /**
-     * 查询类型级权限（scopeAll=true），可选资源类型和操作权限ID过滤
-     *
-     * @param tenantId              租户ID
-     * @param roleIds               角色ID集合
-     * @param resourceTypes         资源类型值集合，可为null或空（不过滤）
-     * @param operationPermissionIds 操作权限ID集合，可为null或空（不过滤）
-     * @return 权限记录列表
-     */
-    List<RoleResourcePermission> selectScopeAllPerms(
-        @Param("tenantId") Long tenantId,
-        @Param("roleIds") Set<Long> roleIds,
-        @Param("resourceTypes") Set<Integer> resourceTypes,
-        @Param("operationPermissionIds") Set<Long> operationPermissionIds);
-
-    /**
-     * 查询实例级权限（scopeAll=false），可选资源实体ID和操作权限ID过滤
-     *
-     * @param tenantId              租户ID
-     * @param roleIds               角色ID集合
-     * @param resourceEntityIds     资源实体ID集合，可为null或空（不过滤）
-     * @param operationPermissionIds 操作权限ID集合，可为null或空（不过滤）
-     * @return 权限记录列表
-     */
-    List<RoleResourcePermission> selectInstancePerms(
-        @Param("tenantId") Long tenantId,
-        @Param("roleIds") Set<Long> roleIds,
-        @Param("resourceEntityIds") Set<Long> resourceEntityIds,
-        @Param("operationPermissionIds") Set<Long> operationPermissionIds);
-
-    /**
-     * 按位掩码查询类型级权限（scopeAll=true）
-     * <p>
-     * PostgreSQL 位操作：WHERE granted_bits & bit_mask != 0
-     * 返回所有可能覆盖目标操作的权限条目。
-     * </p>
-     *
-     * @param tenantId      租户ID
-     * @param roleIds       角色ID集合
-     * @param resourceTypes 资源类型值集合，可为null或空（不过滤）
-     * @param bitMask       位掩码值
-     * @return 权限记录列表
-     */
-    List<RoleResourcePermission> selectScopeAllPermsByBits(
-        @Param("tenantId") Long tenantId,
-        @Param("roleIds") Set<Long> roleIds,
-        @Param("resourceTypes") Set<Integer> resourceTypes,
-        @Param("bitMask") Long bitMask);
-
-    /**
      * 批量按位掩码查询类型级权限（单次SQL，多资源类型）
      * <p>
      * 使用 OR 条件合并多个 resourceType 的 bitMask，避免多次SQL调用。
@@ -303,26 +160,6 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
         @Param("tenantId") Long tenantId,
         @Param("roleIds") Set<Long> roleIds,
         @Param("bitMasks") List<BitMaskEntry> bitMasks);
-
-    /**
-     * 按位掩码查询实例级权限
-     * <p>
-     * PostgreSQL 位操作：WHERE granted_bits & bit_mask != 0
-     * 返回所有可能覆盖目标操作的权限条目。
-     * </p>
-     *
-     * @param tenantId          租户ID
-     * @param roleIds           角色ID集合
-     * @param resourceEntityIds 资源实体ID集合
-     * @param bitMask           位掩码值
-     * @return 权限记录列表
-     */
-    List<RoleResourcePermission> selectInstancePermsByBits(
-        @Param("tenantId") Long tenantId,
-        @Param("roleIds") Set<Long> roleIds,
-        @Param("resourceEntityIds") Set<Long> resourceEntityIds,
-        @Param("resourceTypes") Set<Integer> resourceTypes,
-        @Param("bitMask") Long bitMask);
 
     /**
      * 批量按位掩码查询实例级权限（单次SQL，多资源类型）

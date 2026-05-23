@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,15 +13,6 @@ import java.util.Set;
 public interface PermissionVersionDomainService {
 
     /**
-     * 获取角色的当前权限版本号
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 当前版本号，无记录时默认返回1
-     */
-    long getCurrentVersion(Long tenantId, Long roleId);
-
-    /**
      * 批量获取多个角色的当前权限版本号
      * <p>
      * 优先走统一缓存批量读取，未命中时再批量回源数据库并回填缓存。
@@ -33,19 +23,6 @@ public interface PermissionVersionDomainService {
      * @return 角色ID到当前版本号的映射
      */
     Map<Long, Long> batchGetCurrentVersions(Long tenantId, Set<Long> roleIds);
-
-    /**
-     * 计算多个角色的最大版本号
-     * <p>
-     * 当用户拥有多个角色时，取所有角色的最新版本号，
-     * 用于判断用户的权限缓存是否需要更新。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleIds  角色ID集合，为空时返回0
-     * @return 所有角色的最大版本号
-     */
-    long calculateMaxVersion(Long tenantId, Set<Long> roleIds);
 
     /**
      * 构建权限版本键
@@ -72,15 +49,4 @@ public interface PermissionVersionDomainService {
      * @return 新版本号
      */
     long increment(Long tenantId, Long roleId);
-
-    /**
-     * 批量递增多个角色的权限版本号
-     * <p>
-     * 批量更新时使用，一次数据库批量插入减少网络往返
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleIds  角色ID集合
-     */
-    void batchIncrement(Long tenantId, Collection<Long> roleIds);
 }

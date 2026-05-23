@@ -245,10 +245,9 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     // ===== 批量解析实现 =====
 
     /**
-     * 批量解析域编码到域ID
+     * 批量解析域编码到域ID（内部使用）
      */
-    @Override
-    public Map<String, Long> batchResolveDomainIds(Long tenantId, Set<String> domainCodes) {
+    private Map<String, Long> batchResolveDomainIds(Long tenantId, Set<String> domainCodes) {
         if (domainCodes == null || domainCodes.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -430,15 +429,5 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
                 AbstractRole::getId,
                 (a, b) -> a
             ));
-    }
-
-    /**
-     * 检查类型定义是否为系统预设（不可删除）
-     */
-    @Override
-    public boolean isSystemType(Long tenantId, Long typeDefId) {
-        if (typeDefId == null) return false;
-        TypeDefinition typeDef = typeDefinitionMapper.selectValidById(tenantId, typeDefId);
-        return typeDef != null && Boolean.TRUE.equals(typeDef.getIsSystem());
     }
 }

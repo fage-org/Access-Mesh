@@ -13,23 +13,6 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
-    <select id="selectByRoleId" resultType="cn.ac.fage.accessmesh.permission.entity.UserRole">
-        SELECT * FROM user_role
-        WHERE tenant_id = #{tenantId}
-          AND abstract_role_id = #{roleId}
-          AND delete_flag = 0
-    </select>
-
-    <select id="selectByRoleIds" resultType="cn.ac.fage.accessmesh.permission.entity.UserRole">
-        SELECT * FROM user_role
-        WHERE tenant_id = #{tenantId}
-          AND abstract_role_id IN
-        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
-            #{id}
-        </foreach>
-          AND delete_flag = 0
-    </select>
-
     <select id="selectValidByUserIds" resultType="cn.ac.fage.accessmesh.permission.entity.UserRole">
         SELECT * FROM user_role
         WHERE tenant_id = #{tenantId}

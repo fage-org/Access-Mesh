@@ -49,7 +49,6 @@ cn.ac.fage.accessmesh.permission
 │       ├── RolePermissionDomainService / *Impl
 │       ├── OperationPermissionDomainService / *Impl
 │       ├── ResourceEntityDomainService / *Impl
-│       ├── ResourceDependencyDomainService / *Impl
 │       ├── PermissionConflictDomainService / *Impl
 │       ├── PermissionConditionDomainService / *Impl
 │       ├── PermissionVersionDomainService / *Impl
@@ -690,7 +689,6 @@ sequenceDiagram
     participant RED as ResourceEntityDomainService
     participant OPD as OperationPermissionDomainService
     participant RPD as RolePermissionDomainService
-    participant RDD as ResourceDependencyDomainService
     participant PCD as PermissionConditionDomainService
     participant PVD as PermissionVersionDomainService
     participant PChD as PermissionChangeDomainService
@@ -716,11 +714,7 @@ sequenceDiagram
     PS->>PCD: batchValidateEnabled(tenantId, all conditionIds)
     PCD-->>PS: 条件 disabled 时抛异常
 
-    Note over PS: ② 资源依赖自动补全（auto_grant=true）
-    PS->>RDD: autoGrant(tenantId, abstractRoleId, addItems)
-    Note over RDD: 对每条 addItems，查 resource_dependency<br/>WHERE resource_entity_id = item.resourceEntityId<br/>AND (source_operation_bits IS NULL OR source_operation_bits & item.opBits != 0)<br/>AND auto_grant = true
-    RDD-->>PS: List<AutoGrantEntry>（depId, targetResourceId, targetOpId）
-    PS->>PS: 将 AutoGrantEntry 转为 grant_source='AUTO_DEP', grant_dep_id=depId 的 PermGrantItem
+    Note over PS: ② 批量解析资源、操作、类型值并构造待写入权限
 
     Note over PS: ③ 事务内写入
     PS->>RPD: batchDelete(tenantId, req.delete())
@@ -767,15 +761,14 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         rolePermissionDomainService.validateDependOnIds(req.tenantId(), allDependOnIds(req));
         permissionConditionDomainService.batchValidateEnabled(req.tenantId(), allConditionIds(req));
 
-        // ② 自动补全（在事务内，补全的记录也随事务回滚）
-        List<PermGrantItem> supplemented = resourceDependencyDomainService
-            .autoGrant(req.tenantId(), req.abstractRoleId(), req.add());
+        // ② 批量解析并构造新增条目（在事务内）
+        List<RoleResourcePermission> toInsert = buildInsertItems(req);
 
         // ③ 批量写入（同一事务）
         List<RoleResourcePermission> deletedOlds = rolePermissionDomainService
             .batchDelete(req.tenantId(), req.delete());   // 含级联子权限
         List<RoleResourcePermission> inserted = rolePermissionDomainService
-            .batchInsert(req.tenantId(), supplemented);
+            .batchInsert(req.tenantId(), toInsert);
         List<Pair<RoleResourcePermission, RoleResourcePermission>> updated = rolePermissionDomainService
             .batchUpdate(req.tenantId(), req.update());
 
@@ -793,7 +786,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         return new RolePermBatchGrantResp(
             inserted.size(), updated.size(), deletedOlds.size(),
-            autoGrantedIds(supplemented, req.add())
+            autoGrantedIds(toInsert, req.add())
         );
     }
 
@@ -815,51 +808,17 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 | 操作与资源类型必须匹配     | `OperationPermissionDomainService.batchValidateCompatible` | `operation_permission.resource_type` 必须等于 `resource_entity.resource_type`                   |
 | `depend_on` 不能指向子权限 | `RolePermissionDomainService.validateDependOnIds`          | 目标记录的 `depend_on` 必须为 null，防止多层嵌套                                                |
 | 删除父权限级联软删子权限   | `RolePermissionDomainService.batchDelete`                  | 删除时查 `depend_on IN (deleteIds)` 一并软删                                                    |
-| 自动补全不重复             | `ResourceDependencyDomainService.autoGrant`                | 若角色已拥有依赖资源的权限则跳过，补全记录 grant_source='AUTO_DEP' + grant_dep_id               |
 | 授权来源标记               | `RolePermissionDomainService.batchInsert`                  | 手动授权 grant_source='MANUAL'（默认），自动补全 grant_source='AUTO_DEP'，记录触发规则 id       |
-| 依赖规则变更清理           | `ResourceDependencyDomainService.onRuleChanged`            | 规则删除/修改时按 grant_dep_id 精准清理 + 重新评估补全，递增受影响角色 version                  |
+| 资源依赖配置维护           | `DependencyManageService`                                  | 负责 `resource_dependency` 规则的增删改查、批量同步与循环依赖校验                               |
 | 委托授权不扩大             | `PermissionGrantService` 前置校验                          | `canManage=true` 只允许授权同一权限给他人，不能扩大资源、操作或范围；候选被授权人由业务服务控制 |
 | 版本递增在事务外           | `afterCommit` 钩子                                         | 防止事务回滚后版本已递增导致缓存失效不一致                                                      |
 | 接口快照失效范围           | 通过 `resource_api_mapping` 查受影响 serviceCode           | 只失效变更涉及的服务，减少无效失效                                                              |
 
-### 4.4 ResourceDependencyDomainService 资源依赖自动补全与变更处理
+### 4.4 资源依赖配置
 
-资源依赖方向固定为：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。授权源资源时按 `resource_entity_id = addItem.resourceEntityId` 查询依赖规则。
+资源依赖规则仍由 `DependencyManageService` 维护，对应持久化表为 `resource_dependency`。
 
-```java
-public interface ResourceDependencyDomainService {
-
-    /**
-     * 自动补全：授权时根据依赖规则补充对应的接口/资源权限。
-     * 场景：按钮 CREATE 权限 → 自动补全 POST /api/admin/users/create 的 ACCESS 权限
-     * 同一源资源和依赖资源允许按不同 source_operation_bits 配置多条规则。
-     *
-     * @param addItems 本次新增的授权条目
-     * @return 补全后的新增条目（含 grant_source='AUTO_DEP' + grant_dep_id 标记）
-     */
-    List<PermGrantItem> autoGrant(Long tenantId, Long abstractRoleId, List<PermGrantItem> addItems);
-
-    /**
-     * 依赖规则变更时的清理与重新评估。
-     * 触发时机：resource_dependency 被删除 / auto_grant 改为 false / source_operation_bits 修改 / required_operation_bits 修改
-     *
-     * 处理步骤：
-     * 1. 清理：DELETE role_resource_permission WHERE grant_source='AUTO_DEP' AND grant_dep_id = dep.id
-     * 2. 重新评估：遍历所有拥有 resource_entity_id 源资源的角色
-     *    - 不满足新规则的：已清理
-     *    - 新满足的：补全自动补全条目
-     * 3. 递增所有受影响角色的 permission_version
-     * 4. 记录权限变更日志
-     */
-    void onRuleChanged(Long tenantId, Long dependencyId);
-
-    /**
-     * 评估单个角色的自动补全状态（内部方法）。
-     * 用于 onRuleChanged 中遍历角色时调用。
-     */
-    void evaluateRoleAutoGrant(Long tenantId, Long abstractRoleId);
-}
-```
+当前实现中，权限授予主链路不再依赖单独的 `ResourceDependencyDomainService`。如后续需要恢复自动补全或规则变更重放能力，应直接基于现行调度层、Mapper 与事务后失效机制重新设计，而不是继续引用已删除接口。
 
 ---
 
@@ -1024,175 +983,95 @@ record ChangeLogEntry(String entityType, Long entityId, String operation,
 
 ---
 
-### 7.2 统一权限检查方法设计
+### 7.2 统一权限检查入口
 
-#### 内部方法 `AuthorizationService.checkPermissions`
+#### 内部入口 `PermQueryEngine`
 
-用于 permission-center 内部各 Service 统一调用，避免分散的权限检查逻辑。
-
-**入参 DTO**：
+permission-center 内部各 Service 的常规鉴权统一通过 `PermQueryEngine` 完成。对单目标使用 `hasPermission`，对批量目标使用 `validateBatch` 或 `getDeniedIds`；涉及资源编码、接口路径或范围查询时继续走 `query(PermQuery)`。
 
 ```java
-public record PermissionCheckReq(
-    Long operatorId,           // 操作者用户ID
-    String targetType,         // 目标类型：USER / ROLE / RESOURCE
-    Long targetId,             // 目标对象ID
-    Set<String> operationCodes // 操作类型集合：VIEW / CREATE / EDIT / DELETE / MANAGE
-) {}
+// 单目标鉴权
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied");
+}
+
+// 批量鉴权
+engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+Set<Long> deniedUserIds = engine.getDeniedIds(
+    tenantId, operatorId, ResourceTypeCode.USER, userIds, OperationCodeConstants.MANAGE
+);
+
+// 复杂查询
+PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
+PermResult r = engine.query(q);
 ```
 
-**返回 DTO**：
-
-```java
-public record PermissionCheckResp(
-    Map<String, Boolean> results  // key=operationCode, value=是否有权限
-) {}
-```
-
-**调用规范**：
-| 场景 | 调用方法 |
-|------|----------|
-| 检查用户是否能编辑某角色 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "ROLE", targetRoleId, Set.of("MANAGE")))` |
-| 检查用户是否能查看/编辑/删除某资源 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "RESOURCE", resourceId, Set.of("VIEW", "EDIT", "DELETE")))` |
-| 检查用户对另一个用户的管理权限 | `checkPermissions(tenantId, new PermissionCheckReq(operatorId, "USER", targetUserId, Set.of("MANAGE")))` |
-
-**与 `query-resources` 的区别**：
-| 维度 | `checkPermissions`（内部） | `query-resources`（对外） |
-|------|---------------------------|--------------------------|
-| 用途 | 返回布尔判断结果 | 返回可访问资源集合 |
-| 调用方 | permission-center 内部 Service | Gateway / SDK / 外部系统 |
-| 入参 | 内部 ID（operatorId, targetId） | 业务键（subjectExternalId, resourceCode） |
+**适用边界**：
+| 场景 | 入口 |
+|------|------|
+| 内部 ID 级单目标鉴权 | `engine.hasPermission` |
+| 内部 ID 级批量校验 | `engine.validateBatch` / `engine.getDeniedIds` |
+| 资源编码、接口路径、范围查询 | `engine.query(PermQuery)` |
+| 授权流程中的 `canGrant` 校验 | `AuthorizationService` |
 
 ---
 
-### 7.3 批量权限检查方法设计
+### 7.3 批量权限检查建议
 
-#### 内部方法 `AuthorizationService.checkPermissionsBatch`
-
-用于批量检查多个目标的权限，避免 N+1 查询问题。
-
-**入参 DTO**：
+批量操作禁止循环调用单目标鉴权，必须复用 `PermQueryEngine` 的批量 API，避免 N+1 查询。
 
 ```java
-public record PermissionCheckBatchReq(
-    Long operatorId,           // 操作者用户ID
-    String targetType,         // 目标类型：USER / ROLE / RESOURCE
-    Set<Long> targetIds,       // 多个目标对象ID
-    Set<String> operationCodes // 操作类型集合
-) {}
-```
-
-**返回 DTO**：
-
-```java
-public record PermissionCheckBatchResp(
-    Map<Long, PermissionCheckResp> results  // key=targetId, value=该目标的权限结果
-) {
-    // 获取有权限的目标ID集合
-    Set<Long> getIdsWithPermission(String operationCode);
-    // 获取无权限的目标ID集合
-    Set<Long> getIdsWithoutPermission(String operationCode);
-    // 是否所有目标都有权限
-    boolean allHavePermission(String operationCode);
+Set<Long> deniedRoleIds = engine.getDeniedIds(
+    tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.MANAGE
+);
+if (!deniedRoleIds.isEmpty()) {
+    throw new SecurityException("No permission to manage roles: " + deniedRoleIds);
 }
 ```
 
-**性能优化关键点**：
-| 目标类型 | 优化策略 | 查询次数 |
-|----------|----------|----------|
-| USER | USER:MANAGE 权限是全局的（不依赖具体 targetUserId），一次查询即可 | 1 次 role_resource_permission |
-| ROLE | 批量查询所有目标角色的权限，按 resource_entity_id 分组 | 1 次 role_resource_permission |
-| RESOURCE | 批量查询所有目标资源的权限，按 resource_entity_id 分组 | 1 次 role_resource_permission |
-
-**N+1 问题对比**：
+**N+1 对比**：
 | 方式 | 批量删除 100 个用户 | 批量删除 100 个角色 |
 |------|---------------------|---------------------|
-| 循环调用 `canManageUser/canManageRole` | 100 次 DB 查询 | 100 次 DB 查询 |
-| 使用 `checkPermissionsBatch` | 1 次 DB 查询 | 1 次 DB 查询 |
+| 循环调用 `hasPermission` | 100 次校验/查询 | 100 次校验/查询 |
+| 使用 `validateBatch` / `getDeniedIds` | 1 次统一管线 + 批量查询 | 1 次统一管线 + 批量查询 |
 
 ---
 
-### 7.4 权限检查工具类 `PermissionCheckUtils`
+### 7.4 授权检查服务 `AuthorizationService`
 
-封装常见校验场景的工具类，支持自修改例外和严格检查两种模式。
-
-**核心方法**：
+`canGrant` 语义只用于授权流程，不属于通用鉴权。委托授权检查统一通过 `AuthorizationService` 完成。
 
 ```java
-public final class PermissionCheckUtils {
+boolean canGrant = authorizationService.canGrantPermission(
+    tenantId, operatorId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
+);
 
-    /**
-     * 检查用户管理权限（含自修改例外）。
-     * operator 可以管理自己（self-modification allowed）。
-     */
-    public static PermissionBatchResult checkCanManageUsersWithSelfModification(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
-
-    /**
-     * 检查用户管理权限（严格模式，无自修改例外）。
-     * operator 不能管理自己，必须拥有 USER:MANAGE 权限。
-     */
-    public static PermissionBatchResult checkCanManageUsersStrict(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
-
-    /**
-     * 检查角色管理权限（无自修改例外）。
-     */
-    public static PermissionBatchResult checkCanManageRoles(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
-
-    /**
-     * 检查角色查看权限。
-     */
-    public static PermissionBatchResult checkCanViewRoles(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
-
-    /**
-     * 校验并抛异常（含自修改例外）。
-     */
-    public static void validateCanManageUsersOrThrow(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetUserIds);
-
-    /**
-     * 校验并抛异常（角色管理）。
-     */
-    public static void validateCanManageRolesOrThrow(
-        AuthorizationService authService, Long tenantId, Long operatorId, Set<Long> targetRoleIds);
-}
+Map<String, AuthorizationService.GrantCheckResult> grantResults =
+    authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, domainCode);
 ```
 
-**返回结果结构**：
+**核心类型**：
 
 ```java
-public record PermissionBatchResult(
-    Set<Long> allowedIds,   // 有权限的目标ID集合
-    Set<Long> deniedIds     // 无权限的目标ID集合
-) {
-    boolean allAllowed();   // 是否全部通过
-    boolean anyDenied();    // 是否有拒绝
-}
+record GrantCheckKey(
+    String resourceTypeCode,
+    String resourceCode,
+    String operationCode,
+    boolean scopeAll
+) {}
+
+record GrantCheckResult(
+    boolean canGrant,
+    String reason
+) {}
 ```
 
-**使用示例**：
-
-```java
-// 批量删除用户时校验（含自修改例外）
-Set<Long> userIds = Set.of(1L, 2L, 3L, operatorId);
-PermissionCheckUtils.validateCanManageUsersOrThrow(authorizationService, tenantId, operatorId, userIds);
-// operatorId 对应的用户允许自修改，其他用户需要 MANAGE 权限
-
-// 批量分配角色时校验（严格模式，用户不能给自己分配）
-Set<Long> userIds = Set.of(1L, 2L, operatorId);
-PermissionBatchResult result = PermissionCheckUtils.checkCanManageUsersStrict(
-    authorizationService, tenantId, operatorId, userIds);
-if (result.anyDenied()) {
-    throw new SecurityException("No permission to manage users: " + result.deniedIds());
-}
-
-// 批量修改角色权限时校验
-Set<Long> roleIds = Set.of(100L, 200L, 300L);
-PermissionCheckUtils.validateCanManageRolesOrThrow(authorizationService, tenantId, operatorId, roleIds);
-```
+**适用边界**：
+| 场景 | 入口 |
+|------|------|
+| 判断是否有普通管理权限 | `PermQueryEngine` |
+| 判断是否可以把某权限授予他人 | `AuthorizationService.canGrantPermission` |
+| 批量校验多个待授予权限 | `AuthorizationService.checkGrantPermissionsBatch` |
 
 ---
 
@@ -1262,12 +1141,10 @@ public record PermissionTreeResp(
 ### 7.6 实现注意事项
 
 1. **移除 `CAN_MANAGE` 误用**：`AuthorizationServiceImpl` 中不再使用 `CAN_MANAGE.eq(true)` 作为权限判断条件
-2. **`canGrant` 只用于授权流程**：在 `PermissionGrantServiceImpl` 授权时校验，不在鉴权时使用
-3. **统一入口**：内部权限检查统一调用 `AuthorizationService.checkPermissions` 或 `checkPermissionsBatch`，避免各 Service 分散实现
-4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `checkPermissionsBatch` 或 `PermissionCheckUtils`，一次 DB 查询完成全部权限校验
-5. **自修改例外场景区分**：
-   - 删除用户：使用 `checkCanManageUsersWithSelfModification`（允许删除自己）
-   - 分配角色：使用 `checkCanManageUsersStrict`（不允许给自己分配角色，需严格权限检查）
+2. **`canGrant` 只用于授权流程**：在 `PermissionGrantServiceImpl` 中通过 `AuthorizationService` 校验，不在普通鉴权时使用
+3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermission/validateBatch/getDeniedIds` 或 `query(PermQuery)`，避免各 Service 分散实现
+4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `validateBatch`、`getDeniedIds` 或 `checkGrantPermissionsBatch`，一次统一管线完成全部权限校验
+5. **业务例外显式处理**：如“允许操作自己”之类的场景，由具体业务服务在调用引擎前后显式处理，不再引入独立的 `PermissionCheckUtils` 抽象
 6. **树形遍历深度限制**：`query-permission-tree` 必须有 `maxDepth` 限制，防止无限递归
 
 ### 7.7 授权安全校验（Grant Validation）
