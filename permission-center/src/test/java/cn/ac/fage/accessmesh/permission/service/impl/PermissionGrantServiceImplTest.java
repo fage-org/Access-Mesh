@@ -11,15 +11,11 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,24 +55,16 @@ class PermissionGrantServiceImplTest {
     @Mock private PermissionConditionMapper permissionConditionMapper;
     /** 角色资源权限Mapper Mock */
     @Mock private RoleResourcePermissionMapper rolePermMapper;
-    /** 角色权限领域服务Mock */
-    @Mock private RolePermissionDomainService rolePermissionDomainService;
+    /** 权限授予领域服务Mock */
+    @Mock private PermissionGrantDomainService permissionGrantDomainService;
     /** 权限版本领域服务Mock */
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
-    /** 权限变更领域服务Mock */
-    @Mock private PermissionChangeDomainService permissionChangeDomainService;
-    /** 操作日志领域服务Mock */
-    @Mock private OperationLogDomainService operationLogDomainService;
-    /** 用户角色领域服务Mock */
-    @Mock private UserRoleDomainService userRoleDomainService;
+    /** 审计领域服务Mock */
+    @Mock private AuditDomainService auditDomainService;
+    /** 主体领域服务Mock */
+    @Mock private SubjectDomainService subjectDomainService;
     /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
-    /** 授权服务Mock */
-    @Mock private AuthorizationService authorizationService;
-    /** 操作权限领域服务Mock */
-    @Mock private OperationPermissionDomainService operationPermissionDomainService;
-    /** 抽象角色领域服务Mock */
-    @Mock private AbstractRoleDomainService abstractRoleDomainService;
     /** 域分类领域服务Mock */
     @Mock private DomainClassifyService domainClassifyService;
     /** 权限查询引擎Mock */
@@ -87,29 +75,17 @@ class PermissionGrantServiceImplTest {
 
     /**
      * 测试前置初始化
-     * <p>
-     * 在每个测试方法执行前初始化PermissionGrantServiceImpl实例，
-     * 注入所有Mock依赖对象。
-     * </p>
      */
     @BeforeEach
     void setUp() {
         service = new PermissionGrantServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
-            rolePermMapper, rolePermissionDomainService, permissionVersionDomainService, permissionChangeDomainService,
-            operationLogDomainService, userRoleDomainService, typeResolutionService,
-            authorizationService, operationPermissionDomainService, abstractRoleDomainService, domainClassifyService,
-            engine
+            rolePermMapper, permissionGrantDomainService, permissionVersionDomainService,
+            auditDomainService, subjectDomainService, typeResolutionService,
+            domainClassifyService, engine
         );
     }
 
-    /**
-     * 测试子权限通过精确编码匹配被拒绝的逻辑
-     * <p>
-     * 当父权限的业务域配置中已存在与请求子权限编码精确匹配的资源类型时，
-     * addChildren应抛出BizException异常，拒绝添加子权限。
-     * </p>
-     */
     @Test
     @Disabled("Requires OperatorContext mock setup")
     void shouldRejectSubPermByExactCodeMatch() {
@@ -141,14 +117,6 @@ class PermissionGrantServiceImplTest {
         assertThrows(BizException.class, () -> service.addChildren(1L, req));
     }
 
-    /**
-     * 测试scopeAll为false时资源编码必填的校验逻辑
-     * <p>
-     * 当添加子权限请求中scopeAll设置为false且resourceCode为null时，
-     * addChildren应抛出BizException异常，
-     * 要求必须提供资源编码以确定权限范围。
-     * </p>
-     */
     @Test
     @Disabled("Requires OperatorContext mock setup")
     void shouldRequireResourceCodeWhenScopeAllFalse() {

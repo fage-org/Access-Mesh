@@ -39,9 +39,8 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomain
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -95,10 +94,9 @@ public class PermissionServiceImpl implements PermissionService {
     private final ResourceApiMappingMapper apiMappingMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final PermissionConflictDomainService permissionConflictDomainService;
     private final PermissionConditionDomainService permissionConditionDomainService;
-    private final RolePermissionDomainService rolePermissionDomainService;
     private final TypeResolutionService typeResolutionService;
     private final CacheService cacheService;
     private final PermissionVersionDomainService permissionVersionDomainService;
@@ -113,10 +111,9 @@ public class PermissionServiceImpl implements PermissionService {
                                  ResourceApiMappingMapper apiMappingMapper,
                                  OperationPermissionMapper operationPermissionMapper,
                                  RoleResourcePermissionMapper rolePermMapper,
-                                 UserRoleDomainService userRoleDomainService,
+                                 SubjectDomainService subjectDomainService,
                                  PermissionConflictDomainService permissionConflictDomainService,
                                  PermissionConditionDomainService permissionConditionDomainService,
-                                 RolePermissionDomainService rolePermissionDomainService,
                                  TypeResolutionService typeResolutionService,
                                  CacheService cacheService,
                                  PermissionVersionDomainService permissionVersionDomainService,
@@ -127,10 +124,9 @@ public class PermissionServiceImpl implements PermissionService {
         this.apiMappingMapper = apiMappingMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.rolePermMapper = rolePermMapper;
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
         this.permissionConditionDomainService = permissionConditionDomainService;
-        this.rolePermissionDomainService = rolePermissionDomainService;
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
         this.permissionVersionDomainService = permissionVersionDomainService;
@@ -497,7 +493,7 @@ public class PermissionServiceImpl implements PermissionService {
         if (userId == null) return new InterfaceSnapshotResp(false, "", List.of());
 
         // 先计算当前权限令牌，再根据 service + token 读取快照缓存。
-        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
+        Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
             ? Set.of()
             : permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
@@ -767,7 +763,7 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         // 3. 获取有效角色
-        Set<Long> effectiveRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
+        Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         if (effectiveRoleIds.isEmpty()) {
             return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH");
         }

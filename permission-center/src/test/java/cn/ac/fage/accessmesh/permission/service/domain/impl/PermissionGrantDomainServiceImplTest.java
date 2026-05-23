@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.permission.service.impl;
+package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
@@ -6,10 +6,10 @@ import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService.GrantCheckKey;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService.GrantCheckKey;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,38 +22,43 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class AuthorizationServiceImplTest {
+class PermissionGrantDomainServiceImplTest {
 
     @Mock
     private TypeResolutionService typeResolutionService;
     @Mock
-    private UserRoleDomainService userRoleDomainService;
+    private SubjectDomainService subjectDomainService;
     @Mock
     private OperationPermissionMapper operationPermissionMapper;
     @Mock
     private RoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock
-    private PermQueryEngine engine;
+    private PermissionVersionDomainService permissionVersionDomainService;
 
-    private AuthorizationServiceImpl service;
+    private PermissionGrantDomainServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new AuthorizationServiceImpl(
+        service = new PermissionGrantDomainServiceImpl(
             typeResolutionService,
-            userRoleDomainService,
+            subjectDomainService,
             operationPermissionMapper,
             roleResourcePermissionMapper,
-            engine
+            permissionVersionDomainService
         );
     }
 
     @Test
     void canGrantPermissionShouldAllowInheritedGrantCoverage() {
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
 
@@ -79,6 +84,24 @@ class AuthorizationServiceImplTest {
         boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", "VIEW", false, null);
 
         assertTrue(allowed);
+    }
+
+    @Test
+    void shouldSoftDeleteAndCascadeWithoutVersionIncrement() {
+        RoleResourcePermission perm = new RoleResourcePermission();
+        perm.setId(501L);
+        perm.setAbstractRoleId(20L);
+        perm.setResourceEntityId(200L);
+        perm.setDeleteFlag(0L);
+
+        when(roleResourcePermissionMapper.selectValidByIds(1L, 20L, List.of(501L)))
+            .thenReturn(List.of(perm));
+
+        service.revokePermissions(1L, 20L, List.of(501L));
+
+        verify(roleResourcePermissionMapper).softDeleteBatch(eq(1L), eq(List.of(501L)), any());
+        verify(roleResourcePermissionMapper).cascadeSoftDeleteChildren(eq(1L), eq(List.of(501L)), any());
+        verifyNoInteractions(permissionVersionDomainService);
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

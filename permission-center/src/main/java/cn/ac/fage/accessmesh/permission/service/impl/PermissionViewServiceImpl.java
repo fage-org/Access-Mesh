@@ -25,7 +25,7 @@ import cn.ac.fage.accessmesh.permission.service.PermissionViewService;
 import cn.ac.fage.accessmesh.permission.service.context.PermissionQueryContext;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
@@ -60,7 +60,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final BizDomainMapper bizDomainMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final DomainClassifyService domainClassifyService;
     private final TypeResolutionService typeResolutionService;
     private final PermissionService permissionService;
@@ -77,7 +77,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @param operationPermissionMapper   操作权限数据访问层
      * @param bizDomainMapper             业务域数据访问层
      * @param rolePermMapper              角色资源权限数据访问层
-     * @param userRoleDomainService       用户角色领域服务
+     * @param subjectDomainService        主体领域服务
      * @param typeResolutionService       类型解析服务
      * @param permissionService           权限服务
      * @param logQueryService             日志查询服务
@@ -90,7 +90,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
                                      OperationPermissionMapper operationPermissionMapper,
                                      BizDomainMapper bizDomainMapper,
                                      RoleResourcePermissionMapper rolePermMapper,
-                                     UserRoleDomainService userRoleDomainService,
+                                     SubjectDomainService subjectDomainService,
                                      DomainClassifyService domainClassifyService,
                                      TypeResolutionService typeResolutionService,
                                      PermissionService permissionService,
@@ -103,7 +103,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
         this.operationPermissionMapper = operationPermissionMapper;
         this.bizDomainMapper = bizDomainMapper;
         this.rolePermMapper = rolePermMapper;
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.domainClassifyService = domainClassifyService;
         this.typeResolutionService = typeResolutionService;
         this.permissionService = permissionService;
@@ -237,7 +237,7 @@ public class PermissionViewServiceImpl implements PermissionViewService {
      * @param context 权限查询上下文
      */
     private void loadRoles(PermissionQueryContext context) {
-        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(
             context.getTenantId(), context.getUserId());
         context.setRoleIds(roleIds);
 

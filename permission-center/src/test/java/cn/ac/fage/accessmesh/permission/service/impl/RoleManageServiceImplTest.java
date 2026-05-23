@@ -3,12 +3,10 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
-import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,13 +26,11 @@ import static org.mockito.Mockito.when;
 class RoleManageServiceImplTest {
 
     @Mock private AbstractRoleMapper abstractRoleMapper;
-    @Mock private AbstractRoleDomainService abstractRoleDomainService;
+    @Mock private SubjectDomainService subjectDomainService;
     @Mock private CacheService cacheService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
-    @Mock private OperationLogDomainService operationLogDomainService;
-    @Mock private PermissionChangeDomainService permissionChangeDomainService;
-    @Mock private AuthorizationService authorizationService;
+    @Mock private AuditDomainService auditDomainService;
     @Mock private PermQueryEngine engine;
 
     private RoleManageServiceImpl service;
@@ -43,14 +39,12 @@ class RoleManageServiceImplTest {
     void setUp() {
         service = new RoleManageServiceImpl(
             abstractRoleMapper,
-            abstractRoleDomainService,
+            subjectDomainService,
             cacheService,
             typeResolutionService,
             domainClassifyService,
             new ObjectMapper(),
-            operationLogDomainService,
-            permissionChangeDomainService,
-            authorizationService,
+            auditDomainService,
             engine
         );
     }

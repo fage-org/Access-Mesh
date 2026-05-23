@@ -27,10 +27,8 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
@@ -56,7 +54,7 @@ import java.util.stream.Collectors;
  * 在事务提交后执行缓存失效和版本递增，确保数据一致性。
  * </p>
  * <p>
- * TODO: 构造函数依赖过多(16个)，违反单一职责原则
+ * TODO: 构造函数依赖过多(14个)，违反单一职责原则
  * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
  * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
  * </p>
@@ -72,22 +70,18 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     private final DomainConfigMapper domainConfigMapper;
     private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final RolePermissionDomainService rolePermissionDomainService;
+    private final PermissionGrantDomainService permissionGrantDomainService;
     private final PermissionVersionDomainService permissionVersionDomainService;
-    private final PermissionChangeDomainService permissionChangeDomainService;
-    private final OperationLogDomainService operationLogDomainService;
-    private final UserRoleDomainService userRoleDomainService;
+    private final AuditDomainService auditDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
-    private final AuthorizationService authorizationService;
-    private final OperationPermissionDomainService operationPermissionDomainService;
-    private final AbstractRoleDomainService abstractRoleDomainService;
     private final DomainClassifyService domainClassifyService;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入所有依赖
      * <p>
-     * TODO: 构造函数依赖过多(16个)，违反单一职责原则
+     * TODO: 构造函数依赖过多(14个)，违反单一职责原则
      * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
      * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
      * </p>
@@ -98,15 +92,11 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                                       DomainConfigMapper domainConfigMapper,
                                       PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
-                                      RolePermissionDomainService rolePermissionDomainService,
+                                      PermissionGrantDomainService permissionGrantDomainService,
                                       PermissionVersionDomainService permissionVersionDomainService,
-                                      PermissionChangeDomainService permissionChangeDomainService,
-                                      OperationLogDomainService operationLogDomainService,
-                                      UserRoleDomainService userRoleDomainService,
+                                      AuditDomainService auditDomainService,
+                                      SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      AuthorizationService authorizationService,
-                                      OperationPermissionDomainService operationPermissionDomainService,
-                                      AbstractRoleDomainService abstractRoleDomainService,
                                       DomainClassifyService domainClassifyService,
                                       PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
@@ -115,15 +105,11 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         this.domainConfigMapper = domainConfigMapper;
         this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
-        this.rolePermissionDomainService = rolePermissionDomainService;
+        this.permissionGrantDomainService = permissionGrantDomainService;
         this.permissionVersionDomainService = permissionVersionDomainService;
-        this.permissionChangeDomainService = permissionChangeDomainService;
-        this.operationLogDomainService = operationLogDomainService;
-        this.userRoleDomainService = userRoleDomainService;
+        this.auditDomainService = auditDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
-        this.authorizationService = authorizationService;
-        this.operationPermissionDomainService = operationPermissionDomainService;
-        this.abstractRoleDomainService = abstractRoleDomainService;
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
     }
@@ -136,8 +122,9 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
      * 2. 授权新增权限时，操作者必须拥有该权限且canGrant=true
      * 3. 更新canGrant=true时，操作者必须已拥有canGrant=true的该权限
      * 使用批量解析（资源ID、操作ID、类型值）避免N+1查询。
-     * 自动授予依赖权限（autoGrantForInsert）。
      * 在事务提交后执行缓存失效和版本递增。
+     *
+     * TODO: 自动授予依赖权限（autoGrantForInsert）——查询resource_dependency表自动补充依赖权限
      * </p>
      *
      * @param tenantId 租户ID
@@ -185,8 +172,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
         // ===== 安全校验：验证新增项的授权传递权限 =====
         // 操作者必须拥有该权限且canGrant=true才能授权给他人
         if (!addItems.isEmpty()) {
-            Set<AuthorizationService.GrantCheckKey> grantKeys = addItems.stream()
-                .map(item -> new AuthorizationService.GrantCheckKey(
+            Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = addItems.stream()
+                .map(item -> new PermissionGrantDomainService.GrantCheckKey(
                     item.resourceTypeCode(),
                     item.resourceCode(),
                     item.operationCode(),
@@ -194,13 +181,13 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 ))
                 .collect(Collectors.toSet());
 
-            Map<String, AuthorizationService.GrantCheckResult> grantResults =
-                authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, req.domainCode());
+            Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
+                permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, req.domainCode());
 
             // 校验每个新增项
             for (RoleGrantReq.GrantAddItem item : addItems) {
                 String permKey = buildGrantKey(item);
-                AuthorizationService.GrantCheckResult result = grantResults.get(permKey);
+                PermissionGrantDomainService.GrantCheckResult result = grantResults.get(permKey);
 
                 if (result == null || !result.canGrant()) {
                     String reason = result != null ? result.reason() : "UNKNOWN";
@@ -273,7 +260,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 String resourceTypeCode = resourceTypeCodeMap.get(existing.getResourceType());
 
                 // 校验操作者是否可以授权该权限
-                boolean canGrant = authorizationService.canGrantPermission(
+                boolean canGrant = permissionGrantDomainService.canGrantPermission(
                     tenantId, operatorId, resourceTypeCode,
                     resource == null ? null : resource.getCode(),
                     operation == null ? null : operation.getCode(),
@@ -356,7 +343,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<String, Long> opMap = operationIdMapByType.getOrDefault(item.resourceTypeCode(), Map.of());
             Long operationId = opMap.get(item.operationCode());
             OperationPermission operation = operationId != null
-                ? operationPermissionDomainService.selectValidById(tenantId, operationId) : null;
+                ? operationPermissionMapper.selectValidById(tenantId, operationId) : null;
             if (operation == null) {
                 throw new IllegalArgumentException("operationCode not found: " + item.operationCode());
             }
@@ -393,7 +380,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 批量软删除权限避免N+1查询
         if (!removeItems.isEmpty()) {
-            rolePermissionDomainService.revokePermissions(tenantId, roleId, removeItems);
+            permissionGrantDomainService.revokePermissions(tenantId, roleId, removeItems);
         }
 
         // ===== 批量处理更新项避免N+1查询 =====
@@ -456,8 +443,8 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 @Override
                 public void afterCommit() {
                     permissionVersionDomainService.increment(tenantId, roleId);
-                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-                    operationLogDomainService.asyncRecord(
+                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
+                    auditDomainService.asyncRecordLog(
                         "role_resource_permission", "BATCH_GRANT",
                         "abstract_role", roleId,
                         "save granted role perms add=" + addItems.size() + ", update=" + updateItems.size() + ", remove=" + removeItems.size(),
@@ -504,19 +491,21 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
 
         // 性能优化：使用批量方法替代循环
         if (!permissionIds.isEmpty()) {
-            rolePermissionDomainService.revokePermissions(tenantId, roleId, permissionIds);
+            permissionGrantDomainService.revokePermissions(tenantId, roleId, permissionIds);
         }
 
-        // 注意：版本递增和缓存失效由revokePermissions内部处理
-        // 此处仅记录操作日志
+        // 事务提交后执行版本递增、缓存失效和操作日志
+        final Long revokeRoleId = roleId;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    operationLogDomainService.asyncRecord(
+                    permissionVersionDomainService.increment(tenantId, revokeRoleId);
+                    subjectDomainService.invalidateRoleCacheByRole(tenantId, revokeRoleId);
+                    auditDomainService.asyncRecordLog(
                         "role_resource_permission", "BATCH_REVOKE",
-                        "abstract_role", roleId,
-                        "Revoked " + permissionIds.size() + " permissions from role " + roleId,
+                        "abstract_role", revokeRoleId,
+                        "Revoked " + permissionIds.size() + " permissions from role " + revokeRoleId,
                         operatorId, null, null, tenantId
                     );
                 }
@@ -569,7 +558,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(readOnly = true)
     public List<RolePermissionItemResp> listChildren(Long tenantId, RolePermissionChildrenReq req) {
-        RoleResourcePermission parent = rolePermissionDomainService.selectValidById(tenantId, null, req.permissionId());
+        RoleResourcePermission parent = rolePermMapper.selectValidById(tenantId, null, req.permissionId());
         if (parent == null) {
             return List.of();
         }
@@ -604,7 +593,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
-        RoleResourcePermission parent = rolePermissionDomainService.selectValidById(tenantId, null, req.parentPermissionId());
+        RoleResourcePermission parent = rolePermMapper.selectValidById(tenantId, null, req.parentPermissionId());
         if (parent == null) {
             throw new IllegalArgumentException("parentPermissionId not found");
         }
@@ -674,7 +663,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 .collect(Collectors.toMap(PermissionCondition::getCode, Function.identity()));
 
         List<RoleResourcePermission> inserted = new ArrayList<>();
-        List<PermissionChangeDomainService.ChangeLogEntry> changeLogs = new ArrayList<>();
+        List<AuditDomainService.ChangeLogEntry> changeLogs = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
         for (RolePermissionAddChildReq.ChildItem child : children) {
@@ -690,7 +679,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             Map<String, Long> opMap = operationIdMapByType.getOrDefault(child.resourceTypeCode(), Map.of());
             Long operationId = opMap.get(child.operationCode());
             OperationPermission operation = operationId != null
-                ? operationPermissionDomainService.selectValidById(tenantId, operationId) : null;
+                ? operationPermissionMapper.selectValidById(tenantId, operationId) : null;
             if (operation == null) {
                 throw new IllegalArgumentException("operationCode not found: " + child.operationCode());
             }
@@ -729,7 +718,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
             rp.setUpdatedAt(now);
             rp.setDeleteFlag(0L);
             inserted.add(rp);
-            changeLogs.add(new PermissionChangeDomainService.ChangeLogEntry(
+            changeLogs.add(new AuditDomainService.ChangeLogEntry(
                 "role_resource_permission", rp.getId(), "ADD", null, "child-added", "{}", null,
                 new Long[]{parent.getAbstractRoleId()}
             ));
@@ -745,11 +734,11 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 @Override
                 public void afterCommit() {
                     permissionVersionDomainService.increment(tenantId, roleIdForCache);
-                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
+                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
                 }
             });
         }
-        permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
+        auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
             tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
         ), changeLogs);
         return toItemRespList(tenantId, inserted);
@@ -771,7 +760,7 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
-        RoleResourcePermission child = rolePermissionDomainService.selectValidById(tenantId, null, req.permissionId());
+        RoleResourcePermission child = rolePermMapper.selectValidById(tenantId, null, req.permissionId());
         if (child == null) {
             throw new IllegalArgumentException("child permission not found");
         }
@@ -795,13 +784,13 @@ public class PermissionGrantServiceImpl implements PermissionGrantService {
                 @Override
                 public void afterCommit() {
                     permissionVersionDomainService.increment(tenantId, roleIdForCache);
-                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
+                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
                 }
             });
         }
-        permissionChangeDomainService.record(new PermissionChangeDomainService.ChangeLogContext(
+        auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
             tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
-        ), List.of(new PermissionChangeDomainService.ChangeLogEntry(
+        ), List.of(new AuditDomainService.ChangeLogEntry(
             "role_resource_permission", child.getId(), "REMOVE", "child-exists", null, "{}", null,
             new Long[]{child.getAbstractRoleId()}
         )));

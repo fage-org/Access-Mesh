@@ -18,11 +18,10 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomain
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
+import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -67,14 +66,12 @@ class PermissionServiceImplQueryScopesTest {
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     /** 资源依赖Mapper Mock */
     @Mock private ResourceDependencyMapper resourceDependencyMapper;
-    /** 用户角色领域服务Mock */
-    @Mock private UserRoleDomainService userRoleDomainService;
+    /** 主体领域服务Mock */
+    @Mock private SubjectDomainService subjectDomainService;
     /** 权限冲突领域服务Mock */
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     /** 权限条件领域服务Mock */
     @Mock private PermissionConditionDomainService permissionConditionDomainService;
-    /** 角色权限领域服务Mock */
-    @Mock private RolePermissionDomainService rolePermissionDomainService;
     /** 类型解析服务Mock */
     @Mock private TypeResolutionService typeResolutionService;
     /** 统一缓存服务Mock */
@@ -126,8 +123,8 @@ class PermissionServiceImplQueryScopesTest {
     void setUp() {
         service = new PermissionServiceImpl(
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
-            userRoleDomainService, permissionConflictDomainService,
-            permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
+            subjectDomainService, permissionConflictDomainService,
+            permissionConditionDomainService, typeResolutionService, cacheService,
             permissionVersionDomainService, resourceEntityDomainService,
             engine
         );
@@ -248,7 +245,7 @@ class PermissionServiceImplQueryScopesTest {
         when(typeResolutionService.batchResolveOperationIds(eq(1L), eq("MENU"), any(Set.class)))
             .thenReturn(Map.of("VIEW", 300L));
 
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
@@ -301,7 +298,7 @@ class PermissionServiceImplQueryScopesTest {
         when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
         when(typeResolutionService.batchResolveOperationIds(eq(1L), eq("MENU"), any(Set.class)))
             .thenReturn(Map.of("VIEW", 300L));
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
 
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
@@ -354,7 +351,7 @@ class PermissionServiceImplQueryScopesTest {
         when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
         when(typeResolutionService.batchResolveOperationIds(eq(1L), eq("MENU"), any(Set.class)))
             .thenReturn(Map.of("VIEW", 300L));
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
 
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
@@ -408,7 +405,7 @@ class PermissionServiceImplQueryScopesTest {
             .thenReturn(Map.of("VIEW", 300L));
         when(typeResolutionService.resolveDomainId(1L, null)).thenReturn(0L);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));

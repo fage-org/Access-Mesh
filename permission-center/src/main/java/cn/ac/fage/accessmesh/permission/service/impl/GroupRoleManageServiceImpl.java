@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.GroupRoleManageService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +43,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
     private final AbstractRoleMapper abstractRoleMapper;
     private final UserRoleMapper userRoleMapper;
     private final TypeResolutionService typeResolutionService;
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final PermQueryEngine engine;
 
     /**
@@ -52,18 +52,18 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
      * @param abstractRoleMapper    抽象角色数据访问层
      * @param userRoleMapper        用户角色数据访问层
      * @param typeResolutionService 类型解析服务
-     * @param userRoleDomainService 用户角色领域服务
+     * @param subjectDomainService  主体领域服务
      * @param engine                权限查询引擎
      */
     public GroupRoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                        UserRoleMapper userRoleMapper,
                                        TypeResolutionService typeResolutionService,
-                                       UserRoleDomainService userRoleDomainService,
+                                       SubjectDomainService subjectDomainService,
                                        PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.userRoleMapper = userRoleMapper;
         this.typeResolutionService = typeResolutionService;
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.engine = engine;
     }
 
@@ -133,7 +133,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCacheByRole(tenantId, groupIdForCache);
+                    subjectDomainService.invalidateRoleCacheByRole(tenantId, groupIdForCache);
                 }
             });
         }
@@ -184,7 +184,7 @@ public class GroupRoleManageServiceImpl implements GroupRoleManageService {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        userRoleDomainService.invalidateRoleCacheByRole(tenantIdForCache, groupIdForCache);
+                        subjectDomainService.invalidateRoleCacheByRole(tenantIdForCache, groupIdForCache);
                     }
                 });
             }

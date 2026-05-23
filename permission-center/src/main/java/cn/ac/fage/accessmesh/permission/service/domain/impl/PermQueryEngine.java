@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
+import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.slf4j.Logger;
@@ -56,7 +57,7 @@ public class PermQueryEngine {
 
     private static final Logger log = LoggerFactory.getLogger(PermQueryEngine.class);
 
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final AbstractRoleMapper abstractRoleMapper;
@@ -70,7 +71,7 @@ public class PermQueryEngine {
     /**
      * 构造函数注入依赖服务
      *
-     * @param userRoleDomainService     用户角色解析服务
+     * @param subjectDomainService      主体领域服务
      * @param rolePermMapper            角色权限映射器
      * @param resourceEntityMapper      资源实体数据访问层
      * @param abstractRoleMapper        抽象角色数据访问层
@@ -81,7 +82,7 @@ public class PermQueryEngine {
      * @param cacheService              统一缓存服务
      * @param operationPermissionMapper 操作权限数据访问层
      */
-    public PermQueryEngine(UserRoleDomainService userRoleDomainService,
+    public PermQueryEngine(SubjectDomainService subjectDomainService,
                            RoleResourcePermissionMapper rolePermMapper,
                            ResourceEntityMapper resourceEntityMapper,
                            AbstractRoleMapper abstractRoleMapper,
@@ -91,7 +92,7 @@ public class PermQueryEngine {
                            TypeResolutionService typeResolutionService,
                            CacheService cacheService,
                            OperationPermissionMapper operationPermissionMapper) {
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.rolePermMapper = rolePermMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -249,7 +250,7 @@ public class PermQueryEngine {
         }
 
         // 1. 解析用户角色（1次查询）
-        Set<Long> roleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId);
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (roleIds.isEmpty()) {
             return new LinkedHashSet<>(resourceIds); // 无角色 = 全部拒绝
         }
@@ -372,10 +373,10 @@ public class PermQueryEngine {
             return Set.of();
         }
         if (q.useRoleCache()) {
-            return userRoleDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
+            return subjectDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
         }
         // 绕过缓存，直接批量解析
-        Map<Long, Set<Long>> batch = userRoleDomainService.batchResolveEffectiveRoles(
+        Map<Long, Set<Long>> batch = subjectDomainService.batchResolveEffectiveRoles(
             q.tenantId(), Set.of(q.userId()));
         return batch.getOrDefault(q.userId(), Set.of());
     }

@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,19 +25,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class UserRoleDomainServiceImplTest {
+class SubjectDomainServiceImplTest {
 
     @Mock private UserRoleMapper userRoleMapper;
     @Mock private AbstractRoleMapper abstractRoleMapper;
+    @Mock private AbstractUserMapper abstractUserMapper;
     @Mock private CacheService cacheService;
 
-    private UserRoleDomainServiceImpl service;
+    private SubjectDomainServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new UserRoleDomainServiceImpl(
-            userRoleMapper,
+        service = new SubjectDomainServiceImpl(
+            abstractUserMapper,
             abstractRoleMapper,
+            userRoleMapper,
             cacheService,
             new ObjectMapper()
         );

@@ -1,22 +1,25 @@
-package cn.ac.fage.accessmesh.permission.service.impl;
+package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
-import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,75 +31,74 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 授权服务实现类
+ * 权限授予领域服务实现类
  * <p>
- * 实现canGrant授权检查功能。仅用于权限委托（授权传递）场景的校验。
- * 一般权限检查应使用PermQueryEngine，本服务仅处理canGrant验证。
+ * 实现权限授予相关的核心领域逻辑：
+ * - 授权传递检查（canGrant验证）：操作者必须拥有该权限且canGrant=true才能授权给他人
+ * - 权限撤销：批量软删除权限并级联删除子权限
+ * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现，当前仅使用 GrantSource.MANUAL
  * 采用批量处理策略避免N+1查询问题。
  * </p>
  */
 @Service
-public class AuthorizationServiceImpl implements AuthorizationService {
+public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainService {
 
-    private static final Logger log = LoggerFactory.getLogger(AuthorizationServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(PermissionGrantDomainServiceImpl.class);
 
     private final TypeResolutionService typeResolutionService;
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
-    private final PermQueryEngine engine;
+    private final PermissionVersionDomainService permissionVersionDomainService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param typeResolutionService       类型解析服务
-     * @param userRoleDomainService       用户角色领域服务
-     * @param operationPermissionMapper   操作权限数据访问层
+     * @param typeResolutionService        类型解析服务
+     * @param subjectDomainService        主体领域服务
+     * @param operationPermissionMapper    操作权限数据访问层
      * @param roleResourcePermissionMapper 角色资源权限数据访问层
-     * @param engine                      权限查询引擎
+     * @param permissionVersionDomainService 权限版本领域服务
      */
-    public AuthorizationServiceImpl(TypeResolutionService typeResolutionService,
-                                     UserRoleDomainService userRoleDomainService,
-                                     OperationPermissionMapper operationPermissionMapper,
-                                     RoleResourcePermissionMapper roleResourcePermissionMapper,
-                                     PermQueryEngine engine) {
+    public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
+                                            SubjectDomainService subjectDomainService,
+                                            OperationPermissionMapper operationPermissionMapper,
+                                            RoleResourcePermissionMapper roleResourcePermissionMapper,
+                                            PermissionVersionDomainService permissionVersionDomainService) {
         this.typeResolutionService = typeResolutionService;
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
-        this.engine = engine;
+        this.permissionVersionDomainService = permissionVersionDomainService;
     }
+
+    // ===== canGrant 权限检查 =====
 
     /**
      * 检查是否有权限授予指定权限
-     * <p>
-     * 检查操作者是否有canGrant权限来授予指定的资源操作权限。
-     * 这是权限委托的核心检查方法。
-     * </p>
      *
-     * @param tenantId        租户ID
-     * @param operatorId      操作者ID
+     * @param tenantId         租户ID
+     * @param operatorId       操作者ID
      * @param resourceTypeCode 资源类型编码
-     * @param resourceCode    资源编码
-     * @param operationCode   操作码
-     * @param scopeAll        是否全局作用域
-     * @param domainCode      业务域编码，可选
+     * @param resourceCode     资源编码
+     * @param operationCode    操作码
+     * @param scopeAll         是否全局作用域
+     * @param domainCode       业务域编码，可选
      * @return 是否有权限授予
      */
     @Override
     public boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
                                        String resourceCode, String operationCode, boolean scopeAll, String domainCode) {
         Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, operationCode, scopeAll));
-        Map<String, GrantCheckResult> results = checkGrantPermissionsBatch(tenantId, operatorId, keys, domainCode);
+        Map<String, GrantCheckResult> results = checkCanGrant(tenantId, operatorId, keys, domainCode);
         String key = buildPermissionKey(new GrantCheckKey(resourceTypeCode, resourceCode, operationCode, scopeAll));
         GrantCheckResult result = results.get(key);
         return result != null && result.canGrant();
     }
 
     /**
-     * 批量检查授权权限
+     * 批量检查授权权限（canGrant验证）
      * <p>
-     * 批量检查操作者是否有canGrant权限来授予多个权限。
      * 采用批量处理策略避免N+1查询：
      * 1. 批量解析资源类型值
      * 2. 批量查询操作权限
@@ -105,20 +107,20 @@ public class AuthorizationServiceImpl implements AuthorizationService {
      * 5. 构建查找映射并逐个评估
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param operatorId 操作者ID
+     * @param tenantId    租户ID
+     * @param operatorId  操作者ID
      * @param permissions 待检查的权限键集合
-     * @param domainCode 业务域编码，可选
+     * @param domainCode  业务域编码，可选
      * @return 权限键到检查结果的映射
      */
     @Override
-    public Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
-                                                                      Set<GrantCheckKey> permissions, String domainCode) {
+    public Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+                                                        Set<GrantCheckKey> permissions, String domainCode) {
         if (tenantId == null || operatorId == null || permissions == null || permissions.isEmpty()) {
             return Map.of();
         }
 
-        Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId);
+        Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (operatorRoleIds.isEmpty()) {
             Map<String, GrantCheckResult> results = new HashMap<>();
             for (GrantCheckKey key : permissions) {
@@ -228,6 +230,45 @@ public class AuthorizationServiceImpl implements AuthorizationService {
         return results;
     }
 
+    // ===== 权限撤销 =====
+
+    /**
+     * 批量撤销角色权限
+     * <p>
+     * 批量软删除权限，同时级联删除依赖该权限的子权限。
+     * 注意：版本递增和缓存失效由调用方在 afterCommit 中负责。
+     * </p>
+     *
+     * @param tenantId      租户ID
+     * @param roleId        角色ID
+     * @param permissionIds 待撤销的权限ID列表
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+
+        // 查询实际属于该角色的有效权限ID
+        List<RoleResourcePermission> validPerms = roleResourcePermissionMapper.selectValidByIds(tenantId, roleId, permissionIds);
+        if (validPerms.isEmpty()) {
+            return;
+        }
+        List<Long> validIds = validPerms.stream().map(RoleResourcePermission::getId).collect(Collectors.toList());
+
+        // 批量软删除权限（仅删除属于该角色的有效权限）
+        roleResourcePermissionMapper.softDeleteBatch(tenantId, validIds, now);
+
+        // 批量级联删除子权限（仅基于有效权限ID）
+        roleResourcePermissionMapper.cascadeSoftDeleteChildren(tenantId, validIds, now);
+
+        // 注意：版本递增和缓存失效由调用方在 afterCommit 中统一处理（避免与 batchGrant 双重递增）
+    }
+
+    // ===== 私有辅助方法 =====
+
     /**
      * 评估单个权限的授权资格
      * <p>
@@ -239,14 +280,6 @@ public class AuthorizationServiceImpl implements AuthorizationService {
      * 4. 查找匹配的权限记录
      * 5. 检查canGrant标记
      * </p>
-     *
-     * @param key                    待检查的权限键
-     * @param resourceTypeByCode     资源类型编码到值的映射
-     * @param opPermByKey            操作权限查找映射
-     * @param resourceEntityIdByCode 资源实体ID查找映射
-     * @param permsBySpecificResource 特定资源权限映射
-     * @param permsByScopeAll        全局作用域权限映射
-     * @return 授权检查结果
      */
     private GrantCheckResult evaluateGrantPermission(GrantCheckKey key,
                                                       Map<String, Integer> resourceTypeByCode,
@@ -310,12 +343,8 @@ public class AuthorizationServiceImpl implements AuthorizationService {
     /**
      * 构建权限键字符串
      * <p>
-     * 将GrantCheckKey转换为字符串格式用于结果映射查找。
      * 格式：resourceTypeCode:resourceCode:operationCode:scopeType
      * </p>
-     *
-     * @param key 权限检查键
-     * @return 权限键字符串
      */
     private String buildPermissionKey(GrantCheckKey key) {
         return String.format("%s:%s:%s:%s",

@@ -18,11 +18,10 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomain
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.RolePermissionDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.RolePermEntryMapper;
+import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,10 +54,9 @@ class PermissionServiceImplInterfaceSnapshotTest {
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     @Mock private ResourceDependencyMapper resourceDependencyMapper;
-    @Mock private UserRoleDomainService userRoleDomainService;
+    @Mock private SubjectDomainService subjectDomainService;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private PermissionConditionDomainService permissionConditionDomainService;
-    @Mock private RolePermissionDomainService rolePermissionDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private CacheService cacheService;
     @Mock private PermissionVersionDomainService permissionVersionDomainService;
@@ -73,8 +71,8 @@ class PermissionServiceImplInterfaceSnapshotTest {
     void setUp() {
         service = new PermissionServiceImpl(
             abstractUserMapper, resourceEntityMapper, apiMappingMapper, operationPermissionMapper, rolePermMapper,
-            userRoleDomainService, permissionConflictDomainService,
-            permissionConditionDomainService, rolePermissionDomainService, typeResolutionService, cacheService,
+            subjectDomainService, permissionConflictDomainService,
+            permissionConditionDomainService, typeResolutionService, cacheService,
             permissionVersionDomainService, resourceEntityDomainService,
             engine
         );
@@ -94,7 +92,7 @@ class PermissionServiceImplInterfaceSnapshotTest {
     @Test
     void shouldReturnNotModifiedWhenPermissionTokenMatchesCurrentState() {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(200L))).thenReturn(List.of(resourcePerm(200L, 100L, false, null)));
@@ -120,7 +118,7 @@ class PermissionServiceImplInterfaceSnapshotTest {
     @Test
     void shouldRebuildSnapshotWhenPermissionTokenChanges() {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L)))
             .thenReturn(Map.of(200L, 7L), Map.of(200L, 8L));
@@ -150,8 +148,8 @@ class PermissionServiceImplInterfaceSnapshotTest {
     void shouldIsolateSnapshotsByPermissionTokenForDifferentUsers() {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(typeResolutionService.resolveUserId(1L, "USER", "u-2")).thenReturn(11L);
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 11L)).thenReturn(Set.of(201L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 11L)).thenReturn(Set.of(201L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
         when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
         when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));

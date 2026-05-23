@@ -2,68 +2,161 @@ package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
+import cn.ac.fage.accessmesh.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 用户角色领域服务实现类
+ * 主体领域服务实现类
  * <p>
- * 实现用户角色的解析与缓存管理，支持组角色递归展开、有效期过滤等功能。
- * 直接使用 CacheService 管理 L1/L2 缓存。
+ * 合并 AbstractUserDomainServiceImpl、AbstractRoleDomainServiceImpl、UserRoleDomainServiceImpl 三个旧实现。
+ * 提供用户、角色、用户角色关系的基础数据访问和解析功能。
+ * 用户角色解析支持双层缓存（L1本地缓存 + L2 Redis缓存）。
+ * 组角色展开使用PostgreSQL递归CTE一次性查询所有子孙角色，在内存中展开。
  * </p>
  */
 @Service
-public class UserRoleDomainServiceImpl implements UserRoleDomainService {
+public class SubjectDomainServiceImpl implements SubjectDomainService {
 
-    private static final Logger log = LoggerFactory.getLogger(UserRoleDomainServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(SubjectDomainServiceImpl.class);
 
-    private final UserRoleMapper userRoleMapper;
+    private final AbstractUserMapper abstractUserMapper;
     private final AbstractRoleMapper abstractRoleMapper;
+    private final UserRoleMapper userRoleMapper;
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
 
     /**
      * 构造函数注入依赖
      *
-     * @param userRoleMapper        用户角色数据访问层
-     * @param abstractRoleMapper    抽象角色数据访问层
-     * @param cacheService          统一缓存服务
-     * @param objectMapper          JSON解析器
+     * @param abstractUserMapper  抽象用户数据访问层
+     * @param abstractRoleMapper  抽象角色数据访问层
+     * @param userRoleMapper      用户角色数据访问层
+     * @param cacheService        统一缓存服务
+     * @param objectMapper        JSON解析器
      */
-    public UserRoleDomainServiceImpl(UserRoleMapper userRoleMapper,
-                                     AbstractRoleMapper abstractRoleMapper,
-                                     CacheService cacheService,
-                                     ObjectMapper objectMapper) {
-        this.userRoleMapper = userRoleMapper;
+    public SubjectDomainServiceImpl(AbstractUserMapper abstractUserMapper,
+                                    AbstractRoleMapper abstractRoleMapper,
+                                    UserRoleMapper userRoleMapper,
+                                    CacheService cacheService,
+                                    ObjectMapper objectMapper) {
+        this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
+        this.userRoleMapper = userRoleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
     }
+
+    // ===== AbstractUser =====
+
+    @Override
+    public AbstractUser selectValidUserById(Long tenantId, Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return abstractUserMapper.selectValidById(userId, tenantId);
+    }
+
+    // ===== AbstractRole =====
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createRole(Long tenantId, Long parentId, Integer roleType,
+                           String externalId, String name, Integer sortOrder, String extra) {
+        RoleType rt = RoleType.fromValue(roleType);
+
+        if (parentId != null) {
+            AbstractRole parent = selectValidRoleById(tenantId, parentId);
+            if (parent == null) {
+                throw new IllegalArgumentException("Parent role not found: " + parentId);
+            }
+            if (!parent.getRoleType().equals(roleType)) {
+                throw new IllegalArgumentException("Child roleType must match parent roleType: expected " + parent.getRoleType() + ", got " + roleType);
+            }
+        }
+
+        AbstractRole role = new AbstractRole();
+        role.setTenantId(tenantId);
+        role.setParentId(parentId);
+        role.setRoleType(roleType);
+        role.setExternalId(externalId);
+        role.setName(name);
+        role.setStatus(1);
+        role.setSortOrder(sortOrder != null ? sortOrder : 0);
+        role.setExtra(extra);
+        LocalDateTime now = LocalDateTime.now();
+        role.setCreatedAt(now);
+        role.setUpdatedAt(now);
+        role.setDeleteFlag(0L);
+        abstractRoleMapper.insert(role);
+        return role.getId();
+    }
+
+    @Override
+    public AbstractRole selectValidRoleById(Long tenantId, Long roleId) {
+        if (roleId == null) {
+            return null;
+        }
+        return abstractRoleMapper.selectValidById(tenantId, roleId);
+    }
+
+    @Override
+    public List<AbstractRole> selectValidRolesByIds(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return abstractRoleMapper.selectValidByIds(tenantId, roleIds);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void softDeleteRoleBatch(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        abstractRoleMapper.softDeleteBatch(tenantId, new ArrayList<>(roleIds), now);
+    }
+
+    @Override
+    public List<Long> resolveDescendantRoleIdsBatch(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> descendantIds = abstractRoleMapper.selectDescendantIdsBatch(tenantId, roleIds);
+        return descendantIds != null ? descendantIds : Collections.emptyList();
+    }
+
+    // ===== UserRole =====
 
     /**
      * 解析用户的有效角色
      * <p>
      * 直接委托给批量方法，缓存检查统一在批量方法中处理。
      * </p>
-     *
-     * @param tenantId    租户ID
-     * @param userId      用户ID
-     * @return 用户的有效角色ID集合
      */
     @Override
     public Set<Long> resolveEffectiveRoles(Long tenantId, Long userId) {
@@ -74,20 +167,14 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
     /**
      * 批量解析多个用户的有效角色
      * <p>
-     * 使用批量查询方法避免N+1问题，返回用户ID到角色ID集合的映射
+     * 使用批量查询方法避免N+1问题。
      * </p>
-     *
-     * @param tenantId    租户ID
-     * @param userIds     用户ID集合
-     * @return 用户ID到角色ID集合的映射
      */
     @Override
     public Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
-
-        // 使用批量查询方法，避免N+1问题
         return resolveEffectiveRolesBatch(tenantId, userIds);
     }
 
@@ -101,10 +188,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * 4. 批量过滤角色状态
      * 5. 写入缓存并返回结果
      * </p>
-     *
-     * @param tenantId    租户ID
-     * @param userIds     用户ID集合
-     * @return 用户ID到角色ID集合的映射
      */
     private Map<Long, Set<Long>> resolveEffectiveRolesBatch(Long tenantId, Set<Long> userIds) {
         Map<Long, Set<Long>> result = new HashMap<>(
@@ -112,7 +195,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         Set<Long> uncachedUserIds = new HashSet<>(userIds);
         uncachedUserIds.removeAll(result.keySet());
 
-        // 如果所有用户都命中缓存，直接返回
         if (uncachedUserIds.isEmpty()) {
             return result;
         }
@@ -189,12 +271,7 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
      * 批量解析组角色
      * <p>
      * 使用PostgreSQL递归CTE一次性查询所有子孙角色，然后在内存中展开。
-     * 返回每个groupId对应的基础角色ID集合
      * </p>
-     *
-     * @param tenantId     租户ID
-     * @param groupRoleIds 组角色ID集合
-     * @return 组角色ID到基础角色ID集合的映射
      */
     private Map<Long, Set<Long>> resolveGroupRolesBatch(Long tenantId, Set<Long> groupRoleIds) {
         Map<Long, Set<Long>> result = new HashMap<>();
@@ -202,25 +279,20 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             return result;
         }
 
-        // 使用递归CTE一次性查询所有子孙角色
         List<AbstractRole> allRoles = abstractRoleMapper.selectRoleTreeByGroupIds(groupRoleIds, tenantId);
 
-        // 构建parentId到children映射
         Map<Long, List<AbstractRole>> parentToChildren = allRoles.stream()
             .filter(r -> r.getParentId() != null)
             .collect(Collectors.groupingBy(AbstractRole::getParentId));
 
-        // 构建id到role映射
         Map<Long, AbstractRole> roleMap = allRoles.stream()
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
-        // 收集所有GROUP_ROLE类型角色的ID集合
         Set<Long> nestedGroupRoleIds = allRoles.stream()
             .filter(r -> r.getRoleType() != null && r.getRoleType() == RoleType.GROUP_ROLE.getValue())
             .map(AbstractRole::getId)
             .collect(Collectors.toSet());
 
-        // 在内存中展开每个groupRoleId
         for (Long groupRoleId : groupRoleIds) {
             Set<Long> expanded = expandInMemory(groupRoleId, parentToChildren, roleMap, nestedGroupRoleIds, new HashSet<>());
             result.put(groupRoleId, expanded);
@@ -231,20 +303,10 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     /**
      * 在内存中递归展开组角色
-     * <p>
-     * 处理extra.basicRoleIds和parent-child关系两种方式的角色展开
-     * </p>
-     *
-     * @param roleId              当前角色ID
-     * @param parentToChildren    父角色ID到子角色列表的映射
-     * @param roleMap             角色ID到角色对象的映射
-     * @param nestedGroupRoleIds  所有GROUP_ROLE类型角色的ID集合
-     * @param visited             已访问的角色ID集合，防止循环引用
-     * @return 展开后的基础角色ID集合
      */
     private Set<Long> expandInMemory(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
                                      Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds, Set<Long> visited) {
-     if (roleId == null || visited.contains(roleId)) {
+        if (roleId == null || visited.contains(roleId)) {
             return Set.of();
         }
         visited.add(roleId);
@@ -252,14 +314,12 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
         Set<Long> result = new HashSet<>();
         AbstractRole role = roleMap.get(roleId);
 
-        // 处理extra.basicRoleIds
         if (role != null) {
             Set<Long> basicIds = parseBasicRoleIds(role.getExtra());
             for (Long basicId : basicIds) {
                 AbstractRole basicRole = roleMap.get(basicId);
                 if (basicRole != null && basicRole.getRoleType() != null
                     && basicRole.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                    // 嵌套GROUP_ROLE，递归展开
                     result.addAll(expandInMemory(basicId, parentToChildren, roleMap, nestedGroupRoleIds, visited));
                 } else if (basicRole != null) {
                     result.add(basicId);
@@ -267,14 +327,11 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             }
         }
 
-        // 处理子角色（parent_id = roleId）
         List<AbstractRole> children = parentToChildren.getOrDefault(roleId, List.of());
         for (AbstractRole child : children) {
             if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                // 子角色是GROUP_ROLE，递归展开
                 result.addAll(expandInMemory(child.getId(), parentToChildren, roleMap, nestedGroupRoleIds, visited));
             } else {
-                // 普通角色，直接添加
                 result.add(child.getId());
             }
         }
@@ -284,12 +341,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     /**
      * 解析extra字段中的basicRoleIds
-     * <p>
-     * 从角色的extra JSON字段中提取basicRoleIds数组
-     * </p>
-     *
-     * @param extra 角色extra字段JSON字符串
-     * @return 基础角色ID集合
      */
     private Set<Long> parseBasicRoleIds(String extra) {
         Set<Long> basicRoleIds = new HashSet<>();
@@ -314,12 +365,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     /**
      * 批量失效多个用户的角色缓存
-     * <p>
-     * 直接调用 CacheService 批量失效 L1 + L2 缓存
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userIds  用户ID集合
      */
     @Override
     public void invalidateRoleCacheBatch(Long tenantId, Set<Long> userIds) {
@@ -331,21 +376,12 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
 
     /**
      * 失效角色关联的所有用户缓存
-     * <p>
-     * 查询所有拥有该角色的用户，批量清除其缓存。
-     * 直接调用 CacheService 管理批量失效
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
      */
     @Override
     public void invalidateRoleCacheByRole(Long tenantId, Long roleId) {
-        // 1. 直接分配该角色的用户
         Set<Long> userIds = userRoleMapper.selectValidByTargetIdAndType(tenantId, roleId, PermConstants.TargetType.ROLE)
             .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet());
 
-        // 2. 通过GROUP_ROLE间接拥有该角色的用户
         List<Long> ancestorGroupRoleIds = abstractRoleMapper.selectAncestorGroupRoleIds(tenantId, roleId);
         if (!ancestorGroupRoleIds.isEmpty()) {
             userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
@@ -357,8 +393,6 @@ public class UserRoleDomainServiceImpl implements UserRoleDomainService {
             return;
         }
 
-        // 批量失效缓存（直接调用 CacheService）
         cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
-
 }

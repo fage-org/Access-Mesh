@@ -32,13 +32,9 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
-
 import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
 
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-
-import cn.ac.fage.accessmesh.permission.service.domain.ResourceApiMappingDomainService;
 
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceEntityDomainService;
 
@@ -104,15 +100,11 @@ public class ResourceManageServiceImpl implements ResourceManageService {
 
     private final ResourceEntityDomainService resourceEntityDomainService;
 
-    private final ResourceApiMappingDomainService resourceApiMappingDomainService;
-
     private final TypeResolutionService typeResolutionService;
 
     private final DomainClassifyService domainClassifyService;
 
     private final OperationLogDomainService operationLogDomainService;
-
-    private final AuthorizationService authorizationService;
 
     private final PermQueryEngine engine;
 
@@ -121,21 +113,17 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     public ResourceManageServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
                                      ResourceEntityDomainService resourceEntityDomainService,
-                                     ResourceApiMappingDomainService resourceApiMappingDomainService,
                                      TypeResolutionService typeResolutionService,
                                      DomainClassifyService domainClassifyService,
                                      OperationLogDomainService operationLogDomainService,
-                                     AuthorizationService authorizationService,
                                      PermQueryEngine engine,
                                      RoleResourcePermissionMapper rolePermMapper) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
-        this.resourceApiMappingDomainService = resourceApiMappingDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.operationLogDomainService = operationLogDomainService;
-        this.authorizationService = authorizationService;
         this.engine = engine;
         this.rolePermMapper = rolePermMapper;
     }
@@ -490,7 +478,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
             return;
         }
 
-        List<ResourceApiMapping> mappings = resourceApiMappingDomainService.selectValidByIds(tenantId, validMappingIds);
+        List<ResourceApiMapping> mappings = apiMappingMapper.selectValidByIds(tenantId, validMappingIds);
         if (mappings.isEmpty()) {
             return;
         }
@@ -506,7 +494,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
         List<Long> mappingIdsToDelete = mappings.stream()
             .map(ResourceApiMapping::getId)
             .collect(Collectors.toList());
-        int n = resourceApiMappingDomainService.softDeleteBatch(tenantId, mappingIdsToDelete, now);
+        int n = apiMappingMapper.softDeleteBatch(tenantId, mappingIdsToDelete, now);
 
         operationLogDomainService.asyncRecord(
             "perm",
@@ -532,7 +520,7 @@ public class ResourceManageServiceImpl implements ResourceManageService {
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        ResourceApiMapping mapping = resourceApiMappingDomainService.selectValidById(tenantId, req.mappingId());
+        ResourceApiMapping mapping = apiMappingMapper.selectValidById(tenantId, req.mappingId());
         if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
             throw new IllegalArgumentException("API映射不存在: " + req.mappingId());
         }

@@ -1,25 +1,19 @@
-package cn.ac.fage.accessmesh.permission.service;
+package cn.ac.fage.accessmesh.permission.service.domain;
 
 import java.util.Map;
 import java.util.Set;
 
 /**
- * 授权检查服务接口
+ * 权限授予领域服务接口
  * <p>
- * 提供专门的授权检查功能，主要用于委托授权验证。
- * 一般权限检查应直接使用PermQueryEngine：
- * <pre>
- * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
- *     throw new SecurityException("Permission denied");
- * }
- * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
- *     throw new SecurityException("Permission denied");
- * }
- * </pre>
- * 本服务仅提供canGrant权限检查，用于权限授予流程中的委托验证。
+ * 提供权限授予相关的核心领域逻辑：
+ * - 授权传递检查（canGrant验证）
+ * - 权限撤销
+ *
+ * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现
  * </p>
  */
-public interface AuthorizationService {
+public interface PermissionGrantDomainService {
 
     /**
      * 检查操作者是否可以授予指定权限给他人
@@ -43,9 +37,15 @@ public interface AuthorizationService {
                                String resourceCode, String operationCode, boolean scopeAll, String domainCode);
 
     /**
-     * 批量检查操作者是否可以授予多个权限
+     * 批量检查操作者是否可以授予多个权限（canGrant验证）
      * <p>
      * 返回每个权限键的详细检查结果。
+     * 采用批量处理策略避免N+1查询：
+     * 1. 批量解析资源类型值
+     * 2. 批量查询操作权限
+     * 3. 批量解析资源实体ID
+     * 4. 批量查询角色资源权限
+     * 5. 构建查找映射并逐个评估
      * </p>
      *
      * @param tenantId    租户ID
@@ -54,8 +54,21 @@ public interface AuthorizationService {
      * @param domainCode  业务域编码，可选
      * @return 权限键到检查结果的映射
      */
-    Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
-                                                              Set<GrantCheckKey> permissions, String domainCode);
+    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+                                                 Set<GrantCheckKey> permissions, String domainCode);
+
+    /**
+     * 批量撤销角色权限
+     * <p>
+     * 批量软删除权限，同时级联删除依赖该权限的子权限。
+     * 注意：版本递增和缓存失效由调用方在 afterCommit 中负责（避免与批量授权等复合操作产生双重递增）。
+     * </p>
+     *
+     * @param tenantId      租户ID
+     * @param roleId        角色ID
+     * @param permissionIds 待撤销的权限ID列表
+     */
+    void revokePermissions(Long tenantId, Long roleId, java.util.List<Long> permissionIds);
 
     /**
      * 授权检查键

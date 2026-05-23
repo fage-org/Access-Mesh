@@ -10,14 +10,12 @@ import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp.RoleTreeNode;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.RoleManageService;
-import cn.ac.fage.accessmesh.permission.service.domain.AbstractRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
@@ -59,35 +57,29 @@ public class RoleManageServiceImpl implements RoleManageService {
     private static final Logger log = LoggerFactory.getLogger(RoleManageServiceImpl.class);
 
     private final AbstractRoleMapper abstractRoleMapper;
-    private final AbstractRoleDomainService abstractRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final CacheService cacheService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
     private final ObjectMapper objectMapper;
-    private final OperationLogDomainService operationLogDomainService;
-    private final PermissionChangeDomainService permissionChangeDomainService;
-    private final AuthorizationService authorizationService;
+    private final AuditDomainService auditDomainService;
     private final PermQueryEngine engine;
 
     public RoleManageServiceImpl(AbstractRoleMapper abstractRoleMapper,
-                                 AbstractRoleDomainService abstractRoleDomainService,
+                                 SubjectDomainService subjectDomainService,
                                  CacheService cacheService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
                                  ObjectMapper objectMapper,
-                                 OperationLogDomainService operationLogDomainService,
-                                 PermissionChangeDomainService permissionChangeDomainService,
-                                 AuthorizationService authorizationService,
+                                 AuditDomainService auditDomainService,
                                  PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
-        this.abstractRoleDomainService = abstractRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.cacheService = cacheService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.objectMapper = objectMapper;
-        this.operationLogDomainService = operationLogDomainService;
-        this.permissionChangeDomainService = permissionChangeDomainService;
-        this.authorizationService = authorizationService;
+        this.auditDomainService = auditDomainService;
         this.engine = engine;
     }
 
@@ -104,7 +96,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         if (roleType == null) {
             throw new IllegalArgumentException("未知的roleTypeCode: " + req.roleTypeCode());
         }
-        Long roleId = abstractRoleDomainService.createRole(
+        Long roleId = subjectDomainService.createRole(
             tenantId, req.parentId(), roleType,
             req.externalId(), req.name(), req.sortOrder(), req.extra()
         );
@@ -124,7 +116,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
+        AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw new IllegalArgumentException("角色不存在: " + roleId);
         }
@@ -149,7 +141,7 @@ public class RoleManageServiceImpl implements RoleManageService {
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        AbstractRole role = abstractRoleDomainService.selectValidById(tenantId, roleId);
+        AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw new IllegalArgumentException("角色不存在: " + roleId);
         }
@@ -159,7 +151,7 @@ public class RoleManageServiceImpl implements RoleManageService {
         }
 
         if (parentId != null) {
-            AbstractRole parent = abstractRoleDomainService.selectValidById(tenantId, parentId);
+            AbstractRole parent = subjectDomainService.selectValidRoleById(tenantId, parentId);
             if (parent == null) {
                 throw new IllegalArgumentException("父角色不存在: " + parentId);
             }
@@ -187,7 +179,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             return;
         }
 
-        List<AbstractRole> roles = abstractRoleDomainService.selectValidByIds(tenantId, validRoleIds);
+        List<AbstractRole> roles = subjectDomainService.selectValidRolesByIds(tenantId, validRoleIds);
 
         if (roles.isEmpty()) {
             return;
@@ -223,7 +215,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             .collect(Collectors.toSet());
 
         if (!groupRoleIds.isEmpty()) {
-            List<Long> descendantIds = abstractRoleDomainService.resolveDescendantIdsBatch(tenantId, groupRoleIds);
+            List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, groupRoleIds);
 
             Set<Long> descendantSet = new HashSet<>(descendantIds);
             Set<Long> deniedDescendantIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, descendantSet, OperationCodeConstants.MANAGE);
@@ -236,7 +228,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             }
         }
 
-        abstractRoleDomainService.softDeleteBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
+        subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
 
         ArrayNode itemsJson = objectMapper.createArrayNode();
         for (Long roleId : permittedIds) {
@@ -270,10 +262,10 @@ public class RoleManageServiceImpl implements RoleManageService {
             diffSnapshot = "{}";
         }
         Long[] roleArr = permittedIds.toArray(Long[]::new);
-        permissionChangeDomainService.record(
-            new PermissionChangeDomainService.ChangeLogContext(
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
-            List.of(new PermissionChangeDomainService.ChangeLogEntry(
+            List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role",
                 0L,
                 "BATCH_DELETE",
@@ -285,7 +277,7 @@ public class RoleManageServiceImpl implements RoleManageService {
             ))
         );
 
-        operationLogDomainService.asyncRecord(
+        auditDomainService.asyncRecordLog(
             "perm",
             "abstract-role-remove",
             "BATCH",

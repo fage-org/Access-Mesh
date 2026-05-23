@@ -19,15 +19,12 @@ import cn.ac.fage.accessmesh.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.UserManageService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.permission.service.domain.AbstractUserDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionChangeDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
@@ -68,39 +65,30 @@ public class UserManageServiceImpl implements UserManageService {
     private final AbstractUserMapper abstractUserMapper;
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
-    private final AbstractUserDomainService abstractUserDomainService;
-    private final UserRoleDomainService userRoleDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
-    private final OperationLogDomainService operationLogDomainService;
-    private final PermissionChangeDomainService permissionChangeDomainService;
+    private final AuditDomainService auditDomainService;
     private final ObjectMapper objectMapper;
-    private final AuthorizationService authorizationService;
     private final PermQueryEngine engine;
 
     public UserManageServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
                                  AbstractRoleMapper abstractRoleMapper,
-                                 AbstractUserDomainService abstractUserDomainService,
-                                 UserRoleDomainService userRoleDomainService,
+                                 SubjectDomainService subjectDomainService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
-                                 OperationLogDomainService operationLogDomainService,
-                                 PermissionChangeDomainService permissionChangeDomainService,
+                                 AuditDomainService auditDomainService,
                                  ObjectMapper objectMapper,
-                                 AuthorizationService authorizationService,
                                  PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
         this.userRoleMapper = userRoleMapper;
         this.abstractRoleMapper = abstractRoleMapper;
-        this.abstractUserDomainService = abstractUserDomainService;
-        this.userRoleDomainService = userRoleDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
-        this.operationLogDomainService = operationLogDomainService;
-        this.permissionChangeDomainService = permissionChangeDomainService;
+        this.auditDomainService = auditDomainService;
         this.objectMapper = objectMapper;
-        this.authorizationService = authorizationService;
         this.engine = engine;
     }
 
@@ -179,7 +167,7 @@ public class UserManageServiceImpl implements UserManageService {
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        AbstractUser existing = abstractUserDomainService.selectValidById(tenantId, req.userId());
+        AbstractUser existing = subjectDomainService.selectValidUserById(tenantId, req.userId());
         if (existing == null) {
             throw new IllegalArgumentException("User not found: " + req.userId());
         }
@@ -253,12 +241,12 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, existingUserIdsForCache);
+                    subjectDomainService.invalidateRoleCacheBatch(tenantId, existingUserIdsForCache);
                 }
             });
         }
 
-        operationLogDomainService.asyncRecord(
+        auditDomainService.asyncRecordLog(
             "user", "BATCH_DELETE",
             "abstract_user", null,
             "Deleted " + users.size() + " users",
@@ -398,7 +386,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
+                    subjectDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
                 }
             });
         }
@@ -498,7 +486,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
+                    subjectDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
                 }
             });
         }
@@ -646,7 +634,7 @@ public class UserManageServiceImpl implements UserManageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    userRoleDomainService.invalidateRoleCacheBatch(tenantId, uniqueUsersForCache);
+                    subjectDomainService.invalidateRoleCacheBatch(tenantId, uniqueUsersForCache);
                 }
             });
         }
@@ -662,9 +650,9 @@ public class UserManageServiceImpl implements UserManageService {
         Long[] userArr = uniqueUsers.toArray(Long[]::new);
         Set<Long> uniqueRoles = new LinkedHashSet<>(affectedRoleIds);
         Long[] roleArr = uniqueRoles.toArray(Long[]::new);
-        permissionChangeDomainService.record(
-            new PermissionChangeDomainService.ChangeLogContext(tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
-            List.of(new PermissionChangeDomainService.ChangeLogEntry(
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
+            List.of(new AuditDomainService.ChangeLogEntry(
                 "user_role",
                 0L,
                 "BATCH_REMOVE",
@@ -675,7 +663,7 @@ public class UserManageServiceImpl implements UserManageService {
                 roleArr
             ))
         );
-        operationLogDomainService.asyncRecord(
+        auditDomainService.asyncRecordLog(
             "perm",
             "user-role-revoke",
             "BATCH",

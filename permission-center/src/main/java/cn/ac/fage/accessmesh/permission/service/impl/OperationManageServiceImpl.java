@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.permission.service.AuthorizationService;
 import cn.ac.fage.accessmesh.permission.service.OperationManageService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
@@ -35,7 +34,6 @@ public class OperationManageServiceImpl implements OperationManageService {
 
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
-    private final AuthorizationService authorizationService;
     private final OperationLogDomainService operationLogDomainService;
     private final PermQueryEngine engine;
 
@@ -44,18 +42,15 @@ public class OperationManageServiceImpl implements OperationManageService {
      *
      * @param operationPermissionMapper 操作权限数据访问层
      * @param typeResolutionService     类型解析服务
-     * @param authorizationService      授权服务
      * @param operationLogDomainService 操作日志领域服务
      * @param engine                    权限查询引擎
      */
     public OperationManageServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
-                                      AuthorizationService authorizationService,
                                       OperationLogDomainService operationLogDomainService,
                                       PermQueryEngine engine) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
-        this.authorizationService = authorizationService;
         this.operationLogDomainService = operationLogDomainService;
         this.engine = engine;
     }

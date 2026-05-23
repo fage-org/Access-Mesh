@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.permission.enums.ConflictType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -40,7 +40,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
-    private final OperationLogDomainService operationLogDomainService;
+    private final AuditDomainService auditDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
 
     /**
@@ -49,18 +49,18 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @param conflictRuleMapper        权限冲突规则数据访问层
      * @param cacheService              统一缓存服务，用于缓存角色互斥规则
      * @param objectMapper              JSON解析器
-     * @param operationLogDomainService 操作日志领域服务，用于记录冲突通知
+     * @param auditDomainService        审计领域服务，用于记录冲突通知
      * @param operationPermissionMapper 操作权限数据访问层，用于查找冲突操作权限
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                                 CacheService cacheService,
                                                 ObjectMapper objectMapper,
-                                                OperationLogDomainService operationLogDomainService,
+                                                AuditDomainService auditDomainService,
                                                 OperationPermissionMapper operationPermissionMapper) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
-        this.operationLogDomainService = operationLogDomainService;
+        this.auditDomainService = auditDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
     }
 
@@ -227,7 +227,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 .collect(Collectors.joining("; "));
             log.warn("Permission conflict detected: tenantId={}, conflictingOps={}, rules={}",
                 tenantId, conflictingOpIds, detail);
-            operationLogDomainService.asyncRecord(
+            auditDomainService.asyncRecordLog(
                 "PERMISSION", "CONFLICT_DETECTED", "PERMISSION", null,
                 String.format("Perm conflict blocked: tenantId=%d, ops=%s", tenantId, conflictingOpIds),
                 null, null, null, tenantId

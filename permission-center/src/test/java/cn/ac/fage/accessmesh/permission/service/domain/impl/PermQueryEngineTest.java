@@ -14,7 +14,8 @@ import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper.BitM
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.UserRoleDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
+import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
@@ -41,7 +42,7 @@ import static org.mockito.Mockito.when;
 class PermQueryEngineTest {
 
     @Mock
-    private UserRoleDomainService userRoleDomainService;
+    private SubjectDomainService subjectDomainService;
     @Mock
     private RoleResourcePermissionMapper rolePermMapper;
     @Mock
@@ -64,7 +65,7 @@ class PermQueryEngineTest {
     @BeforeEach
     void setUp() {
         engine = new PermQueryEngine(
-            userRoleDomainService,
+            subjectDomainService,
             rolePermMapper,
             resourceEntityMapper,
             abstractRoleMapper,
@@ -79,7 +80,7 @@ class PermQueryEngineTest {
 
     @Test
     void queryShouldUseBitMaskQueriesAndPopulateGrantedOperations() {
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -135,7 +136,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserView() {
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
 
         RoleResourcePermission perm1 = new RoleResourcePermission();
         perm1.setId(501L);
@@ -205,7 +206,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserViewEmptyRolesShouldDeny() {
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
 
         PermQuery query = PermQuery.forUserView(1L, 10L);
         PermResult result = engine.query(query);
@@ -216,7 +217,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserViewEmptyPermissionsShouldDeny() {
-        when(userRoleDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 
         PermQuery query = PermQuery.forUserView(1L, 10L);
