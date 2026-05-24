@@ -69,10 +69,16 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     }
 
     /**
-     * 解析type_code到内部type_value
+     * 解析类型编码到内部类型值
      * <p>
-     * 通过 CacheService 缓存，null 值不缓存（miss 时返回 null）
+     * 将外部稳定的业务编码转换为内部数据库type_value。
+     * 通过 CacheService 缓存提升解析性能，null值不缓存。
      * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键（如 resource_type、role_type）
+     * @param typeCode 类型编码
+     * @return 类型值，不存在返回null
      */
     @Override
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {

@@ -59,6 +59,14 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
 
     /**
      * 获取指定域声明的资源类型码集合
+     * <p>
+     * 如果是全局域，返回所有未被其他域认领的类型（隐式计算）。
+     * 如果是非全局域，返回CLASSIFY配置中声明的类型。
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param domainCode 业务域编码
+     * @return 资源类型编码集合
      */
     @Override
     public Set<String> getClassifiedTypeCodes(Long tenantId, String domainCode) {
@@ -74,6 +82,18 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
 
     /**
      * 判断域查询模式是否覆盖指定资源类型码
+     * <p>
+     * 根据查询模式判断资源类型是否在域范围内：
+     * - ALL: 覆盖所有类型
+     * - GLOBAL_PLUS: 覆盖全局域 + 指定域声明的类型
+     * - DOMAIN_ONLY: 仅覆盖指定域声明的类型
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param mode             域查询模式
+     * @param domainCode       业务域编码
+     * @param resourceTypeCode 资源类型编码
+     * @return 是否在域范围内
      */
     @Override
     public boolean matchesTypeCode(Long tenantId, DomainQueryMode mode, String domainCode, String resourceTypeCode) {

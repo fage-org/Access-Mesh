@@ -36,12 +36,32 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     private final BizDomainMapper bizDomainMapper;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param bizDomainMapper 业务域数据访问层
+     * @param engine          权限查询引擎
+     */
     public BizDomainAppServiceImpl(BizDomainMapper bizDomainMapper,
                                     PermQueryEngine engine) {
         this.bizDomainMapper = bizDomainMapper;
         this.engine = engine;
     }
 
+    /**
+     * 创建业务域
+     * <p>
+     * 创建新的业务域实体，设置编码、名称、描述等属性。
+     * 业务域用于划分系统的业务范围，实现多业务域的权限隔离。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含编码、名称、描述
+     * @param operatorId 操作者ID，可选
+     * @return 创建的业务域响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "biz-domain-create", targetType = "biz_domain", targetId = "#result.id()", summary = "'create biz domain ' + #req.code()")
@@ -66,6 +86,18 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         return toBizDomainResp(domain);
     }
 
+    /**
+     * 获取业务域详情
+     * <p>
+     * 根据业务域ID查询业务域的完整信息。
+     * 需要DOMAIN_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param domainId 业务域ID
+     * @return 业务域响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
@@ -78,6 +110,17 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         return domain != null ? toBizDomainResp(domain) : null;
     }
 
+    /**
+     * 查询业务域列表
+     * <p>
+     * 查询租户下所有活跃的业务域。
+     * 需要DOMAIN_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 业务域响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public List<BizDomainResp> listBizDomains(Long tenantId) {
@@ -89,6 +132,20 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         return bizDomainMapper.selectByTenantId(tenantId).stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
 
+    /**
+     * 更新业务域
+     * <p>
+     * 更新业务域的名称、描述等属性。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        更新请求，包含业务域ID和要更新的属性
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的业务域响应
+     * @throws SecurityException     无权限时抛出
+     * @throws BizException          业务域不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "biz-domain-update", targetType = "biz_domain", targetId = "#req.domainId()", summary = "'update biz domain ' + #req.domainId()")
@@ -108,6 +165,19 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         return toBizDomainResp(domain);
     }
 
+    /**
+     * 批量删除业务域
+     * <p>
+     * 批量软删除业务域。
+     * 使用批量查询和批量软删除避免N+1问题。
+     * 需要SYSTEM_CONFIG_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        业务域ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "biz-domain-remove", targetType = "BATCH", targetId = "", summary = "'batch remove biz domains'")
@@ -148,6 +218,12 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " biz_domain row(s)");
     }
 
+    /**
+     * 将BizDomain实体转换为响应对象
+     *
+     * @param d 业务域实体
+     * @return 业务域响应对象
+     */
     private BizDomainResp toBizDomainResp(BizDomain d) {
         return new BizDomainResp(
             d.getId(), d.getTenantId(), d.getCode(),

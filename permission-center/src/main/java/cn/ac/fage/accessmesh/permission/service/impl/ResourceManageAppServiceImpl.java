@@ -110,6 +110,17 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     private final RoleResourcePermissionMapper rolePermMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param resourceEntityMapper        资源实体数据访问层
+     * @param apiMappingMapper            资源API映射数据访问层
+     * @param resourceEntityDomainService 资源实体领域服务
+     * @param typeResolutionService       类型解析服务
+     * @param domainClassifyService       域分类服务
+     * @param engine                      权限查询引擎
+     * @param rolePermMapper              角色资源权限数据访问层
+     */
     public ResourceManageAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
                                      ResourceEntityDomainService resourceEntityDomainService,
@@ -126,6 +137,19 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.rolePermMapper = rolePermMapper;
     }
 
+    /**
+     * 创建资源实体
+     * <p>
+     * 创建新的资源实体。资源实体是权限系统中的受保护对象。
+     * 支持层级结构，可指定父资源。需要RESOURCE_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含资源编码、名称、类型等
+     * @param operatorId 操作者ID，可选
+     * @return 创建的资源响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "resource-entity-create", targetType = "resource_entity", targetId = "#result.id()", summary = "'create resource ' + #req.code()")

@@ -74,6 +74,13 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
 
     // ===== AbstractUser =====
 
+    /**
+     * 查询有效的用户实体
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @return 用户实体，不存在返回null
+     */
     @Override
     public AbstractUser selectValidUserById(Long tenantId, Long userId) {
         if (userId == null) {
@@ -84,6 +91,22 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
 
     // ===== AbstractRole =====
 
+    /**
+     * 创建角色
+     * <p>
+     * 创建新的角色实体。如果指定父角色，需确保父角色存在且类型匹配。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param parentId   父角色ID，可选
+     * @param roleType   角色类型值
+     * @param externalId 外部ID
+     * @param name       角色名称
+     * @param sortOrder  排序值，可选
+     * @param extra      扩展JSON，可选
+     * @return 新创建的角色ID
+     * @throws BizException 父角色不存在或类型不匹配时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createRole(Long tenantId, Long parentId, Integer roleType,

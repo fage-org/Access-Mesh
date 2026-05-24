@@ -36,6 +36,13 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private final PermQueryEngine engine;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param serviceConfigMapper      服务配置数据访问层
+     * @param engine                   权限查询引擎
+     * @param resourceApiMappingMapper 资源API映射数据访问层
+     */
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
                                         PermQueryEngine engine,
                                         ResourceApiMappingMapper resourceApiMappingMapper) {
@@ -44,6 +51,20 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         this.resourceApiMappingMapper = resourceApiMappingMapper;
     }
 
+    /**
+     * 创建或更新服务配置
+     * <p>
+     * 根据服务编码创建新配置或更新已有配置。
+     * 服务配置用于管理微服务的元数据信息，包括服务名称、基础路径等。
+     * 需要SERVICE_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        配置请求，包含服务编码、名称、基础路径、描述、状态等
+     * @param operatorId 操作者ID，可选
+     * @return 服务配置响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "service-config-save", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
@@ -82,6 +103,18 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return toServiceConfigResp(config);
     }
 
+    /**
+     * 获取服务配置详情
+     * <p>
+     * 根据服务编码查询服务配置的完整信息。
+     * 需要SERVICE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 服务配置响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
@@ -94,6 +127,17 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return config != null ? toServiceConfigResp(config) : null;
     }
 
+    /**
+     * 查询服务配置列表
+     * <p>
+     * 查询租户下所有服务配置。
+     * 需要SERVICE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 服务配置响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
@@ -105,6 +149,19 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return serviceConfigMapper.selectByTenantId(tenantId).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
     }
 
+    /**
+     * 批量删除服务配置
+     * <p>
+     * 批量软删除服务配置。
+     * 使用批量查询和批量软删除避免N+1问题。
+     * 需要SERVICE_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        配置ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "service-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove service configs'")
@@ -145,6 +202,19 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " service_config row(s)");
     }
 
+    /**
+     * 查询服务的API映射列表
+     * <p>
+     * 查询指定服务下已注册的API接口映射。
+     * API映射用于接口级权限校验，定义HTTP方法、路径模式与资源实体的关联。
+     * 需要SERVICE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return API映射响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
@@ -167,6 +237,12 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         )).collect(Collectors.toList());
     }
 
+    /**
+     * 将ServiceConfig实体转换为响应对象
+     *
+     * @param c 服务配置实体
+     * @return 服务配置响应对象
+     */
     private ServiceConfigResp toServiceConfigResp(ServiceConfig c) {
         return new ServiceConfigResp(
             c.getId(), c.getTenantId(), c.getServiceCode(),

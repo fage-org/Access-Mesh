@@ -79,6 +79,21 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     private final PermQueryEngine engine;
     private final SnapshotAssembler snapshotAssembler;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param resourceEntityMapper             资源实体数据访问层
+     * @param operationPermissionMapper        操作权限数据访问层
+     * @param subjectDomainService             主体领域服务
+     * @param permissionConflictDomainService  权限冲突领域服务
+     * @param permissionConditionDomainService 权限条件领域服务
+     * @param typeResolutionService            类型解析服务
+     * @param cacheService                     缓存服务
+     * @param permissionVersionDomainService   权限版本领域服务
+     * @param domainClassifyService            域分类服务
+     * @param engine                           权限查询引擎
+     * @param snapshotAssembler                快照装配器
+     */
     public PermissionQueryAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                           OperationPermissionMapper operationPermissionMapper,
                                           SubjectDomainService subjectDomainService,
@@ -103,6 +118,18 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         this.snapshotAssembler = snapshotAssembler;
     }
 
+    /**
+     * 查询用户有权限的资源列表
+     * <p>
+     * 使用 forUserView 查询管线获取用户的所有权限（scopeAll 和实例级）。
+     * 支持按资源类型、操作码过滤，支持继承权限和子资源展开。
+     * 返回结果包含权限版本号用于客户端缓存校验。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      资源查询请求
+     * @return 资源查询响应，包含资源列表和权限版本号
+     */
     // ===== queryResources =====
 
     @Override

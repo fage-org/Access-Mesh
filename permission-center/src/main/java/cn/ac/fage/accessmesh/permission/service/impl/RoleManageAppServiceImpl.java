@@ -69,6 +69,18 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final AuditDomainService auditDomainService;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param abstractRoleMapper    抽象角色数据访问层
+     * @param subjectDomainService  主体领域服务
+     * @param cacheService          缓存服务
+     * @param typeResolutionService 类型解析服务
+     * @param domainClassifyService 域分类服务
+     * @param objectMapper          JSON解析器
+     * @param auditDomainService    审计领域服务
+     * @param engine                权限查询引擎
+     */
     public RoleManageAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  SubjectDomainService subjectDomainService,
                                  CacheService cacheService,
@@ -87,6 +99,20 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.engine = engine;
     }
 
+    /**
+     * 创建角色
+     * <p>
+     * 创建新的角色实体。角色类型包括组角色、组织角色、业务角色等。
+     * 可指定父角色实现角色的层级关系。
+     * 需要ROLE_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含角色类型、外部ID、名称、父角色等
+     * @param operatorId 操作者ID，可选
+     * @return 创建的角色响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "abstract-role-create", targetType = "abstract_role", targetId = "#result.id()", summary = "'create role ' + #req.externalId()")

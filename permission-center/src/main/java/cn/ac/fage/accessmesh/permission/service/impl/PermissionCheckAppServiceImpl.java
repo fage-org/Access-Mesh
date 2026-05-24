@@ -44,6 +44,13 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     private final PermQueryEngine engine;
     private final ResourceApiMappingMapper apiMappingMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param typeResolutionService 类型解析服务
+     * @param engine                 权限查询引擎
+     * @param apiMappingMapper       API映射数据访问层
+     */
     public PermissionCheckAppServiceImpl(TypeResolutionService typeResolutionService,
                                          PermQueryEngine engine,
                                          ResourceApiMappingMapper apiMappingMapper) {
@@ -52,6 +59,17 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         this.apiMappingMapper = apiMappingMapper;
     }
 
+    /**
+     * 单次权限校验
+     * <p>
+     * 校验指定用户对某资源的某操作是否有权限。
+     * 使用PermQuery.forAuthCheck构建查询，通过引擎返回结果。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      校验请求，包含用户标识、资源类型、资源编码、操作码等
+     * @return 校验响应，包含是否允许、拒绝原因、匹配的角色和权限ID
+     */
     @Override
     @Transactional(readOnly = true)
     public AuthCheckResp check(Long tenantId, AuthCheckReq req) {
@@ -68,6 +86,17 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         return PermResultUtils.toAuthCheckResp(engine.query(q));
     }
 
+    /**
+     * 批量权限校验
+     * <p>
+     * 批量校验用户对多个资源操作的权限。
+     * 逐项调用引擎查询，返回每项的校验结果。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      批量校验请求，包含用户标识和校验项列表
+     * @return 批量校验响应，包含每项的校验结果列表
+     */
     @Override
     @Transactional(readOnly = true)
     public BatchAuthCheckResp batchCheck(Long tenantId, BatchAuthCheckReq req) {
@@ -97,6 +126,18 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         return new BatchAuthCheckResp(List.copyOf(results));
     }
 
+    /**
+     * 接口级权限校验
+     * <p>
+     * 校验用户是否有权访问指定的API接口。
+     * 根据服务编码和HTTP方法查找API映射，匹配路径模式，
+     * 然后使用PermQuery.forInterfaceCheck校验ACCESS权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      接口校验请求，包含用户标识、服务编码、HTTP方法和请求路径
+     * @return 接口校验响应，包含是否允许、拒绝原因和匹配的权限ID列表
+     */
     @Override
     @Transactional(readOnly = true)
     public CheckInterfaceResp checkInterface(Long tenantId, CheckInterfaceReq req) {
@@ -119,6 +160,17 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
     }
 
+    /**
+     * 路径匹配检查
+     * <p>
+     * 检查请求路径是否匹配路径模式。
+     * 支持精确匹配和Ant风格模式匹配（如 /api/**）。
+     * </p>
+     *
+     * @param pattern 路径模式
+     * @param path    请求路径
+     * @return 是否匹配
+     */
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
         return PATH_MATCHER.match(pattern, path);

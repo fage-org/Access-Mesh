@@ -42,6 +42,15 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     private final TypeResolutionService typeResolutionService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param changeLogMapper         权限变更日志数据访问层
+     * @param operationLogMapper      操作日志数据访问层
+     * @param engine                  权限查询引擎
+     * @param typeResolutionService   类型解析服务
+     * @param objectMapper            JSON解析器
+     */
     public LogQueryAppServiceImpl(PermissionChangeLogMapper changeLogMapper,
                                 OperationLogMapper operationLogMapper,
                                 PermQueryEngine engine,
@@ -56,6 +65,21 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
 
     // ===== 变更日志查询 =====
 
+    /**
+     * 查询变更日志列表
+     * <p>
+     * 查询指定实体类型的变更日志。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型
+     * @param entityId   实体ID
+     * @param offset     分页偏移量
+     * @param limit      分页大小
+     * @return 变更日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -67,6 +91,19 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计变更日志数量
+     * <p>
+     * 统计指定实体类型的变更日志总数。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param entityType 实体类型
+     * @param entityId   实体ID
+     * @return 变更日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -77,6 +114,24 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         return changeLogMapper.countByTenantEntityTypeEntityId(tenantId, entityType, entityId);
     }
 
+    /**
+     * 查询变更日志列表（支持多条件过滤）
+     * <p>
+     * 支持按用户、角色、时间范围、事件类型等多维度过滤查询。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param userId     用户ID，可选过滤条件
+     * @param roleId     角色ID，可选过滤条件
+     * @param since      开始时间，可选
+     * @param until      结束时间，可选
+     * @param eventTypes 事件类型列表，可选过滤条件
+     * @param offset     分页偏移量
+     * @param limit      分页大小
+     * @return 变更日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                                        LocalDateTime since, LocalDateTime until,
@@ -90,6 +145,22 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计变更日志数量（支持多条件过滤）
+     * <p>
+     * 统计符合条件的变更日志总数。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param userId     用户ID，可选过滤条件
+     * @param roleId     角色ID，可选过滤条件
+     * @param since      开始时间，可选
+     * @param until      结束时间，可选
+     * @param eventTypes 事件类型列表，可选过滤条件
+     * @return 变更日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                          LocalDateTime since, LocalDateTime until,
@@ -104,6 +175,19 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
 
     // ===== 最近变更查询 =====
 
+    /**
+     * 查询最近变更
+     * <p>
+     * 查询用户或角色的最近权限变更记录。
+     * 支持按目标类型（USER/ROLE）、时间范围、事件类型过滤。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      最近变更查询请求
+     * @return 最近变更响应，包含变更列表和分页信息
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -139,6 +223,21 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
 
     // ===== 操作日志查询 =====
 
+    /**
+     * 查询操作日志列表
+     * <p>
+     * 查询系统的操作日志，支持按模块和操作类型过滤。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块名称，可选过滤条件
+     * @param action   操作类型，可选过滤条件
+     * @param offset   分页偏移量
+     * @param limit    分页大小
+     * @return 操作日志响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -150,6 +249,19 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
+    /**
+     * 统计操作日志数量
+     * <p>
+     * 统计符合条件的操作日志总数。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块名称，可选过滤条件
+     * @param action   操作类型，可选过滤条件
+     * @return 操作日志总数
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public long countOperationLogs(Long tenantId, String module, String action) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -162,6 +274,12 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
 
     // ===== 实体转换方法 =====
 
+    /**
+     * 将PermissionChangeLog实体转换为响应对象
+     *
+     * @param c 权限变更日志实体
+     * @return 变更日志响应对象
+     */
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getEntityType(),
@@ -171,6 +289,12 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         );
     }
 
+    /**
+     * 将OperationLog实体转换为响应对象
+     *
+     * @param l 操作日志实体
+     * @return 操作日志响应对象
+     */
     private OperationLogResp toOperationLogResp(OperationLog l) {
         return new OperationLogResp(
             l.getId(), l.getTenantId(), l.getModule(), l.getAction(),
@@ -179,6 +303,12 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         );
     }
 
+    /**
+     * 将变更日志转换为最近变更响应
+     *
+     * @param log 变更日志响应
+     * @return 最近变更响应对象
+     */
     private RecentChangeResp toRecentChange(ChangeLogResp log) {
         return new RecentChangeResp(
             log.id(),
@@ -206,16 +336,40 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         );
     }
 
+    /**
+     * 从JSON中解析文本值
+     *
+     * @param json JSON字符串
+     * @param path JSON路径表达式
+     * @return 解析的文本值，不存在返回null
+     */
     private String parseText(String json, String path) {
         JsonNode node = parsePath(json, path);
         return node == null || node.isNull() ? null : node.asText();
     }
 
+    /**
+     * 从JSON中解析布尔值
+     *
+     * @param json JSON字符串
+     * @param path JSON路径表达式
+     * @return 解析的布尔值，不存在返回null
+     */
     private Boolean parseBoolean(String json, String path) {
         JsonNode node = parsePath(json, path);
         return node == null || node.isNull() ? null : node.asBoolean();
     }
 
+    /**
+     * 按路径解析JSON节点
+     * <p>
+     * 支持嵌套路径和数组索引访问，如 items[0].changeType
+     * </p>
+     *
+     * @param json JSON字符串
+     * @param path JSON路径表达式
+     * @return JsonNode节点，不存在返回null
+     */
     private JsonNode parsePath(String json, String path) {
         if (json == null || json.isBlank() || path == null || path.isBlank()) {
             return null;

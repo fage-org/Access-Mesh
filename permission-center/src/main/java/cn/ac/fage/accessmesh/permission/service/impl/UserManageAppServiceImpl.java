@@ -76,6 +76,19 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private final ObjectMapper objectMapper;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param abstractUserMapper    抽象用户数据访问层
+     * @param userRoleMapper        用户角色数据访问层
+     * @param abstractRoleMapper    抽象角色数据访问层
+     * @param subjectDomainService  主体领域服务
+     * @param typeResolutionService 类型解析服务
+     * @param domainClassifyService 域分类服务
+     * @param auditDomainService    审计领域服务
+     * @param objectMapper          JSON解析器
+     * @param engine                权限查询引擎
+     */
     public UserManageAppServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
                                  AbstractRoleMapper abstractRoleMapper,

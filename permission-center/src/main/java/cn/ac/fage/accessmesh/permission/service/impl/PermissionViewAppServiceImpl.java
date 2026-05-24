@@ -65,6 +65,20 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     private final PermQueryEngine engine;
     private final PermViewAssembler permViewAssembler;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param abstractRoleMapper        抽象角色数据访问层
+     * @param resourceEntityMapper      资源实体数据访问层
+     * @param operationPermissionMapper 操作权限数据访问层
+     * @param rolePermMapper            角色资源权限数据访问层
+     * @param subjectDomainService      主体领域服务
+     * @param typeResolutionService     类型解析服务
+     * @param auditDomainService        审计领域服务
+     * @param objectMapper              JSON解析器
+     * @param engine                    权限查询引擎
+     * @param permViewAssembler         权限视图装配器
+     */
     public PermissionViewAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                          ResourceEntityMapper resourceEntityMapper,
                                          OperationPermissionMapper operationPermissionMapper,
@@ -87,6 +101,20 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         this.permViewAssembler = permViewAssembler;
     }
 
+    /**
+     * 查询用户或角色的有效权限视图
+     * <p>
+     * 查询用户通过所有角色获得的聚合权限，或角色的直接权限。
+     * 支持按资源类型、操作码、来源角色等维度过滤。
+     * 使用 forUserView 查询管线 + PermViewAssembler 过滤分页。
+     * 对USER目标需要USER_VIEW权限，对ROLE目标需要ROLE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限视图查询请求
+     * @return 有效权限响应，包含权限项列表和分页信息
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -137,6 +165,19 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         return new PermissionEffectivePermissionsResp(PermConstants.TargetType.ROLE, items, (int) paged.total(), pageNum, pageSize, paged.hasNext());
     }
 
+    /**
+     * 获取用户权限视图（带过滤和分页）
+     * <p>
+     * 解析用户角色，应用过滤条件，调用权限引擎查询，
+     * 通过PermViewAssembler进行结果过滤和分页组装。
+     * 支持按来源角色、角色类型、资源类型、操作码等维度过滤。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @param req      权限视图查询请求
+     * @return 分页后的资源权限视图列表
+     */
     PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
         // 1. 解析用户角色并过滤
         Set<Long> allRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
@@ -186,6 +227,18 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         return buildResponseFromView(viewResult, filter, tenantId);
     }
 
+    /**
+     * 从视图结果构建分页响应
+     * <p>
+     * 将PermViewResult中的权限条目按scopeAll和实例级分别组装，
+     * 聚合后进行内存分页。
+     * </p>
+     *
+     * @param viewResult 视图结果
+     * @param filter     过滤条件
+     * @param tenantId   租户ID
+     * @return 分页后的资源权限视图列表
+     */
     private PaginatedResp<ResourcePermissionView> buildResponseFromView(PermViewResult viewResult, PermViewFilter filter, Long tenantId) {
         List<ResourcePermissionView> items = new ArrayList<>();
 
@@ -229,6 +282,18 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             pageNum, pageSize, hasNext);
     }
 
+    /**
+     * 构建scopeAll类型的权限视图项
+     * <p>
+     * 对于scopeAll权限（无需指定具体资源实例），按资源类型聚合生成视图项。
+     * </p>
+     *
+     * @param resourceTypeCode 资源类型编码
+     * @param entries          权限条目列表
+     * @param viewResult       视图结果
+     * @param filter           过滤条件
+     * @return scopeAll权限视图项
+     */
     private ResourcePermissionView buildScopeAllPermissionView(
             String resourceTypeCode, List<RolePermEntry> entries, PermViewResult viewResult,
             PermViewFilter filter) {
@@ -272,6 +337,19 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         );
     }
 
+    /**
+     * 构建实例级权限视图项
+     * <p>
+     * 对于实例级权限（绑定具体资源实体），聚合该资源的所有权限条目生成视图项。
+     * </p>
+     *
+     * @param resourceId   资源实体ID
+     * @param entries      权限条目列表
+     * @param resource     资源实体
+     * @param viewResult   视图结果
+     * @param filter       过滤条件
+     * @return 实例级权限视图项
+     */
     private ResourcePermissionView buildResourcePermissionView(
             Long resourceId,
             List<RolePermEntry> entries,
@@ -353,6 +431,22 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             .map(AbstractRole::getId).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询资源的权限视图
+     * <p>
+     * 查询指定资源实体上所有角色的权限授予情况。
+     * 返回每个角色对该资源的操作码列表和授予来源。
+     * 需要RESOURCE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param domainCode       业务域编码
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceCode     资源编码
+     * @param codeType         编码类型
+     * @return 资源权限视图响应，包含角色授予信息列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public ResourcePermissionViewResp getResourcePermissions(Long tenantId, String domainCode, String resourceTypeCode, String resourceCode, String codeType) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -425,6 +519,22 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         );
     }
 
+    /**
+     * 查询角色的权限视图
+     * <p>
+     * 查询指定角色的所有权限授予情况。
+     * 返回权限项列表，包含资源信息、操作码、依赖关系、条件等。
+     * 需要ROLE_VIEW权限。
+     * </p>
+     *
+     * @param tenantId       租户ID
+     * @param domainCode     业务域编码
+     * @param roleTypeCode   角色类型编码
+     * @param roleExternalId 角色外部ID
+     * @param expandSub      是否展开子角色权限（当前未实现）
+     * @return 角色权限视图响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public RolePermissionViewResp getRolePermissions(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, boolean expandSub) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -491,6 +601,19 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         return new RolePermissionViewResp(roleId, role.getName(), typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()), items);
     }
 
+    /**
+     * 分页查询角色权限项
+     * <p>
+     * 查询角色的权限条目并进行内存分页。
+     * 用于ROLE类型的有效权限查询。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleId   角色ID
+     * @param pageNum  页码
+     * @param pageSize 每页大小
+     * @return 分页后的权限项列表
+     */
     private PaginatedResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, Long roleId, int pageNum, int pageSize) {
         if (roleId == null) {
             return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
@@ -536,6 +659,19 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         return new PaginatedResp<>(items, total, pageNum, pageSize, offset + items.size() < total);
     }
 
+    /**
+     * 解释权限判定结果
+     * <p>
+     * 对指定用户或角色进行权限判定，并返回详细的解释信息。
+     * 解释包含：判定结果、匹配的角色、匹配的权限ID、可选的最近变更记录。
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      权限解释请求
+     * @return 权限解释响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -634,6 +770,18 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         );
     }
 
+    /**
+     * 查询用户的有效角色列表
+     * <p>
+     * 查询用户通过直接分配、继承、组 membership 等方式获得的所有有效角色。
+     * 需要USER_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      有效角色查询请求
+     * @return 有效角色响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public ItemsResp<EffectiveRoleResp> listEffectiveRoles(Long tenantId, UserEffectiveRolesReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -664,6 +812,12 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
     // ===== 私有辅助方法 =====
 
+    /**
+     * 将变更日志转换为最近变更响应
+     *
+     * @param log 权限变更日志实体
+     * @return 最近变更响应对象
+     */
     private RecentChangeResp toRecentChange(PermissionChangeLog log) {
         return new RecentChangeResp(
             log.getId(),
@@ -730,6 +884,20 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         }
     }
 
+    /**
+     * 查询用户的资源权限树
+     * <p>
+     * 查询用户有权限的资源实体，并按父子关系构建树形结构。
+     * 用于展示资源的层级权限视图。
+     * 需要USER_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @param req      资源树查询请求
+     * @return 资源权限树响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     public List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -779,6 +947,20 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         return roots;
     }
 
+    /**
+     * 构建资源权限树节点
+     * <p>
+     * 递归构建资源树节点，处理循环引用避免无限递归。
+     * </p>
+     *
+     * @param entityId   资源实体ID
+     * @param viewMap    权限视图映射
+     * @param entityMap  资源实体映射
+     * @param childrenMap 子节点ID列表映射
+     * @param tenantId   租户ID
+     * @param visited    已访问节点集合（防止循环）
+     * @return 资源权限树节点
+     */
     private ResourcePermissionTreeResp buildPermissionTreeNode(
             Long entityId,
             Map<Long, ResourcePermissionView> viewMap,

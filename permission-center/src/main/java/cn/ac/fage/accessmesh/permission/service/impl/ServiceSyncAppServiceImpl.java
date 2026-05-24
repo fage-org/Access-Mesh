@@ -41,6 +41,16 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     private final SyncModeStrategyFactory strategyFactory;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param resourceSyncHandler    资源同步处理器
+     * @param mappingSyncHandler     API映射同步处理器
+     * @param serviceConfigMapper    服务配置数据访问层
+     * @param typeResolutionService  类型解析服务
+     * @param strategyFactory        同步策略工厂
+     * @param engine                 权限查询引擎
+     */
     public ServiceSyncAppServiceImpl(
             ResourceSyncHandler resourceSyncHandler,
             MappingSyncHandler mappingSyncHandler,
@@ -56,6 +66,19 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         this.engine = engine;
     }
 
+    /**
+     * 同步服务接口与资源API映射
+     * <p>
+     * 根据同步模式（FULL/INCREMENTAL）同步服务接口定义与资源API映射关系。
+     * 使用策略模式处理不同同步模式的具体逻辑。
+     * 需要SERVICE_SYNC_INTERFACE权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      同步请求，包含服务编码、同步模式、接口列表等
+     * @return 同步结果响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "service-interface-sync", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
@@ -83,12 +106,32 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         return result.toResponse();
     }
 
+    /**
+     * 验证同步权限
+     *
+     * @param tenantId   租户ID
+     * @param operatorId 操作者ID
+     * @param req        同步请求
+     * @throws SecurityException 无权限时抛出
+     */
     private void validatePermission(Long tenantId, Long operatorId, ServiceConfigSyncReq req) {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
     }
 
+    /**
+     * 准备服务配置
+     * <p>
+     * 查询并更新服务配置的基础路径（如果请求中提供）。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        同步请求
+     * @param operatorId 操作者ID
+     * @return 服务配置实体
+     * @throws BizException 服务配置不存在时抛出
+     */
     private ServiceConfig prepareServiceConfig(Long tenantId, ServiceConfigSyncReq req, Long operatorId) {
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
 
@@ -105,6 +148,15 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         return config;
     }
 
+    /**
+     * 规范化基础路径
+     * <p>
+     * 确保路径以/开头，不以/结尾。
+     * </p>
+     *
+     * @param basePath 原始基础路径
+     * @return 规范化后的路径
+     */
     private String normalizeBasePath(String basePath) {
         if (basePath == null || basePath.isBlank()) {
             return "";

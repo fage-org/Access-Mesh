@@ -36,12 +36,32 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final PermQueryEngine engine;
 
+    /**
+     * 构造函数注入依赖
+     *
+     * @param typeDefinitionMapper 类型定义数据访问层
+     * @param engine               权限查询引擎
+     */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          PermQueryEngine engine) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.engine = engine;
     }
 
+    /**
+     * 创建类型定义
+     * <p>
+     * 创建新的类型定义实体，设置类型键、类型值、名称、描述等属性。
+     * 类型定义用于系统中的各类枚举值映射，如资源类型、角色类型、用户类型等。
+     * 需要TYPE_DEFINITION_CREATE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        创建请求，包含类型键、类型值、名称等
+     * @param operatorId 操作者ID，可选
+     * @return 创建的类型定义响应
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "type-definition-create", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
@@ -70,6 +90,18 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         return toTypeResp(type);
     }
 
+    /**
+     * 获取类型定义详情
+     * <p>
+     * 根据类型定义ID查询类型的完整信息。
+     * 需要TYPE_DEFINITION_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeId   类型定义ID
+     * @return 类型定义响应，不存在返回null
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
@@ -82,6 +114,18 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         return type != null ? toTypeResp(type) : null;
     }
 
+    /**
+     * 查询类型定义列表
+     * <p>
+     * 查询租户下所有活跃的类型定义。
+     * 需要TYPE_DEFINITION_VIEW权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param domainCode 业务域编码，可选（当前未使用）
+     * @return 类型定义响应列表
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(readOnly = true)
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
@@ -94,6 +138,20 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .stream().map(this::toTypeResp).collect(Collectors.toList());
     }
 
+    /**
+     * 更新类型定义
+     * <p>
+     * 更新类型定义的名称、描述、排序顺序、扩展属性等。
+     * 需要TYPE_DEFINITION_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param req        更新请求，包含类型ID和要更新的属性
+     * @param operatorId 操作者ID，可选
+     * @return 更新后的类型定义响应
+     * @throws SecurityException     无权限时抛出
+     * @throws BizException          类型定义不存在时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "type-definition-update", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
@@ -115,6 +173,19 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         return toTypeResp(type);
     }
 
+    /**
+     * 批量删除类型定义
+     * <p>
+     * 批量软删除类型定义。系统内置类型（isSystem=true）不可删除。
+     * 使用批量查询和批量软删除避免N+1问题。
+     * 需要TYPE_DEFINITION_MANAGE权限。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param ids        类型定义ID列表
+     * @param operatorId 操作者ID，可选
+     * @throws SecurityException 无权限时抛出
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "type-definition-remove", targetType = "BATCH", targetId = "", summary = "'batch remove type definitions'")
@@ -159,6 +230,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
     }
 
+    /**
+     * 将TypeDefinition实体转换为响应对象
+     *
+     * @param t 类型定义实体
+     * @return 类型定义响应对象
+     */
     private TypeDefinitionResp toTypeResp(TypeDefinition t) {
         return new TypeDefinitionResp(
             t.getId(), t.getTenantId(),
