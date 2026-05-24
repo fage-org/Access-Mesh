@@ -124,13 +124,14 @@ import java.time.LocalDate;
 import com.alibaba.fastjson.*;
 import com.alibaba.fastjson2.*;
 import cn.hutool.*;
-import lombok.*;  // 禁止通配导入，Lombok 仅允许精确导入 Getter / Setter
+import lombok.*;  // 禁止通配导入，Lombok 仅允许精确导入所需注解；DTO 优先使用 Record，@Builder 仅在确有可读性收益时使用
 // 使用
 import com.fasterxml.jackson.*;
 import org.apache.commons.lang3.*;
 import com.google.common.*;
 
-// 仅允许
+// 仅允许精确导入所需注解
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 ```

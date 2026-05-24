@@ -37,7 +37,7 @@ import type { FormInstance } from "element-plus";
 <!-- ✅ 正确 -->
 <script setup lang="ts">
 defineOptions({
-  name: "Login"
+  name: "Login",
 });
 
 const loading = ref(false);
@@ -47,8 +47,10 @@ const loading = ref(false);
 <script>
 export default {
   name: "Login",
-  data() { return { loading: false }; }
-}
+  data() {
+    return { loading: false };
+  },
+};
 </script>
 ```
 
@@ -162,24 +164,24 @@ export const useUserStore = defineStore("pure-user", { ... });
 export function useNav() {
   const route = useRoute();
   const router = useRouter();
-  
+
   const username = computed(() => useUserStoreHook()?.username);
   const isCollapse = computed(() => !pureApp.getSidebarStatus);
-  
+
   function logout() {
     useUserStoreHook().logOut();
   }
-  
+
   function toggleSideBar() {
     pureApp.toggleSideBar();
   }
-  
+
   return {
     route,
     username,
     isCollapse,
     logout,
-    toggleSideBar
+    toggleSideBar,
   };
 }
 
@@ -204,7 +206,7 @@ export * from "./ripple";
 
 // main.ts 中注册
 import * as directives from "@/directives";
-Object.keys(directives).forEach(key => {
+Object.keys(directives).forEach((key) => {
   app.directive(key, (directives as { [key: string]: Directive })[key]);
 });
 ```
@@ -222,7 +224,7 @@ export default {
   redirect: "/welcome",
   meta: {
     title: "首页",
-    rank: 0
+    rank: 0,
   },
   children: [
     {
@@ -230,16 +232,16 @@ export default {
       name: "Welcome",
       component: () => import("@/views/welcome/index.vue"),
       meta: {
-        title: "欢迎页"
-      }
-    }
-  ]
+        title: "欢迎页",
+      },
+    },
+  ],
 };
 
 // router/index.ts 自动导入
 const modules: Record<string, any> = import.meta.glob(
   ["./modules/**/*.ts", "!./modules/**/remaining.ts"],
-  { eager: true }
+  { eager: true },
 );
 ```
 
@@ -297,7 +299,7 @@ const [_first, second] = arr;
 
 // ❌ 禁止 — 未使用且无前缀
 function handler(event, data) {
-  return data;  // event 未使用会报 ESLint 错误
+  return data; // event 未使用会报 ESLint 错误
 }
 ```
 
@@ -310,13 +312,14 @@ function handler(event, data) {
 .element {
   // 1. $变量
   $color: red;
-  
+
   // 2. 自定义属性
   --custom-prop: value;
-  
+
   // 3. @规则
-  @media (min-width: 768px) { }
-  
+  @media (min-width: 768px) {
+  }
+
   // 4. 声明（按逻辑分组）
   display: flex;
   position: relative;
@@ -326,9 +329,10 @@ function handler(event, data) {
   padding: 10px;
   color: $color;
   font-size: 14px;
-  
+
   // 5. 规则
-  .child { }
+  .child {
+  }
 }
 ```
 
@@ -416,7 +420,7 @@ const callback: Fn = () => {};
 ```typescript
 // ✅ 正确
 const IFrame = () => import("@/layout/frame.vue");
-component: () => import("@/views/welcome/index.vue")
+component: () => import("@/views/welcome/index.vue");
 
 // ❌ 禁止 — 静态导入（除非必要）
 import IFrame from "@/layout/frame.vue";
@@ -447,7 +451,8 @@ if (hasPerms("system:user:add")) {
 
 <!-- ❌ 禁止 — 硬编码权限判断 -->
 <script setup>
-if (user.permissions.includes("system:user:add")) { }
+if (user.permissions.includes("system:user:add")) {
+}
 </script>
 ```
 
@@ -475,18 +480,22 @@ localStorage.getItem("token");
 
 ```typescript
 // ✅ 正确 — 使用 @pureadmin/utils
-import { 
-  isString, 
-  cloneDeep, 
-  isAllEmpty, 
+import {
+  isString,
+  cloneDeep,
+  isAllEmpty,
   storageLocal,
   debounce,
-  deviceDetection
+  deviceDetection,
 } from "@pureadmin/utils";
 
 // ❌ 不推荐 — 自己实现
-function isString(val) { return typeof val === "string"; }
-function cloneDeep(obj) { return JSON.parse(JSON.stringify(obj)); }
+function isString(val) {
+  return typeof val === "string";
+}
+function cloneDeep(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
 ```
 
 ## 23. 图标使用
@@ -552,20 +561,51 @@ frontend/
 
 ## 25. 禁止事项
 
-| 禁止行为 | 替代方案 |
-|---------|---------|
-| 使用 npm/yarn | 使用 pnpm |
-| Options API | Composition API + script setup |
-| 静态导入大组件 | 懒加载 `() => import()` |
-| 硬编码权限判断 | `hasPerms` / `<Perms>` |
-| 直接操作 Cookie | `getToken/setToken/removeToken` |
-| 自己实现通用工具 | `@pureadmin/utils` |
-| 相对路径导入 | `@/` 别名 |
-| 单引号 | 双引号 |
-| 尾逗号 | 无尾逗号 |
-| 标签非自闭合 | 自闭合 `<el-input />` |
+| 禁止行为         | 替代方案                        |
+| ---------------- | ------------------------------- |
+| 使用 npm/yarn    | 使用 pnpm                       |
+| Options API      | Composition API + script setup  |
+| 静态导入大组件   | 懒加载 `() => import()`         |
+| 硬编码权限判断   | `hasPerms` / `<Perms>`          |
+| 直接操作 Cookie  | `getToken/setToken/removeToken` |
+| 自己实现通用工具 | `@pureadmin/utils`              |
+| 相对路径导入     | `@/` 别名                       |
+| 单引号           | 双引号                          |
+| 尾逗号           | 无尾逗号                        |
+| 标签非自闭合     | 自闭合 `<el-input />`           |
 
-## 26. Lint 检查命令
+## 26. 提交前验证
+
+**MUST** 在 git commit 或创建 PR 前运行当前仓库已定义的完整验证流程。
+
+### 验证顺序
+
+```bash
+# 1. 构建
+pnpm build
+
+# 2. 类型检查
+pnpm typecheck
+
+# 3. Lint 检查
+pnpm lint
+```
+
+当前 frontend/package.json 未定义 `test` 脚本；如后续补充测试命令，提交前应追加运行对应测试。
+
+### Commit 前验证要求
+
+```bash
+# ✅ 正确 — 验证后提交
+pnpm build && pnpm typecheck && pnpm lint && git commit -m "feat: add feature"
+
+# ❌ 禁止 — 跳过验证直接提交
+git commit -m "feat: add feature"  # 未运行 build/typecheck/lint
+```
+
+**MUST NOT** 任意验证阶段失败时提交代码。
+
+### Lint 检查命令
 
 ```bash
 # ESLint 检查
@@ -583,6 +623,10 @@ pnpm lint
 # 类型检查
 pnpm typecheck
 ```
+
+### 覆盖率要求
+
+**SHOULD** 保持业务逻辑代码 80%+ 测试覆盖率。见 `testing-standards.md` §2。
 
 ## 27. 已知配置项（可修改）
 

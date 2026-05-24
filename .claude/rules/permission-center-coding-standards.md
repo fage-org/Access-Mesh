@@ -134,12 +134,12 @@ try {
 
 ### Service 层
 
-| 层次 | 命名规则 | 示例 |
-|------|---------|------|
-| AppService 接口 | `XxxAppService` | `RoleManageAppService`, `PermissionGrantAppService` |
-| AppService 实现 | `XxxAppServiceImpl` | `RoleManageAppServiceImpl`, `PermissionGrantAppServiceImpl` |
-| DomainService 接口 | `XxxDomainService` | `SubjectDomainService`, `AuditDomainService` |
-| DomainService 实现 | `XxxDomainServiceImpl` | `SubjectDomainServiceImpl`, `AuditDomainServiceImpl` |
+| 层次               | 命名规则               | 示例                                                        |
+| ------------------ | ---------------------- | ----------------------------------------------------------- |
+| AppService 接口    | `XxxAppService`        | `RoleManageAppService`, `PermissionGrantAppService`         |
+| AppService 实现    | `XxxAppServiceImpl`    | `RoleManageAppServiceImpl`, `PermissionGrantAppServiceImpl` |
+| DomainService 接口 | `XxxDomainService`     | `SubjectDomainService`, `AuditDomainService`                |
+| DomainService 实现 | `XxxDomainServiceImpl` | `SubjectDomainServiceImpl`, `AuditDomainServiceImpl`        |
 
 ### Controller 层
 
@@ -308,11 +308,11 @@ role.getBizDomainId();           // 字段已删除
 
 ### 查询模式
 
-| 模式 | 含义 |
-|------|------|
-| `ALL` | 不过滤，查看全部 |
+| 模式          | 含义                                           |
+| ------------- | ---------------------------------------------- |
+| `ALL`         | 不过滤，查看全部                               |
 | `GLOBAL_PLUS` | 全局域 + 指定域（指定域类型 + 未被认领的类型） |
-| `DOMAIN_ONLY` | 仅指定域声明的类型 |
+| `DOMAIN_ONLY` | 仅指定域声明的类型                             |
 
 ### 全局域
 
@@ -438,33 +438,33 @@ engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写
 
 ## 17. 已删除的类（禁止引用）
 
-| 类 | 替代方案 |
-|---|---------|
-| `EntityBatchLoadDomainService` | 使用对应 Mapper 批量查询方法 |
-| `EntityBatchLoadDomainServiceImpl` | 使用对应 Mapper 批量查询方法 |
-| `ResourcePermissionValidator` | 使用 `PermQueryEngine` |
-| `OperationType` 枚举 | 使用 `OperationCodeConstants` |
-| `ResourcePermissionStrategy` 接口 | ID 转换由 Engine 内部处理 |
-| `ServicePermissionStrategy` | 无需替代 |
-| `DomainPermissionStrategy` | 无需替代 |
-| `TypeDefPermissionStrategy` | 直接查询实体检查 |
-| `PermissionCheckUtils` | 使用 `PermQueryEngine` 或 `PermResultUtils` |
-| `AuthorizationService` | 已删除（Phase 3），授权校验已合并到各 AppService |
-| `ConfigManageController` / `ConfigManageService` | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
-| `*ManageService` / `*ManageServiceImpl`（旧命名） | 已重命名为 `*AppService` / `*AppServiceImpl` |
-| `*ManageController`（旧命名） | 已重命名为 `*Controller` |
+| 类                                                | 替代方案                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| `EntityBatchLoadDomainService`                    | 使用对应 Mapper 批量查询方法                                 |
+| `EntityBatchLoadDomainServiceImpl`                | 使用对应 Mapper 批量查询方法                                 |
+| `ResourcePermissionValidator`                     | 使用 `PermQueryEngine`                                       |
+| `OperationType` 枚举                              | 使用 `OperationCodeConstants`                                |
+| `ResourcePermissionStrategy` 接口                 | ID 转换由 Engine 内部处理                                    |
+| `ServicePermissionStrategy`                       | 无需替代                                                     |
+| `DomainPermissionStrategy`                        | 无需替代                                                     |
+| `TypeDefPermissionStrategy`                       | 直接查询实体检查                                             |
+| `PermissionCheckUtils`                            | 使用 `PermQueryEngine` 或 `PermResultUtils`                  |
+| `AuthorizationService`                            | 已删除（Phase 3），授权校验已合并到各 AppService             |
+| `ConfigManageController` / `ConfigManageService`  | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
+| `*ManageService` / `*ManageServiceImpl`（旧命名） | 已重命名为 `*AppService` / `*AppServiceImpl`                 |
+| `*ManageController`（旧命名）                     | 已重命名为 `*Controller`                                     |
 
 ## 18. 已删除的实体字段（禁止引用）
 
 以下实体类的 `bizDomainId` 字段已删除：
 
-| 实体类 | 说明 |
-|--------|------|
-| `AbstractRole` | 角色不再内嵌域归属，通过 `DomainClassifyService` 按资源类型码间接关联 |
-| `ResourceEntity` | 同上 |
-| `TypeDefinition` | 同上 |
-| `ResourceApiMapping` | 同上 |
-| `PermissionConflictRule` | 同上 |
-| `PermissionChangeLog` | 同上 |
+| 实体类                   | 说明                                                                  |
+| ------------------------ | --------------------------------------------------------------------- |
+| `AbstractRole`           | 角色不再内嵌域归属，通过 `DomainClassifyService` 按资源类型码间接关联 |
+| `ResourceEntity`         | 同上                                                                  |
+| `TypeDefinition`         | 同上                                                                  |
+| `ResourceApiMapping`     | 同上                                                                  |
+| `PermissionConflictRule` | 同上                                                                  |
+| `PermissionChangeLog`    | 同上                                                                  |
 
 域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现，参见 §9。

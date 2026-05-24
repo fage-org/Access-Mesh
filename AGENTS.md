@@ -10,19 +10,19 @@
 
 ## 技术栈
 
-| 层面      | 技术                                                               |
-| --------- | ------------------------------------------------------------------ |
-| 语言      | Java 21                                                            |
-| 框架      | Spring Boot 3 + Spring Cloud                                       |
-| ORM       | MyBatis-Flex                                                       |
-| 数据库    | PostgreSQL（多租户，软删除）                                       |
-| 注册/配置 | Nacos                                                              |
-| 缓存      | Caffeine (L1) + Redis (L2)                                         |
-| 消息队列  | RocketMQ                                                           |
-| 认证      | Sa-Token + OAuth2                                                  |
-| JSON      | Jackson（禁止 FastJSON / Hutool；Lombok 仅允许 @Getter / @Setter） |
-| 日志      | SLF4J + Log4j2                                                     |
-| 前端      | Vue 3 + Element Plus                                               |
+| 层面      | 技术                                                                            |
+| --------- | ------------------------------------------------------------------------------- |
+| 语言      | Java 21                                                                         |
+| 框架      | Spring Boot 3 + Spring Cloud                                                    |
+| ORM       | MyBatis-Flex                                                                    |
+| 数据库    | PostgreSQL（多租户，软删除）                                                    |
+| 注册/配置 | Nacos                                                                           |
+| 缓存      | Caffeine (L1) + Redis (L2)                                                      |
+| 消息队列  | RocketMQ                                                                        |
+| 认证      | Sa-Token + OAuth2                                                               |
+| JSON      | Jackson（禁止 FastJSON / Hutool；DTO 优先 Java 21 Record，Lombok 按需精确使用） |
+| 日志      | SLF4J + Log4j2                                                                  |
+| 前端      | Vue 3 + Element Plus                                                            |
 
 ## 服务架构
 
@@ -63,8 +63,8 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 - **Service 层复用规范**：新增/修改功能必须检查 DomainService 是否有可复用方法，禁止在调度层重新实现领域逻辑。详见 `plan/project-rules.md` §8.4。
 - **N+1 查询禁止**：循环内禁止单条数据库查询，必须使用批量查询方法。详见 `plan/project-rules.md` §8.4.8。
 - 禁止跳层调用，禁止同层横向调用。
-- Lombok 仅允许 `@Getter` / `@Setter`，禁止 `@Data`、`@Builder`、`@Value`、`@EqualsAndHashCode` 等其他注解。
 - 不可变 DTO 优先使用 Java 21 Record。
+- Lombok 允许精确导入并按需使用；`@Builder` 可用于复杂构造或测试数据装配，但禁止 `@Data`、`@Value`、`@EqualsAndHashCode` 等隐式生成过多逻辑的注解。
 - 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。
 - 实体类不含业务逻辑，审计字段由框架填充。
 
