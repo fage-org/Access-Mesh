@@ -4,17 +4,17 @@
 
 ## 权威来源
 
-| 主题 | 权威文档 |
-|------|----------|
-| 项目工程规范 | [project-rules.md](project-rules.md) |
-| 微服务整体架构 | [architecture.md](architecture.md) |
-| 权限中心概念模型 | [permission-center/overview.md](permission-center/overview.md) |
-| 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md) |
-| 权限中心核心调用链路 | [permission-center/core-flows.md](permission-center/core-flows.md) |
-| 权限中心实现设计 | [permission-center/implementation.md](permission-center/implementation.md) |
-| Service 层重构审查 | [permission-center/service-layer-review.md](permission-center/service-layer-review.md) |
-| PostgreSQL 表结构 | [schema/](schema/) |
-| 前端集成计划 | [frontend-integration.md](frontend-integration.md) |
+| 主题                  | 权威文档                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| 项目工程规范          | [project-rules.md](project-rules.md)                                                   |
+| 微服务整体架构        | [architecture.md](architecture.md)                                                     |
+| 权限中心概念模型      | [permission-center/overview.md](permission-center/overview.md)                         |
+| 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
+| 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
+| 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
+| Service 层重构审查    | [permission-center/service-layer-review.md](permission-center/service-layer-review.md) |
+| PostgreSQL 表结构     | [schema/](schema/)                                                                     |
+| 前端集成计划          | [frontend-integration.md](frontend-integration.md)                                     |
 
 ## 推荐阅读顺序
 
@@ -26,13 +26,20 @@
 
 ## 目录说明
 
-| 路径 | 说明 |
-|------|------|
-| `permission-center/` | 权限中心的概念、API、流程、实现设计 |
-| `services/` | Gateway、admin-service、example-service 设计 |
-| `schema/` | 当前有效 PostgreSQL schema |
-| `archive/` | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
+| 路径                 | 说明                                             |
+| -------------------- | ------------------------------------------------ |
+| `permission-center/` | 权限中心的概念、API、流程、实现设计              |
+| `services/`          | Gateway、admin-service、example-service 设计     |
+| `schema/`            | 当前有效 PostgreSQL schema                       |
+| `archive/`           | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
 
-## 归档规则
+Claude 按需技能不放在 `plan/`；仓库级技能位于 `.claude/skills/`。
 
-`archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页“权威来源”列出的文档为准。
+## 归档记录
+
+| 归档批次              | 说明                                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `archive/2026-05-24/` | DDD 重构完成后归档：PermQueryEngine 分析/设计文档（3 篇）、过期 skills（细粒度权限检查）、未落地的服务权限设计、已完成的 PRPs plan 文件（2 篇） |
+| `archive/2026-04-28/` | plan/ 重整前的旧版长文档和讨论清单                                                                                                              |
+
+`archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes`、`AuthorizationService`、`ConfigManageServiceImpl` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页”权威来源”列出的文档为准。

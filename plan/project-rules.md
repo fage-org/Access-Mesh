@@ -446,7 +446,7 @@ Mapper（数据访问层）
 
 **permission-center Controller（补充）：**
 
-- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewService`）完成；Controller 仅做校验与 `PermResult` 包装。
+- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewAppService`）完成；Controller 仅做校验与 `PermResult` 包装。
 
 ### 8.3 包结构规范
 
@@ -640,27 +640,27 @@ Map<Long, AbstractRole> roleMap = roles.stream()
 
 **已识别的批量优化案例**：
 
-| 场景             | 批量方法                                                    |
-| ---------------- | ----------------------------------------------------------- |
-| 权限批量检查     | `AuthorizationService.checkPermissionsBatch()`              |
-| 授权批量校验     | `AuthorizationService.checkGrantPermissionsBatch()`         |
-| 角色批量加载     | `PermissionViewServiceImpl.loadRoles(Set<Long> roleIds)`    |
-| 操作权限批量加载 | `PermissionViewServiceImpl.loadOperations(Set<Long> opIds)` |
+| 场景             | 批量方法                                                             |
+| ---------------- | -------------------------------------------------------------------- |
+| 权限批量检查     | `PermQueryEngine.validateBatch()` / `PermQueryEngine.getDeniedIds()` |
+| 授权批量校验     | `PermissionGrantDomainService.checkCanGrant()`                       |
+| 角色批量加载     | `PermQueryEngine.batchLoadRoles(Set<Long> roleIds)`                  |
+| 操作权限批量加载 | `PermQueryEngine.batchLoadOperations(Set<Long> opIds)`               |
 
 **N+1 问题跟踪**：
 
-| 状态      | Service                     | 方法                   | 问题描述                          |
-| --------- | --------------------------- | ---------------------- | --------------------------------- |
-| ✅ 已修复 | `UserServiceImpl`           | `batchCreateUsers`     | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `OrgServiceImpl`            | `batchCreateOrgs`      | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `MenuServiceImpl`           | `batchCreateMenus`     | 循环内单条查询父菜单/检查路径重复 |
-| ❌ 待修复 | `UserOrgServiceImpl`        | `setPrimaryOrg`        | 循环内单条查询用户组织关系        |
-| ✅ 已修复 | `DictServiceImpl`           | `listDictTypes`        | 循环内单条查询字典类型详情        |
-| ❌ 待修复 | `RoleManageServiceImpl`     | `deleteRoles`          | 循环内单条查询角色权限并删除      |
-| ❌ 待修复 | `UserManageServiceImpl`     | `assignRole`           | 循环内单条查询用户并分配角色      |
-| ❌ 待修复 | `UserManageServiceImpl`     | `assignRolesBatch`     | 循环内单条查询用户并批量分配角色  |
-| ❌ 待修复 | `ResourceManageServiceImpl` | `batchCreateResources` | 循环内单条查询父资源/检查编码重复 |
-| ❌ 待修复 | `ResourceManageServiceImpl` | `deleteResources`      | 循环内单条查询资源依赖并删除      |
+| 状态      | Service                        | 方法                   | 问题描述                          |
+| --------- | ------------------------------ | ---------------------- | --------------------------------- |
+| ✅ 已修复 | `UserServiceImpl`              | `batchCreateUsers`     | 循环内单条查询父组织/检查编码重复 |
+| ✅ 已修复 | `OrgServiceImpl`               | `batchCreateOrgs`      | 循环内单条查询父组织/检查编码重复 |
+| ✅ 已修复 | `MenuServiceImpl`              | `batchCreateMenus`     | 循环内单条查询父菜单/检查路径重复 |
+| ❌ 待修复 | `UserOrgServiceImpl`           | `setPrimaryOrg`        | 循环内单条查询用户组织关系        |
+| ✅ 已修复 | `DictServiceImpl`              | `listDictTypes`        | 循环内单条查询字典类型详情        |
+| ❌ 待修复 | `RoleManageAppServiceImpl`     | `deleteRoles`          | 循环内单条查询角色权限并删除      |
+| ❌ 待修复 | `UserManageAppServiceImpl`     | `assignRole`           | 循环内单条查询用户并分配角色      |
+| ❌ 待修复 | `UserManageAppServiceImpl`     | `assignRolesBatch`     | 循环内单条查询用户并批量分配角色  |
+| ❌ 待修复 | `ResourceManageAppServiceImpl` | `batchCreateResources` | 循环内单条查询父资源/检查编码重复 |
+| ❌ 待修复 | `ResourceManageAppServiceImpl` | `deleteResources`      | 循环内单条查询资源依赖并删除      |
 
 **评审标准**：
 

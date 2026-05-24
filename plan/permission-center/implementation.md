@@ -869,8 +869,8 @@ public record PermissionTreeResp(
 // 2. operator 的该权限必须有 canGrant=true
 // 3. 如果授予 scopeAll=true，operator 必须有 scopeAll=true（不能从特定资源权限授权全量）
 
-Set<GrantCheckKey> grantKeys = addItems.stream()
-    .map(item -> new GrantCheckKey(
+Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = addItems.stream()
+    .map(item -> new PermissionGrantDomainService.GrantCheckKey(
         item.resourceTypeCode(),
         item.resourceCode(),
         item.operationCode(),
@@ -878,13 +878,13 @@ Set<GrantCheckKey> grantKeys = addItems.stream()
     ))
     .collect(Collectors.toSet());
 
-Map<String, GrantCheckResult> grantResults =
-    authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, domainCode);
+Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
+    permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, domainCode);
 
 // 校验每项，不满足则抛 SecurityException
 for (GrantAddItem item : addItems) {
-    GrantCheckResult result = grantResults.get(buildGrantKey(item));
-    if (!result.canGrant()) {
+    PermissionGrantDomainService.GrantCheckResult result = grantResults.get(buildGrantKey(item));
+    if (result == null || !result.canGrant()) {
         throw new SecurityException("Operator cannot grant permission...");
     }
 }
