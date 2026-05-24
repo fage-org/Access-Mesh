@@ -80,7 +80,82 @@ public enum PermissionErrorCode {
     /**
      * 权限不是子权限
      */
-    PERMISSION_NOT_CHILD(20014, "权限不是子权限");
+    PERMISSION_NOT_CHILD(20014, "权限不是子权限"),
+
+    /**
+     * 用户不存在
+     */
+    USER_NOT_FOUND(20015, "用户不存在"),
+
+    /**
+     * 用户已存在
+     */
+    USER_ALREADY_EXISTS(20016, "用户已存在"),
+
+    /**
+     * 业务域不存在
+     */
+    DOMAIN_NOT_FOUND(20017, "业务域不存在"),
+
+    /**
+     * 域配置不存在
+     */
+    DOMAIN_CONFIG_NOT_FOUND(20018, "域配置不存在"),
+
+    /**
+     * 资源依赖不存在
+     */
+    DEPENDENCY_NOT_FOUND(20019, "资源依赖不存在"),
+
+    /**
+     * 冲突规则不存在
+     */
+    CONFLICT_RULE_NOT_FOUND(20020, "冲突规则不存在"),
+
+    /**
+     * 类型编码不存在
+     */
+    TYPE_CODE_NOT_FOUND(20021, "类型编码不存在"),
+
+    /**
+     * 角色类型不匹配
+     */
+    ROLE_TYPE_MISMATCH(20022, "角色类型不匹配"),
+
+    /**
+     * 请求参数不能为空
+     */
+    REQUEST_ITEMS_EMPTY(20023, "请求参数不能为空"),
+
+    /**
+     * 同步资源不存在
+     */
+    SYNC_RESOURCE_NOT_FOUND(20024, "同步资源不存在"),
+
+    /**
+     * 资源状态冲突
+     */
+    RESOURCE_STATE_CONFLICT(20025, "资源状态冲突"),
+
+    /**
+     * 系统初始化失败
+     */
+    SYSTEM_INIT_FAILED(20026, "系统初始化失败"),
+
+    /**
+     * 参数校验失败
+     */
+    VALIDATION_FAILED(20027, "参数校验失败"),
+
+    /**
+     * 类型定义不存在
+     */
+    TYPE_DEFINITION_NOT_FOUND(20028, "类型定义不存在"),
+
+    /**
+     * 用户角色关系不存在
+     */
+    USER_ROLE_RELATION_NOT_FOUND(20029, "用户角色关系不存在");
 
     private final int code;
     private final String message;

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleDetectReq;
@@ -8,6 +9,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.permission.entity.PermissionConflictRule;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.ConflictRuleAppService;
@@ -149,7 +151,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
 
         PermissionConflictRule rule = conflictRuleMapper.selectOneById(req.id());
         if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
-            throw new IllegalArgumentException("Conflict rule not found: " + req.id());
+            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(), "Conflict rule not found: " + req.id());
         }
         if (req.conflictType() != null) rule.setConflictType(req.conflictType());
         if (req.firstOperationPermissionId() != null) rule.setFirstOperationPermissionId(req.firstOperationPermissionId());

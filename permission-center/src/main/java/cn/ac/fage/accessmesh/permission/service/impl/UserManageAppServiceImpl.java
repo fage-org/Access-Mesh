@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
@@ -22,6 +23,7 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.UserManageAppService;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
@@ -105,7 +107,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
-            throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
         AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
 
@@ -145,11 +147,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
-            throw new IllegalArgumentException("Unknown subjectTypeCode: " + req.subjectTypeCode());
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
         AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
         if (existing != null) {
-            throw new IllegalArgumentException("User already exists");
+            throw new BizException(PermissionErrorCode.USER_ALREADY_EXISTS.getCode(), "User already exists");
         }
         AbstractUser user = new AbstractUser();
         user.setTenantId(tenantId);
@@ -174,7 +176,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         AbstractUser existing = subjectDomainService.selectValidUserById(tenantId, req.userId());
         if (existing == null) {
-            throw new IllegalArgumentException("User not found: " + req.userId());
+            throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + req.userId());
         }
 
         if (!operatorId.equals(req.userId())) {
@@ -265,7 +267,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Long operatorId = OperatorContext.getOperatorId();
 
         if (req.items() == null || req.items().isEmpty()) {
-            throw new IllegalArgumentException("items must not be empty");
+            throw new BizException(PermissionErrorCode.REQUEST_ITEMS_EMPTY.getCode(), "items must not be empty");
         }
 
         Map<String, Set<String>> userExternalIdsByType = req.items().stream()
@@ -379,7 +381,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         if (!errors.isEmpty()) {
-            throw new IllegalArgumentException(String.join("; ", errors));
+            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(), String.join("; ", errors));
         }
 
         if (!toInsert.isEmpty()) {
@@ -422,7 +424,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Long targetRoleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (targetRoleId == null) {
-            throw new IllegalArgumentException("Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
         Set<Long> deniedRoleIds = engine.getDeniedIds(
@@ -444,7 +446,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         if (!userNotFoundErrors.isEmpty()) {
-            throw new IllegalArgumentException(String.join("; ", userNotFoundErrors));
+            throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), String.join("; ", userNotFoundErrors));
         }
 
         Map<String, UserRole> existingRelationMap = new HashMap<>();
@@ -606,12 +608,12 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
             Long abstractUserId = userIdMap.get(userKey);
             if (abstractUserId == null) {
-                throw new IllegalArgumentException("User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
+                throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
             }
             String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId == null) {
-                throw new IllegalArgumentException("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
+                throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }
 
             if (deniedIds.contains(targetRoleId)) {
@@ -622,7 +624,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             String urKey = abstractUserId + ":" + targetRoleId + ":" + (item.relationId() != null ? item.relationId() : "null");
             UserRole ur = userRoleMap.get(urKey);
             if (ur == null) {
-                throw new IllegalArgumentException("User-role relation not found for item");
+                throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), "User-role relation not found for item");
             }
             idsToDelete.add(ur.getId());
             revoked++;

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
@@ -10,6 +11,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.GroupRoleExtraRolesListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleSummaryResp;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.UserRole;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
@@ -95,12 +97,12 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
         if (groupId == null) {
-            throw new IllegalArgumentException("Group role not found: " + req.groupRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Group role not found: " + req.groupRoleExternalId());
         }
         Long basicRoleId = typeResolutionService.resolveRoleId(
             tenantId, req.basicRoleTypeCode(), req.basicRoleExternalId(), req.basicDomainCode());
         if (basicRoleId == null) {
-            throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.ASSIGN)) {
@@ -110,12 +112,12 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
         AbstractRole groupRole = abstractRoleMapper.selectValidById(groupId, tenantId);
         Integer groupRoleTypeValue = typeResolutionService.resolveTypeValue(tenantId, "role_type", PermConstants.TargetType.GROUP_ROLE);
         if (groupRole == null || groupRoleTypeValue == null || !groupRoleTypeValue.equals(groupRole.getRoleType())) {
-            throw new IllegalArgumentException("Not a valid GROUP_ROLE: " + req.groupRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(), "Not a valid GROUP_ROLE: " + req.groupRoleExternalId());
         }
 
         AbstractRole basicRole = abstractRoleMapper.selectValidById(basicRoleId, tenantId);
         if (basicRole == null) {
-            throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
         UserRole ur = new UserRole();
@@ -164,12 +166,12 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
         if (groupId == null) {
-            throw new IllegalArgumentException("Group role not found: " + req.groupRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Group role not found: " + req.groupRoleExternalId());
         }
         Long basicRoleId = typeResolutionService.resolveRoleId(
             tenantId, req.basicRoleTypeCode(), req.basicRoleExternalId(), req.basicDomainCode());
         if (basicRoleId == null) {
-            throw new IllegalArgumentException("Basic role not found: " + req.basicRoleExternalId());
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.REVOKE)) {

@@ -1,8 +1,11 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
+import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,5 +75,18 @@ class TypeDefinitionAppServiceImplTest {
         );
 
         assertThrows(SecurityException.class, () -> service.createType(1L, req, 100L));
+    }
+
+    @Test
+    void shouldThrowTypeDefinitionNotFoundWhenUpdateTargetMissing() {
+        when(engine.hasPermission(eq(1L), eq(100L), any(), eq(99L), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectValidById(1L, 99L)).thenReturn(null);
+
+        TypeUpdateReq req = new TypeUpdateReq(99L, "Updated", "desc", 1, null);
+
+        BizException exception = assertThrows(BizException.class, () -> service.updateType(1L, req, 100L));
+
+        assertEquals(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), exception.getErrorCode());
     }
 }

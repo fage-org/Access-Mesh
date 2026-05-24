@@ -381,7 +381,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         OperationListReq req = new OperationListReq("MENU"); // resourceTypeCode
         PermResult<Map<String, Object>> result = permissionFeignClient.listOperations(req);
         if (result == null || result.getData() == null) {
-            throw new IllegalStateException("Failed to list operations for tenant " + tenantId);
+            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "Failed to list operations for tenant " + tenantId);
         }
         // 响应是 Map，从中提取操作列表
         Object itemsObj = result.getData().get("items");

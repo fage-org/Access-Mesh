@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -7,6 +8,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.permission.entity.BizDomain;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.permission.service.BizDomainAppService;
@@ -98,7 +100,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         }
 
         BizDomain domain = bizDomainMapper.selectValidById(req.domainId(), tenantId);
-        if (domain == null) throw new IllegalArgumentException("BizDomain not found: " + req.domainId());
+        if (domain == null) throw new BizException(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), "BizDomain not found: " + req.domainId());
         if (req.name() != null) domain.setName(req.name());
         if (req.description() != null) domain.setDescription(req.description());
         domain.setUpdatedAt(LocalDateTime.now());

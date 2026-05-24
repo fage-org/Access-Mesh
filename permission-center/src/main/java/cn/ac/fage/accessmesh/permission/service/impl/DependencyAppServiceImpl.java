@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCheckReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyCreateReq;
@@ -10,6 +11,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.ResourceDependencyResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceDependencyMapper;
@@ -100,12 +102,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
         if (sourceId == null) {
-            throw new IllegalArgumentException("Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
         }
         Long targetId = typeResolutionService.resolveResourceId(
             tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
         if (targetId == null) {
-            throw new IllegalArgumentException("Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
         }
         Long sourceOperationBits = resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode());
         Long requiredOperationBits = resolveOperationBits(tenantId, req.requiredOperationCodes(), req.targetResourceTypeCode());
@@ -204,7 +206,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
 
         ResourceDependency dep = dependencyMapper.selectOneById(req.id());
         if (dep == null || dep.getDeleteFlag() != 0L || !tenantId.equals(dep.getTenantId())) {
-            throw new IllegalArgumentException("Dependency not found: " + req.id());
+            throw new BizException(PermissionErrorCode.DEPENDENCY_NOT_FOUND.getCode(), "Dependency not found: " + req.id());
         }
         if (req.sourceOperationCodes() != null) {
             dep.setSourceOperationBits(resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode()));
@@ -243,12 +245,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
         if (sourceId == null) {
-            throw new IllegalArgumentException("Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
         }
         Long targetId = typeResolutionService.resolveResourceId(
             tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
         if (targetId == null) {
-            throw new IllegalArgumentException("Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
         }
         if (Objects.equals(sourceId, targetId)) {
             return true;

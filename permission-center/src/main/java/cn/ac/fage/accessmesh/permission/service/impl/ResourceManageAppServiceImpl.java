@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingAddReq;
@@ -26,6 +27,7 @@ import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
@@ -139,7 +141,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         entity.setParentId(req.parentId());
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
         if (resourceType == null) {
-            throw new IllegalArgumentException("未知的resourceTypeCode: " + req.resourceTypeCode());
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
         }
         entity.setResourceType(resourceType);
         entity.setCode(req.code());
@@ -259,7 +261,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.id());
         if (entity == null) {
-            throw new IllegalArgumentException("资源不存在: " + req.id());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.id());
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationCodeConstants.MANAGE)) {
@@ -286,7 +288,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, resourceId);
         if (entity == null) {
-            throw new IllegalArgumentException("资源不存在: " + resourceId);
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + resourceId);
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
@@ -296,7 +298,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (parentId != null) {
             ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
             if (parent == null) {
-                throw new IllegalArgumentException("父资源不存在: " + parentId);
+                throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "父资源不存在: " + parentId);
             }
         }
         entity.setParentId(parentId);
@@ -444,7 +446,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.resourceId());
         if (entity == null) {
-            throw new IllegalArgumentException("资源不存在: " + req.resourceId());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.resourceId());
         }
 
         ResourceApiMapping mapping = new ResourceApiMapping();
@@ -526,7 +528,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceApiMapping mapping = apiMappingMapper.selectValidById(tenantId, req.mappingId());
         if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
-            throw new IllegalArgumentException("API映射不存在: " + req.mappingId());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCodeConstants.MANAGE_API_MAPPING)) {

@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
@@ -71,7 +73,8 @@ class ServiceSyncAppServiceImplTest {
                 List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
                     new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "READ", "test:read", "test api")
                 ))));
-            assertThrows(IllegalArgumentException.class, () -> service.syncInterfaces(1L, req));
+            BizException exception = assertThrows(BizException.class, () -> service.syncInterfaces(1L, req));
+            assertEquals(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
         }
     }
 }

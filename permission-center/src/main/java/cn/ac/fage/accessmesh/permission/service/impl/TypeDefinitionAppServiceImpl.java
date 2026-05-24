@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.TypeDefinitionAppService;
@@ -103,7 +105,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
 
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
-        if (type == null) throw new IllegalArgumentException("Type not found: " + req.typeId());
+        if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         if (req.name() != null) type.setName(req.name());
         if (req.description() != null) type.setDescription(req.description());
         if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());

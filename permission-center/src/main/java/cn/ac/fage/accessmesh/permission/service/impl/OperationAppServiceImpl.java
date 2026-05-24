@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.OperationAppService;
@@ -83,7 +85,7 @@ public class OperationAppServiceImpl implements OperationAppService {
 
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) {
-            throw new IllegalArgumentException("Unknown resourceTypeCode: " + resourceTypeCode);
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + resourceTypeCode);
         }
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
@@ -169,7 +171,7 @@ public class OperationAppServiceImpl implements OperationAppService {
 
         OperationPermission op = operationPermissionMapper.selectOneById(operationId);
         if (op == null || op.getDeleteFlag() != 0L || !op.getTenantId().equals(tenantId)) {
-            throw new IllegalArgumentException("Operation not found: " + operationId);
+            throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(), "Operation not found: " + operationId);
         }
         if (name != null) op.setName(name);
         if (binaryBit != null) op.setBinaryBit(binaryBit);

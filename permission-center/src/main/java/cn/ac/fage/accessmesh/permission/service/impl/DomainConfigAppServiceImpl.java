@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.DomainConfigAppService;
@@ -54,7 +56,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
 
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
         if (bizDomainId == null) {
-            throw new IllegalArgumentException("Unknown domainCode: " + req.domainCode());
+            throw new BizException(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), "Unknown domainCode: " + req.domainCode());
         }
         DomainConfig existing = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, req.configType());
 

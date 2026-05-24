@@ -1,10 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.ServiceSyncAppService;
@@ -70,7 +72,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
 
         Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
         if (apiType == null) {
-            throw new IllegalArgumentException("resource_type API not found");
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "resource_type API not found");
         }
 
         SyncContext context = SyncContext.of(tenantId, config, req, operatorId, basePath, apiType);
@@ -91,7 +93,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
 
         if (config == null) {
-            throw new IllegalArgumentException("ServiceConfig not found: " + req.serviceCode());
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "ServiceConfig not found: " + req.serviceCode());
         }
 
         if (req.basePath() != null && !req.basePath().isBlank()) {

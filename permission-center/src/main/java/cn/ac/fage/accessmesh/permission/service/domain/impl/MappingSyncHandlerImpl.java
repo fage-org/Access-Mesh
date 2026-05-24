@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
@@ -77,7 +79,7 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 if (resource == null) {
                     // 应该已由ResourceSyncHandler创建
                     // 如果不存在，抛出异常
-                    throw new IllegalStateException("资源未找到: " + api.resourceCode());
+                    throw new SystemException(PermissionErrorCode.SYNC_RESOURCE_NOT_FOUND.getCode(), "资源未找到: " + api.resourceCode());
                 }
 
                 // 查找已有映射

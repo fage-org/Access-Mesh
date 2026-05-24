@@ -1,11 +1,13 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionAppService;
@@ -142,7 +144,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
         PermissionCondition condition = conditionMapper.selectOneById(req.conditionId());
         if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
-            throw new IllegalArgumentException("Condition not found: " + req.conditionId());
+            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.conditionId());
         }
         if (req.name() != null) condition.setName(req.name());
         if (req.conditionRules() != null) {

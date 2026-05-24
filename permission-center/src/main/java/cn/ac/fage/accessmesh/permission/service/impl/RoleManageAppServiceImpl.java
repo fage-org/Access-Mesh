@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
@@ -10,6 +11,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RoleTreeResp.RoleTreeNode;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.RoleManageAppService;
@@ -97,7 +99,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
-            throw new IllegalArgumentException("未知的roleTypeCode: " + req.roleTypeCode());
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的roleTypeCode: " + req.roleTypeCode());
         }
         Long roleId = subjectDomainService.createRole(
             tenantId, req.parentId(), roleType,
@@ -122,7 +124,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
-            throw new IllegalArgumentException("角色不存在: " + roleId);
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
@@ -148,7 +150,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
-            throw new IllegalArgumentException("角色不存在: " + roleId);
+            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
@@ -158,7 +160,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (parentId != null) {
             AbstractRole parent = subjectDomainService.selectValidRoleById(tenantId, parentId);
             if (parent == null) {
-                throw new IllegalArgumentException("父角色不存在: " + parentId);
+                throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
             }
         }
         role.setParentId(parentId);
