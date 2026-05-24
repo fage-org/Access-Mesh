@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 角色类型枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 角色类型决定了角色的层级特性、权限配置能力等行为。
  * </p>
  */
+@Getter
 public enum RoleType {
     /**
      * 组织角色
@@ -71,20 +74,6 @@ public enum RoleType {
         this.value = value;
         this.label = label;
     }
-
-    /**
-     * 获取类型值
-     *
-     * @return 类型值
-     */
-    public int getValue() { return value; }
-
-    /**
-     * 获取类型标签
-     *
-     * @return 类型标签
-     */
-    public String getLabel() { return label; }
 
     /**
      * 根据类型值解析枚举

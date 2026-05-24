@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * Permission Center 错误码枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 当前先补齐权限授予相关错误码，后续按模块逐步扩展。
  * </p>
  */
+@Getter
 public enum PermissionErrorCode {
 
     /**
@@ -85,13 +88,5 @@ public enum PermissionErrorCode {
     PermissionErrorCode(int code, String message) {
         this.code = code;
         this.message = message;
-    }
-
-    public int getCode() {
-        return code;
-    }
-
-    public String getMessage() {
-        return message;
     }
 }

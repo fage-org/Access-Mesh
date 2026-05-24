@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 权限冲突类型枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 冲突规则用于处理多个角色权限合并时的策略。
  * </p>
  */
+@Getter
 public enum ConflictType {
     /**
      * 角色互斥
@@ -41,18 +44,4 @@ public enum ConflictType {
         this.value = value;
         this.label = label;
     }
-
-    /**
-     * 获取类型编码
-     *
-     * @return 类型编码
-     */
-    public String getValue() { return value; }
-
-    /**
-     * 获取类型标签
-     *
-     * @return 类型标签
-     */
-    public String getLabel() { return label; }
 }

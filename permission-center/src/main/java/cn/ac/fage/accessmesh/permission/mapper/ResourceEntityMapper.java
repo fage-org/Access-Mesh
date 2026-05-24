@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.permission.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
@@ -120,14 +122,11 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      * 用于封装批量后代查询的结果，包含资源ID和后代ID对。
      * </p>
      */
+    @Getter
+    @Setter
     class DescendantResult {
         private Long resourceId;
         private Long descendantId;
-
-        public Long getResourceId() { return resourceId; }
-        public void setResourceId(Long resourceId) { this.resourceId = resourceId; }
-        public Long getDescendantId() { return descendantId; }
-        public void setDescendantId(Long descendantId) { this.descendantId = descendantId; }
     }
 
     /**

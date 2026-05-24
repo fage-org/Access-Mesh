@@ -1,5 +1,9 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -10,6 +14,9 @@ import java.util.Set;
  * 包含创建数、更新数、传入映射键集合（用于后续清理判断）。
  * </p>
  */
+@Getter
+@Setter
+@NoArgsConstructor
 public class SyncMappingsResult {
     /**
      * 创建的映射数量
@@ -24,14 +31,7 @@ public class SyncMappingsResult {
     /**
      * 传入的映射键集合（用于后续清理判断）
      */
-    private Set<String> incomingKeys;
-
-    /**
-     * 默认构造函数
-     */
-    public SyncMappingsResult() {
-        this.incomingKeys = new HashSet<>();
-    }
+    private Set<String> incomingKeys = new HashSet<>();
 
     /**
      * 全参数构造函数
@@ -46,26 +46,11 @@ public class SyncMappingsResult {
         this.incomingKeys = incomingKeys != null ? incomingKeys : new HashSet<>();
     }
 
-    public int getCreatedCount() {
-        return createdCount;
-    }
-
-    public void setCreatedCount(int createdCount) {
-        this.createdCount = createdCount;
-    }
-
-    public int getUpdatedCount() {
-        return updatedCount;
-    }
-
-    public void setUpdatedCount(int updatedCount) {
-        this.updatedCount = updatedCount;
-    }
-
-    public Set<String> getIncomingKeys() {
-        return incomingKeys;
-    }
-
+    /**
+     * 设置传入映射键集合
+     *
+     * @param incomingKeys 传入映射键集合
+     */
     public void setIncomingKeys(Set<String> incomingKeys) {
         this.incomingKeys = incomingKeys != null ? incomingKeys : new HashSet<>();
     }

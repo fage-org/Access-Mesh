@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.admin.enums;
 
+import lombok.Getter;
+
 /**
  * Admin服务错误码枚举
  * <p>
@@ -21,6 +23,7 @@ package cn.ac.fage.accessmesh.admin.enums;
  * </ul>
  * </p>
  */
+@Getter
 public enum AdminErrorCode {
 
     // ===== 用户相关错误（10001-10099） =====
@@ -285,18 +288,4 @@ public enum AdminErrorCode {
         this.code = code;
         this.message = message;
     }
-
-    /**
-     * 获取错误码
-     *
-     * @return 错误码
-     */
-    public int getCode() { return code; }
-
-    /**
-     * 获取错误消息
-     *
-     * @return 错误消息
-     */
-    public String getMessage() { return message; }
 }

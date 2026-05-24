@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.common.cache;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 
 /**
  * 泛型类型捕获工具类
@@ -24,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *
  * @param <T> 要捕获的泛型类型
  */
+@Getter
 public abstract class TypeRef<T> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -38,15 +40,6 @@ public abstract class TypeRef<T> {
             ((java.lang.reflect.ParameterizedType) getClass().getGenericSuperclass())
                 .getActualTypeArguments()[0]
         );
-    }
-
-    /**
-     * 获取捕获的 JavaType
-     *
-     * @return Jackson JavaType 对象，可用于 JSON 序列化/反序列化
-     */
-    public JavaType getType() {
-        return type;
     }
 
     /**

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.common.cache;
 
 import com.fasterxml.jackson.databind.JavaType;
+import lombok.Builder;
+import lombok.Getter;
 
 /**
  * 类型化缓存描述符
@@ -29,6 +31,7 @@ import com.fasterxml.jackson.databind.JavaType;
  *
  * @param <V> 缓存值类型
  */
+@Getter
 public final class CacheCatalogEntry<V> {
 
     /**
@@ -76,119 +79,50 @@ public final class CacheCatalogEntry<V> {
      */
     private final JavaType valueType;
 
-    private CacheCatalogEntry(Builder<V> builder) {
-        this.code = builder.code;
-        this.mode = builder.mode;
-        this.l1TtlMinutes = builder.l1TtlMinutes;
-        this.l1MaxSize = builder.l1MaxSize;
-        this.l2TtlMinutes = builder.l2TtlMinutes;
-        this.valueType = builder.valueType;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public CacheMode getMode() {
-        return mode;
-    }
-
-    public int getL1TtlMinutes() {
-        return l1TtlMinutes;
-    }
-
-    public long getL1MaxSize() {
-        return l1MaxSize;
-    }
-
-    public int getL2TtlMinutes() {
-        return l2TtlMinutes;
-    }
-
-    public JavaType getValueType() {
-        return valueType;
+    @Builder(builderClassName = "CacheCatalogEntryBuilder", builderMethodName = "builder")
+    private CacheCatalogEntry(
+        String code,
+        CacheMode mode,
+        Integer l1TtlMinutes,
+        Long l1MaxSize,
+        Integer l2TtlMinutes,
+        JavaType valueType
+    ) {
+        if (code == null || code.isEmpty()) {
+            throw new IllegalStateException("code is required");
+        }
+        if (valueType == null) {
+            throw new IllegalStateException("valueType is required");
+        }
+        this.code = code;
+        this.mode = mode != null ? mode : CacheMode.L1_L2;
+        this.l1TtlMinutes = l1TtlMinutes != null ? l1TtlMinutes : 10;
+        this.l1MaxSize = l1MaxSize != null ? l1MaxSize : 1000L;
+        this.l2TtlMinutes = l2TtlMinutes != null ? l2TtlMinutes : 30;
+        this.valueType = valueType;
     }
 
     /**
-     * 创建 Builder
+     * Builder 扩展方法：设置值类型（使用 TypeRef）
      *
-     * @param <V> 缓存值类型
-     * @return Builder 实例
+     * @param typeRef TypeRef 实例
+     * @return this
      */
-    public static <V> Builder<V> builder() {
-        return new Builder<>();
-    }
-
-    /**
-     * Builder 类
-     */
-    public static final class Builder<V> {
-
-        private String code;
-        private CacheMode mode = CacheMode.L1_L2;
-        private int l1TtlMinutes = 10;
-        private long l1MaxSize = 1000;
-        private int l2TtlMinutes = 30;
-        private JavaType valueType;
-
-        public Builder<V> code(String code) {
-            this.code = code;
-            return this;
-        }
-
-        public Builder<V> mode(CacheMode mode) {
-            this.mode = mode;
-            return this;
-        }
-
-        public Builder<V> l1TtlMinutes(int l1TtlMinutes) {
-            this.l1TtlMinutes = l1TtlMinutes;
-            return this;
-        }
-
-        public Builder<V> l1MaxSize(long l1MaxSize) {
+    public static class CacheCatalogEntryBuilder<V> {
+        public CacheCatalogEntryBuilder<V> l1MaxSize(long l1MaxSize) {
             this.l1MaxSize = l1MaxSize;
             return this;
         }
 
-        public Builder<V> l2TtlMinutes(int l2TtlMinutes) {
-            this.l2TtlMinutes = l2TtlMinutes;
-            return this;
-        }
-
-        public Builder<V> valueType(TypeRef<V> typeRef) {
+        /**
+         * 设置值类型（使用 TypeRef 便捷方法）
+         *
+         * @param typeRef TypeRef 实例
+         * @return Builder 实例
+         */
+        public CacheCatalogEntryBuilder<V> valueType(TypeRef<V> typeRef) {
             this.valueType = typeRef.getType();
             return this;
-        }
-
-        /**
-         * 直接设置 JavaType（用于复杂类型）
-         *
-         * @param javaType Jackson JavaType
-         * @return this
-         */
-        public Builder<V> valueType(JavaType javaType) {
-            this.valueType = javaType;
-            return this;
-        }
-
-        /**
-         * 构建 CacheCatalogEntry
-         * <p>
-         * 必须设置 code 和 valueType
-         * </p>
-         *
-         * @return CacheCatalogEntry 实例
-         * @throws IllegalStateException 如果缺少必填字段
-         */
-        public CacheCatalogEntry<V> build() {
-            if (code == null || code.isEmpty()) {
-                throw new IllegalStateException("code is required");
-            }
-            if (valueType == null) {
-                throw new IllegalStateException("valueType is required");
-            }
-            return new CacheCatalogEntry<>(this);
         }
     }
 }

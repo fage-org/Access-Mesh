@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 权限授予来源枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 用于区分手动授权和自动授权的来源。
  * </p>
  */
+@Getter
 public enum GrantSource {
     /**
      * 手动授权
@@ -27,11 +30,4 @@ public enum GrantSource {
     GrantSource(String value) {
         this.value = value;
     }
-
-    /**
-     * 获取来源编码
-     *
-     * @return 来源编码
-     */
-    public String getValue() { return value; }
 }

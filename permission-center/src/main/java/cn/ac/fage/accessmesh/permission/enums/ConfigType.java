@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 配置类型枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 配置类型用于区分不同用途的配置项。
  * </p>
  */
+@Getter
 public enum ConfigType {
 
     /**
@@ -38,11 +41,4 @@ public enum ConfigType {
     ConfigType(String value) {
         this.value = value;
     }
-
-    /**
-     * 获取类型编码
-     *
-     * @return 类型编码
-     */
-    public String getValue() { return value; }
 }

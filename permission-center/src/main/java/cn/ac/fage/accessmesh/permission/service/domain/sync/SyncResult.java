@@ -1,6 +1,10 @@
 package cn.ac.fage.accessmesh.permission.service.domain.sync;
 
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 服务接口同步结果类
@@ -10,6 +14,10 @@ import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
  * 可转换为响应DTO返回给前端。
  * </p>
  */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class SyncResult {
     /**
      * 创建的资源数量
@@ -42,32 +50,6 @@ public class SyncResult {
     private int deletedResources;
 
     /**
-     * 默认构造函数
-     */
-    public SyncResult() {
-    }
-
-    /**
-     * 全参数构造函数
-     *
-     * @param createdResources  创建的资源数
-     * @param updatedResources  更新的资源数
-     * @param createdMappings   创建的映射数
-     * @param updatedMappings   更新的映射数
-     * @param deletedMappings   删除的映射数
-     * @param deletedResources  删除的资源数
-     */
-    public SyncResult(int createdResources, int updatedResources, int createdMappings,
-                      int updatedMappings, int deletedMappings, int deletedResources) {
-        this.createdResources = createdResources;
-        this.updatedResources = updatedResources;
-        this.createdMappings = createdMappings;
-        this.updatedMappings = updatedMappings;
-        this.deletedMappings = deletedMappings;
-        this.deletedResources = deletedResources;
-    }
-
-    /**
      * 将结果转换为响应DTO
      *
      * @return 服务配置同步响应DTO
@@ -81,53 +63,5 @@ public class SyncResult {
             deletedResources,
             deletedMappings
         );
-    }
-
-    public int getCreatedResources() {
-        return createdResources;
-    }
-
-    public void setCreatedResources(int createdResources) {
-        this.createdResources = createdResources;
-    }
-
-    public int getUpdatedResources() {
-        return updatedResources;
-    }
-
-    public void setUpdatedResources(int updatedResources) {
-        this.updatedResources = updatedResources;
-    }
-
-    public int getCreatedMappings() {
-        return createdMappings;
-    }
-
-    public void setCreatedMappings(int createdMappings) {
-        this.createdMappings = createdMappings;
-    }
-
-    public int getUpdatedMappings() {
-        return updatedMappings;
-    }
-
-    public void setUpdatedMappings(int updatedMappings) {
-        this.updatedMappings = updatedMappings;
-    }
-
-    public int getDeletedMappings() {
-        return deletedMappings;
-    }
-
-    public void setDeletedMappings(int deletedMappings) {
-        this.deletedMappings = deletedMappings;
-    }
-
-    public int getDeletedResources() {
-        return deletedResources;
-    }
-
-    public void setDeletedResources(int deletedResources) {
-        this.deletedResources = deletedResources;
     }
 }

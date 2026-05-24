@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.enums;
 
+import lombok.Getter;
+
 /**
  * 默认操作码枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.perm.common.enums;
  * 包括查看、编辑和删除三种基本操作权限。
  * </p>
  */
+@Getter
 public enum DefaultOpCode {
     /**
      * 查看操作权限
@@ -30,14 +33,5 @@ public enum DefaultOpCode {
      */
     DefaultOpCode(String code) {
         this.code = code;
-    }
-
-    /**
-     * 获取操作码字符串
-     *
-     * @return 操作码
-     */
-    public String getCode() {
-        return code;
     }
 }

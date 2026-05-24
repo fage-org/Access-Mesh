@@ -9,6 +9,8 @@ import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import lombok.Getter;
+import lombok.Setter;
 
 import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
@@ -686,6 +688,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * 存储授权码关联的用户ID、租户ID、回调地址、PKCE参数等信息。
      * </p>
      */
+    @Getter
+    @Setter
     public static class AuthCodeData {
         private String clientId;
         private long userId;
@@ -694,21 +698,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         private String codeChallenge;
         private String codeChallengeMethod;
         private String scope;
-
-        public String getClientId() { return clientId; }
-        public void setClientId(String clientId) { this.clientId = clientId; }
-        public long getUserId() { return userId; }
-        public void setUserId(long userId) { this.userId = userId; }
-        public long getTenantId() { return tenantId; }
-        public void setTenantId(long tenantId) { this.tenantId = tenantId; }
-        public String getRedirectUri() { return redirectUri; }
-        public void setRedirectUri(String redirectUri) { this.redirectUri = redirectUri; }
-        public String getCodeChallenge() { return codeChallenge; }
-        public void setCodeChallenge(String codeChallenge) { this.codeChallenge = codeChallenge; }
-        public String getCodeChallengeMethod() { return codeChallengeMethod; }
-        public void setCodeChallengeMethod(String codeChallengeMethod) { this.codeChallengeMethod = codeChallengeMethod; }
-        public String getScope() { return scope; }
-        public void setScope(String scope) { this.scope = scope; }
     }
 
     /**
@@ -717,19 +706,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * 存储刷新令牌关联的用户ID、租户ID、客户端ID、授权范围等信息。
      * </p>
      */
+    @Getter
+    @Setter
     public static class RefreshTokenData {
         private long userId;
         private long tenantId;
         private String clientId;
         private String scope;
-
-        public long getUserId() { return userId; }
-        public void setUserId(long userId) { this.userId = userId; }
-        public long getTenantId() { return tenantId; }
-        public void setTenantId(long tenantId) { this.tenantId = tenantId; }
-        public String getClientId() { return clientId; }
-        public void setClientId(String clientId) { this.clientId = clientId; }
-        public String getScope() { return scope; }
-        public void setScope(String scope) { this.scope = scope; }
     }
 }

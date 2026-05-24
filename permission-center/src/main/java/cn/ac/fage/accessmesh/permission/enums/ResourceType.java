@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 资源类型枚举
  * <p>
@@ -7,6 +9,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * 资源类型决定了资源在权限系统中的行为和展示方式。
  * </p>
  */
+@Getter
 public enum ResourceType {
     /**
      * 菜单资源
@@ -61,20 +64,6 @@ public enum ResourceType {
         this.value = value;
         this.label = label;
     }
-
-    /**
-     * 获取类型值
-     *
-     * @return 类型值
-     */
-    public int getValue() { return value; }
-
-    /**
-     * 获取类型标签
-     *
-     * @return 类型标签
-     */
-    public String getLabel() { return label; }
 
     /**
      * 安全获取类型标签

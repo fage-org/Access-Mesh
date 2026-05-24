@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.enums;
 
+import lombok.Getter;
+
 /**
  * 业务域查询模式枚举
  * <p>
@@ -11,6 +13,7 @@ package cn.ac.fage.accessmesh.permission.enums;
  * </ul>
  * </p>
  */
+@Getter
 public enum DomainQueryMode {
 
     /**
@@ -33,11 +36,4 @@ public enum DomainQueryMode {
     DomainQueryMode(String value) {
         this.value = value;
     }
-
-    /**
-     * 获取查询模式编码
-     *
-     * @return 查询模式编码
-     */
-    public String getValue() { return value; }
 }
