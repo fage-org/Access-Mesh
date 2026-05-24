@@ -93,6 +93,43 @@ PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, reso
 PermResultUtils.validateOrThrow(engine.query(q));
 ```
 
+### 异常边界（permission-center）
+
+**MUST** 在 permission-center 新增/修改代码时明确区分三类公开异常，**不要**把所有失败都收敛为 `SecurityException`：
+
+- `SecurityException`：仅用于操作者身份缺失、Gateway 签名失败、权限不足、越权访问等安全拒绝。
+- `BizException`：用于资源不存在、业务键无效、角色已禁用、状态冲突、重复创建、配置不满足业务规则等**预期内业务拒绝**。
+- `SystemException`：用于数据库/RPC/序列化/算法初始化等**非预期技术故障**，需要保留 `cause` 时必须包装。
+
+补充限制：
+
+- **MUST NOT** 用 `SecurityException` 表达“资源不存在”“状态不合法”“参数不满足业务约束”这类非安全问题。
+- **SHOULD NOT** 在 AppService / DomainService 的公开业务分支新增裸 `IllegalArgumentException` / `IllegalStateException`。
+- `IllegalArgumentException` 仅保留给私有 helper、enum/factory、框架适配层的编程契约校验。
+- `IllegalStateException` 仅保留给配置缺失、启动失败、内部不变量破坏、理论不可达分支等 fail-fast 场景。
+- 当前存量代码已存在混用现象；后续触达相关方法时，按本规则逐步收敛到 `BizException` / `SystemException` / `SecurityException`。
+
+示例：
+
+```java
+// ✅ 鉴权失败
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+}
+
+// ✅ 业务拒绝（不要再新增裸 IllegalArgumentException）
+if (role == null) {
+    throw new BizException(errorCode, "Role not found");
+}
+
+// ✅ 技术故障包装
+try {
+    // serialize / rpc / io
+} catch (Exception e) {
+    throw new SystemException(systemErrorCode, "serialize role permission failed", e);
+}
+```
+
 ## 3. 命名规范
 
 ### Service 层

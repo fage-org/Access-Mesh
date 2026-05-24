@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -20,6 +21,7 @@ import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.enums.ConfigType;
 import cn.ac.fage.accessmesh.permission.enums.GrantSource;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
@@ -131,9 +133,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * @param tenantId 租户ID
      * @param req      批量授予请求，包含角色标识、新增项、更新项、删除项
      * @return 授予后的角色权限列表
-     * @throws IllegalArgumentException  角色/资源/操作/条件不存在
+    * @throws BizException              角色/资源/操作/条件不存在，或角色已禁用，或请求不合法
      * @throws SecurityException         操作者无授权传递权限
-     * @throws IllegalStateException     角色已禁用
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -144,7 +145,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode()
         );
         if (roleId == null) {
-            throw new IllegalArgumentException("Role not found by business key");
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND, "Role not found by business key");
         }
 
         // 操作者授权校验 - 对角色拥有MANAGE权限
@@ -157,15 +158,15 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             || (req.update() != null && !req.update().isEmpty())
             || (req.remove() != null && !req.remove().isEmpty());
         if (!hasChanges) {
-            throw new IllegalArgumentException("At least one of add/update/remove is required");
+            throw biz(PermissionErrorCode.GRANT_REQUEST_EMPTY, "At least one of add/update/remove is required");
         }
 
         AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         if (role == null) {
-            throw new IllegalArgumentException("Role not found: " + roleId);
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND, "Role not found: " + roleId);
         }
         if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
-            throw new IllegalStateException("Role is disabled: " + roleId);
+            throw biz(PermissionErrorCode.ROLE_DISABLED, "Role is disabled: " + roleId);
         }
 
         List<RoleGrantReq.GrantAddItem> addItems = req.add() == null ? List.of() : req.add();
@@ -325,7 +326,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 校验所有资源是否存在
         for (Long resId : resourceIds) {
             if (!resourceById.containsKey(resId)) {
-                throw new IllegalArgumentException("Resource not found: " + resId);
+                throw biz(PermissionErrorCode.RESOURCE_NOT_FOUND, "Resource not found: " + resId);
             }
         }
 
@@ -339,7 +340,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                     item.resourceTypeCode(), item.resourceCode(), item.codeType(), req.domainCode());
                 resourceEntityId = resourceIdMap.get(resKey);
                 if (resourceEntityId == null) {
-                    throw new IllegalArgumentException("resource not found: " + item.resourceCode());
+                    throw biz(PermissionErrorCode.RESOURCE_NOT_FOUND, "resource not found: " + item.resourceCode());
                 }
             }
 
@@ -348,13 +349,13 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             OperationPermission operation = operationId != null
                 ? operationPermissionMapper.selectValidById(tenantId, operationId) : null;
             if (operation == null) {
-                throw new IllegalArgumentException("operationCode not found: " + item.operationCode());
+                throw biz(PermissionErrorCode.OPERATION_NOT_FOUND, "operationCode not found: " + item.operationCode());
             }
             Long conditionId = null;
             if (item.conditionCode() != null && !item.conditionCode().isBlank()) {
                 PermissionCondition condition = permissionConditionMapper.selectValidByCode(tenantId, item.conditionCode());
                 if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
-                    throw new IllegalArgumentException("conditionCode not found: " + item.conditionCode());
+                    throw biz(PermissionErrorCode.CONDITION_NOT_FOUND, "conditionCode not found: " + item.conditionCode());
                 }
                 conditionId = condition.getId();
             }
@@ -365,10 +366,11 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             rp.setGrantedBits(operation.getBinaryBit());
             Integer finalResourceType = resourceTypeValueMap.get(item.resourceTypeCode());
             if (finalResourceType == null) {
-                throw new IllegalArgumentException("resourceTypeCode not found: " + item.resourceTypeCode());
+                throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND, "resourceTypeCode not found: " + item.resourceTypeCode());
             }
             if (operation.getResourceType() != null && !operation.getResourceType().equals(finalResourceType)) {
-                throw new IllegalArgumentException("resourceType does not match operationPermission resource type");
+                throw biz(PermissionErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,
+                    "resourceType does not match operationPermission resource type");
             }
             rp.setResourceType(finalResourceType);
             rp.setScopeAll(scopeAll);
@@ -426,7 +428,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                     } else {
                         PermissionCondition condition = conditionMap.get(updateItem.conditionCode());
                         if (condition == null) {
-                            throw new IllegalArgumentException("conditionCode not found: " + updateItem.conditionCode());
+                            throw biz(PermissionErrorCode.CONDITION_NOT_FOUND,
+                                "conditionCode not found: " + updateItem.conditionCode());
                         }
                         existing.setConditionId(condition.getId());
                     }
@@ -465,7 +468,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      *
      * @param tenantId 租户ID
      * @param req      批量撤销请求，包含角色标识和权限ID列表
-     * @throws IllegalArgumentException 角色不存在
+    * @throws BizException      角色不存在
      * @throws SecurityException        操作者无MANAGE权限
      */
     @Override
@@ -477,7 +480,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode()
         );
         if (roleId == null) {
-            throw new IllegalArgumentException("Role not found by business key");
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND, "Role not found by business key");
         }
 
         // 操作者授权校验
@@ -580,7 +583,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * @param tenantId 租户ID
      * @param req      添加子权限请求，包含父权限ID和子权限列表
      * @return 新增的子权限项列表
-     * @throws IllegalArgumentException 父权限不存在、父权限不是顶层、资源类型不允许
+    * @throws BizException      父权限不存在、父权限不是顶层、资源类型不允许，或资源/操作/条件不存在
      * @throws SecurityException        操作者无MANAGE权限
      */
     @Override
@@ -590,7 +593,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
         RoleResourcePermission parent = rolePermMapper.selectValidById(tenantId, null, req.parentPermissionId());
         if (parent == null) {
-            throw new IllegalArgumentException("parentPermissionId not found");
+            throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND, "parentPermissionId not found");
         }
 
         // 操作者授权校验
@@ -600,7 +603,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
 
         if (parent.getDependOn() != null) {
-            throw new IllegalArgumentException("parentPermissionId must be a top-level permission");
+            throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_TOP_LEVEL,
+                "parentPermissionId must be a top-level permission");
         }
         ResourceEntity parentResource = parent.getResourceEntityId() == null ? null : resourceEntityMapper.selectOneById(parent.getResourceEntityId());
         DomainConfig subPermConfig = null;
@@ -664,37 +668,39 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         for (RolePermissionAddChildReq.ChildItem child : children) {
             Integer resourceType = resourceTypeValueMap.get(child.resourceTypeCode());
             if (resourceType == null) {
-                throw new IllegalArgumentException("resourceTypeCode not found: " + child.resourceTypeCode());
+                throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND,
+                    "resourceTypeCode not found: " + child.resourceTypeCode());
             }
             // SUB_PERM配置校验
             if (subPermConfig != null && subPermConfig.getExtra() != null && !subPermConfig.getExtra().isBlank()
                 && !parseAllowedTypeCodes(subPermConfig.getExtra()).contains(child.resourceTypeCode().trim().toUpperCase())) {
-                throw new IllegalArgumentException("resourceTypeCode not allowed by SUB_PERM config: " + child.resourceTypeCode());
+                throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+                    "resourceTypeCode not allowed by SUB_PERM config: " + child.resourceTypeCode());
             }
             Map<String, Long> opMap = operationIdMapByType.getOrDefault(child.resourceTypeCode(), Map.of());
             Long operationId = opMap.get(child.operationCode());
             OperationPermission operation = operationId != null
                 ? operationPermissionMapper.selectValidById(tenantId, operationId) : null;
             if (operation == null) {
-                throw new IllegalArgumentException("operationCode not found: " + child.operationCode());
+                throw biz(PermissionErrorCode.OPERATION_NOT_FOUND, "operationCode not found: " + child.operationCode());
             }
             boolean scopeAll = Boolean.TRUE.equals(child.scopeAll());
             if (!scopeAll && (child.resourceCode() == null || child.resourceCode().isBlank())) {
-                throw new IllegalArgumentException("resourceCode is required when scopeAll=false");
+                throw biz(PermissionErrorCode.RESOURCE_CODE_REQUIRED, "resourceCode is required when scopeAll=false");
             }
             Long resourceId = null;
             if (!scopeAll) {
                 ResourceResolveKey resKey = new ResourceResolveKey(child.resourceTypeCode(), child.resourceCode(), child.codeType(), null);
                 resourceId = resourceIdMap.get(resKey);
                 if (resourceId == null) {
-                    throw new IllegalArgumentException("resource not found: " + child.resourceCode());
+                    throw biz(PermissionErrorCode.RESOURCE_NOT_FOUND, "resource not found: " + child.resourceCode());
                 }
             }
             Long conditionId = null;
             if (child.conditionCode() != null && !child.conditionCode().isBlank()) {
                 PermissionCondition condition = conditionMap.get(child.conditionCode());
                 if (condition == null) {
-                    throw new IllegalArgumentException("conditionCode not found: " + child.conditionCode());
+                    throw biz(PermissionErrorCode.CONDITION_NOT_FOUND, "conditionCode not found: " + child.conditionCode());
                 }
                 conditionId = condition.getId();
             }
@@ -749,7 +755,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      *
      * @param tenantId 租户ID
      * @param req      移除子权限请求，包含子权限ID
-     * @throws IllegalArgumentException 子权限不存在、权限不是子权限
+    * @throws BizException      子权限不存在、权限不是子权限
      * @throws SecurityException        操作者无MANAGE权限
      */
     @Override
@@ -759,7 +765,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
         RoleResourcePermission child = rolePermMapper.selectValidById(tenantId, null, req.permissionId());
         if (child == null) {
-            throw new IllegalArgumentException("child permission not found");
+            throw biz(PermissionErrorCode.CHILD_PERMISSION_NOT_FOUND, "child permission not found");
         }
 
         // 操作者授权校验
@@ -769,7 +775,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
 
         if (child.getDependOn() == null) {
-            throw new IllegalArgumentException("permission is not a child");
+            throw biz(PermissionErrorCode.PERMISSION_NOT_CHILD, "permission is not a child");
         }
         child.setDeleteFlag(child.getId());
         child.setDeletedAt(LocalDateTime.now());
@@ -904,6 +910,14 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             item.resourceCode() == null ? "*" : item.resourceCode(),
             item.operationCode(),
             Boolean.TRUE.equals(item.scopeAll()) ? "ALL" : "SPECIFIC");
+    }
+
+    private BizException biz(PermissionErrorCode errorCode) {
+        return new BizException(errorCode.getCode(), errorCode.getMessage());
+    }
+
+    private BizException biz(PermissionErrorCode errorCode, String message) {
+        return new BizException(errorCode.getCode(), message);
     }
 
     // ===== 私有批量加载方法 =====

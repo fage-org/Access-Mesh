@@ -196,6 +196,17 @@ RuntimeException
 - `SystemException`：包装底层技术异常（IO、RPC 失败等），表示**非预期**的系统故障。
 - 两者均继承自 `RuntimeException`，携带模块错误码（见 §1.2）。
 
+### 3.2.1 业务代码使用边界
+
+- **这属于规则（rules），不属于 skill**：异常分类是写业务代码时始终生效的约束，应写入项目规范或模块规则，而不是按需加载的专题技能。
+- `SecurityException` 仅用于**身份、签名、认证、鉴权、越权访问**等安全拒绝场景，例如 Token/Gateway 签名非法、无法确定操作者身份、权限不足。
+- `BizException` 用于**预期内的业务拒绝**，包括资源不存在、业务键无效、状态不允许、数据重复、领域规则冲突等；优先使用模块错误码，而不是裸字符串异常。
+- `SystemException` 用于**非预期的技术故障**或需要保留 `cause` 的系统错误，例如 IO、RPC、序列化、数据库驱动、算法初始化失败等。
+- `IllegalArgumentException` 仅允许用于**私有 helper / util / factory / enum** 的编程契约校验或框架适配，不应作为 AppService/DomainService 对外公开业务分支的主要异常类型。
+- `IllegalStateException` 仅允许用于**启动失败、配置缺失、内部不变量破坏、理论上不应发生的状态**；不得用来表达普通业务状态拒绝，更不能替代鉴权异常。
+- **禁止**为了“统一”而把资源不存在、状态不合法、重复创建等普通业务拒绝全部改抛 `SecurityException`；这会混淆安全拒绝与业务拒绝的边界。
+- 存量代码中若仍有 `IllegalArgumentException` / `IllegalStateException` / `SecurityException` 混用，后续**触达即按上述边界收敛**，不要继续复制旧写法。
+
 ### 3.3 全局 ExceptionHandler 处理顺序
 
 | 异常类型                          | HTTP 状态码 | code       | 日志级别 | 堆栈 |
@@ -216,6 +227,7 @@ RuntimeException
 - **禁止**在业务代码中 `catch (Exception e) { }` 静默吞掉异常。
 - **禁止**将 `SystemException` 的 cause 堆栈输出到 `msg` 字段（防止信息泄露）。
 - 日志中记录 `traceId`、`userId`、`tenantId` 上下文，便于排查。
+- AppService / DomainService 新增公开方法优先使用 `BizException` / `SystemException` / `SecurityException` 三类语义化异常；`IllegalArgumentException` / `IllegalStateException` 仅保留给内部 fail-fast 场景。
 
 ---
 
