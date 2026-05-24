@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.BizDomainUpdateReq;
@@ -8,7 +10,6 @@ import cn.ac.fage.accessmesh.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.permission.service.BizDomainAppService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -32,18 +33,16 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
 
     private final BizDomainMapper bizDomainMapper;
     private final PermQueryEngine engine;
-    private final OperationLogDomainService operationLogDomainService;
 
     public BizDomainAppServiceImpl(BizDomainMapper bizDomainMapper,
-                                    PermQueryEngine engine,
-                                    OperationLogDomainService operationLogDomainService) {
+                                    PermQueryEngine engine) {
         this.bizDomainMapper = bizDomainMapper;
         this.engine = engine;
-        this.operationLogDomainService = operationLogDomainService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "biz-domain-create", targetType = "biz_domain", targetId = "#result.id()", summary = "'create biz domain ' + #req.code()")
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -90,6 +89,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "biz-domain-update", targetType = "biz_domain", targetId = "#req.domainId()", summary = "'update biz domain ' + #req.domainId()")
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -108,6 +108,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "biz-domain-remove", targetType = "BATCH", targetId = "", summary = "'batch remove biz domains'")
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -116,6 +117,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         }
 
         if (ids == null || ids.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -124,12 +126,14 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             .collect(Collectors.toSet());
 
         if (validInputIds.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
         List<BizDomain> entities = bizDomainMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -139,18 +143,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
 
         LocalDateTime now = LocalDateTime.now();
         bizDomainMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-
-        operationLogDomainService.asyncRecord(
-            "perm",
-            "biz-domain-remove",
-            "BATCH",
-            tenantId,
-            "soft-deleted " + validIds.size() + " biz_domain row(s), ids=" + validIds,
-            operatorId,
-            null,
-            null,
-            tenantId
-        );
+        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " biz_domain row(s)");
     }
 
     private BizDomainResp toBizDomainResp(BizDomain d) {

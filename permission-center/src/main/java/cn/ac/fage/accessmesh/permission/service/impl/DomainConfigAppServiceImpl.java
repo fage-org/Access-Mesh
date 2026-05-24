@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.DomainConfigResp;
@@ -7,7 +9,6 @@ import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.DomainConfigAppService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
@@ -33,20 +34,18 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     private final DomainConfigMapper domainConfigMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
-    private final OperationLogDomainService operationLogDomainService;
 
     public DomainConfigAppServiceImpl(DomainConfigMapper domainConfigMapper,
                                        TypeResolutionService typeResolutionService,
-                                       PermQueryEngine engine,
-                                       OperationLogDomainService operationLogDomainService) {
+                                       PermQueryEngine engine) {
         this.domainConfigMapper = domainConfigMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
-        this.operationLogDomainService = operationLogDomainService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "domain-config-upsert", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
@@ -117,6 +116,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "domain-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove domain configs'")
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -125,6 +125,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
         }
 
         if (ids == null || ids.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -133,12 +134,14 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
             .collect(Collectors.toSet());
 
         if (validInputIds.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
         List<DomainConfig> entities = domainConfigMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -148,18 +151,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
 
         LocalDateTime now = LocalDateTime.now();
         domainConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-
-        operationLogDomainService.asyncRecord(
-            "perm",
-            "domain-config-remove",
-            "BATCH",
-            tenantId,
-            "soft-deleted " + validIds.size() + " domain_config row(s), ids=" + validIds,
-            operatorId,
-            null,
-            null,
-            tenantId
-        );
+        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " domain_config row(s)");
     }
 
     private DomainConfigResp toDomainConfigResp(DomainConfig c) {

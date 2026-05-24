@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
@@ -9,7 +11,6 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.ServiceConfigAppService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -33,21 +34,19 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
     private final ServiceConfigMapper serviceConfigMapper;
     private final PermQueryEngine engine;
-    private final OperationLogDomainService operationLogDomainService;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
 
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
                                         PermQueryEngine engine,
-                                        OperationLogDomainService operationLogDomainService,
                                         ResourceApiMappingMapper resourceApiMappingMapper) {
         this.serviceConfigMapper = serviceConfigMapper;
         this.engine = engine;
-        this.operationLogDomainService = operationLogDomainService;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "service-config-save", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -108,6 +107,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "service-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove service configs'")
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -116,6 +116,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         }
 
         if (ids == null || ids.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -124,12 +125,14 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             .collect(Collectors.toSet());
 
         if (validInputIds.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
         List<ServiceConfig> entities = serviceConfigMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -139,18 +142,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
         LocalDateTime now = LocalDateTime.now();
         serviceConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-
-        operationLogDomainService.asyncRecord(
-            "perm",
-            "service-config-remove",
-            "BATCH",
-            tenantId,
-            "soft-deleted " + validIds.size() + " service_config row(s), ids=" + validIds,
-            operatorId,
-            null,
-            null,
-            tenantId
-        );
+        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " service_config row(s)");
     }
 
     @Override

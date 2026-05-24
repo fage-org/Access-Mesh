@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.ResourceDependencyUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.DependencyCycleCheckResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourceDependencyResp;
-import cn.ac.fage.accessmesh.permission.service.DependencyManageService;
+import cn.ac.fage.accessmesh.permission.service.DependencyAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,14 +33,14 @@ import java.util.List;
 @RequestMapping("/api/perm/resource-dependency")
 public class ResourceDependencyController {
 
-    private final DependencyManageService dependencyManageService;
+    private final DependencyAppService dependencyManageService;
 
     /**
      * 构造函数注入依赖
      *
      * @param dependencyManageService 依赖关系管理服务
      */
-    public ResourceDependencyController(DependencyManageService dependencyManageService) {
+    public ResourceDependencyController(DependencyAppService dependencyManageService) {
         this.dependencyManageService = dependencyManageService;
     }
 

@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.permission.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
@@ -26,13 +25,12 @@ class DomainConfigAppServiceImplTest {
     @Mock private DomainConfigMapper domainConfigMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
-    @Mock private OperationLogDomainService operationLogDomainService;
 
     private DomainConfigAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new DomainConfigAppServiceImpl(domainConfigMapper, typeResolutionService, engine, operationLogDomainService);
+        service = new DomainConfigAppServiceImpl(domainConfigMapper, typeResolutionService, engine);
     }
 
     @Test

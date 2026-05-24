@@ -8,7 +8,8 @@ import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.permission.service.TypeDefinitionAppService;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -32,18 +33,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final PermQueryEngine engine;
-    private final OperationLogDomainService operationLogDomainService;
 
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
-                                         PermQueryEngine engine,
-                                         OperationLogDomainService operationLogDomainService) {
+                                         PermQueryEngine engine) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.engine = engine;
-        this.operationLogDomainService = operationLogDomainService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "type-definition-create", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -95,6 +94,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "type-definition-update", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -115,10 +115,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "type-definition-remove", targetType = "BATCH", targetId = "", summary = "'batch remove type definitions'")
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         if (ids == null || ids.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -127,6 +129,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .collect(Collectors.toSet());
 
         if (validInputIds.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -135,6 +138,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
@@ -144,23 +148,13 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .collect(Collectors.toSet());
 
         if (validIds.isEmpty()) {
+            OperationLogRuntimeContext.markSkip();
             return;
         }
 
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-
-        operationLogDomainService.asyncRecord(
-            "perm",
-            "type-definition-remove",
-            "BATCH",
-            tenantId,
-            "soft-deleted " + validIds.size() + " type_definition row(s), ids=" + validIds,
-            operatorId,
-            null,
-            null,
-            tenantId
-        );
+        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
     }
 
     private TypeDefinitionResp toTypeResp(TypeDefinition t) {

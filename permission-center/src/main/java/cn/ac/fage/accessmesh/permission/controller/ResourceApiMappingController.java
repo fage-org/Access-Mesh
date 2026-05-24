@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.permission.service.ResourceManageService;
+import cn.ac.fage.accessmesh.permission.service.ResourceManageAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,14 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/perm/resource-api-mapping")
 public class ResourceApiMappingController {
 
-    private final ResourceManageService resourceManageService;
+    private final ResourceManageAppService resourceManageService;
 
     /**
      * 构造函数注入依赖
      *
      * @param resourceManageService 资源管理服务
      */
-    public ResourceApiMappingController(ResourceManageService resourceManageService) {
+    public ResourceApiMappingController(ResourceManageAppService resourceManageService) {
         this.resourceManageService = resourceManageService;
     }
 

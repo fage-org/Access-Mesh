@@ -3,21 +3,168 @@ name: permission-center-coding-standards
 description: >-
   Permission Center 编码规范。
   Rule type: ALWAYS — applies to all permission-center module code changes.
-  Covers: entity batch loading, PermQueryEngine, PermQuery/PermResult, RolePermEntry,
-  OperationPermissionUtils, ConditionEvalUtils, role resolution, OperationCodeConstants, ResourceTypeCode,
-    DomainClassifyService, DomainQueryMode.
+  Covers: layered architecture, PermQueryEngine, naming conventions, transaction boundaries,
+  batch loading, operation logging, domain classification, type resolution.
 origin: project
 metadata:
   project: AccessMesh
   module: permission-center
-  version: "3.0.0"
+  version: "4.0.0"
 ---
 
 # Permission Center 编码规范
 
-## 1. 批量实体加载
+## 1. 分层职责
 
-**MUST** 使用对应的 Mapper 批量查询方法，禁止在 service impl 中写私有加载方法。
+**MUST** 严格遵守四层架构：
+
+```
+Controller(参数适配) → AppService(编排/事务/门禁) → DomainService(领域规则) → Mapper(数据)
+```
+
+- **Controller**: 参数适配、请求验证、响应组装。不包含业务逻辑。
+- **AppService**: 编排领域服务、声明事务边界、入口级权限校验。
+- **DomainService**: 领域规则、缓存管理、内部逻辑复用。
+- **Mapper**: 纯数据访问，不包含业务逻辑。
+
+```java
+// ✅ 正确 — AppService 编排事务和门禁
+@Service
+public class RoleManageAppServiceImpl implements RoleManageAppService {
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
+        // 1. 门禁校验
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+            throw new SecurityException("Permission denied");
+        }
+        // 2. 调用 DomainService
+        Long roleId = subjectDomainService.createRole(tenantId, req.parentId(), roleType, req.externalId(), req.name());
+        // 3. 返回
+        return toRoleResp(abstractRoleMapper.selectOneById(roleId));
+    }
+}
+
+// ❌ 禁止 — Controller 中包含业务逻辑
+@PostMapping("/save")
+public PermResult<RoleResp> create(@RequestBody RoleCreateReq req) {
+    // 不要在 Controller 中直接操作 Mapper 或编写业务逻辑
+    AbstractRole role = abstractRoleMapper.insert(...); // WRONG
+}
+```
+
+## 2. 权限查询铁律
+
+**MUST** 所有判定经过 `engine.query()` 或 `engine.hasPermission()`。
+**仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
+
+```java
+// ✅ 正确 — 权限判定走 PermQueryEngine
+if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+}
+engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
+
+// ✅ 正确 — 管理查询可直查 Mapper（不涉及权限判定）
+List<ResourceEntity> resources = resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, offset, limit);
+List<ChangeLogResp> logs = changeLogMapper.selectByTenantEntityTypeEntityId(tenantId, entityType, entityId, offset, limit);
+
+// ❌ 禁止 — 直接查 DB 做权限判定
+rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))...)
+
+// ❌ 禁止 — 使用已删除的类
+ResourcePermissionValidator.validate(...); // 类已删除
+PermissionCheckUtils.check(...);           // 类已删除
+```
+
+### Domain 层 API（复杂查询使用 PermQuery）
+
+```java
+// ✅ 正确 — 使用预设工厂方法
+PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
+PermResult r = engine.query(q);
+return PermResultUtils.toAuthCheckResp(r);
+
+PermQuery q = PermQuery.forResourceQuery(tenantId, userId, resourceTypeCodes, operationCodes);
+PermResult r = engine.query(q);
+
+PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);
+PermResultUtils.validateOrThrow(engine.query(q));
+```
+
+## 3. 命名规范
+
+### Service 层
+
+| 层次 | 命名规则 | 示例 |
+|------|---------|------|
+| AppService 接口 | `XxxAppService` | `RoleManageAppService`, `PermissionGrantAppService` |
+| AppService 实现 | `XxxAppServiceImpl` | `RoleManageAppServiceImpl`, `PermissionGrantAppServiceImpl` |
+| DomainService 接口 | `XxxDomainService` | `SubjectDomainService`, `AuditDomainService` |
+| DomainService 实现 | `XxxDomainServiceImpl` | `SubjectDomainServiceImpl`, `AuditDomainServiceImpl` |
+
+### Controller 层
+
+```java
+// ✅ 正确 — 不带 "Manage" 后缀
+public class RoleController { }
+public class UserController { }
+public class ResourceController { }
+public class OperationController { }
+public class ConditionController { }
+
+// ❌ 禁止 — 带 "Manage" 后缀（已重命名）
+public class RoleManageController { }
+public class UserManageController { }
+```
+
+### Engine 层
+
+权限查询引擎统一使用 `PermQueryEngine`，位于 `service.domain.impl` 包。
+
+## 4. 构造函数依赖
+
+**SHOULD** 不设硬上限，逻辑内聚优先于依赖数量。当类职责过重时（逻辑分散、事务边界交叉、测试难以编写），考虑拆分类。
+
+## 5. 事务边界
+
+**MUST** 在 AppService 声明事务，DomainService 不声明事务。
+
+```java
+// ✅ 正确 — AppService 声明事务
+@Service
+public class RoleManageAppServiceImpl implements RoleManageAppService {
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
+        // 写操作
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RoleResp getRole(Long tenantId, Long roleId) {
+        // 只读操作
+    }
+}
+
+// ✅ 缓存写入在事务提交后执行
+TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+    @Override
+    public void afterCommit() {
+        permissionVersionDomainService.increment(tenantId, roleId);
+        subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
+    }
+});
+
+// ❌ 禁止 — 事务提交前失效缓存（缓存可能被回滚数据污染）
+cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleId);
+// 如果后续回滚，缓存已被错误清理
+```
+
+## 6. 批量实体加载
+
+**MUST** 使用对应的 Mapper 批量查询方法，**禁止**在 service impl 中写私有 `load*()` 方法。
 
 ```java
 // ✅ 正确 — 使用 Mapper 批量查询方法
@@ -42,72 +189,66 @@ private Map<Long, OperationPermission> loadOperations(Set<Long> ids) { ... }
 entityBatchLoadDomainService.batchLoadResources(...);  // 类已删除
 ```
 
-## 2. 权限查询 — 统一入口
+## 7. 操作日志
 
-**MUST** 通过 `PermQueryEngine` 进行所有权限查询和校验。
+### 入口级日志
 
-### 业务层 API（Service Impl 使用）
+**MUST** 使用 `@OperationLog` AOP 注解记录入口级操作日志。
 
 ```java
-// ✅ 正确 — 使用 PermQueryEngine 的业务层 API
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
-    throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+// ✅ 正确 — 使用 @OperationLog 注解
+@Override
+@Transactional(rollbackFor = Exception.class)
+@OperationLog(module = "perm", action = "BATCH_GRANT", targetType = "abstract_role",
+    targetId = "#req.roleExternalId", summary = "save granted role perms")
+public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
+    // 业务逻辑
+    // 不再需要手动调用 auditDomainService.asyncRecordLog(...) 做入口级日志
 }
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
-boolean allowed = engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.MANAGE);
-Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
 
-// ❌ 禁止 — 使用已删除的 ResourcePermissionValidator
-permissionValidator.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationType.MANAGE);
+// ❌ 禁止 — 在 AppService 中手动调用 asyncRecordLog 做入口级日志
+auditDomainService.asyncRecordLog("perm", "BATCH_GRANT", ...); // 应由 @OperationLog 替代
 ```
 
-### Domain 层 API（复杂查询使用 PermQuery）
+### 内部动态日志
+
+**MUST** 通过 `AuditDomainService` 显式调用记录内部动态日志（diff 快照、冲突通知、变更记录）。
 
 ```java
-// ✅ 正确 — 使用预设工厂方法
-PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
-PermResult r = engine.query(q);
-return PermResultUtils.toAuthCheckResp(r);
+// ✅ 正确 — 内部变更日志仍显式调用
+auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
+    tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
+    List.of(new AuditDomainService.ChangeLogEntry(
+        "abstract_role", 0L, "BATCH_DELETE", null, null, diffSnapshot,
+        new Long[0], roleArr
+    ))
+);
 
-PermQuery q = PermQuery.forResourceQuery(tenantId, userId, resourceTypeCodes, operationCodes);
-PermResult r = engine.query(q);
-
-PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);
-PermResultUtils.validateOrThrow(engine.query(q));
-
-// ❌ 禁止 — 直接查 DB 做权限判定
-rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))...)
+// ✅ 正确 — 冲突通知仍显式调用（auditDomainService 不通过 AOP 处理）
+auditDomainService.asyncRecordLog(...); // 仅在非入口级场景
 ```
 
-## 3. RolePermEntry 构造
+## 8. 同层禁止横向调用
 
-**MUST** 使用 `RolePermEntryMapper`。
+**MUST NOT** AppService 之间不得互相注入。
 
 ```java
-// ✅ 正确
-RolePermEntry entry = rolePermEntryMapper.toEntry(perm);
-RolePermEntry entry = rolePermEntryMapper.toEntryWithOpCode(perm, opCode);
+// ❌ 禁止 — AppService 注入另一个 AppService
+@Service
+public class RoleManageAppServiceImpl implements RoleManageAppService {
+    private final PermissionGrantAppService permissionGrantAppService; // WRONG
+}
 
-// ❌ 禁止
-new RolePermEntry(p.getId(), p.getAbstractRoleId(), ...)
+// ✅ 正确 — AppService 注入 DomainService 或 Engine
+@Service
+public class RoleManageAppServiceImpl implements RoleManageAppService {
+    private final SubjectDomainService subjectDomainService;  // OK
+    private final PermQueryEngine engine;                     // OK
+    private final AbstractRoleMapper abstractRoleMapper;      // OK
+}
 ```
 
-## 4. 角色解析
-
-**MUST** 通过 `UserRoleDomainService`。禁止在 service impl 中自己写角色解析逻辑。
-
-```java
-// ✅ 正确 — 单个用户
-Set<Long> roles = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
-
-// ✅ 正确 — 批量用户
-Map<Long, Set<Long>> roles = userRoleDomainService.batchResolveEffectiveRoles(tenantId, userIds);
-
-// ❌ 禁止 — 自己查 UserRole 表
-userRoleMapper.selectListByQuery(...)
-```
-
-## 5. 业务域分类
+## 9. 业务域分类
 
 **MUST** 通过 `DomainClassifyService` 进行管理查询的域范围过滤。权限查询管线不感知业务域。
 
@@ -126,9 +267,6 @@ Long domainId = domainClassifyService.findDomainIdByTypeCode(tenantId, "ORG");
 // ❌ 禁止 — 在实体上使用 bizDomainId 字段（已从 abstract_role, resource_entity 等表中删除）
 role.setBizDomainId(domainId);  // 字段已删除
 role.getBizDomainId();           // 字段已删除
-
-// ❌ 禁止 — 权限查询管线中使用 bizDomainId 参数
-userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);  // 参数已删除
 ```
 
 ### 查询模式
@@ -145,12 +283,12 @@ userRoleDomainService.resolveEffectiveRoles(tenantId, userId, bizDomainId);  // 
 - 全局域的范围隐式包含未被其他域认领的资源类型，无需配置 CLASSIFY
 - `DomainClassifyService` 仅负责查询与匹配，不再承担全局域创建职责
 
-## 6. 类型解析
+## 10. 类型解析
 
-**MUST** 通过 `TypeResolutionService` 的批量方法。
+**MUST** 通过 `TypeResolutionService` 的批量方法，**禁止**循环调用单个解析方法。
 
 ```java
-// ✅ 正确
+// ✅ 正确 — 批量方法
 Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", codes);
 Map<ResourceResolveKey, Long> resourceIds = typeResolutionService.batchResolveResourceIds(tenantId, requests);
 Map<String, Long> opIds = typeResolutionService.batchResolveOperationIds(tenantId, resourceTypeCode, opCodes);
@@ -161,9 +299,22 @@ for (String code : codes) {
 }
 ```
 
-## 7. OperationPermission 位运算
+## 11. 角色解析
 
-**MUST** 使用 `OperationPermissionUtils` 静态方法：
+**MUST** 通过 `SubjectDomainService` 进行用户-角色关系查询。
+
+```java
+// ✅ 正确
+Set<Long> roles = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
+Map<Long, Set<Long>> roles = userRoleDomainService.batchResolveEffectiveRoles(tenantId, userIds);
+
+// ❌ 禁止 — 自己查 UserRole 表
+userRoleMapper.selectListByQuery(...)
+```
+
+## 12. OperationPermission 位运算
+
+**MUST** 使用 `OperationPermissionUtils` 静态方法。
 
 ```java
 // ✅ 正确
@@ -172,9 +323,22 @@ boolean ok = OperationPermissionUtils.covers(granted, target);
 List<RolePermEntry> filtered = OperationPermissionUtils.filterByOperation(entries, opCache, targetOp);
 ```
 
-## 8. Condition 条件评估
+## 13. RolePermEntry 构造
 
-**MUST** 使用 `ConditionEvalUtils` 静态方法进行子项评估：
+**MUST** 使用 `RolePermEntryMapper`。
+
+```java
+// ✅ 正确
+RolePermEntry entry = rolePermEntryMapper.toEntry(perm);
+RolePermEntry entry = rolePermEntryMapper.toEntryWithOpCode(perm, opCode);
+
+// ❌ 禁止
+new RolePermEntry(p.getId(), p.getAbstractRoleId(), ...)
+```
+
+## 14. Condition 条件评估
+
+**MUST** 使用 `ConditionEvalUtils` 静态方法。
 
 ```java
 // ✅ 正确
@@ -182,49 +346,9 @@ boolean ok = ConditionEvalUtils.evalDateRange("2025-01-01", "2026-12-31");
 boolean ok = ConditionEvalUtils.evalItem(jsonNode, context, ...);
 ```
 
-## 9. 缓存失效
-
-**MUST** 在事务提交后（`TransactionSynchronization.afterCommit`）失效缓存。
-
-```java
-// ✅ 正确
-TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-    @Override
-    public void afterCommit() {
-        permissionVersionDomainService.increment(tenantId, roleId);
-        userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-    }
-});
-
-// ❌ 禁止 — 事务提交前失效（缓存可能被回滚数据污染）
-```
-
-## 10. 构造函数依赖
-
-**SHOULD** 保持构造函数依赖不超过 10 个。超过时应考虑拆分类。
-
-已超标但标记 TODO 的类：
-- `PermissionServiceImpl` (17 deps) — TODO: 拆分为 Query/Check/Tree
-- `PermissionGrantServiceImpl` (19 deps) — TODO: 拆分为 Validation/Execution/Cascade
-- `PermissionViewServiceImpl` (14 deps) — TODO: 拆分 View/Log
-- `ConfigManageServiceImpl` (12 deps) — TODO: 拆分配置查询/配置管理/配置同步
-
-## 11. 事务边界
-
-- 读操作使用 `@Transactional(readOnly = true)` 
-- 写操作使用 `@Transactional(rollbackFor = Exception.class)`
-- 缓存写入在事务提交后（`afterCommit`）
-
-## 12. MyBatis-Flex TableDef 使用（全模块）
+## 15. MyBatis-Flex TableDef 使用（全模块）
 
 **ALL MODULES MUST** 使用普通导入或 `Tables` 类，**禁止静态导入 `*TableDef` 类**。
-
-适用模块：
-- ✅ permission-center
-- ✅ admin-service
-- ✅ 所有使用 MyBatis-Flex 的模块
-
-**原因**：静态导入 APT 生成的类会导致 `mvn clean` 后编译失败（死循环：import找不到类 → 编译失败 → APT无法运行 → 无法生成类）。
 
 ```java
 // ✅ 正确 — 使用 Tables 类（APT 生成）
@@ -241,12 +365,10 @@ QueryWrapper qw = QueryWrapper.create()
 
 // ❌ 禁止 — 静态导入
 import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
-
-QueryWrapper qw = QueryWrapper.create()
-    .where(ABSTRACT_ROLE.ID.eq(roleId));  // mvn clean 后编译失败
+// mvn clean 后编译失败
 ```
 
-## 13. 常量类使用
+## 16. 常量类使用
 
 ### OperationCodeConstants（操作码）
 
@@ -256,34 +378,28 @@ QueryWrapper qw = QueryWrapper.create()
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
-    throw new SecurityException("Permission denied");
-}
+engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.CREATE);
 
-// ❌ 禁止 — 使用已删除的 OperationType 枚举
+// ❌ 禁止
 OperationType.MANAGE  // 类已删除
 ```
 
 ### ResourceTypeCode（资源类型）
 
-**MUST** 使用 `ResourceTypeCode` 常量。
+**MUST** 使用 `ResourceTypeCode` 常量，禁止字符串硬编码。
 
 ```java
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
-    throw new SecurityException("Permission denied");
-}
+engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
 
-// ❌ 禁止 — 使用字符串硬编码
-if (!engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE")) { ... }  // 拼写错误风险
+// ❌ 禁止
+engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写错误风险
 ```
 
-## 14. 已删除的类（禁止引用）
-
-以下类已删除，**禁止任何引用**：
+## 17. 已删除的类（禁止引用）
 
 | 类 | 替代方案 |
 |---|---------|
@@ -296,10 +412,14 @@ if (!engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE")) { ...
 | `DomainPermissionStrategy` | 无需替代 |
 | `TypeDefPermissionStrategy` | 直接查询实体检查 |
 | `PermissionCheckUtils` | 使用 `PermQueryEngine` 或 `PermResultUtils` |
+| `AuthorizationService` | 已删除（Phase 3），授权校验已合并到各 AppService |
+| `ConfigManageController` / `ConfigManageService` | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
+| `*ManageService` / `*ManageServiceImpl`（旧命名） | 已重命名为 `*AppService` / `*AppServiceImpl` |
+| `*ManageController`（旧命名） | 已重命名为 `*Controller` |
 
-## 15. 已删除的实体字段（禁止引用）
+## 18. 已删除的实体字段（禁止引用）
 
-以下实体类的 `bizDomainId` 字段已删除，**禁止任何引用**：
+以下实体类的 `bizDomainId` 字段已删除：
 
 | 实体类 | 说明 |
 |--------|------|
@@ -310,4 +430,4 @@ if (!engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE")) { ...
 | `PermissionConflictRule` | 同上 |
 | `PermissionChangeLog` | 同上 |
 
-域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现，参见 §5。
+域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现，参见 §9。

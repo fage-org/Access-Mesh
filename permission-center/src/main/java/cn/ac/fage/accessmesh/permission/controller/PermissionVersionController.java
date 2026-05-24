@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionVersionQueryReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionVersionResp;
-import cn.ac.fage.accessmesh.permission.service.PermissionVersionService;
+import cn.ac.fage.accessmesh.permission.service.PermissionVersionAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,14 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/perm/permission-version")
 public class PermissionVersionController {
 
-    private final PermissionVersionService permissionVersionService;
+    private final PermissionVersionAppService permissionVersionService;
 
     /**
      * 构造函数注入依赖
      *
      * @param permissionVersionService 权限版本服务
      */
-    public PermissionVersionController(PermissionVersionService permissionVersionService) {
+    public PermissionVersionController(PermissionVersionAppService permissionVersionService) {
         this.permissionVersionService = permissionVersionService;
     }
 

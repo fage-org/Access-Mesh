@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionRemoveChildReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RolePermissionItemsResp;
-import cn.ac.fage.accessmesh.permission.service.PermissionGrantService;
+import cn.ac.fage.accessmesh.permission.service.PermissionGrantAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,14 +30,14 @@ import java.util.List;
 @RequestMapping("/api/perm/role-resource-permission")
 public class PermissionGrantController {
 
-    private final PermissionGrantService permissionGrantService;
+    private final PermissionGrantAppService permissionGrantService;
 
     /**
      * 构造函数注入依赖
      *
      * @param permissionGrantService 权限授予服务
      */
-    public PermissionGrantController(PermissionGrantService permissionGrantService) {
+    public PermissionGrantController(PermissionGrantAppService permissionGrantService) {
         this.permissionGrantService = permissionGrantService;
     }
 

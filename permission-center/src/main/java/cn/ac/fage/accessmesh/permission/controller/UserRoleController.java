@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserRolesResp;
-import cn.ac.fage.accessmesh.permission.service.UserManageService;
+import cn.ac.fage.accessmesh.permission.service.UserManageAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,14 +26,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/perm/user-role")
 public class UserRoleController {
 
-    private final UserManageService userManageService;
+    private final UserManageAppService userManageService;
 
     /**
      * 构造函数注入依赖
      *
      * @param userManageService 用户管理服务，包含角色分配功能
      */
-    public UserRoleController(UserManageService userManageService) {
+    public UserRoleController(UserManageAppService userManageService) {
         this.userManageService = userManageService;
     }
 

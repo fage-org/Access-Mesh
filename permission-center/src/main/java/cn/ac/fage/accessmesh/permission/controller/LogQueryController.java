@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.req.OperationLogListReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.OperationLogResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
-import cn.ac.fage.accessmesh.permission.service.LogQueryService;
+import cn.ac.fage.accessmesh.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,14 +30,14 @@ import java.util.List;
 @RequestMapping("/api/perm/log")
 public class LogQueryController {
 
-    private final LogQueryService logQueryService;
+    private final LogQueryAppService logQueryService;
 
     /**
      * 构造函数注入依赖
      *
      * @param logQueryService 日志查询服务
      */
-    public LogQueryController(LogQueryService logQueryService) {
+    public LogQueryController(LogQueryAppService logQueryService) {
         this.logQueryService = logQueryService;
     }
 

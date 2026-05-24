@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * 提供用户权限视图、角色权限视图、资源权限视图、权限解释等功能。
  * 所有查询均通过 PermQueryEngine 进行权限校验。
  * 用户视图使用 forUserView 查询管线 + PermViewAssembler 过滤分页。
- * recentChanges 已迁移至 LogQueryService，不在此服务中。
+ * recentChanges 已迁移至 LogQueryAppService，不在此服务中。
  * </p>
  */
 @Service

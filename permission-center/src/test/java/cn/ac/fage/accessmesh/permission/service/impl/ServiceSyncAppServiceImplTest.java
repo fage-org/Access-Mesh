@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.sync.SyncModeStrategyFactory;
@@ -30,7 +29,6 @@ class ServiceSyncAppServiceImplTest {
     @Mock private ResourceSyncHandler resourceSyncHandler;
     @Mock private MappingSyncHandler mappingSyncHandler;
     @Mock private ServiceConfigMapper serviceConfigMapper;
-    @Mock private OperationLogDomainService operationLogDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private SyncModeStrategyFactory strategyFactory;
     @Mock private PermQueryEngine engine;
@@ -41,7 +39,7 @@ class ServiceSyncAppServiceImplTest {
     void setUp() {
         service = new ServiceSyncAppServiceImpl(
             resourceSyncHandler, mappingSyncHandler, serviceConfigMapper,
-            operationLogDomainService, typeResolutionService, strategyFactory, engine);
+            typeResolutionService, strategyFactory, engine);
     }
 
     @Test

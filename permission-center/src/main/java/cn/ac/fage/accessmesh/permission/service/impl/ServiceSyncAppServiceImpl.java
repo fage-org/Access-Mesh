@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
@@ -8,7 +9,6 @@ import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.permission.service.ServiceSyncAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.MappingSyncHandler;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -35,7 +35,6 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     private final ResourceSyncHandler resourceSyncHandler;
     private final MappingSyncHandler mappingSyncHandler;
     private final ServiceConfigMapper serviceConfigMapper;
-    private final OperationLogDomainService operationLogDomainService;
     private final TypeResolutionService typeResolutionService;
     private final SyncModeStrategyFactory strategyFactory;
     private final PermQueryEngine engine;
@@ -44,14 +43,12 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
             ResourceSyncHandler resourceSyncHandler,
             MappingSyncHandler mappingSyncHandler,
             ServiceConfigMapper serviceConfigMapper,
-            OperationLogDomainService operationLogDomainService,
             TypeResolutionService typeResolutionService,
             SyncModeStrategyFactory strategyFactory,
             PermQueryEngine engine) {
         this.resourceSyncHandler = resourceSyncHandler;
         this.mappingSyncHandler = mappingSyncHandler;
         this.serviceConfigMapper = serviceConfigMapper;
-        this.operationLogDomainService = operationLogDomainService;
         this.typeResolutionService = typeResolutionService;
         this.strategyFactory = strategyFactory;
         this.engine = engine;
@@ -59,6 +56,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "service-interface-sync", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
     public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
@@ -79,8 +77,6 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
 
         SyncModeStrategy strategy = strategyFactory.getStrategy(req.syncMode());
         SyncResult result = strategy.execute(context, resourceSyncHandler, mappingSyncHandler);
-
-        logSyncResult(tenantId, req.serviceCode(), result, operatorId);
 
         return result.toResponse();
     }
@@ -105,26 +101,6 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         }
 
         return config;
-    }
-
-    private void logSyncResult(Long tenantId, String serviceCode, SyncResult result, Long operatorId) {
-        operationLogDomainService.asyncRecord(
-            "perm",
-            "service-interface-sync",
-            serviceCode,
-            tenantId,
-            String.format("sync result: createdResources=%d, createdMappings=%d, updatedMappings=%d, " +
-                          "deletedResources=%d, deletedMappings=%d",
-                result.getCreatedResources(),
-                result.getCreatedMappings(),
-                result.getUpdatedMappings(),
-                result.getDeletedResources(),
-                result.getDeletedMappings()),
-            operatorId,
-            null,
-            null,
-            tenantId
-        );
     }
 
     private String normalizeBasePath(String basePath) {

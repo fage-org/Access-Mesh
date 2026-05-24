@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ServiceConfigMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,14 +25,13 @@ class ServiceConfigAppServiceImplTest {
 
     @Mock private ServiceConfigMapper serviceConfigMapper;
     @Mock private PermQueryEngine engine;
-    @Mock private OperationLogDomainService operationLogDomainService;
     @Mock private ResourceApiMappingMapper resourceApiMappingMapper;
 
     private ServiceConfigAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, operationLogDomainService, resourceApiMappingMapper);
+        service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper);
     }
 
     /**

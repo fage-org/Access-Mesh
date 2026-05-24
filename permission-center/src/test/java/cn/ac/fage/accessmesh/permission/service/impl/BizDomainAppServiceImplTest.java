@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.permission.mapper.BizDomainMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,13 +24,12 @@ class BizDomainAppServiceImplTest {
 
     @Mock private BizDomainMapper bizDomainMapper;
     @Mock private PermQueryEngine engine;
-    @Mock private OperationLogDomainService operationLogDomainService;
 
     private BizDomainAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new BizDomainAppServiceImpl(bizDomainMapper, engine, operationLogDomainService);
+        service = new BizDomainAppServiceImpl(bizDomainMapper, engine);
     }
 
     @Test

@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.permission.mapper.TypeDefinitionMapper;
-import cn.ac.fage.accessmesh.permission.service.domain.OperationLogDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,14 +30,13 @@ class TypeDefinitionAppServiceImplTest {
 
     @Mock private TypeDefinitionMapper typeDefinitionMapper;
     @Mock private PermQueryEngine engine;
-    @Mock private OperationLogDomainService operationLogDomainService;
 
     private TypeDefinitionAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, engine, operationLogDomainService
+            typeDefinitionMapper, engine
         );
     }
 

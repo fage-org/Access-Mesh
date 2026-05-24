@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.PermissionRecentChangesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourcePermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.ResourcePermissionViewResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.RolePermissionViewResp;
-import cn.ac.fage.accessmesh.permission.service.LogQueryService;
+import cn.ac.fage.accessmesh.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.permission.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import jakarta.validation.Valid;
@@ -42,11 +42,11 @@ public class PermissionViewController {
 
     private final PermissionViewAppService permissionViewAppService;
     private final TypeResolutionService typeResolutionService;
-    private final LogQueryService logQueryService;
+    private final LogQueryAppService logQueryService;
 
     public PermissionViewController(PermissionViewAppService permissionViewAppService,
                                     TypeResolutionService typeResolutionService,
-                                    LogQueryService logQueryService) {
+                                    LogQueryAppService logQueryService) {
         this.permissionViewAppService = permissionViewAppService;
         this.typeResolutionService = typeResolutionService;
         this.logQueryService = logQueryService;

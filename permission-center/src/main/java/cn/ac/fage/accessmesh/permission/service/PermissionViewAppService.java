@@ -19,7 +19,7 @@ import java.util.List;
  * <p>
  * 提供只读的权限可见性API，用于查看用户、资源、角色的权限信息。
  * 支持权限解释、有效角色列表等功能。
- * recentChanges 已迁移至 LogQueryService，不在此接口中。
+ * recentChanges 已迁移至 LogQueryAppService，不在此接口中。
  * </p>
  */
 public interface PermissionViewAppService {

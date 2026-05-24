@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.SystemConfigResp;
@@ -38,6 +39,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "system-config-upsert", targetType = "system_config", targetId = "#req.configKey()", summary = "'upsert system config ' + #req.configKey()")
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
