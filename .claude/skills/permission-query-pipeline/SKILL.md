@@ -43,7 +43,7 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DO
 
 ## Domain 层 API（复杂查询场景）
 
-复杂查询使用 `PermQuery`，授权校验使用 `AuthorizationService`：
+复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`：
 
 ```java
 // check — 权限判定
@@ -75,13 +75,13 @@ PermResultUtils.validateOrThrow(engine.query(q));
 PermQuery q = PermQuery.forScopeQuery(tenantId, userId, resourceTypeCodes, operationCodes);
 PermResult r = engine.query(q);
 
-// grant check — 授权检查
-boolean canGrant = authorizationService.canGrantPermission(
+// grant check — 授权传递检查（canGrant 校验）
+boolean canGrant = permissionGrantDomainService.canGrantPermission(
   tenantId, operatorId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
 );
 
-Map<String, AuthorizationService.GrantCheckResult> results =
-  authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, permissions, domainCode);
+Map<String, PermissionGrantDomainService.GrantCheckResult> results =
+  permissionGrantDomainService.checkCanGrant(tenantId, operatorId, permissions, domainCode);
 ```
 
 ## 工厂方法预设

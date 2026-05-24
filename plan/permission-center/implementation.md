@@ -10,76 +10,126 @@
 
 1. [整体分层与类清单](#1-整体分层与类清单)
 2. [公共 Domain Service 设计](#2-公共-domain-service-设计)
-3. [鉴权查询模块](#3-鉴权查询模块)
+3. [鉴权查询模块（PermQueryEngine）](#3-鉴权查询模块permqueryengine)
 4. [权限授权管理模块](#4-权限授权管理模块)
 5. [缓存设计](#5-缓存设计)
-6. [DTO 汇总](#6-dto-汇总)
+6. [操作日志 AOP 机制](#6-操作日志-aop-机制)
+7. [DTO 与内部模型边界](#7-dto-与内部模型边界)
 
 ---
 
 ## 1. 整体分层与类清单
 
-### 1.1 包结构
+### 1.1 分层架构
+
+```
+Controller ──► AppService（调度层） ──► DomainService（领域层） ──► Mapper（数据访问）
+                                         ├── PermQueryEngine（统一鉴权引擎）
+                                         └── AOP（@OperationLog 自动记录入口日志）
+```
+
+### 1.2 包结构
 
 ```
 cn.ac.fage.accessmesh.permission
-├── controller
+├── aop
+│   ├── OperationLog                  ← 注解
+│   ├── OperationLogAspect            ← 切面
+│   └── OperationLogRuntimeContext    ← ThreadLocal 上下文
+├── cache                             ← CacheService 缓存目录
+├── config                            ← 配置类
+├── constant                          ← 常量（OperationCodeConstants 等）
+├── controller (19)
 │   ├── AuthController
-│   ├── PermissionGrantController
-│   ├── UserManageController
-│   ├── RoleManageController
-│   ├── ResourceManageController
-│   ├── TypeDefinitionController
 │   ├── BizDomainController
+│   ├── ConditionController
+│   ├── ConflictRuleController
 │   ├── DomainConfigController
+│   ├── LogQueryController
+│   ├── OperationController
+│   ├── PermissionGrantController
+│   ├── PermissionVersionController
+│   ├── PermissionViewController
+│   ├── ResourceApiMappingController
+│   ├── ResourceController
+│   ├── ResourceDependencyController
+│   ├── RoleController
 │   ├── ServiceConfigController
-│   ├── PermissionConditionController
-│   ├── PermissionConflictController
-│   └── SystemConfigController
+│   ├── SystemConfigController
+│   ├── TypeDefinitionController
+│   ├── UserController
+│   └── UserRoleController
 ├── service
-│   ├── AuthService / AuthServiceImpl                     ← 调度层
-│   ├── PermissionGrantService / PermissionGrantServiceImpl
-│   ├── UserManageService / UserManageServiceImpl
-│   ├── RoleManageService / RoleManageServiceImpl
-│   └── ResourceManageService / ResourceManageServiceImpl
-│   └── domain
-│       ├── AbstractUserDomainService / *Impl             ← 逻辑级（公共复用）
-│       ├── AbstractRoleDomainService / *Impl
-│       ├── UserRoleDomainService / *Impl
-│       ├── RolePermissionDomainService / *Impl
-│       ├── OperationPermissionDomainService / *Impl
-│       ├── ResourceEntityDomainService / *Impl
-│       ├── PermissionConflictDomainService / *Impl
+│   ├── impl (20 AppService 实现)
+│   │   ├── BizDomainAppServiceImpl
+│   │   ├── ConditionAppServiceImpl
+│   │   ├── ConflictRuleAppServiceImpl
+│   │   ├── DependencyAppServiceImpl
+│   │   ├── DomainConfigAppServiceImpl
+│   │   ├── GroupRoleAppServiceImpl
+│   │   ├── LogQueryAppServiceImpl
+│   │   ├── OperationAppServiceImpl
+│   │   ├── PermissionCheckAppServiceImpl
+│   │   ├── PermissionGrantAppServiceImpl
+│   │   ├── PermissionQueryAppServiceImpl
+│   │   ├── PermissionVersionAppServiceImpl
+│   │   ├── PermissionViewAppServiceImpl
+│   │   ├── ResourceManageAppServiceImpl
+│   │   ├── RoleManageAppServiceImpl
+│   │   ├── ServiceConfigAppServiceImpl
+│   │   ├── ServiceSyncAppServiceImpl
+│   │   ├── SystemConfigAppServiceImpl
+│   │   ├── TypeDefinitionAppServiceImpl
+│   │   └── UserManageAppServiceImpl
+│   └── domain (11 个接口 + 11 个实现，另含 ResolveContext 与 PermQueryEngine)
+│       ├── AuditDomainService / *Impl
+│       ├── DomainClassifyService / *Impl
+│       ├── MappingSyncHandler / *Impl
 │       ├── PermissionConditionDomainService / *Impl
+│       ├── PermissionConflictDomainService / *Impl
+│       ├── PermissionGrantDomainService / *Impl
 │       ├── PermissionVersionDomainService / *Impl
-│       ├── PermissionChangeDomainService / *Impl
-│       ├── OperationLogDomainService / *Impl
-│       └── PermCacheDomainService / *Impl               ← L1/L2 缓存操作
-├── mapper
-│   ├── AbstractUserMapper
+│       ├── ResolveContext                            ← 类型预解析上下文
+│       ├── ResourceEntityDomainService / *Impl
+│       ├── ResourceSyncHandler / *Impl
+│       ├── SubjectDomainService / *Impl              ← 角色解析+用户查询合并
+│       ├── TypeResolutionService / *Impl
+│       └── impl/PermQueryEngine                      ← 统一鉴权引擎
+├── mapper (18)
 │   ├── AbstractRoleMapper
-│   ├── UserRoleMapper
-│   ├── RoleResourcePermissionMapper
+│   ├── AbstractUserMapper
+│   ├── BizDomainMapper
+│   ├── DomainConfigMapper
+│   ├── OperationLogMapper
 │   ├── OperationPermissionMapper
-│   ├── ResourceEntityMapper
-│   ├── ResourceApiMappingMapper
-│   ├── ResourceDependencyMapper
+│   ├── PermissionChangeLogMapper
 │   ├── PermissionConditionMapper
 │   ├── PermissionConflictRuleMapper
 │   ├── PermissionVersionMapper
-│   ├── PermissionChangeLogMapper
-│   ├── OperationLogMapper
-│   ├── DomainConfigMapper
-│   ├── BizDomainMapper
-│   ├── TypeDefinitionMapper
+│   ├── ResourceApiMappingMapper
+│   ├── ResourceDependencyMapper
+│   ├── ResourceEntityMapper
+│   ├── RoleResourcePermissionMapper
 │   ├── ServiceConfigMapper
-│   └── SystemConfigMapper
-├── entity                 # 数据库实体，与表一一对应
-├── dto
-│   ├── req                # XxxReq
-│   └── resp               # XxxResp
-├── vo                     # 聚合展示对象
-├── enums                  # 枚举
+│   ├── SystemConfigMapper
+│   ├── TypeDefinitionMapper
+│   └── UserRoleMapper
+├── entity / dto / vo / enums / util（关键类型示例）
+│   ├── ConditionEvalUtils
+│   ├── JsonValidationUtils
+│   ├── OperationPermissionUtils
+│   ├── OperatorContext / OperatorUtil
+│   ├── PageUtil
+│   ├── PermissionConstants
+│   ├── PermQuery / PermResult / PermViewFilter / PermViewResult
+│   ├── PermResultUtils
+│   ├── PermTreeAssembler
+│   ├── PermViewAssembler
+│   ├── RolePermEntryMapper                         ← 在 util 包（非 domain）
+│   ├── SecurityEventType / SecurityLogUtil / SecurityUtils
+│   ├── SnapshotAssembler
+│   ├── StringUtils
+│   └── TreeBuilder
 └── config
 ```
 
@@ -87,53 +137,29 @@ cn.ac.fage.accessmesh.permission
 
 ## 2. 公共 Domain Service 设计
 
-以下 Domain Service 被多个调度层 Service 复用，是分层规范中公共逻辑复用的关键。
+以下 Domain Service 被多个 AppService 复用，是分层规范中公共逻辑复用的关键。
 
 ---
 
-### 2.1 `UserRoleDomainService` — 用户有效角色解析
+### 2.1 `SubjectDomainService` — 主体领域（角色解析 + 用户查询合并）
 
-**核心职责**：解析一个用户的有效角色 ID 集合，带 L1/L2 缓存。
+合并了旧 `AbstractUserDomainService`、`AbstractRoleDomainService` 和 `UserRoleDomainService`。
 
 ```java
-public interface UserRoleDomainService {
+public interface SubjectDomainService {
 
-    /**
-     * 解析用户有效角色 ID 集合（带缓存）。
-     * 执行逻辑：
-     *   1. 查 L1 → 命中直接返回
-     *   2. 查 L2 Redis，key = perm:user:effective-roles:{tenantId}:{userId}
-     *   3. 未命中 → DB 实时解析：
-     *      a. 直接角色（BASIC_ROLE/PERSONAL/POSITION/ORG）：user_role WHERE target_type NOT IN ('GROUP_ROLE')
-     *         AND (valid_from<=now OR NULL) AND (valid_to>=now OR NULL)
-     *      b. 分组角色：user_role WHERE target_type='GROUP_ROLE'
-     *         → 递归展开子角色（abstract_role.parent_id 递归查询）
-     *         → 解析 extra.basicRoleIds 获取额外关联的基本角色
-     *      c. 合并去重，过滤 abstract_role.status=1
-     *   4. 若传入 bizDomainId：只保留该域角色（biz_domain_id=bizDomainId）和全局角色（biz_domain_id IS NULL）
-     *   5. 写入 L2、L1
-     *
-     * @param tenantId     租户 ID
-     * @param userId       abstract_user.id
-     * @param bizDomainId  可空，传入时按域过滤
-     * @return 有效角色 ID 集合（空集合表示无任何有效角色）
-     */
-    Set<Long> resolveEffectiveRoles(Long tenantId, Long userId, Long bizDomainId);
+    // 用户查询
+    AbstractUser selectValidUserById(Long tenantId, Long userId);
 
-    /**
-     * 失效用户有效角色缓存（L1 + L2）。
-     * 权限变更后调用。
-     */
-    void invalidateRoleCache(Long tenantId, Long userId);
+    // 角色查询/写入（其余 createRole、softDeleteRoleBatch 等方法省略）
+    AbstractRole selectValidRoleById(Long tenantId, Long roleId);
 
-    /**
-     * 批量失效：某角色被变更后，失效所有关联此角色的用户缓存。
-     * 实现策略：
-     * 1. 单次 SQL 查询 user_role 获取受影响的用户 ID 集合
-     * 2. 使用 Redis Pipeline 或 Lua 脚本批量删除 L2 缓存 key，避免 N 次网络往返
-     * 3. L1 缓存通过发布/订阅通知各 Gateway 节点失效
-     * 4. 对 GROUP_ROLE 递归处理子角色和 basicRoleIds，合并去重用户 ID 后统一批量失效
-     */
+    // 用户有效角色解析
+    Set<Long> resolveEffectiveRoles(Long tenantId, Long userId);
+    Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds);
+
+    // 缓存失效
+    void invalidateRoleCacheBatch(Long tenantId, Set<Long> userIds);
     void invalidateRoleCacheByRole(Long tenantId, Long roleId);
 }
 ```
@@ -144,471 +170,219 @@ public interface UserRoleDomainService {
 
 ```java
 public interface PermissionVersionDomainService {
-
-    /**
-     * 获取角色当前版本号。
-     * 先查 L2 Redis，key = perm:permission-version:role:{tenantId}:{roleId}
-     * 未命中查 permission_version 表（不存在则初始化为 1）
-     */
     long getCurrentVersion(Long tenantId, Long roleId);
-
-    /**
-     * 递增角色版本号（+1），同步写 DB + 更新 L2。
-     * 调用场景：role_resource_permission 任何写操作完成后。
-     * 返回新版本号。
-     */
     long increment(Long tenantId, Long roleId);
-
-    /**
-     * 批量递增（同一请求影响多个角色时使用）。
-     */
     void batchIncrement(Long tenantId, Collection<Long> roleIds);
 }
 ```
 
 ---
 
-### 2.3 `PermissionChangeDomainService` — 权限变更日志
-
-`PermissionChangeDomainService` 只负责记录权限排查所需的变更事件，不负责生成用户有效权限的历史快照。`oldSnapshot/newSnapshot` 保存原始审计快照，`diff` 保存结构化摘要，供 `permission-view/recent-changes` 展示和筛选。
+### 2.3 `AuditDomainService` — 审计领域（合并 PermissionChangeDomainService + OperationLogDomainService）
 
 ```java
-public interface PermissionChangeDomainService {
+public interface AuditDomainService {
 
-    /**
-     * 记录一批权限变更（在同一 requestId 下关联）。
-     *
-     * @param context  包含 tenantId、operatorId、requestId、changeSource
-     * @param changes  变更条目列表，每条包含：
-     *                   entityType, entityId, operation(CREATE/UPDATE/DELETE),
-     *                   oldSnapshot(JSON), newSnapshot(JSON), diff(JSON),
-     *                   affectedUserIds, affectedRoleIds
-     *
-     * diff 规范：
-     *   {
-     *     "eventType": "ROLE_PERMISSION_CHANGE",
-     *     "items": [
-     *       {
-     *         "changeType": "REMOVE",
-     *         "permission": {
-     *           "domainCode": "example",
-     *           "resourceTypeCode": "REPORT",
-     *           "resourceCode": "report:sales",
-     *           "codeType": "default",
-     *           "operationCode": "DATA_EDIT",
-     *           "scopeAll": false
-     *         },
-     *         "role": {
-     *           "roleTypeCode": "BASIC_ROLE",
-     *           "roleExternalId": "role_report_editor",
-     *           "roleName": "报表编辑员"
-     *         }
-     *       }
-     *     ]
-     *   }
-     *
-     * 枚举约束：
-     *   eventType 固定为 USER_ROLE_CHANGE / ROLE_PERMISSION_CHANGE /
-     *     ROLE_STATUS_CHANGE / RESOURCE_STATUS_CHANGE / CONDITION_CHANGE /
-     *     GROUP_ROLE_CHANGE / RESOURCE_DEPENDENCY_CHANGE
-     *   items[].changeType 固定为 ADD / REMOVE / UPDATE
-     */
-    void record(ChangeLogContext context, List<ChangeLogEntry> changes);
+    // 变更日志记录
+    void recordChangeLog(ChangeLogContext context, List<ChangeLogEntry> changes);
+
+    // 操作日志记录（异步）
+    void asyncRecordLog(String module, String action, String targetType, Long targetId,
+                        String summary, Long operatorId, String ipAddress, String requestId, Long tenantId);
+
+    // 变更历史查询
+    List<PermissionChangeLog> queryRecentChanges(...);
+    long countRecentChanges(...);
 }
 ```
 
 ---
 
-### 2.4 `OperationLogDomainService` — 操作日志
-
-```java
-public interface OperationLogDomainService {
-
-    /**
-     * 异步写入操作日志（不影响主流程响应时间）。
-     *
-     * @param module      模块名，如 "role_resource_permission"
-     * @param action      操作类型，如 "BATCH_GRANT"
-     * @param targetType  操作目标类型
-     * @param targetId    操作目标 ID
-     * @param summary     简要描述
-     * @param operatorId  操作人 abstract_user.id
-     */
-    void asyncRecord(String module, String action, String targetType, Long targetId,
-                     String summary, Long operatorId);
-}
-```
-
----
-
-### 2.5 `PermCacheDomainService` — L1/L2 缓存操作
-
-```java
-public interface PermCacheDomainService {
-
-    // ---- 用户有效角色缓存 ----
-    Optional<Set<Long>> getEffectiveRoles(Long tenantId, Long userId);
-    void setEffectiveRoles(Long tenantId, Long userId, Set<Long> roleIds);
-    void evictEffectiveRoles(Long tenantId, Long userId);
-
-    // ---- 角色权限快照缓存 ----
-    /** key: perm:role:perms:{tenantId}:{roleId} */
-    /** 条件权限也存入缓存，标记 hasCondition=true，鉴权时走条件评估流程 */
-    Optional<RolePermSnapshot> getRolePermSnapshot(Long tenantId, Long roleId);
-    void setRolePermSnapshot(Long tenantId, Long roleId, RolePermSnapshot snapshot);
-    void evictRolePermSnapshot(Long tenantId, Long roleId);
-
-    // ---- 权限版本缓存 ----
-    Optional<Long> getPermVersion(Long tenantId, Long roleId);
-    void setPermVersion(Long tenantId, Long roleId, long version);
-
-    // ---- 接口权限快照（gateway 消费）----
-    /** key: perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionVersion} */
-    Optional<InterfaceSnapshot> getInterfaceSnapshot(Long tenantId, String cacheIdentifier);
-    void setInterfaceSnapshot(Long tenantId, String cacheIdentifier, InterfaceSnapshot snapshot);
-    // 通常无需主动调用；permissionVersion 变化后会自动切换到新快照键
-    void evictInterfaceSnapshot(Long tenantId, String cacheIdentifier);
-}
-```
-
----
-
-### 2.6 `PermissionConflictDomainService` — 冲突规则
+### 2.4 `PermissionConflictDomainService` — 冲突规则
 
 ```java
 public interface PermissionConflictDomainService {
-
-    /**
-     * ROLE_MUTEX：从有效角色集合中移除互斥角色对（两个都移除）。
-     * 查询 permission_conflict_rule WHERE conflict_type='ROLE_MUTEX'
-     * 结果缓存 TTL=5min（key: perm:conflict-rule:role-mutex:{tenantId}）
-     *
-     * @return 过滤后的有效角色 ID 集合（不修改入参）
-     */
     Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds);
-
-    /**
-     * PERM_MUTEX：对已通过的权限条目进行冲突检测，冲突权限失效（两个都移除）。
-     * 触发异步通知（发 EVENT_PERMISSION_CONFLICT 事件）。
-     *
-     * @return 过滤后的权限条目列表
-     */
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 }
 ```
 
 ---
 
-### 2.7 `PermissionConditionDomainService` — 条件校验
+### 2.5 `PermissionConditionDomainService` — 条件校验
 
 ```java
 public interface PermissionConditionDomainService {
-
-    /**
-     * 批量评估权限条目的 condition_id，移除条件不满足的条目。
-     * 相同 condition_id 的结果在同一次请求内复用（Map 缓存）。
-     *
-     * 条件类型处理：
-     *   DATE_RANGE：比较 now() 是否在区间
-     *   TIME_RANGE：比较当前时分是否在区间
-     *   IP_WHITELIST：context.clientIp 是否在 CIDR 列表
-     *   IP_BLACKLIST：context.clientIp 是否不在 CIDR 列表
-     * logic=AND：所有条件均满足；logic=OR：至少一条满足
-     *
-     * @param context  鉴权上下文（含 clientIp 等）
-     * @return 条件通过的权限条目列表
-     */
-    List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
-                                  Map<String, Object> context);
+    List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
 }
 ```
 
 ---
 
-## 3. 鉴权查询模块
-
-### 3.1 接口定义
-
-| 接口         | 路径                                     | 说明                                                                     |
-| ------------ | ---------------------------------------- | ------------------------------------------------------------------------ |
-| 单次鉴权     | `POST /api/perm/auth/check`              | 精确判定一个用户对一个资源+操作的权限                                    |
-| 批量鉴权     | `POST /api/perm/auth/batch-check`        | 一次请求判定多个资源+操作组合                                            |
-| 资源权限查询 | `POST /api/perm/auth/query-resources`    | 查询主体可操作的资源业务键集合                                           |
-| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 查询主资源上下文内的直接范围和子权限                                     |
-| 接口权限快照 | `POST /api/perm/auth/interface-snapshot` | 返回 gateway 消费的接口权限快照                                          |
-| 接口级判定   | `POST /api/perm/auth/check-interface`    | 按 serviceCode+method+path 判定（Gateway 回调入口，含 context 条件评估） |
-
----
-
-### 3.2 单次鉴权执行链路
-
-#### Controller 入参 DTO 与内部 Command
+### 2.6 `TypeResolutionService` — 类型解析
 
 ```java
-/** POST /api/perm/auth/check，对外契约以 api-contract.md 为准 */
-public record AuthCheckReq(
-    @NotBlank String subjectTypeCode,
-    @NotBlank String subjectExternalId,
-    @NotBlank String resourceTypeCode,
-    @NotBlank String resourceCode,
-    @NotBlank String operationCode,
-    String domainCode,
-    String codeType,              // 可空，默认 "default"
-    String inheritMode,           // NONE(默认) / CHILDREN / PARENT / BOTH
-    Map<String, Object> context   // 可空，条件判断上下文（如 clientIp）
-) {}
-
-/** Service 层内部对象，由 Controller 从 Header/SecurityContext 和业务键解析得到 */
-record AuthCheckCommand(
-    Long tenantId,
-    Long abstractUserId,
-    Long resourceEntityId,
-    Long operationPermissionId,
-    Long bizDomainId,
-    String inheritMode,
-    Map<String, Object> context
-) {}
-```
-
-#### 出参 DTO
-
-```java
-public record AuthCheckResp(
-    boolean allowed,
-    String reason,                // DENY 时非空：USER_DISABLED / NO_ROLE / NO_PERMISSION /
-                                  //   CONDITION_NOT_MET / CONFLICT_DETECTED /
-                                  //   ROLE_DISABLED / RESOURCE_DISABLED
-    Long matchedRoleId,           // 匹配到的角色ID（allowed=true 时有值）
-    Long matchedPermissionId,     // 匹配到的授权记录ID（allowed=true 时有值）
-    boolean conditionEvaluated    // 是否经过条件评估（true=有条件权限且已评估，false=无条件或条件不满足）
-) {}
-```
-
-#### 执行链路时序图
-
-```mermaid
-sequenceDiagram
-    participant C as AuthController
-    participant AS as AuthService（调度层）
-    participant AUD as AbstractUserDomainService
-    participant URD as UserRoleDomainService
-    participant PCD as PermissionConflictDomainService
-    participant RPD as RolePermissionDomainService
-    participant COND as PermissionConditionDomainService
-    participant CACHE as PermCacheDomainService
-
-    C->>AS: check(AuthCheckReq)
-
-    AS->>AUD: checkEnabled(tenantId, abstractUserId)
-    AUD-->>AS: UserEnabledStatus（disabled则直接返回 DENY/USER_DISABLED）
-
-    AS->>CACHE: getEffectiveRoles(tenantId, userId)
-    alt L1/L2 命中
-        CACHE-->>AS: Set<Long> effectiveRoleIds
-    else 未命中
-        AS->>URD: resolveEffectiveRoles(tenantId, userId, bizDomainId)
-        URD-->>AS: Set<Long> effectiveRoleIds
-        AS->>CACHE: setEffectiveRoles(...)
-    end
-
-    Note over AS: effectiveRoleIds 为空 → DENY/NO_ROLE
-
-    AS->>PCD: filterRoleMutex(tenantId, effectiveRoleIds)
-    PCD-->>AS: Set<Long> validRoleIds
-
-    Note over AS: validRoleIds 为空 → DENY/NO_ROLE
-
-    AS->>RPD: queryMatchedEntries(tenantId, validRoleIds, resourceEntityId, operationPermissionId, inheritMode)
-    RPD-->>AS: List<RolePermEntry> entries
-
-    Note over AS: entries 为空 → DENY/NO_PERMISSION
-
-    AS->>COND: evaluate(tenantId, entries, context)
-    COND-->>AS: List<RolePermEntry> passedEntries
-
-    Note over AS: passedEntries 为空 → DENY/CONDITION_NOT_MET
-
-    AS->>PCD: filterPermMutex(tenantId, passedEntries)
-    PCD-->>AS: List<RolePermEntry> finalEntries
-    Note over PCD: 有冲突时异步发事件通知
-
-    Note over AS: finalEntries 为空 → DENY/CONFLICT_DETECTED
-
-    AS-->>C: AuthCheckResp(allowed=true)
-```
-
-#### `AuthService` 调度逻辑（伪代码）
-
-```java
-@Service
-public class AuthServiceImpl implements AuthService {
-
-    // 注入各 DomainService（略）
-
-    @Transactional(readOnly = true)
-    public AuthCheckResp check(AuthCheckCommand req) {
-        // Step 1：用户状态
-        AbstractUser user = abstractUserDomainService.getEnabledOrThrow(req.tenantId(), req.abstractUserId());
-        if (!user.enabled()) {
-            return AuthCheckResp.deny("USER_DISABLED");
-        }
-
-        // Step 2：有效角色（走缓存）
-        Set<Long> effectiveRoleIds = userRoleDomainService
-            .resolveEffectiveRoles(req.tenantId(), req.abstractUserId(), req.bizDomainId());
-        if (effectiveRoleIds.isEmpty()) {
-            return AuthCheckResp.deny("NO_ROLE");
-        }
-
-        // Step 3：角色互斥过滤
-        Set<Long> validRoleIds = permissionConflictDomainService
-            .filterRoleMutex(req.tenantId(), effectiveRoleIds);
-        if (validRoleIds.isEmpty()) {
-            return AuthCheckResp.deny("NO_ROLE");
-        }
-
-        // Step 4：查授权条目（含资源树继承展开）
-        List<RolePermEntry> entries = rolePermissionDomainService.queryMatchedEntries(
-            req.tenantId(), validRoleIds,
-            req.resourceEntityId(), req.operationPermissionId(),
-            InheritMode.of(req.inheritMode())
-        );
-        if (entries.isEmpty()) {
-            return AuthCheckResp.deny("NO_PERMISSION");
-        }
-
-        // Step 5：条件评估
-        List<RolePermEntry> passedEntries = permissionConditionDomainService
-            .evaluate(req.tenantId(), entries, req.context());
-        if (passedEntries.isEmpty()) {
-            return AuthCheckResp.deny("CONDITION_NOT_MET");
-        }
-
-        // Step 6：权限互斥过滤（异步通知冲突）
-        List<RolePermEntry> finalEntries = permissionConflictDomainService
-            .filterPermMutex(req.tenantId(), passedEntries);
-        if (finalEntries.isEmpty()) {
-            return AuthCheckResp.deny("CONFLICT_DETECTED");
-        }
-
-        return AuthCheckResp.allow();
-    }
+public interface TypeResolutionService {
+    Map<String, Integer> batchResolveTypeValues(Long tenantId, String typeKey, Set<String> codes);
+    Map<Integer, String> batchResolveTypeCodes(Long tenantId, String typeKey, Set<Integer> values);
+    Map<String, Long> batchResolveOperationIds(Long tenantId, String resourceTypeCode, Set<String> opCodes);
+    Map<ResourceResolveKey, Long> batchResolveResourceIds(Long tenantId, List<ResourceResolveRequest> requests);
 }
 ```
 
 ---
 
-### 3.3 接口权限快照（备选方案，当前未启用）
-
-> **注意**：当前 Gateway 鉴权采用逐请求回调模式，入口是 `POST /api/perm/auth/check-interface`。
-> 本节为备选方案，适用于中大型系统需要降低鉴权延迟的场景，启用时需同步修改 Gateway 路由逻辑。
-
-#### 入参 / 出参
+### 2.7 `DomainClassifyService` — 域分类
 
 ```java
-/** POST /api/perm/auth/interface-snapshot，对外契约以 api-contract.md 为准 */
-public record InterfaceSnapshotReq(
-    @NotBlank String subjectTypeCode,
-    @NotBlank String subjectExternalId,
-    @NotNull String serviceCode,
-    String permissionVersion   // 可空；权限令牌，传入时若与当前令牌一致则返回 NOT_MODIFIED
-) {}
-
-public record InterfaceSnapshotResp(
-    boolean notModified,           // true 表示权限令牌未变化，gateway 使用本地缓存即可
-    String permissionVersion,      // 当前权限令牌（有效角色集合 + 角色版本的摘要）
-    List<ApiPermissionEntry> allowedApis   // 允许访问的接口列表（含条件权限标记 hasCondition）
-) {}
-
-public record ApiPermissionEntry(
-    String serviceCode,
-    String httpMethod,
-    String pathPattern,
-    boolean hasCondition,          // 是否有条件限制
-    Long conditionId               // 条件ID（hasCondition=true 时有值）
-) {}
-```
-
-#### 执行逻辑
-
-```mermaid
-sequenceDiagram
-    participant GW as Gateway（调用方）
-    participant C as AuthController
-    participant AS as AuthService
-    participant URD as UserRoleDomainService
-    participant PVD as PermissionVersionDomainService
-    participant RPD as RolePermissionDomainService
-    participant CACHE as PermCacheDomainService
-
-    GW->>C: interface-snapshot(tenantId, userId, serviceCode, permVersion)
-
-    C->>AS: getInterfaceSnapshot(req)
-
-    AS->>URD: resolveEffectiveRoles(tenantId, userId, null)
-    URD-->>AS: effectiveRoleIds
-
-    AS->>PVD: getCurrentVersion(tenantId, roleId) for each role
-    PVD-->>AS: roleId -> versionNo
-    AS->>AS: build permissionVersion token
-
-    alt req.permissionVersion == permissionVersion
-        AS-->>GW: notModified=true（gateway 使用本地缓存）
-    else 令牌变化或首次拉取
-        AS->>CACHE: getInterfaceSnapshot(tenantId, serviceCode + permissionVersion)
-        alt L1/L2 快照命中
-            CACHE-->>AS: InterfaceSnapshot（含 permissionVersion）
-            AS-->>GW: notModified=false, 返回缓存快照
-        else 未命中
-            AS->>RPD: queryApiPermissions(tenantId, effectiveRoleIds, serviceCode)
-            Note over RPD: 联查 role_resource_permission + resource_api_mapping<br/>条件权限标记 hasCondition=true，存入快照但 Gateway 鉴权时需条件评估
-            RPD-->>AS: List<ApiPermissionEntry>
-
-            AS->>CACHE: setInterfaceSnapshot(tenantId, serviceCode + permissionVersion, snapshot)
-            AS-->>GW: InterfaceSnapshotResp（快照数据）
-        end
-    end
+public interface DomainClassifyService {
+    boolean matchesTypeCode(Long tenantId, DomainQueryMode mode, String domainCode, String typeCode);
+    Set<String> getClassifiedTypeCodes(Long tenantId, String domainCode);
+    Long findDomainIdByTypeCode(Long tenantId, String typeCode);
+}
 ```
 
 ---
 
-### 3.4 `RolePermissionDomainService.queryMatchedEntries` 逻辑
+### 2.8 `PermissionGrantDomainService` — 权限授权领域
 
 ```java
-public interface RolePermissionDomainService {
+public interface PermissionGrantDomainService {
+    boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+                               String resourceCode, String operationCode, boolean scopeAll, String domainCode);
 
-    /**
-     * 查询角色集合对指定资源+操作的授权条目。
-     * 支持资源树继承展开（inheritMode 控制）：
-     *   NONE    → 仅精确匹配 resourceEntityId
-     *   CHILDREN → 展开 resourceEntityId 的所有子资源（path LIKE）
-     *   PARENT  → 向上查父链资源授权
-     *   BOTH    → 双向
-     *
-     * 操作位继承（inherit_mask）：
-     *   授权操作的 effective = binary_bit | inherit_mask，
-     *   若授权操作的有效位掩码包含目标操作的 binary_bit，则匹配。
-     *
-     * @return 授权条目列表（含 conditionId、dependOn、canManage）
-     */
-    List<RolePermEntry> queryMatchedEntries(Long tenantId, Set<Long> roleIds,
-                                             Long resourceEntityId, Long operationPermissionId,
-                                             InheritMode inheritMode);
+    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+                                                Set<GrantCheckKey> permissions, String domainCode);
 
-    /**
-     * 查询接口权限（用于 gateway 快照）。
-     * 联查 role_resource_permission + resource_api_mapping，
-     * 条件权限标记 hasCondition=true，Gateway 鉴权时需条件评估。
-     */
-    List<ApiPermissionEntry> queryApiPermissions(Long tenantId, Set<Long> roleIds,
-                                                  String serviceCode);
+    void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds);
 
-    // --- 授权管理方法（见第 4 节）---
-    List<RoleResourcePermission> batchInsert(Long tenantId, List<RolePermGrantItem> items);
-    List<RoleResourcePermission> batchUpdate(Long tenantId, List<RolePermUpdateItem> items);
-    void batchDelete(Long tenantId, List<Long> ids);
+    record GrantCheckKey(String resourceTypeCode, String resourceCode,
+                         String operationCode, boolean scopeAll) {}
+
+    record GrantCheckResult(boolean canGrant, String reason) {}
 }
 ```
+
+---
+
+### 2.9 `ResourceEntityDomainService` — 资源实体领域
+
+资源层级操作、树形展开等。
+
+---
+
+### 2.10 `ResolveContext` — 类型预解析上下文
+
+在 PermQueryEngine 查询管线中批量预解析 `resourceTypeCode→typeValue` 和 `(resourceTypeCode, operationCode)→operationId`，避免管线中重复调用 TypeResolutionService。
+
+---
+
+## 3. 鉴权查询模块（PermQueryEngine）
+
+### 3.1 统一入口
+
+所有权限查询和校验统一通过 `PermQueryEngine` 执行。引擎提供两层 API：
+
+**AppService 层便捷 API**（适合内部 ID 级单目标/批量校验）：
+
+```java
+// 单目标鉴权
+boolean ok = engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+
+// 批量校验（拒绝时抛 SecurityException）
+engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+
+// 批量获取拒绝 ID 集合
+Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.USER, userIds, OperationCodeConstants.MANAGE);
+```
+
+**`getDeniedIds` 优化策略**（批量拒绝场景）：
+
+1. 一次查询解析用户角色（`SubjectDomainService.resolveEffectiveRoles`）
+2. 一次查询类型级权限（`selectScopeAllPermsByBitsBatch`）-- scopeAll 匹配则全部允许
+3. 否则，一次批量查询实例级权限（`selectInstancePermsByBitsBatch`）
+4. 内存计算拒绝 ID 集合
+
+**复杂查询 API**（`PermQuery` 工厂方法 + `engine.query(PermQuery)`）：
+
+| 工厂方法                      | 模式     | 用途                                                   |
+| ----------------------------- | -------- | ------------------------------------------------------ |
+| `PermQuery.forAuthCheck`      | 鉴权校验 | 类型+实例，scopeAll 匹配时提前返回，完整评估           |
+| `PermQuery.forInterfaceCheck` | 接口鉴权 | 类型优先+实例回退，完整评估，返回所有辅助信息          |
+| `PermQuery.forResourceQuery`  | 资源过滤 | 仅实例级查询，不评估条件/冲突，含资源和操作            |
+| `PermQuery.forResourceCheck`  | 资源检查 | 全范围+实例，完整评估条件/冲突，含资源和操作           |
+| `PermQuery.forValidate`       | 管理校验 | 类型+实例，不评估，最小输出                            |
+| `PermQuery.forScopeQuery`     | 范围查询 | 不提前返回，不评估，返回全部辅助信息                   |
+| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录（`selectValidByRoleIds`），不按位过滤 |
+
+### 3.2 引擎管线流程
+
+```
+PermQueryEngine.query(PermQuery q)
+    │
+    ├─ forUserView → queryForUserView()
+    │     ├─ resolveRoleIds → SubjectDomainService
+    │     ├─ selectValidByRoleIds → 全量角色权限（不按位过滤）
+    │     ├─ evaluateIfNeeded → 条件+冲突
+    │     └─ loadAncillaryForView → 批量加载 Resource/Operation/Role
+    │
+    └─ 通用查询：
+          ├─ 0. 创建 ResolveContext（预解析 resourceTypes + operationIds）
+          ├─ 1. resolveRoleIds → SubjectDomainService
+          ├─ 2. resolveResourceTypes → ResolveContext
+          ├─ 3. resolveOperationIds + resolveBitMasks → 位掩码计算
+          ├─ 4. queryScopeAll → selectScopeAllPermsByBitsBatch (1 SQL)
+          │     └─ scopeAll 匹配 && earlyReturnOnScopeAll → 提前返回
+          ├─ 5. resolveEntityIds → TypeResolutionService.batchResolveResourceIds
+          ├─ 6. queryInstance → selectInstancePermsByBitsBatch (1 SQL)
+          ├─ 6.5. expandByInheritMode → inheritParents/inheritChildren 展开
+          ├─ 7. 合并 scopeAll + instance entries
+          ├─ 8. evaluateIfNeeded → conditions + conflicts
+          └─ 9. loadAncillary → 批量加载 Resource/Operation/Role
+```
+
+### 3.3 PermResult 与 PermResultUtils
+
+`engine.query()` 返回 `PermResult` 对象，包含：
+
+- `allowed` / `reason`
+- `scopeAllMatched` / `scopeAllEntries` / `instanceEntries`
+- `resourceMap` / `operationMap` / `roleMap`（按 `includeXxx` 标志选择性加载）
+
+`PermResultUtils` 提供转换方法将 `PermResult` 转为对外响应：
+
+- `PermResultUtils.toAuthCheckResp(result)` — `check` / `batch-check` 响应
+- `PermResultUtils.validateOrThrow(result)` — `validate` 模式，拒绝时抛异常
+
+### 3.4 scopeAll 处理
+
+scopeAll 是 `RolePermEntry` 的一等维度，引擎查询管线中作为类型级权限单独查询。两个关键的装配器以不同方式处理 scopeAll：
+
+| 装配器              | scopeAll 处理方式                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `SnapshotAssembler` | 不展开，直接作为 `ApiPermissionEntry(scopeAll=true, httpMethod=null, pathPattern=null)` 返回               |
+| `PermViewAssembler` | 按 `resourceType` 分组输出 scopeAll 视图项（如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围） |
+
+### 3.5 资源继承展开（引擎层）
+
+- `PermQuery.setInheritMode("PARENT"/"CHILD"/"BOTH")` 设置继承模式 → 自动转为 `inheritParents`/`inheritChildren` 布尔标志
+- 引擎在 `expandByInheritMode()` 中：
+  1. 加载全部有效资源（`resourceEntityMapper.selectAllValid`）构建父子图
+  2. `inheritChildren` → 递归收集所有子孙资源，为每个克隆权限条目（`grantSource="INHERITED"`）
+  3. `inheritParents` → 向上遍历父链，为每个祖先克隆权限条目
+  4. scopeAll 条目（`resourceEntityId=null`）不参与继承展开
+
+### 3.6 对外接口
+
+| 接口         | 路径                                     | 引擎入口                                                      |
+| ------------ | ---------------------------------------- | ------------------------------------------------------------- |
+| 单次鉴权     | `POST /api/perm/auth/check`              | `engine.query(PermQuery.forAuthCheck())`                      |
+| 批量鉴权     | `POST /api/perm/auth/batch-check`        | `engine.query(PermQuery.forAuthCheck())` x N                  |
+| 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forResourceCheck())`                  |
+| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | `engine.query(PermQuery.forScopeQuery())`                     |
+| 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
+| 权限视图     | `POST /api/perm/permission-view/*`       | `engine.query(PermQuery.forUserView())` + `PermViewAssembler` |
+| 接口快照     | `POST /api/perm/auth/interface-snapshot` | `engine.query()` + `SnapshotAssembler`                        |
 
 ---
 
@@ -649,13 +423,13 @@ public record PermGrantItem(
     @NotBlank String operationCode,
     Boolean scopeAll,
     String conditionCode,           // 可空，权限条件业务键
-    Boolean canManage               // 可空，默认 false
+    Boolean canGrant               // 可空，默认 false
 ) {}
 
 public record PermUpdateItem(
     @NotNull Long id,               // role_resource_permission.id
     String conditionCode,
-    Boolean canManage
+    Boolean canGrant
 ) {}
 
 /** Service 层内部对象：Controller 解析 Header、角色业务键、资源业务键、操作码后得到 */
@@ -684,143 +458,88 @@ public record RolePermBatchGrantResp(
 ```mermaid
 sequenceDiagram
     participant C as PermissionGrantController
-    participant PS as PermissionGrantService（调度层）
-    participant ARD as AbstractRoleDomainService
-    participant RED as ResourceEntityDomainService
-    participant OPD as OperationPermissionDomainService
-    participant RPD as RolePermissionDomainService
-    participant PCD as PermissionConditionDomainService
+    participant PS as PermissionGrantAppService
+    participant TR as TypeResolutionService
+    participant ENG as PermQueryEngine
+    participant PGD as PermissionGrantDomainService
+    participant Mapper as RoleResourcePermissionMapper
     participant PVD as PermissionVersionDomainService
-    participant PChD as PermissionChangeDomainService
-    participant OLD as OperationLogDomainService
-    participant CACHE as PermCacheDomainService
-    participant URD as UserRoleDomainService
+    participant SUBJ as SubjectDomainService
 
-    C->>PS: save(RoleResourcePermissionSaveCommand)
+    C->>PS: batchGrant(RoleGrantReq)
 
-    Note over PS: ① 校验阶段（非事务，前置快速失败）
-    PS->>ARD: validateExists(tenantId, abstractRoleId)
-    ARD-->>PS: AbstractRole（status=0 时抛 BizException:ROLE_DISABLED）
+    Note over PS: ① 解析 + 门禁
+    PS->>TR: resolveRoleId(roleTypeCode, roleExternalId)
+    TR-->>PS: roleId
+    PS->>ENG: hasPermission(ROLE, roleId, MANAGE)
+    ENG-->>PS: allowed
+    PS->>Mapper: selectValidById(roleId) + status check
 
-    PS->>RED: batchValidateExists(tenantId, all resourceEntityIds)
-    RED-->>PS: Map<id, ResourceEntity>（有不存在的直接抛异常）
+    Note over PS: ② canGrant 授权传递校验
+    PS->>PGD: checkCanGrant(operatorId, grantKeys)
+    PGD->>Mapper: selectValidByRoleIds(operatorRoleIds)
+    PGD->>Mapper: selectByTenantResourceTypesAndOpCodes(...)
+    PGD-->>PS: Map<key, GrantCheckResult(canGrant, reason)>
 
-    PS->>OPD: batchValidateCompatible(all operationPermissionId + resourceType)
-    OPD-->>PS: 操作与资源类型不匹配时抛 BizException
+    Note over PS: ③ 批量解析 + Mapper 直查
+    PS->>TR: batchResolveResourceIds/batchResolveOperationIds/batchResolveTypeValues
+    PS->>Mapper: selectValidByIds(roles/resources/ops)
+    Note over PS: 构造 RoleResourcePermission 实体
 
-    PS->>RPD: validateDependOnIds(tenantId, all dependOn ids)
-    RPD-->>PS: dependOn 指向的记录不存在/已是子权限时抛异常
+    Note over PS: ④ 事务内写入
+    PS->>PGD: revokePermissions(tenantId, roleId, removeItems)
+    Note over PGD: 级联软删子权限(不在此方法内递增版本)
+    PS->>Mapper: update(updateItems)
+    PS->>Mapper: insertBatch(addItems)
 
-    PS->>PCD: batchValidateEnabled(tenantId, all conditionIds)
-    PCD-->>PS: 条件 disabled 时抛异常
-
-    Note over PS: ② 批量解析资源、操作、类型值并构造待写入权限
-
-    Note over PS: ③ 事务内写入
-    PS->>RPD: batchDelete(tenantId, req.delete())
-    Note over RPD: 级联软删 depend_on 指向被删 id 的子权限
-    RPD-->>PS: List<RoleResourcePermission> deletedOlds
-
-    PS->>RPD: batchInsert(tenantId, supplementedAddItems)
-    RPD-->>PS: List<RoleResourcePermission> inserted
-
-    PS->>RPD: batchUpdate(tenantId, req.update())
-    RPD-->>PS: List<Pair<old, new>> updated
-
-    Note over PS: ④ 写变更日志（事务内，同步）
-    PS->>PChD: record(context, [DELETE changes + INSERT changes + UPDATE changes])
-
-    Note over PS: ⑤ 写操作日志（异步，事务外）
-    PS->>OLD: asyncRecord("role_resource_permission", "BATCH_GRANT", ...)
-
-    Note over PS: ⑥ 版本递增（事务外，失败不回滚主流程）
-    PS->>PVD: increment(tenantId, abstractRoleId)
-    PVD-->>PS: newVersion
-
-    Note over PS: ⑦ 缓存处理
-    PS->>CACHE: evictRolePermSnapshot(tenantId, abstractRoleId)
-    Note over PS,CACHE: 接口快照使用 permissionVersion 令牌分桶，<br/>角色权限变更后新令牌会自动切换到新快照键，旧键自然冷却
-    PS->>URD: invalidateRoleCacheByRole(tenantId, abstractRoleId)
+    Note over PS: ⑤ 事务提交后
+    PS->>PVD: registerSynchronization.afterCommit → increment(roleId)
+    PS->>SUBJ: afterCommit → invalidateRoleCacheByRole(roleId)
+    Note over PS: ⑦ @OperationLog AOP 自动记录入口日志
 
     PS-->>C: RolePermBatchGrantResp
 ```
 
-#### `PermissionGrantService` 调度逻辑（伪代码）
+#### `PermissionGrantAppService` 调度逻辑（伪代码）
 
 ```java
 @Service
-public class PermissionGrantServiceImpl implements PermissionGrantService {
+public class PermissionGrantAppServiceImpl implements PermissionGrantAppService {
 
     @Transactional(rollbackFor = Exception.class)
-    public RoleResourcePermissionSaveResp save(RoleResourcePermissionSaveCommand req) {
+    @OperationLog(module = "perm", action = "BATCH_GRANT", targetType = "abstract_role",
+        targetId = "#req.roleExternalId", summary = "save granted role perms")
+    public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
 
-        // ① 前置校验
-        abstractRoleDomainService.validateExists(req.tenantId(), req.abstractRoleId());
-        resourceEntityDomainService.batchValidateExists(req.tenantId(), allResourceIds(req));
-        operationPermissionDomainService.batchValidateCompatible(req.tenantId(), opResourcePairs(req));
-        rolePermissionDomainService.validateDependOnIds(req.tenantId(), allDependOnIds(req));
-        permissionConditionDomainService.batchValidateEnabled(req.tenantId(), allConditionIds(req));
+        // ① 解析roleId + 权限门禁
+        Long roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), ...);
+        engine.hasPermission(tenantId, operatorId, ROLE, roleId, MANAGE);
+        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
 
-        // ② 批量解析并构造新增条目（在事务内）
-        List<RoleResourcePermission> toInsert = buildInsertItems(req);
+        // ② canGrant 授权传递校验（直查 Mapper，不走引擎）
+        permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, domainCode);
 
-        // ③ 批量写入（同一事务）
-        List<RoleResourcePermission> deletedOlds = rolePermissionDomainService
-            .batchDelete(req.tenantId(), req.delete());   // 含级联子权限
-        List<RoleResourcePermission> inserted = rolePermissionDomainService
-            .batchInsert(req.tenantId(), toInsert);
-        List<Pair<RoleResourcePermission, RoleResourcePermission>> updated = rolePermissionDomainService
-            .batchUpdate(req.tenantId(), req.update());
+        // ③ 批量解析 + Mapper 直查
+        typeResolutionService.batchResolveResourceIds/batchResolveOperationIds/batchResolveTypeValues
+        resourceEntityMapper.selectValidByIds / operationPermissionMapper.selectBy...
+        permissionConditionMapper.selectValidByCode
 
-        // ④ 写变更日志（事务内）
-        permissionChangeDomainService.record(buildContext(req), buildChanges(deletedOlds, inserted, updated));
+        // ④ 事务内写入
+        permissionGrantDomainService.revokePermissions(tenantId, roleId, removeItems); // 含级联子权限
+        rolePermMapper.update(updateItems);
+        rolePermMapper.insertBatch(toInsert);
+        // revokePermissions 不在此处递增版本，由外层 afterCommit 统一处理
 
-        // ⑤ 异步操作日志（TransactionSynchronizationManager 注册，事务提交后执行）
+        // ⑤ 事务提交后：版本递增 + 缓存失效
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             public void afterCommit() {
-                operationLogDomainService.asyncRecord(...);
-                permissionVersionDomainService.increment(req.tenantId(), req.abstractRoleId());
-                evictCaches(req.tenantId(), req.abstractRoleId());
+                permissionVersionDomainService.increment(tenantId, roleId);
+                subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
             }
         });
-
-        return new RolePermBatchGrantResp(
-            inserted.size(), updated.size(), deletedOlds.size(),
-            autoGrantedIds(toInsert, req.add())
-        );
+        // 入口操作日志由 @OperationLog AOP 自动记录
     }
-
-    private void evictCaches(Long tenantId, Long roleId) {
-        permCacheDomainService.evictRolePermSnapshot(tenantId, roleId);
-        // 接口快照按 serviceCode + permissionVersion 分桶，版本变化后会自然切换到新键
-        // 失效所有关联此角色的用户角色缓存
-        userRoleDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-    }
-}
 ```
-
----
-
-### 4.3 重要业务规则
-
-| 规则                       | 处理位置                                                   | 说明                                                                                            |
-| -------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| 操作与资源类型必须匹配     | `OperationPermissionDomainService.batchValidateCompatible` | `operation_permission.resource_type` 必须等于 `resource_entity.resource_type`                   |
-| `depend_on` 不能指向子权限 | `RolePermissionDomainService.validateDependOnIds`          | 目标记录的 `depend_on` 必须为 null，防止多层嵌套                                                |
-| 删除父权限级联软删子权限   | `RolePermissionDomainService.batchDelete`                  | 删除时查 `depend_on IN (deleteIds)` 一并软删                                                    |
-| 授权来源标记               | `RolePermissionDomainService.batchInsert`                  | 手动授权 grant_source='MANUAL'（默认），自动补全 grant_source='AUTO_DEP'，记录触发规则 id       |
-| 资源依赖配置维护           | `DependencyManageService`                                  | 负责 `resource_dependency` 规则的增删改查、批量同步与循环依赖校验                               |
-| 委托授权不扩大             | `PermissionGrantService` 前置校验                          | `canManage=true` 只允许授权同一权限给他人，不能扩大资源、操作或范围；候选被授权人由业务服务控制 |
-| 版本递增在事务外           | `afterCommit` 钩子                                         | 防止事务回滚后版本已递增导致缓存失效不一致                                                      |
-| 接口快照失效范围           | 通过 `resource_api_mapping` 查受影响 serviceCode           | 只失效变更涉及的服务，减少无效失效                                                              |
-
-### 4.4 资源依赖配置
-
-资源依赖规则仍由 `DependencyManageService` 维护，对应持久化表为 `resource_dependency`。
-
-当前实现中，权限授予主链路不再依赖单独的 `ResourceDependencyDomainService`。如后续需要恢复自动补全或规则变更重放能力，应直接基于现行调度层、Mapper 与事务后失效机制重新设计，而不是继续引用已删除接口。
-
----
 
 ## 5. 缓存设计
 
@@ -915,7 +634,7 @@ record RoleResourcePermissionSaveReq(String domainCode, String roleTypeCode,
 // 内部 Command 可以使用 tenantId 和数据库 ID，但只能由 Controller/Assembler 解析生成。
 record AuthCheckCommand(Long tenantId, Long abstractUserId,
                         Long resourceEntityId, Long operationPermissionId,
-                        Long bizDomainId, String inheritMode,
+                        Long domainId, String inheritMode, // 内部域 ID，由 domainCode 解析得到；非实体内嵌字段
                         Map<String, Object> context) {}
 
 record RoleResourcePermissionSaveCommand(Long tenantId, Long abstractRoleId,
@@ -924,7 +643,7 @@ record RoleResourcePermissionSaveCommand(Long tenantId, Long abstractRoleId,
                                          List<Long> remove) {}
 
 record RolePermEntry(Long roleId, Long resourceEntityId, Long operationPermissionId,
-                     Long conditionId, boolean scopeAll, boolean canManage,
+                     Long conditionId, boolean scopeAll, boolean canGrant,
                      Long dependOn) {}
 ```
 
@@ -1012,7 +731,7 @@ PermResult r = engine.query(q);
 | 内部 ID 级单目标鉴权 | `engine.hasPermission` |
 | 内部 ID 级批量校验 | `engine.validateBatch` / `engine.getDeniedIds` |
 | 资源编码、接口路径、范围查询 | `engine.query(PermQuery)` |
-| 授权流程中的 `canGrant` 校验 | `AuthorizationService` |
+| 授权流程中的 `canGrant` 校验 | `PermissionGrantDomainService.checkCanGrant()`（直查 Mapper 批量匹配位运算） |
 
 ---
 
@@ -1037,41 +756,26 @@ if (!deniedRoleIds.isEmpty()) {
 
 ---
 
-### 7.4 授权检查服务 `AuthorizationService`
+### 7.4 `canGrant` 授权校验
 
-`canGrant` 语义只用于授权流程，不属于通用鉴权。委托授权检查统一通过 `AuthorizationService` 完成。
-
-```java
-boolean canGrant = authorizationService.canGrantPermission(
-    tenantId, operatorId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
-);
-
-Map<String, AuthorizationService.GrantCheckResult> grantResults =
-    authorizationService.checkGrantPermissionsBatch(tenantId, operatorId, grantKeys, domainCode);
-```
-
-**核心类型**：
+`canGrant` 语义只用于授权流程，不属于通用鉴权。`canGrant` 校验通过 `PermissionGrantDomainService.checkCanGrant()` 完成：
 
 ```java
-record GrantCheckKey(
-    String resourceTypeCode,
-    String resourceCode,
-    String operationCode,
-    boolean scopeAll
-) {}
-
-record GrantCheckResult(
-    boolean canGrant,
-    String reason
-) {}
+// operator 需拥有目标权限且 canGrant=true 才能授予他人
+// 在 PermissionGrantAppServiceImpl 中通过 PermQueryEngine 查询 operator 的 role_resource_permission 记录，
+// 检查 operator 是否拥有相同的 (resourceType, resourceCode/scopeAll, operationCode) 授权且 canGrant=true
 ```
+
+**scopeAll 授权规则**：
+
+- 授权 `scopeAll=false`（特定资源）：operator 可用 `scopeAll=true` 或特定资源权限
+- 授权 `scopeAll=true`（全量范围）：operator 必须有 `scopeAll=true`
 
 **适用边界**：
 | 场景 | 入口 |
 |------|------|
 | 判断是否有普通管理权限 | `PermQueryEngine` |
-| 判断是否可以把某权限授予他人 | `AuthorizationService.canGrantPermission` |
-| 批量校验多个待授予权限 | `AuthorizationService.checkGrantPermissionsBatch` |
+| 判断是否可以把某权限授予他人 | `PermissionGrantDomainService.checkCanGrant()`（批量查询 operator 权限，位运算匹配目标操作） |
 
 ---
 
@@ -1140,11 +844,11 @@ public record PermissionTreeResp(
 
 ### 7.6 实现注意事项
 
-1. **移除 `CAN_MANAGE` 误用**：`AuthorizationServiceImpl` 中不再使用 `CAN_MANAGE.eq(true)` 作为权限判断条件
-2. **`canGrant` 只用于授权流程**：在 `PermissionGrantServiceImpl` 中通过 `AuthorizationService` 校验，不在普通鉴权时使用
+1. **移除 `CAN_MANAGE` 误用**：不再使用 `CAN_MANAGE` 作为权限判断条件，统一使用 `OperationCodeConstants.MANAGE`
+2. **`canGrant` 只用于授权流程**：在 `PermissionGrantAppServiceImpl` 中通过 `PermissionGrantDomainService.checkCanGrant()` 校验，不在普通鉴权时使用
 3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermission/validateBatch/getDeniedIds` 或 `query(PermQuery)`，避免各 Service 分散实现
-4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `validateBatch`、`getDeniedIds` 或 `checkGrantPermissionsBatch`，一次统一管线完成全部权限校验
-5. **业务例外显式处理**：如“允许操作自己”之类的场景，由具体业务服务在调用引擎前后显式处理，不再引入独立的 `PermissionCheckUtils` 抽象
+4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `validateBatch`、`getDeniedIds`，一次统一管线完成全部权限校验
+5. **业务例外显式处理**：如”允许操作自己”之类的场景，由具体业务服务在调用引擎前后显式处理，不再引入独立的 `PermissionCheckUtils` 抽象
 6. **树形遍历深度限制**：`query-permission-tree` 必须有 `maxDepth` 限制，防止无限递归
 
 ### 7.7 授权安全校验（Grant Validation）
@@ -1155,7 +859,7 @@ public record PermissionTreeResp(
 - 用户可授予自己拥有但 `canGrant=false` 的权限
 - 用户可授予 `scopeAll=true` 但自己只有特定资源权限的权限
 
-**修复方案**：在 `PermissionGrantServiceImpl.batchGrant` 中增加授权校验逻辑。
+**修复方案**：在 `PermissionGrantAppServiceImpl.batchGrant` 中增加授权校验逻辑。
 
 #### 校验逻辑
 
@@ -1186,34 +890,6 @@ for (GrantAddItem item : addItems) {
 }
 ```
 
-#### `AuthorizationService` 新增接口
-
-```java
-/**
- * Check if operator can grant a specific permission to others.
- */
-boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
-                           String resourceCode, String operationCode, boolean scopeAll, String domainCode);
-
-/**
- * Batch check grant permissions.
- */
-Map<String, GrantCheckResult> checkGrantPermissionsBatch(Long tenantId, Long operatorId,
-                                                          Set<GrantCheckKey> permissions, String domainCode);
-
-record GrantCheckKey(
-    String resourceTypeCode,
-    String resourceCode,
-    String operationCode,
-    boolean scopeAll
-) {}
-
-record GrantCheckResult(
-    boolean canGrant,
-    String reason  // NO_ROLE / NO_PERMISSION / NO_GRANT_RIGHT / RESOURCE_NOT_FOUND
-) {}
-```
-
 #### 实现要点
 
 1. **scopeAll 校验规则**：
@@ -1226,6 +902,8 @@ record GrantCheckResult(
 3. **符合 api-contract.md 约定**：
    - 授权者必须已经拥有目标权限且该权限 `canGrant=true`
    - 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围
+
+4. **`canGrant` 校验通过 `PermissionGrantDomainService.checkCanGrant()` 完成**：查询 operator 的有效角色权限（`role_resource_permission`），匹配目标 (resourceType, resourceCode/scopeAll, operationCode)，检查是否存在 `canGrant=true` 的记录。
 
 #### 错误码
 
@@ -1240,21 +918,11 @@ record GrantCheckResult(
 
 #### 批量查询优化（避免 N+1）
 
-`checkGrantPermissionsBatch` 实现采用批量查询策略，将 N 次数据库访问优化为固定 4 次：
+采用批量查询策略，通过 `PermQueryEngine.getDeniedIds()` 或直接查询 `RoleResourcePermissionMapper` 完成批量 canGrant 校验，将 N 次数据库访问优化为固定 3-4 次：
 
-| 步骤 | 查询内容                                                     | 查询次数             |
-| ---- | ------------------------------------------------------------ | -------------------- |
-| 1    | 获取 operator 的有效角色                                     | 1 次                 |
-| 2    | 批量查询所有涉及的 operationPermissions                      | 1 次                 |
-| 3    | 批量解析所有 resourceEntityIds（通过 typeResolutionService） | N 次（可优化为批量） |
-| 4    | 批量查询所有 roleResourcePermissions                         | 1 次                 |
-
-**优化后查询次数**：2-3 次固定查询 + N 次 resourceEntityId 解析（typeResolutionService 可进一步优化为批量）
-
-**核心思路**：
-
-1. 预加载所有 `operationPermissions` 到 `Map<Long, OperationPermission>`
-2. 预加载所有 `roleResourcePermissions` 到两个 Map：
-   - `permsBySpecificResource`: key = `resourceType:opCode:resourceEntityId`
-   - `permsByScopeAll`: key = `resourceType:opCode`
-3. 内存中匹配每个 `GrantCheckKey`，无需额外数据库访问
+| 步骤 | 查询内容                                                                                    | 查询次数     |
+| ---- | ------------------------------------------------------------------------------------------- | ------------ |
+| 1    | 获取 operator 的有效角色（`SubjectDomainService.resolveEffectiveRoles`）                    | 1 次         |
+| 2    | 批量查询所有涉及的 operationPermissions（`TypeResolutionService.batchResolveOperationIds`） | 1 次         |
+| 3    | 批量解析所有 resourceEntityIds（`TypeResolutionService.batchResolveResourceIds`）           | 1 次（批量） |
+| 4    | 批量查询所有 roleResourcePermissions（`RoleResourcePermissionMapper`）                      | 1 次         |

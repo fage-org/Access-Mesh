@@ -470,14 +470,14 @@ cn.ac.fage.accessmesh.{service}
 
 ### 8.4 Service 层复用与扩展规范
 
-本节定义两层 Service（调度层 Service / 逻辑级 DomainService）的功能复用原则与扩展性设计要求，**新增、修改功能时必须遵循**。
+本节定义两层 Service（调度层 AppService / 逻辑级 DomainService）的功能复用原则与扩展性设计要求，**新增、修改功能时必须遵循**。
 
 #### 8.4.1 两层职责划分
 
-| 层级                     | 命名                                        | 职责                                                           | 典型方法                                                                       |
-| ------------------------ | ------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **调度层 Service**       | `XxxService` / `XxxServiceImpl`             | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`checkPermissions()`、`listEffectiveRoles()`                   |
-| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`getAncestorIds()`、`revokePermissionWithCascade()` |
+| 层级                     | 命名                                        | 职责                                                           | 典型方法                                                                    |
+| ------------------------ | ------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **调度层 AppService**    | `XxxAppService` / `XxxAppServiceImpl`       | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`check()`、`listEffectiveRoles()`                           |
+| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`batchGetDescendantIds()`、`revokePermissions()` |
 
 **核心原则**：
 
@@ -489,13 +489,13 @@ cn.ac.fage.accessmesh.{service}
 
 以下场景**必须**复用现有 DomainService 方法，禁止在调度层重新实现：
 
-| 场景                     | 已有 DomainService 方法                                               | 禁止行为                      |
-| ------------------------ | --------------------------------------------------------------------- | ----------------------------- |
-| 用户角色解析（带缓存）   | `UserRoleDomainService.resolveEffectiveRoles()`                       | 调度层直接查询 `user_role` 表 |
-| 资源层级遍历             | `ResourceEntityDomainService.getAncestorIds()` / `getDescendantIds()` | 调度层写递归遍历逻辑          |
-| 权限级联删除             | `RolePermissionDomainService.revokePermissionWithCascade()`           | 调度层写子权限删除循环        |
-| 权限版本递增             | `PermissionVersionDomainService.increment()`                          | 调度层直接更新版本字段        |
-| 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()`      | 调度层查 `type_definition` 表 |
+| 场景                     | 已有 DomainService 方法                                          | 禁止行为                      |
+| ------------------------ | ---------------------------------------------------------------- | ----------------------------- |
+| 用户角色解析（带缓存）   | `SubjectDomainService.resolveEffectiveRoles()`                   | 调度层直接查询 `user_role` 表 |
+| 资源层级遍历             | `ResourceEntityDomainService.batchGetDescendantIds()`            | 调度层写递归遍历逻辑          |
+| 权限级联删除             | `PermissionGrantDomainService.revokePermissions()`               | 调度层写子权限删除循环        |
+| 权限版本递增             | `PermissionVersionDomainService.increment()`                     | 调度层直接更新版本字段        |
+| 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()` | 调度层查 `type_definition` 表 |
 
 **判断标准**：如果逻辑涉及**单一领域实体**的原子操作（查、改、删、转换），应下沉到 DomainService。
 
@@ -523,12 +523,12 @@ cn.ac.fage.accessmesh.{service}
 
 新增 DomainService 方法时，**必须**考虑扩展性：
 
-| 要求           | 说明                                           | 示例                                                                    |
-| -------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
-| **参数设计**   | 预留过滤/扩展参数，使用 nullable 或默认值      | `resolveEffectiveRoles(tenantId, userId, bizDomainId, includeDisabled)` |
-| **返回值设计** | 返回足够信息供调用方二次处理，不丢失上下文     | 返回 `Set<Long>` 角色 ID + `Map<Long, RoleInfo>` 角色详情               |
-| **批量优化**   | 支持批量输入，避免 N+1 查询                    | `batchGetRolePermissions(roleIds)` 返回 `Map<Long, List<...>>`          |
-| **缓存友好**   | 高频查询方法应集成缓存，调用方无需关心缓存细节 | `resolveEffectiveRoles()` 内置 L1/L2 缓存                               |
+| 要求           | 说明                                           | 示例                                                                                |
+| -------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **参数设计**   | 预留过滤/扩展参数，使用 nullable 或默认值      | `resolveResourceId(tenantId, resourceTypeCode, resourceCode, codeType, domainCode)` |
+| **返回值设计** | 返回足够信息供调用方二次处理，不丢失上下文     | 返回 `Set<Long>` 角色 ID + `Map<Long, RoleInfo>` 角色详情                           |
+| **批量优化**   | 支持批量输入，避免 N+1 查询                    | `batchGetRolePermissions(roleIds)` 返回 `Map<Long, List<...>>`                      |
+| **缓存友好**   | 高频查询方法应集成缓存，调用方无需关心缓存细节 | `resolveEffectiveRoles()` 内置 L1/L2 缓存                                           |
 
 **禁止行为**：
 
@@ -567,17 +567,17 @@ cn.ac.fage.accessmesh.{service}
 以下为当前 permission-center 已实现的复用模式，**后续开发必须沿用**：
 
 ```
-调度层 PermissionGrantServiceImpl
-  └→ 调用 UserRoleDomainService.resolveEffectiveRoles()（带缓存）
-  └→ 调用 RolePermissionDomainService.revokePermissionWithCascade()（级联删除）
+调度层 PermissionGrantAppServiceImpl
+  └→ 调用 SubjectDomainService.resolveEffectiveRoles()（带缓存）
+  └→ 调用 PermissionGrantDomainService.revokePermissions()（级联删除）
   └→ 调用 PermissionVersionDomainService.increment()（版本管理）
 
-调度层 AuthorizationServiceImpl
-  └→ 调用 UserRoleDomainService.resolveEffectiveRoles()（角色解析+缓存）
-  └→ 调用 TypeResolutionService.resolveTypeValue()（类型转换）
+调度层 PermissionViewAppServiceImpl
+  └→ 调用 SubjectDomainService.resolveEffectiveRoles()（角色解析+缓存）
+  └→ 调用 TypeResolutionService.resolveTypeValue() / resolveRoleId()（类型转换）
 
-调度层 PermissionServiceImpl
-  └→ 调用 ResourceEntityDomainService.getAncestorIds()（层级遍历）
+调度层 ResourceManageAppServiceImpl
+  └→ 调用 ResourceEntityDomainService.batchGetDescendantIds()（层级遍历）
   └→ 调用 OperationPermission.getEffectiveBits()（实体方法）
 ```
 

@@ -1,445 +1,102 @@
-# Service 层复用性审查计划（更新版）
+# Service 层复用性审查（Phase 1-5 完成总结）
 
-## 审查目标
+## 审查完成
 
-分析 permission-center 的两层 Service（调度层 Service / 领域层 DomainService），识别重复逻辑，在保持扩展性的同时减少代码重复。
-
----
-
-## 当前架构概览
-
-### 调度层 Service（13个）
-
-| Service | 主要职责 | 代码行数 |
-|---------|---------|---------|
-| PermissionServiceImpl | 权限检查核心接口 | ~1100行 |
-| AuthorizationServiceImpl | 操作者权限校验 | ~750行 |
-| PermissionGrantServiceImpl | 权限授予/撤销 | ~660行 |
-| PermissionViewServiceImpl | 权限视图查询 | ~860行 |
-| UserManageServiceImpl | 用户管理 | ~550行 |
-| RoleManageServiceImpl | 角色管理 | - |
-| ResourceManageServiceImpl | 资源管理 | - |
-| ConfigManageServiceImpl | 配置管理 | - |
-| OperationManageServiceImpl | 操作权限管理 | - |
-| AdvancedFeatureServiceImpl | 高级特性 | - |
-| PermissionVersionServiceImpl | 版本管理 | - |
-| PermissionChangeLogServiceImpl | 变更日志 | - |
-| OperationLogQueryServiceImpl | 操作日志查询 | - |
-
-### 领域层 DomainService（18个）
-
-| DomainService | 主要职责 | 缓存支持 |
-|---------------|---------|---------|
-| UserRoleDomainService | 用户角色解析 | L1+L2 |
-| RolePermissionDomainService | 角色权限操作 | - |
-| ResourceEntityDomainService | 资源实体层级操作 | - |
-| TypeResolutionService | 类型解析 code↔value | - |
-| PermissionVersionDomainService | 权限版本管理 | L1 |
-| PermissionConflictDomainService | 权限冲突处理 | - |
-| PermissionConditionDomainService | 权限条件评估 | - |
-| PermissionChangeDomainService | 权限变更记录 | - |
-| OperationLogDomainService | 操作日志记录 | 异步 |
-| PermCacheDomainService | L1 缓存管理 | L1 |
-| ResourceDependencyDomainService | 资源依赖处理 | - |
-| OperationPermissionDomainService | 操作权限领域 | - |
-| AbstractRoleDomainService | 抽象角色领域 | - |
-| AbstractUserDomainService | 抽象用户领域 | - |
-| DomainConfigDomainService | 域配置领域 | - |
-| ResourceApiMappingDomainService | API 映射领域 | - |
-| AdvancedFeatureDomainService | 高级特性领域 | - |
-| PermissionCheckDomainService | 权限检查领域 | - |
+Phase 1-5 已完成，审查目标已达成。下面记录当前（重构后）的架构状态。
 
 ---
 
-## 发现的问题（按优先级排序）
+## 当前架构（重构后）
 
-### 【P0 - 高优先级】必须立即修复
+### 调度层 AppService（20个）
 
-#### 1. 批量加载逻辑大量重复
+| AppService                  | 主要职责                                                    | 说明                                                                       |
+| --------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| PermissionCheckAppService   | 权限校验（check/batch-check/check-interface）               | 替代旧 PermissionServiceImpl                                               |
+| PermissionQueryAppService   | 权限查询（query-resources/query-scopes/interface-snapshot） | 与校验分离                                                                 |
+| PermissionViewAppService    | 权限视图（effective-roles/permissions/explain）             | 替代旧 PermissionViewServiceImpl；recent-changes 已迁至 LogQueryAppService |
+| PermissionGrantAppService   | 权限授予/撤销（save/revoke/children）                       | 替代旧 PermissionGrantServiceImpl                                          |
+| ResourceManageAppService    | 资源管理（service/resource-entity/resource-dependency）     | 替代旧 ResourceManageServiceImpl                                           |
+| RoleManageAppService        | 角色管理（abstract-role/user-role）                         | 替代旧 RoleManageServiceImpl                                               |
+| UserManageAppService        | 用户管理（abstract-user）                                   | 替代旧 UserManageServiceImpl                                               |
+| TypeDefinitionAppService    | 类型定义管理                                                | 替代旧 ConfigManageServiceImpl（部分）                                     |
+| BizDomainAppService         | 业务域管理                                                  | 替代旧 ConfigManageServiceImpl（部分）                                     |
+| DomainConfigAppService      | 域配置管理                                                  | 替代旧 ConfigManageServiceImpl（部分）                                     |
+| ServiceConfigAppService     | 服务配置管理                                                | 替代旧 ConfigManageServiceImpl（部分）                                     |
+| ServiceSyncAppService       | 服务接口同步                                                | 新拆分                                                                     |
+| SystemConfigAppService      | 系统配置管理                                                | 替代旧 ConfigManageServiceImpl（部分）                                     |
+| ConditionAppService         | 权限条件管理                                                | 替代旧 AdvancedFeatureServiceImpl（部分）                                  |
+| ConflictRuleAppService      | 冲突规则管理                                                | 替代旧 AdvancedFeatureServiceImpl（部分）                                  |
+| DependencyAppService        | 资源依赖管理                                                | 替代旧 AdvancedFeatureServiceImpl（部分）                                  |
+| GroupRoleAppService         | 分组角色管理                                                | 新拆分                                                                     |
+| OperationAppService         | 操作权限管理                                                | 替代旧 OperationManageServiceImpl                                          |
+| PermissionVersionAppService | 版本管理                                                    | 替代旧 PermissionVersionServiceImpl                                        |
+| LogQueryAppService          | 日志查询                                                    | 合并旧 PermissionChangeLogServiceImpl + OperationLogQueryServiceImpl       |
 
-**问题描述**：多个 ServiceImpl 中都有相似的批量加载实体逻辑，代码重复率极高。
+### 领域层 DomainService（12个）
 
-**重复位置统计**：
-
-| Service | 重复次数 | 典型方法 |
-|---------|---------|---------|
-| PermissionServiceImpl | 8+ | queryMatchedEntries, toRolePermEntries, checkInterface, queryResources 等 |
-| PermissionViewServiceImpl | 4 | loadRoles, loadOperations, loadResources, loadDomainCodes |
-| PermissionGrantServiceImpl | 3 | toItemRespList, batchGrant |
-| AuthorizationServiceImpl | 5 | checkPermissionsBatchForResource, checkPermissionsBatchForUser 等 |
-
-**典型重复代码模式**：
-```java
-// 模式1：批量加载 OperationPermission（在至少6个方法中重复）
-Set<Long> operationIds = perms.stream()
-    .map(RoleResourcePermission::getOperationPermissionId)
-    .filter(Objects::nonNull)
-    .collect(Collectors.toSet());
-Map<Long, OperationPermission> operationMap = operationIds.isEmpty() ? Map.of() :
-    operationPermissionMapper.selectListByQuery(
-        QueryWrapper.create().where(OPERATION_PERMISSION.ID.in(operationIds))
-    ).stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
-
-// 模式2：批量加载 ResourceEntity（在至少5个方法中重复）
-Set<Long> resourceIds = perms.stream()
-    .map(RoleResourcePermission::getResourceEntityId)
-    .filter(Objects::nonNull)
-    .collect(Collectors.toSet());
-Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of() :
-    resourceEntityMapper.selectListByQuery(
-        QueryWrapper.create()
-            .where(RESOURCE_ENTITY.TENANT_ID.eq(tenantId))
-            .and(RESOURCE_ENTITY.ID.in(resourceIds))
-            .and(RESOURCE_ENTITY.DELETE_FLAG.eq(0))
-    ).stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r));
-
-// 模式3：批量加载 AbstractRole（在至少4个方法中重复）
-// 模式4：批量加载 PermissionCondition（在至少3个方法中重复）
-// 模式5：批量加载 BizDomain 获取 code（在至少2个方法中重复）
-```
-
-**优化方案**：
-1. 创建 `EntityBatchLoadDomainService` 统一提供批量加载方法
-2. 方法设计：
-   ```java
-   public interface EntityBatchLoadDomainService {
-       Map<Long, OperationPermission> batchLoadOperations(Set<Long> ids);
-       Map<Long, ResourceEntity> batchLoadResources(Long tenantId, Set<Long> ids);
-       Map<Long, AbstractRole> batchLoadRoles(Long tenantId, Set<Long> ids);
-       Map<Long, PermissionCondition> batchLoadConditions(Set<Long> ids);
-       Map<Long, String> batchLoadDomainCodes(Long tenantId, Set<Long> bizDomainIds);
-   }
-   ```
-3. 内置空集合处理，返回不可变 Map
-4. 可选：集成 PermCacheDomainService 提供 L1 缓存
-
-**预估收益**：减少 ~200 行重复代码
+| DomainService                    | 主要职责         | 说明                                                                                         |
+| -------------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| **PermQueryEngine**              | 统一权限查询引擎 | 所有鉴权唯一入口（`service/domain/impl`）                                                    |
+| **SubjectDomainService**         | 主体领域         | 合并了旧 `AbstractUserDomainService` + `AbstractRoleDomainService` + `UserRoleDomainService` |
+| **AuditDomainService**           | 审计领域         | 合并了旧 `PermissionChangeDomainService` + `OperationLogDomainService`                       |
+| PermissionGrantDomainService     | 权限授权领域     | 替代旧 `RolePermissionDomainService`（写操作部分）                                           |
+| PermissionConditionDomainService | 权限条件评估     | 不变                                                                                         |
+| PermissionConflictDomainService  | 权限冲突处理     | 不变                                                                                         |
+| PermissionVersionDomainService   | 权限版本管理     | 不变                                                                                         |
+| ResourceEntityDomainService      | 资源实体领域     | 不变                                                                                         |
+| TypeResolutionService            | 类型解析         | 新增批量方法                                                                                 |
+| DomainClassifyService            | 域分类           | 新增（替代 `bizDomainId` 实体字段）                                                          |
+| MappingSyncHandler               | 接口映射同步     | 新增（service sync 策略）                                                                    |
+| ResourceSyncHandler              | 资源同步处理     | 新增（service sync 策略）                                                                    |
 
 ---
 
-#### 2. 用户角色解析绕过 DomainService 缓存
+## 重构结果汇总
 
-**问题描述**：AuthorizationServiceImpl 中多处直接查询 UserRole 表，绕过了 UserRoleDomainService 的缓存机制，造成性能损失。
+| Phase   | 主要改动                                                                                                                                                                                      | 减少代码 | 安全修复          |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------- |
+| Phase 1 | `PermQuery.forUserView()` + `PermViewFilter` + `PermViewAssembler` / `PermTreeAssembler` / `SnapshotAssembler`                                                                                | 新建     | 统一视图查询底层  |
+| Phase 2 | `ConfigManageServiceImpl` 拆分为 5 个 `AppService`（TypeDefinition/BizDomain/DomainConfig/ServiceConfig/SystemConfig），并将 `ServiceInterfaceSyncService` 提升为独立 `ServiceSyncAppService` | ~500行   | 上帝类拆分        |
+| Phase 3 | 合并 `SubjectDomainService` / `AuditDomainService` / `PermissionGrantDomainService`，删除 `AuthorizationService` 等 5 个旧 DomainService                                                      | ~300行   | 领域服务归并      |
+| Phase 4 | `PermissionServiceImpl` + `PermissionViewServiceImpl` 拆分为 `PermissionCheckAppService` + `PermissionQueryAppService` + `PermissionViewAppService`                                           | ~1200行  | 核心合并闭环      |
+| Phase 5 | 重命名 `Service→AppService`、`Controller` 去 `Manage` 后缀、`@OperationLog` AOP + `OperationLogRuntimeContext`                                                                                | 59文件   | 命名规范+日志统一 |
 
-**问题位置**：
-
-| 方法 | 行号 | 问题 |
-|------|------|------|
-| hasPermission() | 115-128 | 直接查询 user_role，未用缓存 |
-| hasPermissionOnRole() | 160-177 | 直接查询 user_role，未用缓存 |
-| checkPermissionOnResource() | 268-284 | 直接查询 user_role，未用缓存 |
-| checkPermissionsBatchForUser() | 正确使用 | ✓ 使用 DomainService |
-| checkPermissionsBatchForRole() | 正确使用 | ✓ 使用 DomainService |
-| checkPermissionsBatchForResource() | 正确使用 | ✓ 使用 DomainService |
-
-**问题代码示例**：
-```java
-// AuthorizationServiceImpl.java:115-128 - 直接查询，绕过缓存
-List<UserRole> userRoles = userRoleMapper.selectListByQuery(
-    QueryWrapper.create()
-        .where(USER_ROLE.TENANT_ID.eq(tenantId))
-        .and(USER_ROLE.ABSTRACT_USER_ID.eq(operatorId))
-        .and(USER_ROLE.TARGET_TYPE.eq("ROLE"))
-        .and(USER_ROLE.DELETE_FLAG.eq(0))
-        .and(USER_ROLE.VALID_FROM.le(LocalDateTime.now()).or(USER_ROLE.VALID_FROM.isNull()))
-        .and(USER_ROLE.VALID_TO.ge(LocalDateTime.now()).or(USER_ROLE.VALID_TO.isNull()))
-);
-// 未利用 UserRoleDomainService 的 L1+L2 缓存
-```
-
-**优化方案**：
-1. AuthorizationServiceImpl 所有方法统一使用 `userRoleDomainService.resolveEffectiveRoles()`
-2. 移除 private 方法中的直接 UserRole 查询
-3. 简化代码：
-   ```java
-   // 优化后
-   Set<Long> operatorRoleIds = userRoleDomainService.resolveEffectiveRoles(tenantId, operatorId, null);
-   if (operatorRoleIds.isEmpty()) {
-       return false;
-   }
-   ```
-
-**预估收益**：提升缓存命中率，减少数据库查询
+**整体完成了核心服务拆分、旧类删除、统一查询入口收口，以及入口日志机制的 AOP 化。**
 
 ---
 
-### 【P1 - 中优先级】建议尽快修复
+## 已删除的类清单
 
-#### 3. 权限版本计算逻辑重复
-
-**问题描述**：计算 permissionVersion 的逻辑在 4+ 个方法中重复。
-
-**重复位置**：
-| Service | 方法 | 行号 |
-|---------|------|------|
-| PermissionServiceImpl | queryResources() | 483-488 |
-| PermissionServiceImpl | queryScopes() | 621-625 |
-| PermissionServiceImpl | interfaceSnapshot() | 699-702 |
-| PermissionServiceImpl | queryPermissionTree() | 984-987 |
-
-**重复代码**：
-```java
-// 在4个方法中几乎完全相同
-long version = validRoleIds.stream()
-    .mapToLong(roleId -> permissionVersionDomainService.getCurrentVersion(tenantId, roleId))
-    .max()
-    .orElse(0L);
-String permissionVersion = userId + ":" + version;
-```
-
-**优化方案**：
-PermissionVersionDomainService 新增方法：
-```java
-// 计算多个角色的最大版本号
-long calculateMaxVersion(Long tenantId, Set<Long> roleIds);
-
-// 构建完整的版本字符串（userId:version）
-String buildPermissionVersionKey(Long userId, Long tenantId, Set<Long> roleIds);
-```
-
-**预估收益**：减少 ~16 行重复代码
+| 已删除类                           | 替代方案                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `EntityBatchLoadDomainService`     | 使用对应 Mapper 批量查询方法（`selectValidByIds` 等）                                                |
+| `ResourcePermissionValidator`      | 使用 `PermQueryEngine`                                                                               |
+| `AuthorizationService`             | canGrant 校验走 `PermissionGrantDomainService.checkCanGrant()`                                       |
+| `OperationType` 枚举               | 使用 `OperationCodeConstants`                                                                        |
+| `OperationLogDomainService`        | 合并入 `AuditDomainService`                                                                          |
+| `PermissionChangeDomainService`    | 合并入 `AuditDomainService`                                                                          |
+| `AbstractUserDomainService`        | 合并入 `SubjectDomainService`                                                                        |
+| `UserRoleDomainService`            | 合并入 `SubjectDomainService`                                                                        |
+| `RolePermissionDomainService`      | 读操作 → `PermQueryEngine` + `RoleResourcePermissionMapper`；写操作 → `PermissionGrantDomainService` |
+| `OperationPermissionDomainService` | 直接使用 `OperationPermissionMapper` + `TypeResolutionService`                                       |
+| `AbstractRoleDomainService`        | 合并入 `SubjectDomainService`                                                                        |
+| `DomainConfigDomainService`        | 拆分为 `DomainClassifyService` + `DomainConfigAppService`                                            |
+| `ResourceApiMappingDomainService`  | 直接使用 `ResourceApiMappingMapper`                                                                  |
+| `AdvancedFeatureDomainService`     | 拆分为 `ConditionAppService` + `ConflictRuleAppService` + `DependencyAppService`                     |
+| `PermissionCheckDomainService`     | 合并入 `PermQueryEngine`                                                                             |
+| `ResourceDependencyDomainService`  | `DependencyAppService` + `ResourceDependencyMapper`                                                  |
+| `PermCacheDomainService`           | 使用统一 `CacheService` + `PermCacheCatalog`                                                         |
+| `ConfigManageServiceImpl`          | 拆分为 5 个 AppService；服务同步能力独立为 `ServiceSyncAppService`                                   |
+| `PermissionServiceImpl`            | 拆分为 `PermissionCheckAppService` + `PermissionQueryAppService`                                     |
 
 ---
 
-#### 4. RolePermEntry 转换逻辑重复
-
-**问题描述**：将 RoleResourcePermission 转换为 RolePermEntry 的逻辑在多处重复。
-
-**重复位置**：
-| Service | 方法 | 行号 |
-|---------|------|------|
-| PermissionServiceImpl | toRolePermEntries() | 638-674 |
-| PermissionServiceImpl | queryMatchedEntries() | 843-858 |
-| RolePermissionDomainServiceImpl | getRolePermissions() | 46-55 |
-
-**优化方案**：
-在 RolePermissionDomainService 中添加统一转换方法：
-```java
-List<RolePermEntry> toRolePermEntries(List<RoleResourcePermission> perms, 
-                                       Map<Long, OperationPermission> opMap);
-```
-
----
-
-#### 5. DomainService 缺少批量方法
-
-**问题描述**：部分 DomainService 只有单条方法，调度层不得不循环调用或重复实现批量逻辑。
-
-**缺少批量方法的 DomainService**：
-
-| DomainService | 缺少的批量方法 |
-|---------------|---------------|
-| TypeResolutionService | `batchResolveTypeValues()`, `batchResolveTypeCodes()` |
-| ResourceEntityDomainService | `batchGetAncestorIds()` |
-| UserRoleDomainService | `batchResolveEffectiveRoles()` |
-
-**优化方案**：
-```java
-// TypeResolutionService 新增
-Map<String, Integer> batchResolveTypeValues(Long tenantId, String typeKey, Set<String> codes);
-Map<Integer, String> batchResolveTypeCodes(Long tenantId, String typeKey, Set<Integer> values);
-
-// ResourceEntityDomainService 新增
-Map<Long, List<Long>> batchGetAncestorIds(Long tenantId, Set<Long> resourceIds);
-
-// UserRoleDomainService 新增
-Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds, Long bizDomainId);
-```
-
----
-
-### 【P2 - 低优先级】可延后处理
-
-#### 6. 权限位运算逻辑分散
-
-**问题描述**：权限位运算（effectiveBits & targetBit）逻辑分散在调度层，未下沉到实体。
-
-**问题位置**：
-| Service | 方法 | 行号 |
-|---------|------|------|
-| PermissionServiceImpl | queryMatchedEntries() | 847-849 |
-| PermissionViewServiceImpl | checkRoleDirectGrant() | 678-700 |
-
-**优化方案**：
-OperationPermission 实体类添加方法：
-```java
-// 在 OperationPermission.java 中添加
-public long getEffectiveBits() {
-    return (binaryBit != null ? binaryBit : 0L) | (inheritMask != null ? inheritMask : 0L);
-}
-
-public boolean matchesBit(OperationPermission target) {
-    long targetBit = target.binaryBit != null ? target.binaryBit : 0L;
-    return targetBit != 0L && (getEffectiveBits() & targetBit) != 0;
-}
-```
-
----
-
-#### 7. 数据转换方法应下沉
-
-**问题描述**：调度层 Service 中的数据转换方法应下沉到 DomainService。
-
-| Service | 方法 | 建议下沉位置 |
-|---------|------|-------------|
-| PermissionGrantServiceImpl | toItemRespList() | RolePermissionDomainService |
-| UserManageServiceImpl | toUserResp() | AbstractUserDomainService 或实体 |
-
----
-
-#### 8. 用户状态检查逻辑重复
-
-**问题描述**：检查用户是否存在、是否启用的逻辑在多处重复。
-
-**问题位置**：
-| Service | 方法 | 行号 |
-|---------|------|------|
-| PermissionServiceImpl | checkInternal() | 768-770 |
-| PermissionServiceImpl | checkInterface() | 187-192 |
-
-**优化方案**：
-AbstractUser 实体类添加方法：
-```java
-public boolean isActive() {
-    return deleteFlag == 0L && Boolean.TRUE.equals(enabled);
-}
-```
-
----
-
-## 优化执行计划
-
-### Phase 1：创建 EntityBatchLoadDomainService（P0）
-
-**目标**：消除批量加载逻辑重复，统一批量加载入口
-
-**步骤**：
-1. 创建 `EntityBatchLoadDomainService` 接口和实现
-2. 实现 5 个核心批量加载方法
-3. 修改 4 个 ServiceImpl 使用新服务
-4. 测试验证
-
-**预估改动**：
-- 新增：1个 DomainService 接口 + 1个实现
-- 修改：PermissionServiceImpl、PermissionViewServiceImpl、PermissionGrantServiceImpl、AuthorizationServiceImpl
-
----
-
-### Phase 2：统一用户角色解析（P0）
-
-**目标**：确保所有用户角色查询都通过 UserRoleDomainService
-
-**步骤**：
-1. AuthorizationServiceImpl 3个方法改用 DomainService
-2. 移除直接 UserRole 查询的私有方法
-3. UserRoleDomainServiceImpl 新增批量方法（可选）
-
-**预估改动**：
-- 修改：AuthorizationServiceImpl（简化 ~50 行）
-- 可选新增：UserRoleDomainServiceImpl 批量方法
-
----
-
-### Phase 3：版本计算与转换方法统一（P1）
-
-**目标**：统一权限版本计算和 RolePermEntry 转换逻辑
-
-**步骤**：
-1. PermissionVersionDomainService 新增 2 个方法
-2. RolePermissionDomainService 新增转换方法
-3. 修改调度层调用
-
-**预估改动**：
-- 修改：PermissionVersionDomainServiceImpl、RolePermissionDomainServiceImpl
-- 修改：PermissionServiceImpl、PermissionViewServiceImpl
-
----
-
-### Phase 4：类型解析批量方法（P1）
-
-**目标**：支持批量类型解析，避免循环调用
-
-**步骤**：
-1. TypeResolutionService 新增批量方法
-2. 修改调度层使用批量方法
-
-**预估改动**：
-- 修改：TypeResolutionServiceImpl
-- 修改：多个 ServiceImpl
-
----
-
-### Phase 5：实体方法增强（P2）
-
-**目标**：将简单判断逻辑下沉到实体类
-
-**步骤**：
-1. OperationPermission 添加 getEffectiveBits()、matchesBit()
-2. AbstractUser 添加 isActive()
-3. 修改调度层使用实体方法
-
----
-
-## 预期收益汇总
-
-| 改动类别 | 减少代码行数 | 性能提升 | 维护性提升 |
-|----------|-------------|---------|-----------|
-| 批量加载统一 | ~200行 | 缓存优化 | 高 |
-| 用户角色解析统一 | ~50行 | 缓存命中率大幅提升 | 高 |
-| 版本计算统一 | ~16行 | - | 中 |
-| 转换方法下沉 | ~30行 | - | 中 |
-| 批量方法补充 | - | 避免N+1风险 | 高 |
-| 实体方法增强 | ~10行 | - | 低 |
-
-**总计减少约 300+ 行重复代码，显著提升缓存利用率和代码一致性。**
-
----
-
-## 扩展性保障原则
-
-1. **调度层职责不变**：调度层仍负责编排，不做单一领域逻辑
-2. **DomainService 不返回 Controller DTO**：返回领域对象或基础类型，保持领域层纯净
-3. **不引入过度抽象**：批量方法按实际需求设计，不提前泛化
-4. **保持现有接口签名**：对外 API 不变，只重构内部实现
-5. **新增方法而非修改**：DomainService 新增辅助方法，不改变核心方法行为
-
----
-
-## 不改动的范围
-
-1. Controller 层逻辑不变
-2. 对外 API 契约不变（api-contract.md）
-3. 数据库表结构不变
-4. Mapper 层 SQL 不变（除非优化批量操作）
-5. 现有 DomainService 核心方法签名不变
-
----
-
-## 下一步行动建议
-
-**推荐执行顺序**：
-1. ✅ Phase 1（P0）- EntityBatchLoadDomainService - 已完成
-2. ✅ Phase 2（P0）- AuthorizationService 复用 UserRoleDomainService - 已完成
-3. ✅ Phase 3（P1）- 版本计算统一 - 已完成
-4. ✅ Phase 4（P1）- 类型解析批量方法 - 已完成
-5. ✅ Phase 5（P2）- 实体方法增强 - 已完成
-
-**Phase 5 完成内容**：
-- OperationPermission 实体新增 `matchesBit()` 方法，下沉权限位运算逻辑
-- PermissionServiceImpl 和 PermissionViewServiceImpl 使用 matchesBit() 替代手动位运算
-- 用户查询改为 `selectOneByQuery` 带 tenantId 和 DELETE_FLAG 过滤，移除冗余的 deleteFlag 判断
-- 测试文件已更新并全部通过
-
----
-
-## 所有 Phase 完成总结
-
-| Phase | 主要改动 | 减少代码 | 安全修复 |
-|-------|---------|---------|---------|
-| Phase 1 | EntityBatchLoadDomainService 统一批量加载 | ~200行 | tenant isolation + soft-delete |
-| Phase 2 | AuthorizationService 复用 UserRoleDomainService | ~50行 | 缓存命中率提升 |
-| Phase 3 | PermissionVersionDomainService 版本计算统一 | ~16行 | - |
-| Phase 4 | TypeResolutionService/ResourceEntityDomainService/UserRoleDomainService 批量方法 | - | 3处 tenant isolation |
-| Phase 5 | OperationPermission.matchesBit() + 用户查询改进 | ~10行 | 查询时过滤软删除 |
-
-**总计减少约 276 行重复代码，修复 6 处安全/租户隔离问题。**
+## 关键架构变更
+
+1. **ConfigManageServiceImpl（12 deps）已拆分**为：`TypeDefinitionAppService` + `BizDomainAppService` + `DomainConfigAppService` + `ServiceConfigAppService` + `SystemConfigAppService`；原 `ServiceInterfaceSyncService` 已提升为独立 `ServiceSyncAppService`。各 AppService 依赖 2-7 个。
+2. **RolePermEntryMapper 移到 `util` 包**（原在 `service/domain`），统一负责 `RoleResourcePermission → RolePermEntry` 的转换和操作信息填充。
+3. **@OperationLog AOP** 替代手动 `asyncRecord()` 调用。`OperationLogRuntimeContext` 支持方法体内 `markSkip()`/`setSummary()`/`setTargetType()`/`setTargetId()` 覆盖注解值。
+4. **bizDomainId 字段已从实体类中删除**（`AbstractRole`, `ResourceEntity`, `TypeDefinition`, `ResourceApiMapping`, `PermissionConflictRule`, `PermissionChangeLog`）。域分类通过 `DomainClassifyService` 按资源类型码间接关联。
+5. **auto-grant 自动补全标记 TODO**：Phase 1-5 未实现自动补全级联逻辑。`PermissionGrantDomainService.revokePermissions` 的版本递增由调用方在 `TransactionSynchronization.afterCommit` 中负责。
+6. **Gateway 权限门禁变更**：`getEffectivePermissions` 从 `SYSTEM_CONFIG.VIEW` 改为按 targetType 对应的资源类型 VIEW 权限判定。

@@ -12,6 +12,7 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md) |
 | 权限中心核心调用链路 | [permission-center/core-flows.md](permission-center/core-flows.md) |
 | 权限中心实现设计 | [permission-center/implementation.md](permission-center/implementation.md) |
+| Service 层重构审查 | [permission-center/service-layer-review.md](permission-center/service-layer-review.md) |
 | PostgreSQL 表结构 | [schema/](schema/) |
 | 前端集成计划 | [frontend-integration.md](frontend-integration.md) |
 
@@ -19,7 +20,7 @@
 
 1. 先读 [project-rules.md](project-rules.md)，确认接口、分层、DTO、异常、数据库等通用约束。
 2. 再读 [architecture.md](architecture.md)，理解 Gateway、admin-service、permission-center、example-service 的边界。
-3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
+3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。了解重构历史可读 [permission-center/service-layer-review.md](permission-center/service-layer-review.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计。
 5. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
 

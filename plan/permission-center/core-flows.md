@@ -6,18 +6,16 @@
 
 所有场景都遵守以下约定：
 
-
-| 约定      | 说明                                                                                                           |
-| ------- | ------------------------------------------------------------------------------------------------------------ |
-| 租户来源    | 只从可信 `X-Tenant-Id` 读取，请求体不包含 `tenantId`；外部伪造 Header 必须由 Gateway 清洗                                           |
-| 操作者来源   | 管理类写操作从 Token/SecurityContext 读取操作者                                                                          |
-| 接口方式    | 全部 `POST + application/json`                                                                                 |
-| 对外标识    | 运行时接口使用 `subjectTypeCode + subjectExternalId`、`resourceTypeCode + resourceCode + codeType`、`operationCode`   |
-| 内部明细 ID | 仅用于已返回记录的更新、删除、子权限挂载，如 `permissionId`、`ids`                                                                  |
-| 响应结构    | `data` 必须是对象，列表使用 `data.items`                                                                               |
+| 约定        | 说明                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 租户来源    | 只从可信 `X-Tenant-Id` 读取，请求体不包含 `tenantId`；外部伪造 Header 必须由 Gateway 清洗                                |
+| 操作者来源  | 管理类写操作从 Token/SecurityContext 读取操作者                                                                          |
+| 接口方式    | 全部 `POST + application/json`                                                                                           |
+| 对外标识    | 运行时接口使用 `subjectTypeCode + subjectExternalId`、`resourceTypeCode + resourceCode + codeType`、`operationCode`      |
+| 内部明细 ID | 仅用于已返回记录的更新、删除、子权限挂载，如 `permissionId`、`ids`                                                       |
+| 响应结构    | `data` 必须是对象，列表使用 `data.items`                                                                                 |
 | 事实来源    | `abstract_user`、`abstract_role`、`resource_entity`、`operation_permission`、`role_resource_permission` 等原表是事实来源 |
-| 缓存失效    | 权限关系、角色、资源、条件、依赖变更后递增相关角色 `permission_version` 并失效缓存                                                         |
-
+| 缓存失效    | 权限关系、角色、资源、条件、依赖变更后递增相关角色 `permission_version` 并失效缓存                                       |
 
 ## 2. 总体主链路
 
@@ -33,21 +31,17 @@ flowchart LR
     H --> I["权限视图和审计日志用于排查"]
 ```
 
-
-
 ## 3. 场景一：租户初始化与权限模型准备
 
 目标：为一个租户建立基本类型、业务域、操作权限和域规则。
 
-
-| 步骤  | 接口                                           | 关键入参                                         | 结果                                |
-| --- | -------------------------------------------- | -------------------------------------------- | --------------------------------- |
-| 1   | `POST /api/perm/type-definition/create`      | `typeKey + typeCode + typeValue`             | 建立用户、角色、资源类型                      |
-| 2   | `POST /api/perm/biz-domain/create`           | `code=admin`                                 | 建立业务域                             |
-| 3   | `POST /api/perm/operation-permission/create` | `resourceTypeCode + operationCode`           | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
-| 4   | `POST /api/perm/domain-config/save`          | `configType=SCOPE/RELATION/BINDING/SUB_PERM` | 约束域内允许的角色、资源、操作和子权限               |
-| 5   | `POST /api/perm/system-config/save`          | 租户级配置                                        | 保存角色唯一性、默认策略等配置                   |
-
+| 步骤 | 接口                                         | 关键入参                                     | 结果                                   |
+| ---- | -------------------------------------------- | -------------------------------------------- | -------------------------------------- |
+| 1    | `POST /api/perm/type-definition/create`      | `typeKey + typeCode + typeValue`             | 建立用户、角色、资源类型               |
+| 2    | `POST /api/perm/biz-domain/create`           | `code=admin`                                 | 建立业务域                             |
+| 3    | `POST /api/perm/operation-permission/create` | `resourceTypeCode + operationCode`           | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
+| 4    | `POST /api/perm/domain-config/save`          | `configType=SCOPE/RELATION/BINDING/SUB_PERM` | 约束域内允许的角色、资源、操作和子权限 |
+| 5    | `POST /api/perm/system-config/save`          | 租户级配置                                   | 保存角色唯一性、默认策略等配置         |
 
 关键逻辑：
 
@@ -61,14 +55,12 @@ flowchart LR
 
 目标：让业务服务把自己的接口注册到权限中心，供 Gateway 鉴权使用。
 
-
-| 步骤  | 接口                                         | 关键入参                              | 结果        |
-| --- | ------------------------------------------ | --------------------------------- | --------- |
-| 1   | `POST /api/perm/service-config/save`       | `serviceCode + basePath + name`   | 注册或更新服务   |
-| 2   | `POST /api/perm/service-config/sync`       | `syncMode=FULL + groups[].apis[]` | 全量同步服务接口  |
-| 3   | `POST /api/perm/service-config/apis`       | `serviceCode`                     | 查看服务接口资源树 |
-| 4   | `POST /api/perm/resource-api-mapping/list` | `serviceCode` 或 `resourceId`      | 查看接口映射    |
-
+| 步骤 | 接口                                       | 关键入参                          | 结果               |
+| ---- | ------------------------------------------ | --------------------------------- | ------------------ |
+| 1    | `POST /api/perm/service-config/save`       | `serviceCode + basePath + name`   | 注册或更新服务     |
+| 2    | `POST /api/perm/service-config/sync`       | `syncMode=FULL + groups[].apis[]` | 全量同步服务接口   |
+| 3    | `POST /api/perm/service-config/apis`       | `serviceCode`                     | 查看服务接口资源树 |
+| 4    | `POST /api/perm/resource-api-mapping/list` | `serviceCode` 或 `resourceId`     | 查看接口映射       |
 
 关键逻辑：
 
@@ -84,15 +76,13 @@ flowchart LR
 
 目标：把外部用户同步为权限主体，并为其分配组织、职位、基础角色或分组角色。
 
-
-| 步骤  | 接口                                               | 关键入参                                                  | 结果       |
-| --- | ------------------------------------------------ | ----------------------------------------------------- | -------- |
-| 1   | `POST /api/perm/abstract-user/sync`              | `subjectTypeCode + externalId + name + version`       | 幂等同步用户   |
-| 2   | `POST /api/perm/abstract-role/create`            | `roleTypeCode + roleExternalId + name + domainCode`   | 创建可授权角色  |
-| 3   | `POST /api/perm/abstract-role/tree`              | `domainCode/roleTypeCode`                             | 查看角色层级   |
-| 4   | `POST /api/perm/user-role/assign`                | `subjectTypeCode + subjectExternalId + assignments[]` | 给用户分配角色  |
-| 5   | `POST /api/perm/permission-view/effective-roles` | `subjectTypeCode + subjectExternalId`                 | 验证用户有效角色 |
-
+| 步骤 | 接口                                             | 关键入参                                              | 结果             |
+| ---- | ------------------------------------------------ | ----------------------------------------------------- | ---------------- |
+| 1    | `POST /api/perm/abstract-user/sync`              | `subjectTypeCode + externalId + name + version`       | 幂等同步用户     |
+| 2    | `POST /api/perm/abstract-role/create`            | `roleTypeCode + roleExternalId + name + domainCode`   | 创建可授权角色   |
+| 3    | `POST /api/perm/abstract-role/tree`              | `domainCode/roleTypeCode`                             | 查看角色层级     |
+| 4    | `POST /api/perm/user-role/assign`                | `subjectTypeCode + subjectExternalId + assignments[]` | 给用户分配角色   |
+| 5    | `POST /api/perm/permission-view/effective-roles` | `subjectTypeCode + subjectExternalId`                 | 验证用户有效角色 |
 
 关键逻辑：
 
@@ -106,15 +96,13 @@ flowchart LR
 
 目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。
 
-
-| 步骤  | 接口                                             | 关键入参                                                             | 结果                   |
-| --- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------- |
-| 1   | `POST /api/perm/resource-entity/create`        | `resourceTypeCode + resourceCode + codeType + name`              | 创建菜单、按钮、API、DATA 等资源 |
-| 2   | `POST /api/perm/operation-permission/list`     | `resourceTypeCode`                                               | 选择适用操作               |
-| 3   | `POST /api/perm/permission-condition/create`   | `conditionCode + conditionRules`                                 | 可选，创建复用条件            |
-| 4   | `POST /api/perm/role-resource-permission/save` | `domainCode + roleTypeCode + roleExternalId + add/update/remove` | 三段式保存授权              |
-| 5   | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId`                     | 验证角色权限               |
-
+| 步骤 | 接口                                           | 关键入参                                                         | 结果                             |
+| ---- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
+| 1    | `POST /api/perm/resource-entity/create`        | `resourceTypeCode + resourceCode + codeType + name`              | 创建菜单、按钮、API、DATA 等资源 |
+| 2    | `POST /api/perm/operation-permission/list`     | `resourceTypeCode`                                               | 选择适用操作                     |
+| 3    | `POST /api/perm/permission-condition/create`   | `conditionCode + conditionRules`                                 | 可选，创建复用条件               |
+| 4    | `POST /api/perm/role-resource-permission/save` | `domainCode + roleTypeCode + roleExternalId + add/update/remove` | 三段式保存授权                   |
+| 5    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId`                     | 验证角色权限                     |
 
 关键逻辑：
 
@@ -124,20 +112,59 @@ flowchart LR
 - 条件可选，填写 `conditionCode` 时必须存在且启用。
 - 写入后记录 `operation_log` 和 `permission_change_log`，递增该角色 `permission_version`，失效角色权限缓存。
 
-## 7. 场景五：配置子权限和数据范围
+## 7. 权限查询引擎（PermQueryEngine）
+
+所有权限查询和校验统一通过 `PermQueryEngine.query(PermQuery)` 执行，引擎根据查询模式走不同路径：
+
+```
+PermQueryEngine.query(PermQuery)
+    │
+    ├─ forUserView ──► 全量角色权限记录（不按位过滤）
+    │
+    ├─ forAuthCheck / forValidate / forInterfaceCheck
+    │      ├─ resolveRoleIds ──► SubjectDomainService
+    │      ├─ resolveResourceTypes / resolveOperationIds ──► TypeResolutionService (ResolveContext)
+    │      ├─ queryScopeAll ──► selectScopeAllPermsByBitsBatch (1 SQL)
+    │      │     └─ scopeAll 匹配且 earlyReturnOnScopeAll → 提前返回
+    │      ├─ resolveEntityIds ──► TypeResolutionService.batchResolveResourceIds
+    │      ├─ queryInstance ──► selectInstancePermsByBitsBatch (1 SQL)
+    │      ├─ expandByInheritMode ──► 按 inheritParents/inheritChildren 展开
+    │      ├─ evaluateConditions ──► PermissionConditionDomainService
+    │      ├─ evaluateConflicts ──► PermissionConflictDomainService
+    │      └─ loadAncillary ──► 批量加载 Resource/Operation/Role
+    │
+    ├─ forResourceQuery ──► 仅实例查询，不评估条件/冲突
+    ├─ forResourceCheck ──► 全范围+实例，完整评估
+    └─ forScopeQuery ──► 不提前返回，不评估，返回全部辅助信息
+```
+
+**scopeAll 作为一等权限维度**：
+
+- `SnapshotAssembler`：scopeAll 条目不展开为 N 个 API 资源，直接作为 `ApiPermissionEntry(scopeAll=true, httpMethod=null, pathPattern=null)` 返回。
+- `PermViewAssembler`：按 `resourceType` 分组输出 scopeAll 视图项，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围。
+
+**资源继承展开**（引擎层实现）：
+
+- `setInheritMode("PARENT"/"CHILD"/"BOTH")` 设置后，引擎在 `expandByInheritMode()` 中加载全部有效资源构建父子图，向上遍历父链或向下递归收集子孙，克隆权限条目（`grantSource="INHERITED"`、`resourceEntityId=目标资源ID`）。
+- scopeAll 条目（`resourceEntityId=null`）不参与继承展开。
+
+**内部 AppService 使用 `PermResultUtils`** 将 `PermResult` 转为对外响应：
+
+- `PermResultUtils.toAuthCheckResp(result)` — `check/batch-check` 响应
+- `PermResultUtils.validateOrThrow(result)` — `validate` 模式（拒绝时抛异常）
+
+## 8. 场景五：配置子权限和数据范围
 
 目标：在主权限下挂数据范围或其他附属权限，用 `depend_on` 表达主从关系。
 
-
-| 步骤  | 接口                                                  | 关键入参                                   | 结果                                   |
-| --- | --------------------------------------------------- | -------------------------------------- | ------------------------------------ |
-| 1   | `POST /api/perm/domain-config/save`                 | `configType=SUB_PERM`                  | 定义父资源类型允许挂载的子资源类型                    |
-| 2   | `POST /api/perm/resource-entity/create`             | `resourceTypeCode=DATA + resourceCode` | 创建数据范围资源                             |
-| 3   | `POST /api/perm/role-resource-permission/save`      | 主权限授权                                  | 返回主权限 `id`                           |
-| 4   | `POST /api/perm/role-resource-permission/add-child` | `parentPermissionId + children[]`      | 写入子权限，`depend_on=parentPermissionId` |
-| 5   | `POST /api/perm/role-resource-permission/children`  | `permissionId`                         | 查询主权限下子权限                            |
-| 6   | `POST /api/perm/auth/query-scopes`                  | 主资源业务键、主操作、范围资源类型和范围操作                 | 运行时查询范围权限                            |
-
+| 步骤 | 接口                                                | 关键入参                                     | 结果                                       |
+| ---- | --------------------------------------------------- | -------------------------------------------- | ------------------------------------------ |
+| 1    | `POST /api/perm/domain-config/save`                 | `configType=SUB_PERM`                        | 定义父资源类型允许挂载的子资源类型         |
+| 2    | `POST /api/perm/resource-entity/create`             | `resourceTypeCode=DATA + resourceCode`       | 创建数据范围资源                           |
+| 3    | `POST /api/perm/role-resource-permission/save`      | 主权限授权                                   | 返回主权限 `id`                            |
+| 4    | `POST /api/perm/role-resource-permission/add-child` | `parentPermissionId + children[]`            | 写入子权限，`depend_on=parentPermissionId` |
+| 5    | `POST /api/perm/role-resource-permission/children`  | `permissionId`                               | 查询主权限下子权限                         |
+| 6    | `POST /api/perm/auth/query-scopes`                  | 主资源业务键、主操作、范围资源类型和范围操作 | 运行时查询范围权限                         |
 
 关键逻辑：
 
@@ -149,60 +176,54 @@ flowchart LR
 - `auth/check` 适合只判断主权限是否允许；业务需要拿范围权限集合时，使用 `auth/query-scopes`。
 - `scopeAll=true` 表示该授权覆盖某个资源类型下全部范围资源，不需要创建 `data:all` 这类特殊资源。
 
-## 8. 场景六：Gateway 接口级鉴权
+## 9. 场景六：Gateway 接口级鉴权
 
 目标：Gateway 在请求进入业务服务前，通过权限中心判断当前用户是否能访问接口。
 
-
-| 步骤  | 执行方               | 动作                                                                               |
-| --- | ----------------- | -------------------------------------------------------------------------------- |
-| 1   | Gateway           | 解析 Token，得到 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`，并清洗外部伪造 Header |
-| 2   | Gateway           | 提取 `serviceCode + httpMethod + 原始 path`                                          |
-| 3   | Gateway           | 查询本地 L1 缓存                                                                       |
-| 4   | Gateway           | 缓存未命中时调用 `POST /api/perm/auth/check-interface`                                   |
-| 5   | permission-center | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
-| 6   | permission-center | 解析资源、操作、用户有效角色、条件和冲突规则                                                           |
-| 7   | permission-center | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                           |
-| 8   | Gateway           | 允许则转发业务服务，拒绝则返回 403                                                              |
-
+| 步骤 | 执行方            | 动作                                                                                           |
+| ---- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| 1    | Gateway           | 解析 Token，得到 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`，并清洗外部伪造 Header |
+| 2    | Gateway           | 提取 `serviceCode + httpMethod + 原始 path`                                                    |
+| 3    | Gateway           | 查询本地 L1 缓存                                                                               |
+| 4    | Gateway           | 缓存未命中时调用 `POST /api/perm/auth/check-interface`                                         |
+| 5    | permission-center | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
+| 6    | permission-center | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
+| 7    | permission-center | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
+| 8    | Gateway           | 允许则转发业务服务，拒绝则返回 403                                                             |
 
 拒绝原因示例：
 
-
-| reason               | 典型含义           |
-| -------------------- | -------------- |
+| reason               | 典型含义                     |
+| -------------------- | ---------------------------- |
 | `API_NOT_REGISTERED` | 接口没有映射，白名单模式拒绝 |
-| `USER_DISABLED`      | 主体被停用          |
-| `NO_ROLE`            | 用户无有效角色        |
-| `NO_PERMISSION`      | 有角色但无接口资源权限    |
-| `CONDITION_NOT_MET`  | 条件不满足          |
-| `CONFLICT_DETECTED`  | 权限互斥导致失效       |
+| `USER_DISABLED`      | 主体被停用                   |
+| `NO_ROLE`            | 用户无有效角色               |
+| `NO_PERMISSION`      | 有角色但无接口资源权限       |
+| `CONDITION_NOT_MET`  | 条件不满足                   |
+| `CONFLICT_DETECTED`  | 权限互斥导致失效             |
 
+**Gateway 接口权限检查**：Gateway 调用 `POST /api/perm/auth/check-interface`，服务端匹配 API 映射后直接走 `PermQueryEngine.query(PermQuery.forInterfaceCheck())` 做 `API.ACCESS` 判定，不额外叠加其他资源类型 VIEW 门禁。
 
-## 9. 场景七：业务服务 SDK 鉴权与权限查询
+## 10. 场景七：业务服务 SDK 鉴权与权限查询
 
 目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`。
 
+| 能力           | 接口                                  | 典型场景                                                     | 结果                          |
+| -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
+| 布尔鉴权       | `POST /api/perm/auth/check`           | 打开报表前判断是否有 `VIEW` 权限                             | `allowed/reason`              |
+| 批量鉴权       | `POST /api/perm/auth/batch-check`     | 列表页按钮批量置灰                                           | 每个检查项的 `allowed/reason` |
+| 可操作资源查询 | `POST /api/perm/auth/query-resources` | admin-service 查询可管理组织、角色、菜单                     | 资源业务键集合和命中操作      |
+| 范围权限查询   | `POST /api/perm/auth/query-scopes`    | example-service 查询报表可读、可编辑的城市、部门、门店等范围 | 范围权限集合                  |
 
-| 能力      | 接口                                    | 典型场景                                   | 结果                      |
-| ------- | ------------------------------------- | -------------------------------------- | ----------------------- |
-| 布尔鉴权    | `POST /api/perm/auth/check`           | 打开报表前判断是否有 `VIEW` 权限                   | `allowed/reason`        |
-| 批量鉴权    | `POST /api/perm/auth/batch-check`     | 列表页按钮批量置灰                              | 每个检查项的 `allowed/reason` |
-| 可操作资源查询 | `POST /api/perm/auth/query-resources` | admin-service 查询可管理组织、角色、菜单            | 资源业务键集合和命中操作            |
-| 范围权限查询  | `POST /api/perm/auth/query-scopes`    | example-service 查询报表可读、可编辑的城市、部门、门店等范围 | 范围权限集合                  |
-
-
-### 9.1 admin-service 查询可管理对象
+### 10.1 admin-service 查询可管理对象
 
 admin-service 需要先把可被权限控制的组织、角色、菜单同步或创建为权限中心资源。
 
-
-| 查询目标      | 资源建模                                                         | 运行时查询                                                                                       |
-| --------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode=org:{orgId}`            | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]`                 |
+| 查询目标           | 资源建模                                                      | 运行时查询                                                                                     |
+| ------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode=org:{orgId}`            | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]`                  |
 | 用户能管理哪些角色 | `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
 | 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
-
 
 调用链路：
 
@@ -218,21 +239,19 @@ admin-service 需要先把可被权限控制的组织、角色、菜单同步或
 - 如果角色本身也是被管理对象，就必须把角色建模成 `resource_entity`；`abstract_role` 只表示授权主体，不等同于“可被管理的角色资源”。
 - 菜单树展示可以用 `treeMode=true` 返回权限中心资源树，但最终排序、隐藏字段、路由元信息仍由 admin-service 控制。
 
-### 9.2 example-service 查询报表范围权限
+### 10.2 example-service 查询报表范围权限
 
 example-service 需要把报表建模为主资源，把城市、部门、门店、数据集等建模为范围资源。直接范围权限和依赖当前报表主权限的子权限会在运行时取并集。
 
-
-| 步骤  | 动作       | 说明                                                                   |
-| --- | -------- | -------------------------------------------------------------------- |
-| 1   | 同步报表资源   | 例如 `resourceTypeCode=REPORT`、`resourceCode=report:sales`             |
-| 2   | 同步范围资源   | 例如 `resourceTypeCode=DATA`、`resourceCode=data:dept:A`                |
-| 3   | 配置直接范围权限 | 例如 A 部门主管角色拥有 `data:dept:A + DATA_READ`                              |
-| 4   | 配置报表主权限  | 推荐示例为 `report:sales + DATA_READ`、`report:sales + DATA_EDIT`          |
-| 5   | 配置子权限    | 在销售报表主权限下额外挂 `data:dept:B + DATA_READ`                               |
-| 6   | 运行时查询    | 调用 `POST /api/perm/auth/query-scopes`，可同时传 `DATA_READ` 和 `DATA_EDIT` |
-| 7   | 业务过滤     | example-service 把返回的 `resourceCode` 或 `scopeAll=true` 转换为本服务报表查询条件   |
-
+| 步骤 | 动作             | 说明                                                                                |
+| ---- | ---------------- | ----------------------------------------------------------------------------------- |
+| 1    | 同步报表资源     | 例如 `resourceTypeCode=REPORT`、`resourceCode=report:sales`                         |
+| 2    | 同步范围资源     | 例如 `resourceTypeCode=DATA`、`resourceCode=data:dept:A`                            |
+| 3    | 配置直接范围权限 | 例如 A 部门主管角色拥有 `data:dept:A + DATA_READ`                                   |
+| 4    | 配置报表主权限   | 推荐示例为 `report:sales + DATA_READ`、`report:sales + DATA_EDIT`                   |
+| 5    | 配置子权限       | 在销售报表主权限下额外挂 `data:dept:B + DATA_READ`                                  |
+| 6    | 运行时查询       | 调用 `POST /api/perm/auth/query-scopes`，可同时传 `DATA_READ` 和 `DATA_EDIT`        |
+| 7    | 业务过滤         | example-service 把返回的 `resourceCode` 或 `scopeAll=true` 转换为本服务报表查询条件 |
 
 运行时规则：
 
@@ -246,26 +265,24 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 全量范围必须通过 `scopeAll=true` 显式表达，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围。
 - 权限中心不生成 SQL；example-service 自行把 `data:city:shanghai`、`data:dept:finance` 等资源键映射为查询条件。
 
-### 9.3 运行时查询边界
+### 10.3 运行时查询边界
 
 - `auth/check` 和 `auth/batch-check` 解决“能不能做”。
 - `auth/query-resources` 解决“能操作哪些资源对象”。
 - `auth/query-scopes` 解决“允许访问主资源后，能操作哪些范围资源”。
 - `permission-view/*` 解决“为什么有/没有权限”，用于管理端解释、排查和审计，不作为业务服务高频运行时依赖。
 
-## 10. 场景八：接口变更后的全量同步和权限影响
+## 11. 场景八：接口变更后的全量同步和权限影响
 
 目标：服务发布后接口新增、删除或路径变化，权限中心跟随更新。
 
-
-| 步骤  | 接口                                   | 关键入参            | 结果              |
-| --- | ------------------------------------ | --------------- | --------------- |
-| 1   | `POST /api/perm/service-config/sync` | 新的 FULL 接口列表    | 权限中心计算 diff     |
-| 2   | 自动处理                                 | 新接口创建 API 资源和映射 | 可被授权            |
-| 3   | 自动处理                                 | 删除接口软删映射和自动创建资源 | Gateway 不再匹配旧接口 |
-| 4   | 自动处理                                 | 影响已有角色权限时递增版本   | 缓存失效            |
-| 5   | `POST /api/perm/service-config/apis` | `serviceCode`   | 验证最新接口资源树       |
-
+| 步骤 | 接口                                 | 关键入参                       | 结果                   |
+| ---- | ------------------------------------ | ------------------------------ | ---------------------- |
+| 1    | `POST /api/perm/service-config/sync` | 新的 FULL 接口列表             | 权限中心计算 diff      |
+| 2    | 自动处理                             | 新接口创建 API 资源和映射      | 可被授权               |
+| 3    | 自动处理                             | 删除接口软删映射和自动创建资源 | Gateway 不再匹配旧接口 |
+| 4    | 自动处理                             | 影响已有角色权限时递增版本     | 缓存失效               |
+| 5    | `POST /api/perm/service-config/apis` | `serviceCode`                  | 验证最新接口资源树     |
 
 关键逻辑：
 
@@ -273,19 +290,17 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 自动删除只应处理同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 范围内由接口同步创建的 API 资源，避免误删人工维护资源。
 - 路径变更应视为旧接口删除和新接口新增。
 
-## 11. 场景九：资源依赖自动补全
+## 12. 场景九：资源依赖自动补全
 
 目标：授权某个资源时，自动补齐它依赖的接口或数据资源权限。
 
-
-| 步骤  | 接口                                              | 关键入参                                         | 结果         |
-| --- | ----------------------------------------------- | -------------------------------------------- | ---------- |
-| 1   | `POST /api/perm/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true` | 建立依赖规则     |
-| 2   | `POST /api/perm/role-resource-permission/save`  | 给角色授权源资源                                     | 自动补齐依赖资源权限 |
-| 3   | 自动处理                                            | 写入 `grantSource=AUTO_DEP + grantDepId`       | 标记补全来源     |
-| 4   | `POST /api/perm/role-resource-permission/list`  | 查询角色权限                                       | 能看到自动补齐结果  |
-| 5   | `POST /api/perm/resource-dependency/batch-sync` | 修改依赖规则                                       | 清理旧补全并重新评估 |
-
+| 步骤 | 接口                                            | 关键入参                                                        | 结果                 |
+| ---- | ----------------------------------------------- | --------------------------------------------------------------- | -------------------- |
+| 1    | `POST /api/perm/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true` | 建立依赖规则         |
+| 2    | `POST /api/perm/role-resource-permission/save`  | 给角色授权源资源                                                | 自动补齐依赖资源权限 |
+| 3    | 自动处理                                        | 写入 `grantSource=AUTO_DEP + grantDepId`                        | 标记补全来源         |
+| 4    | `POST /api/perm/role-resource-permission/list`  | 查询角色权限                                                    | 能看到自动补齐结果   |
+| 5    | `POST /api/perm/resource-dependency/batch-sync` | 修改依赖规则                                                    | 清理旧补全并重新评估 |
 
 关键逻辑：
 
@@ -296,38 +311,46 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志和递增权限版本。
+- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 的版本递增由调用方在 `TransactionSynchronization.afterCommit` 中负责，而非方法内部自行递增。
 
-## 12. 场景十：权限视图和审计排查
+## 13. 场景十：权限视图和审计排查
 
 目标：让管理端、测试和运维能解释“用户为什么有/没有某权限”。
 
+| 查询目标     | 接口                                                   | 说明                                             |
+| ------------ | ------------------------------------------------------ | ------------------------------------------------ |
+| 用户有效角色 | `POST /api/perm/permission-view/effective-roles`       | 展示直接、分组、组织、职位等来源                 |
+| 用户有效权限 | `POST /api/perm/permission-view/effective-permissions` | 分页筛选展示当前有效权限                         |
+| 用户资源树   | `POST /api/perm/permission-view/resource-tree`         | 菜单/按钮展示常用                                |
+| 资源授权用户 | `POST /api/perm/permission-view/resource-users`        | 反查谁拥有某资源权限                             |
+| 角色权限     | `POST /api/perm/permission-view/role-permissions`      | 角色维度排查                                     |
+| 单权限解释   | `POST /api/perm/permission-view/explain`               | 解释某个具体权限当前是否拥有、来源和近期影响事件 |
+| 近期变更     | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件         |
+| 操作日志     | `POST /api/perm/operation-log/list`                    | 所有写操作轻量审计                               |
+| 权限变更日志 | `POST /api/perm/permission-change-log/list`            | 权限 diff 审计                                   |
 
-| 查询目标   | 接口                                                     | 说明                       |
-| ------ | ------------------------------------------------------ | ------------------------ |
-| 用户有效角色 | `POST /api/perm/permission-view/effective-roles`       | 展示直接、分组、组织、职位等来源         |
-| 用户有效权限 | `POST /api/perm/permission-view/effective-permissions` | 分页筛选展示当前有效权限             |
-| 用户资源树  | `POST /api/perm/permission-view/resource-tree`         | 菜单/按钮展示常用                |
-| 资源授权用户 | `POST /api/perm/permission-view/resource-users`        | 反查谁拥有某资源权限               |
-| 角色权限   | `POST /api/perm/permission-view/role-permissions`      | 角色维度排查                   |
-| 单权限解释  | `POST /api/perm/permission-view/explain`               | 解释某个具体权限当前是否拥有、来源和近期影响事件 |
-| 近期变更   | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件     |
-| 操作日志   | `POST /api/perm/operation-log/list`                    | 所有写操作轻量审计                |
-| 权限变更日志 | `POST /api/perm/permission-change-log/list`            | 权限 diff 审计               |
+### 13.1 操作日志记录机制
 
+写操作日志采用 `@OperationLog` AOP + `OperationLogRuntimeContext` 双层机制：
 
-### 12.1 用户排查链路
+- **`@OperationLog` 注解**：标注在 AppService 写方法上，声明 `module`、`action`、`targetType`（SpEL）、`targetId`（SpEL）、`summary`（SpEL）。由 `OperationLogAspect` 环绕拦截，方法执行成功后才记录日志。
+- **`OperationLogRuntimeContext`**（ThreadLocal）：方法体内可通过静态方法覆盖注解值：
+  - `markSkip()` — 跳过日志记录（如幂等操作无实际变更时）
+  - `setSummary(String)` — 覆盖摘要（void 方法无法通过 `#result` 获取返回值）
+  - `setTargetType(String)` / `setTargetId(Long/String)` — 覆盖目标类型和 ID
+- 内部动态日志（diff 快照、冲突通知）仍由 `AuditDomainService.asyncRecordLog()` 显式调用，不走 AOP。
+
+### 13.2 用户排查链路
 
 典型问题：用户反馈“我突然没有某个报表权限”或“我突然多了某个权限”。
 
-
-| 步骤  | 接口                                                     | 作用                                 |
-| --- | ------------------------------------------------------ | ---------------------------------- |
-| 1   | `POST /api/perm/permission-view/effective-roles`       | 查询用户当前有效角色，确认是否被移除角色或命中停用角色        |
-| 2   | `POST /api/perm/permission-view/explain`               | 针对用户反馈的具体资源和操作，解释当前是否拥有、来源角色和未命中原因 |
-| 3   | `POST /api/perm/permission-view/recent-changes`        | 查询最近 30 天可能影响该用户权限的变更事件            |
-| 4   | `POST /api/perm/permission-view/effective-permissions` | 需要浏览当前权限清单时，按资源类型、操作、关键词分页筛选       |
-| 5   | `POST /api/perm/permission-change-log/list`            | 必要时查看原始 before/after/diff 审计详情     |
-
+| 步骤 | 接口                                                   | 作用                                                                 |
+| ---- | ------------------------------------------------------ | -------------------------------------------------------------------- |
+| 1    | `POST /api/perm/permission-view/effective-roles`       | 查询用户当前有效角色，确认是否被移除角色或命中停用角色               |
+| 2    | `POST /api/perm/permission-view/explain`               | 针对用户反馈的具体资源和操作，解释当前是否拥有、来源角色和未命中原因 |
+| 3    | `POST /api/perm/permission-view/recent-changes`        | 查询最近 30 天可能影响该用户权限的变更事件                           |
+| 4    | `POST /api/perm/permission-view/effective-permissions` | 需要浏览当前权限清单时，按资源类型、操作、关键词分页筛选             |
+| 5    | `POST /api/perm/permission-change-log/list`            | 必要时查看原始 before/after/diff 审计详情                            |
 
 展示建议：
 
@@ -350,18 +373,16 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 如果角色 A 删除了某权限，但角色 B 仍授予同一权限，用户当前仍拥有该权限；页面文案应表达为“可能影响”，不能写成“用户已失去权限”。
 - `effective-permissions` 默认不展开数据范围、子权限、API 资源和完整来源角色；调用方必须显式传过滤条件和展开选项。
 
-### 12.2 角色排查链路
+### 13.3 角色排查链路
 
 典型问题：管理员查看某个角色为什么当前权限发生变化。
 
-
-| 步骤  | 接口                                                | 作用                     |
-| --- | ------------------------------------------------- | ---------------------- |
-| 1   | `POST /api/perm/permission-view/role-permissions` | 查询角色当前权限配置             |
-| 2   | `POST /api/perm/permission-view/explain`          | 针对某个资源和操作解释该角色当前是否拥有权限 |
-| 3   | `POST /api/perm/permission-view/recent-changes`   | 查询该角色最近权限增删改、状态变更、依赖变更 |
-| 4   | `POST /api/perm/permission-change-log/list`       | 查看原始审计记录               |
-
+| 步骤 | 接口                                              | 作用                                         |
+| ---- | ------------------------------------------------- | -------------------------------------------- |
+| 1    | `POST /api/perm/permission-view/role-permissions` | 查询角色当前权限配置                         |
+| 2    | `POST /api/perm/permission-view/explain`          | 针对某个资源和操作解释该角色当前是否拥有权限 |
+| 3    | `POST /api/perm/permission-view/recent-changes`   | 查询该角色最近权限增删改、状态变更、依赖变更 |
+| 4    | `POST /api/perm/permission-change-log/list`       | 查看原始审计记录                             |
 
 关键逻辑：
 
@@ -372,21 +393,19 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `diff_snapshot` 只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
 - 查询用户最近变更时，服务端可通过 `affected_abstract_user_ids` 直接匹配用户，也可通过用户当前/历史关联角色匹配 `affected_abstract_role_ids`；首期以“排查线索完整”为目标，不做历史快照回放。
 
-## 13. 场景十一：回收、删除和级联
+## 14. 场景十一：回收、删除和级联
 
 目标：确保删除和回收不会留下可生效的悬挂权限。
 
-
-| 场景            | 接口                                                     | 级联或失效                            |
-| ------------- | ------------------------------------------------------ | -------------------------------- |
-| 回收用户角色        | `POST /api/perm/user-role/revoke`                      | 失效用户有效角色缓存                       |
-| 回收角色权限        | `POST /api/perm/role-resource-permission/revoke`       | 级联软删子权限，递增角色版本                   |
-| 删除子权限         | `POST /api/perm/role-resource-permission/remove-child` | 只允许删除 `depend_on IS NOT NULL` 记录 |
-| 删除资源          | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系              |
-| 删除角色          | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，递增版本               |
-| 删除用户          | `POST /api/perm/abstract-user/remove`                  | 软删用户角色关系和个人角色权限                  |
-| 停用用户/角色/资源/服务 | 对应 update/save 接口                                      | 运行时鉴权直接拒绝或不参与计算                  |
-
+| 场景                    | 接口                                                   | 级联或失效                              |
+| ----------------------- | ------------------------------------------------------ | --------------------------------------- |
+| 回收用户角色            | `POST /api/perm/user-role/revoke`                      | 失效用户有效角色缓存                    |
+| 回收角色权限            | `POST /api/perm/role-resource-permission/revoke`       | 级联软删子权限，递增角色版本            |
+| 删除子权限              | `POST /api/perm/role-resource-permission/remove-child` | 只允许删除 `depend_on IS NOT NULL` 记录 |
+| 删除资源                | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系  |
+| 删除角色                | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，递增版本    |
+| 删除用户                | `POST /api/perm/abstract-user/remove`                  | 软删用户角色关系和个人角色权限          |
+| 停用用户/角色/资源/服务 | 对应 update/save 接口                                  | 运行时鉴权直接拒绝或不参与计算          |
 
 关键逻辑：
 
@@ -395,23 +414,21 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 回收和删除都必须写审计日志。
 - 任何影响鉴权结果的变更都必须触发缓存失效。
 
-## 14. 是否满足目标的检查点
+## 15. 是否满足目标的检查点
 
+| 目标           | 检查方式                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| 通用权限服务   | 外部系统只使用稳定业务键即可完成主体同步、授权和鉴权                                                  |
+| 接口规范统一   | 全部接口走 `/api/perm/*`，无 RESTful Path 参数，无 body `tenantId`                                    |
+| SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                            |
+| Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定                                            |
+| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求内部数据库 ID   |
+| 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
+| 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
+| 接口同步简单   | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                        |
+| 缓存一致性     | 权限变更、依赖变更、角色关系变更都能触发版本递增和缓存失效                                            |
 
-| 目标          | 检查方式                                                                                    |
-| ----------- | --------------------------------------------------------------------------------------- |
-| 通用权限服务      | 外部系统只使用稳定业务键即可完成主体同步、授权和鉴权                                                              |
-| 接口规范统一      | 全部接口走 `/api/perm/*`，无 RESTful Path 参数，无 body `tenantId`                                 |
-| SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                                    |
-| Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定                                      |
-| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求内部数据库 ID |
-| 管理端可解释      | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                              |
-| 数据权限可表达     | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询                     |
-| 接口同步简单      | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                              |
-| 缓存一致性       | 权限变更、依赖变更、角色关系变更都能触发版本递增和缓存失效                                                           |
-
-
-## 15. 仍需实现时重点校验
+## 16. 仍需实现时重点校验
 
 - `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleTypeCode + roleExternalId + domainCode` 时必须带同一套过滤条件。
 - `type_definition.type_value` 必须在同一 `tenant_id + type_key` 内全局唯一，不能按业务域重复分配相同值。
@@ -424,4 +441,3 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `canManage=true` 只允许授权同一条权限，不能扩大资源、操作或范围；可授权对象候选范围由业务服务控制。
 - 所有 Request DTO 必须移除 `tenantId`。
 - 所有列表响应必须包装成 `data.items`，不能直接返回数组。
-
