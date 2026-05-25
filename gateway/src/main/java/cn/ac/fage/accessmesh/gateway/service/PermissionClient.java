@@ -1,14 +1,19 @@
 package cn.ac.fage.accessmesh.gateway.service;
 
+import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
-import cn.ac.fage.accessmesh.gateway.model.AuthCheckRequest;
-import cn.ac.fage.accessmesh.gateway.model.AuthCheckResponse;
+import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 权限校验HTTP客户端
@@ -56,43 +61,63 @@ public class PermissionClient {
     /**
      * 调用permission-center检查接口访问权限
      * <p>
-     * 发送AuthCheckRequest（包含从上下文获取的clientIp）
+     * 发送CheckInterfaceReq（包含subjectTypeCode、subjectExternalId、服务编码、路径等）
      * 并解析PermResult<CheckInterfaceResp>响应。
      * 使用内部密钥请求头标识请求来源为Gateway。
      * </p>
      *
-     * @param request  权限校验请求，包含服务编码、路径、客户端IP等
-     * @param tenantId 租户ID
+         * @param subjectTypeCode 主体类型编码
+     * @param userId    用户ID，转换为subjectExternalId
+     * @param serviceCode 服务编码
+     * @param httpMethod HTTP方法
+     * @param path      请求路径
+     * @param clientIp  客户端IP
+     * @param tenantId  租户ID
      * @return 权限校验响应Mono
      */
-    public Mono<AuthCheckResponse> checkInterface(AuthCheckRequest request, Long tenantId) {
-        // 从上下文提取客户端IP
-        if (request.getClientIp() == null && request.getContext() != null) {
-            request.setClientIp(request.getContext().getIp());
-        }
+    public Mono<PermResult<CheckInterfaceResp>> checkInterface(
+             String subjectTypeCode, Long userId, String serviceCode, String httpMethod, String path,
+            String clientIp, Long tenantId) {
 
-        log.debug("调用permission-center进行接口权限校验: serviceCode={}, path={}",
-            request.getServiceCode(), request.getPath());
+        // 构建context Map，包含clientIp和timestamp
+        Map<String, Object> context = new HashMap<>();
+        if (clientIp != null) {
+            context.put("clientIp", clientIp);
+        }
+        context.put("timestamp", java.time.Instant.now().toString());
+
+        CheckInterfaceReq req = new CheckInterfaceReq(
+            subjectTypeCode,
+            String.valueOf(userId),         // subjectExternalId
+            serviceCode,
+            httpMethod,
+            path,
+            context
+        );
+
+        log.debug("调用permission-center进行接口权限校验: userId={}, serviceCode={}, path={}",
+            userId, serviceCode, path);
 
         return webClient.post()
             .uri(checkInterfacePath)
             .header("X-Tenant-Id", tenantId != null ? tenantId.toString() : "")
             .header("X-Internal-Secret", internalSecret)
-            .bodyValue(request)
+            .bodyValue(req)
             .retrieve()
-            .bodyToMono(AuthCheckResponse.class)
-            .doOnSuccess(resp -> {
-                if (resp != null && resp.isAllowed()) {
-                    log.debug("权限校验通过: matchedRoleId={}, opCode={}",
-                        resp.getData() != null ? resp.getData().getMatchedRoleId() : null,
-                        resp.getData() != null ? resp.getData().getMatchedOperationCode() : null);
-                } else {
-                    String reason = resp != null && resp.getData() != null
-                        ? resp.getData().getDenyReason() : "unknown";
-                    log.warn("权限校验拒绝: reason={}", reason);
+            .bodyToMono(new ParameterizedTypeReference<PermResult<CheckInterfaceResp>>() {})
+            .doOnSuccess(result -> {
+                if (result != null && result.getData() != null) {
+                    CheckInterfaceResp resp = result.getData();
+                    if (resp.allowed()) {
+                        log.debug("权限校验通过: matchedResources={}, cacheTtlSeconds={}",
+                            resp.matchedResources() != null ? resp.matchedResources().size() : 0,
+                            resp.cacheTtlSeconds());
+                    } else {
+                        log.warn("权限校验拒绝: reason={}", resp.reason());
+                    }
                 }
             })
-            .doOnError(e -> log.error("permission-center调用失败: serviceCode={}, path={}",
-                request.getServiceCode(), request.getPath()));
+            .doOnError(e -> log.error("permission-center调用失败: userId={}, serviceCode={}, path={}",
+                userId, serviceCode, path));
     }
 }

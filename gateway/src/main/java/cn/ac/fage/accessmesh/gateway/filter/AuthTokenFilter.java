@@ -36,6 +36,7 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
     private static final String SKIP_AUTH_ATTR = "skipAuth";
     private static final String USER_ID_ATTR = "userId";
     private static final String TENANT_ID_ATTR = "tenantId";
+    private static final String SUBJECT_TYPE_CODE_ATTR = "subjectTypeCode";
     private static final String USER_NAME_ATTR = "userName";
 
     private final ObjectMapper objectMapper;
@@ -92,6 +93,19 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
             } catch (Exception e) {
                 log.error("获取租户ID异常，loginId={}: {}", loginIdStr, e.getMessage());
                 return writeUnauthorized(exchange, 401, "租户信息缺失");
+            }
+
+            try {
+                Object subjectTypeCode = StpUtil.getExtra(loginIdStr, "subjectTypeCode");
+                if (subjectTypeCode != null && !subjectTypeCode.toString().isBlank()) {
+                    exchange.getAttributes().put(SUBJECT_TYPE_CODE_ATTR, subjectTypeCode.toString());
+                } else {
+                    log.warn("主体类型为空，loginId={}", loginIdStr);
+                    return writeUnauthorized(exchange, 401, "登录信息缺失");
+                }
+            } catch (Exception e) {
+                log.error("获取主体类型异常，loginId={}: {}", loginIdStr, e.getMessage());
+                return writeUnauthorized(exchange, 401, "登录信息缺失");
             }
 
             try {

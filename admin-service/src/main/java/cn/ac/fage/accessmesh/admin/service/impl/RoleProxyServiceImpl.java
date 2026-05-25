@@ -22,7 +22,11 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -104,13 +108,12 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             null, // sortOrder
             null // extra
         );
-        PermResult<Map<String, Object>> result = permissionFeignClient.createRole(req);
+        PermResult<RoleResp> result = permissionFeignClient.createRole(req);
         if (result == null || result.getData() == null) {
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                 "Failed to create role for org: " + orgId);
         }
-        Object idObj = result.getData().get("id");
-        return idObj != null ? Long.valueOf(idObj.toString()) : null;
+        return result.getData().id();
     }
 
     /**
@@ -170,7 +173,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         );
 
         try {
-            PermResult<Map<String, Object>> result = permissionFeignClient.batchGrant(req);
+            PermResult<RolePermissionItemsResp> result = permissionFeignClient.batchGrant(req);
             if (result == null || result.getCode() != 200) {
                 log.warn("Failed to grant menu to role: roleId={}, menuId={}, opCode={}", roleId, menuId, opCode);
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
@@ -240,7 +243,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 100                // pageSize
             );
 
-            PermResult<PermissionEffectivePermissionsResp<Map<String, Object>>> viewResult =
+            PermResult<PermissionEffectivePermissionsResp> viewResult =
                 permissionFeignClient.getEffectivePermissions(viewReq);
 
             if (viewResult == null || viewResult.getData() == null) {
@@ -253,19 +256,11 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             List<Long> permissionIds = new ArrayList<>();
             String targetResourceCode = String.valueOf(menuId);
 
-            PermissionEffectivePermissionsResp<Map<String, Object>> respData = viewResult.getData();
+            PermissionEffectivePermissionsResp respData = viewResult.getData();
             if (respData.items() != null) {
-                for (Map<String, Object> item : respData.items()) {
-                    Object resourceCodeObj = item.get("resourceCode");
-                    if (resourceCodeObj != null && targetResourceCode.equals(resourceCodeObj.toString())) {
-                        Object permissionIdsObj = item.get("matchedPermissionIds");
-                        if (permissionIdsObj instanceof List<?> ids) {
-                            for (Object idObj : ids) {
-                                if (idObj != null) {
-                                    permissionIds.add(Long.valueOf(idObj.toString()));
-                                }
-                            }
-                        }
+                for (var item : respData.items()) {
+                    if (targetResourceCode.equals(item.resourceCode())) {
+                        permissionIds.addAll(item.matchedPermissionIds());
                     }
                 }
             }
@@ -379,25 +374,17 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     private Map<String, Long> loadOperations(Long tenantId) {
         OperationListReq req = new OperationListReq("MENU"); // resourceTypeCode
-        PermResult<Map<String, Object>> result = permissionFeignClient.listOperations(req);
+        PermResult<ItemsResp<OperationPermissionResp>> result = permissionFeignClient.listOperations(req);
         if (result == null || result.getData() == null) {
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "Failed to list operations for tenant " + tenantId);
         }
-        // 响应是 Map，从中提取操作列表
-        Object itemsObj = result.getData().get("items");
-        if (itemsObj instanceof List<?> items) {
-            Map<String, Long> ops = new HashMap<>();
-            for (Object item : items) {
-                if (item instanceof Map<?, ?> map) {
-                    Object codeObj = map.get("code");
-                    Object idObj = map.get("id");
-                    if (codeObj != null && idObj != null) {
-                        ops.put(codeObj.toString(), Long.valueOf(idObj.toString()));
-                    }
-                }
+        Map<String, Long> ops = new HashMap<>();
+        List<OperationPermissionResp> items = result.getData().items();
+        if (items != null) {
+            for (OperationPermissionResp op : items) {
+                ops.put(op.code(), op.id());
             }
-            return ops;
         }
-        return Map.of();
+        return ops;
     }
 }

@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 
 /**
  * 菜单同步处理器实现类
@@ -92,21 +92,17 @@ public class MenuSyncHandlerImpl implements MenuSyncHandler {
             buildMenuExtra(menu)
         );
 
-        PermResult<Map<String, Object>> result = permissionFeignClient.createResource(req);
+        PermResult<ResourceResp> result = permissionFeignClient.createResource(req);
         if (result == null || result.getCode() != 200 || result.getData() == null) {
             log.warn("同步菜单到权限中心失败: menuId={}, menuName={}",
                 menu.getId(), menu.getName());
             return null;
         }
 
-        Object idObj = result.getData().get("id");
-        if (idObj != null) {
-            Long permResourceId = Long.valueOf(idObj.toString());
-            log.info("同步菜单到权限中心成功: menuId={}, permResourceId={}",
-                menu.getId(), permResourceId);
-            return permResourceId;
-        }
-        return null;
+        Long permResourceId = result.getData().id();
+        log.info("同步菜单到权限中心成功: menuId={}, permResourceId={}",
+            menu.getId(), permResourceId);
+        return permResourceId;
     }
 
     /**
@@ -130,7 +126,7 @@ public class MenuSyncHandlerImpl implements MenuSyncHandler {
             buildMenuExtra(menu)
         );
 
-        PermResult<Map<String, Object>> result = permissionFeignClient.updateResource(req);
+        PermResult<ResourceResp> result = permissionFeignClient.updateResource(req);
         if (result == null || result.getCode() != 200) {
             log.warn("更新权限中心菜单失败: menuId={}, permResourceId={}",
                 menu.getId(), menu.getPermResourceId());

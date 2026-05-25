@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserResp;
 
 /**
  * 用户同步处理器实现类
@@ -66,21 +66,17 @@ public class UserSyncHandlerImpl implements UserSyncHandler {
             version
         );
 
-        PermResult<Map<String, Object>> result = permissionFeignClient.syncUser(req);
+        PermResult<UserResp> result = permissionFeignClient.syncUser(req);
         if (result == null || result.getCode() != 200 || result.getData() == null) {
             log.warn("同步用户到权限中心失败: userId={}, username={}",
                 user.getId(), user.getUsername());
             return null;
         }
 
-        Object idObj = result.getData().get("id");
-        if (idObj != null) {
-            Long permUserId = Long.valueOf(idObj.toString());
-            log.info("同步用户到权限中心成功: userId={}, permUserId={}",
-                user.getId(), permUserId);
-            return permUserId;
-        }
-        return null;
+        Long permUserId = result.getData().id();
+        log.info("同步用户到权限中心成功: userId={}, permUserId={}",
+            user.getId(), permUserId);
+        return permUserId;
     }
 
     /**

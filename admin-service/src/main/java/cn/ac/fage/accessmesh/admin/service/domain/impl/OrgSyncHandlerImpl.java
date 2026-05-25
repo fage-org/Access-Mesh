@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 
 /**
  * 组织同步处理器实现类
@@ -64,21 +64,17 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
             buildOrgExtra(org)
         );
 
-        PermResult<Map<String, Object>> result = permissionFeignClient.createResource(req);
+        PermResult<ResourceResp> result = permissionFeignClient.createResource(req);
         if (result == null || result.getCode() != 200 || result.getData() == null) {
             log.warn("同步组织到权限中心失败: orgId={}, orgName={}",
                 org.getId(), org.getName());
             return null;
         }
 
-        Object idObj = result.getData().get("id");
-        if (idObj != null) {
-            Long permResourceId = Long.valueOf(idObj.toString());
-            log.info("同步组织到权限中心成功: orgId={}, permResourceId={}",
-                org.getId(), permResourceId);
-            return permResourceId;
-        }
-        return null;
+        Long permResourceId = result.getData().id();
+        log.info("同步组织到权限中心成功: orgId={}, permResourceId={}",
+            org.getId(), permResourceId);
+        return permResourceId;
     }
 
     /**

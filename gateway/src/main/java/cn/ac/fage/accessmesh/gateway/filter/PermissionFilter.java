@@ -1,10 +1,10 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
-import cn.ac.fage.accessmesh.gateway.model.AuthCheckRequest;
-import cn.ac.fage.accessmesh.gateway.model.AuthCheckResponse;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -25,7 +25,6 @@ import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.time.Instant;
 
 /**
  * 接口级权限过滤器
@@ -42,6 +41,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static final String SKIP_AUTH_ATTR = "skipAuth";
     private static final String USER_ID_ATTR = "userId";
     private static final String TENANT_ID_ATTR = "tenantId";
+    private static final String SUBJECT_TYPE_CODE_ATTR = "subjectTypeCode";
     private static final String CACHE_KEY_PREFIX = "perm:check:";
 
     private final PermissionClient permissionClient;
@@ -90,13 +90,15 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         Object userIdObj = exchange.getAttribute(USER_ID_ATTR);
         Object tenantIdObj = exchange.getAttribute(TENANT_ID_ATTR);
-        if (userIdObj == null || tenantIdObj == null) {
+        Object subjectTypeCodeObj = exchange.getAttribute(SUBJECT_TYPE_CODE_ATTR);
+        if (userIdObj == null || tenantIdObj == null || subjectTypeCodeObj == null) {
             return writeForbidden(exchange, "无接口访问权限");
         }
 
         Long userId = toLong(userIdObj);
         Long tenantId = toLong(tenantIdObj);
-        if (userId == null || tenantId == null) {
+        String subjectTypeCode = subjectTypeCodeObj.toString();
+        if (userId == null || tenantId == null || subjectTypeCode.isBlank()) {
             return writeForbidden(exchange, "无接口访问权限");
         }
 
@@ -111,7 +113,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         // 查询L1缓存
-        String cacheKey = buildCacheKey(tenantId, userId, serviceCode, httpMethod, path);
+        String cacheKey = buildCacheKey(tenantId, subjectTypeCode, userId, serviceCode, httpMethod, path);
         Boolean cachedResult = permissionCheckCache.getIfPresent(cacheKey);
         if (cachedResult != null) {
             if (cachedResult) {
@@ -121,29 +123,21 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             }
         }
 
-        // 构建权限校验请求
-        AuthCheckRequest req = new AuthCheckRequest();
-        req.setUserId(userId);
-        req.setServiceCode(serviceCode);
-        req.setHttpMethod(httpMethod);
-        req.setPath(path);
-
-        AuthCheckRequest.Context ctx = new AuthCheckRequest.Context();
-        ctx.setIp(getClientIp(exchange));
-        ctx.setTimestamp(Instant.now().toString());
-        req.setContext(ctx);
-
         // 调用permission-center进行权限校验
-        return permissionClient.checkInterface(req, tenantId)
-            .flatMap(resp -> {
-                if (resp != null && resp.isAllowed()) {
-                    permissionCheckCache.put(cacheKey, true);
-                    return chain.filter(exchange);
+        return permissionClient.checkInterface(subjectTypeCode, userId, serviceCode, httpMethod, path,
+                getClientIp(exchange), tenantId)
+            .flatMap(result -> {
+                if (result != null && result.getData() != null) {
+                    CheckInterfaceResp resp = result.getData();
+                    if (resp.allowed()) {
+                        permissionCheckCache.put(cacheKey, true);
+                        return chain.filter(exchange);
+                    } else {
+                        // 拒绝决策不缓存，确保权限授予后立即生效
+                        return writeForbidden(exchange, mapReasonToMessage(resp.reason()));
+                    }
                 } else {
-                    // 拒绝决策不缓存，确保权限授予后立即生效
-                    String reason = resp != null && resp.getData() != null
-                        ? resp.getData().getDenyReason() : null;
-                    return writeForbidden(exchange, mapReasonToMessage(reason));
+                    return writeForbidden(exchange, "无接口访问权限");
                 }
             })
             .onErrorResume(e -> {
@@ -186,19 +180,20 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     /**
      * 构建缓存键
      * <p>
-     * 格式：perm:check:tenantId:userId:serviceCode:httpMethod:path
+     * 格式：perm:check:tenantId:subjectTypeCode:userId:serviceCode:httpMethod:path
      * </p>
      *
      * @param tenantId   租户ID
+     * @param subjectTypeCode 主体类型编码
      * @param userId     用户ID
      * @param serviceCode 服务编码
      * @param httpMethod HTTP方法
      * @param path       请求路径
      * @return 缓存键字符串
      */
-    private String buildCacheKey(Long tenantId, Long userId, String serviceCode,
+    private String buildCacheKey(Long tenantId, String subjectTypeCode, Long userId, String serviceCode,
                                   String httpMethod, String path) {
-        return CACHE_KEY_PREFIX + tenantId + ":" + userId + ":"
+        return CACHE_KEY_PREFIX + tenantId + ":" + subjectTypeCode + ":" + userId + ":"
             + serviceCode + ":" + httpMethod + ":" + path;
     }
 

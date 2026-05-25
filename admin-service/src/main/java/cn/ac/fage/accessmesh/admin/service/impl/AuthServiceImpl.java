@@ -200,6 +200,7 @@ public class AuthServiceImpl implements AuthService {
         // FIX #1: Store tenantId in session for security validation
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
+        session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
         String token = StpUtil.getTokenValue();
 
         loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 1, null);
@@ -248,6 +249,7 @@ public class AuthServiceImpl implements AuthService {
         // FIX #1: Store tenantId in session for security validation (sms login)
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
+        session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
         String token = StpUtil.getTokenValue();
 
         loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 1, null);
@@ -676,15 +678,18 @@ public class AuthServiceImpl implements AuthService {
                     1,
                     100
                 );
-            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp<Map<String, Object>>> result =
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp> result =
                 permissionFeignClient.getEffectivePermissions(req);
             if (result != null && result.getData() != null && result.getData().items() != null) {
                 Set<String> permCodes = new HashSet<>();
-                for (Map<String, Object> item : result.getData().items()) {
-                    Object opCodeObj = item.get("operationCode");
-                    Object resourceCodeObj = item.get("resourceCode");
-                    if (opCodeObj != null && resourceCodeObj != null) {
-                        permCodes.add(resourceCodeObj.toString() + ":" + opCodeObj.toString());
+                for (var item : result.getData().items()) {
+                    String resourceCode = item.resourceCode();
+                    // 修复：operationCodes 是复数 List<String>，而非单数 operationCode
+                    List<String> opCodes = item.operationCodes();
+                    if (opCodes != null) {
+                        for (String opCode : opCodes) {
+                            permCodes.add(resourceCode + ":" + opCode);
+                        }
                     }
                 }
                 return new ArrayList<>(permCodes);

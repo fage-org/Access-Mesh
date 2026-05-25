@@ -4,13 +4,17 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.common.dto.req.*;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-
-import java.util.Map;
 
 /**
  * 权限中心Feign客户端接口
@@ -28,10 +32,10 @@ public interface PermissionFeignClient {
      * 同步用户到权限中心
      *
      * @param req 用户同步请求
-     * @return 同步结果
+     * @return 同步结果，包含用户详细信息
      */
     @PostMapping("/api/perm/abstract-user/sync")
-    PermResult<Map<String, Object>> syncUser(@RequestBody UserSyncReq req);
+    PermResult<UserResp> syncUser(@RequestBody UserSyncReq req);
 
     /**
      * 批量删除用户
@@ -74,10 +78,10 @@ public interface PermissionFeignClient {
      * 创建角色
      *
      * @param req 角色创建请求
-     * @return 创建结果
+     * @return 创建结果，包含角色详细信息
      */
     @PostMapping("/api/perm/abstract-role/create")
-    PermResult<Map<String, Object>> createRole(@RequestBody RoleCreateReq req);
+    PermResult<RoleResp> createRole(@RequestBody RoleCreateReq req);
 
     /**
      * 查询用户角色列表
@@ -88,34 +92,34 @@ public interface PermissionFeignClient {
     @PostMapping("/api/perm/user-role/list")
     PermResult<UserRolesResp> getUserRoles(@RequestBody UserRoleListReq req);
 
-    // ========== 资源同步 ==========
+    // ========== 赋源同步 ==========
 
     /**
      * 创建资源
      *
      * @param req 资源创建请求
-     * @return 创建结果
+     * @return 创建结果，包含资源详细信息
      */
     @PostMapping("/api/perm/resource-entity/create")
-    PermResult<Map<String, Object>> createResource(@RequestBody ResourceCreateReq req);
+    PermResult<ResourceResp> createResource(@RequestBody ResourceCreateReq req);
 
     /**
      * 批量创建资源
      *
      * @param req 资源批量创建请求
-     * @return 创建结果
+     * @return 创建结果，包含资源列表
      */
     @PostMapping("/api/perm/resource-entity/batch-create")
-    PermResult<Map<String, Object>> batchCreateResources(@RequestBody ResourceBatchCreateReq req);
+    PermResult<ItemsResp<ResourceResp>> batchCreateResources(@RequestBody ResourceBatchCreateReq req);
 
     /**
      * 更新资源
      *
      * @param req 资源更新请求
-     * @return 更新结果
+     * @return 更新结果，包含资源详细信息
      */
     @PostMapping("/api/perm/resource-entity/update")
-    PermResult<Map<String, Object>> updateResource(@RequestBody ResourceUpdateReq req);
+    PermResult<ResourceResp> updateResource(@RequestBody ResourceUpdateReq req);
 
     /**
      * 批量删除资源
@@ -135,7 +139,7 @@ public interface PermissionFeignClient {
      * @return 操作权限列表
      */
     @PostMapping("/api/perm/operation-permission/list")
-    PermResult<Map<String, Object>> listOperations(@RequestBody OperationListReq req);
+    PermResult<ItemsResp<OperationPermissionResp>> listOperations(@RequestBody OperationListReq req);
 
     // ========== 权限授予/撤销 ==========
 
@@ -143,10 +147,10 @@ public interface PermissionFeignClient {
      * 批量授予权限
      *
      * @param req 角色权限授予请求
-     * @return 授予结果
+     * @return 授予结果，包含权限条目列表
      */
     @PostMapping("/api/perm/role-resource-permission/save")
-    PermResult<Map<String, Object>> batchGrant(@RequestBody RoleGrantReq req);
+    PermResult<RolePermissionItemsResp> batchGrant(@RequestBody RoleGrantReq req);
 
     /**
      * 批量撤销权限
@@ -164,6 +168,6 @@ public interface PermissionFeignClient {
      * @return 有效权限分页结果
      */
     @PostMapping("/api/perm/permission-view/effective-permissions")
-    PermResult<PermissionEffectivePermissionsResp<Map<String, Object>>> getEffectivePermissions(
+    PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(
         @RequestBody UserPermissionViewReq req);
 }
