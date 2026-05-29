@@ -2,15 +2,15 @@
 
 ## Summary
 
-Develop the permission condition management module for the frontend, including the API layer and complete CRUD page components.
+开发权限条件管理模块，包括 API 层、列表/表单页面以及前端条件模板体验层。后端真实契约以 `code`、`name`、`conditionRules`、`enabled`、`description` 为准。
 
 ## User Story
 
-As a permission administrator, I want to manage permission conditions through the frontend interface, so that I can configure time ranges, geographic restrictions, and custom conditions for fine-grained access control.
+As a permission administrator, I want 在前端管理权限条件, so that 我可以维护时间范围、组织归属等条件规则并在角色授权中复用。
 
 ## Problem → Solution
 
-Backend provides complete permission condition APIs (list, create, update, delete), but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components.
+Backend 已提供权限条件的 list / detail / create / update / remove 能力，但 frontend 缺少对应 API 文件和页面组件 → 按后端真实 DTO 落地，并把条件模板选择器限制在前端包装层，不向后端伪造 `conditionType` 等字段。
 
 ## Metadata
 
@@ -23,400 +23,105 @@ Backend provides complete permission condition APIs (list, create, update, delet
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
-| `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
+| Plan                                       | Relation     | Description                    |
+| ------------------------------------------ | ------------ | ------------------------------ |
+| `frontend-perm-structure-analysis.plan.md` | Prerequisite | 先统一前端编码规范             |
+| `frontend-perm-phase1-development.plan.md` | Parent       | Phase 1 聚合协调计划           |
+| `frontend-perm-api-mock.plan.md`           | Downstream   | 页面与 API 稳定后纳入统一 mock |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/ConditionController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/role.ts` | API file template |
-| P1 | `frontend/src/views/perm/role/index.vue` | Page template reference |
+| Priority | File                                                        | Why                                      |
+| -------- | ----------------------------------------------------------- | ---------------------------------------- |
+| P0       | `permission-center/.../controller/ConditionController.java` | 后端接口真相来源                         |
+| P0       | `frontend-perm-backend-api-gap-tracker.md`                  | 查看条件模板与真实契约之间的差异处理方式 |
+| P1       | `frontend/src/api/perm/role.ts`                             | API 文件模板                             |
+| P1       | `frontend/src/views/perm/role/index.vue`                    | 页面组织方式参考                         |
 
 ---
 
-## Patterns to Mirror
+## Backend Contract Snapshot
 
-### API_FILE_STRUCTURE
+### Endpoints
 
-```typescript
-// Source: frontend/src/api/perm/role.ts
+- `POST /api/perm/permission-condition/list`
+- `POST /api/perm/permission-condition/detail`
+- `POST /api/perm/permission-condition/create`
+- `POST /api/perm/permission-condition/update`
+- `POST /api/perm/permission-condition/remove`
 
-// 1. Type definitions (exported interfaces)
-export interface XxxItem { ... }
-export interface XxxResult { ... }
-export interface XxxRequest { ... }
+### Core Fields
 
-// 2. API functions
-export const getXxxList = (data?: XxxRequest) => {
-  return http.request<XxxResult>("post", "/api/perm/xxx/list", { data });
-};
+- `ConditionItem`: `id`、`tenantId`、`code`、`name`、`conditionRules`、`enabled`、`description`、`createdAt`
+- `ConditionCreateReq`: `code`、`name`、`conditionRules`、`enabled?`、`description?`
+- `ConditionUpdateReq`: `conditionId`、`name?`、`conditionRules?`、`enabled?`、`description?`
 
-// 3. Utility functions
-export const transformXxxResponse = (response: XxxResult) => { ... };
+### Frontend Wrapper Boundary
 
-// 4. Constants
-export const XXX_STATUS_TAG = { ... };
-```
+- 可以提供 `CONDITION_TEMPLATE_OPTIONS` 作为模板选择器。
+- 模板选择器只负责生成或辅助编辑 `conditionRules`。
+- 不得在 API 类型或提交负载中引入 `conditionType`、`status`、`config` 等旧字段。
 
 ---
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/condition.ts` | CREATE | Permission condition API layer |
-| `views/perm/condition/index.vue` | CREATE | Permission condition management page |
-| `views/perm/condition/components/ConditionForm.vue` | CREATE | Condition form component |
-| `views/perm/condition/components/ConditionList.vue` | CREATE | Condition list component |
+| File                                                             | Action | Justification    |
+| ---------------------------------------------------------------- | ------ | ---------------- |
+| `frontend/src/api/perm/condition.ts`                             | CREATE | 权限条件 API 层  |
+| `frontend/src/views/perm/condition/index.vue`                    | CREATE | 权限条件管理页面 |
+| `frontend/src/views/perm/condition/components/ConditionForm.vue` | CREATE | 条件表单组件     |
+| `frontend/src/views/perm/condition/components/ConditionList.vue` | CREATE | 条件列表组件     |
 
 ---
 
 ## Step-by-Step Tasks
 
-### Task 1: Create Permission Condition API (condition.ts)
+### Task 1: 创建 API 层
 
-- **ACTION**: Create permission condition management API file
+- **ACTION**: 创建 `frontend/src/api/perm/condition.ts`
 - **IMPLEMENT**:
-  ```typescript
-  // api/perm/condition.ts
-  import { http } from "@/utils/http";
+  - 定义 `ConditionItem`、`ConditionListResult`、`ConditionDetailResult`
+  - 定义 `ConditionCreateRequest` 和 `ConditionUpdateRequest`
+  - 导出 `getConditionList`、`getConditionDetail`、`createCondition`、`updateCondition`、`deleteCondition`
+  - 额外导出 `CONDITION_TEMPLATE_OPTIONS` 作为前端模板元数据
+- **VALIDATE**: `pnpm typecheck`
 
-  // Type definitions
-  export interface ConditionItem {
-    id: number;
-    tenantId: number;
-    conditionType: string;
-    name: string;
-    config: string; // JSON configuration
-    description: string | null;
-    status: number;
-    createdAt: string;
-    updatedAt: string | null;
-  }
+### Task 2: 创建列表和表单组件
 
-  export interface ConditionListResult {
-    success: boolean;
-    data: {
-      items: Array<ConditionItem>;
-    };
-  }
-
-  export interface ConditionDetailResult {
-    success: boolean;
-    data: ConditionItem;
-  }
-
-  export interface ConditionActionResult {
-    success: boolean;
-    data: { id: number };
-  }
-
-  export interface ConditionCreateRequest {
-    conditionType: string;
-    name: string;
-    config: string;
-    description?: string;
-    status?: number;
-  }
-
-  export interface ConditionUpdateRequest {
-    id: number;
-    conditionType?: string;
-    name?: string;
-    config?: string;
-    description?: string;
-    status?: number;
-  }
-
-  // API functions
-  export const getConditionList = () => {
-    return http.request<ConditionListResult>(
-      "post",
-      "/api/perm/permission-condition/list",
-      { data: {} }
-    );
-  };
-
-  export const getConditionDetail = (data: { id: number }) => {
-    return http.request<ConditionDetailResult>(
-      "post",
-      "/api/perm/permission-condition/detail",
-      { data }
-    );
-  };
-
-  export const createCondition = (data: ConditionCreateRequest) => {
-    return http.request<ConditionActionResult>(
-      "post",
-      "/api/perm/permission-condition/create",
-      { data }
-    );
-  };
-
-  export const updateCondition = (data: ConditionUpdateRequest) => {
-    return http.request<ConditionActionResult>(
-      "post",
-      "/api/perm/permission-condition/update",
-      { data }
-    );
-  };
-
-  export const deleteCondition = (data: { ids: Array<number> }) => {
-    return http.request<{ success: boolean }>(
-      "post",
-      "/api/perm/permission-condition/remove",
-      { data }
-    );
-  };
-
-  // Constants
-  export const CONDITION_TYPE_OPTIONS = [
-    { label: "时间范围", value: "TIME_RANGE" },
-    { label: "地域限制", value: "GEO_LOCATION" },
-    { label: "组织归属", value: "ORGANIZATION" },
-    { label: "自定义", value: "CUSTOM" }
-  ];
-
-  export const CONDITION_STATUS_TAG = {
-    0: { label: "禁用", type: "danger" },
-    1: { label: "启用", type: "success" }
-  };
-  ```
-- **VALIDATE**: `pnpm typecheck` passes
-
-### Task 2: Create Condition List Component
-
-- **ACTION**: Create condition list component
+- **ACTION**: 创建 `ConditionList.vue` 和 `ConditionForm.vue`
 - **IMPLEMENT**:
-  ```vue
-  <!-- views/perm/condition/components/ConditionList.vue -->
-  <script setup lang="ts">
-  defineOptions({ name: "ConditionList" });
+  - 列表展示字段使用 `code`、`name`、`enabled`、`description`、`createdAt`
+  - 表单字段直接映射到 `code`、`name`、`conditionRules`、`enabled`、`description`
+  - 模板选择器用于辅助生成 `conditionRules` 初始 JSON
+  - 提交前校验 `conditionRules` 的 JSON 格式
 
-  import { type ConditionItem } from "@/api/perm/condition";
+### Task 3: 创建管理页面
 
-  interface Props {
-    data: Array<ConditionItem>;
-    loading: boolean;
-    canUpdate: boolean;
-    canDelete: boolean;
-  }
-
-  const props = defineProps<Props>();
-  const emit = defineEmits<{
-    edit: [condition: ConditionItem];
-    delete: [id: number];
-  }>();
-
-  const handleEdit = (condition: ConditionItem) => {
-    emit("edit", condition);
-  };
-
-  const handleDelete = (id: number) => {
-    emit("delete", id);
-  };
-  </script>
-
-  <template>
-    <div class="condition-list">
-      <el-scrollbar v-loading="props.loading">
-        <div
-          v-for="item in props.data"
-          :key="item.id"
-          class="condition-item p-3 border-b hover:bg-gray-50 cursor-pointer"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex-1">
-              <div class="font-medium">{{ item.name }}</div>
-              <div class="text-sm text-gray-500 mt-1">
-                {{ item.conditionType }} | {{ item.description || "No description" }}
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <el-button
-                v-if="props.canUpdate"
-                type="primary"
-                size="small"
-                @click.stop="handleEdit(item)"
-              >
-                Edit
-              </el-button>
-              <el-button
-                v-if="props.canDelete"
-                type="danger"
-                size="small"
-                @click.stop="handleDelete(item.id)"
-              >
-                Delete
-              </el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-if="!props.data.length && !props.loading" description="No conditions" />
-      </el-scrollbar>
-    </div>
-  </template>
-  ```
-
-### Task 3: Create Condition Form Component
-
-- **ACTION**: Create condition form dialog component
+- **ACTION**: 创建 `views/perm/condition/index.vue`
 - **IMPLEMENT**:
-  - Support create and edit modes
-  - JSON config editor (textarea or json editor)
-  - Condition type selection
-  - Form validation
+  - 列表 + 详情/说明布局
+  - 新增、编辑、删除流程
+  - 空态、加载态、错误态提示
+  - 按权限码控制新增/编辑/删除按钮
 
-### Task 4: Create Condition Management Page
+### Task 4: 更新权限码和路由
 
-- **ACTION**: Create permission condition management page
+- **ACTION**: 补充权限码与路由入口
 - **IMPLEMENT**:
-  ```vue
-  <!-- views/perm/condition/index.vue -->
-  <script setup lang="ts">
-  defineOptions({ name: "PermCondition" });
+  - 在 `constants/permission.ts` 中补充 `perm:condition:view/create/update/delete`
+  - 在 `router/modules/perm.ts` 中增加 `/perm/condition`
 
-  import { ref, onMounted } from "vue";
-  import { ElMessage, ElMessageBox } from "element-plus";
-  import {
-    getConditionList,
-    deleteCondition,
-    type ConditionItem
-  } from "@/api/perm/condition";
-  import { PERM_CODES } from "@/constants/permission";
-  import { hasPerms } from "@/utils/auth";
-  import ConditionForm from "./components/ConditionForm.vue";
-  import ConditionList from "./components/ConditionList.vue";
+### Task 5: 准备统一 mock 交付
 
-  const conditions = ref<Array<ConditionItem>>([]);
-  const loading = ref(false);
-  const selectedCondition = ref<ConditionItem | null>(null);
-  const formRef = ref();
-
-  const canCreate = hasPerms(PERM_CODES.PERM_CONDITION_CREATE);
-  const canUpdate = hasPerms(PERM_CODES.PERM_CONDITION_UPDATE);
-  const canDelete = hasPerms(PERM_CODES.PERM_CONDITION_DELETE);
-
-  const loadConditions = async () => {
-    loading.value = true;
-    try {
-      const res = await getConditionList();
-      if (res.success) {
-        conditions.value = res.data.items;
-      }
-    } catch {
-      ElMessage.error("Failed to load conditions");
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  const handleCreate = () => {
-    formRef.value.openDialog();
-  };
-
-  const handleEdit = (condition: ConditionItem) => {
-    formRef.value.openDialog(condition);
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      await ElMessageBox.confirm("Confirm delete this condition?", "Warning", {
-        confirmButtonText: "Confirm",
-        cancelButtonText: "Cancel",
-        type: "warning"
-      });
-      const res = await deleteCondition({ ids: [id] });
-      if (res.success) {
-        ElMessage.success("Deleted successfully");
-        await loadConditions();
-      }
-    } catch (error) {
-      if (error !== "cancel") {
-        ElMessage.error("Delete failed");
-      }
-    }
-  };
-
-  onMounted(() => {
-    loadConditions();
-  });
-  </script>
-
-  <template>
-    <div class="condition-management">
-      <div class="flex h-full">
-        <!-- Left condition list -->
-        <div class="w-[350px] border-r flex flex-col">
-          <div class="p-4 border-b">
-            <el-button
-              type="primary"
-              size="small"
-              :disabled="!canCreate"
-              @click="handleCreate"
-            >
-              Add Condition
-            </el-button>
-          </div>
-          <ConditionList
-            :data="conditions"
-            :loading="loading"
-            :can-update="canUpdate"
-            :can-delete="canDelete"
-            @edit="handleEdit"
-            @delete="handleDelete"
-          />
-        </div>
-
-        <!-- Right detail/description -->
-        <div class="flex-1 p-4">
-          <div v-if="selectedCondition" class="condition-detail">
-            <!-- Condition detail display -->
-          </div>
-          <div v-else class="text-center py-10 text-gray-500">
-            Select a condition or create a new one
-          </div>
-        </div>
-
-        <!-- Condition form dialog -->
-        <ConditionForm ref="formRef" @success="loadConditions" />
-      </div>
-    </div>
-  </template>
-  ```
-- **CHECKLIST**:
-  - [ ] Use `<script setup lang="ts">` + `defineOptions`
-  - [ ] Permission check using `hasPerms`
-  - [ ] Error handling for data loading
-  - [ ] Delete confirmation dialog
-
-### Task 5: Update Constants and Router
-
-- **ACTION**: Add permission codes and routes
+- **ACTION**: 为最终 mock 计划输出条件模块场景
 - **IMPLEMENT**:
-  ```typescript
-  // constants/permission.ts
-  export const PERM_CONDITION_VIEW = "perm:condition:view";
-  export const PERM_CONDITION_CREATE = "perm:condition:create";
-  export const PERM_CONDITION_UPDATE = "perm:condition:update";
-  export const PERM_CONDITION_DELETE = "perm:condition:delete";
-
-  // router/modules/perm.ts
-  {
-    path: "/perm/condition",
-    name: "PermCondition",
-    component: () => import("@/views/perm/condition/index.vue"),
-    meta: {
-      title: "Permission Condition",
-      auths: [PERM_CODES.PERM_CONDITION_VIEW]
-    }
-  }
-  ```
+  - 提供至少 1 组正常条件数据
+  - 提供至少 1 组禁用条件数据
+  - 提供至少 1 组空列表或空详情场景
+  - 把这些场景登记到 `frontend-perm-api-mock.plan.md`
 
 ---
 
@@ -433,11 +138,12 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| Condition list | Visit `/perm/condition` | Display condition list |
-| Condition create | Submit form | Create success, list refresh |
-| Condition delete | Click delete | Confirm then delete success |
+| Test             | Input                                         | Expected Output                                                       |
+| ---------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| Create condition | Fill `code/name/conditionRules` and submit    | Create success                                                        |
+| Edit condition   | Change `conditionRules` or `enabled` and save | Update success                                                        |
+| Template mode    | Select template                               | Generate local `conditionRules` draft without changing payload schema |
+| Delete condition | Click delete                                  | Confirm then delete success                                           |
 
 ---
 
@@ -456,17 +162,19 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/condition.ts` created with complete CRUD
-- [ ] `views/perm/condition/` page components created
-- [ ] Permission codes added to constants
-- [ ] Router configuration updated
-- [ ] Full compilation passes
+- [ ] `frontend/src/api/perm/condition.ts` 创建完成，且契约与后端 DTO 一致
+- [ ] `frontend/src/views/perm/condition/` 页面组件创建完成
+- [ ] 模板选择器明确标记为前端包装层，不污染后端提交字段
+- [ ] 权限码补充完整，路由配置更新完成
+- [ ] 已为 `frontend-perm-api-mock.plan.md` 输出条件模块 mock 场景
+- [ ] 全量编译通过
 
 ---
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Backend API changes | Low | High | Confirm API stability before development |
-| JSON editor complexity | Low | Medium | Use textarea or simple JSON editor |
+| Risk                         | Likelihood | Impact | Mitigation                                     |
+| ---------------------------- | ---------- | ------ | ---------------------------------------------- |
+| 条件模板再次被误当作后端字段 | Medium     | High   | 文档和代码都以 `conditionRules` 为唯一提交载体 |
+| JSON 规则编辑体验复杂        | Medium     | Medium | 先提供模板与基础校验，再逐步增强编辑器体验     |
+| mock 数据不可读              | Medium     | Medium | 使用稳定、可解释的规则示例而不是随机数据       |

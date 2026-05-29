@@ -10,7 +10,7 @@ As a permission administrator, I want to manage abstract users through the front
 
 ## Problem → Solution
 
-Backend provides complete abstract user APIs (list, sync, create, update, delete), but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components.
+Backend provides complete abstract user APIs (list, sync, create, update, delete), but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components, while keeping UI labels separate from backend field names.
 
 ## Metadata
 
@@ -23,19 +23,19 @@ Backend provides complete abstract user APIs (list, sync, create, update, delete
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
+| Plan                                       | Relation     | Description                       |
+| ------------------------------------------ | ------------ | --------------------------------- |
 | `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/UserController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/role.ts` | API file template |
-| P1 | `frontend/src/views/perm/role/index.vue` | Page template reference |
+| Priority | File                                                   | Why                     |
+| -------- | ------------------------------------------------------ | ----------------------- |
+| P0       | `permission-center/.../controller/UserController.java` | Backend API reference   |
+| P1       | `frontend/src/api/perm/role.ts`                        | API file template       |
+| P1       | `frontend/src/views/perm/role/index.vue`               | Page template reference |
 
 ---
 
@@ -67,12 +67,12 @@ export const XXX_STATUS_TAG = { ... };
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/user.ts` | CREATE | Abstract user API layer |
-| `views/perm/user/index.vue` | CREATE | User management page |
-| `views/perm/user/components/UserForm.vue` | CREATE | User form component |
-| `views/perm/user/components/UserList.vue` | CREATE | User list component |
+| File                                      | Action | Justification           |
+| ----------------------------------------- | ------ | ----------------------- |
+| `api/perm/user.ts`                        | CREATE | Abstract user API layer |
+| `views/perm/user/index.vue`               | CREATE | User management page    |
+| `views/perm/user/components/UserForm.vue` | CREATE | User form component     |
+| `views/perm/user/components/UserList.vue` | CREATE | User list component     |
 
 ---
 
@@ -80,20 +80,20 @@ export const XXX_STATUS_TAG = { ... };
 
 ### Task 1: Create Abstract User API (user.ts)
 
-- **ACTION**: Create abstract user management API file
+- **ACTION**: Create abstract user management API file aligned with backend DTOs
 - **IMPLEMENT**:
+
   ```typescript
   // api/perm/user.ts
   import { http } from "@/utils/http";
 
-  // Type definitions
   export interface UserItem {
     id: number;
     tenantId: number;
     subjectTypeCode: string;
     externalId: string;
-    username: string;
-    status: number;
+    name: string;
+    enabled: boolean | null;
     extra: string | null;
     createdAt: string;
     updatedAt: string | null;
@@ -117,44 +117,45 @@ export const XXX_STATUS_TAG = { ... };
 
   export interface UserActionResult {
     success: boolean;
-    data: { id: number };
+    data: UserItem;
   }
 
   export interface UserSyncRequest {
     subjectTypeCode: string;
     externalId: string;
-    username: string;
-    status?: number;
+    name?: string;
+    enabled?: boolean;
     extra?: string;
+    version: string;
   }
 
   export interface UserCreateRequest {
     subjectTypeCode: string;
     externalId: string;
-    username: string;
-    status?: number;
+    name?: string;
+    enabled?: boolean;
     extra?: string;
   }
 
   export interface UserUpdateRequest {
-    id: number;
-    username?: string;
-    status?: number;
+    userId: number;
+    name?: string;
+    enabled?: boolean;
     extra?: string;
   }
 
-  // API functions
   export const getUserList = (data: {
     subjectTypeCode?: string;
     domainCode?: string;
     keyword?: string;
     pageNum?: number;
     pageSize?: number;
+    sort?: string;
   }) => {
     return http.request<UserListResult>(
       "post",
       "/api/perm/abstract-user/list",
-      { data }
+      { data },
     );
   };
 
@@ -162,7 +163,7 @@ export const XXX_STATUS_TAG = { ... };
     return http.request<UserDetailResult>(
       "post",
       "/api/perm/abstract-user/detail",
-      { data }
+      { data },
     );
   };
 
@@ -170,7 +171,7 @@ export const XXX_STATUS_TAG = { ... };
     return http.request<UserActionResult>(
       "post",
       "/api/perm/abstract-user/sync",
-      { data }
+      { data },
     );
   };
 
@@ -178,7 +179,7 @@ export const XXX_STATUS_TAG = { ... };
     return http.request<UserActionResult>(
       "post",
       "/api/perm/abstract-user/create",
-      { data }
+      { data },
     );
   };
 
@@ -186,7 +187,7 @@ export const XXX_STATUS_TAG = { ... };
     return http.request<UserActionResult>(
       "post",
       "/api/perm/abstract-user/update",
-      { data }
+      { data },
     );
   };
 
@@ -194,16 +195,12 @@ export const XXX_STATUS_TAG = { ... };
     return http.request<{ success: boolean }>(
       "post",
       "/api/perm/abstract-user/remove",
-      { data }
+      { data },
     );
   };
-
-  // Constants
-  export const USER_STATUS_TAG = {
-    0: { label: "禁用", type: "danger" },
-    1: { label: "启用", type: "success" }
-  };
   ```
+
+- **NOTE**: 页面可以展示“用户名/显示名”等友好文案，但接口字段必须保持 `name`、`enabled`、`userId`、`version`。
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create User List Component
@@ -213,14 +210,15 @@ export const XXX_STATUS_TAG = { ... };
   - Support pagination
   - Support keyword search
   - Subject type filtering
+  - Display `enabled` instead of旧 `status`
 
 ### Task 3: Create User Form Component
 
 - **ACTION**: Create user form dialog component
 - **IMPLEMENT**:
   - Support create and edit modes
-  - Support sync mode (special form for user synchronization)
-  - Form validation
+  - Support sync mode with explicit `version` input or externally injected version
+  - Form fields map directly to backend request DTOs
 
 ### Task 4: Create User Management Page
 
@@ -229,17 +227,18 @@ export const XXX_STATUS_TAG = { ... };
   - Page layout with search/filter bar
   - User list with pagination
   - CRUD operations
-  - User sync functionality
+  - User sync functionality with explicit version handling
 - **CHECKLIST**:
   - [ ] Support pagination query
   - [ ] Support keyword search
-  - [ ] Support user sync functionality
+  - [ ] Support user sync functionality with `version`
   - [ ] Support CRUD operations
 
 ### Task 5: Update Constants and Router
 
 - **ACTION**: Add permission codes and routes
 - **IMPLEMENT**:
+
   ```typescript
   // constants/permission.ts
   export const PERM_USER_VIEW = "perm:user:view";
@@ -275,12 +274,12 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| User list | Visit `/perm/user` | Display paginated user list |
-| User sync | Submit sync form | Sync success |
-| User create | Submit form | Create success |
-| User delete | Click delete | Confirm then delete success |
+| Test        | Input                           | Expected Output             |
+| ----------- | ------------------------------- | --------------------------- |
+| User list   | Visit `/perm/user`              | Display paginated user list |
+| User sync   | Submit sync form with `version` | Sync success                |
+| User create | Submit form                     | Create success              |
+| User delete | Click delete                    | Confirm then delete success |
 
 ---
 
@@ -299,8 +298,9 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/user.ts` created with complete CRUD and sync
+- [ ] `api/perm/user.ts` created with backend-aligned CRUD and sync
 - [ ] `views/perm/user/` page components created
+- [ ] Sync mode的 `version` 来源已明确记录
 - [ ] Permission codes added to constants
 - [ ] Router configuration updated
 - [ ] Full compilation passes
@@ -309,7 +309,7 @@ EXPECT: Zero errors, build success
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Backend API changes | Low | High | Confirm API stability before development |
-| Sync functionality complexity | Low | Medium | Clear form design for sync parameters |
+| Risk                          | Likelihood | Impact | Mitigation                               |
+| ----------------------------- | ---------- | ------ | ---------------------------------------- |
+| Backend API changes           | Low        | High   | Confirm API stability before development |
+| Sync functionality complexity | Low        | Medium | Clear form design for sync parameters    |

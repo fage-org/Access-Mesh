@@ -2,7 +2,7 @@
 
 ## Summary
 
-Enhance the permission view page with complete API methods and multiple sub-views including effective roles, resource permissions, recent changes, and user resource tree.
+Enhance the permission view page with complete API methods and multiple sub-views including effective roles, resource permissions, recent changes, and user resource tree, while keeping the API contract aligned with the current backend controller.
 
 ## User Story
 
@@ -10,7 +10,13 @@ As a permission administrator, I want a comprehensive permission view dashboard,
 
 ## Problem → Solution
 
-Backend provides complete permission view APIs, but `permissionView.ts` only has partial methods and the view page lacks multiple sub-views → Complete the API methods and add all sub-view components.
+Backend provides permission view APIs, but `permissionView.ts` only has partial methods and the view page lacks multiple sub-views → Complete the API methods and add all sub-view components using the current backend request / response shape, with optional frontend wrapper behavior where useful.
+
+## Current Scope
+
+- Current scope covers `effective-roles`, `resource-users`, `resource-tree`, and `recent-changes` based on the current backend controller and DTOs.
+- The page may provide local pagination, quick time filters, and label mapping.
+- Richer fields that cannot be derived from current responses stay out of scope.
 
 ## Metadata
 
@@ -23,20 +29,20 @@ Backend provides complete permission view APIs, but `permissionView.ts` only has
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
-| `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
+| Plan                                                  | Relation        | Description                        |
+| ----------------------------------------------------- | --------------- | ---------------------------------- |
+| `frontend-perm-structure-analysis.plan.md`            | Prerequisite    | Code standards analysis completed  |
 | `frontend-perm-completed-modules-improvement.plan.md` | Partial overlap | May have initial permissionView.ts |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/PermissionViewController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/permissionView.ts` | Existing API file to enhance |
-| P1 | `frontend/src/views/perm/view/index.vue` | Existing view page to enhance |
+| Priority | File                                                             | Why                           |
+| -------- | ---------------------------------------------------------------- | ----------------------------- |
+| P0       | `permission-center/.../controller/PermissionViewController.java` | Backend API reference         |
+| P1       | `frontend/src/api/perm/permissionView.ts`                        | Existing API file to enhance  |
+| P1       | `frontend/src/views/perm/view/index.vue`                         | Existing view page to enhance |
 
 ---
 
@@ -50,14 +56,14 @@ Add missing methods to existing API file following the same pattern.
 
 ## Files to Create/Update
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/permissionView.ts` | UPDATE | Add missing API methods |
-| `views/perm/view/components/EffectiveRolesPanel.vue` | CREATE | Effective roles view |
+| File                                                      | Action | Justification                         |
+| --------------------------------------------------------- | ------ | ------------------------------------- |
+| `api/perm/permissionView.ts`                              | UPDATE | Add missing API methods               |
+| `views/perm/view/components/EffectiveRolesPanel.vue`      | CREATE | Effective roles view                  |
 | `views/perm/view/components/ResourcePermissionsPanel.vue` | CREATE | Resource permission distribution view |
-| `views/perm/view/components/RecentChangesPanel.vue` | CREATE | Recent changes view |
-| `views/perm/view/components/UserResourceTreePanel.vue` | CREATE | User resource tree view |
-| `views/perm/view/index.vue` | UPDATE | Add tabs for all sub-views |
+| `views/perm/view/components/RecentChangesPanel.vue`       | CREATE | Recent changes view                   |
+| `views/perm/view/components/UserResourceTreePanel.vue`    | CREATE | User resource tree view               |
+| `views/perm/view/index.vue`                               | UPDATE | Add tabs for all sub-views            |
 
 ---
 
@@ -67,31 +73,26 @@ Add missing methods to existing API file following the same pattern.
 
 - **ACTION**: Add missing methods to permissionView.ts
 - **IMPLEMENT**:
+
   ```typescript
   // Add to api/perm/permissionView.ts
 
-  // Query effective roles
   export interface UserEffectiveRolesRequest {
-    subjectTypeCode?: string;
-    subjectExternalId?: string;
+    subjectTypeCode: string;
+    subjectExternalId: string;
     domainCode?: string;
-    pageNum?: number;
-    pageSize?: number;
   }
 
   export interface EffectiveRoleItem {
     roleTypeCode: string;
     roleExternalId: string;
     roleName: string;
-    via: Array<string>;
-    source: string;
   }
 
   export interface EffectiveRolesResult {
     success: boolean;
     data: {
       items: Array<EffectiveRoleItem>;
-      total: number;
     };
   }
 
@@ -99,11 +100,10 @@ Add missing methods to existing API file following the same pattern.
     return http.request<EffectiveRolesResult>(
       "post",
       "/api/perm/permission-view/effective-roles",
-      { data }
+      { data },
     );
   };
 
-  // Query resource permission distribution
   export interface ResourcePermissionViewRequest {
     domainCode?: string;
     resourceTypeCode: string;
@@ -112,14 +112,15 @@ Add missing methods to existing API file following the same pattern.
   }
 
   export interface ResourcePermissionItem {
-    resourceTypeCode: string;
+    resourceEntityId: number;
     resourceCode: string;
     resourceName: string;
-    users: Array<{
-      subjectTypeCode: string;
-      subjectExternalId: string;
-      username: string;
-      operationCodes: Array<string>;
+    roles: Array<{
+      roleId: number;
+      roleName: string;
+      roleTypeCode: string;
+      operations: Array<string>;
+      grantSource: string;
     }>;
   }
 
@@ -128,26 +129,33 @@ Add missing methods to existing API file following the same pattern.
     data: ResourcePermissionItem;
   }
 
-  export const getResourcePermissions = (data: ResourcePermissionViewRequest) => {
+  export const getResourcePermissions = (
+    data: ResourcePermissionViewRequest,
+  ) => {
     return http.request<ResourcePermissionsResult>(
       "post",
       "/api/perm/permission-view/resource-users",
-      { data }
+      { data },
     );
   };
 
-  // Query user resource tree
   export interface UserResourceTreeRequest {
     subjectTypeCode: string;
     subjectExternalId: string;
     domainCode?: string;
-    resourceTypeCode?: string;
+    resourceTypeCodes?: Array<string>;
+    operationCodes?: Array<string>;
+    resourceKeyword?: string;
   }
 
   export interface UserResourceTreeItem {
-    resourceTypeCode: string;
+    resourceEntityId: number;
+    domainCode: string;
     resourceCode: string;
     resourceName: string;
+    resourceTypeCode: string;
+    codeType: string;
+    scopeAll: boolean;
     operationCodes: Array<string>;
     children?: Array<UserResourceTreeItem>;
   }
@@ -163,26 +171,32 @@ Add missing methods to existing API file following the same pattern.
     return http.request<UserResourceTreeResult>(
       "post",
       "/api/perm/permission-view/resource-tree",
-      { data }
+      { data },
     );
   };
 
-  // Query recent changes
   export interface RecentChangesRequest {
-    days?: number;
-    resourceTypeCode?: string;
+    targetType: string;
+    subjectTypeCode?: string;
+    subjectExternalId?: string;
+    roleTypeCode?: string;
+    roleExternalId?: string;
+    domainCode?: string;
+    since?: string;
+    until?: string;
+    eventTypes?: Array<string>;
+    pageNum?: number;
+    pageSize?: number;
   }
 
   export interface RecentChangesResult {
     success: boolean;
     data: {
-      items: Array<{
-        entityType: string;
-        entityId: number;
-        changeType: string;
-        operatorId: number;
-        createdAt: string;
-      }>;
+      items: Array<Record<string, unknown>>;
+      total: number;
+      pageNum: number;
+      pageSize: number;
+      hasNext: boolean;
     };
   }
 
@@ -190,10 +204,12 @@ Add missing methods to existing API file following the same pattern.
     return http.request<RecentChangesResult>(
       "post",
       "/api/perm/permission-view/recent-changes",
-      { data }
+      { data },
     );
   };
   ```
+
+- **NOTE**: 页面可以做本地分页、7/30/90 天快捷筛选和文案映射，但这些属于前端包装层，不代表后端已有对应字段。
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create Effective Roles Panel
@@ -202,9 +218,8 @@ Add missing methods to existing API file following the same pattern.
 - **IMPLEMENT**:
   - User selector (subject type + external ID)
   - Domain filter (optional)
-  - Table showing effective roles with inheritance path
-  - Source indicator (direct, inherited, etc.)
-  - Pagination support
+  - Local pagination if list is large
+  - Do not assume backend returns `via` / `source`
 
 ### Task 3: Create Resource Permissions Panel
 
@@ -212,44 +227,41 @@ Add missing methods to existing API file following the same pattern.
 - **IMPLEMENT**:
   - Resource type selector
   - Resource selector (by code)
-  - Table showing users with permissions on this resource
+  - Table showing granted roles on this resource
   - Operation codes display
-  - Filter by operation
+  - Grant source display
 
 ### Task 4: Create Recent Changes Panel
 
 - **ACTION**: Create recent changes view
 - **IMPLEMENT**:
-  - Days filter (default 7, 30, 90 days)
-  - Resource type filter
-  - Timeline or table display of changes
-  - Change type indicators
+  - Target type selector
+  - Quick filters map 7/30/90 天 to `since` / `until`
+  - Use backend pagination fields for table rendering
 
 ### Task 5: Create User Resource Tree Panel
 
 - **ACTION**: Create user resource tree view
 - **IMPLEMENT**:
   - User selector
-  - Resource type filter
-  - Tree display of resources with operation codes
-  - Expand/collapse functionality
-  - Search within tree
+  - Frontend quick filters map to `resourceTypeCodes`, `operationCodes`, `resourceKeyword`
+  - Tree display includes `scopeAll` and `codeType` where useful
 
 ### Task 6: Update Permission View Page
 
-- **ACTION**: Complete permission view page with all sub-views
+- **ACTION**: Complete permission view page with all current-scope sub-views
 - **IMPLEMENT**:
   - Use Tabs component to organize multiple views
-  - Effective roles view with pagination
+  - Effective roles view with optional local pagination
   - Resource permission distribution with filters
-  - Recent changes with days filter
+  - Recent changes with current-contract pagination
   - User resource tree with expand/collapse
 - **CHECKLIST**:
   - [ ] Use Tabs component for view organization
-  - [ ] Effective roles view with pagination
-  - [ ] Resource permission distribution with filtering
-  - [ ] Recent changes with days filter
-  - [ ] User resource tree with expand/collapse
+  - [ ] Effective roles view uses current backend list shape
+  - [ ] Resource permission distribution displays granted roles rather than fabricated user data
+  - [ ] Recent changes uses `targetType` + paging model
+  - [ ] User resource tree supports expand/collapse and quick filters
 
 ### Task 7: Update Constants
 
@@ -258,7 +270,8 @@ Add missing methods to existing API file following the same pattern.
   ```typescript
   // constants/permission.ts
   export const PERM_VIEW_EFFECTIVE_ROLES = "perm:view:effective-roles";
-  export const PERM_VIEW_RESOURCE_PERMISSIONS = "perm:view:resource-permissions";
+  export const PERM_VIEW_RESOURCE_PERMISSIONS =
+    "perm:view:resource-permissions";
   export const PERM_VIEW_RECENT_CHANGES = "perm:view:recent-changes";
   export const PERM_VIEW_USER_RESOURCE_TREE = "perm:view:user-resource-tree";
   ```
@@ -278,12 +291,12 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| Effective roles | Select user | Show user's effective roles |
-| Resource permissions | Select resource | Show users with permissions |
-| Recent changes | Select days filter | Show changes in timeframe |
-| User resource tree | Select user | Show resource tree |
+| Test                 | Input                      | Expected Output                    |
+| -------------------- | -------------------------- | ---------------------------------- |
+| Effective roles      | Select user                | Show user's effective roles        |
+| Resource permissions | Select resource            | Show granted roles on the resource |
+| Recent changes       | Select target + time range | Show paged changes in timeframe    |
+| User resource tree   | Select user                | Show resource tree                 |
 
 ---
 
@@ -302,9 +315,10 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/permissionView.ts` complete with all API methods
-- [ ] `views/perm/view/` contains all sub-view components
-- [ ] Permission view page has all sub-views
+- [ ] `api/perm/permissionView.ts` complete with backend-aligned API methods
+- [ ] `views/perm/view/` contains all current-scope sub-view components
+- [ ] Permission view page has all current-scope sub-views
+- [ ] Frontend wrapper behavior is explicitly separated from backend contract assumptions
 - [ ] Permission codes added to constants
 - [ ] Full compilation passes
 
@@ -312,7 +326,7 @@ EXPECT: Zero errors, build success
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Large data volume | Medium | Medium | Support pagination and lazy loading |
-| Tree component complexity | Medium | Low | Use existing tree component or simple implementation |
+| Risk                      | Likelihood | Impact | Mitigation                                           |
+| ------------------------- | ---------- | ------ | ---------------------------------------------------- |
+| Large data volume         | Medium     | Medium | Support pagination and lazy loading                  |
+| Tree component complexity | Medium     | Low    | Use existing tree component or simple implementation |

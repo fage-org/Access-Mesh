@@ -10,7 +10,7 @@ As a permission administrator, I want to manage API mappings for resources, so t
 
 ## Problem → Solution
 
-Backend provides complete resource API mapping APIs, but frontend lacks corresponding API files and UI components → Develop the missing API layer and integrate into resource management page.
+Backend provides complete resource API mapping APIs, but frontend lacks corresponding API files and UI components → Develop the missing API layer and integrate into resource management page, while keeping display aliases separate from backend DTO fields.
 
 ## Metadata
 
@@ -23,20 +23,20 @@ Backend provides complete resource API mapping APIs, but frontend lacks correspo
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
+| Plan                                       | Relation     | Description                       |
+| ------------------------------------------ | ------------ | --------------------------------- |
 | `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
-| `frontend-perm-phase1-development.plan.md` | Prerequisite | Core features should be complete |
+| `frontend-perm-phase1-development.plan.md` | Prerequisite | Core features should be complete  |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/ResourceApiMappingController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/resource.ts` | API file template |
-| P1 | `frontend/src/views/perm/resource/index.vue` | Resource page to integrate with |
+| Priority | File                                                                 | Why                             |
+| -------- | -------------------------------------------------------------------- | ------------------------------- |
+| P0       | `permission-center/.../controller/ResourceApiMappingController.java` | Backend API reference           |
+| P1       | `frontend/src/api/perm/resource.ts`                                  | API file template               |
+| P1       | `frontend/src/views/perm/resource/index.vue`                         | Resource page to integrate with |
 
 ---
 
@@ -60,11 +60,11 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/apiMapping.ts` | CREATE | API mapping API layer |
+| File                                                 | Action | Justification               |
+| ---------------------------------------------------- | ------ | --------------------------- |
+| `api/perm/apiMapping.ts`                             | CREATE | API mapping API layer       |
 | `views/perm/resource/components/ApiMappingPanel.vue` | CREATE | API mapping panel component |
-| `views/perm/resource/components/ApiMappingForm.vue` | CREATE | API mapping form component |
+| `views/perm/resource/components/ApiMappingForm.vue`  | CREATE | API mapping form component  |
 
 ---
 
@@ -72,8 +72,9 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ### Task 1: Create Resource API Mapping API (apiMapping.ts)
 
-- **ACTION**: Create API mapping API file
+- **ACTION**: Create API mapping API file aligned with backend DTOs
 - **IMPLEMENT**:
+
   ```typescript
   // api/perm/apiMapping.ts
   import { http } from "@/utils/http";
@@ -81,14 +82,13 @@ export const getXxxList = (data?: XxxRequest) => {
   export interface ApiMappingItem {
     id: number;
     tenantId: number;
-    resourceId: number;
-    resourceCode: string;
-    resourceName: string;
+    resourceEntityId: number;
     serviceCode: string;
     httpMethod: string;
-    path: string;
-    requirePermission: boolean;
-    description: string | null;
+    pathPattern: string;
+    matchOrder: number | null;
+    enabled: boolean | null;
+    extra: string | null;
     createdAt: string;
     updatedAt: string | null;
   }
@@ -107,32 +107,34 @@ export const getXxxList = (data?: XxxRequest) => {
 
   export interface ApiMappingActionResult {
     success: boolean;
-    data: { id: number };
+    data: ApiMappingItem;
   }
 
   export interface ApiMappingCreateRequest {
     resourceId: number;
     serviceCode: string;
     httpMethod: string;
-    path: string;
-    requirePermission?: boolean;
-    description?: string;
+    pathPattern: string;
+    matchOrder?: number;
+    enabled?: boolean;
+    extra?: string;
   }
 
   export interface ApiMappingUpdateRequest {
-    id: number;
+    resourceId: number;
+    mappingId: number;
     httpMethod?: string;
-    path?: string;
-    requirePermission?: boolean;
-    description?: string;
+    pathPattern?: string;
+    matchOrder?: number;
+    enabled?: boolean;
+    extra?: string;
   }
 
-  // API functions
   export const getApiMappingList = (data: ApiMappingListRequest) => {
     return http.request<ApiMappingListResult>(
       "post",
       "/api/perm/resource-api-mapping/list",
-      { data }
+      { data },
     );
   };
 
@@ -140,7 +142,7 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<ApiMappingActionResult>(
       "post",
       "/api/perm/resource-api-mapping/create",
-      { data }
+      { data },
     );
   };
 
@@ -148,7 +150,7 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<ApiMappingActionResult>(
       "post",
       "/api/perm/resource-api-mapping/update",
-      { data }
+      { data },
     );
   };
 
@@ -156,19 +158,20 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<{ success: boolean }>(
       "post",
       "/api/perm/resource-api-mapping/remove",
-      { data }
+      { data },
     );
   };
 
-  // HTTP methods constant
   export const HTTP_METHODS = [
     { label: "GET", value: "GET" },
     { label: "POST", value: "POST" },
     { label: "PUT", value: "PUT" },
     { label: "DELETE", value: "DELETE" },
-    { label: "PATCH", value: "PATCH" }
+    { label: "PATCH", value: "PATCH" },
   ];
   ```
+
+- **NOTE**: `resourceCode`、`resourceName` 和展示型描述由当前资源上下文与前端元数据补齐，不要求映射接口直接返回这些字段。
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create API Mapping Panel Component
@@ -178,8 +181,7 @@ export const getXxxList = (data?: XxxRequest) => {
   - Display list of API mappings for selected resource
   - Add/Edit/Delete buttons
   - HTTP method display with tags
-  - Path display
-  - Require permission indicator
+  - Show `pathPattern`, `matchOrder`, `enabled`
 
 ### Task 3: Create API Mapping Form Component
 
@@ -187,9 +189,8 @@ export const getXxxList = (data?: XxxRequest) => {
 - **IMPLEMENT**:
   - Service code input
   - HTTP method selector
-  - Path input with validation
-  - Require permission checkbox
-  - Description textarea
+  - `pathPattern` input with validation
+  - Optional `matchOrder`, `enabled`, `extra`
 
 ### Task 4: Integrate into Resource Page
 
@@ -199,7 +200,7 @@ export const getXxxList = (data?: XxxRequest) => {
   - Show API mappings for selected resource
   - Support add, edit, delete API mappings
 - **CHECKLIST**:
-  - [ ] API mapping list display
+  - [ ] API mapping list display aligns with backend DTO
   - [ ] Support adding new mapping
   - [ ] Support editing existing mapping
   - [ ] Support deleting mapping
@@ -231,11 +232,11 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| API mapping list | Select resource → API Mapping tab | Show mappings for resource |
-| Create mapping | Fill form and submit | Create success |
-| Delete mapping | Click delete | Confirm then delete success |
+| Test             | Input                             | Expected Output             |
+| ---------------- | --------------------------------- | --------------------------- |
+| API mapping list | Select resource → API Mapping tab | Show mappings for resource  |
+| Create mapping   | Fill form and submit              | Create success              |
+| Delete mapping   | Click delete                      | Confirm then delete success |
 
 ---
 
@@ -254,10 +255,11 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/apiMapping.ts` created
+- [ ] `api/perm/apiMapping.ts` created with backend-aligned contracts
 - [ ] `views/perm/resource/components/ApiMappingPanel.vue` created
 - [ ] `views/perm/resource/components/ApiMappingForm.vue` created
 - [ ] Resource management page integrated with API mapping tab
+- [ ] Display aliases come from resource context, not fabricated backend fields
 - [ ] Permission codes added to constants
 - [ ] Full compilation passes
 
@@ -265,6 +267,6 @@ EXPECT: Zero errors, build success
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Path validation | Low | Low | Use regex validation for path format |
+| Risk            | Likelihood | Impact | Mitigation                           |
+| --------------- | ---------- | ------ | ------------------------------------ |
+| Path validation | Low        | Low    | Use regex validation for path format |

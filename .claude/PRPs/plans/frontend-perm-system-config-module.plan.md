@@ -2,7 +2,7 @@
 
 ## Summary
 
-Develop the system configuration management module for the frontend, including configuration list by category and configuration value editing.
+Develop the system configuration management module for the frontend, including configuration value editing and frontend-managed metadata for grouping and read-only semantics.
 
 ## User Story
 
@@ -10,7 +10,7 @@ As a system administrator, I want to manage system configurations through the fr
 
 ## Problem → Solution
 
-Backend provides complete system configuration APIs, but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components.
+Backend provides system configuration APIs, but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components, while handling grouping and read-only semantics in a frontend metadata layer.
 
 ## Metadata
 
@@ -23,18 +23,18 @@ Backend provides complete system configuration APIs, but frontend lacks correspo
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
+| Plan                                       | Relation     | Description                       |
+| ------------------------------------------ | ------------ | --------------------------------- |
 | `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/SystemConfigController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/role.ts` | API file template |
+| Priority | File                                                           | Why                   |
+| -------- | -------------------------------------------------------------- | --------------------- |
+| P0       | `permission-center/.../controller/SystemConfigController.java` | Backend API reference |
+| P1       | `frontend/src/api/perm/role.ts`                                | API file template     |
 
 ---
 
@@ -58,10 +58,10 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/systemConfig.ts` | CREATE | System configuration API layer |
-| `views/perm/system-config/index.vue` | CREATE | System configuration page |
+| File                                                   | Action | Justification                        |
+| ------------------------------------------------------ | ------ | ------------------------------------ |
+| `api/perm/systemConfig.ts`                             | CREATE | System configuration API layer       |
+| `views/perm/system-config/index.vue`                   | CREATE | System configuration page            |
 | `views/perm/system-config/components/ConfigEditor.vue` | CREATE | Configuration value editor component |
 
 ---
@@ -70,8 +70,9 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ### Task 1: Create System Configuration API (systemConfig.ts)
 
-- **ACTION**: Create system configuration management API file
+- **ACTION**: Create system configuration management API file aligned with backend contracts
 - **IMPLEMENT**:
+
   ```typescript
   // api/perm/systemConfig.ts
   import { http } from "@/utils/http";
@@ -82,15 +83,7 @@ export const getXxxList = (data?: XxxRequest) => {
     configKey: string;
     configValue: string;
     description: string | null;
-    category: string;
-    editable: boolean;
-    createdAt: string;
-    updatedAt: string | null;
-  }
-
-  export interface SystemConfigListRequest {
-    category?: string;
-    keyword?: string;
+    updatedAt: string;
   }
 
   export interface SystemConfigListResult {
@@ -101,7 +94,7 @@ export const getXxxList = (data?: XxxRequest) => {
   }
 
   export interface SystemConfigDetailRequest {
-    configKey: string; // Backend uses configKey, not id
+    configKey: string;
   }
 
   export interface SystemConfigDetailResult {
@@ -117,14 +110,14 @@ export const getXxxList = (data?: XxxRequest) => {
   export interface SystemConfigSaveRequest {
     configKey: string;
     configValue: string;
+    description?: string;
   }
 
-  // API functions
   export const getSystemConfigList = () => {
     return http.request<SystemConfigListResult>(
       "post",
       "/api/perm/system-config/list",
-      { data: {} }
+      { data: {} },
     );
   };
 
@@ -132,47 +125,49 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<SystemConfigDetailResult>(
       "post",
       "/api/perm/system-config/detail",
-      { data }
+      { data },
     );
   };
 
-  // Backend uses /save endpoint for upsert (create or update)
   export const saveSystemConfig = (data: SystemConfigSaveRequest) => {
     return http.request<SystemConfigActionResult>(
       "post",
       "/api/perm/system-config/save",
-      { data }
+      { data },
     );
   };
 
-  // Config categories
-  export const SYSTEM_CONFIG_CATEGORIES = [
-    { label: "基础配置", value: "BASIC" },
-    { label: "缓存配置", value: "CACHE" },
-    { label: "安全配置", value: "SECURITY" },
-    { label: "审计配置", value: "AUDIT" }
-  ];
+  export const SYSTEM_CONFIG_META = {
+    "perm.cache.mode": { category: "CACHE", editable: true, label: "缓存模式" },
+    "perm.audit.level": {
+      category: "AUDIT",
+      editable: true,
+      label: "审计级别",
+    },
+  } as const;
   ```
+
+- **NOTE**: `category`、`editable` 和展示名不是当前后端响应字段，而是前端元数据。
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create Configuration Editor Component
 
 - **ACTION**: Create configuration value editor component
 - **IMPLEMENT**:
-  - JSON format editor
+  - JSON format editor when metadata marks the config as structured
   - Validation for JSON syntax
   - Save/Cancel buttons
-  - Read-only indicator
+  - Read-only indicator derived from metadata
 
 ### Task 3: Create System Configuration Page
 
 - **ACTION**: Create system configuration management page
 - **IMPLEMENT**:
-  - Configuration list grouped by category
-  - JSON format configuration value editing
-  - Read-only config identification
+  - Load full config list from backend `list`
+  - Group and filter client-side using frontend metadata
+  - Use `configKey` as stable identifier for detail and save
 - **CHECKLIST**:
-  - [ ] Config list grouped by category
+  - [ ] Config list grouped by metadata category
   - [ ] Support config value editing and saving
   - [ ] Read-only config has clear identification
 
@@ -180,6 +175,7 @@ export const getXxxList = (data?: XxxRequest) => {
 
 - **ACTION**: Add permission codes and routes
 - **IMPLEMENT**:
+
   ```typescript
   // constants/permission.ts
   export const PERM_SYSTEM_CONFIG_VIEW = "perm:system-config:view";
@@ -212,11 +208,11 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| Config list | Visit `/perm/system-config` | Display configs grouped by category |
-| Config edit | Edit value and save | Save success |
-| Read-only config | Try edit read-only | Edit disabled |
+| Test             | Input                                     | Expected Output                     |
+| ---------------- | ----------------------------------------- | ----------------------------------- |
+| Config list      | Visit `/perm/system-config`               | Display configs grouped by category |
+| Config edit      | Edit value and save                       | Save success                        |
+| Read-only config | Try edit metadata-marked read-only config | Edit disabled                       |
 
 ---
 
@@ -235,8 +231,9 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/systemConfig.ts` created
+- [ ] `api/perm/systemConfig.ts` created with backend-aligned contracts
 - [ ] `views/perm/system-config/` page components created
+- [ ] Grouping and read-only semantics are explicitly implemented as frontend metadata
 - [ ] Permission codes added to constants
 - [ ] Router configuration updated
 - [ ] Full compilation passes
@@ -245,6 +242,6 @@ EXPECT: Zero errors, build success
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| JSON editor integration | Low | Low | Use vue-json-viewer or simple textarea |
+| Risk                    | Likelihood | Impact | Mitigation                             |
+| ----------------------- | ---------- | ------ | -------------------------------------- |
+| JSON editor integration | Low        | Low    | Use vue-json-viewer or simple textarea |

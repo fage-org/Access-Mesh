@@ -24,6 +24,7 @@ Backend provides permission version query API (`/query`), primarily for Gateway 
 ## Backend API Status
 
 **Current Backend Implementation** (PermissionVersionController):
+
 - ✅ `/api/perm/permission-version/query` - Query version number (exists)
 - ❌ `/list` - Not implemented
 - ❌ `/detail` - Not implemented
@@ -33,31 +34,46 @@ Backend provides permission version query API (`/query`), primarily for Gateway 
 
 > **Note**: Permission version is primarily used for Gateway cache consistency. Version increments automatically when role permissions change. Full version management (snapshot, compare, rollback) would require backend enhancement first.
 
+## Current Scope
+
+- 当前仅实现 `/api/perm/permission-version/query` 对应的查询封装。
+- 页面能力控制在“显示当前版本号、更新时间、可选 roleId 查询”。
+- 不在当前范围内实现版本列表、详情、快照创建、对比和回滚。
+
+## Future Scope
+
+以下能力保留到后续后端增强后再实施：
+
+- 版本列表 / 快照管理
+- 版本详情
+- 版本对比
+- 版本回滚
+
 ---
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
+| Plan                                       | Relation     | Description                       |
+| ------------------------------------------ | ------------ | --------------------------------- |
 | `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/PermissionVersionController.java` | Backend API reference (only `/query`) |
-| P1 | `frontend/src/api/perm/role.ts` | API file template |
+| Priority | File                                                                | Why                                   |
+| -------- | ------------------------------------------------------------------- | ------------------------------------- |
+| P0       | `permission-center/.../controller/PermissionVersionController.java` | Backend API reference (only `/query`) |
+| P1       | `frontend/src/api/perm/role.ts`                                     | API file template                     |
 
 ---
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/version.ts` | CREATE | Version query API layer |
-| `views/perm/version/index.vue` | CREATE | Version query page (optional) |
+| File                           | Action | Justification                             |
+| ------------------------------ | ------ | ----------------------------------------- |
+| `api/perm/version.ts`          | CREATE | Version query API layer                   |
+| `views/perm/version/index.vue` | CREATE | Lightweight version query page (optional) |
 
 ---
 
@@ -67,6 +83,7 @@ Backend provides permission version query API (`/query`), primarily for Gateway 
 
 - **ACTION**: Create permission version query API file (based on actual backend)
 - **IMPLEMENT**:
+
   ```typescript
   // api/perm/version.ts
   import { http } from "@/utils/http";
@@ -93,10 +110,11 @@ Backend provides permission version query API (`/query`), primarily for Gateway 
     return http.request<VersionQueryResult>(
       "post",
       "/api/perm/permission-version/query",
-      { data: data || {} }
+      { data: data || {} },
     );
   };
   ```
+
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create Version Query Page (Optional)
@@ -135,8 +153,8 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
+| Test          | Input    | Expected Output                     |
+| ------------- | -------- | ----------------------------------- |
 | Version query | Call API | Return version number and timestamp |
 
 ---
@@ -165,6 +183,7 @@ EXPECT: Zero errors, build success
 ## Future Enhancement Notes
 
 The following features would require backend development first:
+
 - Version list/snapshot management
 - Version comparison (diff between versions)
 - Version rollback functionality
@@ -175,7 +194,7 @@ If these features are needed, coordinate with backend team to implement correspo
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Backend API scope limited | High (confirmed) | Low | Adjust plan to match actual backend |
-| Feature may not need frontend | Medium | Low | Consider if page is necessary |
+| Risk                          | Likelihood       | Impact | Mitigation                          |
+| ----------------------------- | ---------------- | ------ | ----------------------------------- |
+| Backend API scope limited     | High (confirmed) | Low    | Adjust plan to match actual backend |
+| Feature may not need frontend | Medium           | Low    | Consider if page is necessary       |

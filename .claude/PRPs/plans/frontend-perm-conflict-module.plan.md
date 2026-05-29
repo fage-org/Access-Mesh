@@ -2,7 +2,7 @@
 
 ## Summary
 
-Develop the conflict rule management module for the frontend, including the API layer, CRUD pages, and conflict detection functionality.
+Develop the conflict rule management module for the frontend, including the API layer, CRUD pages, and the conflict detection capability currently supported by the backend.
 
 ## User Story
 
@@ -10,7 +10,13 @@ As a permission administrator, I want to manage conflict rules and detect permis
 
 ## Problem → Solution
 
-Backend provides complete conflict rule APIs and conflict detection, but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components.
+Backend provides conflict rule CRUD and a rule-level detect endpoint, but frontend lacks corresponding API files and management pages → Develop the missing API layer and page components for the currently supported scope.
+
+## Current Scope
+
+- Current scope includes conflict rule CRUD.
+- Current scope includes detect by operation-permission pair.
+- User/role-level conflict diagnosis is future scope and should be tracked separately.
 
 ## Metadata
 
@@ -23,19 +29,19 @@ Backend provides complete conflict rule APIs and conflict detection, but fronten
 
 ## Dependencies
 
-| Plan | Relation | Description |
-|------|----------|-------------|
+| Plan                                       | Relation     | Description                       |
+| ------------------------------------------ | ------------ | --------------------------------- |
 | `frontend-perm-structure-analysis.plan.md` | Prerequisite | Code standards analysis completed |
-| `frontend-perm-phase1-development.plan.md` | Prerequisite | Core features should be complete |
+| `frontend-perm-phase1-development.plan.md` | Prerequisite | Core features should be complete  |
 
 ---
 
 ## Mandatory Reading
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `permission-center/.../controller/ConflictRuleController.java` | Backend API reference |
-| P1 | `frontend/src/api/perm/resource.ts` | API file template |
+| Priority | File                                                           | Why                   |
+| -------- | -------------------------------------------------------------- | --------------------- |
+| P0       | `permission-center/.../controller/ConflictRuleController.java` | Backend API reference |
+| P1       | `frontend/src/api/perm/resource.ts`                            | API file template     |
 
 ---
 
@@ -59,13 +65,13 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ## Files to Create
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/conflictRule.ts` | CREATE | Conflict rule API layer |
-| `views/perm/conflict/index.vue` | CREATE | Conflict rule management page |
-| `views/perm/conflict/components/ConflictRuleForm.vue` | CREATE | Rule form component |
-| `views/perm/conflict/components/ConflictRuleList.vue` | CREATE | Rule list component |
-| `views/perm/conflict/components/ConflictDetectPanel.vue` | CREATE | Conflict detection component |
+| File                                                     | Action | Justification                 |
+| -------------------------------------------------------- | ------ | ----------------------------- |
+| `api/perm/conflictRule.ts`                               | CREATE | Conflict rule API layer       |
+| `views/perm/conflict/index.vue`                          | CREATE | Conflict rule management page |
+| `views/perm/conflict/components/ConflictRuleForm.vue`    | CREATE | Rule form component           |
+| `views/perm/conflict/components/ConflictRuleList.vue`    | CREATE | Rule list component           |
+| `views/perm/conflict/components/ConflictDetectPanel.vue` | CREATE | Conflict detection component  |
 
 ---
 
@@ -73,8 +79,9 @@ export const getXxxList = (data?: XxxRequest) => {
 
 ### Task 1: Create Conflict Rule API (conflictRule.ts)
 
-- **ACTION**: Create conflict rule management API file
+- **ACTION**: Create conflict rule management API file aligned with backend DTOs
 - **IMPLEMENT**:
+
   ```typescript
   // api/perm/conflictRule.ts
   import { http } from "@/utils/http";
@@ -82,14 +89,14 @@ export const getXxxList = (data?: XxxRequest) => {
   export interface ConflictRuleItem {
     id: number;
     tenantId: number;
-    ruleType: string;
-    name: string;
-    config: string; // JSON configuration
+    conflictType: string;
+    firstOperationPermissionId: number | null;
+    secondOperationPermissionId: number | null;
+    resourceTypeValue: number | null;
+    firstAbstractRoleId: number | null;
+    secondAbstractRoleId: number | null;
     description: string | null;
-    priority: number;
-    status: number;
     createdAt: string;
-    updatedAt: string | null;
   }
 
   export interface ConflictRuleListResult {
@@ -106,37 +113,49 @@ export const getXxxList = (data?: XxxRequest) => {
 
   export interface ConflictRuleActionResult {
     success: boolean;
-    data: { id: number };
+    data: ConflictRuleItem;
+  }
+
+  export interface ConflictRuleCreateRequest {
+    conflictType: string;
+    firstOperationPermissionId?: number;
+    secondOperationPermissionId?: number;
+    resourceTypeValue?: number;
+    firstAbstractRoleId?: number;
+    secondAbstractRoleId?: number;
+    description?: string;
+  }
+
+  export interface ConflictRuleUpdateRequest {
+    id: number;
+    conflictType?: string;
+    firstOperationPermissionId?: number;
+    secondOperationPermissionId?: number;
+    resourceTypeValue?: number;
+    firstAbstractRoleId?: number;
+    secondAbstractRoleId?: number;
+    description?: string;
   }
 
   export interface ConflictDetectRequest {
-    userId: number;
-    roleIds: Array<number>;
+    firstOperationPermissionId: number;
+    secondOperationPermissionId: number;
+    resourceTypeValue?: number;
   }
 
   export interface ConflictDetectResult {
     success: boolean;
     data: {
-      hasConflict: boolean;
-      conflicts: Array<{
-        ruleId: number;
-        ruleName: string;
-        conflictType: string;
-        affectedRoles: Array<{
-          roleId: number;
-          roleName: string;
-        }>;
-        suggestion: string;
-      }>;
+      conflictDetected: boolean;
+      matchedRules: Array<ConflictRuleItem>;
     };
   }
 
-  // API functions
   export const getConflictRuleList = () => {
     return http.request<ConflictRuleListResult>(
       "post",
       "/api/perm/conflict-rule/list",
-      { data: {} }
+      { data: {} },
     );
   };
 
@@ -144,38 +163,23 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<ConflictRuleDetailResult>(
       "post",
       "/api/perm/conflict-rule/detail",
-      { data }
+      { data },
     );
   };
 
-  export const createConflictRule = (data: {
-    ruleType: string;
-    name: string;
-    config: string;
-    description?: string;
-    priority?: number;
-    status?: number;
-  }) => {
+  export const createConflictRule = (data: ConflictRuleCreateRequest) => {
     return http.request<ConflictRuleActionResult>(
       "post",
       "/api/perm/conflict-rule/create",
-      { data }
+      { data },
     );
   };
 
-  export const updateConflictRule = (data: {
-    id: number;
-    ruleType?: string;
-    name?: string;
-    config?: string;
-    description?: string;
-    priority?: number;
-    status?: number;
-  }) => {
+  export const updateConflictRule = (data: ConflictRuleUpdateRequest) => {
     return http.request<ConflictRuleActionResult>(
       "post",
       "/api/perm/conflict-rule/update",
-      { data }
+      { data },
     );
   };
 
@@ -183,7 +187,7 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<{ success: boolean }>(
       "post",
       "/api/perm/conflict-rule/remove",
-      { data }
+      { data },
     );
   };
 
@@ -191,17 +195,16 @@ export const getXxxList = (data?: XxxRequest) => {
     return http.request<ConflictDetectResult>(
       "post",
       "/api/perm/conflict-rule/detect",
-      { data }
+      { data },
     );
   };
 
-  // Constants
   export const CONFLICT_RULE_TYPES = [
-    { label: "角色互斥", value: "MUTEX" },
-    { label: "权限合并", value: "MERGE" },
-    { label: "拒绝优先", value: "DENY_FIRST" }
+    { label: "角色互斥", value: "ROLE_MUTEX" },
+    { label: "权限互斥", value: "PERM_MUTEX" },
   ];
   ```
+
 - **VALIDATE**: `pnpm typecheck` passes
 
 ### Task 2: Create Conflict Rule Form Component
@@ -209,20 +212,17 @@ export const getXxxList = (data?: XxxRequest) => {
 - **ACTION**: Create rule form dialog component
 - **IMPLEMENT**:
   - Support create and edit modes
-  - JSON config editor with validation
-  - Rule type selection
-  - Priority input
-  - Config template suggestions
+  - Use selector inputs for operation permission IDs / role IDs / resource type value
+  - Do not use JSON config editor in current scope
 
 ### Task 3: Create Conflict Detection Panel
 
 - **ACTION**: Create conflict detection UI panel
 - **IMPLEMENT**:
-  - User selection
-  - Role multi-selection
-  - Detection trigger button
-  - Results display with conflict details
-  - Suggestions for resolution
+  - Select first / second operation permission IDs
+  - Optional resource type value selector
+  - Display `conflictDetected` and matched rules
+  - Do not model user + role diagnostic inputs in current scope
 
 ### Task 4: Create Conflict Rule Management Page
 
@@ -230,16 +230,17 @@ export const getXxxList = (data?: XxxRequest) => {
 - **IMPLEMENT**:
   - Left rule list
   - Right rule details
-  - Conflict detection feature (user + role selection)
+  - Conflict detection feature based on operation-permission pairs
 - **CHECKLIST**:
   - [ ] Complete rule CRUD functionality
-  - [ ] User-friendly conflict detection interface
-  - [ ] Visualized conflict results display
+  - [ ] Detect panel matches current backend request / response shape
+  - [ ] Future user/role diagnosis is marked out of scope
 
 ### Task 5: Update Constants and Router
 
 - **ACTION**: Add permission codes and routes
 - **IMPLEMENT**:
+
   ```typescript
   // constants/permission.ts
   export const PERM_CONFLICT_VIEW = "perm:conflict:view";
@@ -275,11 +276,11 @@ pnpm lint:prettier
 
 ### Functional Testing
 
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| Rule list | Visit `/perm/conflict` | Display rule list |
-| Rule create | Submit form | Create success |
-| Conflict detect | Select user + roles | Show conflicts if any |
+| Test            | Input                            | Expected Output           |
+| --------------- | -------------------------------- | ------------------------- |
+| Rule list       | Visit `/perm/conflict`           | Display rule list         |
+| Rule create     | Submit form                      | Create success            |
+| Conflict detect | Select two operation permissions | Show matched rules if any |
 
 ---
 
@@ -298,8 +299,9 @@ EXPECT: Zero errors, build success
 
 ## Acceptance Criteria
 
-- [ ] `api/perm/conflictRule.ts` created with complete CRUD and detect
+- [ ] `api/perm/conflictRule.ts` created with backend-aligned CRUD and detect
 - [ ] `views/perm/conflict/` page components created
+- [ ] Current scope is limited to rule management and rule-level detect
 - [ ] Permission codes added to constants
 - [ ] Router configuration updated
 - [ ] Full compilation passes
@@ -308,7 +310,7 @@ EXPECT: Zero errors, build success
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Conflict rule config complexity | Medium | Medium | Provide config templates and examples |
-| JSON editor integration | Low | Low | Use mature JSON editor component |
+| Risk                            | Likelihood | Impact | Mitigation                            |
+| ------------------------------- | ---------- | ------ | ------------------------------------- |
+| Conflict rule config complexity | Medium     | Medium | Provide config templates and examples |
+| JSON editor integration         | Low        | Low    | Use mature JSON editor component      |

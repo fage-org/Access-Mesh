@@ -2,377 +2,122 @@
 
 ## Summary
 
-基于代码规范审查结果，对已完成的7个前端模块进行完善和优化，包括代码质量提升、功能补充和API对齐。
+对权限中心前端已完成模块做一次共享层与规范层收敛，重点修正 API 包装、权限码、路由绑定、空态/错误态壳层和占位页面边界，为后续缺失模块与最终 mock 演示提供稳定基座。
 
 ## User Story
 
-As a 前端开发者, I want 已完成的模块符合团队编码规范且功能完整, So that 我能够维护高质量、一致性好的代码库。
+As a 前端开发者, I want 已完成模块的共享层和壳层先稳定下来, so that 后续新增模块、权限视图增强和统一 mock 不会建立在漂移的基线之上。
 
 ## Problem → Solution
 
-已完成的模块存在规范偏差（如类型导入语法不一致）、权限码缺失、功能不完整（如权限视图页面仅部分实现）→ 通过系统性的完善计划修复规范问题、补充缺失功能、提升代码质量。
+已完成模块虽然可用，但仍存在类型导入不统一、共享权限码缺口、`permissionView.ts` / `view` / `explain` 边界不清等问题 → 先清理共享层和占位页面，再由专门模块计划承接完整功能。
 
 ## Metadata
 
 - **Complexity**: Medium
 - **Source PRD**: `frontend-perm-structure-analysis.plan.md`
-- **Estimated Files**: 15-20
+- **Estimated Files**: 10-14
 - **前置条件**: 代码规范分析完成
 
 ---
 
-## Mandatory Reading
+## Dependencies
 
-| Priority | File | Why |
-|----------|------|-----|
-| P0 | `.claude/rules/frontend-coding-standards.md` | 编码规范标准 |
-| P0 | `frontend/src/api/perm/permissionView.ts` | 权限视图API（需完善） |
-| P0 | `frontend/src/views/perm/view/index.vue` | 权限视图页面（需完善） |
-| P1 | `frontend/src/views/perm/explain/index.vue` | 权限排查页面（需实现） |
-| P1 | `frontend/src/constants/permission.ts` | 权限码常量（需补充） |
+| Plan                                       | Relation     | Description                        |
+| ------------------------------------------ | ------------ | ---------------------------------- |
+| `frontend-perm-structure-analysis.plan.md` | Prerequisite | 先确定统一规范与问题清单           |
+| `frontend-perm-view-improvement.plan.md`   | Downstream   | 权限视图完整能力由独立计划承接     |
+| `frontend-perm-explain-module.plan.md`     | Downstream   | 权限排查完整能力由独立计划承接     |
+| `frontend-perm-api-mock.plan.md`           | Downstream   | 已完成模块稳定后统一纳入 mock 计划 |
 
 ---
 
-## Patterns to Mirror
+## Current Scope
 
-### TYPE_IMPORT_PATTERN
+- 规范化现有 `api/perm/*.ts` 的类型导入、返回类型和工具函数风格。
+- 补齐已完成模块使用到的共享权限码、共享路由配置和基础空态/错误态。
+- 对 `permissionView.ts`、`views/perm/view/index.vue`、`views/perm/explain/index.vue` 做壳层和边界整理。
+- 明确哪些能力继续留在独立模块计划中，不在本计划内重复展开。
 
-```typescript
-// ✅ 正确 — 内联类型导入
-import { type AxiosRequestConfig } from "axios";
-import { type FormInstance } from "element-plus";
+## Out of Scope
 
-// ❌ 禁止 — 单独导入类型
-import type { AxiosRequestConfig } from "axios";
-```
-
-### API_DEFINITION_PATTERN
-
-```typescript
-// SOURCE: frontend/src/api/perm/role.ts
-
-// 导出类型定义 + API函数
-export interface RoleTreeNode {
-  id: number;
-  name: string;
-  // ...
-}
-
-export const getRoleTree = (data?: { domainCode?: string }) => {
-  return http.request<RoleTreeResult>("post", "/api/perm/abstract-role/tree", {
-    data: data || {}
-  });
-};
-
-// 配套工具函数
-export const transformRoleTreeResponse = (response: RoleTreeResult): Array<RoleTreeNode> => {
-  // ...
-};
-```
-
-### COMPONENT_PATTERN
-
-```vue
-<!-- SOURCE: frontend/src/views/perm/role/index.vue -->
-
-<script setup lang="ts">
-defineOptions({
-  name: "PermRole"
-});
-
-// Props/Emits类型定义
-const props = defineProps<{
-  roleDetail: RoleDetail | null;
-}>();
-
-const emit = defineEmits<{
-  edit: [];
-}>();
-</script>
-```
+- 不在本计划完成权限视图的 4 个完整子视图。
+- 不在本计划完成权限排查的可视化、矩阵和对比能力。
+- 不新增任何后端契约假设，不补写未来字段。
 
 ---
 
 ## Files to Change
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `api/perm/permissionView.ts` | UPDATE | 补充缺失的API方法 |
-| `api/perm/resourceDependency.ts` | UPDATE | 补充批量同步和循环检测方法 |
-| `views/perm/view/index.vue` | UPDATE | 完善权限视图功能 |
-| `views/perm/explain/index.vue` | UPDATE | 实现权限排查功能 |
-| `constants/permission.ts` | UPDATE | 补充缺失的权限码 |
-| `router/modules/perm.ts` | UPDATE | 补充缺失路由和权限绑定 |
+| File                                          | Action | Justification                          |
+| --------------------------------------------- | ------ | -------------------------------------- |
+| `frontend/src/api/perm/domain.ts`             | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/operation.ts`          | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/permissionView.ts`     | UPDATE | 只保留共享层与现有后端可支持的公共包装 |
+| `frontend/src/api/perm/resourceDependency.ts` | UPDATE | 收敛共享 API 包装形式                  |
+| `frontend/src/api/perm/resource.ts`           | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/rolePermission.ts`     | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/role.ts`               | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/service.ts`            | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/type.ts`               | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/api/perm/userRole.ts`           | UPDATE | 统一类型导入和 API 风格                |
+| `frontend/src/views/perm/view/index.vue`      | UPDATE | 收敛壳层和入口结构                     |
+| `frontend/src/views/perm/explain/index.vue`   | UPDATE | 收敛壳层和入口结构                     |
+| `frontend/src/constants/permission.ts`        | UPDATE | 补齐共享权限码                         |
+| `frontend/src/router/modules/perm.ts`         | UPDATE | 补齐已有页面的权限绑定                 |
 
 ---
 
-## Step-by-Step Tasks
+## Coordination Tasks
 
-### Task 1: 修复类型导入语法
+### Task 1: 统一共享 API 规范
 
-- **ACTION**: 将所有 `import type { ... }` 改为 `import { type ... }`
+- **ACTION**: 把现有 `api/perm/*.ts` 的导入、命名和返回包装统一到当前规范
 - **IMPLEMENT**:
-  - 扫描所有 `api/perm/*.ts` 文件
-  - 替换类型导入语法
-- **CHECKLIST**:
-  - [ ] `domain.ts` 使用内联类型导入
-  - [ ] `operation.ts` 使用内联类型导入
-  - [ ] `permissionView.ts` 使用内联类型导入
-  - [ ] `resourceDependency.ts` 使用内联类型导入
-  - [ ] `resource.ts` 使用内联类型导入
-  - [ ] `rolePermission.ts` 使用内联类型导入
-  - [ ] `role.ts` 使用内联类型导入
-  - [ ] `service.ts` 使用内联类型导入
-  - [ ] `type.ts` 使用内联类型导入
-  - [ ] `userRole.ts` 使用内联类型导入
-- **VALIDATE**: `pnpm lint:eslint` 通过
+  - 使用内联类型导入 `{ type X }`
+  - 保持 `http.request<T>("post", path, { data })` 模式一致
+  - 清理只在旧计划中出现、但当前代码不需要的额外包装层
 
-### Task 2: 完善 permissionView.ts API
+### Task 2: 补齐共享权限码和路由绑定
 
-- **ACTION**: 补充权限视图页面缺失的API方法
+- **ACTION**: 为现有已完成页面补齐准确的菜单权限与按钮权限常量
 - **IMPLEMENT**:
-  ```typescript
-  // 查询有效角色
-  export const getEffectiveRoles = (data: UserEffectiveRolesRequest) => {
-    return http.request<EffectiveRolesResult>(
-      "post",
-      "/api/perm/permission-view/effective-roles",
-      { data }
-    );
-  };
+  - 修正 `constants/permission.ts`
+  - 修正 `router/modules/perm.ts`
+  - 确保现有页面在权限受控和 mock 演示环境下都能正常展示
 
-  // 查询资源权限分布
-  export const getResourcePermissions = (data: ResourcePermissionViewRequest) => {
-    return http.request<ResourcePermissionsResult>(
-      "post",
-      "/api/perm/permission-view/resource-users",
-      { data }
-    );
-  };
+### Task 3: 收敛 view / explain 的壳层边界
 
-  // 查询角色权限配置
-  export const getRolePermissionsView = (data: RolePermissionViewRequest) => {
-    return http.request<RolePermissionsViewResult>(
-      "post",
-      "/api/perm/permission-view/role-permissions",
-      { data }
-    );
-  };
-
-  // 查询用户资源树
-  export const getUserResourceTree = (data: UserResourceTreeRequest) => {
-    return http.request<UserResourceTreeResult>(
-      "post",
-      "/api/perm/permission-view/resource-tree",
-      { data }
-    );
-  };
-
-  // 查询近期变更
-  export const getRecentChanges = (data: RecentChangesRequest) => {
-    return http.request<RecentChangesResult>(
-      "post",
-      "/api/perm/permission-view/recent-changes",
-      { data }
-    );
-  };
-  ```
-- **VALIDATE**: `pnpm typecheck` 通过
-
-### Task 3: 完善权限视图页面
-
-- **ACTION**: 完善 `/perm/view` 权限视图页面功能
+- **ACTION**: 让权限视图和权限排查页面只保留当前阶段需要的壳层能力
 - **IMPLEMENT**:
-  - 添加有效角色查询视图
-  - 添加资源权限分布视图
-  - 添加权限变更历史视图
-  - 添加用户资源树视图
-- **CHECKLIST**:
-  - [ ] 页面包含多个Tab切换视图
-  - [ ] 有效角色查询功能完整
-  - [ ] 资源权限分布功能完整
-  - [ ] 权限变更历史功能完整
-  - [ ] 用户资源树功能完整
-- **GOTCHA**: 每个视图独立组件，避免单个文件过大
+  - `views/perm/view/index.vue` 保持为权限视图增强计划的主入口壳层
+  - `views/perm/explain/index.vue` 保持为权限排查计划的主入口壳层
+  - 避免在本计划中重复定义完整子视图和字段级契约
 
-### Task 4: 实现权限排查页面
+### Task 4: 为后续计划输出稳定基线
 
-- **ACTION**: 实现 `/perm/explain` 权限排查页面
+- **ACTION**: 给下游功能计划和统一 mock 计划提供稳定共享层
 - **IMPLEMENT**:
-  ```vue
-  <!-- 权限排查功能 -->
-  <template>
-    <div class="permission-explain">
-      <!-- 查询条件 -->
-      <el-form :model="queryForm">
-        <el-form-item label="主体类型">
-          <el-select v-model="queryForm.targetType">
-            <el-option label="用户" value="USER" />
-            <el-option label="角色" value="ROLE" />
-          </el-select>
-        </el-form-item>
-        <!-- 其他查询条件... -->
-      </el-form>
-      
-      <!-- 权限解释结果 -->
-      <div v-if="explainResult" class="explain-result">
-        <!-- 权限判定结果、来源角色、变更历史等 -->
-      </div>
-    </div>
-  </template>
-  ```
-- **CHECKLIST**:
-  - [ ] 支持用户/角色两种查询模式
-  - [ ] 显示权限判定结果
-  - [ ] 显示权限来源角色
-  - [ ] 显示近期变更历史
-- **GOTCHA**: 需要结合 `permissionView.ts` 中的 `explainPermission` API
-
-### Task 5: 补充缺失的权限码
-
-- **ACTION**: 在 `constants/permission.ts` 中补充缺失的权限码
-- **IMPLEMENT**:
-  ```typescript
-  // 权限视图权限码
-  export const PERM_USER_ROLE_VIEW = "perm:user-role:view";
-  export const PERM_USER_ROLE_ASSIGN = "perm:user-role:assign";
-  export const PERM_USER_ROLE_REVOKE = "perm:user-role:revoke";
-  
-  // 权限视图权限码
-  export const PERM_VIEW_EFFECTIVE_ROLES = "perm:view:effective-roles";
-  export const PERM_VIEW_RESOURCE_PERMISSIONS = "perm:view:resource-permissions";
-  export const PERM_VIEW_CHANGE_LOG = "perm:view:change-log";
-  
-  // 权限排查权限码
-  export const PERM_EXPLAIN_QUERY = "perm:explain:query";
-  export const PERM_EXPLAIN_DIAGNOSE = "perm:explain:diagnose";
-  ```
-- **VALIDATE**: 所有权限码格式符合 `{module}:{resource}:{action}`
-
-### Task 6: 更新路由配置
-
-- **ACTION**: 更新 `router/modules/perm.ts` 补充权限绑定
-- **IMPLEMENT**:
-  - 为所有路由添加 `meta.auths` 配置
-  - 确认隐藏页面 `showLink: false` 配置
-- **CHECKLIST**:
-  - [ ] `/perm/role` 绑定 `PERM_CODES.SYS_ROLE_VIEW`
-  - [ ] `/perm/user-role` 绑定 `PERM_CODES.PERM_USER_ROLE_VIEW`
-  - [ ] `/perm/resource` 绑定 `PERM_CODES.PERM_RESOURCE_VIEW`
-  - [ ] `/perm/view` 绑定 `PERM_CODES.PERM_VIEW`
-  - [ ] `/perm/explain` 绑定 `PERM_CODES.PERM_EXPLAIN`
-
-### Task 7: 修复资源依赖API
-
-- **ACTION**: 补充 `resourceDependency.ts` 缺失的方法
-- **IMPLEMENT**:
-  ```typescript
-  // 批量同步资源依赖
-  export const batchSyncDependencies = (data: DependencyBatchSyncRequest) => {
-    return http.request<{ success: boolean }>(
-      "post",
-      "/api/perm/resource-dependency/batch-sync",
-      { data }
-    );
-  };
-
-  // 检测依赖循环
-  export const checkDependencyCycle = (data: DependencyCycleCheckRequest) => {
-    return http.request<DependencyCycleCheckResult>(
-      "post",
-      "/api/perm/resource-dependency/check",
-      { data }
-    );
-  };
-  ```
-- **VALIDATE**: `pnpm typecheck` 通过
-
-### Task 8: 代码质量检查
-
-- **ACTION**: 运行完整的代码质量检查
-- **IMPLEMENT**:
-  ```bash
-  cd frontend
-  pnpm typecheck
-  pnpm lint:eslint
-  pnpm lint:prettier
-  pnpm build
-  ```
-- **VALIDATE**: 无错误，警告数 < 10
-
----
-
-## Testing Strategy
-
-### Static Analysis
-
-```bash
-cd frontend
-
-# 类型检查
-pnpm typecheck
-
-# ESLint检查
-pnpm lint:eslint
-
-# Prettier检查
-pnpm lint:prettier
-
-# 构建检查
-pnpm build
-```
-
-### Functional Testing
-
-| Test | Input | Expected Output |
-|------|-------|-----------------|
-| 权限视图页面 | 访问 `/perm/view` | 页面正常渲染，多Tab切换正常 |
-| 权限排查页面 | 访问 `/perm/explain` | 页面正常渲染，查询功能正常 |
-| 资源依赖批量同步 | 调用 batchSyncDependencies | API调用成功 |
-| 依赖循环检测 | 调用 checkDependencyCycle | 返回检测结果 |
-
----
-
-## Validation Commands
-
-### Static Analysis
-
-```bash
-cd frontend
-pnpm typecheck
-pnpm lint:eslint
-pnpm lint:prettier
-```
-
-EXPECT: 零编译错误，ESLint警告 < 10
-
-### Full Compile
-
-```bash
-pnpm build
-```
-
-EXPECT: 构建成功
+  - 记录仍需独立计划承接的能力
+  - 保证 `permissionView.ts`、权限码、路由入口可以被后续模块直接复用
+  - 为 `frontend-perm-api-mock.plan.md` 输出接口清单和场景清单
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] 所有API文件使用内联类型导入语法
-- [ ] `permissionView.ts` 包含完整的权限视图API
-- [ ] 权限视图页面功能完整（多Tab视图）
-- [ ] 权限排查页面功能完整
-- [ ] `constants/permission.ts` 包含所有需要的权限码
-- [ ] 路由配置包含完整的权限绑定
-- [ ] `resourceDependency.ts` 包含批量同步和循环检测方法
-- [ ] 全量编译通过，ESLint警告 < 10
+- [ ] 现有 `api/perm/*.ts` 使用统一的导入与请求模式
+- [ ] 现有权限中心页面的共享权限码和路由绑定已补齐
+- [ ] `permissionView.ts`、`views/perm/view/index.vue`、`views/perm/explain/index.vue` 的边界清晰
+- [ ] 本计划不再与 `frontend-perm-view-improvement.plan.md`、`frontend-perm-explain-module.plan.md` 重复抢占范围
+- [ ] 已为最终 `frontend-perm-api-mock.plan.md` 输出稳定的共享层基线
 
 ---
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| API变更导致不兼容 | Low | High | 与后端API文档对齐 |
-| 权限码命名冲突 | Low | Medium | 统一命名规范 |
-| 类型检查失败 | Medium | Low | 逐步修复类型问题 |
+| Risk                             | Likelihood | Impact | Mitigation                                             |
+| -------------------------------- | ---------- | ------ | ------------------------------------------------------ |
+| 已完成模块与下游模块仍然重复改动 | Medium     | Medium | 在本计划中只收敛共享层，不展开完整功能                 |
+| 壳层改动再次带入字段级契约假设   | Medium     | High   | 任何字段级契约都以下游模块计划和 controller / DTO 为准 |
+| mock 基线不稳定                  | Medium     | High   | 本计划结束时同步输出统一接口清单给 mock 计划           |

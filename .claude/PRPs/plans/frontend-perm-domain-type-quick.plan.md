@@ -10,7 +10,7 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 
 ## Problem → Solution
 
-后端API已存在（`domain.ts`, `type.ts`），但前端只有API层没有管理页面 → 快速开发两个独立的管理页面。
+后端业务域、类型定义和域配置API已存在，但前端只有部分API层和缺失页面 → 快速开发两个独立管理页面，并为域配置补齐独立API文件。
 
 ## Metadata
 
@@ -27,6 +27,7 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 ### 业务域管理页面 (`/perm/domain`)
 
 **功能范围：**
+
 - 业务域CRUD管理
 - 业务域配置管理（集成域配置）
 - 业务域与资源类型关联（可选Phase 2）
@@ -34,6 +35,7 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 ### 类型定义管理页面 (`/perm/type`)
 
 **功能范围：**
+
 - 类型定义CRUD管理（资源类型、主体类型、角色类型）
 - 操作权限管理集成（在同一页面管理）
 - 类型与操作权限关联
@@ -44,28 +46,29 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 
 ### 业务域模块
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `views/perm/domain/index.vue` | CREATE | 业务域管理主页面 |
-| `views/perm/domain/components/DomainForm.vue` | CREATE | 业务域表单组件 |
-| `views/perm/domain/components/DomainList.vue` | CREATE | 业务域列表组件 |
-| `views/perm/domain/components/DomainConfigPanel.vue` | CREATE | 域配置面板组件 |
+| File                                                 | Action | Justification    |
+| ---------------------------------------------------- | ------ | ---------------- |
+| `views/perm/domain/index.vue`                        | CREATE | 业务域管理主页面 |
+| `views/perm/domain/components/DomainForm.vue`        | CREATE | 业务域表单组件   |
+| `views/perm/domain/components/DomainList.vue`        | CREATE | 业务域列表组件   |
+| `views/perm/domain/components/DomainConfigPanel.vue` | CREATE | 域配置面板组件   |
 
 ### 类型定义模块
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `views/perm/type/index.vue` | CREATE | 类型定义管理主页面 |
-| `views/perm/type/components/TypeForm.vue` | CREATE | 类型表单组件 |
-| `views/perm/type/components/TypeList.vue` | CREATE | 类型列表组件 |
-| `views/perm/type/components/OperationConfigPanel.vue` | CREATE | 操作权限配置面板 |
+| File                                                  | Action | Justification      |
+| ----------------------------------------------------- | ------ | ------------------ |
+| `views/perm/type/index.vue`                           | CREATE | 类型定义管理主页面 |
+| `views/perm/type/components/TypeForm.vue`             | CREATE | 类型表单组件       |
+| `views/perm/type/components/TypeList.vue`             | CREATE | 类型列表组件       |
+| `views/perm/type/components/OperationConfigPanel.vue` | CREATE | 操作权限配置面板   |
 
 ### 配置更新
 
-| File | Action | Justification |
-|------|--------|---------------|
-| `constants/permission.ts` | UPDATE | 补充权限码 |
-| `router/modules/perm.ts` | UPDATE | 添加新路由 |
+| File                       | Action | Justification                         |
+| -------------------------- | ------ | ------------------------------------- |
+| `api/perm/domainConfig.ts` | CREATE | 域配置独立API层，不再并入 `domain.ts` |
+| `constants/permission.ts`  | UPDATE | 补充权限码                            |
+| `router/modules/perm.ts`   | UPDATE | 添加新路由                            |
 
 ---
 
@@ -99,33 +102,79 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 
 ### Task 3: Update API Files
 
-- **ACTION**: 补充域配置API方法到domain.ts
+- **ACTION**: 新建独立域配置API文件，不再把域配置方法并入 `domain.ts`
 - **IMPLEMENT**:
+
   ```typescript
-  // 添加到 api/perm/domain.ts
-  
+  // api/perm/domainConfig.ts
+  import { http } from "@/utils/http";
+
+  export interface DomainConfigItem {
+    id: number;
+    tenantId: number;
+    bizDomainId: number;
+    configType: string;
+    extra: string;
+    updatedAt: string;
+  }
+
+  export interface DomainConfigListResult {
+    success: boolean;
+    data: {
+      items: Array<DomainConfigItem>;
+    };
+  }
+
+  export interface DomainConfigSaveRequest {
+    domainCode: string;
+    configType: string;
+    extra: string;
+  }
+
   export const getDomainConfigList = (data: { domainCode: string }) => {
     return http.request<DomainConfigListResult>(
       "post",
       "/api/perm/domain-config/list",
-      { data }
+      { data },
+    );
+  };
+
+  export const getDomainConfigDetail = (data: {
+    domainCode: string;
+    configType: string;
+  }) => {
+    return http.request<{ success: boolean; data: DomainConfigItem }>(
+      "post",
+      "/api/perm/domain-config/detail",
+      { data },
     );
   };
 
   export const saveDomainConfig = (data: DomainConfigSaveRequest) => {
-    return http.request<DomainConfigActionResult>(
+    return http.request<{ success: boolean; data: DomainConfigItem }>(
       "post",
       "/api/perm/domain-config/save",
-      { data }
+      { data },
+    );
+  };
+
+  export const deleteDomainConfig = (data: { ids: Array<number> }) => {
+    return http.request<{ success: boolean }>(
+      "post",
+      "/api/perm/domain-config/remove",
+      { data },
     );
   };
   ```
+
+- **NOTE**: `domain.ts` 保持业务域CRUD职责；`DomainConfigPanel` 需要的域名称和配置展示文案由当前选中的业务域上下文与前端元数据补齐。
 - **VALIDATE**: `pnpm typecheck` 通过
 
 ### Task 4: Update Permissions
 
 - **ACTION**: 补充权限码常量
 - **IMPLEMENT**:
+
   ```typescript
   // 业务域管理
   export const PERM_DOMAIN_VIEW = "perm:domain:view";
@@ -184,17 +233,18 @@ As a 权限管理员, I want 独立的业务域和类型定义管理页面, So t
 
 ## Dependencies
 
-| 依赖 | 说明 |
-|------|------|
-| `domain.ts` | API文件已存在，需补充域配置方法 |
-| `type.ts` | API文件已存在，需补充操作权限管理 |
-| `operation.ts` | 已存在，类型定义页面需复用 |
+| 依赖              | 说明                              |
+| ----------------- | --------------------------------- |
+| `domain.ts`       | 业务域CRUD API已存在，可直接复用  |
+| `domainConfig.ts` | 需要新建，承接域配置API契约       |
+| `type.ts`         | API文件已存在，需补充操作权限管理 |
+| `operation.ts`    | 已存在，类型定义页面需复用        |
 
 ---
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| JSON编辑器组件选择 | Low | Low | 使用vue-json-viewer或monaco-editor |
-| 域配置API变更 | Low | Medium | 开发前确认API稳定性 |
+| Risk               | Likelihood | Impact | Mitigation                         |
+| ------------------ | ---------- | ------ | ---------------------------------- |
+| JSON编辑器组件选择 | Low        | Low    | 使用vue-json-viewer或monaco-editor |
+| 域配置API变更      | Low        | Medium | 开发前确认API稳定性                |
