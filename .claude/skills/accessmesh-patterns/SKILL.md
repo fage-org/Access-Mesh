@@ -13,7 +13,7 @@ metadata:
 
 # AccessMesh 通用开发模式
 
-本技能用于 AccessMesh 仓库级快速对齐。它不是权威规范的替代品；遇到冲突时，以 `plan/project-rules.md`、`AGENTS.md`、`.github/copilot-instructions.md` 和模块专用规则为准。
+本技能用于 AccessMesh 仓库级快速对齐。它不是权威规范的替代品；遇到冲突时，以 `docs/design/project-rules.md`、`AGENTS.md`、`.github/copilot-instructions.md` 和模块专用规则为准。
 
 ## 适用范围
 
@@ -173,12 +173,12 @@ docs(plan): 更新文档索引
 
 | 主题              | 文档                                       |
 | ----------------- | ------------------------------------------ |
-| 工程规范          | `plan/project-rules.md`                    |
+| 工程规范          | `docs/design/project-rules.md`                    |
 | 项目上下文        | `AGENTS.md`                                |
-| 权限中心 API 契约 | `plan/permission-center/api-contract.md`   |
-| 权限中心核心流程  | `plan/permission-center/core-flows.md`     |
-| 权限中心实现设计  | `plan/permission-center/implementation.md` |
-| 表结构            | `plan/schema/*.sql`                        |
+| 权限中心 API 契约 | `docs/design/permission-center/api-contract.md`   |
+| 权限中心核心流程  | `docs/design/permission-center/core-flows.md`     |
+| 权限中心实现设计  | `docs/design/permission-center/implementation.md` |
+| 表结构            | `docs/design/schema/*.sql`                        |
 
 ## 使用建议
 

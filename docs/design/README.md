@@ -1,6 +1,6 @@
 # AccessMesh 设计文档索引
 
-本文档是 `plan/` 目录的唯一入口。后续查阅设计时优先从这里进入，避免误用归档文档中的旧接口或旧字段。
+本文档是 `docs/design/` 目录的入口。后续查阅设计时优先从这里进入，避免误用归档文档中的旧接口或旧字段。
 
 ## 权威来源
 
@@ -31,15 +31,15 @@
 | `permission-center/` | 权限中心的概念、API、流程、实现设计              |
 | `services/`          | Gateway、admin-service、example-service 设计     |
 | `schema/`            | 当前有效 PostgreSQL schema                       |
-| `archive/`           | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
+| `../archive/`        | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
 
-Claude 按需技能不放在 `plan/`；仓库级技能位于 `.claude/skills/`。
+Claude 按需技能位于 `.claude/skills/`。
 
 ## 归档记录
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `archive/2026-05-24/` | DDD 重构完成后归档：PermQueryEngine 分析/设计文档（3 篇）、过期 skills（细粒度权限检查）、未落地的服务权限设计、已完成的 PRPs plan 文件（2 篇） |
-| `archive/2026-04-28/` | plan/ 重整前的旧版长文档和讨论清单                                                                                                              |
+| `../archive/2026-05-24/` | DDD 重构完成后归档：PermQueryEngine 分析/设计文档（3 篇）、过期 skills（细粒度权限检查）、未落地的服务权限设计、已完成的 PRPs plan 文件（2 篇） |
+| `../archive/2026-04-28/` | 文档重整前的旧版长文档和讨论清单                                                                                                              |
 
-`archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes`、`AuthorizationService`、`ConfigManageServiceImpl` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页”权威来源”列出的文档为准。
+`../archive/` 下文档可能包含旧接口、旧字段或已废弃设计，例如 `includeDataScope`、`query-data-scopes`、`AuthorizationService`、`ConfigManageServiceImpl` 等。实现时不要直接引用归档文档；如归档内容与权威文档冲突，以本页”权威来源”列出的文档为准。

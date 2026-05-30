@@ -15,7 +15,7 @@ admin-service 中 `RoleProxyServiceImpl` 和 `AuthServiceImpl` 通过 `Map<Strin
 ## Metadata
 
 - **Complexity**: Medium
-- **Source PRD**: `plan/permission-center-refactor-impact-analysis.md`
+- **Source PRD**: `docs/design/permission-center-refactor-impact-analysis.md`
 - **Estimated Files**: 6-8
 - **前置条件**: perm-sdk-typing 计划完成（Feign 客户端返回值已类型化）
 

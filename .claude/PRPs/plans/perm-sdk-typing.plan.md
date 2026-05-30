@@ -15,7 +15,7 @@ Feign 客户端 8/14 方法返回 `Map<String, Object>`，部分关键 DTO 仅�
 ## Metadata
 
 - **Complexity**: Medium
-- **Source PRD**: `plan/permission-center-refactor-impact-analysis.md`
+- **Source PRD**: `docs/design/permission-center-refactor-impact-analysis.md`
 - **Estimated Files**: 15-20
 - **前置条件**: permission-center DDD 重构已完成（API 路径和响应结构稳定）
 

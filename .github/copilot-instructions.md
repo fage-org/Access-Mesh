@@ -1,7 +1,7 @@
 # GitHub Copilot 项目开发规范指令
 
 > 本文件作为 GitHub Copilot 的上下文指令。在生成任何代码时，必须严格遵守以下所有规范。
-> 完整规范文档见 `plan/project-rules.md`。
+> 完整规范文档见 `docs/design/project-rules.md`。
 
 ---
 

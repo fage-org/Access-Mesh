@@ -15,7 +15,7 @@ Gateway 使用本地 `AuthCheckRequest`（含 `userId` Long）发送请求，但
 ## Metadata
 
 - **Complexity**: Medium
-- **Source PRD**: `plan/permission-center-refactor-impact-analysis.md`
+- **Source PRD**: `docs/design/permission-center-refactor-impact-analysis.md`
 - **Estimated Files**: 8-10
 - **前置条件**: perm-sdk-typing 计划完成（perm-common 包含 CheckInterfaceReq/CheckInterfaceResp）
 

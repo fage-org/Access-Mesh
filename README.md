@@ -35,18 +35,18 @@ Gateway (8080)
 
 ## 项目状态
 
-**设计完成，待编码实现。** 设计文档入口见 [plan/README.md](plan/README.md)。
+**设计完成，待编码实现。** 设计文档入口见 [docs/README.md](docs/README.md)。
 
 ## 文档
 
 | 文档 | 内容 |
 |------|------|
-| [文档索引](plan/README.md) | 设计文档入口、权威来源、阅读顺序 |
-| [架构设计](plan/architecture.md) | 微服务整体架构、服务职责、模块划分 |
-| [权限中心概念模型](plan/permission-center/overview.md) | 权限模型、角色模型、范围权限模型 |
-| [权限中心 API 契约](plan/permission-center/api-contract.md) | 对外 API 路径、请求体、响应体、错误原因 |
-| [权限中心核心流程](plan/permission-center/core-flows.md) | 核心权限管理场景与调用链路 |
-| [开发规范](plan/project-rules.md) | 接口、异常、日志、事务、安全等规范 |
+| [文档索引](docs/README.md) | 设计文档入口、权威来源、阅读顺序 |
+| [架构设计](docs/design/architecture.md) | 微服务整体架构、服务职责、模块划分 |
+| [权限中心概念模型](docs/design/permission-center/overview.md) | 权限模型、角色模型、范围权限模型 |
+| [权限中心 API 契约](docs/design/permission-center/api-contract.md) | 对外 API 路径、请求体、响应体、错误原因 |
+| [权限中心核心流程](docs/design/permission-center/core-flows.md) | 核心权限管理场景与调用链路 |
+| [开发规范](docs/design/project-rules.md) | 接口、异常、日志、事务、安全等规范 |
 
 ## 快速开始（开发中）
 
@@ -55,9 +55,9 @@ Gateway (8080)
 docker compose up -d nacos redis postgresql
 
 # 2. 初始化数据库
-psql -h localhost -U postgres -f plan/schema/permission-center.sql
-psql -h localhost -U postgres -f plan/schema/admin-service.sql
-psql -h localhost -U postgres -f plan/schema/example-service.sql
+psql -h localhost -U postgres -f docs/design/schema/permission-center.sql
+psql -h localhost -U postgres -f docs/design/schema/admin-service.sql
+psql -h localhost -U postgres -f docs/design/schema/example-service.sql
 
 # 3. 启动服务（后续步骤，待编码）
 mvn spring-boot:run
