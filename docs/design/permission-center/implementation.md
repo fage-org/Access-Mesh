@@ -315,7 +315,18 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 | `PermQuery.forScopeQuery`     | 范围查询 | 不提前返回，不评估，返回全部辅助信息                   |
 | `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录（`selectValidByRoleIds`），不按位过滤 |
 
-### 3.2 引擎管线流程
+### 3.2 引擎核心类
+
+| 类 | 包路径 | 职责 |
+|---|---|---|
+| `PermQuery.java` | `dto.query` | 入参 DTO + 8 个工厂方法 |
+| `PermResult.java` | `dto.query` | 统一返回对象 |
+| `PermQueryEngine.java` | `service.domain.impl` | 核心引擎 `query()` 方法 |
+| `OperationPermissionUtils.java` | `util` | 位运算/批量过滤工具 |
+| `ConditionEvalUtils.java` | `util` | 条件子项静态评估 |
+| `PermResultUtils.java` | `util` | DTO 转换工具 |
+
+### 3.3 引擎管线流程
 
 ```
 PermQueryEngine.query(PermQuery q)
