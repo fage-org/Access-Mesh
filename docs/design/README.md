@@ -12,15 +12,13 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
-| Service 层重构审查    | [permission-center/service-layer-review.md](permission-center/service-layer-review.md) |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
-| 前端集成计划          | [frontend-integration.md](frontend-integration.md)                                     |
 
 ## 推荐阅读顺序
 
 1. 先读 [project-rules.md](project-rules.md)，确认接口、分层、DTO、异常、数据库等通用约束。
 2. 再读 [architecture.md](architecture.md)，理解 Gateway、admin-service、permission-center、example-service 的边界。
-3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。了解重构历史可读 [permission-center/service-layer-review.md](permission-center/service-layer-review.md)。
+3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计。
 5. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
 
@@ -39,6 +37,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../archive/2026-05-30/` | 统一权限查询引擎重构文档（2 篇 PlantUML）、重构实施完成记录、前端集成计划（前端已删除）、Service 层重构审查（Phase 1-5 完成）、跨模块影响分析 |
 | `../archive/2026-05-24/` | DDD 重构完成后归档：PermQueryEngine 分析/设计文档（3 篇）、过期 skills（细粒度权限检查）、未落地的服务权限设计、已完成的 PRPs plan 文件（2 篇） |
 | `../archive/2026-04-28/` | 文档重整前的旧版长文档和讨论清单                                                                                                              |
 

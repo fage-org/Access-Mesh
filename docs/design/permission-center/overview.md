@@ -147,13 +147,13 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 
 ## 关联文档
 
-| 文档                                                               | 说明                                     |
-| ------------------------------------------------------------------ | ---------------------------------------- |
-| [api-contract.md](api-contract.md)                                 | 外部 API 路径、请求体、响应体、错误码    |
-| [core-flows.md](core-flows.md)                                     | 核心场景端到端调用链路                   |
-| [implementation.md](implementation.md)                             | 分层架构、类清单、关键机制实现细节       |
-| [service-layer-review.md](service-layer-review.md)                 | Service 层重构分析（Phase 1-5 完成总结） |
-| [../schema/permission-center.sql](../schema/permission-center.sql) | 表结构 DDL                               |
+| 文档                                                                                                 | 说明                                     |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| [api-contract.md](api-contract.md)                                                                   | 外部 API 路径、请求体、响应体、错误码    |
+| [core-flows.md](core-flows.md)                                                                       | 核心场景端到端调用链路                   |
+| [implementation.md](implementation.md)                                                               | 分层架构、类清单、关键机制实现细节       |
+| [../../archive/2026-05-30/service-layer-review.md](../../archive/2026-05-30/service-layer-review.md) | Service 层重构分析（Phase 1-5 完成总结） |
+| [../schema/permission-center.sql](../schema/permission-center.sql)                                   | 表结构 DDL                               |
 
 ## 非权威内容
 

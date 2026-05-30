@@ -7,12 +7,17 @@
 | `permission-check-flow.puml` | 重构前权限查询 5 条独立链路时序图 | 架构已统一为 PermQueryEngine |
 | `permission-unified-plan.md` | 统一权限查询引擎实施完成记录 (v3) | 内容已合并到 `docs/design/permission-center/` |
 | `permission-unified-query-plan.puml` | 统一查询引擎 v2 架构时序图 | 架构已在 `implementation.md` 中描述 |
+| `frontend-integration.md` | 前端集成计划（pure-admin-thin 方案） | 前端项目已删除，需重新设计 |
+| `permission-center-refactor-impact-analysis.md` | DDD 重构跨模块影响分析 | Phase 1-5 重构已完成，问题已修复或过时 |
+| `service-layer-review.md` | Service 层重构审查（Phase 1-5 完成总结） | 重构已完成，内容已合并到 `implementation.md` |
 
 ## 内容去向
 
-- **重构收益数据**（代码行数变化、入口迁移状态）→ 已合并到 `service-layer-review.md`
+- **重构收益数据**（代码行数变化、入口迁移状态）→ 已合并到 `service-layer-review.md`（已归档）
 - **引擎核心类清单** → 已合并到 `implementation.md` §3.2
 - **PlantUML 时序图** → 历史参考，如需查看请翻阅 git 历史
+- **auto-grant TODO** → 已合并到 `implementation.md` §4.2 批量授权执行链路
+- **Gateway 权限门禁变更** → 已合并到 `core-flows.md` §9
 
 ## 历史背景
 

@@ -204,6 +204,8 @@ PermQueryEngine.query(PermQuery)
 
 **Gateway 接口权限检查**：Gateway 调用 `POST /api/perm/auth/check-interface`，服务端匹配 API 映射后直接走 `PermQueryEngine.query(PermQuery.forInterfaceCheck())` 做 `API.ACCESS` 判定，不额外叠加其他资源类型 VIEW 门禁。
 
+> **注意**：`getEffectivePermissions` 的权限门禁从 `SYSTEM_CONFIG.VIEW` 改为按 targetType 对应的资源类型 VIEW 权限判定。
+
 ## 10. 场景七：业务服务 SDK 鉴权与权限查询
 
 目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`。

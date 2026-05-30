@@ -317,14 +317,14 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 
 ### 3.2 引擎核心类
 
-| 类 | 包路径 | 职责 |
-|---|---|---|
-| `PermQuery.java` | `dto.query` | 入参 DTO + 8 个工厂方法 |
-| `PermResult.java` | `dto.query` | 统一返回对象 |
-| `PermQueryEngine.java` | `service.domain.impl` | 核心引擎 `query()` 方法 |
-| `OperationPermissionUtils.java` | `util` | 位运算/批量过滤工具 |
-| `ConditionEvalUtils.java` | `util` | 条件子项静态评估 |
-| `PermResultUtils.java` | `util` | DTO 转换工具 |
+| 类                              | 包路径                | 职责                    |
+| ------------------------------- | --------------------- | ----------------------- |
+| `PermQuery.java`                | `dto.query`           | 入参 DTO + 8 个工厂方法 |
+| `PermResult.java`               | `dto.query`           | 统一返回对象            |
+| `PermQueryEngine.java`          | `service.domain.impl` | 核心引擎 `query()` 方法 |
+| `OperationPermissionUtils.java` | `util`                | 位运算/批量过滤工具     |
+| `ConditionEvalUtils.java`       | `util`                | 条件子项静态评估        |
+| `PermResultUtils.java`          | `util`                | DTO 转换工具            |
 
 ### 3.3 引擎管线流程
 
@@ -551,6 +551,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 入口操作日志由 @OperationLog AOP 自动记录
     }
 ```
+
+> **TODO**: `auto-grant` 自动补全功能（`resource_dependency` 自动补全级联逻辑）尚未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 的版本递增由调用方在 `TransactionSynchronization.afterCommit` 中负责，而非方法内部自行递增。
 
 ## 5. 缓存设计
 
