@@ -1,0 +1,26 @@
+allowedDeprecatedVersions:
+  are-we-there-yet: "*"
+  sourcemap-codec: "*"
+  lodash.isequal: "*"
+  domexception: "*"
+  w3c-hr-time: "*"
+  inflight: "*"
+  npmlog: "*"
+  rimraf: "*"
+  stable: "*"
+  gauge: "*"
+  abab: "*"
+  glob: "*"
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@tailwindcss/oxide": false
+  core-js: true
+  es5-ext: true
+  esbuild: true
+  typeit: true
+  vue-demi: true
+
+shellEmulator: true
+shamefullyHoist: true
+strictPeerDependencies: false
