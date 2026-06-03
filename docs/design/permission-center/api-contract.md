@@ -10,6 +10,7 @@
 - **保留扩展空间**：响应 `data` 必须是对象，列表也用 `{ "items": [...] }` 包装。
 - **安全多租户**：租户、操作者、调用来源优先来自 Header/Token/SecurityContext，不信任请求体里的同名字段。
 - **SDK 友好**：DTO 进入独立 `permission-center-api` 或 `perm-common` 契约模块，不复用服务端内部 `Req/Resp`。
+- **多形态接入**：对外交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言 HTTP 接入文档三层，稳定 API 契约必须同时服务这三类调用方。
 
 ## 2. 接口分层
 
@@ -380,7 +381,7 @@
       "pathPattern": "/api/user/list",
       "hasCondition": false,
       "conditionId": null,
-	      "scopeAll": false
+      "scopeAll": false
     },
     {
       "serviceCode": "admin-service",

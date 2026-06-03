@@ -19,7 +19,7 @@
 | **Resource（资源）**               | `resource_entity`, `operation_permission`                       | 权限资源（菜单、按钮、接口、报表、数据范围等）建模为 `resource_entity`；操作（VIEW/MANAGE/DATA_READ/DATA_EDIT）建模为 `operation_permission`。                                                                                                            |
 | **Grant（授权）**                  | `role_resource_permission`                                      | 角色对资源操作的授权事实（granted 位掩码），支持条件绑定（conditionId）、子权限挂载（dependOn）、全量范围标记（scopeAll）、授权来源追踪（grantSource）。                                                                                                  |
 | **ServiceIntegration（服务集成）** | `service_config`, `resource_api_mapping`, `resource_dependency` | 接入服务的注册信息和接口清单；接口与 Gateway 路径的映射储存在 `resource_api_mapping`；资源依赖规则表 `resource_dependency` 表达"授权源资源时自动补全目标资源权限"。API 类型资源由同步自动创建，标记 `ownerServiceCode` 和 `maintainSource=SERVICE_SYNC`。 |
-| **DomainConfig（域配置）**         | `biz_domain`, `domain_config`, `type_definition`                | 业务域是管理分区而非子租户；域配置约束域内允许的角色、资源、操作和子权限；类型定义（type_definition）完成 code-to-value 的稳定映射。                                                                                                                      |
+| **DomainConfig（域配置）**         | `biz_domain`, `domain_config`, `type_definition`                | 业务域是管理分区而非子租户；仅用于角色、资源、操作和子权限的分类与后台管理视角隔离；域配置约束域内允许的角色、资源、操作和子权限；类型定义（type_definition）完成 code-to-value 的稳定映射。                                                              |
 | **PermissionRule（权限规则）**     | `permission_condition`, `permission_conflict_rule`              | 可复用权限条件（时间范围/IP 白名单/黑名单）和冲突规则（角色互斥/权限互斥），在 PermQueryEngine 查询管线中统一评估。                                                                                                                                       |
 | **Audit（审计）**                  | `permission_version`, `permission_change_log`, `operation_log`  | 权限版本号（缓存失效驱动）、权限变更日志（diff 快照）和操作日志（入口写操作记录）。入口日志由 `@OperationLog` AOP 自动记录；内部动态日志（diff 快照、冲突通知）由 `AuditDomainService` 显式调用。                                                         |
 | **SystemConfig（系统配置）**       | `system_config`                                                 | 租户级配置（角色唯一性、默认策略等）。                                                                                                                                                                                                                    |
@@ -46,6 +46,8 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - `GROUP_ROLE`：分组角色，用于组织角色集合，不直接配置权限。首期通过 `extra.basicRoleIds` 简化关联，缓存构建阶段展开。
 - `BASIC_ROLE`：基础角色，承载可复用权限配置。
 
+在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin-service 主维护组织树和 `user-org` 关系；permission-center 保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
+
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 
 ## 资源与操作
@@ -53,6 +55,7 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode` 等稳定字符串编码；内部存储和计算使用 `type_definition.type_value`。
 - `type_value` 在同一租户和同一 `type_key` 内全局唯一，不随业务域重复；业务域只影响 `type_code` 解析范围和管理分区。
 - `domainCode` 是管理分区和命名空间，不是子租户。传入时查询该域和全局对象，不传时只查询全局对象。
+- 业务域不承担数据权限载体、运行时鉴权主链或资源归属重构职责；其主要作用是降低后台管理复杂度，让不同业务管理员聚焦各自负责的角色和权限集合。
 - 资源通过 `resourceTypeCode + resourceCode + codeType + domainCode` 定位。
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
 - 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。

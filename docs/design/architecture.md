@@ -8,12 +8,12 @@
 
 ### 1.1 服务清单
 
-| 服务                          | 技术栈                         | 数据库                 | 端口(建议) | 说明                                                         |
-| ----------------------------- | ------------------------------ | ---------------------- | ---------- | ------------------------------------------------------------ |
-| gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                     |
-| admin-service（管理服务）     | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9100       | 用户、组织、菜单、字典、通知、文件、审计、任务调度、系统设置 |
-| permission-center（权限中心） | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9200       | 通用权限管理与鉴权引擎（已完成设计）                         |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 权限中心对接演示 + 权限管控功能展示                          |
+| 服务                          | 技术栈                         | 数据库                 | 端口(建议) | 说明                                                                   |
+| ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
+| gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
+| admin-service（管理服务）     | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9100       | 用户、组织、菜单、认证与管理端前端聚合入口；组织既是业务树也是角色容器 |
+| permission-center（权限中心） | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9200       | 通用权限管理与鉴权引擎（已完成设计）                                   |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示权限中心对接与权限管控能力         |
 
 ### 1.2 基础设施
 
@@ -72,9 +72,24 @@
 | gateway           | admin-service     | HTTP (转发)    | 登录请求透传、管理接口转发                                                                   |
 | gateway           | permission-center | OpenFeign/HTTP | 调用 `POST /api/perm/auth/check-interface` 做接口级鉴权；`interface-snapshot` 仅作为可选优化 |
 | gateway           | example-service   | HTTP (转发)    | 演示服务接口转发                                                                             |
-| admin-service     | permission-center | OpenFeign      | 用户同步、角色查询/复用、菜单资源同步、鉴权查询                                              |
+| admin-service     | permission-center | OpenFeign      | 用户同步、user-org 到 user-role 映射、角色查询/复用、菜单资源同步、鉴权查询                  |
 | example-service   | permission-center | OpenFeign      | 鉴权查询、权限数据查询                                                                       |
 | permission-center | admin-service     | OpenFeign      | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                                           |
+
+### 1.5 管理端前后端交互原则
+
+- 管理端前端统一通过 Gateway 访问 admin-service，由 admin-service 作为前端唯一后端聚合入口；前端不直接调用 permission-center。
+- 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/auth/login` 获取 token 与最小身份信息后，再调用 `/auth/userinfo` 与 `/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
+- 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 admin-service 聚合下发，按钮权限由稳定 `permissions` 权限码表达。
+- 前端本地 mock 可以保留并改造，用于基础前端验证、联调兜底和组件级演示，但不作为长期生产契约或路由权限事实源。
+- 管理端前端最终只保留一套权限呈现模型；模板式 `auths`、`meta.roles` 等逻辑仅允许作为过渡兼容，不再作为新增设计的基准。
+
+### 1.6 主体、业务域与接入层原则
+
+- admin-service 中的组织既是业务树，也是角色容器。组织结构由 admin-service 主维护；与组织相关的角色、用户角色事实最终落在 permission-center。
+- `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由 admin-service 编排触发，permission-center 负责保存最终权限事实。
+- 业务域只承担角色、权限分类和后台管理视角隔离职责，不承担数据权限载体、运行时鉴权主链或资源归属重构职责。
+- 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
 ---
 

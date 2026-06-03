@@ -4,21 +4,21 @@
 
 ## 职责边界
 
-- 提供 AccessMesh 权限中心接入演示。
+- 在核心主线稳定后，提供 AccessMesh 权限中心真实接入示例。
 - 覆盖接口鉴权、菜单权限、按钮权限、范围权限、条件权限、权限查询等典型场景。
-- 提供 SDK Starter 的参考集成方式。
+- 提供 Spring Boot starter、普通 Java SDK 和其他语言接口文档的参考集成方式与验证样板。
 - 不作为生产业务系统模板的强制实现，只用于验证和展示权限中心能力。
 
 ## 演示场景
 
-| 场景 | 目标 |
-|------|------|
-| 服务注册与接口同步 | 展示业务服务如何向权限中心全量同步接口资源 |
-| 接口权限 | 展示 Gateway + permission-center 接口级鉴权 |
-| 菜单/按钮权限 | 展示前端资源和操作权限控制 |
-| 报表范围权限 | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeAll=true` |
-| 条件权限 | 展示时间、IP 等条件评估 |
-| 权限查询 | 展示 `auth/check`、`auth/query-resources`、`auth/query-scopes` |
+| 场景               | 目标                                                           |
+| ------------------ | -------------------------------------------------------------- |
+| 服务注册与接口同步 | 展示业务服务如何向权限中心全量同步接口资源                     |
+| 接口权限           | 展示 Gateway + permission-center 接口级鉴权                    |
+| 菜单/按钮权限      | 展示前端资源和操作权限控制                                     |
+| 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeAll=true`     |
+| 条件权限           | 展示时间、IP 等条件评估                                        |
+| 权限查询           | 展示 `auth/check`、`auth/query-resources`、`auth/query-scopes` |
 
 ## 报表范围权限推荐模型
 
@@ -31,9 +31,11 @@
 
 ## SDK 参考
 
-- `perm-client-spring-boot-starter`：资源鉴权和权限查询客户端。
-- `perm-data-spring-boot-starter`：范围权限过滤参考实现。
-- `perm-gateway-spring-boot-starter`：Gateway 鉴权插件参考实现。
+- Spring Boot 项目：以 `perm-client-spring-boot-starter` 为核心，结合 `perm-data-spring-boot-starter`、`perm-gateway-spring-boot-starter` 提供自动配置式接入参考。
+- 普通 Java 项目：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。
+- 其他语言项目：通过稳定 HTTP API 契约和接入文档对接，不要求依赖 Java SDK。
+
+当前 starter 模块是接入形态与能力边界的参考实现；最终交付形态需要在核心主线稳定后再统一收敛与裁决。
 
 具体契约以 `../permission-center/api-contract.md` 为准。
 
