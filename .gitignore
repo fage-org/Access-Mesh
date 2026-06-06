@@ -58,5 +58,8 @@ frontend/.idea/
 # Frontend tests coverage
 frontend/tests/**/coverage/
 
+# Reference projects (not part of this repo)
+reference/
+
 # OpenCode / Claude Code
 .claude/worktrees/

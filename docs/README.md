@@ -39,6 +39,7 @@ docs/
 | 权限中心 API 契约    | [design/permission-center/api-contract.md](design/permission-center/api-contract.md)                                                 |
 | 权限中心核心调用链路 | [design/permission-center/core-flows.md](design/permission-center/core-flows.md)                                                     |
 | 权限中心实现设计     | [design/permission-center/implementation.md](design/permission-center/implementation.md)                                             |
+| 项目诊断与完善计划   | [design/improvement-plan.md](design/improvement-plan.md)                                                                              |
 | PostgreSQL 表结构    | [design/schema/](design/schema/)                                                                                                     |
 | Service 层重构审查   | [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)                                             |
 | 前端集成方案         | [archive/2026-05-30/frontend-integration.md](archive/2026-05-30/frontend-integration.md)                                             |

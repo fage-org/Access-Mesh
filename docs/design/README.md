@@ -12,6 +12,7 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
+| 项目诊断与完善计划    | [improvement-plan.md](improvement-plan.md)                                             |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
 
 ## 推荐阅读顺序
