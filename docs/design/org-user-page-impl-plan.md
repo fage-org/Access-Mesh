@@ -1,0 +1,173 @@
+# 「组织与用户」融合页 · 设计 / 实现计划
+
+> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.1，本计划的门禁来源）、`frontend/docs/design/frontend/api-gap-analysis.md`（接口契约）。
+> 已锁定设计决策：
+> ① 岗位 = 平铺列表（全局，独立于左树选中组织）；② 成员含子级 = 子树匹配；
+> ③ 默认组织树初始选中；④ 主组织用 radio 标记；⑤ 初始密码先弹窗（Phase 2 后端定下发）；
+> ⑥ 组织 CRUD 主入口 = 树节点 hover 操作 + 拖拽移动；⑦ 用户详情弹窗只读展示所属岗位；
+> ⑧ 目录/路由 name 不改（`views/system/user/`，仅改显示标题）。
+
+---
+
+## 0. 现状基线（已核对源码）
+
+| 模块 | 文件 | 现状 | 完成度 |
+|------|------|------|--------|
+| 页面壳 | `views/system/user/index.vue` | 左 `ReOrgTreePanel` + 右（搜索栏 + `PureTableBar` + `pure-table`）；行点击弹 `UserDetailPanel`；grid 布局已按 layout-patterns | 成员半边 ✅ |
+| 成员逻辑 | `views/system/user/utils/hook.ts` | `useUserManage`：`loadTable(orgId 过滤)`、搜索、分页、增删改 | ✅ |
+| 组织树 | `components/ReOrgTreePanel/src/index.vue` | 选择型：加载默认树（`isDefault`）、`org-change` 事件、compact popover；**只读，无 CRUD** | 读 ✅ / 写 ❌ |
+| 用户详情 | `views/system/user/components/UserDetailPanel.vue` | 组织归属（`/user-org/*` 增删/设主）✅；角色列表（`/user-role/*`，**含 POSITION**，候选用硬编码 mock）；权限查询占位 | 部分 ⚠️ |
+| 用户表单 | `views/system/user/form.vue` | create/edit + compact 组织选择 | ✅ |
+| API | `api/user-manage.ts` | `/org/tree`、`/org-tree-config/page`、`/user/*`、`/user-org/*`、`/user-role/*` | 成员侧 ✅ |
+| Mock | `mock/user-manage.ts` | 全量；`/user/page` **已实现子树匹配**（`getDescendantOrgIds`）；`/user/create` 返回 `initialPassword` | ✅ |
+| 路由 | `router/modules/system.ts` | `/system/user`，标题 **"用户管理"** | 待改名 |
+
+**结论**：成员管理（用户 CRUD + 详情面板组织归属/角色）约 70% 已就绪；**组织 CRUD（矩阵 A）、Tab 结构、岗位 Tab、权限门禁（hasPerms/降级）几乎为零**。
+
+---
+
+## 1. 目标组件结构
+
+```
+组织与用户页（index.vue）
+├─ 左：ReOrgTreePanel（默认树；过滤 orgType≠岗位；加 editable: 增/改/删/移）
+└─ 右：<el-tabs>（上下文 = 左树选中组织）
+   ├─ Tab 组织信息   OrgInfoTab.vue   选中组织详情 + 编辑
+   ├─ Tab 成员(含子级) MemberTab.vue   现表格迁入 + 启停/重置密码（子树过滤）
+   ├─ Tab 岗位        PositionTab.vue  岗位平铺表（orgType=岗位）+ CRUD + 挂载用户
+   └─ Tab 子组织      SubOrgTab.vue    选中组织的直接子级 + 增/改/删
+   └─（行点击用户 → UserDetailPanel 弹窗：组织归属 + 所属岗位(只读) + 功能角色）
+辅助：OrgForm.vue（组织 create/edit 弹窗）
+```
+
+> Tab 之外，组织的"新增根/移动节点"放在树工具栏 + 节点 hover 操作 + 拖拽；`OrgInfoTab/SubOrgTab` 是补充入口。
+
+---
+
+## 2. 核心迁移：岗位「角色 → 特殊组织」
+
+**矛盾**：现 `UserDetailPanel` 把岗位当角色（`roleTypeCode=POSITION` + `relationOrgName`，经 `/user-role/assign`）；契约 v1.1 定为**特殊组织**（`ADMIN_ORG`，按 `orgType` / POSITION 树）。
+
+**迁移方案（借现有端点，零新关系概念）**：
+
+| 维度 | 迁移前（现状） | 迁移后（契约） |
+|------|---------------|---------------|
+| 岗位数据源 | `/user-role/list` 里的 POSITION 项 | `/org/*`（`orgType=岗位` / POSITION 树），平铺 |
+| 用户↔岗位 | `/user-role/assign\|revoke` | `/user-org/assign\|remove`（org 成员关系，`orgType` 区分） |
+| 用户的岗位 | 角色列表内联 | `getUserOrgs(userId)` 按 `orgType` 拆出（`OrgBrief.orgType` 已具备） |
+| 角色列表 | 含 ORG/POSITION/BASIC/GROUP | `otherRoles` 仅留**功能角色**（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG **和 POSITION** |
+| 门禁 | — | 岗位 CRUD `ADMIN_ORG:*`；挂载用户 `ADMIN_ORG:UPDATE`；配权红线 |
+
+**前端改动点**：`UserDetailPanel.otherRoles` 过滤加 `&& r.roleTypeCode !== "POSITION"`；新增"所属岗位"节（只读，`getUserOrgs` 按 `orgType` 拆出岗位型 org）；岗位逻辑移入 `PositionTab.vue`。
+
+---
+
+## 3. 任务分解（分阶段，文件级）
+
+### P0 — 前端骨架（纯 mock 可跑通，不依赖后端改造）
+
+| # | 任务 | 文件 | 要点 |
+|---|------|------|------|
+| P0-1 | 路由/标题改名 | `router/modules/system.ts` | `title:"组织与用户"`；`name` 可保留 `SystemUser`（避免动态路由/缓存键变动），加 `meta.auths`（见 §4） |
+| P0-2 | 右侧改 Tab 壳 | `index.vue` | 引入 `<el-tabs>`；现搜索栏+表格抽到 `MemberTab.vue`；Tab 切换保持左树选中态 |
+| P0-3 | 成员 Tab | `components/MemberTab.vue`(新) | 迁入现表格逻辑；新增**启用/禁用**（行内 `el-switch` 或操作列）+ **重置密码**操作 |
+| P0-4 | 组织树可编辑 | `ReOrgTreePanel/src/index.vue` | 加 `editable?:boolean`、`orgType?` 过滤；`editable` 时渲染节点 hover 操作（加子/改/删）+ 顶部"新增根组织"，emit `node-add/node-edit/node-delete/node-move`；compact/form 用法默认 `editable=false` 不受影响 |
+| P0-5 | 组织表单 | `components/OrgForm.vue`(新) | 字段对齐 `OrgCreateReq/OrgUpdateReq`：`orgName/code/orgType/parentOrgId/status/sort` |
+| P0-6 | 组织信息 Tab | `components/OrgInfoTab.vue`(新) | 展示选中组织详情 + 编辑按钮（复用 OrgForm） |
+| P0-7 | 子组织 Tab | `components/SubOrgTab.vue`(新) | 选中组织直接子级列表 + 增/改/删（复用 OrgForm） |
+| P0-8 | 岗位 Tab | `components/PositionTab.vue`(新) | 平铺表（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`） |
+| P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） |
+| P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 |
+
+**接口增量（P0 先 mock）**：
+- `POST /org/create` `/org/update` `/org/delete`（`IdReq`）；移动复用 `/org/update` 改 `parentOrgId`
+- 岗位：复用 `/org/tree`（按 `orgType`/POSITION 树）或加 `/org/page?orgType=`；挂载复用 `/user-org/*`
+- `POST /user/enable`（`IdsReq`，启停）、`POST /user/reset-password`（`{userId,newPassword?}`）
+- 功能角色候选来源：加 `POST /role/list`（仅 BASIC_ROLE/GROUP_ROLE/PERSONAL）
+
+### P1 — 后端契约（admin-service；契约 §8 遗留 + api-gap）
+
+| # | 任务 | 依据 |
+|---|------|------|
+| P1-1 | `/user/page` 落实 `orgId` **子树**语义（org 闭包/递归） | 决策②、api-gap §2 |
+| P1-2 | `/user/create` 增 `orgId`+初始密码返回 | api-gap §2 |
+| P1-3 | `/user/enable`、`/user/reset-password` 接前端 | 矩阵 B |
+| P1-4 | **成员门禁修正** `UserOrgServiceImpl`：`ADMIN_USER:UPDATE` → `ADMIN_ORG:UPDATE`（目标组织/岗位实例） | 契约 §8 遗留①、备注 ② |
+| P1-5 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |
+| P1-6 | 岗位经 `/org/*`(orgType) + `/user-org/*`；`/role/list` 仅功能角色 | 契约 §8 遗留③ |
+
+### P2 — 权限接线 + 降级
+
+| # | 任务 | 要点 |
+|---|------|------|
+| P2-1 | 按钮门控 | 全部操作按 §4 包 `<Perms>` / `v-perms` / `hasPerms()` |
+| P2-2 | 无权降级 | 隐藏/只读/Tab 隐藏（按矩阵第 4 列）；树 `editable = hasPerms('system:org:edit'...)` |
+| P2-3 | 菜单下发 | `sys_menu` 配置本页按钮权限码，确保 `hasPerms` 命中（前端 perm 串 ≠ 后端 AdminResourceType） |
+
+---
+
+## 4. 权限接线清单（hasPerms → 按钮 → 降级）
+
+| 区域 / 控件 | 前端 perm 码 | 乙层门禁（参考） | 无权表现 |
+|---|---|---|---|
+| 页面/树可见 | `system:org:view` | 菜单可见性 | 不可进 |
+| 树·新增根/子组织 | `system:org:add` | `ADMIN_ORG:CREATE` | 隐藏 |
+| 树·编辑/移动节点 | `system:org:edit` | `ADMIN_ORG:UPDATE` | 隐藏/禁拖拽 |
+| 树·删除组织 | `system:org:delete` | `ADMIN_ORG:DELETE` | 隐藏 |
+| 成员表可见 | `system:user:view` | 读（无服务门禁） | Tab 空 |
+| 成员·新增用户 | `system:user:add` | `ADMIN_USER:CREATE` | 隐藏 |
+| 成员·修改 | `system:user:edit` | `ADMIN_USER:UPDATE` | 隐藏 |
+| 成员·删除 | `system:user:delete` | `ADMIN_USER:DELETE` | 隐藏 |
+| 成员·启用/禁用 | `system:user:enable` | `ADMIN_USER:ENABLE` | 隐藏切换 |
+| 成员·重置密码 | `system:user:reset-pwd` | `ADMIN_USER:RESET_PASSWORD` | 隐藏 |
+| 详情·组织归属增删/设主 | `system:org:member` | `ADMIN_ORG:UPDATE`（目标组织） | 只读 |
+| 详情·分配/回收功能角色 | `system:user:role:assign` | `ROLE:MANAGE`（目标角色） | 只读 |
+| 岗位 Tab 可见 | `system:org:position:view` | 读 | Tab 隐藏 |
+| 岗位·增/改/删 | `system:org:position:add` / `:edit` / `:delete` | `ADMIN_ORG:CREATE/UPDATE/DELETE` | 隐藏 |
+| 岗位·挂载/卸载用户 | `system:org:position:assign` | `ADMIN_ORG:UPDATE`（岗位组织） | 只读 |
+| ❌ 配置岗位/角色权限 | —（不在本页） | `ADMIN_ROLE:GRANT/REVOKE` | 红线 |
+
+---
+
+## 5. 设计决策（已确认，写死）
+
+### 5.1 岗位 Tab 作用域 → **全局平铺**
+
+岗位 = 独立 POSITION 树，不与主组织树父子关系耦合。展示所有岗位（来自 POSITION 树），每行附带所属组织（`parentOrgId` → `orgName`）以便定位。
+
+**岗位的数据权限模型**（以"数据安全员"为例）：
+
+> 数据安全员岗位由部门 A 设立（`parentOrgId = 部门 A`），对部门 A 及以下组织有效。
+> 部门 A 下小组甲的用户张三被分配该岗位。
+> 张三只能审批/查看小组甲的范围——数据权限由后端按张三所属组织（小组甲）+ 岗位生效范围（部门 A 及以下）动态判定，前端不感知。
+
+这个模型与岗位=特殊组织（`ADMIN_ORG`、POSITION 树、`/user-org/*` 挂载）**完全兼容**，无需改设计。前端只需做"全局平铺展示 + 挂载/卸载用户"两项。
+
+### 5.2 用户详情弹窗 → **只读展示所属岗位**
+
+详情面板在"组织归属"与"功能角色"之间加「所属岗位」节。岗位信息只读（来自 `getUserOrgs` 按 `orgType=岗位` 拆分），挂载/卸载操作统一归岗位 Tab。
+
+### 5.3 组织 CRUD 主入口 → **树节点 hover 操作 + 拖拽移动**
+
+树节点 hover 显「加子/改/删」按钮，支持拖拽改 parent。OrgInfoTab/SubOrgTab 的编辑/删除按钮作为补充入口。`ReOrgTreePanel` 的 `editable` prop 默认 `false`，compact/form 路径不受影响。
+
+### 5.4 目录/路由名 → **暂不改**
+
+保留 `views/system/user/` 目录，路由 `name: "SystemUser"` 不动，仅改 `meta.title` 为 `"组织与用户"`。减小改动面、不碰缓存键。后续如需统一为 `org-user`，单独排期。
+
+---
+
+## 6. 验证与风险
+
+- **验证**：每阶段跑 `pnpm build && pnpm typecheck && pnpm lint`（项目无 test 脚本）；P0 用 mock 手测四 Tab + 树 CRUD + 启停/重置/挂载岗位。
+- **风险**：
+  - 岗位迁移触及"用户的 orgs 现在会混入岗位（按 orgType 拆分）"——需 `getUserOrgs` 返回稳定 `orgType`，P0 mock 要补岗位型组织数据。
+  - `ReOrgTreePanel` 是复用组件（form.vue 也用），加 `editable` 须保证默认关闭、compact 路径零回归。
+  - 前端 perm 串依赖 `sys_menu` 下发；P2 前按钮可先用 `hasPerms` 占位，菜单未配则默认隐藏，需与后端约定初始放开策略避免"全隐藏"。
+
+---
+
+## 7. 建议执行顺序
+
+`P0-1 → P0-2 → P0-10(mock 先行) → P0-3..P0-9 → 自测` ⇒ 前端骨架完整可演示（纯 mock）。
+随后 `P1`（后端并行）→ `P2`（接线降级）。P0 不被后端阻塞。
