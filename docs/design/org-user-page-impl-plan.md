@@ -1,6 +1,6 @@
 # 「组织与用户」融合页 · 设计 / 实现计划
 
-> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.1，本计划的门禁来源）、`frontend/docs/design/frontend/api-gap-analysis.md`（接口契约）。
+> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.1，本计划的门禁来源）、`docs/design/api-gap-analysis.md`（接口契约）。
 > 已锁定设计决策：
 > ① 岗位 = 平铺列表（全局，独立于左树选中组织）；② 成员含子级 = 子树匹配；
 > ③ 默认组织树初始选中；④ 主组织用 radio 标记；⑤ 初始密码先弹窗（Phase 2 后端定下发）；

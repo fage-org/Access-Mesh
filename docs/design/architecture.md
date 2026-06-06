@@ -295,10 +295,12 @@ admin-service                        permission-center
 
 #### 3.4.4 组织与权限中心同步
 
-- 管理服务的组织节点(sys_org) **同步为权限中心的 `abstract_role`（role_type=ORG）**
-- 每个组织节点对应一个 ORG 类型角色，用户关联到组织时 → 在权限中心写入 user_role(ROLE)
+- 管理服务的组织节点(sys_org) **按 orgType 同步为权限中心的 `abstract_role`**
+  - `orgType=DEPT` 等 → `role_type=ORG`（组织角色）
+  - `orgType=POSITION` → `role_type=POSITION`（职位/岗位角色）
+- 每个组织/岗位节点对应一个角色，用户关联到组织时 → 在权限中心写入 user_role(ROLE)
 - 组织树的层级关系通过 `abstract_role.parent_id` 树形结构体现
-- 这样用户通过所在组织自动获得该组织角色上配置的权限
+- 这样用户通过所在组织/岗位自动获得该组织角色上配置的权限
 
 ---
 

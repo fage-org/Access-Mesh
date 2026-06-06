@@ -13,6 +13,9 @@
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
 | 项目诊断与完善计划    | [improvement-plan.md](improvement-plan.md)                                             |
+| 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
+| 组织与用户·实现计划    | [org-user-page-impl-plan.md](org-user-page-impl-plan.md)                               |
+| API 核对清单            | [api-gap-analysis.md](api-gap-analysis.md)                                             |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
 
 ## 推荐阅读顺序

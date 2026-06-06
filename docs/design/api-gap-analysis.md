@@ -60,6 +60,8 @@ Phase 2 后端改造：`UserCreateReq` 新增 `orgId` + `primaryOrg` 字段，�
 
 ## 4. 用户-角色关联
 
+> ⚠️ **2026-06-07 设计变更**（来自 `docs/design/org-user-permission-contract.md` v1.1）：**岗位已从角色模型迁为组织模型**——岗位 = 特殊组织（`ADMIN_ORG`，按 `orgType` / POSITION 树区分），用户↔岗位走 `/user-org/*` 组织成员关系，不再走 `/user-role/*`。`/user-role/*` 仅服务于**功能角色**（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG 和 POSITION。
+
 ### 核心决策：A 方案 — admin 代理
 
 permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode` + `subjectExternalId` + `roleExternalId`），
@@ -83,15 +85,27 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 
 ---
 
-## 5. 待核对接口
+## 5. 本页待核对接口（组织与用户）
 
-| 接口 | 服务 | 状态 |
-|------|------|------|
-| 角色管理 CRUD | permission-center | ⏳ |
-| 权限授予查询 | permission-center | ⏳ |
-| 权限变更日志 | permission-center | ⏳ |
-| 业务域管理 | admin-service | ⏳ |
-| 类型定义管理 | admin-service | ⏳ |
+| 接口 | 服务 | 状态 | 备注 |
+|------|------|------|------|
+| `POST /org/create` | admin-service | 🔧 | P0 mock 先行；组织 CRUD 含岗位（特殊组织） |
+| `POST /org/update` | admin-service | 🔧 | 含移动（改 parentOrgId）、状态切换 |
+| `POST /org/delete` | admin-service | 🔧 | `IdReq` |
+| `POST /user/reset-password` | admin-service | 🔧 | Phase 2 接入 |
+| `POST /user/enable` | admin-service | 🔧 | `IdsReq`，批量启停 |
+
+## 6. 其他页面接口（不在本页核对范围）
+
+> 以下接口归属其他页面（角色管理、权限授予、审计日志等），由对应页面设计阶段核对。
+
+| 接口 | 服务 | 归属页面 | 状态 |
+|------|------|----------|------|
+| 角色管理 CRUD | permission-center | 角色管理（2.2） | ⏳ |
+| 权限授予查询 | permission-center | 权限授予（4.1）| ⏳ |
+| 权限变更日志 | permission-center | 权限变更日志（7.2）| ⏳ |
+| 业务域管理 | admin-service | 业务域（5.1）| ⏳ |
+| 类型定义管理 | admin-service | 类型定义（6.1）| ⏳ |
 
 ---
 
@@ -100,6 +114,6 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 | 状态 | 数量 | 说明 |
 |------|------|------|
 | ✅ 已对齐 | 8 | org/tree + user/page/create/update/delete + user-org/list/assign/remove/set-primary |
-| 🔧 需后端改造 | 4 | user/page(orgId)、user/create(orgId+password)、user-role/list/assign/revoke(代理) |
+| 🔧 需后端改造 | 9 | user/page(orgId)、user/create(orgId+password)、user-role/list/assign/revoke(代理，仅功能角色)、org/create/update/delete、user/reset-password、user/enable |
 | ❌ 重大差异 | 0 | |
-| ⏳ 待核对 | 5+ | 角色管理、权限授予、变更日志、业务域、类型定义 |
+| ⏳ 待核对（其他页面） | 5 | 角色管理、权限授予、变更日志、业务域、类型定义 |

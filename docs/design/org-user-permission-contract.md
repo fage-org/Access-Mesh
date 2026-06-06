@@ -3,7 +3,7 @@
 > 状态：**v1.1 定稿**（2026-06-06 完成第 8 节核对并按设计意图修正成员/岗位归属，源码佐证见该节）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
 > 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE`）为准；前端 perm 码用 `system:模块:动作` 约定。
 >
-> 关联文档：`frontend/docs/design/frontend/api-gap-analysis.md`（接口契约）、`docs/design/improvement-plan.md`（页面地图，需同步合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
+> 关联文档：`docs/design/api-gap-analysis.md`（接口契约）、`docs/design/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
 
 ---
 
