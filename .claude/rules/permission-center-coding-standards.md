@@ -468,3 +468,49 @@ engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写
 | `PermissionChangeLog`    | 同上                                                                  |
 
 域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现，参见 §9。
+
+## 19. AI 代码生成检查清单
+
+在 permission-center 模块生成或修改代码时，**必须**逐项检查：
+
+### 编码前检查
+
+| # | 检查点 | 参考 |
+|---|--------|------|
+| 1 | 是否有可复用的 DomainService 方法？ | §6 批量实体加载、§8 同层禁止横向调用 |
+| 2 | 命名是否符合分层规范？ | §3 命名规范 |
+| 3 | 是否引用了已删除的类？ | §17 已删除的类 |
+| 4 | 是否引用了已删除的实体字段（如 `bizDomainId`）？ | §18 已删除的实体字段 |
+| 5 | 批量操作是否使用 Mapper 批量方法（禁止循环单条）？ | §6 批量实体加载、§10 类型解析 |
+| 6 | 权限判定是否走 `engine.query()` / `engine.hasPermission()`？ | §2 权限查询铁律 |
+
+### 编码后检查
+
+| # | 检查点 | 参考 |
+|---|--------|------|
+| 7 | 事务边界是否在 AppService 声明？ | §5 事务边界 |
+| 8 | 异常类型是否正确（BizException / SystemException / SecurityException）？ | §2 异常边界 |
+| 9 | 操作日志是否使用 `@OperationLog` AOP（入口级）或 `AuditDomainService`（内部动态）？ | §7 操作日志 |
+| 10 | 缓存失效是否绑定事务提交后执行（`evictAfterCommit`）？ | §5 事务边界 |
+| 11 | 是否避免了 AppService 间横向注入？ | §8 同层禁止横向调用 |
+| 12 | 业务域过滤是否通过 `DomainClassifyService`（而非直查 `bizDomainId`）？ | §9 业务域分类 |
+
+### 文档与提交检查
+
+| # | 检查点 | 参考 |
+|---|--------|------|
+| 13 | 文档使用中文标题和描述 | 项目约定 |
+| 14 | Commit message 格式：`<type>(<scope>): <中文描述>` | Conventional Commits |
+| 15 | 提交前通过 `mvn compile` + `mvn test` | 提交前验证要求 |
+
+### 过度设计警示
+
+生成代码时避免以下倾向：
+
+| 倾向 | 替代做法 |
+|------|----------|
+| 过度抽象（多余接口/策略类） | 保持扁平，必要时才分层 |
+| 多层继承 | 优先接口 + 单实现 |
+| 过多策略类 | 统一入口替代（如 PermQueryEngine） |
+| 过度泛型 | 具体类型优先 |
+| DDD 重架构轻实效 | 渐进式重构，Revert 不合适的模块 |
