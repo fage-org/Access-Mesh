@@ -219,26 +219,6 @@ defineExpose({
       />
     </el-form-item>
 
-    <el-form-item v-if="mode === 'edit'" label="组织类型">
-      <el-select
-        v-model="formData.orgType"
-        placeholder="请选择组织类型"
-        class="w-full!"
-        disabled
-      >
-        <el-option
-          v-for="opt in orgTypeOptions"
-          :key="opt.value"
-          :label="opt.label"
-          :value="opt.value"
-        />
-      </el-select>
-    </el-form-item>
-
-    <el-form-item v-if="mode === 'create'" label="组织类型" class="hidden">
-      <el-input v-model="formData.orgType" type="hidden" />
-    </el-form-item>
-
     <el-form-item label="上级组织">
       <el-input :model-value="parentOrgDisplay" disabled class="w-full!" />
     </el-form-item>
