@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import {
   getOrgTree,
   getOrgTreeConfigs,
@@ -7,6 +7,11 @@ import {
   type OrgTreeConfig
 } from "@/api/user-manage";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import { ElMessageBox } from "element-plus";
+import { message } from "@/utils/message";
+import Plus from "~icons/ep/plus";
+import EditPen from "~icons/ep/edit-pen";
+import Delete from "~icons/ep/delete";
 
 defineOptions({
   name: "ReOrgTreePanel"
@@ -22,25 +27,42 @@ const props = withDefaults(
     compact?: boolean;
     /** 指定树配置 ID（不传则自动取默认树） */
     treeConfigId?: number;
+    /** 是否可编辑（显示增删改按钮） */
+    editable?: boolean;
+    /** 组织类型过滤（不传不过滤） */
+    orgTypeFilter?: number[];
   }>(),
   {
     showConfig: true,
     showSearch: true,
-    compact: false
+    compact: false,
+    editable: false
   }
 );
 
 const emit = defineEmits<{
   "node-click": [node: OrgTreeNode];
   "org-change": [orgId: number | null];
+  "node-add": [parentNode: OrgTreeNode | null];
+  "node-edit": [node: OrgTreeNode];
+  "node-delete": [node: OrgTreeNode];
+  "node-move": [node: OrgTreeNode, targetParentId: number];
 }>();
 
 // 组织树配置
 const treeConfigs = ref<OrgTreeConfig[]>([]);
 const selectedConfigId = ref<number>(1);
 
-// 组织树
-const orgTree = ref<OrgTreeNode[]>([]);
+// 组织树（原始数据）
+const rawOrgTree = ref<OrgTreeNode[]>([]);
+// 过滤后的组织树（用于展示）
+const filteredOrgTree = computed<OrgTreeNode[]>(() => {
+  if (!props.orgTypeFilter || props.orgTypeFilter.length === 0) {
+    return rawOrgTree.value;
+  }
+  return filterTreeByOrgType(rawOrgTree.value, props.orgTypeFilter);
+});
+
 const selectedOrgId = ref<number | null>(null);
 
 // 搜索
@@ -54,6 +76,9 @@ const selectedOrgName = ref("");
 // 高亮
 const highlightMap = ref<Record<string, { highlight: boolean }>>({});
 
+// Hover 节点
+const hoveredNodeId = ref<number | null>(null);
+
 function filterOrgNode(value: string, data: any) {
   if (!value) return true;
   return data.orgName.includes(value);
@@ -64,6 +89,34 @@ const treeProps = {
   label: "orgName"
 };
 
+/** 按 orgType 过滤树 */
+function filterTreeByOrgType(
+  nodes: OrgTreeNode[],
+  allowedTypes: number[]
+): OrgTreeNode[] {
+  const result: OrgTreeNode[] = [];
+  for (const node of nodes) {
+    // 过滤子节点
+    const filteredChildren = node.children
+      ? filterTreeByOrgType(node.children, allowedTypes)
+      : [];
+
+    // 如果当前节点类型在允许列表中，保留它（带上过滤后的子节点）
+    if (allowedTypes.includes(node.orgType)) {
+      result.push({
+        ...node,
+        children: filteredChildren
+      });
+    } else if (filteredChildren.length > 0) {
+      // 当前节点类型不匹配，但有子节点匹配——保留子节点提升到当前层级
+      // 注意：这里不提升，因为会破坏树的层级关系
+      // 而是跳过当前节点，只保留子节点
+      result.push(...filteredChildren);
+    }
+  }
+  return result;
+}
+
 async function loadConfigs() {
   treeConfigs.value = await getOrgTreeConfigs();
   const defaultCfg = treeConfigs.value.find(c => c.isDefault);
@@ -72,7 +125,7 @@ async function loadConfigs() {
 
 async function loadTree() {
   const configId = props.treeConfigId ?? selectedConfigId.value;
-  orgTree.value = await getOrgTree({
+  rawOrgTree.value = await getOrgTree({
     operationCode: "VIEW",
     treeConfigId: configId
   });
@@ -84,8 +137,8 @@ async function onConfigChange(configId: number) {
   selectedOrgName.value = "";
   highlightMap.value = {};
   await loadTree();
-  if (!props.compact && orgTree.value.length > 0) {
-    selectNode(orgTree.value[0]);
+  if (!props.compact && filteredOrgTree.value.length > 0) {
+    selectNode(filteredOrgTree.value[0]);
   }
 }
 
@@ -114,18 +167,51 @@ function clearSelection() {
   emit("org-change", null);
 }
 
+// 新增子组织
+function onAddChild(node: OrgTreeNode) {
+  emit("node-add", node);
+}
+
+// 编辑组织
+function onEdit(node: OrgTreeNode) {
+  emit("node-edit", node);
+}
+
+// 删除组织
+async function onDelete(node: OrgTreeNode) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除组织 "${node.orgName}"？\n删除后将同时移除其下所有子组织。`,
+      "删除确认",
+      {
+        confirmButtonText: "确认删除",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+    emit("node-delete", node);
+  } catch {
+    // 取消删除
+  }
+}
+
+// 新增根组织
+function onAddRoot() {
+  emit("node-add", null);
+}
+
 onMounted(async () => {
   if (props.showConfig) {
     await loadConfigs();
   }
   await loadTree();
   // 非 compact 模式自动选中根组织
-  if (!props.compact && orgTree.value.length > 0) {
-    selectNode(orgTree.value[0]);
+  if (!props.compact && filteredOrgTree.value.length > 0) {
+    selectNode(filteredOrgTree.value[0]);
   }
 });
 
-defineExpose({ orgTree, selectedOrgId, selectedConfigId });
+defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
 </script>
 
 <template>
@@ -162,7 +248,7 @@ defineExpose({ orgTree, selectedOrgId, selectedConfigId });
         <el-scrollbar max-height="260px">
           <el-tree
             ref="treeRef"
-            :data="orgTree"
+            :data="filteredOrgTree"
             node-key="id"
             size="small"
             :props="treeProps"
@@ -203,7 +289,7 @@ defineExpose({ orgTree, selectedOrgId, selectedConfigId });
 
   <!-- 非 compact 模式：完整面板 -->
   <div v-else class="org-tree-panel">
-    <div v-if="showConfig || showSearch" class="org-tree-toolbar">
+    <div v-if="showConfig || showSearch || editable" class="org-tree-toolbar">
       <el-select
         v-if="showConfig"
         v-model="selectedConfigId"
@@ -227,13 +313,29 @@ defineExpose({ orgTree, selectedOrgId, selectedConfigId });
         :class="showConfig ? 'mt-1.5' : ''"
         @input="(_val: string) => treeRef?.filter(_val)"
       />
+      <!-- 新增根组织按钮 -->
+      <el-button
+        v-if="editable"
+        type="primary"
+        size="small"
+        class="mt-1.5 w-full!"
+        @click="onAddRoot"
+      >
+        <IconifyIconOffline
+          :icon="useRenderIcon('ep/plus')"
+          width="14px"
+          height="14px"
+          class="mr-1"
+        />
+        新增根组织
+      </el-button>
     </div>
-    <el-divider v-if="showConfig || showSearch" class="my-1!" />
+    <el-divider v-if="showConfig || showSearch || editable" class="my-1!" />
 
     <el-scrollbar class="org-tree-scroll">
       <el-tree
         ref="treeRef"
-        :data="orgTree"
+        :data="filteredOrgTree"
         node-key="id"
         size="small"
         :props="treeProps"
@@ -241,29 +343,75 @@ defineExpose({ orgTree, selectedOrgId, selectedConfigId });
         :expand-on-click-node="false"
         :filter-node-method="filterOrgNode"
         highlight-current
+        draggable
+        :allow-drag="() => editable"
+        :allow-drop="() => editable"
         @node-click="(_data: any) => selectNode(_data)"
+        @node-drag-end="
+          (draggingNode: any, dropNode: any) => {
+            if (dropNode && dropNode.data) {
+              emit('node-move', draggingNode.data, dropNode.data.id);
+            }
+          }
+        "
       >
-        <template #default="{ data }">
+        <template #default="{ data, node }">
           <div
-            class="org-tree-node"
-            :style="{
-              color: highlightMap[data.id]?.highlight
-                ? 'var(--el-color-primary)'
-                : '',
-              background: highlightMap[data.id]?.highlight
-                ? 'var(--el-color-primary-light-7)'
-                : 'transparent'
-            }"
+            class="org-tree-node-wrapper"
+            @mouseenter="hoveredNodeId = data.id"
+            @mouseleave="hoveredNodeId = null"
           >
-            <IconifyIconOffline
-              :icon="useRenderIcon('ep/office-building')"
-              width="14px"
-              height="14px"
-              class="text-[#409eff] mr-1"
-            />
-            <span class="truncate" :title="data.orgName">
-              {{ data.orgName }}
-            </span>
+            <div
+              class="org-tree-node"
+              :style="{
+                color: highlightMap[data.id]?.highlight
+                  ? 'var(--el-color-primary)'
+                  : '',
+                background: highlightMap[data.id]?.highlight
+                  ? 'var(--el-color-primary-light-7)'
+                  : 'transparent'
+              }"
+            >
+              <IconifyIconOffline
+                :icon="useRenderIcon('ep/office-building')"
+                width="14px"
+                height="14px"
+                class="text-[#409eff] mr-1"
+              />
+              <span class="truncate" :title="data.orgName">
+                {{ data.orgName }}
+              </span>
+            </div>
+            <!-- hover 操作按钮 -->
+            <div
+              v-if="editable && hoveredNodeId === data.id"
+              class="node-actions"
+            >
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :icon="useRenderIcon('ep/plus')"
+                title="新增子组织"
+                @click.stop="onAddChild(data)"
+              />
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :icon="useRenderIcon('ep/edit-pen')"
+                title="编辑"
+                @click.stop="onEdit(data)"
+              />
+              <el-button
+                link
+                type="danger"
+                size="small"
+                :icon="useRenderIcon('ep/delete')"
+                title="删除"
+                @click.stop="onDelete(data)"
+              />
+            </div>
           </div>
         </template>
       </el-tree>
@@ -291,20 +439,47 @@ defineExpose({ orgTree, selectedOrgId, selectedConfigId });
   min-height: 0;
 }
 
+.org-tree-node-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+}
+
 .org-tree-node {
   display: flex;
   align-items: center;
   padding: 2px 4px;
   user-select: none;
   border-radius: 4px;
+  flex: 1;
+  min-width: 0;
 
   &:hover {
     color: var(--el-color-primary);
   }
 }
 
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+
+  :deep(.el-button) {
+    padding: 2px;
+    height: auto;
+  }
+}
+
 :deep(.el-tree) {
   --el-tree-node-hover-bg-color: transparent;
+}
+
+:deep(.el-tree-node__content) {
+  height: auto;
+  padding: 2px 0;
 }
 </style>
 

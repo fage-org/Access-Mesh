@@ -74,6 +74,22 @@ function openUserDetail(row: any) {
       })
   });
 }
+
+// 组织树操作
+function onNodeAdd(parentNode: any) {
+  console.log("新增组织", parentNode);
+  // TODO: P0-5 实现 OrgForm 弹窗
+}
+
+function onNodeEdit(node: any) {
+  console.log("编辑组织", node);
+  // TODO: P0-5 实现 OrgForm 弹窗
+}
+
+function onNodeDelete(node: any) {
+  console.log("删除组织", node);
+  // TODO: 调用 /org/delete API
+}
 </script>
 
 <template>
@@ -82,7 +98,12 @@ function openUserDetail(row: any) {
     <ReOrgTreePanel
       ref="orgTreePanelRef"
       class="tree-panel"
+      :editable="true"
+      :org-type-filter="[1]"
       @org-change="onOrgChange"
+      @node-add="onNodeAdd"
+      @node-edit="onNodeEdit"
+      @node-delete="onNodeDelete"
     />
 
     <!-- 右侧内容区 -->
