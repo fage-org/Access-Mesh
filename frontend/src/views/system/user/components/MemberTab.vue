@@ -16,10 +16,7 @@ import Search from "~icons/ep/search";
 import View from "~icons/ep/view";
 import More from "~icons/ep/more-filled";
 
-import {
-  enableUsers,
-  resetUserPassword
-} from "@/api/user-manage";
+import { enableUsers, resetUserPassword } from "@/api/user-manage";
 
 defineOptions({
   name: "MemberTab"
@@ -244,7 +241,11 @@ const columns = [
     <div class="table-wrap">
       <PureTableBar title="" :columns="columns" @refresh="onSearch">
         <template #title>
-          <el-form :inline="true" :model="searchForm" class="search-form-inline">
+          <el-form
+            :inline="true"
+            :model="searchForm"
+            class="search-form-inline"
+          >
             <el-form-item label="姓名" class="mb-0!">
               <el-input
                 v-model="searchForm.name"
@@ -328,7 +329,11 @@ const columns = [
                 inline-prompt
                 active-text="启用"
                 inactive-text="禁用"
-                style="--el-switch-on-color: var(--el-color-success); --el-switch-off-color: var(--el-color-danger)"
+                style="
+
+                  --el-switch-on-color: var(--el-color-success);
+                  --el-switch-off-color: var(--el-color-danger);
+                "
                 @change="(val: number) => handleToggleStatus(row, val)"
               />
             </template>
@@ -351,7 +356,11 @@ const columns = [
               >
                 查看
               </el-button>
-              <el-dropdown :size="size" trigger="click" @command="(cmd: string) => handleCommand(cmd, row)">
+              <el-dropdown
+                :size="size"
+                trigger="click"
+                @command="(cmd: string) => handleCommand(cmd, row)"
+              >
                 <el-button
                   class="reset-margin"
                   link
@@ -373,7 +382,9 @@ const columns = [
                     </el-dropdown-item>
                     <el-dropdown-item command="delete" divided>
                       <el-icon><Delete /></el-icon>
-                      <span class="ml-1" style="color: var(--el-color-danger)">删除</span>
+                      <span class="ml-1" style="color: var(--el-color-danger)"
+                        >删除</span
+                      >
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -390,19 +401,19 @@ const columns = [
 .member-tab {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   height: 100%;
+  overflow: hidden;
 }
 
 .search-form-inline {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
 
   :deep(.el-form-item) {
-    margin-bottom: 0;
     margin-right: 0;
+    margin-bottom: 0;
   }
 
   :deep(.el-form-item__label) {
@@ -411,10 +422,10 @@ const columns = [
 }
 
 .table-wrap {
-  flex: 1;
-  min-height: 0;
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -436,10 +447,10 @@ const columns = [
 
 /* 让 pure-table 填充剩余空间 */
 .table-wrap :deep(.pure-table) {
-  flex: 1;
-  min-height: 0;
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* 表格内容区滚动 */

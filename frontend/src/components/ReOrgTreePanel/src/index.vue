@@ -211,7 +211,12 @@ onMounted(async () => {
   }
 });
 
-defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
+defineExpose({
+  orgTree: rawOrgTree,
+  selectedOrgId,
+  selectedConfigId,
+  loadTree
+});
 </script>
 
 <template>
@@ -355,7 +360,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
           }
         "
       >
-        <template #default="{ data, node }">
+        <template #default="{ data }">
           <div
             class="org-tree-node-wrapper"
             @mouseenter="hoveredNodeId = data.id"
@@ -442,20 +447,20 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
 
 .org-tree-node-wrapper {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: space-between;
-  flex: 1;
   min-width: 0;
 }
 
 .org-tree-node {
   display: flex;
+  flex: 1;
   align-items: center;
+  min-width: 0;
   padding: 2px 4px;
   user-select: none;
   border-radius: 4px;
-  flex: 1;
-  min-width: 0;
 
   &:hover {
     color: var(--el-color-primary);
@@ -464,13 +469,13 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
 
 .node-actions {
   display: flex;
-  align-items: center;
   gap: 2px;
+  align-items: center;
   margin-left: 4px;
 
   :deep(.el-button) {
-    padding: 2px;
     height: auto;
+    padding: 2px;
   }
 }
 

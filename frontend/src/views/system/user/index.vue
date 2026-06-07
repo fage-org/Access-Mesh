@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { ref, reactive, h, computed, watch } from "vue";
 import { useUserManage } from "./utils/hook";
 import UserDetailPanel from "./components/UserDetailPanel.vue";
 import MemberTab from "./components/MemberTab.vue";
 import PositionTab from "./components/PositionTab.vue";
+import OrgForm from "./components/OrgForm.vue";
 import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import { addDialog } from "@/components/ReDialog";
-import { getOrgTree } from "@/api/user-manage";
+import { getOrgTree, createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import { OfficeBuilding, Edit, Plus } from "@element-plus/icons-vue";
+import { message } from "@/utils/message";
+import { h, ref } from "vue";
 
 defineOptions({
   name: "SystemUser"
@@ -61,7 +63,10 @@ function findOrgById(nodes: OrgTreeNode[], id: number): OrgTreeNode | null {
 }
 
 // 查找父组织名称
-function findParentOrgName(nodes: OrgTreeNode[], parentId: number | null): string {
+function findParentOrgName(
+  nodes: OrgTreeNode[],
+  parentId: number | null
+): string {
   if (!parentId) return "根组织";
   for (const node of nodes) {
     if (node.id === parentId) return node.orgName;
@@ -89,20 +94,106 @@ function openUserDetail(row: any) {
   });
 }
 
+// 组织表单弹窗
+function openOrgForm(mode: "create" | "edit", node?: OrgTreeNode) {
+  const isEdit = mode === "edit";
+  const parentOrgId = isEdit ? (node?.parentOrgId ?? null) : (node?.id ?? null);
+  const parentOrgName = isEdit
+    ? node?.parentOrgId
+      ? findParentOrgName(
+          orgTreePanelRef.value?.orgTree || [],
+          node.parentOrgId
+        )
+      : "根组织"
+    : (node?.orgName ?? "");
+
+  // 编辑时准备初始数据
+  const initialData =
+    isEdit && node
+      ? {
+          orgName: node.orgName,
+          code: node.code,
+          orgType: node.orgType,
+          parentOrgId: node.parentOrgId,
+          status: node.status,
+          sort: node.sort
+        }
+      : undefined;
+
+  // 用于保存表单组件引用
+  let formRef: any = null;
+
+  addDialog({
+    title: isEdit ? "编辑组织" : node ? "新增子组织" : "新增组织",
+    width: "480px",
+    contentRenderer: () =>
+      h(OrgForm, {
+        ref: (el: any) => {
+          formRef = el;
+        },
+        mode,
+        initialData,
+        parentOrgId,
+        parentOrgName: isEdit ? parentOrgName : (node?.orgName ?? "")
+      }),
+    beforeSure: async (done: Function) => {
+      if (!formRef) {
+        done();
+        return;
+      }
+      const valid = await formRef.validate();
+      if (!valid) return;
+
+      const formData = formRef.getFormData();
+      try {
+        if (isEdit && node) {
+          await updateOrg({
+            id: node.id,
+            orgName: formData.orgName,
+            code: formData.code,
+            orgType: formData.orgType,
+            parentOrgId: formData.parentOrgId,
+            status: formData.status,
+            sort: formData.sort
+          });
+          message("更新成功", { type: "success" });
+        } else {
+          await createOrg(formData);
+          message("创建成功", { type: "success" });
+        }
+        // 刷新组织树
+        orgTreePanelRef.value?.loadTree?.();
+        done();
+      } catch (error: any) {
+        message(error.message || "操作失败", { type: "error" });
+      }
+    }
+  });
+}
+
 // 组织树操作
-function onNodeAdd(parentNode: any) {
-  console.log("新增组织", parentNode);
-  // TODO: P0-5 实现 OrgForm 弹窗
+function onNodeAdd(parentNode: OrgTreeNode | null) {
+  openOrgForm("create", parentNode ?? undefined);
 }
 
-function onNodeEdit(node: any) {
-  console.log("编辑组织", node);
-  // TODO: P0-5 实现 OrgForm 弹窗
+function onNodeEdit(node: OrgTreeNode) {
+  openOrgForm("edit", node);
 }
 
-function onNodeDelete(node: any) {
-  console.log("删除组织", node);
-  // TODO: 调用 /org/delete API
+async function onNodeDelete(node: OrgTreeNode) {
+  try {
+    await deleteOrg(node.id);
+    message("删除成功", { type: "success" });
+    // 刷新组织树
+    orgTreePanelRef.value?.loadTree?.();
+    // 如果删除的是当前选中的组织，清空选中
+    if (selectedOrgId.value === node.id) {
+      selectedOrgId.value = null;
+      selectedOrg.value = null;
+    }
+  } catch (error: any) {
+    message(error.message || "删除失败", { type: "error" });
+  }
 }
 </script>
 
@@ -128,20 +219,43 @@ function onNodeDelete(node: any) {
           <div class="org-info-title">
             <el-icon class="org-icon"><OfficeBuilding /></el-icon>
             <span class="org-name">{{ selectedOrg.orgName }}</span>
-            <el-tag size="small" type="info" effect="plain">{{ selectedOrg.code }}</el-tag>
-            <el-tag :type="selectedOrg.status === 1 ? 'success' : 'danger'" size="small" effect="light">
-              {{ selectedOrg.status === 1 ? '启用' : '禁用' }}
+            <el-tag size="small" type="info" effect="plain">{{
+              selectedOrg.code
+            }}</el-tag>
+            <el-tag
+              :type="selectedOrg.status === 1 ? 'success' : 'danger'"
+              size="small"
+              effect="light"
+            >
+              {{ selectedOrg.status === 1 ? "启用" : "禁用" }}
             </el-tag>
             <span class="org-parent-info">
-              上级部门：{{ selectedOrg.parentOrgId ? findParentOrgName(orgTreePanelRef?.orgTree || [], selectedOrg.parentOrgId) : '根组织' }}
+              上级部门：{{
+                selectedOrg.parentOrgId
+                  ? findParentOrgName(
+                      orgTreePanelRef?.orgTree || [],
+                      selectedOrg.parentOrgId
+                    )
+                  : "根组织"
+              }}
             </span>
           </div>
           <div class="org-info-actions">
-            <el-button type="primary" plain size="small">
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click="onNodeEdit(selectedOrg)"
+            >
               <el-icon><Edit /></el-icon>
               编辑部门
             </el-button>
-            <el-button type="primary" plain size="small">
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click="onNodeAdd(selectedOrg)"
+            >
               <el-icon><Plus /></el-icon>
               新增下级
             </el-button>
@@ -194,8 +308,8 @@ function onNodeDelete(node: any) {
   padding: 16px;
   margin: 12px 12px 0;
   background: var(--el-fill-color-lighter);
-  border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
 }
 
 .org-info-header {
@@ -207,9 +321,9 @@ function onNodeDelete(node: any) {
 
 .org-info-title {
   display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .org-icon {
@@ -240,8 +354,8 @@ function onNodeDelete(node: any) {
   overflow: hidden;
 
   :deep(.el-tabs__header) {
-    margin: 0 12px;
     padding-top: 8px;
+    margin: 0 12px;
   }
 
   :deep(.el-tabs__content) {
