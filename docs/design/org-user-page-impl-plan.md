@@ -2,10 +2,12 @@
 
 > 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.1，本计划的门禁来源）、`docs/design/api-gap-analysis.md`（接口契约）。
 > 已锁定设计决策：
-> ① 岗位 = 平铺列表（全局，独立于左树选中组织）；② 成员含子级 = 子树匹配；
+> ① 岗位 = 折叠卡片列表（全局，独立于左树选中组织）；② 成员含子级 = 子树匹配；
 > ③ 默认组织树初始选中；④ 主组织用 radio 标记；⑤ 初始密码先弹窗（Phase 2 后端定下发）；
 > ⑥ 组织 CRUD 主入口 = 树节点 hover 操作 + 拖拽移动；⑦ 用户详情弹窗只读展示所属岗位；
-> ⑧ 目录/路由 name 不改（`views/system/user/`，仅改显示标题）。
+> ⑧ 目录/路由 name 不改（`views/system/user/`，仅改显示标题）；
+> ⑨ **Tab 简化为 2 个：成员管理 + 岗位管理**（2026-06-07 确认）；
+> ⑩ **左树过滤岗位（`orgType=1` 仅显示普通组织）**（2026-06-07 确认）。
 
 ---
 
@@ -32,15 +34,15 @@
 组织与用户页（index.vue）
 ├─ 左：ReOrgTreePanel（默认树；过滤 orgType≠岗位；加 editable: 增/改/删/移）
 └─ 右：<el-tabs>（上下文 = 左树选中组织）
-   ├─ Tab 组织信息   OrgInfoTab.vue   选中组织详情 + 编辑
-   ├─ Tab 成员(含子级) MemberTab.vue   现表格迁入 + 启停/重置密码（子树过滤）
-   ├─ Tab 岗位        PositionTab.vue  岗位平铺表（orgType=岗位）+ CRUD + 挂载用户
-   └─ Tab 子组织      SubOrgTab.vue    选中组织的直接子级 + 增/改/删
+   ├─ Tab 成员管理     MemberTab.vue   成员表格（搜索+表格+启停/重置密码）
+   └─ Tab 岗位管理     PositionTab.vue  岗位折叠卡片（orgType=岗位）+ CRUD + 挂载用户
    └─（行点击用户 → UserDetailPanel 弹窗：组织归属 + 所属岗位(只读) + 功能角色）
+顶部固定：组织信息卡片（选中组织详情 + 编辑按钮，替代原"组织信息"Tab）
 辅助：OrgForm.vue（组织 create/edit 弹窗）
 ```
 
-> Tab 之外，组织的"新增根/移动节点"放在树工具栏 + 节点 hover 操作 + 拖拽；`OrgInfoTab/SubOrgTab` 是补充入口。
+> 组织信息固定在顶部卡片展示，不再单独设 Tab。子组织通过左侧树展开查看，也不再设 Tab。
+> 树节点 hover 显「加子/改/删」按钮，支持拖拽改 parent。`OrgInfoTab/SubOrgTab` 不再单独实现。
 
 ---
 
@@ -69,13 +71,13 @@
 | # | 任务 | 文件 | 要点 |
 |---|------|------|------|
 | P0-1 | 路由/标题改名 | `router/modules/system.ts` | `title:"组织与用户"`；`name` 可保留 `SystemUser`（避免动态路由/缓存键变动），加 `meta.auths`（见 §4） |
-| P0-2 | 右侧改 Tab 壳 | `index.vue` | 引入 `<el-tabs>`；现搜索栏+表格抽到 `MemberTab.vue`；Tab 切换保持左树选中态 |
-| P0-3 | 成员 Tab | `components/MemberTab.vue`(新) | 迁入现表格逻辑；新增**启用/禁用**（行内 `el-switch` 或操作列）+ **重置密码**操作 |
-| P0-4 | 组织树可编辑 | `ReOrgTreePanel/src/index.vue` | 加 `editable?:boolean`、`orgType?` 过滤；`editable` 时渲染节点 hover 操作（加子/改/删）+ 顶部"新增根组织"，emit `node-add/node-edit/node-delete/node-move`；compact/form 用法默认 `editable=false` 不受影响 |
+| P0-2 | 右侧改 Tab 壳 | `index.vue` | 引入 `<el-tabs>`；**仅保留 2 个 Tab**：成员管理 + 岗位管理；顶部固定组织信息卡片 |
+| P0-3 | 成员 Tab | `components/MemberTab.vue`(新) | 迁入现表格逻辑；新增**启用/禁用**（行内 `el-switch`）+ **重置密码**操作 |
+| P0-4 | 组织树可编辑 | `ReOrgTreePanel/src/index.vue` | 加 `editable?:boolean`、`orgType?` 过滤；`editable` 时渲染节点 hover 操作（加子/改/删）+ 顶部"新增根组织"，emit `node-add/node-edit/node-delete/node-move`；**过滤 orgType=2（岗位）**；compact/form 用法默认 `editable=false` 不受影响 |
 | P0-5 | 组织表单 | `components/OrgForm.vue`(新) | 字段对齐 `OrgCreateReq/OrgUpdateReq`：`orgName/code/orgType/parentOrgId/status/sort` |
-| P0-6 | 组织信息 Tab | `components/OrgInfoTab.vue`(新) | 展示选中组织详情 + 编辑按钮（复用 OrgForm） |
-| P0-7 | 子组织 Tab | `components/SubOrgTab.vue`(新) | 选中组织直接子级列表 + 增/改/删（复用 OrgForm） |
-| P0-8 | 岗位 Tab | `components/PositionTab.vue`(新) | 平铺表（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`） |
+| P0-6 | 顶部组织信息卡片 | `index.vue` 内联 | 展示选中组织详情 + 编辑按钮（复用 OrgForm） |
+| P0-7 | ~~子组织 Tab~~ | ~~已移除~~ | ~~子组织通过左侧树展开查看，不再设 Tab~~ |
+| P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`） |
 | P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） |
 | P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 |
 
@@ -131,9 +133,9 @@
 
 ## 5. 设计决策（已确认，写死）
 
-### 5.1 岗位 Tab 作用域 → **全局平铺**
+### 5.1 岗位 Tab 作用域 → **全局折叠卡片**
 
-岗位 = 特殊组织节点（`orgType=2`），挂在组织树下，与普通组织共享同一棵树。页面上不混入左侧组织树（左树仅显示 `orgType=1`），而是集中在岗位 Tab 以平铺表展示——全局列出所有 `orgType=2` 节点，每行附带所属组织（`parentOrgId` → `orgName`）以便定位。
+岗位 = 特殊组织节点（`orgType=2`），挂在组织树下，与普通组织共享同一棵树。页面上不混入左侧组织树（左树仅显示 `orgType=1`），而是集中在岗位 Tab 以**折叠卡片（el-collapse）**展示——全局列出所有 `orgType=2` 节点，每张卡片展开后显示已分配用户 + "添加成员"按钮。岗位所属组织通过 `parentOrgId` → `orgName` 展示以便定位。
 
 **岗位的数据权限模型**（以"数据安全员"为例）：
 
@@ -149,11 +151,19 @@
 
 ### 5.3 组织 CRUD 主入口 → **树节点 hover 操作 + 拖拽移动**
 
-树节点 hover 显「加子/改/删」按钮，支持拖拽改 parent。OrgInfoTab/SubOrgTab 的编辑/删除按钮作为补充入口。`ReOrgTreePanel` 的 `editable` prop 默认 `false`，compact/form 路径不受影响。
+树节点 hover 显「加子/改/删」按钮，支持拖拽改 parent。顶部组织信息卡片提供编辑入口作为补充。`ReOrgTreePanel` 的 `editable` prop 默认 `false`，compact/form 路径不受影响。
 
 ### 5.4 目录/路由名 → **暂不改**
 
 保留 `views/system/user/` 目录，路由 `name: "SystemUser"` 不动，仅改 `meta.title` 为 `"组织与用户"`。减小改动面、不碰缓存键。后续如需统一为 `org-user`，单独排期。
+
+### 5.5 Tab 结构 → **2 个 Tab + 顶部组织信息卡片**
+
+经原型确认，Tab 简化为 2 个：
+- **成员管理**：成员表格（搜索 + 表格 + 启用/禁用 + 重置密码）
+- **岗位管理**：岗位折叠卡片（CRUD + 挂载用户）
+
+组织信息不再设独立 Tab，改为**顶部固定卡片**展示（含编辑按钮）。子组织通过左侧树展开查看，不再设 Tab。
 
 ---
 
@@ -169,5 +179,5 @@
 
 ## 7. 建议执行顺序
 
-`P0-1 → P0-2 → P0-10(mock 先行) → P0-3..P0-9 → 自测` ⇒ 前端骨架完整可演示（纯 mock）。
+`P0-1 → P0-2 → P0-10(mock 先行) → P0-4(树过滤+可编辑) → P0-6(顶部卡片) → P0-3(成员Tab) → P0-8(岗位Tab折叠卡片) → P0-9(详情面板) → P0-5(OrgForm) → 自测` ⇒ 前端骨架完整可演示（纯 mock）。
 随后 `P1`（后端并行）→ `P2`（接线降级）。P0 不被后端阻塞。
