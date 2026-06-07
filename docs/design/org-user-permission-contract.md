@@ -19,7 +19,7 @@
 
 ### 核心抽象（核对后确立）
 
-- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位以独立 **POSITION 树**承载（`OrgTreeConfigServiceImpl.POSITION_TREE_TYPE`、`singleAssoc=false`），不进主组织树，单列岗位 Tab；经 `/org/*` 管理、由 `OrgSyncHandler` 同步至 permission-center。故岗位的增删改与"分配用户"全部归**组织管理**（`ADMIN_ORG`），不是独立角色面。
+- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 `OrgSyncHandler` 同步至 permission-center。故岗位的增删改与"分配用户"全部归**组织管理**（`ADMIN_ORG`），不是独立角色面。
 - **成员 = 组织成员关系**：用户与组织（含岗位）的归属是 `user-org` 关系，归"**组织成员管理**"，门禁锚定**组织实例**。
 - **功能角色 = 真正的角色**：用户详情面板里分配的 BASIC_ROLE 等功能角色，才走 `ROLE` 资源类型与 `user-role` 关系。
 
@@ -114,11 +114,11 @@ permission-center（乙层：被管理的权限模型）
 | 查看用户角色 | 读，无服务级门禁（`/user-role/list`） | `system:user:view` | 角色区不显示 |
 | 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；`/user-role/assign|revoke`，**Phase 2 待建代理**） | `system:user:role:assign` | 角色区只读 |
 
-### D. 岗位（Tab：岗位）—— 岗位 = 特殊组织 `ADMIN_ORG`（按 orgType / POSITION 树区分）⚠️ 配权贴近红线
+### D. 岗位（Tab：岗位）—— 岗位 = 特殊组织 `ADMIN_ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看岗位 | 读，无服务级门禁（`ADMIN_ORG`，按 orgType=岗位 / POSITION 树过滤；`/org/tree`） | `system:org:position:view` | 岗位 Tab 隐藏 |
+| 查看岗位 | 读，无服务级门禁（`ADMIN_ORG`，按 `orgType=2` 过滤；`/org/page`） | `system:org:position:view` | 岗位 Tab 隐藏 |
 | 新增 / 编辑 / 删除岗位 | `ADMIN_ORG:CREATE` / `UPDATE` / `DELETE` ⁴（特殊组织，经 `/org/*`，同步 permission-center） | `system:org:position:add` / `:edit` / `:delete` | 隐藏增删改 |
 | 分配 / 移除用户到岗位 | **`ADMIN_ORG:UPDATE`** ²（组织成员管理；作用在**岗位组织实例**；`/user-org/*`） | `system:org:position:assign` | 岗位区只读 |
 | ~~配置岗位权限（授予菜单/资源权限）~~ | `ADMIN_ROLE:GRANT/REVOKE`（`/role/grant-menu`、`/role/revoke-menu`） | — | **❌ 红线：不在本页**（详见 §6.3） |
@@ -132,7 +132,7 @@ permission-center（乙层：被管理的权限模型）
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
 | ² | **成员增删 / 主组织 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。⚠️ **当前后端实现不符**：`UserOrgServiceImpl` 现以 `ADMIN_USER:UPDATE`（被操作用户）门禁，**Phase 2 必须改为 `ADMIN_ORG:UPDATE`（目标组织）** —— 见 §8 遗留实现项 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedIds(..., ROLE, 目标角色, MANAGE)` 强制；admin-service `/user-role/*` 代理 **Phase 2 待建**（api-gap §4），建成后须沿用此门禁，且**不得**复用 `ADMIN_ROLE:GRANT/REVOKE`（那是配权语义，属红线） |
-| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位单列 Tab、用 POSITION 树承载（不进主组织树）；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）|
+| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）|
 
 ---
 
@@ -179,7 +179,7 @@ permission-center（乙层：被管理的权限模型）
    `permission-center/.../enums/ResourceTypeCode.java` = `USER/ROLE/RESOURCE/SERVICE/DOMAIN/API/TYPE_DEFINITION/SYSTEM_CONFIG/OPERATION/CONDITION/CONFLICT_RULE/DEPENDENCY`——**不含 ORG，不含 POSITION**。`enums/RoleType.java` 表明 `ORG(1)`、`POSITION(2)` 是角色类型（同步落地形态）。本页甲层资源类型取自 admin-service `AdminResourceType.java`：`ADMIN_USER/ADMIN_ORG/ADMIN_ROLE/ADMIN_MENU/...`——**`ORG` 以 `ADMIN_ORG` 坐实**。→ 矩阵乙层列用 `ADMIN_ORG/ADMIN_USER/ADMIN_ROLE`。
 
 3. **岗位边界** ✅（按"岗位=特殊组织"定稿）
-   admin-service 已按 `SysOrg.orgType` 区分组织，岗位以独立 **POSITION 树**承载（`OrgTreeConfigServiceImpl.POSITION_TREE_TYPE`、`singleAssoc=false`），经 `/org/*` 管理、`OrgSyncHandlerImpl` 同步至 permission-center。故：
+   admin-service 已按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的 `orgType=2` 节点，经 `/org/*` 管理、`OrgSyncHandlerImpl` 同步至 permission-center。故：
    - **岗位实例 CRUD + 分配用户（本页允许）**：组织管理面 `ADMIN_ORG:*`、组织成员管理 `ADMIN_ORG:UPDATE`。
    - **配置岗位/角色权限（红线）**：`RoleProxyServiceImpl.grantMenuToRole/revokeMenuFromRole→ADMIN_ROLE:GRANT/REVOKE`；`createRoleForOrg→ADMIN_ROLE:CREATE`（`/role/*`）。
    → 红线收窄为"配权与独立角色定义"，岗位的组织管理本身在本页内；矩阵 D 区据此定稿。
@@ -191,7 +191,7 @@ permission-center（乙层：被管理的权限模型）
 
 - **【门禁修正】成员/主组织/岗位用户**：`UserOrgServiceImpl` 当前以 `ADMIN_USER:UPDATE`（被操作用户）门禁，须改为 **`ADMIN_ORG:UPDATE`（目标组织/岗位实例）**，对齐"组织成员管理"语义（备注 ²）。
 - **【新增代理】功能角色分配**：admin-service 新增 `/user-role/{list,assign,revoke}` 代理，门禁沿用 `ROLE:MANAGE`（备注 ³）。
-- **【岗位接线】**：岗位 Tab 经 `/org/*`（按 orgType / POSITION 树过滤）管理；用户↔岗位经 `/user-org/*`。前端 mock 若把岗位归 `/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
+- **【岗位接线】**：岗位 Tab 经 `/org/*`（按 `orgType=2` 过滤）管理；用户↔岗位经 `/user-org/*`。前端 mock 若把岗位归 `/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
 - **【其他】** `/user/page` 增 `orgId` 过滤、`/user/create` 增 `orgId+初始密码`（api-gap §2）；菜单/按钮配置补齐本页 perm 码（§8.4）。
 
 ---

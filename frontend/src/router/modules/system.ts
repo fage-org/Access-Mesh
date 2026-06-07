@@ -17,7 +17,7 @@ export default {
       component: () => import("@/views/system/user/index.vue"),
       meta: {
         icon: "ep/user",
-        title: "用户管理"
+        title: "组织与用户"
       }
     }
   ]

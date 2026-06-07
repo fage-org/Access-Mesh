@@ -124,6 +124,60 @@ export type CreateUserResult = {
   initialPassword: string;
 };
 
+// ========== 组织 CRUD 类型 ==========
+
+/** 组织创建请求（对齐后端 OrgCreateReq，必填字段完整） */
+export type OrgCreateReq = {
+  orgName: string;
+  code: string;
+  orgType: number;
+  parentOrgId?: number | null;
+  status?: number;
+  sort?: number;
+};
+
+/** 组织更新请求（对齐后端 OrgUpdateReq，仅需传变更字段） */
+export type OrgUpdateReq = {
+  id: number;
+  orgName?: string;
+  code?: string;
+  orgType?: number;
+  parentOrgId?: number | null;
+  status?: number;
+  sort?: number;
+};
+
+/** 组织分页查询参数 */
+export type OrgPageQuery = {
+  pageNum: number;
+  pageSize: number;
+  orgName?: string;
+  orgType?: number;
+  status?: number;
+};
+
+/** 组织分页项（平铺，不含 children） */
+export type OrgPageItem = {
+  id: number;
+  orgName: string;
+  code: string;
+  parentOrgId: number | null;
+  orgType: number;
+  status: number;
+  sort: number;
+  parentOrgName?: string;
+};
+
+// ========== 功能角色类型 ==========
+
+/** 功能角色列表项（仅 BASIC_ROLE / GROUP_ROLE / PERSONAL，不含 ORG / POSITION） */
+export type RoleItem = {
+  roleId: number;
+  roleName: string;
+  roleTypeCode: string;
+  roleTypeLabel?: string;
+};
+
 // ========== API 函数 ==========
 
 /** 获取可用组织树配置列表（POST /org-tree-config/page，分页取前 100 条） */
@@ -273,4 +327,79 @@ export const revokeRole = async (data: {
   unwrap(
     await http.request<PermResult<void>>("post", "/user-role/revoke", { data })
   );
+};
+
+// ========== /org CRUD API ==========
+
+/** 创建组织（POST /org/create） */
+export const createOrg = async (
+  data: OrgCreateReq
+): Promise<{ id: number }> => {
+  const res = await http.request<PermResult<{ id: number }>>(
+    "post",
+    "/org/create",
+    { data }
+  );
+  return unwrap(res);
+};
+
+/** 更新组织（POST /org/update，仅传变更字段） */
+export const updateOrg = async (data: OrgUpdateReq): Promise<void> => {
+  unwrap(await http.request<PermResult<void>>("post", "/org/update", { data }));
+};
+
+/** 删除组织（POST /org/delete，IdReq） */
+export const deleteOrg = async (id: number): Promise<void> => {
+  unwrap(
+    await http.request<PermResult<void>>("post", "/org/delete", {
+      data: { id }
+    })
+  );
+};
+
+/** 组织分页列表（POST /org/page，平铺不含 children） */
+export const getOrgPage = async (
+  params: OrgPageQuery
+): Promise<PaginatedResult<OrgPageItem>> => {
+  const res = await http.request<PermResult<PaginatedResult<OrgPageItem>>>(
+    "post",
+    "/org/page",
+    { data: params }
+  );
+  return unwrap(res);
+};
+
+// ========== /user 启停 & 重置密码 API ==========
+
+/** 批量启用/禁用用户（POST /user/enable，IdsReq + status） */
+export const enableUsers = async (data: {
+  ids: number[];
+  status: 0 | 1;
+}): Promise<void> => {
+  unwrap(
+    await http.request<PermResult<void>>("post", "/user/enable", { data })
+  );
+};
+
+/** 重置用户密码（POST /user/reset-password） */
+export const resetUserPassword = async (data: {
+  userId: number;
+  newPassword?: string;
+}): Promise<{ newPassword: string }> => {
+  const res = await http.request<PermResult<{ newPassword: string }>>(
+    "post",
+    "/user/reset-password",
+    { data }
+  );
+  return unwrap(res);
+};
+
+// ========== /role API（仅功能角色） ==========
+
+/** 获取功能角色列表（POST /role/list，仅 BASIC_ROLE / GROUP_ROLE / PERSONAL） */
+export const getRoleList = async (): Promise<RoleItem[]> => {
+  const res = await http.request<PermResult<RoleItem[]>>("post", "/role/list", {
+    data: {}
+  });
+  return unwrap(res);
 };

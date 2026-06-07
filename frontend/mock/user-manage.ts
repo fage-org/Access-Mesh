@@ -35,7 +35,28 @@ const mockOrgTree = [
             orgType: 1,
             status: 1,
             sort: 1,
-            children: []
+            children: [
+              {
+                id: 30,
+                orgName: "后端开发",
+                code: "pos-backend",
+                parentOrgId: 4,
+                orgType: 2,
+                status: 1,
+                sort: 1,
+                children: []
+              },
+              {
+                id: 31,
+                orgName: "后端组长",
+                code: "pos-leader",
+                parentOrgId: 4,
+                orgType: 2,
+                status: 1,
+                sort: 2,
+                children: []
+              }
+            ]
           },
           {
             id: 5,
@@ -45,7 +66,18 @@ const mockOrgTree = [
             orgType: 1,
             status: 1,
             sort: 2,
-            children: []
+            children: [
+              {
+                id: 32,
+                orgName: "前端开发",
+                code: "pos-frontend",
+                parentOrgId: 5,
+                orgType: 2,
+                status: 1,
+                sort: 1,
+                children: []
+              }
+            ]
           }
         ]
       },
@@ -67,7 +99,18 @@ const mockOrgTree = [
         orgType: 1,
         status: 1,
         sort: 3,
-        children: []
+        children: [
+          {
+            id: 33,
+            orgName: "数据安全员",
+            code: "pos-security",
+            parentOrgId: 6,
+            orgType: 2,
+            status: 1,
+            sort: 1,
+            children: []
+          }
+        ]
       }
     ]
   }
@@ -117,7 +160,8 @@ const mockUsers = [
     status: 1,
     orgs: [
       { orgId: 2, orgName: "研发中心", isPrimary: true },
-      { orgId: 4, orgName: "后端组", isPrimary: false }
+      { orgId: 4, orgName: "后端组", isPrimary: false },
+      { orgId: 30, orgName: "后端开发", orgType: 2, isPrimary: false }
     ],
     createdAt: "2026-01-15T08:00:00"
   },
@@ -143,7 +187,8 @@ const mockUsers = [
     status: 1,
     orgs: [
       { orgId: 2, orgName: "研发中心", isPrimary: true },
-      { orgId: 4, orgName: "后端组", isPrimary: false }
+      { orgId: 4, orgName: "后端组", isPrimary: false },
+      { orgId: 31, orgName: "后端组长", orgType: 2, isPrimary: false }
     ],
     createdAt: "2026-01-20T08:00:00"
   },
@@ -265,30 +310,9 @@ const mockUsers = [
   }
 ];
 
+/** 功能角色 mock（仅 BASIC_ROLE / GROUP_ROLE / PERSONAL，不含 ORG / POSITION） */
 const mockUserRoles = {
   1: [
-    {
-      roleId: 101,
-      roleName: "研发中心",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
-    {
-      roleId: 102,
-      roleName: "后端组",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
     {
       roleId: 201,
       roleName: "基础用户",
@@ -298,17 +322,6 @@ const mockUserRoles = {
       relationId: null,
       relationOrgName: null,
       validFrom: null,
-      validTo: null
-    },
-    {
-      roleId: 301,
-      roleName: "后端开发",
-      roleTypeCode: "POSITION",
-      roleTypeLabel: "职位",
-      targetType: "POSITION",
-      relationId: 4,
-      relationOrgName: "后端组",
-      validFrom: "2026-01-15T00:00:00",
       validTo: null
     },
     {
@@ -325,28 +338,6 @@ const mockUserRoles = {
   ],
   2: [
     {
-      roleId: 101,
-      roleName: "研发中心",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
-    {
-      roleId: 103,
-      roleName: "前端组",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
-    {
       roleId: 201,
       roleName: "基础用户",
       roleTypeCode: "BASIC_ROLE",
@@ -360,28 +351,6 @@ const mockUserRoles = {
   ],
   3: [
     {
-      roleId: 101,
-      roleName: "研发中心",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
-    {
-      roleId: 102,
-      roleName: "后端组",
-      roleTypeCode: "ORG",
-      roleTypeLabel: "组织",
-      targetType: "ORG",
-      relationId: null,
-      relationOrgName: null,
-      validFrom: null,
-      validTo: null
-    },
-    {
       roleId: 202,
       roleName: "高级用户",
       roleTypeCode: "BASIC_ROLE",
@@ -390,17 +359,6 @@ const mockUserRoles = {
       relationId: null,
       relationOrgName: null,
       validFrom: null,
-      validTo: null
-    },
-    {
-      roleId: 302,
-      roleName: "后端组长",
-      roleTypeCode: "POSITION",
-      roleTypeLabel: "职位",
-      targetType: "POSITION",
-      relationId: 4,
-      relationOrgName: "后端组",
-      validFrom: "2026-01-20T00:00:00",
       validTo: null
     }
   ]
@@ -456,6 +414,202 @@ function resolveOrgName(orgId) {
   );
 }
 
+// ========== Org CRUD 辅助 ==========
+
+function allTrees() {
+  return [mockOrgTree, mockTeamTree];
+}
+
+let _nextOrgId = 1000;
+function nextOrgId() {
+  return _nextOrgId++;
+}
+
+function insertOrgChild(trees, parentId, newNode) {
+  for (const treesArr of trees) {
+    for (const node of treesArr) {
+      const found = findAndInsert(node, parentId, newNode);
+      if (found) return true;
+    }
+  }
+  return false;
+}
+
+function findAndInsert(node, parentId, newNode) {
+  if (node.id === parentId) {
+    node.children = node.children || [];
+    node.children.push(newNode);
+    return true;
+  }
+  for (const child of node.children || []) {
+    if (findAndInsert(child, parentId, newNode)) return true;
+  }
+  return false;
+}
+
+function updateOrgNode(trees, id, patch) {
+  for (const treesArr of trees) {
+    for (const node of treesArr) {
+      const found = findAndUpdate(node, id, patch);
+      if (found) return true;
+    }
+  }
+  return false;
+}
+
+function findAndUpdate(node, id, patch) {
+  if (node.id === id) {
+    if (patch.orgName !== undefined) node.orgName = patch.orgName;
+    if (patch.code !== undefined) node.code = patch.code;
+    if (patch.orgType !== undefined) node.orgType = patch.orgType;
+    if (patch.parentOrgId !== undefined) node.parentOrgId = patch.parentOrgId;
+    if (patch.status !== undefined) node.status = patch.status;
+    if (patch.sort !== undefined) node.sort = patch.sort;
+    return true;
+  }
+  for (const child of node.children || []) {
+    if (findAndUpdate(child, id, patch)) return true;
+  }
+  return false;
+}
+
+function deleteOrgNode(trees, id) {
+  for (const treesArr of trees) {
+    for (let i = treesArr.length - 1; i >= 0; i--) {
+      if (treesArr[i].id === id) {
+        treesArr.splice(i, 1);
+        return true;
+      }
+      const found = findAndDelete(treesArr[i], id);
+      if (found) return true;
+    }
+  }
+  return false;
+}
+
+function findAndDelete(parent, id) {
+  const children = parent.children || [];
+  for (let i = children.length - 1; i >= 0; i--) {
+    if (children[i].id === id) {
+      children.splice(i, 1);
+      return true;
+    }
+    if (findAndDelete(children[i], id)) return true;
+  }
+  return false;
+}
+
+/** 移动节点到新父节点（从旧父移除，加到新父 children） */
+function moveOrgNode(trees, nodeId, newParentId) {
+  // 先找到目标父节点
+  let targetParent = null;
+  for (const treesArr of trees) {
+    targetParent = findNodeInTrees(treesArr, newParentId);
+    if (targetParent) break;
+  }
+  if (!targetParent) return false;
+
+  // 从原位置移除节点（保留其 children）
+  let movedNode = null;
+  for (const treesArr of trees) {
+    movedNode = detachNode(treesArr, nodeId);
+    if (movedNode) break;
+  }
+  if (!movedNode) return false;
+
+  // 更新 parentOrgId 并挂到新父
+  movedNode.parentOrgId = newParentId;
+  targetParent.children = targetParent.children || [];
+  targetParent.children.push(movedNode);
+  return true;
+}
+
+function findNodeById(node, id) {
+  if (node.id === id) return node;
+  for (const child of node.children || []) {
+    const found = findNodeById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findNodeInTrees(nodes, id) {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findNodeInTrees(node.children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** 从树中摘除节点（保留其 children），返回被摘除的节点 */
+function detachNode(nodes, id) {
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].id === id) {
+      const [removed] = nodes.splice(i, 1);
+      return removed;
+    }
+    const found = detachNode(nodes[i].children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** 收集节点及其所有后代 ID */
+function collectSubtreeIds(trees, orgId) {
+  const ids = new Set();
+  for (const treesArr of trees) {
+    for (const root of treesArr) {
+      const node = findNodeById(root, orgId);
+      if (node) {
+        collectIdsRecursive(node, ids);
+        return ids;
+      }
+    }
+  }
+  return ids;
+}
+
+function collectIdsRecursive(node, ids) {
+  ids.add(node.id);
+  (node.children || []).forEach(child => collectIdsRecursive(child, ids));
+}
+
+function flattenTrees(trees) {
+  const result = [];
+  for (const treesArr of trees) {
+    for (const root of treesArr) {
+      flattenNode(root, result);
+    }
+  }
+  return result;
+}
+
+function flattenNode(node, result, parentOrgName?: string) {
+  result.push({
+    id: node.id,
+    orgName: node.orgName,
+    code: node.code,
+    parentOrgId: node.parentOrgId,
+    orgType: node.orgType,
+    status: node.status,
+    sort: node.sort,
+    parentOrgName: parentOrgName || null
+  });
+  for (const child of node.children || []) {
+    flattenNode(child, result, node.orgName);
+  }
+}
+
+function randomPassword() {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let pwd = "";
+  for (let i = 0; i < 10; i++) {
+    pwd += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pwd;
+}
+
 // ========== 路由 ==========
 
 export default defineFakeRoute([
@@ -478,7 +632,8 @@ export default defineFakeRoute([
     url: "/org/tree",
     method: "post",
     response: ({ body }) => {
-      let tree = body?.treeConfigId === 2 ? mockTeamTree : mockOrgTree;
+      let tree = mockOrgTree;
+      if (body?.treeConfigId === 2) tree = mockTeamTree;
       if (body?.orgName) {
         tree = filterTreeByName(tree, body.orgName);
       }
@@ -509,10 +664,7 @@ export default defineFakeRoute([
         filtered = filtered.filter(u => u.status === params.status);
       }
       if (params.orgId) {
-        const descIds = getDescendantOrgIds(
-          [mockOrgTree, mockTeamTree],
-          params.orgId
-        );
+        const descIds = getDescendantOrgIds(allTrees(), params.orgId);
         filtered = filtered.filter(u => u.orgs.some(o => descIds.has(o.orgId)));
       }
       const pageNum = params.pageNum ?? 1;
@@ -601,6 +753,7 @@ export default defineFakeRoute([
         user.orgs.map(o => ({
           orgId: o.orgId,
           orgName: o.orgName,
+          orgType: o.orgType,
           isPrimary: o.isPrimary
         }))
       );
@@ -698,5 +851,176 @@ export default defineFakeRoute([
     url: "/user-role/revoke",
     method: "post",
     response: () => ok(null)
+  },
+
+  // ========== /org CRUD ==========
+
+  // POST /org/create
+  {
+    url: "/org/create",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      const newId = nextOrgId();
+      const newNode = {
+        id: newId,
+        orgName: data.orgName,
+        code: data.code,
+        parentOrgId: data.parentOrgId ?? null,
+        orgType: data.orgType ?? 1,
+        status: data.status ?? 1,
+        sort: data.sort ?? 0,
+        children: []
+      };
+      if (data.parentOrgId) {
+        const inserted = insertOrgChild(allTrees(), data.parentOrgId, newNode);
+        if (!inserted)
+          return { code: 400, message: "父组织不存在", data: null };
+      } else {
+        // 根组织：统一加入主组织树
+        mockOrgTree.push(newNode);
+      }
+      return ok({ id: newId });
+    }
+  },
+
+  // POST /org/update
+  {
+    url: "/org/update",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      // 如果改了 parentOrgId，先做节点移动
+      if (data.parentOrgId !== undefined) {
+        const moved = moveOrgNode(allTrees(), data.id, data.parentOrgId);
+        if (!moved)
+          return { code: 400, message: "组织或目标父组织不存在", data: null };
+      }
+      const updated = updateOrgNode(allTrees(), data.id, data);
+      if (!updated) return { code: 400, message: "组织不存在", data: null };
+      return ok(null);
+    }
+  },
+
+  // POST /org/delete
+  {
+    url: "/org/delete",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      // 先收集被删组织及其所有子组织 ID，用于清理用户引用
+      const removedIds = collectSubtreeIds(allTrees(), data.id);
+      const deleted = deleteOrgNode(allTrees(), data.id);
+      if (!deleted) return { code: 400, message: "组织不存在", data: null };
+      // 清理所有用户对被删组织的引用
+      mockUsers.forEach(user => {
+        user.orgs = user.orgs.filter(o => !removedIds.has(o.orgId));
+      });
+      return ok(null);
+    }
+  },
+
+  // POST /org/page —— 平铺分页（用于岗位 Tab）
+  {
+    url: "/org/page",
+    method: "post",
+    response: ({ body }) => {
+      const params = body ?? {};
+      let flat = flattenTrees(allTrees());
+      if (params.orgType !== undefined && params.orgType !== null) {
+        flat = flat.filter(o => o.orgType === params.orgType);
+      }
+      if (params.orgName) {
+        flat = flat.filter(o => o.orgName.includes(params.orgName));
+      }
+      if (params.status !== undefined && params.status !== null) {
+        flat = flat.filter(o => o.status === params.status);
+      }
+      const pageNum = params.pageNum ?? 1;
+      const pageSize = params.pageSize ?? 15;
+      const start = (pageNum - 1) * pageSize;
+      const paged = flat.slice(start, start + pageSize);
+      return ok({
+        items: paged,
+        pagination: {
+          total: flat.length,
+          page: pageNum,
+          size: pageSize,
+          totalPages: Math.ceil(flat.length / pageSize)
+        }
+      });
+    }
+  },
+
+  // ========== /user 启停 & 重置密码 ==========
+
+  // POST /user/enable —— IdsReq + status
+  {
+    url: "/user/enable",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      const ids = data.ids ?? [];
+      const targetStatus = data.status;
+      ids.forEach(id => {
+        const user = mockUsers.find(u => u.id === id);
+        if (user) user.status = targetStatus;
+      });
+      return ok(null);
+    }
+  },
+
+  // POST /user/reset-password
+  {
+    url: "/user/reset-password",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      const user = mockUsers.find(u => u.id === data.userId);
+      if (!user) return { code: 400, message: "用户不存在", data: null };
+      const newPassword = data.newPassword ?? randomPassword();
+      return ok({ newPassword });
+    }
+  },
+
+  // ========== /role API（仅功能角色） ==========
+
+  // POST /role/list —— 仅返回功能角色（BASIC_ROLE / GROUP_ROLE / PERSONAL）
+  {
+    url: "/role/list",
+    method: "post",
+    response: () =>
+      ok([
+        {
+          roleId: 201,
+          roleName: "基础用户",
+          roleTypeCode: "BASIC_ROLE",
+          roleTypeLabel: "基础角色"
+        },
+        {
+          roleId: 202,
+          roleName: "高级用户",
+          roleTypeCode: "BASIC_ROLE",
+          roleTypeLabel: "基础角色"
+        },
+        {
+          roleId: 401,
+          roleName: "核心开发组",
+          roleTypeCode: "GROUP_ROLE",
+          roleTypeLabel: "分组角色"
+        },
+        {
+          roleId: 402,
+          roleName: "产品组",
+          roleTypeCode: "GROUP_ROLE",
+          roleTypeLabel: "分组角色"
+        },
+        {
+          roleId: 501,
+          roleName: "个人角色A",
+          roleTypeCode: "PERSONAL",
+          roleTypeLabel: "个人角色"
+        }
+      ])
   }
 ]);
