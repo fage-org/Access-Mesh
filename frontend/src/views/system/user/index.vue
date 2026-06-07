@@ -128,9 +128,13 @@ function onNodeDelete(node: any) {
           <div class="org-info-title">
             <el-icon class="org-icon"><OfficeBuilding /></el-icon>
             <span class="org-name">{{ selectedOrg.orgName }}</span>
-            <el-tag size="small" type="info" effect="plain">
-              {{ selectedOrg.code }}
+            <el-tag size="small" type="info" effect="plain">{{ selectedOrg.code }}</el-tag>
+            <el-tag :type="selectedOrg.status === 1 ? 'success' : 'danger'" size="small" effect="light">
+              {{ selectedOrg.status === 1 ? '启用' : '禁用' }}
             </el-tag>
+            <span class="org-parent-info">
+              上级部门：{{ selectedOrg.parentOrgId ? findParentOrgName(orgTreePanelRef?.orgTree || [], selectedOrg.parentOrgId) : '根组织' }}
+            </span>
           </div>
           <div class="org-info-actions">
             <el-button type="primary" plain size="small">
@@ -141,22 +145,6 @@ function onNodeDelete(node: any) {
               <el-icon><Plus /></el-icon>
               新增下级
             </el-button>
-          </div>
-        </div>
-        <div class="org-info-body">
-          <div class="org-info-item">
-            <span class="label">上级部门</span>
-            <span class="value">{{ selectedOrg.parentOrgId ? findParentOrgName(orgTreePanelRef?.orgTree || [], selectedOrg.parentOrgId) : '根组织' }}</span>
-          </div>
-          <div class="org-info-item">
-            <span class="label">部门类型</span>
-            <span class="value">{{ selectedOrg.orgType === 1 ? '普通组织' : '岗位' }}</span>
-          </div>
-          <div class="org-info-item">
-            <span class="label">状态</span>
-            <el-tag :type="selectedOrg.status === 1 ? 'success' : 'danger'" size="small">
-              {{ selectedOrg.status === 1 ? '启用' : '禁用' }}
-            </el-tag>
           </div>
         </div>
       </div>
@@ -221,6 +209,7 @@ function onNodeDelete(node: any) {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .org-icon {
@@ -239,25 +228,9 @@ function onNodeDelete(node: any) {
   gap: 8px;
 }
 
-.org-info-body {
-  display: flex;
-  gap: 32px;
-}
-
-.org-info-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  .label {
-    font-size: 13px;
-    color: var(--el-text-color-secondary);
-  }
-
-  .value {
-    font-size: 13px;
-    color: var(--el-text-color-primary);
-  }
+.org-parent-info {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 /* Tab 区 */
