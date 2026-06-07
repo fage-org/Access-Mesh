@@ -240,65 +240,63 @@ const columns = [
 
 <template>
   <div class="member-tab">
-    <!-- 搜索栏 -->
-    <el-form :inline="true" :model="searchForm" class="search-form">
-      <el-form-item label="姓名">
-        <el-input
-          v-model="searchForm.name"
-          placeholder="请输入姓名"
-          clearable
-          class="w-35!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="邮箱">
-        <el-input
-          v-model="searchForm.email"
-          placeholder="请输入邮箱"
-          clearable
-          class="w-45!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="手机号">
-        <el-input
-          v-model="searchForm.phone"
-          placeholder="请输入手机号"
-          clearable
-          class="w-35!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select
-          v-model="searchForm.status"
-          placeholder="全部"
-          clearable
-          class="w-30!"
-        >
-          <el-option label="启用" :value="1" />
-          <el-option label="禁用" :value="0" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon(Search)"
-          :loading="loading"
-          @click="onSearch"
-        >
-          搜索
-        </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="onReset()">
-          重置
-        </el-button>
-      </el-form-item>
-    </el-form>
-
     <!-- 表格 -->
     <div class="table-wrap">
       <PureTableBar title="成员管理" :columns="columns" @refresh="onSearch">
         <template #buttons>
+          <el-form :inline="true" :model="searchForm" class="search-form-inline">
+            <el-form-item label="姓名" class="mb-0!">
+              <el-input
+                v-model="searchForm.name"
+                placeholder="请输入姓名"
+                clearable
+                class="w-30!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="邮箱" class="mb-0!">
+              <el-input
+                v-model="searchForm.email"
+                placeholder="请输入邮箱"
+                clearable
+                class="w-35!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="手机号" class="mb-0!">
+              <el-input
+                v-model="searchForm.phone"
+                placeholder="请输入手机号"
+                clearable
+                class="w-30!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="状态" class="mb-0!">
+              <el-select
+                v-model="searchForm.status"
+                placeholder="全部"
+                clearable
+                class="w-25!"
+              >
+                <el-option label="启用" :value="1" />
+                <el-option label="禁用" :value="0" />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="mb-0!">
+              <el-button
+                type="primary"
+                :icon="useRenderIcon(Search)"
+                :loading="loading"
+                @click="onSearch"
+              >
+                搜索
+              </el-button>
+              <el-button :icon="useRenderIcon(Refresh)" @click="onReset()">
+                重置
+              </el-button>
+            </el-form-item>
+          </el-form>
           <el-button
             type="primary"
             :icon="useRenderIcon(AddFill)"
@@ -312,7 +310,7 @@ const columns = [
             ref="tableRef"
             row-key="id"
             adaptive
-            :adaptiveConfig="{ offsetBottom: 108 }"
+            :adaptiveConfig="{ offsetBottom: 20 }"
             align-whole="center"
             table-layout="auto"
             :loading="loading"
@@ -405,17 +403,29 @@ const columns = [
   height: 100%;
 }
 
-.search-form {
-  padding: 8px 16px 0;
-
-  :deep(.el-form-item) {
-    margin-bottom: 8px;
-  }
-}
-
 .table-wrap {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 搜索表单内联样式 */
+.search-form-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-right: 8px;
+
+  :deep(.el-form-item) {
+    margin-bottom: 0;
+    margin-right: 0;
+  }
+
+  :deep(.el-form-item__label) {
+    padding-right: 4px;
+  }
 }
 
 :deep(.el-table__row) {
