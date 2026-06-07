@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import type { OrgTreeNode } from "@/api/user-manage";
+import { ArrowDown } from "@element-plus/icons-vue";
 
 defineOptions({
   name: "OrgForm"
@@ -220,27 +221,36 @@ defineExpose({
     </el-form-item>
 
     <el-form-item label="上级组织">
-      <div class="parent-org-selector">
-        <el-input :model-value="parentOrgDisplay" disabled class="flex-1" />
-        <el-button type="primary" size="small" @click="showOrgTree = true">
-          选择
-        </el-button>
-      </div>
-      <!-- 父组织选择弹窗 -->
-      <el-dialog
-        v-model="showOrgTree"
-        title="选择上级组织"
-        width="360px"
-        :append-to-body="true"
+      <el-popover
+        v-model:visible="showOrgTree"
+        trigger="click"
+        placement="bottom-start"
+        :width="360"
+        :show-arrow="false"
+        :teleported="true"
       >
-        <ReOrgTreePanel
-          :show-config="false"
-          :show-search="true"
-          compact
-          class="w-full"
-          @org-change="onOrgTreeSelect"
-        />
-      </el-dialog>
+        <template #reference>
+          <el-input
+            :model-value="parentOrgDisplay"
+            readonly
+            placeholder="点击选择上级组织"
+            class="w-full! cursor-pointer"
+          >
+            <template #suffix>
+              <el-icon><Arrow-Down /></el-icon>
+            </template>
+          </el-input>
+        </template>
+        <div class="org-tree-popover-content">
+          <ReOrgTreePanel
+            :show-config="false"
+            :show-search="true"
+            compact
+            class="w-full"
+            @org-change="onOrgTreeSelect"
+          />
+        </div>
+      </el-popover>
     </el-form-item>
 
     <el-form-item label="排序号" prop="sort">
@@ -278,13 +288,8 @@ defineExpose({
   }
 }
 
-.parent-org-selector {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.parent-org-selector .flex-1 {
-  flex: 1;
+.org-tree-popover-content {
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>
