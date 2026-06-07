@@ -220,7 +220,27 @@ defineExpose({
     </el-form-item>
 
     <el-form-item label="上级组织">
-      <el-input :model-value="parentOrgDisplay" disabled class="w-full!" />
+      <div class="parent-org-selector">
+        <el-input :model-value="parentOrgDisplay" disabled class="flex-1" />
+        <el-button type="primary" size="small" @click="showOrgTree = true">
+          选择
+        </el-button>
+      </div>
+      <!-- 父组织选择弹窗 -->
+      <el-dialog
+        v-model="showOrgTree"
+        title="选择上级组织"
+        width="360px"
+        :append-to-body="true"
+      >
+        <ReOrgTreePanel
+          :show-config="false"
+          :show-search="true"
+          compact
+          class="w-full"
+          @org-change="onOrgTreeSelect"
+        />
+      </el-dialog>
     </el-form-item>
 
     <el-form-item label="排序号" prop="sort">
@@ -256,5 +276,15 @@ defineExpose({
   :deep(.el-form-item:last-child) {
     margin-bottom: 0;
   }
+}
+
+.parent-org-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.parent-org-selector .flex-1 {
+  flex: 1;
 }
 </style>

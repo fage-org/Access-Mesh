@@ -318,7 +318,7 @@ defineExpose({
         :class="showConfig ? 'mt-1.5' : ''"
         @input="(_val: string) => treeRef?.filter(_val)"
       />
-      <!-- 新增根组织按钮 -->
+      <!-- 新增组织按钮 -->
       <el-button
         v-if="editable"
         type="primary"
@@ -332,7 +332,7 @@ defineExpose({
           height="14px"
           class="mr-1"
         />
-        新增根组织
+        新增组织
       </el-button>
     </div>
     <el-divider v-if="showConfig || showSearch || editable" class="my-1!" />
