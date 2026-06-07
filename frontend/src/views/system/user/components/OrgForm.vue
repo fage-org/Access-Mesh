@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
-import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
+import { getOrgTree } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import { ArrowDown } from "@element-plus/icons-vue";
 
@@ -47,6 +47,15 @@ const formData = reactive<OrgFormData>({ ...defaultFormData() });
 
 /** 是否显示组织树选择器 */
 const showOrgTree = ref(false);
+
+/** 组织树数据 */
+const orgTreeData = ref<OrgTreeNode[]>([]);
+
+/** 搜索过滤文本 */
+const filterText = ref("");
+
+/** 树组件引用 */
+const treeRef = ref();
 
 /** 选中的父组织名称 */
 const selectedParentOrgName = ref("");
@@ -103,6 +112,21 @@ const parentOrgDisplay = computed(() => {
   }
   return "根组织";
 });
+
+/** 加载组织树数据 */
+async function loadOrgTreeData() {
+  try {
+    orgTreeData.value = await getOrgTree({ operationCode: "VIEW" });
+  } catch (error) {
+    console.error("加载组织树失败:", error);
+  }
+}
+
+/** 过滤组织节点 */
+function filterOrgNode(value: string, data: any) {
+  if (!value) return true;
+  return data.orgName.includes(value);
+}
 
 /** 处理组织树节点选择 */
 function onOrgTreeSelect(orgId: number | null) {
@@ -228,6 +252,7 @@ defineExpose({
         :width="360"
         :show-arrow="false"
         :teleported="true"
+        @show="loadOrgTreeData"
       >
         <template #reference>
           <el-input
@@ -242,13 +267,35 @@ defineExpose({
           </el-input>
         </template>
         <div class="org-tree-popover-content">
-          <ReOrgTreePanel
-            :show-config="false"
-            :show-search="true"
-            compact
-            class="w-full"
-            @org-change="onOrgTreeSelect"
+          <el-input
+            v-model="filterText"
+            size="small"
+            placeholder="搜索组织..."
+            clearable
+            class="mb-2"
           />
+          <el-scrollbar max-height="var(--popover-max-height)">
+            <el-tree
+              ref="treeRef"
+              :data="orgTreeData"
+              node-key="id"
+              size="small"
+              :props="{ children: 'children', label: 'orgName' }"
+              default-expand-all
+              :expand-on-click-node="false"
+              :filter-node-method="filterOrgNode"
+              highlight-current
+              @node-click="(_data: any) => onOrgTreeNodeClick(_data)"
+            >
+              <template #default="{ data }">
+                <div class="org-tree-node">
+                  <span class="truncate" :title="data.orgName">
+                    {{ data.orgName }}
+                  </span>
+                </div>
+              </template>
+            </el-tree>
+          </el-scrollbar>
         </div>
       </el-popover>
     </el-form-item>
