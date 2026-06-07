@@ -169,9 +169,9 @@ function onNodeDelete(node: any) {
 <style lang="scss" scoped>
 .user-page {
   display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 8px;
-  height: calc(100vh - 135px);
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: var(--space-2);
+  height: calc(100vh - var(--header-offset));
   overflow: hidden;
 }
 
@@ -261,6 +261,6 @@ function onNodeDelete(node: any) {
 /* 覆写 layout 的 .main-content[data-v-x] { margin: 24px }
    特异性：(class+class) 0,2,0 vs (class+attr) 0,2,0 → 同级看顺序，再加 tag 提升至 0,2,1 */
 div.user-page.main-content {
-  margin: 12px;
+  margin: var(--space-3);
 }
 </style>

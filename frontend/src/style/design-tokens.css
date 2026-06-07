@@ -1,0 +1,56 @@
+/**
+ * 全局 CSS 变量 / 设计 Token
+ * 统一间距、尺寸、响应式断点等设计系统常量
+ */
+
+:root {
+  /* ========================================
+     间距阶梯 (Spacing Scale)
+     ======================================== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ========================================
+     圆角阶梯 (Border Radius)
+     ======================================== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ========================================
+     布局偏移量 (Layout Offsets)
+     用于 calc(100vh - offset) 场景
+     ======================================== */
+  /* 页面主内容区高度偏移（含 navbar + tabs + main-content margin + footer） */
+  --header-offset: 135px;
+  /* 表格内容区高度偏移（含 header + org-card + tabs + pagination + buffer） */
+  --table-offset: 400px;
+  /* 对话框内容区偏移 */
+  --dialog-offset: 80px;
+
+  /* ========================================
+     组件尺寸 (Component Sizes)
+     ======================================== */
+  --sidebar-width: 200px;
+  --sidebar-min-width: 180px;
+  --sidebar-max-width: 240px;
+  --popover-max-height: 260px;
+
+  /* ========================================
+     响应式断点 (Responsive Breakpoints)
+     ======================================== */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+}

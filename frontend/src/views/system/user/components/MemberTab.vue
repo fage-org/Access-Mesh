@@ -328,7 +328,7 @@ const columns = [
                 inline-prompt
                 active-text="启用"
                 inactive-text="禁用"
-                style="--el-switch-on-color: #67c23a; --el-switch-off-color: #f56c6c"
+                style="--el-switch-on-color: var(--el-color-success); --el-switch-off-color: var(--el-color-danger)"
                 @change="(val: number) => handleToggleStatus(row, val)"
               />
             </template>
@@ -373,7 +373,7 @@ const columns = [
                     </el-dropdown-item>
                     <el-dropdown-item command="delete" divided>
                       <el-icon><Delete /></el-icon>
-                      <span class="ml-1" style="color: #f56c6c">删除</span>
+                      <span class="ml-1" style="color: var(--el-color-danger)">删除</span>
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -450,7 +450,7 @@ const columns = [
 
 /* 设置表格最大高度，确保分页可见 */
 .table-wrap :deep(.el-table__body-wrapper) {
-  max-height: calc(100vh - 400px);
+  max-height: calc(100vh - var(--table-offset));
   overflow-y: auto;
 }
 

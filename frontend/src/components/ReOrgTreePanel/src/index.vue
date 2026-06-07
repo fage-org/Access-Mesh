@@ -245,7 +245,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
           class="mb-2"
           @input="(_val: string) => treeRef?.filter(_val)"
         />
-        <el-scrollbar max-height="260px">
+        <el-scrollbar max-height="var(--popover-max-height)">
           <el-tree
             ref="treeRef"
             :data="filteredOrgTree"
@@ -274,7 +274,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
                   :icon="useRenderIcon('ep/office-building')"
                   width="14px"
                   height="14px"
-                  class="text-[#409eff] mr-1"
+                  class="text-primary mr-1"
                 />
                 <span class="truncate" :title="data.orgName">
                   {{ data.orgName }}
@@ -376,7 +376,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
                 :icon="useRenderIcon('ep/office-building')"
                 width="14px"
                 height="14px"
-                class="text-[#409eff] mr-1"
+                class="text-primary mr-1"
               />
               <span class="truncate" :title="data.orgName">
                 {{ data.orgName }}
@@ -487,6 +487,6 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
 <style>
 /* popover 内容（teleported，需 unscoped） */
 .org-tree-popover-content .el-scrollbar {
-  max-height: 260px;
+  max-height: var(--popover-max-height);
 }
 </style>

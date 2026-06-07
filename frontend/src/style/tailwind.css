@@ -9,6 +9,11 @@
   --color-primary: var(--el-color-primary);
   --color-text_color_primary: var(--el-text-color-primary);
   --color-text_color_regular: var(--el-text-color-regular);
+  --color-success: var(--el-color-success);
+  --color-warning: var(--el-color-warning);
+  --color-danger: var(--el-color-danger);
+  --color-info: var(--el-color-info);
+  --color-fill-light: var(--el-fill-color-light);
 }
 
 /*

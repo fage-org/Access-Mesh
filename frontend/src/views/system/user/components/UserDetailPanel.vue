@@ -275,7 +275,7 @@ function formatDate(val: string | null): string {
             :icon="useRenderIcon('ep/office-building')"
             width="14px"
             height="14px"
-            class="text-[#409eff]"
+            class="text-primary"
           />
           <span class="text-sm font-medium">组织归属</span>
           <el-button
@@ -356,7 +356,7 @@ function formatDate(val: string | null): string {
             :icon="useRenderIcon('ep/user-filled')"
             width="14px"
             height="14px"
-            class="text-[#67c23a]"
+            class="text-success"
           />
           <span class="text-sm font-medium">角色列表</span>
           <el-button
@@ -450,13 +450,13 @@ function formatDate(val: string | null): string {
             :icon="useRenderIcon('ep/lock')"
             width="14px"
             height="14px"
-            class="text-[#e6a23c]"
+            class="text-warning"
           />
           <span class="text-sm font-medium">权限查询</span>
           <el-tag size="small" type="warning" effect="plain">开发中</el-tag>
         </div>
         <div
-          class="p-3 rounded bg-[#f5f7fa] dark:bg-[#262727] text-xs text-gray-400 text-center"
+          class="p-3 rounded bg-fill-light text-xs text-gray-400 text-center"
         >
           权限查询功能将在权限管理页面设计完成后补充
         </div>
@@ -470,7 +470,7 @@ function formatDate(val: string | null): string {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-height: 65vh;
+  max-height: calc(100vh - var(--dialog-offset));
   background: var(--el-bg-color);
 }
 
@@ -488,7 +488,7 @@ function formatDate(val: string | null): string {
   justify-content: center;
   width: 40px;
   height: 40px;
-  color: #fff;
+  color: var(--el-color-white);
   background: var(--el-color-primary-light-5);
   border-radius: 50%;
 }

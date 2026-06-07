@@ -4,6 +4,9 @@
 @use "sidebar";
 @use "dark";
 
+/* 导入设计系统 Token */
+@import "./design-tokens.css";
+
 /* 自定义全局 CssVar */
 :root {
   /* 左侧菜单展开、收起动画时长 */
