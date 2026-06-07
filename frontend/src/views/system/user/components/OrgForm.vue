@@ -36,7 +36,7 @@ const emit = defineEmits<{
 const defaultFormData = (): OrgFormData => ({
   orgName: "",
   code: "",
-  orgType: 1,
+  orgType: 1, // 新增普通组织固定为 1
   parentOrgId: props.parentOrgId ?? null,
   status: 1,
   sort: 0
@@ -219,12 +219,12 @@ defineExpose({
       />
     </el-form-item>
 
-    <el-form-item label="组织类型" prop="orgType">
+    <el-form-item v-if="mode === 'edit'" label="组织类型">
       <el-select
         v-model="formData.orgType"
         placeholder="请选择组织类型"
         class="w-full!"
-        :disabled="mode === 'edit'"
+        disabled
       >
         <el-option
           v-for="opt in orgTypeOptions"
@@ -233,6 +233,10 @@ defineExpose({
           :value="opt.value"
         />
       </el-select>
+    </el-form-item>
+
+    <el-form-item v-if="mode === 'create'" label="组织类型" class="hidden">
+      <el-input v-model="formData.orgType" type="hidden" />
     </el-form-item>
 
     <el-form-item label="上级组织">
