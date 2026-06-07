@@ -68,25 +68,25 @@
 
 ### P0 — 前端骨架（纯 mock 可跑通，不依赖后端改造）
 
-| # | 任务 | 文件 | 要点 |
-|---|------|------|------|
-| P0-1 | 路由/标题改名 | `router/modules/system.ts` | `title:"组织与用户"`；`name` 可保留 `SystemUser`（避免动态路由/缓存键变动），加 `meta.auths`（见 §4） |
-| P0-2 | 右侧改 Tab 壳 | `index.vue` | 引入 `<el-tabs>`；**仅保留 2 个 Tab**：成员管理 + 岗位管理；顶部固定组织信息卡片 |
-| P0-3 | 成员 Tab | `components/MemberTab.vue`(新) | 迁入现表格逻辑；新增**启用/禁用**（行内 `el-switch`）+ **重置密码**操作 |
-| P0-4 | 组织树可编辑 | `ReOrgTreePanel/src/index.vue` | 加 `editable?:boolean`、`orgType?` 过滤；`editable` 时渲染节点 hover 操作（加子/改/删）+ 顶部"新增根组织"，emit `node-add/node-edit/node-delete/node-move`；**过滤 orgType=2（岗位）**；compact/form 用法默认 `editable=false` 不受影响 |
-| P0-5 | 组织表单 | `components/OrgForm.vue`(新) | 字段对齐 `OrgCreateReq/OrgUpdateReq`：`orgName/code/orgType/parentOrgId/status/sort` |
-| P0-6 | 顶部组织信息卡片 | `index.vue` 内联 | 展示选中组织详情 + 编辑按钮（复用 OrgForm） |
-| P0-7 | ~~子组织 Tab~~ | ~~已移除~~ | ~~子组织通过左侧树展开查看，不再设 Tab~~ |
-| P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`）。**按左树选中组织筛选**，展示该组织及其子组织下的岗位。卡片内展示：岗位名、所属组织路径、已分配人数、展开后的用户列表（调用 `/org/users`） |
-| P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） |
-| P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 |
+| # | 任务 | 文件 | 要点 | 状态 |
+|---|------|------|------|------|
+| P0-1 | 路由/标题改名 | `router/modules/system.ts` | `title:"组织与用户"`；`name` 可保留 `SystemUser` | ✅ 已完成 |
+| P0-2 | 右侧改 Tab 壳 | `index.vue` | 引入 `<el-tabs>`；**仅保留 2 个 Tab**：成员管理 + 岗位管理；顶部固定组织信息卡片 | ✅ 已完成 |
+| P0-3 | 成员 Tab | `components/MemberTab.vue`(新) | 迁入现表格逻辑；新增**启用/禁用**（行内 `el-switch`）+ **重置密码**操作 | ✅ 已完成 |
+| P0-4 | 组织树可编辑 | `ReOrgTreePanel/src/index.vue` | 加 `editable?:boolean`、`orgType?` 过滤；`editable` 时渲染节点 hover 操作（加子/改/删）+ 顶部"新增根组织"，emit `node-add/node-edit/node-delete/node-move`；**过滤 orgType=2（岗位）** | ✅ 已完成 |
+| P0-5 | 组织表单 | `components/OrgForm.vue`(新) | 字段对齐 `OrgCreateReq/OrgUpdateReq`：`orgName/code/orgType/parentOrgId/status/sort` | ✅ 已完成 |
+| P0-6 | 顶部组织信息卡片 | `index.vue` 内联 | 展示选中组织详情 + 编辑按钮（复用 OrgForm） | ✅ 已完成 |
+| P0-7 | ~~子组织 Tab~~ | ~~已移除~~ | ~~子组织通过左侧树展开查看，不再设 Tab~~ | ✅ 已移除 |
+| P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`）。**按左树选中组织筛选**，展示该组织及其子组织下的岗位。卡片内展示：岗位名、所属组织路径、已分配人数、展开后的用户列表（调用 `/org/users`） | ✅ 已完成 |
+| P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） | ⏳ 待开发 |
+| P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 | ✅ 已完成 |
 
 **接口增量（P0 先 mock）**：
-- `POST /org/create` `/org/update` `/org/delete`（`IdReq`）；移动复用 `/org/update` 改 `parentOrgId`
-- 岗位：复用 `/org/tree`（按 `orgType`/POSITION 树）或加 `/org/page?orgType=`；**需补充 `/org/page` 按选中组织子树筛选（传 `orgId` 参数）**；挂载复用 `/user-org/*`
-- `POST /user/enable`（`IdsReq`，启停）、`POST /user/reset-password`（`{userId,newPassword?}`）
-- 功能角色候选来源：加 `POST /role/list`（仅 BASIC_ROLE/GROUP_ROLE/PERSONAL）
-- **新增 `POST /org/users`（`{orgId}`）→ 返回该组织/岗位下的用户列表**（P0-8 岗位卡片内展示已分配用户）
+- ✅ `POST /org/create` `/org/update` `/org/delete`（`IdReq`）；移动复用 `/org/update` 改 `parentOrgId`
+- ✅ 岗位：复用 `/org/tree`（按 `orgType`/POSITION 树）或加 `/org/page?orgType=`；**已补充 `/org/page` 按选中组织子树筛选（传 `orgId` 参数）**；挂载复用 `/user-org/*`
+- ✅ `POST /user/enable`（`IdsReq`，启停）、`POST /user/reset-password`（`{userId,newPassword?}`）
+- ✅ 功能角色候选来源：加 `POST /role/list`（仅 BASIC_ROLE/GROUP_ROLE/PERSONAL）
+- ✅ **新增 `POST /org/users`（`{orgId}`）→ 返回该组织/岗位下的用户列表**（P0-8 岗位卡片内展示已分配用户）
 
 ### P1 — 后端契约（admin-service；契约 §8 遗留 + api-gap）
 
@@ -281,3 +281,52 @@ interface OrgUserItem {
 
 `P0-1 → P0-2 → P0-10(mock 先行) → P0-4(树过滤+可编辑) → P0-6(顶部卡片) → P0-3(成员Tab) → P0-8(岗位Tab折叠卡片) → P0-9(详情面板) → P0-5(OrgForm) → 自测` ⇒ 前端骨架完整可演示（纯 mock）。
 随后 `P1`（后端并行）→ `P2`（接线降级）。P0 不被后端阻塞。
+
+---
+
+## 8. 当前进度（2026-06-07 更新）
+
+### P0 完成度：90%
+
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| P0-1 路由/标题改名 | ✅ | `title:"组织与用户"` |
+| P0-2 右侧改 Tab 壳 | ✅ | 2 个 Tab + 顶部组织信息卡片 |
+| P0-3 成员 Tab | ✅ | 启用/禁用 + 重置密码 |
+| P0-4 组织树可编辑 | ✅ | editable + orgType 过滤 |
+| P0-5 组织表单 | ✅ | OrgForm.vue 字段对齐 |
+| P0-6 顶部组织信息卡片 | ✅ | 展示选中组织详情 |
+| P0-8 岗位 Tab | ✅ | 折叠卡片 + CRUD + 挂载用户 |
+| P0-10 API + Mock 扩充 | ✅ | `/org/users` + `/org/page` 子树筛选 |
+| **P0-9 详情面板迁移** | ⏳ **待开发** | `otherRoles` 排除 POSITION + 新增「所属岗位」节 |
+
+### P0-8 实现细节
+
+**已完成功能**：
+- ✅ 按选中组织及其子组织筛选岗位（`/org/page` 传 `orgId` 参数）
+- ✅ 折叠卡片展示：岗位名、编码、所属组织路径、已分配人数
+- ✅ 展开后显示用户列表（调用 `/org/users`）
+- ✅ 岗位 CRUD：新增、编辑、删除（复用 OrgForm，orgType 固定为 2）
+- ✅ 用户挂载：弹窗选择用户，调用 `/user-org/assign`
+- ✅ 用户卸载：点击移除，调用 `/user-org/remove`
+- ✅ 搜索过滤：按岗位名称实时搜索
+
+**已知问题（已修复）**：
+- ✅ `h is not defined` — 已导入 `h` 函数
+- ✅ `Failed to resolve component: Key` — MemberTab.vue 已导入 Key 图标
+- ✅ 添加成员后岗位为空 — 缓存清空逻辑修复（`delete` 替代 `= []`）
+
+### 下一步
+
+1. **P0-9**：详情面板迁移（`UserDetailPanel.vue`）
+   - `otherRoles` 过滤排除 POSITION
+   - 新增「所属岗位」节（只读，从 `getUserOrgs` 按 `orgType=2` 拆分）
+   - 角色候选改为「功能角色」数据源（去掉 301/302 岗位项）
+
+2. **P1**：后端契约（与后端并行）
+   - `/user/page` 落实 `orgId` 子树语义
+   - `/user-role/{list,assign,revoke}` 代理
+
+3. **P2**：权限接线 + 降级
+   - 按钮门控 `<Perms>` / `hasPerms()`
+   - 菜单下发 `sys_menu` 配置

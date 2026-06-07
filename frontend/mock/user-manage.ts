@@ -927,6 +927,13 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const params = body ?? {};
       let flat = flattenTrees(allTrees());
+      // 按选中组织子树筛选（用于岗位 Tab）
+      if (params.orgId) {
+        const allowedIds = getDescendantOrgIds(allTrees(), params.orgId);
+        flat = flat.filter(
+          o => allowedIds.has(o.parentOrgId) || allowedIds.has(o.id)
+        );
+      }
       if (params.orgType !== undefined && params.orgType !== null) {
         flat = flat.filter(o => o.orgType === params.orgType);
       }
@@ -980,6 +987,29 @@ export default defineFakeRoute([
       if (!user) return { code: 400, message: "用户不存在", data: null };
       const newPassword = data.newPassword ?? randomPassword();
       return ok({ newPassword });
+    }
+  },
+
+  // ========== /org/users 查询组织下用户 ==========
+
+  // POST /org/users —— 查询组织/岗位下的用户
+  {
+    url: "/org/users",
+    method: "post",
+    response: ({ body }) => {
+      const data = body ?? {};
+      const orgId = data.orgId;
+      if (!orgId) return { code: 400, message: "orgId 不能为空", data: null };
+      const users = mockUsers
+        .filter(u => u.orgs.some(o => o.orgId === orgId))
+        .map(u => ({
+          userId: u.id,
+          username: u.username,
+          name: u.name,
+          avatar: null,
+          isPrimary: u.orgs.find(o => o.orgId === orgId)?.isPrimary ?? false
+        }));
+      return ok(users);
     }
   },
 

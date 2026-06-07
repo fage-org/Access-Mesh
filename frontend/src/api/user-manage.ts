@@ -117,6 +117,15 @@ export type OrgBrief = {
   isPrimary: boolean;
 };
 
+/** 组织下的用户项（对齐后端 OrgUserItem） */
+export type OrgUserItem = {
+  userId: number;
+  username: string;
+  name: string;
+  avatar?: string;
+  isPrimary: boolean;
+};
+
 /** 创建用户响应（对齐后端 POST /user/create + 初始密码返回） */
 export type CreateUserResult = {
   id: number;
@@ -154,6 +163,8 @@ export type OrgPageQuery = {
   orgName?: string;
   orgType?: number;
   status?: number;
+  /** 按选中组织子树筛选（用于岗位 Tab） */
+  orgId?: number;
 };
 
 /** 组织分页项（平铺，不含 children） */
@@ -401,5 +412,17 @@ export const getRoleList = async (): Promise<RoleItem[]> => {
   const res = await http.request<PermResult<RoleItem[]>>("post", "/role/list", {
     data: {}
   });
+  return unwrap(res);
+};
+
+// ========== /org/users 查询组织下用户 ==========
+
+/** 组织下的用户（POST /org/users） */
+export const getOrgUsers = async (orgId: number): Promise<OrgUserItem[]> => {
+  const res = await http.request<PermResult<OrgUserItem[]>>(
+    "post",
+    "/org/users",
+    { data: { orgId } }
+  );
   return unwrap(res);
 };

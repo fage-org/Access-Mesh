@@ -15,6 +15,7 @@ import AddFill from "~icons/ri/add-circle-line";
 import Search from "~icons/ep/search";
 import View from "~icons/ep/view";
 import More from "~icons/ep/more-filled";
+import Key from "~icons/ep/key";
 
 import { enableUsers, resetUserPassword } from "@/api/user-manage";
 
@@ -330,7 +331,6 @@ const columns = [
                 active-text="启用"
                 inactive-text="禁用"
                 style="
-
                   --el-switch-on-color: var(--el-color-success);
                   --el-switch-off-color: var(--el-color-danger);
                 "
