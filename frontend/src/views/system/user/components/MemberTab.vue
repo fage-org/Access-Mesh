@@ -240,64 +240,55 @@ const columns = [
 
 <template>
   <div class="member-tab">
-    <!-- 搜索栏 -->
-    <el-form :inline="true" :model="searchForm" class="search-form">
-      <el-form-item label="姓名">
-        <el-input
-          v-model="searchForm.name"
-          placeholder="请输入姓名"
-          clearable
-          class="w-30!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="邮箱">
-        <el-input
-          v-model="searchForm.email"
-          placeholder="请输入邮箱"
-          clearable
-          class="w-35!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="手机号">
-        <el-input
-          v-model="searchForm.phone"
-          placeholder="请输入手机号"
-          clearable
-          class="w-30!"
-          @keyup.enter="onSearch"
-        />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select
-          v-model="searchForm.status"
-          placeholder="全部"
-          clearable
-          class="w-25!"
-        >
-          <el-option label="启用" :value="1" />
-          <el-option label="禁用" :value="0" />
-        </el-select>
-      </el-form-item>
-      <el-form-item>
-        <el-button
-          type="primary"
-          :icon="useRenderIcon(Search)"
-          :loading="loading"
-          @click="onSearch"
-        >
-          搜索
-        </el-button>
-        <el-button :icon="useRenderIcon(Refresh)" @click="onReset()">
-          重置
-        </el-button>
-      </el-form-item>
-    </el-form>
-
     <!-- 表格 -->
     <div class="table-wrap">
       <PureTableBar title="" :columns="columns" @refresh="onSearch">
+        <template #title>
+          <el-form :inline="true" :model="searchForm" class="search-form-inline">
+            <el-form-item label="姓名" class="mb-0!">
+              <el-input
+                v-model="searchForm.name"
+                placeholder="请输入姓名"
+                clearable
+                class="w-25!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="邮箱" class="mb-0!">
+              <el-input
+                v-model="searchForm.email"
+                placeholder="请输入邮箱"
+                clearable
+                class="w-30!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="状态" class="mb-0!">
+              <el-select
+                v-model="searchForm.status"
+                placeholder="全部"
+                clearable
+                class="w-20!"
+              >
+                <el-option label="启用" :value="1" />
+                <el-option label="禁用" :value="0" />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="mb-0!">
+              <el-button
+                type="primary"
+                :icon="useRenderIcon(Search)"
+                :loading="loading"
+                @click="onSearch"
+              >
+                搜索
+              </el-button>
+              <el-button :icon="useRenderIcon(Refresh)" @click="onReset()">
+                重置
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </template>
         <template #buttons>
           <el-button
             type="primary"
@@ -403,12 +394,19 @@ const columns = [
   height: 100%;
 }
 
-.search-form {
-  padding: 8px 16px 0;
-  flex-shrink: 0;
+.search-form-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 
   :deep(.el-form-item) {
-    margin-bottom: 8px;
+    margin-bottom: 0;
+    margin-right: 0;
+  }
+
+  :deep(.el-form-item__label) {
+    padding-right: 4px;
   }
 }
 
@@ -448,6 +446,12 @@ const columns = [
 .table-wrap :deep(.el-table) {
   flex: 1;
   min-height: 0;
+}
+
+/* 设置表格最大高度，确保分页可见 */
+.table-wrap :deep(.el-table__body-wrapper) {
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
 }
 
 :deep(.el-table__row) {
