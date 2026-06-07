@@ -60,6 +60,19 @@ function findOrgById(nodes: OrgTreeNode[], id: number): OrgTreeNode | null {
   return null;
 }
 
+// 查找父组织名称
+function findParentOrgName(nodes: OrgTreeNode[], parentId: number | null): string {
+  if (!parentId) return "根组织";
+  for (const node of nodes) {
+    if (node.id === parentId) return node.orgName;
+    if (node.children) {
+      const found = findParentOrgName(node.children, parentId);
+      if (found) return found;
+    }
+  }
+  return "未知";
+}
+
 function openUserDetail(row: any) {
   addDialog({
     title: `${row.name} 的用户信息`,
@@ -133,7 +146,7 @@ function onNodeDelete(node: any) {
         <div class="org-info-body">
           <div class="org-info-item">
             <span class="label">上级部门</span>
-            <span class="value">{{ selectedOrg.parentOrgId ? '...' : '根组织' }}</span>
+            <span class="value">{{ selectedOrg.parentOrgId ? findParentOrgName(orgTreePanelRef?.orgTree || [], selectedOrg.parentOrgId) : '根组织' }}</span>
           </div>
           <div class="org-info-item">
             <span class="label">部门类型</span>
