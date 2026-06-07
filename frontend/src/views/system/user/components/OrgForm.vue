@@ -113,10 +113,30 @@ const parentOrgDisplay = computed(() => {
   return "根组织";
 });
 
+/** 过滤岗位节点（递归过滤，只保留 orgType=1 的普通组织） */
+function filterPositionNodes(nodes: OrgTreeNode[]): OrgTreeNode[] {
+  const result: OrgTreeNode[] = [];
+  for (const node of nodes) {
+    // 只保留普通组织（orgType=1），过滤掉岗位（orgType=2）
+    if (node.orgType === 1) {
+      const filteredChildren = node.children
+        ? filterPositionNodes(node.children)
+        : [];
+      result.push({
+        ...node,
+        children: filteredChildren
+      });
+    }
+  }
+  return result;
+}
+
 /** 加载组织树数据 */
 async function loadOrgTreeData() {
   try {
-    orgTreeData.value = await getOrgTree({ operationCode: "VIEW" });
+    const treeData = await getOrgTree({ operationCode: "VIEW" });
+    // 过滤掉岗位节点（orgType=2），只保留普通组织
+    orgTreeData.value = filterPositionNodes(treeData);
   } catch (error) {
     console.error("加载组织树失败:", error);
   }
