@@ -77,15 +77,16 @@
 | P0-5 | 组织表单 | `components/OrgForm.vue`(新) | 字段对齐 `OrgCreateReq/OrgUpdateReq`：`orgName/code/orgType/parentOrgId/status/sort` |
 | P0-6 | 顶部组织信息卡片 | `index.vue` 内联 | 展示选中组织详情 + 编辑按钮（复用 OrgForm） |
 | P0-7 | ~~子组织 Tab~~ | ~~已移除~~ | ~~子组织通过左侧树展开查看，不再设 Tab~~ |
-| P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`）。**按左树选中组织筛选**，展示该组织及其子组织下的岗位 |
+| P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`）。**按左树选中组织筛选**，展示该组织及其子组织下的岗位。卡片内展示：岗位名、所属组织路径、已分配人数、展开后的用户列表（调用 `/org/users`） |
 | P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） |
 | P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 |
 
 **接口增量（P0 先 mock）**：
 - `POST /org/create` `/org/update` `/org/delete`（`IdReq`）；移动复用 `/org/update` 改 `parentOrgId`
-- 岗位：复用 `/org/tree`（按 `orgType`/POSITION 树）或加 `/org/page?orgType=`；挂载复用 `/user-org/*`
+- 岗位：复用 `/org/tree`（按 `orgType`/POSITION 树）或加 `/org/page?orgType=`；**需补充 `/org/page` 按选中组织子树筛选（传 `orgId` 参数）**；挂载复用 `/user-org/*`
 - `POST /user/enable`（`IdsReq`，启停）、`POST /user/reset-password`（`{userId,newPassword?}`）
 - 功能角色候选来源：加 `POST /role/list`（仅 BASIC_ROLE/GROUP_ROLE/PERSONAL）
+- **新增 `POST /org/users`（`{orgId}`）→ 返回该组织/岗位下的用户列表**（P0-8 岗位卡片内展示已分配用户）
 
 ### P1 — 后端契约（admin-service；契约 §8 遗留 + api-gap）
 
@@ -139,6 +140,28 @@
 
 > 例如：选中"研发中心"时，岗位 Tab 显示"研发中心"及其子组织（后端组、前端组等）下的所有岗位（研发总监、系统架构师、开发工程师等）。
 
+**岗位卡片展示结构**：
+
+```
+┌─ 岗位折叠卡片（el-collapse-item）─────────────────────────┐
+│ 标题行：🔽 研发总监                              1人已分配 │
+│       📍 研发中心 > 后端组                              │
+├─ 展开内容 ──────────────────────────────────────────────┤
+│  ┌─ 用户列表 ─────────────────────────────────────────┐ │
+│  │ 👤 张三                              [移除]        │ │
+│  │ 👤 王五                              [移除]        │ │
+│  └─────────────────────────────────────────────────────┘ │
+│  [+ 添加成员]  [编辑岗位]  [删除岗位]                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**字段说明**：
+- **岗位名**：`orgName`（如"研发总监"）
+- **所属组织路径**：`parentOrgId` 链向上追溯，展示 `"研发中心 > 后端组"`（便于定位岗位挂在哪个组织下）
+- **已分配人数**：该岗位下通过 `user-org` 关联的用户数（调用 `/org/users` 统计）
+- **用户列表**：展开后展示已分配用户，支持"移除"操作（调用 `/user-org/remove`）
+- **添加成员**：弹窗选择用户，调用 `/user-org/assign` 挂载到岗位
+
 **岗位的数据权限模型**（以"数据安全员"为例）：
 
 > 数据安全员岗位由部门 A 设立（`parentOrgId = 部门 A`），对部门 A 及以下组织有效。
@@ -146,6 +169,81 @@
 > 张三只能审批/查看小组甲的范围——数据权限由后端按张三所属组织（小组甲）+ 岗位生效范围（部门 A 及以下）动态判定，前端不感知。
 
 这个模型与岗位=特殊组织（`orgType=2`，经 `/org/*` 管理、`/user-org/*` 挂载）**完全兼容**，无需改设计。前端只需做"**按选中组织筛选展示** + 挂载/卸载用户"两项。
+
+**岗位筛选 API 细节**：
+- 前端调用：`POST /org/page` 传 `{ orgType: 2, orgId: 选中组织ID }`
+- 后端/mock 逻辑：先取 `orgId` 的子树所有组织 ID（含自身），再筛选 `orgType=2` 且 `parentOrgId` 在该集合内的岗位
+- 排序：按 `parentOrgId` 组织层级 + `sort` 字段排序
+
+### 5.6 岗位 API 设计
+
+#### 5.6.1 岗位列表查询（按选中组织筛选）
+
+```typescript
+// POST /org/page
+// 请求参数
+interface OrgPageQuery {
+  pageNum: number;
+  pageSize: number;
+  orgName?: string;      // 岗位名搜索
+  orgType: 2;            // 固定=岗位
+  orgId?: number;        // 选中组织ID（用于子树筛选）
+  status?: number;
+}
+
+// 响应项
+interface OrgPageItem {
+  id: number;
+  orgName: string;       // 岗位名
+  code: string;
+  parentOrgId: number | null;
+  parentOrgName?: string; // 直接父组织名
+  orgType: number;       // =2
+  status: number;
+  sort: number;
+}
+```
+
+**筛选逻辑**（mock 实现）：
+1. 获取 `orgId` 的子树所有组织 ID（含自身）——复用 `getDescendantOrgIds`
+2. 筛选 `orgType === 2` 且 `parentOrgId` 在步骤1集合内的节点
+3. 按 `parentOrgId` + `sort` 排序
+
+#### 5.6.2 岗位下用户列表查询
+
+```typescript
+// POST /org/users
+// 请求参数
+interface OrgUsersQuery {
+  orgId: number;         // 岗位ID
+}
+
+// 响应
+interface OrgUserItem {
+  userId: number;
+  username: string;
+  name: string;
+  avatar?: string;
+  isPrimary: boolean;    // 是否主组织
+}
+```
+
+**实现逻辑**：遍历 `mockUsers`，筛选 `orgs` 中包含该 `orgId` 的用户。
+
+#### 5.6.3 岗位 CRUD
+
+复用 `/org/*` 接口，创建/更新时固定 `orgType = 2`：
+- `POST /org/create` —— 创建岗位（`orgType` 固定为 2）
+- `POST /org/update` —— 编辑岗位
+- `POST /org/delete` —— 删除岗位（级联清理 `user-org` 关联）
+
+#### 5.6.4 岗位用户挂载/卸载
+
+复用 `/user-org/*` 接口：
+- `POST /user-org/assign` —— 将用户挂载到岗位（`orgId` 为岗位ID）
+- `POST /user-org/remove` —— 从岗位移除用户
+
+---
 
 ### 5.2 用户详情弹窗 → **只读展示所属岗位**
 
