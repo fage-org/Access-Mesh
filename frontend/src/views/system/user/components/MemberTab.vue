@@ -242,7 +242,7 @@ const columns = [
   <div class="member-tab">
     <!-- 表格 -->
     <div class="table-wrap">
-      <PureTableBar title="成员管理" :columns="columns" @refresh="onSearch">
+      <PureTableBar title="" :columns="columns" @refresh="onSearch">
         <template #buttons>
           <el-form :inline="true" :model="searchForm" class="search-form-inline">
             <el-form-item label="姓名" class="mb-0!">
@@ -309,8 +309,6 @@ const columns = [
           <pure-table
             ref="tableRef"
             row-key="id"
-            adaptive
-            :adaptiveConfig="{ offsetBottom: 20 }"
             align-whole="center"
             table-layout="auto"
             :loading="loading"
@@ -408,6 +406,7 @@ const columns = [
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* 搜索表单内联样式 */
@@ -426,6 +425,12 @@ const columns = [
   :deep(.el-form-item__label) {
     padding-right: 4px;
   }
+}
+
+/* 让 pure-table 填充剩余空间 */
+.table-wrap :deep(.pure-table) {
+  flex: 1;
+  min-height: 0;
 }
 
 :deep(.el-table__row) {
