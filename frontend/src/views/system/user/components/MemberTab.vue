@@ -6,12 +6,19 @@ import UserForm from "../form.vue";
 import { addDialog } from "@/components/ReDialog";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
+import { message } from "@/utils/message";
 import type { UserFormData } from "../utils/types";
 import Delete from "~icons/ep/delete";
 import EditPen from "~icons/ep/edit-pen";
 import Refresh from "~icons/ep/refresh";
 import AddFill from "~icons/ri/add-circle-line";
 import Search from "~icons/ep/search";
+import Key from "~icons/ep/key";
+
+import {
+  enableUsers,
+  resetUserPassword
+} from "@/api/user-manage";
 
 defineOptions({
   name: "MemberTab"
@@ -155,6 +162,47 @@ function openEditDialog(row: any) {
   });
 }
 
+// 启用/禁用用户
+async function handleToggleStatus(row: any) {
+  const newStatus = row.status === 1 ? 0 : 1;
+  const actionText = newStatus === 1 ? "启用" : "禁用";
+  try {
+    await enableUsers({ ids: [row.id], status: newStatus });
+    row.status = newStatus;
+    message(`${actionText}成功`, { type: "success" });
+  } catch {
+    message(`${actionText}失败`, { type: "error" });
+  }
+}
+
+// 重置密码
+async function handleResetPassword(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      `确认重置用户 "${row.name}" 的密码？`,
+      "重置密码",
+      {
+        confirmButtonText: "确认重置",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+    const result = await resetUserPassword({ userId: row.id });
+    await ElMessageBox.alert(
+      `新密码：${result.newPassword}\n\n请将密码通知用户，登录后自行修改。`,
+      "密码重置成功",
+      {
+        confirmButtonText: "知道了",
+        type: "success"
+      }
+    );
+  } catch (e: any) {
+    if (e !== "cancel") {
+      message("重置密码失败", { type: "error" });
+    }
+  }
+}
+
 const columns = [
   { label: "姓名", prop: "name", width: 100 },
   { label: "用户名", prop: "username", width: 120 },
@@ -165,7 +213,7 @@ const columns = [
   {
     label: "操作",
     prop: "operation",
-    width: 140,
+    width: 200,
     fixed: "right" as const,
     slot: "operation"
   }
@@ -267,13 +315,16 @@ const columns = [
             @row-click="(row: any) => emit('open-user-detail', row)"
           >
             <template #status="{ row }">
-              <el-tag
-                :type="row.status === 1 ? 'success' : 'danger'"
+              <el-switch
+                v-model="row.status"
+                :active-value="1"
+                :inactive-value="0"
+                inline-prompt
+                active-text="启"
+                inactive-text="禁"
                 size="small"
-                effect="plain"
-              >
-                {{ row.status === 1 ? "启用" : "禁用" }}
-              </el-tag>
+                @change="handleToggleStatus(row)"
+              />
             </template>
             <template #primaryOrg="{ row }">
               <span class="text-sm">
@@ -294,6 +345,16 @@ const columns = [
               >
                 修改
               </el-button>
+              <el-button
+                class="reset-margin"
+                link
+                type="warning"
+                :size="size"
+                :icon="useRenderIcon(Key)"
+                @click.stop="handleResetPassword(row)"
+              >
+                重置密码
+              </el-button>
               <el-popconfirm
                 :title="`确认删除用户 ${row.name}？`"
                 width="200"
@@ -303,7 +364,7 @@ const columns = [
                   <el-button
                     class="reset-margin"
                     link
-                    type="primary"
+                    type="danger"
                     :size="size"
                     :icon="useRenderIcon(Delete)"
                     @click.stop
