@@ -179,14 +179,16 @@ function handleCommand(command: string, row: any) {
       break;
   }
 }
-async function handleToggleStatus(row: any) {
-  const newStatus = row.status === 1 ? 0 : 1;
+async function handleToggleStatus(row: any, newVal: number) {
+  const newStatus = newVal;
   const actionText = newStatus === 1 ? "启用" : "禁用";
   try {
     await enableUsers({ ids: [row.id], status: newStatus });
     row.status = newStatus;
     message(`${actionText}成功`, { type: "success" });
   } catch {
+    // 失败时恢复状态
+    row.status = newStatus === 1 ? 0 : 1;
     message(`${actionText}失败`, { type: "error" });
   }
 }
@@ -338,7 +340,7 @@ const columns = [
                 active-text="启用"
                 inactive-text="禁用"
                 style="--el-switch-on-color: #67c23a; --el-switch-off-color: #f56c6c"
-                @change="handleToggleStatus(row)"
+                @change="(val: number) => handleToggleStatus(row, val)"
               />
             </template>
             <template #primaryOrg="{ row }">
