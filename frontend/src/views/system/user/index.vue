@@ -8,6 +8,7 @@ import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import { addDialog } from "@/components/ReDialog";
 import { getOrgTree } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
+import { OfficeBuilding, Edit, Plus } from "@element-plus/icons-vue";
 
 defineOptions({
   name: "SystemUser"
