@@ -386,6 +386,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
             <div
               v-if="editable && hoveredNodeId === data.id"
               class="node-actions"
+              @click.stop
             >
               <el-button
                 link
@@ -393,7 +394,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
                 size="small"
                 :icon="useRenderIcon('ep/plus')"
                 title="新增子组织"
-                @click.stop="onAddChild(data)"
+                @click="onAddChild(data)"
               />
               <el-button
                 link
@@ -401,7 +402,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
                 size="small"
                 :icon="useRenderIcon('ep/edit-pen')"
                 title="编辑"
-                @click.stop="onEdit(data)"
+                @click="onEdit(data)"
               />
               <el-button
                 link
@@ -409,7 +410,7 @@ defineExpose({ orgTree: rawOrgTree, selectedOrgId, selectedConfigId });
                 size="small"
                 :icon="useRenderIcon('ep/delete')"
                 title="删除"
-                @click.stop="onDelete(data)"
+                @click="onDelete(data)"
               />
             </div>
           </div>
