@@ -183,7 +183,7 @@ function onNodeDelete(node: any) {
   display: grid;
   grid-template-columns: 200px 1fr;
   gap: 8px;
-  height: calc(100vh - 150px);
+  height: calc(100vh - 135px);
   overflow: hidden;
 }
 

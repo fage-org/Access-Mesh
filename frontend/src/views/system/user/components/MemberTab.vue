@@ -414,7 +414,7 @@ const columns = [
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px;
   margin-right: 8px;
 
   :deep(.el-form-item) {
@@ -425,6 +425,13 @@ const columns = [
   :deep(.el-form-item__label) {
     padding-right: 4px;
   }
+}
+
+/* PureTableBar 按钮区域布局 */
+.table-wrap :deep(.el-scrollbar__view) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* 让 pure-table 填充剩余空间 */
