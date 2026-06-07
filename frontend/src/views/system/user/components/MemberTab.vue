@@ -13,7 +13,8 @@ import EditPen from "~icons/ep/edit-pen";
 import Refresh from "~icons/ep/refresh";
 import AddFill from "~icons/ri/add-circle-line";
 import Search from "~icons/ep/search";
-import Key from "~icons/ep/key";
+import View from "~icons/ep/view";
+import More from "~icons/ep/more-filled";
 
 import {
   enableUsers,
@@ -164,7 +165,20 @@ function openEditDialog(row: any) {
   });
 }
 
-// 启用/禁用用户
+// 下拉菜单命令处理
+function handleCommand(command: string, row: any) {
+  switch (command) {
+    case "edit":
+      openEditDialog(row);
+      break;
+    case "resetPwd":
+      handleResetPassword(row);
+      break;
+    case "delete":
+      handleDelete(row);
+      break;
+  }
+}
 async function handleToggleStatus(row: any) {
   const newStatus = row.status === 1 ? 0 : 1;
   const actionText = newStatus === 1 ? "启用" : "禁用";
@@ -209,13 +223,13 @@ const columns = [
   { label: "姓名", prop: "name", width: 100 },
   { label: "用户名", prop: "username", width: 120 },
   { label: "邮箱", prop: "email", minWidth: 160 },
-  { label: "状态", prop: "status", width: 80, slot: "status" },
+  { label: "状态", prop: "status", width: 100, slot: "status" },
   { label: "主组织", prop: "primaryOrg", width: 120, slot: "primaryOrg" },
   { label: "创建时间", prop: "createdAt", width: 120, slot: "createdAt" },
   {
     label: "操作",
     prop: "operation",
-    width: 200,
+    width: 120,
     fixed: "right" as const,
     slot: "operation"
   }
@@ -314,7 +328,6 @@ const columns = [
             }"
             @page-size-change="onPageSizeChange"
             @page-current-change="onPageChange"
-            @row-click="(row: any) => emit('open-user-detail', row)"
           >
             <template #status="{ row }">
               <el-switch
@@ -322,9 +335,9 @@ const columns = [
                 :active-value="1"
                 :inactive-value="0"
                 inline-prompt
-                active-text="启"
-                inactive-text="禁"
-                size="small"
+                active-text="启用"
+                inactive-text="禁用"
+                style="--el-switch-on-color: #67c23a; --el-switch-off-color: #f56c6c"
                 @change="handleToggleStatus(row)"
               />
             </template>
@@ -342,39 +355,38 @@ const columns = [
                 link
                 type="primary"
                 :size="size"
-                :icon="useRenderIcon(EditPen)"
-                @click.stop="openEditDialog(row)"
+                :icon="useRenderIcon(View)"
+                @click.stop="emit('open-user-detail', row)"
               >
-                修改
+                查看
               </el-button>
-              <el-button
-                class="reset-margin"
-                link
-                type="warning"
-                :size="size"
-                :icon="useRenderIcon(Key)"
-                @click.stop="handleResetPassword(row)"
-              >
-                重置密码
-              </el-button>
-              <el-popconfirm
-                :title="`确认删除用户 ${row.name}？`"
-                width="200"
-                @confirm="handleDelete(row)"
-              >
-                <template #reference>
-                  <el-button
-                    class="reset-margin"
-                    link
-                    type="danger"
-                    :size="size"
-                    :icon="useRenderIcon(Delete)"
-                    @click.stop
-                  >
-                    删除
-                  </el-button>
+              <el-dropdown :size="size" trigger="click" @command="(cmd: string) => handleCommand(cmd, row)">
+                <el-button
+                  class="reset-margin"
+                  link
+                  type="primary"
+                  :size="size"
+                  :icon="useRenderIcon(More)"
+                >
+                  更多
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit">
+                      <el-icon><EditPen /></el-icon>
+                      <span class="ml-1">修改</span>
+                    </el-dropdown-item>
+                    <el-dropdown-item command="resetPwd">
+                      <el-icon><Key /></el-icon>
+                      <span class="ml-1">重置密码</span>
+                    </el-dropdown-item>
+                    <el-dropdown-item command="delete" divided>
+                      <el-icon><Delete /></el-icon>
+                      <span class="ml-1" style="color: #f56c6c">删除</span>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
                 </template>
-              </el-popconfirm>
+              </el-dropdown>
             </template>
           </pure-table>
         </template>
