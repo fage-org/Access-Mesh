@@ -36,6 +36,7 @@ const emit = defineEmits<{
 type UserFormInstance = InstanceType<typeof UserForm>;
 
 const {
+  selectedOrgId,
   tableData,
   loading,
   searchForm,
@@ -53,10 +54,11 @@ const {
 const tableRef = ref();
 const dialogFormRef = ref<UserFormInstance | null>(null);
 
-// 监听 orgId 变化，重新加载表格
+// 监听 orgId 变化，同步到 useUserManage 并重新加载表格
 watch(
   () => props.orgId,
-  () => {
+  newOrgId => {
+    selectedOrgId.value = newOrgId;
     onSearch();
   },
   { immediate: true }
