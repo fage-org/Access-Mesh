@@ -163,6 +163,28 @@
 | `POST /api/perm/abstract-role/extra-roles/add`    | 分组角色添加基本角色     |
 | `POST /api/perm/abstract-role/extra-roles/remove` | 分组角色移除基本角色     |
 
+#### `POST /api/perm/abstract-role/list`
+
+请求体：
+
+```json
+{
+  "domainCode": null,
+  "roleTypeCode": "BASIC_ROLE",
+  "roleTypeCodes": ["BASIC_ROLE", "GROUP_ROLE", "PERSONAL"],
+  "keyword": null,
+  "pageNum": 1,
+  "pageSize": 200,
+  "sort": null
+}
+```
+
+规则：
+
+- `roleTypeCode` 保留单类型过滤兼容；`roleTypeCodes` 用于多类型过滤。
+- 两者同时传入时按并集去重后过滤；任一显式类型编码无法解析时返回空分页。
+- 不传 `roleTypeCode/roleTypeCodes` 时不按角色类型过滤。
+
 ### 5.3 资源与操作
 
 | 接口                                          | 说明               |

@@ -95,7 +95,7 @@
 | P1-1 | `/user/page` 落实 `orgId` **子树**语义（org 闭包/递归） | 决策②、api-gap §2 |
 | P1-2 | `/user/create` 增 `orgId`+初始密码返回 | api-gap §2 |
 | P1-3 | `/user/enable`、`/user/reset-password` 接前端 | 矩阵 B |
-| P1-4 | **成员门禁修正** `UserOrgServiceImpl`：`ADMIN_USER:UPDATE` → `ADMIN_ORG:UPDATE`（目标组织/岗位实例） | 契约 §8 遗留①、备注 ② |
+| P1-4 | ✅ **成员门禁已修正**：`UserOrgServiceImpl` 使用 `ADMIN_ORG:UPDATE`（目标组织/岗位实例） | 契约 §8、备注 ② |
 | P1-5 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |
 | P1-6 | 岗位经 `/org/*`(orgType) + `/user-org/*`；`/role/list` 仅功能角色 | 契约 §8 遗留③ |
 
@@ -121,7 +121,7 @@
 | 成员·新增用户 | `system:user:add` | `ADMIN_USER:CREATE` | 隐藏 |
 | 成员·修改 | `system:user:edit` | `ADMIN_USER:UPDATE` | 隐藏 |
 | 成员·删除 | `system:user:delete` | `ADMIN_USER:DELETE` | 隐藏 |
-| 成员·启用/禁用 | `system:user:enable` | `ADMIN_USER:ENABLE` | 隐藏切换 |
+| 成员·启用/禁用 | `system:user:enable` | `ADMIN_USER:ENABLE/DISABLE`（status=1 启用，status=0 禁用） | 隐藏切换 |
 | 成员·重置密码 | `system:user:reset-pwd` | `ADMIN_USER:RESET_PASSWORD` | 隐藏 |
 | 详情·组织归属增删/设主 | `system:org:member` | `ADMIN_ORG:UPDATE`（目标组织） | 只读 |
 | 详情·分配/回收功能角色 | `system:user:role:assign` | `ROLE:MANAGE`（目标角色） | 只读 |
