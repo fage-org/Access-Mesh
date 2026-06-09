@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
@@ -82,6 +83,15 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/perm/abstract-role/create")
     PermResult<RoleResp> createRole(@RequestBody RoleCreateReq req);
+
+    /**
+     * 查询角色列表
+     *
+     * @param req 角色列表查询请求，支持按角色类型过滤
+     * @return 角色列表
+     */
+    @PostMapping("/api/perm/abstract-role/list")
+    PermResult<PaginatedResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
 
     /**
      * 查询用户角色列表

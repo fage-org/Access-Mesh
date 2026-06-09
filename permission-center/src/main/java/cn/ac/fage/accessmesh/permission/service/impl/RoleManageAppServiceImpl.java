@@ -356,37 +356,54 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     }
 
     @Override
-    public List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword, int offset, int limit) {
-        Integer roleType = null;
-        if (roleTypeCode != null && !roleTypeCode.isBlank()) {
-            roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
-        }
-        boolean matchNone = false;
+    public List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, int offset, int limit) {
+        RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
+        boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
+            matchNone = matchNone || !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
         }
-        if (!matchNone && roleTypeCode != null && !roleTypeCode.isBlank() && roleType == null) {
-            matchNone = true;
-        }
-        return abstractRoleMapper.selectRoleListPaged(tenantId, roleType, keyword, matchNone, offset, limit)
+        return abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, offset, limit)
             .stream().map(this::toRoleResp).collect(Collectors.toList());
     }
 
     @Override
-    public long countRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword) {
-        Integer roleType = null;
-        if (roleTypeCode != null && !roleTypeCode.isBlank()) {
-            roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
-        }
-        boolean matchNone = false;
+    public long countRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword) {
+        RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
+        boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
+            matchNone = matchNone || !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
         }
-        if (!matchNone && roleTypeCode != null && !roleTypeCode.isBlank() && roleType == null) {
-            matchNone = true;
-        }
-        return abstractRoleMapper.selectRoleListCount(tenantId, roleType, keyword, matchNone);
+        return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone);
     }
+
+    private RoleTypeFilter resolveRoleTypeFilter(Long tenantId, String roleTypeCode, List<String> roleTypeCodes) {
+        Set<String> codes = new LinkedHashSet<>();
+        if (roleTypeCode != null && !roleTypeCode.isBlank()) {
+            codes.add(roleTypeCode.trim());
+        }
+        if (roleTypeCodes != null) {
+            for (String code : roleTypeCodes) {
+                if (code != null && !code.isBlank()) {
+                    codes.add(code.trim());
+                }
+            }
+        }
+        if (codes.isEmpty()) {
+            return new RoleTypeFilter(null, false);
+        }
+
+        Set<Integer> roleTypes = new LinkedHashSet<>();
+        for (String code : codes) {
+            Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", code);
+            if (roleType == null) {
+                return new RoleTypeFilter(Set.of(), true);
+            }
+            roleTypes.add(roleType);
+        }
+        return new RoleTypeFilter(roleTypes, roleTypes.isEmpty());
+    }
+
+    private record RoleTypeFilter(Set<Integer> roleTypes, boolean matchNone) {}
 
     private RoleResp toRoleResp(AbstractRole role) {
         String roleTypeName = RoleType.safeGetLabel(role.getRoleType());

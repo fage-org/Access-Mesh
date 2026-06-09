@@ -144,9 +144,11 @@ public class RoleController {
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = roleManageAppService.countRoles(tenantId, req.domainCode(), req.roleTypeCode(), req.keyword());
+        long total = roleManageAppService.countRoles(
+            tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword()
+        );
         List<RoleResp> items = roleManageAppService.listRoles(
-            tenantId, req.domainCode(), req.roleTypeCode(), req.keyword(), offset, pageSize
+            tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword(), offset, pageSize
         );
         return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }

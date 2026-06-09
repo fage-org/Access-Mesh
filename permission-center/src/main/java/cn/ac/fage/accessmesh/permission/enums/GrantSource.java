@@ -18,7 +18,16 @@ public enum GrantSource {
      * 通过权限管理界面或API直接配置。
      * </p>
      */
-    MANUAL("MANUAL");
+    MANUAL("MANUAL"),
+
+    /**
+     * 依赖自动补全授权
+     * <p>
+     * 表示权限由 resource_dependency 规则自动补全授予。
+     * grant_source=AUTO_DEP 时，grant_dep_id 记录触发的 resource_dependency.id。
+     * </p>
+     */
+    AUTO_DEP("AUTO_DEP");
 
     private final String value;
 

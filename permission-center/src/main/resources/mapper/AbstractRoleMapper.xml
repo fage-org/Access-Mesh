@@ -111,8 +111,11 @@
         <if test="matchNone">
           AND id = -1
         </if>
-        <if test="!matchNone and roleType != null">
-          AND role_type = #{roleType}
+        <if test="!matchNone and roleTypes != null and roleTypes.size() > 0">
+          AND role_type IN
+          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
+              #{roleType}
+          </foreach>
         </if>
         <if test="!matchNone and keyword != null and keyword != ''">
           AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))
@@ -128,8 +131,11 @@
         <if test="matchNone">
           AND id = -1
         </if>
-        <if test="!matchNone and roleType != null">
-          AND role_type = #{roleType}
+        <if test="!matchNone and roleTypes != null and roleTypes.size() > 0">
+          AND role_type IN
+          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
+              #{roleType}
+          </foreach>
         </if>
         <if test="!matchNone and keyword != null and keyword != ''">
           AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))

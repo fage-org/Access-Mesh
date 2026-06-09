@@ -113,7 +113,7 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
      * @return 角色列表
      */
     List<AbstractRole> selectRoleListPaged(@Param("tenantId") Long tenantId,
-                                            @Param("roleType") Integer roleType,
+                                            @Param("roleTypes") Set<Integer> roleTypes,
                                             @Param("keyword") String keyword,
                                             @Param("matchNone") boolean matchNone,
                                             @Param("offset") int offset,
@@ -129,7 +129,7 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
      * @return 角色总数
      */
     long selectRoleListCount(@Param("tenantId") Long tenantId,
-                              @Param("roleType") Integer roleType,
+                              @Param("roleTypes") Set<Integer> roleTypes,
                               @Param("keyword") String keyword,
                               @Param("matchNone") boolean matchNone);
 

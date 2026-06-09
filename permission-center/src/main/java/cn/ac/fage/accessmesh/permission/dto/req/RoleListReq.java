@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
+import java.util.List;
+
 /**
  * 角色列表查询请求体
  * <p>
@@ -16,6 +18,7 @@ package cn.ac.fage.accessmesh.permission.dto.req;
 public record RoleListReq(
     String domainCode,
     String roleTypeCode,
+    List<String> roleTypeCodes,
     String keyword,
     Integer pageNum,
     Integer pageSize,

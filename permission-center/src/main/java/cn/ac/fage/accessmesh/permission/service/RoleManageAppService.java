@@ -109,7 +109,7 @@ public interface RoleManageAppService {
      * @param limit        每页条数
      * @return 角色列表
      */
-    List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword, int offset, int limit);
+    List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, int offset, int limit);
 
     /**
      * 统计角色数量
@@ -123,5 +123,5 @@ public interface RoleManageAppService {
      * @param keyword      关键词，可选
      * @return 角色数量
      */
-    long countRoles(Long tenantId, String domainCode, String roleTypeCode, String keyword);
+    long countRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword);
 }
