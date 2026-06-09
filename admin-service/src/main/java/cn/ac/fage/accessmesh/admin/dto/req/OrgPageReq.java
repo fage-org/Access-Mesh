@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Min;
  * 组织分页查询请求记录类
  * <p>
  * 用于组织列表的分页查询参数。
- * 合并分页参数和查询条件，支持按名称、类型、状态、父级组织过滤。
+ * 合并分页参数和查询条件，支持按名称、类型、状态、子树筛选。
  * </p>
  *
  * @param pageNum     页码（可选，默认1，最小1）
@@ -17,6 +17,7 @@ import jakarta.validation.constraints.Min;
  * @param orgType     组织类型（可选）
  * @param status      状态（可选，0=正常，1=禁用）
  * @param parentOrgId 父级组织ID（可选，用于查询子组织）
+ * @param orgId       子树根组织ID（可选，返回该组织及其子孙，岗位Tab筛选用）
  */
 public record OrgPageReq(
     /**
@@ -52,7 +53,16 @@ public record OrgPageReq(
     /**
      * 父级组织ID（用于查询子组织）
      */
-    Long parentOrgId
+    Long parentOrgId,
+
+    /**
+     * 子树根组织ID（可选）
+     * <p>
+     * 传入时仅返回该组织及其所有子孙组织。
+     * 用于岗位 Tab 按选中组织筛选：前端传 { orgType: 2, orgId: 选中组织ID }。
+     * </p>
+     */
+    Long orgId
 ) {
     /**
      * 获取页码（默认1）

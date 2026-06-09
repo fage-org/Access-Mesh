@@ -1,18 +1,21 @@
 package cn.ac.fage.accessmesh.admin.service;
 
-import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateStatusReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.ResetPasswordResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
+import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 
 /**
  * 用户服务接口
  * <p>
  * 提供用户管理相关的服务方法，包括用户的创建、更新、删除、查询等。
- * 支持用户的启用和密码重置。
+ * 支持用户的启停和密码重置。
  * </p>
  */
 public interface UserService {
@@ -21,13 +24,14 @@ public interface UserService {
      * 创建用户
      * <p>
      * 创建单个用户账号。
-     * 设置用户基本信息、角色分配等。
+     * 设置用户基本信息、组织分配等。
+     * 系统自动生成随机初始密码，通过响应返回。
      * </p>
      *
      * @param req 用户创建请求
-     * @return 创建的用户ID
+     * @return 用户创建响应，包含用户ID和初始密码
      */
-    Long createUser(UserCreateReq req);
+    UserCreateResp createUser(UserCreateReq req);
 
     /**
      * 更新用户
@@ -52,15 +56,15 @@ public interface UserService {
     void deleteUser(IdsReq req);
 
     /**
-     * 启用用户
+     * 批量启用/禁用用户
      * <p>
-     * 批量启用多个用户账号。
-     * 恢复用户的登录和操作权限。
+     * 根据请求中的 status 字段批量启用或禁用用户账号。
+     * status=1 启用，status=0 禁用。
      * </p>
      *
-     * @param req 待启用的用户ID列表请求
+     * @param req 用户状态变更请求，包含用户ID列表和目标状态
      */
-    void enableUser(IdsReq req);
+    void updateStatus(UserUpdateStatusReq req);
 
     /**
      * 获取用户详情
@@ -90,11 +94,13 @@ public interface UserService {
      * 重置用户密码
      * <p>
      * 重置指定用户的密码。
-     * 密码需要加密后存储。
+     * 如果 newPassword 为空，系统自动生成随机密码。
+     * 响应中返回生效的密码明文（仅本次返回）。
      * </p>
      *
      * @param userId      用户ID
-     * @param newPassword 新密码
+     * @param newPassword 新密码（可为空，空时自动生成）
+     * @return 重置密码响应，包含生效的密码
      */
-    void resetPassword(Long userId, String newPassword);
+    ResetPasswordResp resetPassword(Long userId, String newPassword);
 }

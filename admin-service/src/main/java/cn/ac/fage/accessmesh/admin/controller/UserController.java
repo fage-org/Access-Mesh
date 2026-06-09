@@ -8,6 +8,9 @@ import cn.ac.fage.accessmesh.admin.dto.req.UserBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateStatusReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.ResetPasswordResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.admin.service.UserService;
@@ -48,14 +51,16 @@ public class UserController {
      * 创建用户
      * <p>
      * 创建新用户，设置用户名、密码、手机号等基本信息。
+     * 支持创建时一步完成组织分配（orgId）。
+     * 系统自动生成随机初始密码，通过响应返回。
      * </p>
      *
-     * @param req 用户创建请求，包含用户基本信息
-     * @return 创建成功的用户ID
+     * @param req 用户创建请求，包含用户基本信息和可选的组织分配
+     * @return 创建成功的用户ID和初始密码
      */
     @PostMapping("/create")
     @AuditLog(module = "用户管理", action = "创建", targetType = "USER")
-    public PermResult<Long> createUser(@Valid @RequestBody UserCreateReq req) {
+    public PermResult<UserCreateResp> createUser(@Valid @RequestBody UserCreateReq req) {
         return PermResult.success(userService.createUser(req));
     }
 
@@ -92,18 +97,19 @@ public class UserController {
     }
 
     /**
-     * 启用用户
+     * 批量启用/禁用用户
      * <p>
-     * 批量启用用户，使其可以正常登录系统。
+     * 根据请求中的 status 字段批量启用或禁用用户账号。
+     * status=1 启用，status=0 禁用。
      * </p>
      *
-     * @param req ID集合请求，包含待启用的用户ID列表
+     * @param req 用户状态变更请求，包含用户ID列表和目标状态
      * @return 操作成功结果
      */
     @PostMapping("/enable")
-    @AuditLog(module = "用户管理", action = "启用", targetType = "USER")
-    public PermResult<Void> enableUser(@Valid @RequestBody IdsReq req) {
-        userService.enableUser(req);
+    @AuditLog(module = "用户管理", action = "启用/禁用", targetType = "USER")
+    public PermResult<Void> updateStatus(@Valid @RequestBody UserUpdateStatusReq req) {
+        userService.updateStatus(req);
         return PermResult.success();
     }
 
@@ -138,18 +144,18 @@ public class UserController {
     /**
      * 重置用户密码
      * <p>
-     * 将用户密码重置为指定的新密码。
+     * 将用户密码重置为指定的新密码，或由系统自动生成随机密码。
      * 用于管理员帮助用户重置密码。
+     * 响应中返回生效的密码明文（仅本次返回）。
      * </p>
      *
-     * @param req 密码重置请求，包含用户ID和新密码
-     * @return 操作成功结果
+     * @param req 密码重置请求，包含用户ID和可选的新密码
+     * @return 重置密码响应，包含生效的密码
      */
     @PostMapping("/reset-password")
     @AuditLog(module = "用户管理", action = "重置密码", targetType = "USER")
-    public PermResult<Void> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
-        userService.resetPassword(req.userId(), req.newPassword());
-        return PermResult.success();
+    public PermResult<ResetPasswordResp> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
+        return PermResult.success(userService.resetPassword(req.userId(), req.newPassword()));
     }
 
     /**

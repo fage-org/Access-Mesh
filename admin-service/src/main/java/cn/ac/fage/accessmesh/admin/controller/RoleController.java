@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
+import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.common.enums.DefaultOpCode;
 import cn.dev33.satoken.stp.StpUtil;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 角色管理控制器
@@ -38,6 +41,24 @@ public class RoleController {
      */
     public RoleController(RoleProxyService roleProxyService) {
         this.roleProxyService = roleProxyService;
+    }
+
+    /**
+     * 查询功能角色列表
+     * <p>
+     * 查询指定类型的角色列表，默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），
+     * 排除 ORG 和 POSITION 类型。用于用户详情面板的角色候选列表。
+     * </p>
+     *
+     * @param req 角色列表查询请求，可选 roleTypeCodes 过滤
+     * @return 角色列表
+     */
+    @PostMapping("/list")
+    public PermResult<List<RoleListItemResp>> listRoles(@RequestBody(required = false) RoleListQueryReq req) {
+        List<String> typeCodes = req != null && req.roleTypeCodes() != null
+            ? req.roleTypeCodes()
+            : null;
+        return PermResult.success(roleProxyService.listRoles(typeCodes));
     }
 
     /**
@@ -122,4 +143,11 @@ public class RoleController {
      * @param menuId 菜单ID
      */
     public record RoleMenuReq(Long roleId, Long menuId) {}
+
+    /**
+     * 角色列表查询请求
+     *
+     * @param roleTypeCodes 角色类型编码列表（可选，为空则返回功能角色）
+     */
+    public record RoleListQueryReq(List<String> roleTypeCodes) {}
 }

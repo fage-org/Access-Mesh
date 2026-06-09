@@ -19,11 +19,14 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
@@ -52,6 +55,17 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
     private static final Logger log = LoggerFactory.getLogger(RoleProxyServiceImpl.class);
 
+    /** 功能角色类型编码（排除 ORG 和 POSITION） */
+    private static final List<String> FUNCTIONAL_ROLE_TYPES = List.of("BASIC_ROLE", "GROUP_ROLE", "PERSONAL");
+
+    /** 角色类型编码到显示名的映射 */
+    private static final Map<String, String> ROLE_TYPE_LABELS = Map.of(
+        "BASIC_ROLE", "基础角色",
+        "GROUP_ROLE", "分组角色",
+        "PERSONAL", "个人角色",
+        "ORG_ROLE", "组织角色"
+    );
+
     private static final int RESOURCE_TYPE_MENU = 1;
 
     private final PermissionFeignClient permissionFeignClient;
@@ -79,6 +93,45 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
         this.cacheService = cacheService;
+    }
+
+    /**
+     * 查询功能角色列表
+     * <p>
+     * 从permission-center查询指定类型的角色，转换为前端展示格式。
+     * 默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）。
+     * </p>
+     *
+     * @param roleTypeCodes 角色类型编码列表（可选，为空则返回功能角色）
+     * @return 角色列表项
+     */
+    @Override
+    public List<RoleListItemResp> listRoles(List<String> roleTypeCodes) {
+        List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
+            ? roleTypeCodes
+            : FUNCTIONAL_ROLE_TYPES;
+
+        RoleListReq req = new RoleListReq(null, null, typeCodes, null, 1, 200, null);
+        PermResult<PaginatedResp<RoleResp>> result = permissionFeignClient.listRoles(req);
+
+        if (result == null || result.getCode() != 200 || result.getData() == null) {
+            log.warn("Failed to list roles from permission-center");
+            return List.of();
+        }
+
+        List<RoleResp> roles = result.getData().items();
+        if (roles == null) {
+            return List.of();
+        }
+
+        return roles.stream()
+            .map(r -> new RoleListItemResp(
+                r.id(),
+                r.name(),
+                r.roleTypeCode(),
+                ROLE_TYPE_LABELS.getOrDefault(r.roleTypeCode(), r.roleTypeCode())
+            ))
+            .collect(Collectors.toList());
     }
 
     /**

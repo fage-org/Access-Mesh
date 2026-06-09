@@ -38,7 +38,8 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
                                 @Param("name") String name,
                                 @Param("phone") String phone,
                                 @Param("email") String email,
-                                @Param("status") Integer status);
+                                @Param("status") Integer status,
+                                @Param("orgIds") Set<Long> orgIds);
 
     /**
      * 查询所有有效的租户ID（去重）

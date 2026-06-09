@@ -8,11 +8,12 @@ import jakarta.validation.constraints.Size;
  * 重置密码请求记录类
  * <p>
  * 用于管理员重置用户密码的请求参数。
- * 支持密码长度校验（8-32位）。
+ * newPassword 为可选，不传时系统自动生成随机密码并通过响应返回。
+ * 指定时需满足长度校验（8-32位）。
  * </p>
  *
  * @param userId      用户ID（必填）
- * @param newPassword 新密码（必填，长度8-32位）
+ * @param newPassword 新密码（可选，长度8-32位；不传则自动生成）
  */
 public record ResetPasswordReq(
     /**
@@ -22,9 +23,12 @@ public record ResetPasswordReq(
     Long userId,
 
     /**
-     * 新密码（长度必须在8-32位之间）
+     * 新密码（可选，长度8-32位）
+     * <p>
+     * 不传时系统自动生成随机密码，响应中返回明文。
+     * 传入时需满足 8-32 位长度要求。
+     * </p>
      */
-    @NotBlank(message = "新密码不能为空")
     @Size(min = 8, max = 32, message = "密码长度必须在8-32位之间")
     String newPassword
 ) {}

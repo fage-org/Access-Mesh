@@ -1,6 +1,9 @@
 package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
+
+import java.util.List;
 
 /**
  * 角色代理服务接口
@@ -11,6 +14,18 @@ import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
  * </p>
  */
 public interface RoleProxyService {
+
+    /**
+     * 查询功能角色列表
+     * <p>
+     * 从permission-center查询指定类型的角色列表，转换为前端展示格式。
+     * 默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG 和 POSITION。
+     * </p>
+     *
+     * @param roleTypeCodes 角色类型编码列表（可选，为空则返回功能角色）
+     * @return 角色列表项
+     */
+    List<RoleListItemResp> listRoles(List<String> roleTypeCodes);
 
     /**
      * 为组织创建角色

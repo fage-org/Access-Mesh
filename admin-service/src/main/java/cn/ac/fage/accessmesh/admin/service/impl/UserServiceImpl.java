@@ -5,8 +5,12 @@ import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
+import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateStatusReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.ResetPasswordResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
+import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
@@ -17,7 +21,10 @@ import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.service.UserService;
+import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserSyncHandler;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -55,6 +62,9 @@ public class UserServiceImpl implements UserService {
     private final SysUserMapper userMapper;
     private final SysUserOrgMapper userOrgMapper;
     private final UserDomainService userDomainService;
+    private final UserOrgDomainService userOrgDomainService;
+    private final OrgTreeConfigDomainService orgTreeConfigDomainService;
+    private final OrgDomainService orgDomainService;
     private final UserSyncHandler userSyncHandler;
     private final SyncRetryService syncRetryService;
     private final ObjectMapper objectMapper;
@@ -63,24 +73,34 @@ public class UserServiceImpl implements UserService {
     /**
      * 构造函数注入依赖
      * <p>
-     * 注意：构造函数依赖较多(7个)，建议后续重构抽离同步和重试逻辑到独立服务。
+     * 注意：构造函数依赖较多(10个)，建议后续重构抽离同步和重试逻辑到独立服务。
      * </p>
      *
      * @param userMapper 用户数据访问Mapper
      * @param userOrgMapper 用户组织关联Mapper
      * @param userDomainService 用户领域服务，处理用户数据查询和批量操作
+     * @param userOrgDomainService 用户组织关联领域服务，处理组织分配
+     * @param orgTreeConfigDomainService 组织树配置领域服务，校验默认树归属
+     * @param orgDomainService 组织领域服务，校验组织是否属于默认树
      * @param userSyncHandler 用户同步处理器，同步用户数据到permission-center
      * @param syncRetryService 同步重试服务，记录同步失败任务
      * @param objectMapper JSON序列化工具
      * @param permissionValidator 权限校验器，校验用户操作权限
      */
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
-                           UserDomainService userDomainService, UserSyncHandler userSyncHandler,
+                           UserDomainService userDomainService,
+                           UserOrgDomainService userOrgDomainService,
+                           OrgTreeConfigDomainService orgTreeConfigDomainService,
+                           OrgDomainService orgDomainService,
+                           UserSyncHandler userSyncHandler,
                            SyncRetryService syncRetryService,
                            ObjectMapper objectMapper, AdminPermissionValidator permissionValidator) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
+        this.userOrgDomainService = userOrgDomainService;
+        this.orgTreeConfigDomainService = orgTreeConfigDomainService;
+        this.orgDomainService = orgDomainService;
         this.userSyncHandler = userSyncHandler;
         this.syncRetryService = syncRetryService;
         this.objectMapper = objectMapper;
@@ -91,17 +111,18 @@ public class UserServiceImpl implements UserService {
      * 创建用户
      * <p>
      * 创建新用户并生成随机初始密码（BCrypt哈希存储）。
+     * 支持创建时一步完成组织分配（orgId）。
      * 同一事务内记录同步任务（Outbox Pattern），确保原子性。
      * 校验用户名和手机号唯一性。
      * </p>
      *
-     * @param req 用户创建请求，包含用户名、姓名、手机号、邮箱等
-     * @return 新用户ID
+     * @param req 用户创建请求，包含用户名、姓名、手机号、邮箱、可选orgId等
+     * @return 用户创建响应，包含用户ID和初始密码
      * @throws BizException 用户名已存在、手机号已存在、同步任务记录失败等
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createUser(UserCreateReq req) {
+    public UserCreateResp createUser(UserCreateReq req) {
         // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
 
@@ -156,7 +177,35 @@ public class UserServiceImpl implements UserService {
             throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
         }
 
-        return user.getId();
+        // 创建时一步完成组织分配（orgId 必须属于默认组织树）
+        if (req.orgId() != null) {
+            // 校验组织是否属于默认组织树
+            List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+            boolean belongsToDefaultTree = false;
+            if (!defaultConfigs.isEmpty()) {
+                Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
+                List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
+                belongsToDefaultTree = subtreeIds.contains(req.orgId());
+            }
+            if (!belongsToDefaultTree) {
+                throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                    "组织ID必须属于默认组织树");
+            }
+
+            SysUserOrg userOrg = new SysUserOrg();
+            userOrg.setTenantId(tenantId);
+            userOrg.setUserId(user.getId());
+            userOrg.setOrgId(req.orgId());
+            userOrg.setIsPrimary(req.primaryOrg() != null ? req.primaryOrg() : true);
+            userOrg.setCreatedAt(LocalDateTime.now());
+            userOrg.setUpdatedAt(LocalDateTime.now());
+            userOrg.setDeleteFlag(0L);
+            userOrgDomainService.insertBatch(List.of(userOrg));
+            log.info("Assigned user to org on creation: userId={}, orgId={}, isPrimary={}",
+                user.getId(), req.orgId(), userOrg.getIsPrimary());
+        }
+
+        return new UserCreateResp(user.getId(), initialPassword);
     }
 
     /**
@@ -286,23 +335,30 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 批量启用用户
+     * 批量启用/禁用用户
      * <p>
-     * 将多个用户状态设置为启用(1)。
+     * 根据请求中的 status 字段批量启用或禁用用户账号。
+     * status=1 启用，status=0 禁用。
      * 执行批量实例级权限校验，更新后记录同步任务到permission-center。
      * </p>
      *
-     * @param req ID集合请求，包含待启用的用户ID列表
-     * @throws BizException 用户不存在、同步任务记录失败等
+     * @param req 用户状态变更请求，包含用户ID列表和目标状态
+     * @throws BizException 用户不存在、状态参数无效、同步任务记录失败等
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void enableUser(IdsReq req) {
-        // 权限检查 — 批量实例级 ENABLE
+    public void updateStatus(UserUpdateStatusReq req) {
+        // 状态参数校验
+        if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(禁用)或1(启用)");
+        }
+
+        // 权限检查 — 批量实例级，启用用 ENABLE，禁用用 DISABLE
+        String operationCode = req.status() == 0 ? AdminOperationCode.DISABLE : AdminOperationCode.ENABLE;
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.ENABLE);
+        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, operationCode);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -311,18 +367,20 @@ public class UserServiceImpl implements UserService {
         Set<Long> validIds = existingUsers.stream().map(SysUser::getId).collect(Collectors.toSet());
 
         if (!validIds.isEmpty()) {
-            userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), 1);
+            userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
 
-            // 同步启用状态到权限中心 - 记录同步任务
+            // 同步状态变更到权限中心 - 记录同步任务
+            boolean enabled = req.status() == 1;
+            String syncAction = enabled ? "user:enable:" : "user:disable:";
             for (SysUser user : existingUsers) {
                 if (user.getPermUserId() != null) {
                     try {
                         String payload = objectMapper.writeValueAsString(Map.of(
                             "permUserId", user.getPermUserId(),
-                            "enabled", true
+                            "enabled", enabled
                         ));
                         syncRetryService.recordSyncFailure(
-                            "user:enable:" + user.getId(),
+                            syncAction + user.getId(),
                             "permission-center",
                             "abstract_user",
                             String.valueOf(user.getPermUserId()),
@@ -330,9 +388,11 @@ public class UserServiceImpl implements UserService {
                             payload,
                             null
                         );
-                        log.info("Recorded enable sync task for user: userId={}", user.getId());
+                        log.info("Recorded {} sync task for user: userId={}",
+                            enabled ? "enable" : "disable", user.getId());
                     } catch (Exception e) {
-                        log.error("Failed to record enable sync task for user: userId={}, error={}", user.getId(), e.getMessage());
+                        log.error("Failed to record {} sync task for user: userId={}, error={}",
+                            enabled ? "enable" : "disable", user.getId(), e.getMessage());
                         throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
                     }
                 }
@@ -382,14 +442,34 @@ public class UserServiceImpl implements UserService {
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        Page<SysUser> page = Page.of(req.getPageNum(), req.getPageSize());
+        int pageNum = req.getPageNum();
+        int pageSize = req.getPageSize();
+        Set<Long> orgIds = null;
+        if (req.orgId() != null) {
+            List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
+            if (subtreeIds.isEmpty()) {
+                return new PaginatedResult<>(
+                    List.of(),
+                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                );
+            }
+            orgIds = Set.copyOf(subtreeIds);
+        }
+
+        Page<SysUser> page = Page.of(pageNum, pageSize);
         Page<SysUser> result = userMapper.paginateUsers(page, tenantId,
-            req.username(), req.name(), req.phone(), req.email(), req.status());
+            req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds);
 
         // 批量获取用户组织关联，避免 N+1
         Set<Long> userIds = result.getRecords().stream()
             .map(SysUser::getId)
             .collect(Collectors.toSet());
+        if (userIds.isEmpty()) {
+            return new PaginatedResult<>(
+                List.of(),
+                new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, 0)
+            );
+        }
 
         // 批量查询用户组织关系
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(userIds));
@@ -411,10 +491,10 @@ public class UserServiceImpl implements UserService {
             })
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + req.pageSize() - 1) / req.pageSize();
+        long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
         return new PaginatedResult<>(
             items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), req.pageNum(), req.pageSize(), (int) totalPages)
+            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
         );
     }
 
@@ -422,16 +502,18 @@ public class UserServiceImpl implements UserService {
      * 重置用户密码
      * <p>
      * 用户重置自己的密码无需权限校验（自我修改豁免）。
-     * 使用BCrypt哈希新密码后更新。
+     * 如果 newPassword 为空，系统自动生成随机密码。
+     * 使用BCrypt哈希后更新，响应中返回生效的密码明文。
      * </p>
      *
-     * @param userId 用户ID
-     * @param newPassword 新密码（明文）
+     * @param userId      用户ID
+     * @param newPassword 新密码（可为空，空时自动生成）
+     * @return 重置密码响应，包含生效的密码
      * @throws BizException 用户不存在
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void resetPassword(Long userId, String newPassword) {
+    public ResetPasswordResp resetPassword(Long userId, String newPassword) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
         // 自我修改豁免：用户可重置自己的密码无需权限检查
@@ -451,9 +533,16 @@ public class UserServiceImpl implements UserService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        user.setPassword(BCrypt.hashpw(newPassword));
+        // 如果未指定新密码，自动生成随机密码
+        String effectivePassword = (newPassword != null && !newPassword.isBlank())
+            ? newPassword
+            : generateRandomPassword();
+
+        user.setPassword(BCrypt.hashpw(effectivePassword));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
+
+        return new ResetPasswordResp(effectivePassword);
     }
 
     /**

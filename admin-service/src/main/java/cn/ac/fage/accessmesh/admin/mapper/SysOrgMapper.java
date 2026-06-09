@@ -36,7 +36,8 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
                               @Param("tenantId") Long tenantId,
                               @Param("orgName") String orgName,
                               @Param("orgType") String orgType,
-                              @Param("status") Integer status);
+                              @Param("status") Integer status,
+                              @Param("orgIds") Set<Long> orgIds);
 
     /**
      * 查询组织列表（用于构建树）

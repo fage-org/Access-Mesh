@@ -4,14 +4,26 @@
 <mapper namespace="cn.ac.fage.accessmesh.admin.mapper.SysUserMapper">
 
     <select id="paginateUsers" resultType="cn.ac.fage.accessmesh.admin.entity.SysUser">
-        SELECT * FROM sys_user
-        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        SELECT u.* FROM sys_user u
+        WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
         <if test="username != null"> AND username LIKE CONCAT('%', #{username}, '%')</if>
         <if test="name != null"> AND name LIKE CONCAT('%', #{name}, '%')</if>
-        <if test="phone != null"> AND phone = #{phone}</if>
-        <if test="email != null"> AND email = #{email}</if>
-        <if test="status != null"> AND status = #{status}</if>
-        ORDER BY created_at DESC
+        <if test="phone != null"> AND u.phone = #{phone}</if>
+        <if test="email != null"> AND u.email = #{email}</if>
+        <if test="status != null"> AND u.status = #{status}</if>
+        <if test="orgIds != null and orgIds.size() > 0">
+            AND EXISTS (
+                SELECT 1 FROM sys_user_org uo
+                WHERE uo.tenant_id = #{tenantId}
+                  AND uo.user_id = u.id
+                  AND uo.delete_flag = 0
+                  AND uo.org_id IN
+                  <foreach collection="orgIds" item="orgId" open="(" separator="," close=")">
+                      #{orgId}
+                  </foreach>
+            )
+        </if>
+        ORDER BY u.created_at DESC
     </select>
 
     <select id="selectDistinctTenantIds" resultType="java.lang.Long">

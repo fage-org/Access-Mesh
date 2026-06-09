@@ -58,7 +58,12 @@ public record UserPageReq(
     /**
      * 状态（0=正常，1=禁用）
      */
-    Integer status
+    Integer status,
+
+    /**
+     * Organization id used for subtree member filtering.
+     */
+    Long orgId
 ) {
     /**
      * 获取页码（默认1）

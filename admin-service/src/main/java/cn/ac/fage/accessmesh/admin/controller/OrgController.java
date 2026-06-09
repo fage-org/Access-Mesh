@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.admin.dto.req.OrgPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgQuery;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.OrgUserItemResp;
 import cn.ac.fage.accessmesh.admin.service.OrgService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -131,5 +132,20 @@ public class OrgController {
     @PostMapping("/tree")
     public PermResult<List<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
         return PermResult.success(orgService.treeOrgs(query));
+    }
+
+    /**
+     * 查询组织/岗位下的用户列表
+     * <p>
+     * 查询指定组织或岗位下通过 user-org 关联的用户。
+     * 用于岗位卡片展开后展示已分配用户。
+     * </p>
+     *
+     * @param req ID请求，包含组织或岗位ID
+     * @return 用户简要信息列表
+     */
+    @PostMapping("/users")
+    public PermResult<List<OrgUserItemResp>> listOrgUsers(@Valid @RequestBody IdReq req) {
+        return PermResult.success(orgService.listOrgUsers(req.id()));
     }
 }

@@ -6,9 +6,13 @@ import cn.ac.fage.accessmesh.admin.dto.req.OrgPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgQuery;
 import cn.ac.fage.accessmesh.admin.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.OrgResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.OrgUserItemResp;
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
+import cn.ac.fage.accessmesh.admin.entity.SysUser;
+import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.mapper.SysOrgMapper;
+import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
@@ -16,6 +20,7 @@ import cn.ac.fage.accessmesh.admin.service.OrgService;
 import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgSyncHandler;
+import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -50,6 +56,8 @@ public class OrgServiceImpl implements OrgService {
     private final AdminPermissionValidator permissionValidator;
     private final SyncRetryService syncRetryService;
     private final ObjectMapper objectMapper;
+    private final SysUserOrgMapper userOrgMapper;
+    private final UserDomainService userDomainService;
 
     /**
      * 构造函数注入依赖
@@ -60,16 +68,22 @@ public class OrgServiceImpl implements OrgService {
      * @param permissionValidator 权限校验器，校验组织操作权限
      * @param syncRetryService 同步重试服务，记录同步失败任务
      * @param objectMapper JSON序列化工具
+     * @param userOrgMapper 用户组织关联Mapper，查询组织下用户关联
+     * @param userDomainService 用户领域服务，批量查询用户信息
      */
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
                           OrgSyncHandler orgSyncHandler, AdminPermissionValidator permissionValidator,
-                          SyncRetryService syncRetryService, ObjectMapper objectMapper) {
+                          SyncRetryService syncRetryService, ObjectMapper objectMapper,
+                          SysUserOrgMapper userOrgMapper,
+                          UserDomainService userDomainService) {
         this.orgMapper = orgMapper;
         this.orgDomainService = orgDomainService;
         this.orgSyncHandler = orgSyncHandler;
         this.permissionValidator = permissionValidator;
         this.syncRetryService = syncRetryService;
         this.objectMapper = objectMapper;
+        this.userOrgMapper = userOrgMapper;
+        this.userDomainService = userDomainService;
     }
 
     /**
@@ -311,6 +325,8 @@ public class OrgServiceImpl implements OrgService {
      * 分页查询组织列表
      * <p>
      * 支持按组织名称、类型、状态过滤。
+     * 当 orgId 不为空时，仅返回 orgId 子树内的组织（含自身及所有子孙），
+     * 实现岗位 Tab 按选中组织筛选的语义。
      * 按排序字段和创建时间排序。
      * </p>
      *
@@ -321,16 +337,34 @@ public class OrgServiceImpl implements OrgService {
     public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
+        int pageNum = req.getPageNum();
+        int pageSize = req.getPageSize();
+        Set<Long> orgIds = null;
+        if (req.orgId() != null) {
+            List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
+            if (subtreeIds.isEmpty()) {
+                return new PaginatedResult<>(
+                    List.of(),
+                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                );
+            }
+            orgIds = Set.copyOf(subtreeIds);
+        }
 
-        Page<SysOrg> result = orgMapper.paginateOrgs(Page.of(req.getPageNum(), req.getPageSize()), tenantId, req.orgName(), orgType, req.status());
+        Page<SysOrg> result = orgMapper.paginateOrgs(Page.of(pageNum, pageSize), tenantId, req.orgName(), orgType, req.status(), orgIds);
 
-        List<OrgResp> items = result.getRecords().stream()
+        List<SysOrg> records = result.getRecords();
+
+        // orgId 子树语义：仅保留 orgId 子树内的组织（含自身及子孙）
+        List<OrgResp> items = records.stream()
             .map(o -> toResp(o, List.of()))
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + req.getPageSize() - 1) / req.getPageSize();
+        // orgId 过滤后总数需重新计算
+        long total = result.getTotalRow();
+        long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), req.getPageNum(), req.getPageSize(), (int) totalPages));
+            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages));
     }
 
     /**
@@ -352,6 +386,56 @@ public class OrgServiceImpl implements OrgService {
 
         List<SysOrg> all = orgMapper.selectOrgsForTree(tenantId, orgType, status);
         return buildTree(all, 0L);
+    }
+
+    /**
+     * 查询组织/岗位下的用户列表
+     * <p>
+     * 查询指定组织或岗位下通过 user-org 关联的用户。
+     * 用于岗位卡片展开后展示已分配用户。
+     * </p>
+     *
+     * @param orgId 组织或岗位ID
+     * @return 用户简要信息列表
+     */
+    @Override
+    public List<OrgUserItemResp> listOrgUsers(Long orgId) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 按 orgId 查询用户组织关联（使用 SysUserOrgTableDef，不静态导入）
+        cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
+        com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()
+            .where(suo.TENANT_ID.eq(tenantId))
+            .where(suo.ORG_ID.eq(orgId))
+            .where(suo.DELETE_FLAG.eq(0L));
+        List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(qw);
+
+        if (userOrgs.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量查询用户信息
+        java.util.Set<Long> userIds = userOrgs.stream()
+            .map(SysUserOrg::getUserId)
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, SysUser> userMap = userDomainService.selectValidByIds(tenantId, userIds).stream()
+            .collect(java.util.stream.Collectors.toMap(SysUser::getId, u -> u));
+
+        // 按关联顺序组装响应
+        return userOrgs.stream()
+            .map(uo -> {
+                SysUser user = userMap.get(uo.getUserId());
+                if (user == null) return null;
+                return new OrgUserItemResp(
+                    user.getId(),
+                    user.getUsername(),
+                    user.getName(),
+                    user.getAvatar(),
+                    Boolean.TRUE.equals(uo.getIsPrimary())
+                );
+            })
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toList());
     }
 
     /**
