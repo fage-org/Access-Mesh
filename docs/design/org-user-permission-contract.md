@@ -11,9 +11,9 @@
 
 将原计划的两页融合为一页：
 
-- 左：**可管理组织树**（节点增删改 + 移动）
-- 右：Tab 分区 —— **组织信息 / 成员（含子级）/ 岗位 / 子组织**
-- 行点击：用户详情面板（组织归属 + 角色分配）
+- 左：**可管理组织树**（节点增删改 + 移动；过滤 `orgType=1` 仅显示普通组织）
+- 右：**2 个 Tab** —— **成员管理 / 岗位管理**；顶部固定**组织信息卡片**（替代原"组织信息"Tab）；子组织通过左侧树展开查看（不再设 Tab）
+- 行点击：用户详情面板（组织归属 + 所属岗位(只读) + 功能角色分配）
 
 融合动机：两页骨架（组织树 + 用户/成员表）重合度约 70%，且组织/用户/成员/岗位同属一个业务域（组织人事/主体）。
 
@@ -84,7 +84,7 @@ permission-center（乙层：被管理的权限模型）
 > 关系动作的资源归属已钉死，见第 5 节备注 ¹²³⁴。
 > 「查看」类读接口在 Service 层**无 engine 门禁**，由菜单可见性（`ADMIN_MENU` 的 `VIEW`）+ 域过滤承担——故乙层列标注「读，无服务级门禁」。
 
-### A. 组织树（Tab：组织信息 / 子组织）—— `ADMIN_ORG`（orgType≠岗位）
+### A. 组织树（顶部组织信息卡片 + 左树展开子组织）—— `ADMIN_ORG`（orgType≠岗位）
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码（甲层） | 无权降级 |
 |---|---|---|---|
@@ -95,7 +95,7 @@ permission-center（乙层：被管理的权限模型）
 | 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `system:org:edit` | 禁用拖拽 |
 | 启用/禁用组织 | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `status`） | `system:org:edit` | 隐藏状态切换 |
 
-### B. 成员（Tab：成员，含子级）—— 用户身份 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
+### B. 成员（Tab：成员管理）—— 用户身份 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
@@ -103,7 +103,7 @@ permission-center（乙层：被管理的权限模型）
 | 新增用户（默认归当前组织） | `ADMIN_USER:CREATE`（`/user/create`） | `system:user:add` | 隐藏「+新增用户」 |
 | 编辑用户 | `ADMIN_USER:UPDATE`（`/user/update`，改己豁免） | `system:user:edit` | 隐藏「修改」 |
 | 删除用户 | `ADMIN_USER:DELETE`（`/user/delete`，批量实例级） | `system:user:delete` | 隐藏「删除」 |
-| 启用/禁用 | `ADMIN_USER:ENABLE`（`/user/enable`，批量实例级） | `system:user:enable` | 隐藏状态切换 |
+| 启用/禁用 | `ADMIN_USER:ENABLE/DISABLE`（`/user/enable`，批量实例级；status=1 使用 ENABLE，status=0 使用 DISABLE） | `system:user:enable` | 隐藏状态切换 |
 | 重置密码 | `ADMIN_USER:RESET_PASSWORD`（`/user/reset-password`，改己豁免） | `system:user:reset-pwd` | 隐藏「重置密码」 |
 | 添加/移除成员、设主组织 | **`ADMIN_ORG:UPDATE`** ²（组织成员管理；作用在**目标组织实例**；`/user-org/assign|remove|set-primary`） | `system:org:member` | 成员增删只读 |
 
@@ -114,7 +114,7 @@ permission-center（乙层：被管理的权限模型）
 | 查看用户角色 | 读，无服务级门禁（`/user-role/list`） | `system:user:view` | 角色区不显示 |
 | 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；`/user-role/assign|revoke`，**Phase 2 待建代理**） | `system:user:role:assign` | 角色区只读 |
 
-### D. 岗位（Tab：岗位）—— 岗位 = 特殊组织 `ADMIN_ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
+### D. 岗位（Tab：岗位管理）—— 岗位 = 特殊组织 `ADMIN_ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
@@ -130,7 +130,7 @@ permission-center（乙层：被管理的权限模型）
 | 备注 | 规则（核对后定稿） |
 |------|------|
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
-| ² | **成员增删 / 主组织 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。⚠️ **当前后端实现不符**：`UserOrgServiceImpl` 现以 `ADMIN_USER:UPDATE`（被操作用户）门禁，**Phase 2 必须改为 `ADMIN_ORG:UPDATE`（目标组织）** —— 见 §8 遗留实现项 |
+| ² | **成员增删 / 主组织 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。当前后端 `UserOrgServiceImpl` 已按该契约校验 `ADMIN_ORG:UPDATE`。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedIds(..., ROLE, 目标角色, MANAGE)` 强制；admin-service `/user-role/*` 代理 **Phase 2 待建**（api-gap §4），建成后须沿用此门禁，且**不得**复用 `ADMIN_ROLE:GRANT/REVOKE`（那是配权语义，属红线） |
 | ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）|
 
@@ -156,7 +156,7 @@ permission-center（乙层：被管理的权限模型）
   授予（组织人事业务域内）：
     ADMIN_ORG:   CREATE, UPDATE, DELETE        # 组织 + 岗位（特殊组织）的增删改、移动、改状态；
                                                # 成员/主组织/岗位用户归属含于 ADMIN_ORG:UPDATE；查看由菜单可见性派生
-    ADMIN_USER:  CREATE, UPDATE, DELETE, ENABLE, RESET_PASSWORD   # 用户身份本身
+    ADMIN_USER:  CREATE, UPDATE, DELETE, ENABLE, DISABLE, RESET_PASSWORD   # 用户身份本身
     ROLE:        MANAGE（仅对目标功能角色）      # C 区"分配功能角色给用户"，不含角色定义
   不授予：
     ADMIN_ROLE:  CREATE / GRANT / REVOKE       # 独立角色定义、给组织/岗位/角色配权 —— 红线之外
@@ -170,10 +170,10 @@ permission-center（乙层：被管理的权限模型）
 ## 8. 核对结论（定稿依据）
 
 > 草案 4 项「待核对」已逐项坐实，源码佐证如下；矩阵据此回填，「待核对」标记清除。
-> 其中成员/岗位归属按设计意图（岗位=特殊组织、成员归组织管理）定稿，与当前后端实现的偏差列入「遗留实现项」。
+> 其中成员/岗位归属按设计意图（岗位=特殊组织、成员归组织管理）定稿；当前后端门禁已与备注 ² 对齐，未落地项列入「剩余实现项」。
 
 1. **操作码** ✅
-   `permission-center/.../constant/OperationCodeConstants.java` 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE`，备注 ¹ 据此定稿。
+   `permission-center/.../constant/OperationCodeConstants.java` 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE/DISABLE`，备注 ¹ 据此定稿。
 
 2. **资源类型** ✅
    `permission-center/.../enums/ResourceTypeCode.java` = `USER/ROLE/RESOURCE/SERVICE/DOMAIN/API/TYPE_DEFINITION/SYSTEM_CONFIG/OPERATION/CONDITION/CONFLICT_RULE/DEPENDENCY`——**不含 ORG，不含 POSITION**。`enums/RoleType.java` 表明 `ORG(1)`、`POSITION(2)` 是角色类型（同步落地形态）。本页甲层资源类型取自 admin-service `AdminResourceType.java`：`ADMIN_USER/ADMIN_ORG/ADMIN_ROLE/ADMIN_MENU/...`——**`ORG` 以 `ADMIN_ORG` 坐实**。→ 矩阵乙层列用 `ADMIN_ORG/ADMIN_USER/ADMIN_ROLE`。
@@ -187,12 +187,11 @@ permission-center（乙层：被管理的权限模型）
 4. **前端 perm 码约定** ✅
    全仓 `hasPerms` 仅见样例页 `views/permission/button/perms.vue`（`permission:btn:add/edit/delete`）与指令 `directives/perms`。格式 = **冒号分隔 `模块:实体:动作`**。本页组件（`views/system/user/*`）**尚未接线** hasPerms——故本契约定名（`system:org:*` / `system:user:*` / `system:org:position:*` / `system:user:role:assign`）。注意：前端 perm 串由菜单/按钮配置（`sys_menu` 经 `/user/user-menus`、`/role/my-info` 下发）提供，与后端 `AdminResourceType` 是两套命名空间，需在菜单配置侧补齐对应按钮权限。
 
-### 遗留实现项（不阻塞契约定稿，落 Phase 2）
+### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 
-- **【门禁修正】成员/主组织/岗位用户**：`UserOrgServiceImpl` 当前以 `ADMIN_USER:UPDATE`（被操作用户）门禁，须改为 **`ADMIN_ORG:UPDATE`（目标组织/岗位实例）**，对齐"组织成员管理"语义（备注 ²）。
 - **【新增代理】功能角色分配**：admin-service 新增 `/user-role/{list,assign,revoke}` 代理，门禁沿用 `ROLE:MANAGE`（备注 ³）。
 - **【岗位接线】**：岗位 Tab 经 `/org/*`（按 `orgType=2` 过滤）管理；用户↔岗位经 `/user-org/*`。前端 mock 若把岗位归 `/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
-- **【其他】** `/user/page` 增 `orgId` 过滤、`/user/create` 增 `orgId+初始密码`（api-gap §2）；菜单/按钮配置补齐本页 perm 码（§8.4）。
+- **【其他】** 菜单/按钮配置补齐本页 perm 码（§8.4）。
 
 ---
 
@@ -202,4 +201,6 @@ permission-center（乙层：被管理的权限模型）
 |------|------|------|
 | 2026-06-06 | v0.1 (DRAFT) | 初稿：核心原则 + 权限矩阵 + 三条军规 + 待核对清单 |
 | 2026-06-06 | v1.0 (定稿) | 完成第 8 节 4 项核对（源码佐证）：链路修正为 融合页→admin-service→permission-center；乙层资源类型改用 `ADMIN_ORG/ADMIN_USER/ADMIN_ROLE`，改类操作用粒度 `UPDATE/DELETE/ENABLE`；前端 perm 码确认 `system:模块:动作`。清除全部「待核对」标记 |
-| 2026-06-06 | **v1.1 (定稿)** | 按设计意图修正归属：① **成员/主组织/岗位用户**统一归"组织成员管理" = `ADMIN_ORG:UPDATE`（目标组织实例），当前后端 `ADMIN_USER:UPDATE` 列为待修正；② **岗位 = 特殊组织**（`ADMIN_ORG`，按 orgType / POSITION 树），其 CRUD + 分配用户走 `/org/*`、`/user-org/*` 组织管理面并同步 permission-center，红线收窄为"配权（`ADMIN_ROLE:GRANT/REVOKE`）+ 独立角色定义"；C 区重命名为"功能角色分配"以与岗位区分 |
+| 2026-06-06 | **v1.1 (定稿)** | 按设计意图修正归属：① **成员/主组织/岗位用户**统一归"组织成员管理" = `ADMIN_ORG:UPDATE`（目标组织实例）；② **岗位 = 特殊组织**（`ADMIN_ORG`，按 orgType / POSITION 树），其 CRUD + 分配用户走 `/org/*`、`/user-org/*` 组织管理面并同步 permission-center，红线收窄为"配权（`ADMIN_ROLE:GRANT/REVOKE`）+ 独立角色定义"；C 区重命名为"功能角色分配"以与岗位区分 |
+| 2026-06-09 | v1.1 (勘误) | §1 页面结构描述与实现计划对齐：4 Tab（组织信息/成员/岗位/子组织）→ 2 Tab（成员管理/岗位管理）+ 顶部组织信息卡片；左树过滤 `orgType=1` 仅显示普通组织；用户详情面板增加「所属岗位(只读)」 |
+| 2026-06-09 | v1.1 (实现对齐) | `UserOrgServiceImpl` 已按契约改为 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）门禁，移除 `ADMIN_USER:UPDATE` 与改己豁免语义。 |
