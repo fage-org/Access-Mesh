@@ -48,6 +48,8 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 
 在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin-service 主维护组织树和 `user-org` 关系；permission-center 保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
 
+默认组织树是 admin-service 的用户目录/身份池。permission-center 不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 admin-service 同步来的主体、资源、角色和授权事实。
+
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 
 ## 资源与操作
@@ -60,6 +62,15 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
 - 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。
 - 业务服务如果需要查询“用户能管理哪些组织/角色/菜单”，应先把这些对象建模为 `resource_entity`。
+
+AccessMesh 管理端的用户与组织需要使用以下资源建模：
+
+| 管理对象 | 资源建模 | 说明 |
+|----------|----------|------|
+| 被管理用户 | `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)` | 支撑 `ADMIN_USER:{userId}` 的更新、删除、启停、重置密码等实例级校验。 |
+| 被管理组织/岗位 | `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)` | 支撑 `ADMIN_ORG:{orgId}` 的组织 CRUD、成员管理和可管理组织查询。 |
+
+注意：`abstract_user` 只表示访问主体，不能替代 `ADMIN_USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ADMIN_ORG` 被管理资源。
 
 ## 资源依赖
 

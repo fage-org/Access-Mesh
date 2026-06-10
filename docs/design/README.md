@@ -13,6 +13,7 @@
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
 | 项目诊断与完善计划    | [improvement-plan.md](improvement-plan.md)                                             |
+| 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 组织与用户·实现计划    | [org-user-page-impl-plan.md](org-user-page-impl-plan.md)                               |
 | API 核对清单            | [api-gap-analysis.md](api-gap-analysis.md)                                             |
@@ -24,7 +25,8 @@
 2. 再读 [architecture.md](architecture.md)，理解 Gateway、admin-service、permission-center、example-service 的边界。
 3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计。
-5. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
+5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)，再读 [org-user-permission-contract.md](org-user-permission-contract.md)。
+6. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
 
 ## 目录说明
 

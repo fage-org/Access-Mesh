@@ -33,6 +33,9 @@ import cn.ac.fage.accessmesh.common.mybatis.TenantAwareScheduled;
  * 用于确保admin-service与permission-center之间的数据一致性。
  * 采用指数退避重试策略，最大重试次数默认5次，重试间隔从1分钟逐步增加到60分钟。
  * 使用@TenantAwareScheduled确保定时任务在正确的租户上下文中执行。
+ * 设计约束：用户、组织、成员关系同步需要分别匹配 permission-center 的
+ * abstract_user、resource_entity、abstract_role、user_role 契约。当前通用
+ * /api/sync/{operation} URL 仍是旧占位实现，后续必须按具体同步类型改造。
  * </p>
  */
 @Service
@@ -279,6 +282,10 @@ public class SyncRetryServiceImpl implements SyncRetryService {
      * <p>
      * 根据目标服务名称构建同步接口URL。
      * 支持两种格式：完整HTTP URL或服务发现名称（lb://）。
+     * TODO: 当前构造的是旧式 /api/sync/{operation} 占位路径。
+     * 新设计要求同步重试保存可重放的具体 Feign/API 契约 payload，
+     * 不能把 abstract_user、ADMIN_USER resource_entity、ADMIN_ORG resource_entity、
+     * ORG/POSITION abstract_role 和 user_role 混成一个通用端点。
      * </p>
      *
      * @param record 同步任务记录

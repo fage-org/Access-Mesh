@@ -1,9 +1,9 @@
 # 「组织与用户」融合页 · 权限契约
 
-> 状态：**v1.1 定稿**（2026-06-06 完成第 8 节核对并按设计意图修正成员/岗位归属，源码佐证见该节）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
+> 状态：**v1.2 定稿**（2026-06-10 补充“默认组织树 = 用户目录/身份池”设计，明确非默认组织树只能管理成员关系）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
 > 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE`）为准；前端 perm 码用 `system:模块:动作` 约定。
 >
-> 关联文档：`docs/design/api-gap-analysis.md`（接口契约）、`docs/design/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
+> 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/design/api-gap-analysis.md`（接口契约）、`docs/design/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
 
 ---
 
@@ -19,6 +19,7 @@
 
 ### 核心抽象（核对后确立）
 
+- **默认组织树 = 用户目录/身份池**：`sys_org_tree_config.is_default=true` 的组织树负责用户生命周期。创建用户、禁用/启用、删除、重置密码等账号级操作只属于 `ADMIN_USER`；非默认组织树不能创建或删除真实用户，只能添加/移除已有用户与本组织节点的关系。
 - **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 `OrgSyncHandler` 同步至 permission-center。故岗位的增删改与"分配用户"全部归**组织管理**（`ADMIN_ORG`），不是独立角色面。
 - **成员 = 组织成员关系**：用户与组织（含岗位）的归属是 `user-org` 关系，归"**组织成员管理**"，门禁锚定**组织实例**。
 - **功能角色 = 真正的角色**：用户详情面板里分配的 BASIC_ROLE 等功能角色，才走 `ROLE` 资源类型与 `user-role` 关系。
@@ -35,7 +36,9 @@ admin-service（甲层后端门禁）
    │  └─ Feign → permission-center /checkAuth（subjectTypeCode=ADMIN_USER）
    ▼
 permission-center（乙层：被管理的权限模型）
-   按 资源类型 × 操作码 判定；组织/岗位同步为内部角色（RoleType.ORG/POSITION）
+   按 资源类型 × 操作码 判定；
+   用户同步为 abstract_user + ADMIN_USER resource_entity；
+   组织/岗位同步为 ADMIN_ORG resource_entity + 内部角色（RoleType.ORG/POSITION）
 ```
 
 > 实证：`admin-service/.../security/AdminPermissionValidatorImpl` 经 `PermissionFeignClient.checkAuth/batchCheckAuth` 调权限中心；各 `*ServiceImpl` 在写操作前调用 `permissionValidator.check*Level(...)`。
@@ -95,17 +98,20 @@ permission-center（乙层：被管理的权限模型）
 | 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `system:org:edit` | 禁用拖拽 |
 | 启用/禁用组织 | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `status`） | `system:org:edit` | 隐藏状态切换 |
 
-### B. 成员（Tab：成员管理）—— 用户身份 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
+### B. 成员（Tab：成员管理）—— 默认树用户目录 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看成员列表 | 读，无服务级门禁（`/user/page?orgId`） | `system:user:view` | 成员 Tab 空/隐藏 |
-| 新增用户（默认归当前组织） | `ADMIN_USER:CREATE`（`/user/create`） | `system:user:add` | 隐藏「+新增用户」 |
+| 查看默认树用户目录 | 读，无服务级门禁（`/user/page`，仅默认组织树语义） | `system:user:view` | 成员 Tab 空/隐藏 |
+| 查看组织成员列表 | 读，无服务级门禁（`/org/users` 或成员列表接口） | `system:user:view` | 成员 Tab 空/隐藏 |
+| 创建用户（只能归默认组织树） | `ADMIN_USER:CREATE`（`/user/create`，`orgId` 必须属于默认组织树） | `system:user:add` | 隐藏「+创建用户」 |
+| 添加已有用户到当前组织 | **`ADMIN_ORG:UPDATE`** ²（目标组织实例；候选集来自默认树可见范围） | `system:org:member` | 隐藏「添加成员」 |
 | 编辑用户 | `ADMIN_USER:UPDATE`（`/user/update`，改己豁免） | `system:user:edit` | 隐藏「修改」 |
 | 删除用户 | `ADMIN_USER:DELETE`（`/user/delete`，批量实例级） | `system:user:delete` | 隐藏「删除」 |
 | 启用/禁用 | `ADMIN_USER:ENABLE/DISABLE`（`/user/enable`，批量实例级；status=1 使用 ENABLE，status=0 使用 DISABLE） | `system:user:enable` | 隐藏状态切换 |
 | 重置密码 | `ADMIN_USER:RESET_PASSWORD`（`/user/reset-password`，改己豁免） | `system:user:reset-pwd` | 隐藏「重置密码」 |
-| 添加/移除成员、设主组织 | **`ADMIN_ORG:UPDATE`** ²（组织成员管理；作用在**目标组织实例**；`/user-org/assign|remove|set-primary`） | `system:org:member` | 成员增删只读 |
+| 移除成员 | **`ADMIN_ORG:UPDATE`** ²（非默认树只移除关系；默认树移除属于身份目录高危操作） | `system:org:member` | 成员增删只读 |
+| 设主组织 | **默认组织树内的目录操作** ²（首期仅允许默认树；不能影响其他组织树关系） | `system:org:member` | 主组织只读 |
 
 ### C. 功能角色分配（行点击→详情面板）—— 真正的角色 `ROLE`
 
@@ -130,20 +136,21 @@ permission-center（乙层：被管理的权限模型）
 | 备注 | 规则（核对后定稿） |
 |------|------|
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
-| ² | **成员增删 / 主组织 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。当前后端 `UserOrgServiceImpl` 已按该契约校验 `ADMIN_ORG:UPDATE`。 |
+| ² | **成员增删 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。当前后端 `UserOrgServiceImpl` 已做 `ADMIN_ORG:UPDATE` 门禁，但全量替换语义需按该契约调整。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedIds(..., ROLE, 目标角色, MANAGE)` 强制；admin-service `/user-role/*` 代理 **Phase 2 待建**（api-gap §4），建成后须沿用此门禁，且**不得**复用 `ADMIN_ROLE:GRANT/REVOKE`（那是配权语义，属红线） |
 | ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）|
 
 ---
 
-## 6. 三条军规（保证乙层不乱）
+## 6. 四条军规（保证乙层不乱）
 
 1. **只造资源类型形状的权限，绝不造页面形状的资源类型。** 菜单可见性 = 由 `ADMIN_ORG/ADMIN_USER` 的可见读 **派生**，不单独设 `ADMIN_ORG_USER:*`。
-2. **关系动作钉死归属**（成员/主组织/岗位用户 = 组织成员管理 `ADMIN_ORG:UPDATE`；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
+2. **关系动作钉死归属**（非默认树成员/岗位用户 = 组织成员管理 `ADMIN_ORG:UPDATE`；默认树主组织 = 身份目录操作；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
 3. **守红线**：本页做「组织结构（含岗位作为特殊组织）+ 用户身份 + 成员/角色**关系**」，**不出现"配权 / 独立角色定义"类操作**。
    - **允许**：岗位实例 CRUD（`ADMIN_ORG:*`，岗位 Tab）—— 它是组织管理，不是角色定义。
    - **禁止**在本页暴露：`/role/grant-menu`、`/role/revoke-menu`（`ADMIN_ROLE:GRANT/REVOKE`，给组织/岗位/角色**配菜单与资源权限**）；`/role/create`（`ADMIN_ROLE:CREATE`，定义独立功能角色）；以及 orgType 字典 / 资源 / 操作 / 条件等定义。
    - 这些属「配权与定义」面，归权限中心管理页；本页仅消费"已存在的组织/岗位/角色 → 分配给用户"。
+4. **默认组织树是身份目录边界**：非默认组织树只添加/移除已有用户关系，不创建、禁用、删除、重置真实用户；添加成员候选集来自默认树可见范围，不能默认暴露全租户用户。
 
 ---
 
@@ -155,7 +162,7 @@ permission-center（乙层：被管理的权限模型）
 角色：组织人事管理员（与页面无关、可复用）
   授予（组织人事业务域内）：
     ADMIN_ORG:   CREATE, UPDATE, DELETE        # 组织 + 岗位（特殊组织）的增删改、移动、改状态；
-                                               # 成员/主组织/岗位用户归属含于 ADMIN_ORG:UPDATE；查看由菜单可见性派生
+                                               # 非默认树成员/岗位用户归属含于 ADMIN_ORG:UPDATE；查看由菜单可见性派生
     ADMIN_USER:  CREATE, UPDATE, DELETE, ENABLE, DISABLE, RESET_PASSWORD   # 用户身份本身
     ROLE:        MANAGE（仅对目标功能角色）      # C 区"分配功能角色给用户"，不含角色定义
   不授予：
@@ -189,6 +196,10 @@ permission-center（乙层：被管理的权限模型）
 
 ### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 
+- **【默认树身份目录】** `sys_org_tree_config.is_default=true` 的树作为用户目录，用户创建只能绑定默认树；非默认树添加成员只能从默认树可见候选集中选择已有用户。
+- **【同步闭环】** 用户需同步为 `abstract_user` + `resource_entity(ADMIN_USER)`；组织需同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更需同步为 `user_role`。
+- **【ORG_ROLE 旧口径清理】** admin-service `RoleProxyServiceImpl` 中 4 处硬编码 `ORG_ROLE` 需替换为按 `orgType` 区分的 `ORG`/`POSITION`；`ROLE_TYPE_LABELS` 需移除 `ORG_ROLE` 条目。`ORG_ROLE` 不在 permission-center `RoleType` 枚举中，属 admin-service 代理层遗留，目标模型中组织角色类型为 `RoleType.ORG(1)`、岗位角色类型为 `RoleType.POSITION(2)`，映射规则：`SysOrg.orgType=1 → ORG`、`SysOrg.orgType=2 → POSITION`。
+- **【跨树关系修正】** `/user-org/assign` 禁止删除用户所有组织关系；必须改为关系级追加或显式树内替换。`set-primary` 首期只作用默认树。
 - **【新增代理】功能角色分配**：admin-service 新增 `/user-role/{list,assign,revoke}` 代理，门禁沿用 `ROLE:MANAGE`（备注 ³）。
 - **【岗位接线】**：岗位 Tab 经 `/org/*`（按 `orgType=2` 过滤）管理；用户↔岗位经 `/user-org/*`。前端 mock 若把岗位归 `/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
 - **【其他】** 菜单/按钮配置补齐本页 perm 码（§8.4）。
@@ -204,3 +215,4 @@ permission-center（乙层：被管理的权限模型）
 | 2026-06-06 | **v1.1 (定稿)** | 按设计意图修正归属：① **成员/主组织/岗位用户**统一归"组织成员管理" = `ADMIN_ORG:UPDATE`（目标组织实例）；② **岗位 = 特殊组织**（`ADMIN_ORG`，按 orgType / POSITION 树），其 CRUD + 分配用户走 `/org/*`、`/user-org/*` 组织管理面并同步 permission-center，红线收窄为"配权（`ADMIN_ROLE:GRANT/REVOKE`）+ 独立角色定义"；C 区重命名为"功能角色分配"以与岗位区分 |
 | 2026-06-09 | v1.1 (勘误) | §1 页面结构描述与实现计划对齐：4 Tab（组织信息/成员/岗位/子组织）→ 2 Tab（成员管理/岗位管理）+ 顶部组织信息卡片；左树过滤 `orgType=1` 仅显示普通组织；用户详情面板增加「所属岗位(只读)」 |
 | 2026-06-09 | v1.1 (实现对齐) | `UserOrgServiceImpl` 已按契约改为 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）门禁，移除 `ADMIN_USER:UPDATE` 与改己豁免语义。 |
+| 2026-06-10 | **v1.2 (定稿)** | 固化默认组织树身份目录设计：默认树负责用户生命周期；非默认树只管理已有用户关系；补充 `abstract_user` / `ADMIN_USER resource_entity`、`ADMIN_ORG resource_entity` / `ORG/POSITION abstract_role`、`user-org -> user_role` 同步闭环要求。 |

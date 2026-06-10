@@ -48,6 +48,8 @@ import java.util.stream.Collectors;
  * 将admin-domain概念（用户、组织、菜单）转换为permission-center概念（角色、资源、权限）。
  * 提供组织角色创建、菜单权限授予/撤销、用户角色和权限加载等功能。
  * 通过Feign调用permission-center服务，使用统一 CacheService 管理缓存。
+ * 设计约束：组织/岗位角色类型应使用 permission-center 的 ORG/POSITION，
+ * 旧的 ORG_ROLE 字符串仅是当前实现遗留，后续组织同步和授权代理不得继续扩散。
  * </p>
  */
 @Service
@@ -58,7 +60,10 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /** 功能角色类型编码（排除 ORG 和 POSITION） */
     private static final List<String> FUNCTIONAL_ROLE_TYPES = List.of("BASIC_ROLE", "GROUP_ROLE", "PERSONAL");
 
-    /** 角色类型编码到显示名的映射 */
+    /**
+     * 角色类型编码到显示名的映射。
+     * TODO: ORG_ROLE 是旧口径，目标模型中组织/岗位角色类型为 ORG/POSITION。
+     */
     private static final Map<String, String> ROLE_TYPE_LABELS = Map.of(
         "BASIC_ROLE", "基础角色",
         "GROUP_ROLE", "分组角色",
@@ -140,6 +145,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * 在permission-center创建组织专属角色(ORG_ROLE类型)。
      * 执行类型级权限校验(CREATE)。
      * 角色外部ID为组织ID，用于关联组织与角色。
+     * TODO: 目标设计应改为由组织同步流程创建 abstract_role(ORG/POSITION,
+     * externalId=sys_org.id)，不要继续创建 ORG_ROLE。
      * </p>
      *
      * @param roleName 角色名称
@@ -155,7 +162,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
         RoleCreateReq req = new RoleCreateReq(
             null, // parentId
-            "ORG_ROLE", // roleTypeCode
+            "ORG_ROLE", // TODO 旧口径：目标模型改为 ORG/POSITION
             String.valueOf(orgId), // externalId
             roleName,
             null, // sortOrder
@@ -218,7 +225,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
         RoleGrantReq req = new RoleGrantReq(
             null,             // domainCode
-            "ORG_ROLE",       // roleTypeCode
+            "ORG_ROLE",       // TODO 旧口径：目标模型改为 ORG/POSITION
             String.valueOf(roleId), // roleExternalId
             List.of(addItem), // add
             List.of(),        // update
@@ -279,7 +286,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             // 1. 查询角色的现有权限
             UserPermissionViewReq viewReq = new UserPermissionViewReq(
                 "ROLE",            // targetType
-                "ORG_ROLE",        // subjectTypeCode
+                "ORG_ROLE",        // TODO 旧口径：目标模型改为 ORG/POSITION
                 String.valueOf(roleId), // subjectExternalId
                 null,              // domainCode
                 null,              // roleTypeCode
@@ -327,7 +334,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             // 4. 调用 permission-center 的批量撤销接口
             BatchRevokeReq revokeReq = new BatchRevokeReq(
                 null,                      // domainCode
-                "ORG_ROLE",                // roleTypeCode
+                "ORG_ROLE",                // TODO 旧口径：目标模型改为 ORG/POSITION
                 String.valueOf(roleId),    // roleExternalId
                 permissionIds              // permissionIds
             );

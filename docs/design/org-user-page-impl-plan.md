@@ -1,9 +1,9 @@
 # 「组织与用户」融合页 · 设计 / 实现计划
 
-> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.1，本计划的门禁来源）、`docs/design/api-gap-analysis.md`（接口契约）。
+> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）、`docs/design/api-gap-analysis.md`（接口契约）。
 > 已锁定设计决策：
 > ① 岗位 = 折叠卡片列表（**按左树选中组织筛选，展示该组织及其子组织下的岗位**）；② 成员含子级 = 子树匹配；
-> ③ 默认组织树初始选中；④ 主组织用 radio 标记；⑤ 初始密码先弹窗（Phase 2 后端定下发）；
+> ③ 默认组织树初始选中，且默认树是用户目录/身份池；④ 主组织仅表示默认树主归属；⑤ 初始密码先弹窗（Phase 2 后端定下发）；
 > ⑥ 组织 CRUD 主入口 = 树节点 hover 操作 + 拖拽移动；⑦ 用户详情弹窗只读展示所属岗位；
 > ⑧ 目录/路由 name 不改（`views/system/user/`，仅改显示标题）；
 > ⑨ **Tab 简化为 2 个：成员管理 + 岗位管理**（2026-06-07 确认）；
@@ -18,7 +18,7 @@
 | 页面壳 | `views/system/user/index.vue` | 左 `ReOrgTreePanel` + 右（搜索栏 + `PureTableBar` + `pure-table`）；行点击弹 `UserDetailPanel`；grid 布局已按 layout-patterns | 成员半边 ✅ |
 | 成员逻辑 | `views/system/user/utils/hook.ts` | `useUserManage`：`loadTable(orgId 过滤)`、搜索、分页、增删改 | ✅ |
 | 组织树 | `components/ReOrgTreePanel/src/index.vue` | 选择型：加载默认树（`isDefault`）、`org-change` 事件、compact popover；**只读，无 CRUD** | 读 ✅ / 写 ❌ |
-| 用户详情 | `views/system/user/components/UserDetailPanel.vue` | 组织归属（`/user-org/*` 增删/设主）✅；角色列表（`/user-role/*`，**含 POSITION**，候选用硬编码 mock）；权限查询占位 | 部分 ⚠️ |
+| 用户详情 | `views/system/user/components/UserDetailPanel.vue` | 组织归属（`/user-org/*` 增删/设主）✅；角色列表历史上曾含 POSITION，按契约必须改为仅功能角色；候选用户需来自默认树可见范围 | 部分 ⚠️ |
 | 用户表单 | `views/system/user/form.vue` | create/edit + compact 组织选择 | ✅ |
 | API | `api/user-manage.ts` | `/org/tree`、`/org-tree-config/page`、`/user/*`、`/user-org/*`、`/user-role/*` | 成员侧 ✅ |
 | Mock | `mock/user-manage.ts` | 全量；`/user/page` **已实现子树匹配**（`getDescendantOrgIds`）；`/user/create` 返回 `initialPassword` | ✅ |
@@ -34,7 +34,7 @@
 组织与用户页（index.vue）
 ├─ 左：ReOrgTreePanel（默认树；过滤 orgType≠岗位；加 editable: 增/改/删/移）
 └─ 右：<el-tabs>（上下文 = 左树选中组织）
-   ├─ Tab 成员管理     MemberTab.vue   成员表格（搜索+表格+启停/重置密码）
+   ├─ Tab 成员管理     MemberTab.vue   成员表格（默认树创建用户；非默认树添加已有用户；启停/重置密码仅身份目录权限）
    └─ Tab 岗位管理     PositionTab.vue  岗位折叠卡片（orgType=岗位）+ CRUD + 挂载用户
    └─（行点击用户 → UserDetailPanel 弹窗：组织归属 + 所属岗位(只读) + 功能角色）
 顶部固定：组织信息卡片（选中组织详情 + 编辑按钮，替代原"组织信息"Tab）
@@ -48,7 +48,7 @@
 
 ## 2. 核心迁移：岗位「角色 → 特殊组织」
 
-**矛盾**：现 `UserDetailPanel` 把岗位当角色（`roleTypeCode=POSITION` + `relationOrgName`，经 `/user-role/assign`）；契约 v1.1 定为**特殊组织**（`ADMIN_ORG`，按 `orgType` / POSITION 树）。
+**矛盾**：现 `UserDetailPanel` 把岗位当角色（`roleTypeCode=POSITION` + `relationOrgName`，经 `/user-role/assign`）；契约 v1.2 定为**特殊组织**（`ADMIN_ORG`，按 `orgType` / POSITION 树）。
 
 **迁移方案（借现有端点，零新关系概念）**：
 
@@ -60,7 +60,7 @@
 | 角色列表 | 含 ORG/POSITION/BASIC/GROUP | `otherRoles` 仅留**功能角色**（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG **和 POSITION** |
 | 门禁 | — | 岗位 CRUD `ADMIN_ORG:*`；挂载用户 `ADMIN_ORG:UPDATE`；配权红线 |
 
-**前端改动点**：`UserDetailPanel.otherRoles` 过滤加 `&& r.roleTypeCode !== "POSITION"`；新增"所属岗位"节（只读，`getUserOrgs` 按 `orgType` 拆出岗位型 org）；岗位逻辑移入 `PositionTab.vue`。
+**前端改动点**：`UserDetailPanel.otherRoles` 过滤加 `&& r.roleTypeCode !== "POSITION" && r.roleTypeCode !== "ORG"`；新增"所属岗位"节（只读，`getUserOrgs` 按 `orgType` 拆出岗位型 org）；岗位逻辑移入 `PositionTab.vue`。添加岗位成员时，候选用户必须调用默认树候选用户接口，不能从全租户用户或硬编码 mock 中取。
 
 ---
 
@@ -92,12 +92,13 @@
 
 | # | 任务 | 依据 |
 |---|------|------|
-| P1-1 | `/user/page` 落实 `orgId` **子树**语义（org 闭包/递归） | 决策②、api-gap §2 |
-| P1-2 | `/user/create` 增 `orgId`+初始密码返回 | api-gap §2 |
-| P1-3 | `/user/enable`、`/user/reset-password` 接前端 | 矩阵 B |
-| P1-4 | ✅ **成员门禁已修正**：`UserOrgServiceImpl` 使用 `ADMIN_ORG:UPDATE`（目标组织/岗位实例） | 契约 §8、备注 ② |
-| P1-5 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |
-| P1-6 | 岗位经 `/org/*`(orgType) + `/user-org/*`；`/role/list` 仅功能角色 | 契约 §8 遗留③ |
+| P1-1 | `/user/page` 收敛为默认树用户目录查询；组织成员列表改走 `/org/users` 或专门成员列表 | 默认树身份目录契约 |
+| P1-2 | 新增 `/user/member-candidates`：从默认树可见范围查询候选用户，排除目标组织已有成员 | api-gap §2/§3 |
+| P1-3 | `/user/create` 增 `orgId`+初始密码返回，并同步 `abstract_user` + `ADMIN_USER resource_entity` | api-gap §2 |
+| P1-4 | `/user/enable`、`/user/reset-password` 接前端，但只作为身份目录生命周期权限，不给普通非默认树成员管理员 | 矩阵 B |
+| P1-5 | ✅ **成员门禁已修正**：`UserOrgServiceImpl` 使用 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）；仍需修正跨树全量替换语义和 `user_role` 同步 | 契约 §8、备注 ② |
+| P1-6 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |
+| P1-7 | 岗位经 `/org/*`(orgType) + `/user-org/*`；`/role/list` 仅功能角色 | 契约 §8 遗留③ |
 
 ### P2 — 权限接线 + 降级
 
@@ -118,12 +119,13 @@
 | 树·编辑/移动节点 | `system:org:edit` | `ADMIN_ORG:UPDATE` | 隐藏/禁拖拽 |
 | 树·删除组织 | `system:org:delete` | `ADMIN_ORG:DELETE` | 隐藏 |
 | 成员表可见 | `system:user:view` | 读（无服务门禁） | Tab 空 |
-| 成员·新增用户 | `system:user:add` | `ADMIN_USER:CREATE` | 隐藏 |
+| 成员·创建用户 | `system:user:add` | `ADMIN_USER:CREATE`（仅默认组织树） | 隐藏 |
+| 成员·添加已有用户 | `system:org:member` | `ADMIN_ORG:UPDATE`（目标组织；候选来自默认树可见范围） | 隐藏 |
 | 成员·修改 | `system:user:edit` | `ADMIN_USER:UPDATE` | 隐藏 |
 | 成员·删除 | `system:user:delete` | `ADMIN_USER:DELETE` | 隐藏 |
 | 成员·启用/禁用 | `system:user:enable` | `ADMIN_USER:ENABLE/DISABLE`（status=1 启用，status=0 禁用） | 隐藏切换 |
 | 成员·重置密码 | `system:user:reset-pwd` | `ADMIN_USER:RESET_PASSWORD` | 隐藏 |
-| 详情·组织归属增删/设主 | `system:org:member` | `ADMIN_ORG:UPDATE`（目标组织） | 只读 |
+| 详情·组织归属增删/设主 | `system:org:member` | 非默认树增删为 `ADMIN_ORG:UPDATE`；默认树设主为身份目录操作 | 只读 |
 | 详情·分配/回收功能角色 | `system:user:role:assign` | `ROLE:MANAGE`（目标角色） | 只读 |
 | 岗位 Tab 可见 | `system:org:position:view` | 读 | Tab 隐藏 |
 | 岗位·增/改/删 | `system:org:position:add` / `:edit` / `:delete` | `ADMIN_ORG:CREATE/UPDATE/DELETE` | 隐藏 |
@@ -160,7 +162,7 @@
 - **所属组织路径**：`parentOrgId` 链向上追溯，展示 `"研发中心 > 后端组"`（便于定位岗位挂在哪个组织下）
 - **已分配人数**：该岗位下通过 `user-org` 关联的用户数（调用 `/org/users` 统计）
 - **用户列表**：展开后展示已分配用户，支持"移除"操作（调用 `/user-org/remove`）
-- **添加成员**：弹窗选择用户，调用 `/user-org/assign` 挂载到岗位
+- **添加成员**：弹窗选择默认树候选用户，调用 `/user-org/assign` 挂载到岗位；候选集不得使用全租户用户列表
 
 **岗位的数据权限模型**（以"数据安全员"为例）：
 

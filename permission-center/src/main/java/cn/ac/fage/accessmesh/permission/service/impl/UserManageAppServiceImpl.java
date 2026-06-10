@@ -59,6 +59,9 @@ import java.util.stream.Collectors;
  * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
  * 批量操作采用批量查询和批量插入策略，避免N+1查询问题。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
+ * 注意：这里管理的是 permission-center 的 abstract_user 主体事实。
+ * AccessMesh admin-service 中的用户生命周期事实源仍是 sys_user；
+ * ADMIN_USER 实例级管理权限还需要独立的 resource_entity 同步。
  * </p>
  */
 @Service

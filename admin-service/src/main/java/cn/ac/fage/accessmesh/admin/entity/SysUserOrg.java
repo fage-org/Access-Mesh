@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
  * <p>
  * 对应数据库表sys_user_org，用于存储用户和组织的关联关系。
  * 支持用户属于多个组织，可标记主要组织。
+ * 用户与组织节点关系（默认树/非默认树语义见 @see 第 2 节，同步契约见第 5.3 节）。
+ * @see docs/design/default-org-tree-user-lifecycle.md
  * </p>
  */
 @Getter
@@ -42,7 +44,7 @@ public class SysUserOrg {
     private Long orgId;
 
     /**
-     * 是否主要组织
+     * 是否主要组织（首期限默认树，见类 @see 第 6 节）
      */
     private Boolean isPrimary;
 

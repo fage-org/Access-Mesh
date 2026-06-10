@@ -64,6 +64,9 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
      * <p>
      * 用于重新分配用户组织时，先删除旧关联再创建新关联。
      * 直接删除记录（非软删除），因为会立即创建新关联。
+     * 警告：多组织树设计下，该方法会跨树删除用户全部组织关系。
+     * 非默认组织树成员管理不得调用它做普通添加/移除成员；后续应提供
+     * 树内替换或关系级追加/删除方法。
      * </p>
      *
      * @param tenantId 租户ID，用于租户隔离
@@ -120,6 +123,8 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
      * <p>
      * 将指定组织设为用户的主组织，同时将其他组织设为非主组织。
      * 使用两条批量更新SQL，确保只有一个主组织。
+     * 多组织树设计下，主组织首期只属于默认组织树；该方法当前会影响
+     * 用户所有组织关系，后续需要按默认树范围收敛。
      * </p>
      *
      * @param tenantId 租户ID，用于租户隔离

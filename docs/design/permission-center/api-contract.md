@@ -734,11 +734,11 @@
 
 ```json
 {
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
+  "subjectTypeCode": "ADMIN_USER",
+  "subjectExternalId": "10001",
   "domainCode": "admin",
-  "resourceTypeCodes": ["ORG"],
-  "operationCodes": ["MANAGE"],
+  "resourceTypeCodes": ["ADMIN_ORG"],
+  "operationCodes": ["UPDATE"],
   "codeType": "default",
   "includeInherited": true,
   "includeChildren": false,
@@ -756,11 +756,11 @@
 {
   "items": [
     {
-      "resourceTypeCode": "ORG",
-      "resourceCode": "org:100",
+      "resourceTypeCode": "ADMIN_ORG",
+      "resourceCode": "100",
       "resourceName": "研发中心",
       "codeType": "default",
-      "operations": ["MANAGE"],
+      "operations": ["UPDATE"],
       "canGrant": true,
       "matchedRoleIds": [10, 11],
       "matchedPermissionIds": [301, 315],
@@ -776,7 +776,8 @@ admin-service 查询示例：
 
 | 查询目标   | 建模方式                                                                           | 查询参数                                                                  |
 | ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 可管理组织 | 组织同步为资源，例如 `resourceTypeCode=ORG`、`resourceCode=org:{orgId}`            | `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]`                  |
+| 可管理组织 | 组织同步为管理资源，例如 `resourceTypeCode=ADMIN_ORG`、`resourceCode={sys_org.id}` | `resourceTypeCodes=["ADMIN_ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
+| 可管理用户 | 用户同步为管理资源，例如 `resourceTypeCode=ADMIN_USER`、`resourceCode={sys_user.id}` | `resourceTypeCodes=["ADMIN_USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","DISABLE","RESET_PASSWORD"]` |
 | 可管理角色 | 角色同步为资源，例如 `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
 | 可见菜单   | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
 
@@ -784,6 +785,7 @@ admin-service 查询示例：
 
 - 查询接口只返回权限事实和资源业务键，不查询 admin-service 的组织、角色、菜单业务表。
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
+- AccessMesh 管理端中，`ADMIN_USER`/`ADMIN_ORG` 的 `resourceCode` 固定使用 admin-service 本地主键字符串，避免与组织编码、用户名等可变业务字段混用。
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。

@@ -30,6 +30,8 @@ import java.util.List;
  * 组织树配置用于定义不同场景下组织树的展示规则，如过滤条件、排序方式等。
  * 可配置多个组织树方案，在不同业务场景使用不同的组织树配置。
  * 系统只有一个默认配置，设置新默认时会自动清除旧默认。
+ * 设计约束：默认配置不是展示偏好，而是身份目录语义（详见 @see）。
+ * @see docs/design/default-org-tree-user-lifecycle.md
  * </p>
  */
 @Service
@@ -146,9 +148,10 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      * 设置默认组织树配置
      * <p>
      * 将指定配置设置为默认的组织树展示方案。
-     * 系统将使用默认配置展示组织树。
+     * 系统将使用默认配置作为身份目录树（见类 @see）。
      * 执行实例级权限校验(TOGGLE)。
      * 设置新默认时会自动清除其他配置的默认标记。
+     * 后续实现必须在已有用户、默认树根变更或树根重叠时增加迁移保护。
      * </p>
      *
      * @param id 配置ID

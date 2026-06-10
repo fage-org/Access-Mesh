@@ -16,6 +16,11 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
  * <p>
  * 将admin-service的组织同步到permission-center的resource_entity表。
  * 使用组织编码作为资源编码。
+ * 设计约束：组织/岗位需要双同步：
+ * 1) resource_entity(ADMIN_ORG, code=sys_org.id)，用于组织实例级管理权限；
+ * 2) abstract_role(ORG/POSITION, externalId=sys_org.id)，用于组织/岗位角色容器。
+ * 当前实现仍是旧口径，仅创建 ORG 资源并使用组织编码，后续实现必须按
+ * default-org-tree-user-lifecycle.md 调整资源类型、resourceCode 和父级ID映射。
  * </p>
  */
 @Service
@@ -39,6 +44,9 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
      * 同步组织到权限中心
      * <p>
      * 在权限中心创建组织资源实体（资源类型ORG）。
+     * 注意：ResourceCreateReq.parentId 是 permission-center 的 resource_entity.id，
+     * 不能直接使用 admin-service 的 sys_org.parentId。当前实现保留旧行为，
+     * 仅用于标记待改造点。
      * </p>
      *
      * @param tenantId 租户ID
@@ -81,6 +89,8 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
      * 生成组织资源编码
      * <p>
      * 使用组织编码作为资源编码，如果没有编码则使用ID生成。
+     * 目标设计要求 ADMIN_ORG resourceCode 固定为 sys_org.id 字符串，
+     * 与 AdminPermissionValidator 的实例级校验保持一致。
      * </p>
      *
      * @param org 组织实体

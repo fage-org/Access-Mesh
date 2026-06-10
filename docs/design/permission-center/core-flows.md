@@ -87,8 +87,9 @@ flowchart LR
 关键逻辑：
 
 - 用户同步以 `subjectTypeCode + externalId` 幂等定位。
+- 在 AccessMesh 管理端场景中，`sys_user` 至少需要同步为 `abstract_user(subjectTypeCode=ADMIN_USER, externalId=sys_user.id)`；如果要支持用户实例级管理权限，还必须额外同步为 `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)`。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。admin-service 维护 `user-org` 后，应根据组织默认角色和岗位映射规则调用 `user-role/assign`，把组织成员关系稳定落成 permission-center 的 `user_role` 事实。
+- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。admin-service 应把 `sys_org` 同步为 `resource_entity(ADMIN_ORG)` 和 `abstract_role(ORG/POSITION)` 两类事实；维护 `user-org` 后，应根据组织默认角色和岗位映射规则调用 `user-role/assign`，把组织成员关系稳定落成 permission-center 的 `user_role` 事实。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。
@@ -224,7 +225,8 @@ admin-service 需要先把可被权限控制的组织、角色、菜单同步或
 
 | 查询目标           | 资源建模                                                      | 运行时查询                                                                                     |
 | ------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode=org:{orgId}`            | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["MANAGE"]`                  |
+| 用户能管理哪些组织 | `resourceTypeCode=ADMIN_ORG`、`resourceCode={sys_org.id}`     | `query-resources` 传 `resourceTypeCodes=["ADMIN_ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
+| 用户能管理哪些用户 | `resourceTypeCode=ADMIN_USER`、`resourceCode={sys_user.id}`   | `query-resources` 传 `resourceTypeCodes=["ADMIN_USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","DISABLE","RESET_PASSWORD"]` |
 | 用户能管理哪些角色 | `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
 | 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
 

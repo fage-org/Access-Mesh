@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
  * <p>
  * 对应数据库表sys_org，用于存储组织机构信息。
  * 支持树形组织结构、组织类型、组织编码、权限关联等。
+ * 组织/岗位需要同时同步为 ADMIN_ORG resource_entity（管理权限）
+ * 和 ORG/POSITION abstract_role（角色容器），两类ID不得混用。
  * </p>
  */
 @Getter
@@ -77,12 +79,12 @@ public class SysOrg {
     private Integer status;
 
     /**
-     * 权限角色ID（组织对应角色）
+     * 权限角色ID（permission-center abstract_role.id）
      */
     private Long permRoleId;
 
     /**
-     * 权限组织ID（对应权限中心的组织）
+     * 权限组织资源ID（permission-center resource_entity.id，ADMIN_ORG）
      */
     private Long permOrgId;
 

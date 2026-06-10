@@ -43,6 +43,9 @@ import java.util.stream.Collectors;
  * 实现跨服务数据同步机制，通过Outbox Pattern确保组织创建与同步任务记录原子性。
  * 支持组织层级深度限制（最多10级）、组织编码唯一性校验。
  * 使用OrgDomainService处理组织数据查询。
+ * 设计约束：组织/岗位在 permission-center 中有两类事实：
+ * ADMIN_ORG resource_entity 用于实例级管理权限，
+ * ORG/POSITION abstract_role 用于角色容器和 user_role 计算。
  * </p>
  */
 @Service
@@ -92,6 +95,8 @@ public class OrgServiceImpl implements OrgService {
      * 创建新组织，校验编码唯一性和组织层级深度（不超过10级）。
      * 创建成功后记录同步任务，异步同步到permission-center（Outbox Pattern）。
      * 执行类型级权限校验(CREATE)。
+     * 后续实现组织同步时需同时落地 ADMIN_ORG resource_entity 与
+     * ORG/POSITION abstract_role，并分别保存资源ID和角色ID。
      * </p>
      *
      * @param req 组织创建请求，包含组织名称、编码、类型、父组织ID等

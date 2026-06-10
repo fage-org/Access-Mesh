@@ -17,6 +17,11 @@
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND delete_flag = 0
     </select>
 
+    <!--
+        多组织树警告：该语句会删除用户在所有组织树下的关系。
+        普通非默认树成员管理不得用它实现“添加成员前清空旧关系”。
+        后续实现应新增树内替换或关系级幂等写入。
+    -->
     <delete id="deleteByUserId">
         DELETE FROM sys_user_org
         WHERE tenant_id = #{tenantId} AND user_id = #{userId}
@@ -33,6 +38,10 @@
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND org_id = #{orgId} AND delete_flag = 0
     </update>
 
+    <!--
+        多组织树警告：当前会把该用户所有其他组织关系设为非主。
+        目标语义是主组织只作用于默认组织树，或未来显式按树维度处理。
+    -->
     <update id="updateNonPrimaryByUserIdExclOrgId">
         UPDATE sys_user_org
         SET is_primary = #{isPrimary}, updated_at = #{updatedAt}

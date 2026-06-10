@@ -49,6 +49,14 @@ public class UserOrgServiceImpl implements UserOrgService {
             AdminOperationCode.UPDATE
         );
 
+        /*
+         * 设计约束：
+         * - 默认/非默认树约束见 default-org-tree-user-lifecycle.md 第 1-2 节。
+         * - 该方法后续必须改为关系级追加或显式树内替换，不能删除用户
+         *   在默认树或其他树下的全部关系。
+         * - user-org 变更还必须同步为 permission-center user_role。
+         * 当前实现保留旧的全量替换行为，仅作为待改造点标注。
+         */
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
             if (Boolean.TRUE.equals(config.getSingleAssoc()) && req.orgIds().size() > 1) {
@@ -88,6 +96,7 @@ public class UserOrgServiceImpl implements UserOrgService {
             AdminOperationCode.UPDATE
         );
 
+        // 非默认树移除成员只应删除关系并回收对应 user_role，不应影响用户生命周期。
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
     }
 
@@ -102,6 +111,7 @@ public class UserOrgServiceImpl implements UserOrgService {
             AdminOperationCode.UPDATE
         );
 
+        // 首期主组织仅表示默认组织树下的主归属，后续实现需避免影响其他组织树关系。
         userOrgDomainService.setPrimaryOrg(tenantId, userId, orgId);
     }
 

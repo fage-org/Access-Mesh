@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
  * 实现跨服务数据同步机制，通过Outbox Pattern确保用户创建与同步任务记录原子性。
  * 用户修改自己的信息无需权限校验，其他操作需要相应权限。
  * 使用BCrypt进行密码哈希，SecureRandom生成随机密码。
+ * @see docs/design/default-org-tree-user-lifecycle.md
  * </p>
  */
 @Service
@@ -111,9 +112,11 @@ public class UserServiceImpl implements UserService {
      * 创建用户
      * <p>
      * 创建新用户并生成随机初始密码（BCrypt哈希存储）。
-     * 支持创建时一步完成组织分配（orgId）。
+     * 支持创建时一步完成默认组织树分配（orgId）。
      * 同一事务内记录同步任务（Outbox Pattern），确保原子性。
      * 校验用户名和手机号唯一性。
+     * 目标同步闭环要求同时落地 abstract_user 和 ADMIN_USER resource_entity；
+     * 当前实现仅记录 abstract_user 同步任务，后续需补齐用户管理资源同步。
      * </p>
      *
      * @param req 用户创建请求，包含用户名、姓名、手机号、邮箱、可选orgId等
@@ -177,7 +180,7 @@ public class UserServiceImpl implements UserService {
             throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
         }
 
-        // 创建时一步完成组织分配（orgId 必须属于默认组织树）
+        // 创建用户是身份目录操作，orgId 必须属于默认组织树。
         if (req.orgId() != null) {
             // 校验组织是否属于默认组织树
             List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
@@ -433,6 +436,8 @@ public class UserServiceImpl implements UserService {
      * 支持按用户名、姓名、手机号、邮箱、状态过滤。
      * 批量查询用户组织关联避免N+1问题。
      * 按创建时间倒序排列。
+     * 目标设计中该接口应收敛为默认组织树用户目录查询；组织成员列表
+     * 和添加成员候选集需要独立语义，避免普通组织管理员看到全租户用户。
      * </p>
      *
      * @param req 分页查询请求，包含分页参数和过滤条件

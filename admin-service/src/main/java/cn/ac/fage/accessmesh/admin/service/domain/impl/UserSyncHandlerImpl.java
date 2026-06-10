@@ -20,6 +20,10 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.UserResp;
  * <p>
  * 将admin-service的用户同步到permission-center的abstract_user表。
  * 使用用户ID作为外部标识，支持幂等同步。
+ * 设计约束：abstract_user 只表示访问主体；用户作为被管理对象时，
+ * 还需要同步为 resource_entity(ADMIN_USER, code=sys_user.id)。
+ * 当前类只覆盖主体同步，后续实现用户生命周期权限闭环时必须补齐
+ * ADMIN_USER 管理资源同步。
  * </p>
  */
 @Service
@@ -44,6 +48,8 @@ public class UserSyncHandlerImpl implements UserSyncHandler {
      * <p>
      * 创建或更新abstract_user，返回permUserId。
      * 使用updatedAt时间戳作为版本号，确保幂等同步。
+     * 本方法不得被视为完整的用户管理资源同步；ADMIN_USER实例级权限
+     * 还依赖用户 resource_entity 的独立同步。
      * </p>
      *
      * @param tenantId 租户ID

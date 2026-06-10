@@ -33,15 +33,16 @@
 
 | 接口 | 服务 | 状态 | 备注 |
 |------|------|------|------|
-| `POST /user/page` | admin-service | ✅ | `UserPageReq` 支持 `orgId` 子树筛选（选中组织及其子孙组织下的成员） |
-| `POST /user/create` | admin-service | ✅ | 返回 `UserCreateResp(id, initialPassword)`；支持 `orgId`+`primaryOrg` 一步组织分配（**orgId 必须属于默认组织树**） |
+| `POST /user/page` | admin-service | 🔧 | 需明确为默认组织树用户目录查询；组织成员列表与添加成员候选集不再复用同一语义 |
+| `POST /user/member-candidates` | admin-service | 🔧 | 新增候选用户查询：从默认组织树中按操作者可见/可管理范围筛选，并排除目标组织已有成员 |
+| `POST /user/create` | admin-service | 🔧 | 返回 `UserCreateResp(id, initialPassword)`；支持 `orgId`+`primaryOrg` 一步组织分配，且 **orgId 必须属于默认组织树**；需同步 `abstract_user` + `ADMIN_USER resource_entity` |
 | `POST /user/update` | admin-service | ✅ | |
-| `POST /user/delete` | admin-service | ✅ | 软删除，`IdsReq { ids: List<Long> }` |
-| `POST /user/enable` | admin-service | ✅ | `UserUpdateStatusReq(ids, status)` 启停一体；status=0 禁用(DISABLE)，status=1 启用(ENABLE) |
+| `POST /user/delete` | admin-service | 🔧 | 软删除，`IdsReq { ids: List<Long> }`；生命周期高危操作，只能通过默认组织树身份目录边界管理 |
+| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；status=0 禁用(DISABLE)，status=1 启用(ENABLE)；非默认组织树成员管理员不得获得该能力 |
 
 ### create 组织分配
 
-**决策**：~~mock 阶段 `createUser` 一步完成组织分配（入参含 `orgId`）。Phase 2 后端改造：`UserCreateReq` 新增 `orgId` + `primaryOrg` 字段，创建时同时建立组织关联，无需前端调 `/user-org/assign`。~~ 已完成。`orgId` 必须属于默认组织树，否则返回参数错误。
+**决策**：~~mock 阶段 `createUser` 一步完成组织分配（入参含 `orgId`）。Phase 2 后端改造：`UserCreateReq` 新增 `orgId` + `primaryOrg` 字段，创建时同时建立组织关联，无需前端调 `/user-org/assign`。~~ 已完成基础字段。`orgId` 必须属于默认组织树，否则返回参数错误。按 `default-org-tree-user-lifecycle.md`，创建用户还需保证同步 `abstract_user` 与 `resource_entity(ADMIN_USER)` 两类事实。
 
 ### 密码通知
 
@@ -54,15 +55,26 @@
 | 接口 | 服务 | 状态 | 备注 |
 |------|------|------|------|
 | `POST /user-org/list` | admin-service | ✅ | 后端 `getUserOrgBriefs` 正确返回 `orgName`+`orgType` |
-| `POST /user-org/assign` | admin-service | ✅ | 支持 `primaryOrgId`，一步设置主组织；门禁为目标组织实例 `ADMIN_ORG:UPDATE` |
-| `POST /user-org/remove` | admin-service | ✅ | 门禁为目标组织实例 `ADMIN_ORG:UPDATE` |
-| `POST /user-org/set-primary` | admin-service | ✅ | 门禁为目标组织实例 `ADMIN_ORG:UPDATE` |
+| `POST /user-org/assign` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE` 已对齐；写入语义需改为关系级追加或显式树内替换，禁止删除用户所有组织树关系；需同步 `user_role` |
+| `POST /user-org/remove` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE`；非默认树只删除关系并回收对应 `user_role`，默认树移除按身份目录高危操作处理 |
+| `POST /user-org/set-primary` | admin-service | 🔧 | 首期只允许默认组织树主归属；不能全局清除其他组织树主标记；如未来需要每树一个主节点，需显式树维度 |
+
+### 多组织树成员关系决策
+
+`/user-org/*` 的门禁归属仍是 `ADMIN_ORG:UPDATE`，但这只解决“谁能管理目标组织成员”的问题，不等于可以修改用户身份生命周期。
+
+按 `default-org-tree-user-lifecycle.md`：
+
+1. 默认组织树是用户目录/身份池，负责用户生命周期。
+2. 非默认组织树只能添加/移除已有用户关系。
+3. 添加成员候选集必须来自默认组织树中操作者可见/可管理范围，不能默认暴露全租户用户。
+4. `user-org` 关系变化后必须同步 permission-center 的 `user_role`，否则组织/岗位角色不会进入权限计算。
 
 ---
 
 ## 4. 用户-角色关联
 
-> ⚠️ **2026-06-07 设计变更**（来自 `docs/design/org-user-permission-contract.md` v1.1）：**岗位已从角色模型迁为组织模型**——岗位 = 特殊组织（`ADMIN_ORG`，按 `orgType` / POSITION 树区分），用户↔岗位走 `/user-org/*` 组织成员关系，不再走 `/user-role/*`。`/user-role/*` 仅服务于**功能角色**（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG 和 POSITION。
+> ⚠️ **设计变更**（来自 `docs/design/org-user-permission-contract.md` v1.2）：**岗位已从角色模型迁为组织模型**——岗位 = 特殊组织（`ADMIN_ORG`，按 `orgType` / POSITION 树区分），用户↔岗位走 `/user-org/*` 组织成员关系，不再走 `/user-role/*`。`/user-role/*` 仅服务于**功能角色**（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG 和 POSITION。
 
 ### 核心决策：A 方案 — admin 代理
 
@@ -97,8 +109,8 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 | `POST /org/page` | admin-service | ✅ | `OrgPageReq` 新增 `orgId` 字段，支持子树筛选语义（岗位 Tab 按选中组织筛选） |
 | `POST /org/users` | admin-service | ✅ | `IdReq { id: orgId }` → `OrgUserItemResp[]`；查询组织/岗位下用户列表 |
 | `POST /role/list` | admin-service | ✅ | `RoleListQueryReq(roleTypeCodes?)` → `RoleListItemResp[]`；默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）；代理调用 permission-center `roleTypeCodes[]` 多类型过滤 |
-| `POST /user/reset-password` | admin-service | ✅ | `ResetPasswordReq(newPassword可选)` → `ResetPasswordResp(newPassword)`；不传自动生成 |
-| `POST /user/enable` | admin-service | ✅ | `UserUpdateStatusReq(ids, status)` 启停一体 |
+| `POST /user/reset-password` | admin-service | 🔧 | `ResetPasswordReq(newPassword可选)` → `ResetPasswordResp(newPassword)`；不传自动生成；生命周期高危操作，只能由默认组织树身份目录边界授权 |
+| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；同 §2，非默认组织树成员管理员不得获得该能力 |
 
 ## 6. 其他页面接口（不在本页核对范围）
 
@@ -118,7 +130,7 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 
 | 状态 | 数量 | 说明 |
 |------|------|------|
-| ✅ 已对齐 | 14 | org/tree + org/page + org/users + user/page/create/update/delete/enable/reset-password + user-org/list/assign/remove/set-primary + role/list |
-| 🔧 需后端改造 | 6 | user-role/list/assign/revoke(代理，仅功能角色)、org/create/update/delete |
+| ✅ 已对齐 | 6 | org/tree + org/page + org/users + user/update + user-org/list + role/list |
+| 🔧 需后端改造 | 16 | 默认树用户目录与候选用户查询、user/create/delete/enable/reset-password 生命周期边界、user-org assign/remove/set-primary 跨树语义与 user_role 同步、user-role/list/assign/revoke 代理、org/create/update/delete |
 | ❌ 重大差异 | 0 | |
 | ⏳ 待核对（其他页面） | 5 | 角色管理、权限授予、变更日志、业务域、类型定义 |

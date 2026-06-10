@@ -100,7 +100,7 @@ CREATE TABLE abstract_user (
 CREATE UNIQUE INDEX uk_abstract_user ON abstract_user (tenant_id, user_type, external_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_user_tenant ON abstract_user (tenant_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持外部系统 API 同步（幂等）';
+COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持外部系统 API 同步（幂等）。ADMIN_USER 类型表示访问主体，不等同于被管理用户资源；具体同步方由调用方 serviceCode 标识';
 COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)/SERVICE(2)，来自 type_definition';
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
@@ -147,7 +147,7 @@ CREATE INDEX idx_abstract_role_parent ON abstract_role (parent_id) WHERE delete_
 CREATE UNIQUE INDEX uk_abstract_role_external ON abstract_role (tenant_id, role_type, external_id)
     WHERE external_id IS NOT NULL AND delete_flag = 0;
 
-COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。删除级联：user_role + role_resource_permission';
+COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。ORG/POSITION 可由外部系统同步为角色容器。删除级联：user_role + role_resource_permission';
 COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；BASIC_ROLE 和 PERSONAL 不允许有子级（应用层约束）';
 COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/GROUP_ROLE(5)分组角色/BASIC_ROLE(6)基本角色，来自 type_definition';
 COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + external_id 定位角色';
@@ -224,9 +224,9 @@ CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE del
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）';
+COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象可通过扩展资源类型（如 ADMIN_USER/ADMIN_ORG）建模实例级权限';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
-COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举：MENU(1)/BUTTON(2)/API(3)/DATA(4)，来自 type_definition';
+COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举，来自 type_definition；除 MENU/BUTTON/API/DATA 外，租户可通过 type_definition 扩展 ADMIN_USER、ADMIN_ORG 等管理资源类型';
 COMMENT ON COLUMN resource_entity.code IS '资源编码';
 COMMENT ON COLUMN resource_entity.code_type IS '编码类型，默认 "default"；同一资源不同编码体系用不同 code_type 区分';
 COMMENT ON COLUMN resource_entity.name IS '名称';
@@ -351,7 +351,7 @@ CREATE UNIQUE INDEX uk_user_role ON user_role (tenant_id, abstract_user_id, targ
 CREATE INDEX idx_user_role_user ON user_role (tenant_id, abstract_user_id) WHERE delete_flag = 0;
 CREATE INDEX idx_user_role_target ON user_role (tenant_id, target_type, target_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE user_role IS '用户关联表：target=abstract_role.id；POSITION 类型时 relation_id 记录所属组织，决定数据权限范围';
+COMMENT ON TABLE user_role IS '用户关联表：target=abstract_role.id；POSITION 类型时 relation_id 记录所属组织，决定数据权限范围。外部系统的组织-用户关系变更须稳定映射为本表事实';
 COMMENT ON COLUMN user_role.target_type IS '关联角色类型：ROLE=常规角色/ORG=组织/POSITION=职位/PERSONAL=个人/GROUP_ROLE=分组角色，与 abstract_role.role_type 对应';
 COMMENT ON COLUMN user_role.target_id IS '关联角色ID（abstract_role.id）';
 COMMENT ON COLUMN user_role.relation_id IS '关联ID，POSITION 类型时记录所属组织 ID（决定数据权限范围），其他类型时为 NULL';
