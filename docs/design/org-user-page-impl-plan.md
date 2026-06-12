@@ -94,7 +94,7 @@
 |---|------|------|
 | P1-1 | `/user/page` 收敛为默认树用户目录查询；组织成员列表改走 `/org/users` 或专门成员列表 | 默认树身份目录契约 |
 | P1-2 | 新增 `/user/member-candidates`：从默认树可见范围查询候选用户，排除目标组织已有成员 | api-gap §2/§3 |
-| P1-3 | `/user/create` 增 `orgId`+初始密码返回，并同步 `abstract_user` + `ADMIN_USER resource_entity` | api-gap §2 |
+| P1-3 | `/user/create` 增 `orgId`+初始密码返回，并同步 `abstract_user` + `ADMIN_USER resource_entity`（使用业务键，不回填内部 ID） | api-gap §2 |
 | P1-4 | `/user/enable`、`/user/reset-password` 接前端，但只作为身份目录生命周期权限，不给普通非默认树成员管理员 | 矩阵 B |
 | P1-5 | ✅ **成员门禁已修正**：`UserOrgServiceImpl` 使用 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）；仍需修正跨树全量替换语义和 `user_role` 同步 | 契约 §8、备注 ② |
 | P1-6 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |

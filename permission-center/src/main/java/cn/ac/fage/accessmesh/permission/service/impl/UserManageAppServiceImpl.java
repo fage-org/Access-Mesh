@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
  * 注意：这里管理的是 permission-center 的 abstract_user 主体事实。
  * AccessMesh admin-service 中的用户生命周期事实源仍是 sys_user；
  * ADMIN_USER 实例级管理权限还需要独立的 resource_entity 同步。
+ * admin-service 通过业务键引用，不存储本服务内部 ID。
  * </p>
  */
 @Service

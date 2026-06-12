@@ -93,6 +93,12 @@ public interface SysUserOrgMapper extends BaseMapper<SysUserOrg> {
                                           @Param("isPrimary") Boolean isPrimary,
                                           @Param("updatedAt") LocalDateTime updatedAt);
 
+    int updatePrimaryByUserIdAndOrgIds(@Param("tenantId") Long tenantId,
+                                       @Param("userId") Long userId,
+                                       @Param("orgIds") List<Long> orgIds,
+                                       @Param("isPrimary") Boolean isPrimary,
+                                       @Param("updatedAt") LocalDateTime updatedAt);
+
     /**
      * 批量查询多个用户的组织关联（租户隔离 + 未删除）
      *

@@ -42,7 +42,7 @@
 
 ### create 组织分配
 
-**决策**：~~mock 阶段 `createUser` 一步完成组织分配（入参含 `orgId`）。Phase 2 后端改造：`UserCreateReq` 新增 `orgId` + `primaryOrg` 字段，创建时同时建立组织关联，无需前端调 `/user-org/assign`。~~ 已完成基础字段。`orgId` 必须属于默认组织树，否则返回参数错误。按 `default-org-tree-user-lifecycle.md`，创建用户还需保证同步 `abstract_user` 与 `resource_entity(ADMIN_USER)` 两类事实。
+**决策**：~~mock 阶段 `createUser` 一步完成组织分配（入参含 `orgId`）。Phase 2 后端改造：`UserCreateReq` 新增 `orgId` + `primaryOrg` 字段，创建时同时建立组织关联，无需前端调 `/user-org/assign`。~~ 已完成基础字段。`orgId` 必须属于默认组织树，否则返回参数错误。按 `default-org-tree-user-lifecycle.md`，创建用户还需保证同步 `abstract_user` 与 `resource_entity(ADMIN_USER)` 两类事实，均使用业务键定位，不回填内部 ID。
 
 ### 密码通知
 
@@ -68,7 +68,7 @@
 1. 默认组织树是用户目录/身份池，负责用户生命周期。
 2. 非默认组织树只能添加/移除已有用户关系。
 3. 添加成员候选集必须来自默认组织树中操作者可见/可管理范围，不能默认暴露全租户用户。
-4. `user-org` 关系变化后必须同步 permission-center 的 `user_role`，否则组织/岗位角色不会进入权限计算。
+4. `user-org` 关系变化后必须同步 permission-center 的 `user_role`，否则组织/岗位角色不会进入权限计算，使用业务键定位。
 
 ---
 

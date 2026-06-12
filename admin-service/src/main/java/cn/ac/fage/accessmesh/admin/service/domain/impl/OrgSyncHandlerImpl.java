@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.admin.service.domain.impl;
 
 import cn.ac.fage.accessmesh.admin.entity.SysOrg;
+import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgSyncHandler;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
@@ -19,15 +20,15 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
  * 设计约束：组织/岗位需要双同步：
  * 1) resource_entity(ADMIN_ORG, code=sys_org.id)，用于组织实例级管理权限；
  * 2) abstract_role(ORG/POSITION, externalId=sys_org.id)，用于组织/岗位角色容器。
- * 当前实现仍是旧口径，仅创建 ORG 资源并使用组织编码，后续实现必须按
- * default-org-tree-user-lifecycle.md 调整资源类型、resourceCode 和父级ID映射。
+ * 均使用业务键定位，不存 permission-center 内部 ID。
+ * 当前实现仍是旧口径，后续必须按 default-org-tree-user-lifecycle.md 调整。
  * </p>
  */
 @Service
 public class OrgSyncHandlerImpl implements OrgSyncHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OrgSyncHandlerImpl.class);
-    private static final String RESOURCE_TYPE_ORG = "ORG";
+    private static final String RESOURCE_TYPE_ORG = AdminResourceType.ORG;
 
     private final PermissionFeignClient permissionFeignClient;
 
@@ -44,9 +45,9 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
      * 同步组织到权限中心
      * <p>
      * 在权限中心创建组织资源实体（资源类型ORG）。
-     * 注意：ResourceCreateReq.parentId 是 permission-center 的 resource_entity.id，
-     * 不能直接使用 admin-service 的 sys_org.parentId。当前实现保留旧行为，
-     * 仅用于标记待改造点。
+     * 注意：父节点通过业务键（resourceTypeCode=ADMIN_ORG + resourceCode=父sys_org.id）
+     * 定位，permission-center 内部解析为 parentId。当前实现保留旧行为，
+     * 仅标记待改造点。
      * </p>
      *
      * @param tenantId 租户ID
@@ -60,8 +61,14 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
         }
 
         String code = generateResourceCode(org);
+        Long parentOrgId = org.getParentId();
+        boolean hasParent = parentOrgId != null && parentOrgId != 0L;
         ResourceCreateReq req = new ResourceCreateReq(
-            org.getParentId() != null && org.getParentId() != 0L ? org.getParentId() : 0L,
+            null,
+            hasParent ? RESOURCE_TYPE_ORG : null,
+            hasParent ? String.valueOf(parentOrgId) : null,
+            null,
+            null,
             RESOURCE_TYPE_ORG,
             code,
             null, // codeType
@@ -90,7 +97,7 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
      * <p>
      * 使用组织编码作为资源编码，如果没有编码则使用ID生成。
      * 目标设计要求 ADMIN_ORG resourceCode 固定为 sys_org.id 字符串，
-     * 与 AdminPermissionValidator 的实例级校验保持一致。
+     * 与 AdminPermissionValidator 的业务键调用保持一致。
      * </p>
      *
      * @param org 组织实体
@@ -98,7 +105,7 @@ public class OrgSyncHandlerImpl implements OrgSyncHandler {
      */
     @Override
     public String generateResourceCode(SysOrg org) {
-        return org.getCode() != null ? org.getCode() : "ORG_" + org.getId();
+        return String.valueOf(org.getId());
     }
 
     /**

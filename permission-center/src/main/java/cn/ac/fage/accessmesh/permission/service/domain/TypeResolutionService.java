@@ -72,9 +72,9 @@ public interface TypeResolutionService {
     /**
      * 解析resourceTypeCode + resourceCode -> resource_entity.id
      * <p>
-     * AccessMesh 管理端实例级 ADMIN_USER/ADMIN_ORG 权限依赖该解析。
-     * 因此 admin-service 同步资源时必须保证 resourceTypeCode 和
-     * resourceCode 与权限校验请求完全一致。
+     * permission-center 内部鉴权和写入操作依赖该解析将业务键映射为内部 ID。
+     * 调用方通过业务键定位实体时，permission-center 内部自动调用此方法，
+     * 调用方无需直接使用。
      * </p>
      *
      * @param tenantId         租户ID

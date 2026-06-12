@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.UserOrgService;
+import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -18,20 +19,26 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class UserOrgServiceImpl implements UserOrgService {
 
     private final UserOrgDomainService userOrgDomainService;
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
+    private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
 
     public UserOrgServiceImpl(UserOrgDomainService userOrgDomainService,
                               OrgTreeConfigDomainService orgTreeConfigDomainService,
+                              OrgDomainService orgDomainService,
                               AdminPermissionValidator permissionValidator) {
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
+        this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
     }
 
@@ -40,7 +47,8 @@ public class UserOrgServiceImpl implements UserOrgService {
     public void assignUserToOrgs(UserOrgAssignReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        List<String> orgResourceCodes = req.orgIds().stream()
+        List<Long> requestedOrgIds = new ArrayList<>(new LinkedHashSet<>(req.orgIds()));
+        List<String> orgResourceCodes = requestedOrgIds.stream()
             .map(String::valueOf)
             .toList();
         permissionValidator.checkBatchInstanceLevel(
@@ -54,22 +62,27 @@ public class UserOrgServiceImpl implements UserOrgService {
          * - 默认/非默认树约束见 default-org-tree-user-lifecycle.md 第 1-2 节。
          * - 该方法后续必须改为关系级追加或显式树内替换，不能删除用户
          *   在默认树或其他树下的全部关系。
-         * - user-org 变更还必须同步为 permission-center user_role。
+         * - user-org 变更还必须同步为 permission-center user_role（使用业务键）。
          * 当前实现保留旧的全量替换行为，仅作为待改造点标注。
          */
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
-            if (Boolean.TRUE.equals(config.getSingleAssoc()) && req.orgIds().size() > 1) {
+            if (Boolean.TRUE.equals(config.getSingleAssoc()) && requestedOrgIds.size() > 1) {
                 throw new BizException(AdminErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getCode(),
                     AdminErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getMessage());
             }
         }
 
-        userOrgDomainService.deleteByUserId(tenantId, req.userId());
+        Set<Long> existingOrgIds = userOrgDomainService.findByUserId(tenantId, req.userId()).stream()
+            .map(SysUserOrg::getOrgId)
+            .collect(Collectors.toSet());
 
         LocalDateTime now = LocalDateTime.now();
         List<SysUserOrg> toInsert = new ArrayList<>();
-        for (Long orgId : req.orgIds()) {
+        for (Long orgId : requestedOrgIds) {
+            if (existingOrgIds.contains(orgId)) {
+                continue;
+            }
             SysUserOrg assoc = new SysUserOrg();
             assoc.setTenantId(tenantId);
             assoc.setUserId(req.userId());
@@ -112,7 +125,29 @@ public class UserOrgServiceImpl implements UserOrgService {
         );
 
         // 首期主组织仅表示默认组织树下的主归属，后续实现需避免影响其他组织树关系。
-        userOrgDomainService.setPrimaryOrg(tenantId, userId, orgId);
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (defaultConfigs.isEmpty()) {
+            throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
+                AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+        }
+
+        List<Long> defaultOrgIds = defaultConfigs.stream()
+            .map(SysOrgTreeConfig::getRootOrgId)
+            .filter(rootOrgId -> rootOrgId != null)
+            .flatMap(rootOrgId -> orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId).stream())
+            .distinct()
+            .toList();
+        if (!defaultOrgIds.contains(orgId)) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "primary org must belong to default org tree");
+        }
+
+        boolean targetAssigned = userOrgDomainService.findByUserId(tenantId, userId).stream()
+            .anyMatch(userOrg -> orgId.equals(userOrg.getOrgId()));
+        if (!targetAssigned) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "user is not assigned to target org");
+        }
+
+        userOrgDomainService.setPrimaryOrgInScope(tenantId, userId, orgId, defaultOrgIds);
     }
 
     @Override

@@ -47,13 +47,15 @@
 ## 与权限中心的交互
 
 - 主体同步：将用户同步为权限中心 `abstract_user(subjectTypeCode=ADMIN_USER, externalId=sys_user.id)`。
-- 用户管理资源同步：将用户同步为 `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)`，支撑实例级 `ADMIN_USER` 权限。
-- 组织资源同步：将组织同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)`，支撑实例级 `ADMIN_ORG` 权限和可管理组织查询。
-- 组织角色同步：将组织/岗位同步为 `abstract_role(roleTypeCode=ORG/POSITION, externalId=sys_org.id)`。
+- 用户管理资源同步：将用户同步为 `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)`，支撑实例级 `ADMIN_USER` 权限。不存储 resource_entity 内部 ID。
+- 组织资源同步：将组织同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)`，支撑实例级 `ADMIN_ORG` 权限和可管理组织查询。不存储内部 ID。
+- 组织角色同步：将组织/岗位同步为 `abstract_role(roleTypeCode=ORG/POSITION, externalId=sys_org.id)`。不存储内部 ID。
 - 其他资源同步：将菜单、按钮、可管理角色等同步为 `resource_entity`。
 - 角色与授权：调用权限中心角色、用户角色、角色资源权限接口，并在组织成员变更时驱动 `user-org -> user-role` 映射。
 - 运行时查询：使用 `auth/query-resources` 查询可管理组织、可分配角色、可见菜单等资源集合。
 - 前端聚合：permission-center 提供权限事实与运行时查询结果，admin-service 负责把这些结果组装为管理端前端可直接消费的聚合响应。
+
+所有同步和权限校验操作使用业务键定位，admin-service 不存储 permission-center 的任何内部主键 ID。
 
 用户、组织和成员关系的完整边界见 `../default-org-tree-user-lifecycle.md`。
 

@@ -21,6 +21,10 @@ import jakarta.validation.constraints.NotNull;
  */
 public record ResourceCreateReq(
     Long parentId,
+    String parentResourceTypeCode,
+    String parentResourceCode,
+    String parentCodeType,
+    String parentDomainCode,
     @NotBlank String resourceTypeCode,
     @NotBlank String code,
     String codeType,

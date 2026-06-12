@@ -20,11 +20,9 @@ import java.util.stream.Collectors;
  * Admin模块权限验证器实现类
  * <p>
  * 通过Feign客户端调用权限中心进行权限校验。
- * 实例级校验依赖 permission-center 中已存在的 resource_entity：
- * ADMIN_USER 使用 sys_user.id 字符串作为 resourceCode，
- * ADMIN_ORG 使用 sys_org.id 字符串作为 resourceCode。
- * 如果同步端使用组织编码、用户名或 abstract_user/abstract_role ID，
- * 这里的实例级权限会无法稳定解析。
+ * 实例级校验通过业务键（resourceTypeCode + resourceCode）定位 resource_entity，
+ * permission-center 内部解析。ADMIN_USER 的 resourceCode 为 sys_user.id 字符串，
+ * ADMIN_ORG 的 resourceCode 为 sys_org.id 字符串。
  * </p>
  */
 @Service

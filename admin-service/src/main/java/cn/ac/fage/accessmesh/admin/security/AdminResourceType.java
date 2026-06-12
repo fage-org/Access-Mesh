@@ -14,18 +14,18 @@ public final class AdminResourceType {
     /**
      * 用户管理资源。
      * <p>
-     * 该类型表示“被管理的用户实例”，需要在 permission-center 中对应
-     * resource_entity(ADMIN_USER, code=sys_user.id)。不要与 abstract_user
-     * 主体事实混用。
+     * 该类型表示”被管理的用户实例”，在 permission-center 中对应
+     * resource_entity(ADMIN_USER, code=sys_user.id)，通过业务键定位。
+     * 不要与 abstract_user 主体事实混用。
      * </p>
      */
     public static final String USER = "ADMIN_USER";
     /**
      * 组织管理资源。
      * <p>
-     * 该类型表示“被管理的组织/岗位实例”，需要在 permission-center 中对应
-     * resource_entity(ADMIN_ORG, code=sys_org.id)。组织/岗位作为角色容器时
-     * 另行同步为 abstract_role(ORG/POSITION)。
+     * 该类型表示”被管理的组织/岗位实例”，在 permission-center 中对应
+     * resource_entity(ADMIN_ORG, code=sys_org.id)，通过业务键定位。
+     * 组织/岗位作为角色容器时另行同步为 abstract_role(ORG/POSITION)。
      * </p>
      */
     public static final String ORG = "ADMIN_ORG";

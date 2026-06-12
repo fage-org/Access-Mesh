@@ -158,6 +158,17 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
      * @return 组织简要信息列表
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void setPrimaryOrgInScope(Long tenantId, Long userId, Long orgId, List<Long> scopeOrgIds) {
+        if (userId == null || orgId == null || scopeOrgIds == null || scopeOrgIds.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        userOrgMapper.updatePrimaryByUserIdAndOrgIds(tenantId, userId, scopeOrgIds, false, now);
+        userOrgMapper.updatePrimaryByUserIdAndOrgId(tenantId, userId, orgId, true, now);
+    }
+
+    @Override
     public List<UserPageItemResp.OrgBrief> getUserOrgBriefs(Long tenantId, Long userId) {
         List<SysUserOrg> userOrgs = findByUserId(tenantId, userId);
         if (userOrgs.isEmpty()) {

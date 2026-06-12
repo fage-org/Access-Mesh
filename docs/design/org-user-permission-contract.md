@@ -37,8 +37,8 @@ admin-service（甲层后端门禁）
    ▼
 permission-center（乙层：被管理的权限模型）
    按 资源类型 × 操作码 判定；
-   用户同步为 abstract_user + ADMIN_USER resource_entity；
-   组织/岗位同步为 ADMIN_ORG resource_entity + 内部角色（RoleType.ORG/POSITION）
+   用户同步为 abstract_user + ADMIN_USER resource_entity（均使用业务键，不回填内部 ID）；
+   组织/岗位同步为 ADMIN_ORG resource_entity + 内部角色（RoleType.ORG/POSITION）（均使用业务键，不回填内部 ID）
 ```
 
 > 实证：`admin-service/.../security/AdminPermissionValidatorImpl` 经 `PermissionFeignClient.checkAuth/batchCheckAuth` 调权限中心；各 `*ServiceImpl` 在写操作前调用 `permissionValidator.check*Level(...)`。
@@ -197,7 +197,7 @@ permission-center（乙层：被管理的权限模型）
 ### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 
 - **【默认树身份目录】** `sys_org_tree_config.is_default=true` 的树作为用户目录，用户创建只能绑定默认树；非默认树添加成员只能从默认树可见候选集中选择已有用户。
-- **【同步闭环】** 用户需同步为 `abstract_user` + `resource_entity(ADMIN_USER)`；组织需同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更需同步为 `user_role`。
+- **【同步闭环】** 用户需同步为 `abstract_user` + `resource_entity(ADMIN_USER)`；组织需同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更需同步为 `user_role`。所有同步使用业务键定位，admin-service 不存储 permission-center 内部 ID。
 - **【ORG_ROLE 旧口径清理】** admin-service `RoleProxyServiceImpl` 中 4 处硬编码 `ORG_ROLE` 需替换为按 `orgType` 区分的 `ORG`/`POSITION`；`ROLE_TYPE_LABELS` 需移除 `ORG_ROLE` 条目。`ORG_ROLE` 不在 permission-center `RoleType` 枚举中，属 admin-service 代理层遗留，目标模型中组织角色类型为 `RoleType.ORG(1)`、岗位角色类型为 `RoleType.POSITION(2)`，映射规则：`SysOrg.orgType=1 → ORG`、`SysOrg.orgType=2 → POSITION`。
 - **【跨树关系修正】** `/user-org/assign` 禁止删除用户所有组织关系；必须改为关系级追加或显式树内替换。`set-primary` 首期只作用默认树。
 - **【新增代理】功能角色分配**：admin-service 新增 `/user-role/{list,assign,revoke}` 代理，门禁沿用 `ROLE:MANAGE`（备注 ³）。

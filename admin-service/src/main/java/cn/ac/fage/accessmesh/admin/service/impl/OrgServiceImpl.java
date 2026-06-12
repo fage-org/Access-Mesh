@@ -31,22 +31,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 组织管理服务实现类
- * <p>
- * 提供组织的CRUD操作、树形查询等功能。
- * 实现跨服务数据同步机制，通过Outbox Pattern确保组织创建与同步任务记录原子性。
- * 支持组织层级深度限制（最多10级）、组织编码唯一性校验。
- * 使用OrgDomainService处理组织数据查询。
- * 设计约束：组织/岗位在 permission-center 中有两类事实：
- * ADMIN_ORG resource_entity 用于实例级管理权限，
- * ORG/POSITION abstract_role 用于角色容器和 user_role 计算。
- * </p>
+ * 缁勭粐绠＄悊鏈嶅姟瀹炵幇绫? * <p>
+ * 鎻愪緵缁勭粐鐨凜RUD鎿嶄綔銆佹爲褰㈡煡璇㈢瓑鍔熻兘銆? * 瀹炵幇璺ㄦ湇鍔℃暟鎹悓姝ユ満鍒讹紝閫氳繃Outbox Pattern纭繚缁勭粐鍒涘缓涓庡悓姝ヤ换鍔¤褰曞師瀛愭€с€? * 鏀寔缁勭粐灞傜骇娣卞害闄愬埗锛堟渶澶?0绾э級銆佺粍缁囩紪鐮佸敮涓€鎬ф牎楠屻€? * 浣跨敤OrgDomainService澶勭悊缁勭粐鏁版嵁鏌ヨ銆? * 璁捐绾︽潫锛氱粍缁?宀椾綅鍦?permission-center 涓湁涓ょ被浜嬪疄锛? * ADMIN_ORG resource_entity 鐢ㄤ簬瀹炰緥绾х鐞嗘潈闄愶紝
+ * ORG/POSITION abstract_role 鐢ㄤ簬瑙掕壊瀹瑰櫒鍜?user_role 璁＄畻銆? * 鍧囦娇鐢ㄤ笟鍔￠敭瀹氫綅锛屼笉瀛樺唴閮?ID銆? * </p>
  */
 @Service
 public class OrgServiceImpl implements OrgService {
@@ -63,17 +57,13 @@ public class OrgServiceImpl implements OrgService {
     private final UserDomainService userDomainService;
 
     /**
-     * 构造函数注入依赖
-     *
-     * @param orgMapper 组织数据访问Mapper
-     * @param orgDomainService 组织领域服务，处理组织数据查询和批量操作
-     * @param orgSyncHandler 组织同步处理器，同步组织数据到permission-center
-     * @param permissionValidator 权限校验器，校验组织操作权限
-     * @param syncRetryService 同步重试服务，记录同步失败任务
-     * @param objectMapper JSON序列化工具
-     * @param userOrgMapper 用户组织关联Mapper，查询组织下用户关联
-     * @param userDomainService 用户领域服务，批量查询用户信息
-     */
+     * 鏋勯€犲嚱鏁版敞鍏ヤ緷璧?     *
+     * @param orgMapper 缁勭粐鏁版嵁璁块棶Mapper
+     * @param orgDomainService 缁勭粐棰嗗煙鏈嶅姟锛屽鐞嗙粍缁囨暟鎹煡璇㈠拰鎵归噺鎿嶄綔
+     * @param orgSyncHandler 缁勭粐鍚屾澶勭悊鍣紝鍚屾缁勭粐鏁版嵁鍒皃ermission-center
+     * @param permissionValidator 鏉冮檺鏍￠獙鍣紝鏍￠獙缁勭粐鎿嶄綔鏉冮檺
+     * @param syncRetryService 鍚屾閲嶈瘯鏈嶅姟锛岃褰曞悓姝ュけ璐ヤ换鍔?     * @param objectMapper JSON搴忓垪鍖栧伐鍏?     * @param userOrgMapper 鐢ㄦ埛缁勭粐鍏宠仈Mapper锛屾煡璇㈢粍缁囦笅鐢ㄦ埛鍏宠仈
+     * @param userDomainService 鐢ㄦ埛棰嗗煙鏈嶅姟锛屾壒閲忔煡璇㈢敤鎴蜂俊鎭?     */
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
                           OrgSyncHandler orgSyncHandler, AdminPermissionValidator permissionValidator,
                           SyncRetryService syncRetryService, ObjectMapper objectMapper,
@@ -90,28 +80,22 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 创建组织
+     * 鍒涘缓缁勭粐
      * <p>
-     * 创建新组织，校验编码唯一性和组织层级深度（不超过10级）。
-     * 创建成功后记录同步任务，异步同步到permission-center（Outbox Pattern）。
-     * 执行类型级权限校验(CREATE)。
-     * 后续实现组织同步时需同时落地 ADMIN_ORG resource_entity 与
-     * ORG/POSITION abstract_role，并分别保存资源ID和角色ID。
-     * </p>
+     * 鍒涘缓鏂扮粍缁囷紝鏍￠獙缂栫爜鍞竴鎬у拰缁勭粐灞傜骇娣卞害锛堜笉瓒呰繃10绾э級銆?     * 鍒涘缓鎴愬姛鍚庤褰曞悓姝ヤ换鍔★紝寮傛鍚屾鍒皃ermission-center锛圤utbox Pattern锛夈€?     * 鎵ц绫诲瀷绾ф潈闄愭牎楠?CREATE)銆?     * 鍚庣画瀹炵幇缁勭粐鍚屾鏃堕渶鍚屾椂钀藉湴 ADMIN_ORG resource_entity 涓?     * ORG/POSITION abstract_role锛屽潎浣跨敤涓氬姟閿畾浣嶃€?     * </p>
      *
-     * @param req 组织创建请求，包含组织名称、编码、类型、父组织ID等
-     * @return 新组织ID
-     * @throws BizException 组织编码已存在、组织层级超限、同步任务记录失败等
+     * @param req 缁勭粐鍒涘缓璇锋眰锛屽寘鍚粍缁囧悕绉般€佺紪鐮併€佺被鍨嬨€佺埗缁勭粐ID绛?     * @return 鏂扮粍缁嘔D
+     * @throws BizException 缁勭粐缂栫爜宸插瓨鍦ㄣ€佺粍缁囧眰绾ц秴闄愩€佸悓姝ヤ换鍔¤褰曞け璐ョ瓑
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
-        // 权限检查 — 类型级 CREATE
+        // 鏉冮檺妫€鏌?鈥?绫诲瀷绾?CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 使用 DomainService 检查编码重复
+        // 浣跨敤 DomainService 妫€鏌ョ紪鐮侀噸澶?
         SysOrg existing = orgDomainService.findByCode(tenantId, req.code());
         if (existing != null) {
             throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(), AdminErrorCode.ORG_CODE_EXISTS.getMessage());
@@ -141,10 +125,10 @@ public class OrgServiceImpl implements OrgService {
         org.setCreatedAt(LocalDateTime.now());
         org.setUpdatedAt(LocalDateTime.now());
         org.setDeleteFlag(0L);
-        // 事务内：插入组织 + 记录同步任务（原子性，Outbox Pattern）
+        // 浜嬪姟鍐咃細鎻掑叆缁勭粐 + 璁板綍鍚屾浠诲姟锛堝師瀛愭€э紝Outbox Pattern锛?
         orgMapper.insert(org);
 
-        // 同一事务内记录同步任务，确保组织创建与任务记录原子性
+        // 鍚屼竴浜嬪姟鍐呰褰曞悓姝ヤ换鍔★紝纭繚缁勭粐鍒涘缓涓庝换鍔¤褰曞師瀛愭€?
         try {
             String payload = objectMapper.writeValueAsString(Map.of(
                 "orgId", org.getId(),
@@ -163,28 +147,23 @@ public class OrgServiceImpl implements OrgService {
             log.info("Recorded sync task for org creation: orgId={}", org.getId());
         } catch (Exception e) {
             log.error("Failed to serialize sync payload for org creation: orgId={}", org.getId(), e);
-            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "组织同步任务记录失败");
+            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "org sync task record failed");
         }
 
         return org.getId();
     }
 
     /**
-     * 更新组织
+     * 鏇存柊缁勭粐
      * <p>
-     * 更新组织的名称、编码、父组织、状态等属性。
-     * 执行实例级权限校验(UPDATE)。
-     * 校验编码唯一性和组织层级深度。
-     * 如果组织已同步到permission-center，记录更新同步任务（Outbox Pattern）。
-     * </p>
+     * 鏇存柊缁勭粐鐨勫悕绉般€佺紪鐮併€佺埗缁勭粐銆佺姸鎬佺瓑灞炴€с€?     * 鎵ц瀹炰緥绾ф潈闄愭牎楠?UPDATE)銆?     * 鏍￠獙缂栫爜鍞竴鎬у拰缁勭粐灞傜骇娣卞害銆?     * 濡傛灉缁勭粐宸插悓姝ュ埌permission-center锛岃褰曟洿鏂板悓姝ヤ换鍔★紙Outbox Pattern锛夈€?     * </p>
      *
-     * @param req 组织更新请求，包含组织ID和新属性值
-     * @throws BizException 组织不存在、编码已存在、层级超限、同步任务记录失败等
+     * @param req 缁勭粐鏇存柊璇锋眰锛屽寘鍚粍缁嘔D鍜屾柊灞炴€у€?     * @throws BizException 缁勭粐涓嶅瓨鍦ㄣ€佺紪鐮佸凡瀛樺湪銆佸眰绾ц秴闄愩€佸悓姝ヤ换鍔¤褰曞け璐ョ瓑
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
-        // 权限检查 — 实例级 UPDATE
+        // 鏉冮檺妫€鏌?鈥?瀹炰緥绾?UPDATE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(req.id()),
@@ -193,13 +172,13 @@ public class OrgServiceImpl implements OrgService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 使用 DomainService 获取组织
+        // 浣跨敤 DomainService 鑾峰彇缁勭粐
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        // 仅在指定新父级时验证父级变更
+        // 浠呭湪鎸囧畾鏂扮埗绾ф椂楠岃瘉鐖剁骇鍙樻洿
         if (req.parentOrgId() != null) {
             long newParentId = req.parentOrgId();
             if (newParentId != org.getParentId()) {
@@ -211,7 +190,7 @@ public class OrgServiceImpl implements OrgService {
             }
         }
 
-        // 如果修改了编码，检查新编码是否重复
+        // 濡傛灉淇敼浜嗙紪鐮侊紝妫€鏌ユ柊缂栫爜鏄惁閲嶅
         if (!req.code().equals(org.getCode())) {
             SysOrg codeExisting = orgDomainService.findByCode(tenantId, req.code());
             if (codeExisting != null) {
@@ -226,11 +205,11 @@ public class OrgServiceImpl implements OrgService {
         org.setUpdatedAt(LocalDateTime.now());
         orgMapper.update(org);
 
-        // 同步更新到权限中心 - 同一事务内记录同步任务（Outbox Pattern）
-        if (org.getPermOrgId() != null) {
-            try {
+        // 鍚屾鏇存柊鍒版潈闄愪腑蹇?- 鍚屼竴浜嬪姟鍐呰褰曞悓姝ヤ换鍔★紙Outbox Pattern锛?
+        if (org.getId() != null) {
+        try {
                 String payload = objectMapper.writeValueAsString(Map.of(
-                    "permOrgId", org.getPermOrgId(),
+                    "orgId", org.getId(),
                     "name", org.getName(),
                     "code", org.getCode(),
                     "parentId", org.getParentId(),
@@ -241,7 +220,7 @@ public class OrgServiceImpl implements OrgService {
                     "org:update:" + org.getId(),
                     "permission-center",
                     "abstract_org",
-                    String.valueOf(org.getPermOrgId()),
+                    String.valueOf(org.getId()),
                     "update",
                     payload,
                     null
@@ -249,26 +228,23 @@ public class OrgServiceImpl implements OrgService {
                 log.info("Recorded update sync task for org: orgId={}", org.getId());
             } catch (Exception e) {
                 log.error("Failed to serialize sync payload for org update: orgId={}", org.getId(), e);
-                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "组织同步任务记录失败");
+                throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "org sync task record failed");
             }
         }
     }
 
     /**
-     * 删除组织
+     * 鍒犻櫎缁勭粐
      * <p>
-     * 软删除组织，不允许删除有子组织的组织。
-     * 执行实例级权限校验(DELETE)。
-     * 先本地软删除再记录同步任务（Outbox Pattern）。
-     * </p>
+     * 杞垹闄ょ粍缁囷紝涓嶅厑璁稿垹闄ゆ湁瀛愮粍缁囩殑缁勭粐銆?     * 鎵ц瀹炰緥绾ф潈闄愭牎楠?DELETE)銆?     * 鍏堟湰鍦拌蒋鍒犻櫎鍐嶈褰曞悓姝ヤ换鍔★紙Outbox Pattern锛夈€?     * </p>
      *
-     * @param id 组织ID
-     * @throws BizException 组织不存在、有子组织、同步任务记录失败等
+     * @param id 缁勭粐ID
+     * @throws BizException 缁勭粐涓嶅瓨鍦ㄣ€佹湁瀛愮粍缁囥€佸悓姝ヤ换鍔¤褰曞け璐ョ瓑
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
-        // 权限检查 — 实例级 DELETE
+        // 鏉冮檺妫€鏌?鈥?瀹炰緥绾?DELETE
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(id),
@@ -277,21 +253,21 @@ public class OrgServiceImpl implements OrgService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 使用 DomainService 获取组织
+        // 浣跨敤 DomainService 鑾峰彇缁勭粐
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        // 使用 DomainService 检查是否有子组织
+        // 浣跨敤 DomainService 妫€鏌ユ槸鍚︽湁瀛愮粍缁?
         if (orgDomainService.hasChildren(tenantId, id)) {
             throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(), AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
         }
 
-        // 事务内：软删除组织 + 记录同步任务（原子性，Outbox Pattern）
+        // 浜嬪姟鍐咃細杞垹闄ょ粍缁?+ 璁板綍鍚屾浠诲姟锛堝師瀛愭€э紝Outbox Pattern锛?
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
 
-        // 同一事务内记录同步任务，确保删除与任务记录原子性
+        // 鍚屼竴浜嬪姟鍐呰褰曞悓姝ヤ换鍔★紝纭繚鍒犻櫎涓庝换鍔¤褰曞師瀛愭€?
         syncRetryService.recordSyncFailure(
             "org:delete:" + id,
             "permission-center",
@@ -305,20 +281,18 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 获取组织详情
+     * 鑾峰彇缁勭粐璇︽儏
      * <p>
-     * 根据组织ID查询组织完整信息。
-     * </p>
+     * 鏍规嵁缁勭粐ID鏌ヨ缁勭粐瀹屾暣淇℃伅銆?     * </p>
      *
-     * @param id 组织ID
-     * @return 组织详情响应
-     * @throws BizException 组织不存在
-     */
+     * @param id 缁勭粐ID
+     * @return 缁勭粐璇︽儏鍝嶅簲
+     * @throws BizException 缁勭粐涓嶅瓨鍦?     */
     @Override
     public OrgResp getOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 使用 DomainService 获取组织
+        // 浣跨敤 DomainService 鑾峰彇缁勭粐
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
@@ -327,16 +301,12 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 分页查询组织列表
+     * 鍒嗛〉鏌ヨ缁勭粐鍒楄〃
      * <p>
-     * 支持按组织名称、类型、状态过滤。
-     * 当 orgId 不为空时，仅返回 orgId 子树内的组织（含自身及所有子孙），
-     * 实现岗位 Tab 按选中组织筛选的语义。
-     * 按排序字段和创建时间排序。
-     * </p>
+     * 鏀寔鎸夌粍缁囧悕绉般€佺被鍨嬨€佺姸鎬佽繃婊ゃ€?     * 褰?orgId 涓嶄负绌烘椂锛屼粎杩斿洖 orgId 瀛愭爲鍐呯殑缁勭粐锛堝惈鑷韩鍙婃墍鏈夊瓙瀛欙級锛?     * 瀹炵幇宀椾綅 Tab 鎸夐€変腑缁勭粐绛涢€夌殑璇箟銆?     * 鎸夋帓搴忓瓧娈靛拰鍒涘缓鏃堕棿鎺掑簭銆?     * </p>
      *
-     * @param req 分页查询请求，包含分页参数和过滤条件
-     * @return 分页组织列表结果
+     * @param req 鍒嗛〉鏌ヨ璇锋眰锛屽寘鍚垎椤靛弬鏁板拰杩囨护鏉′欢
+     * @return 鍒嗛〉缁勭粐鍒楄〃缁撴灉
      */
     @Override
     public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
@@ -360,12 +330,12 @@ public class OrgServiceImpl implements OrgService {
 
         List<SysOrg> records = result.getRecords();
 
-        // orgId 子树语义：仅保留 orgId 子树内的组织（含自身及子孙）
+        // orgId 瀛愭爲璇箟锛氫粎淇濈暀 orgId 瀛愭爲鍐呯殑缁勭粐锛堝惈鑷韩鍙婂瓙瀛欙級
         List<OrgResp> items = records.stream()
             .map(o -> toResp(o, List.of()))
             .collect(Collectors.toList());
 
-        // orgId 过滤后总数需重新计算
+        // orgId 杩囨护鍚庢€绘暟闇€閲嶆柊璁＄畻
         long total = result.getTotalRow();
         long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(items,
@@ -373,16 +343,10 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 查询组织树
-     * <p>
-     * 获取当前租户的所有组织，构建树形结构返回。
-     * 支持按组织类型和状态过滤。
-     * 按排序字段和创建时间排序。
-     * </p>
+     * 鏌ヨ缁勭粐鏍?     * <p>
+     * 鑾峰彇褰撳墠绉熸埛鐨勬墍鏈夌粍缁囷紝鏋勫缓鏍戝舰缁撴瀯杩斿洖銆?     * 鏀寔鎸夌粍缁囩被鍨嬪拰鐘舵€佽繃婊ゃ€?     * 鎸夋帓搴忓瓧娈靛拰鍒涘缓鏃堕棿鎺掑簭銆?     * </p>
      *
-     * @param query 组织查询条件，可选
-     * @return 组织树列表
-     */
+     * @param query 缁勭粐鏌ヨ鏉′欢锛屽彲閫?     * @return 缁勭粐鏍戝垪琛?     */
     @Override
     public List<OrgResp> treeOrgs(OrgQuery query) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -394,20 +358,17 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 查询组织/岗位下的用户列表
+     * 鏌ヨ缁勭粐/宀椾綅涓嬬殑鐢ㄦ埛鍒楄〃
      * <p>
-     * 查询指定组织或岗位下通过 user-org 关联的用户。
-     * 用于岗位卡片展开后展示已分配用户。
-     * </p>
+     * 鏌ヨ鎸囧畾缁勭粐鎴栧矖浣嶄笅閫氳繃 user-org 鍏宠仈鐨勭敤鎴枫€?     * 鐢ㄤ簬宀椾綅鍗＄墖灞曞紑鍚庡睍绀哄凡鍒嗛厤鐢ㄦ埛銆?     * </p>
      *
-     * @param orgId 组织或岗位ID
-     * @return 用户简要信息列表
-     */
+     * @param orgId 缁勭粐鎴栧矖浣岻D
+     * @return 鐢ㄦ埛绠€瑕佷俊鎭垪琛?     */
     @Override
     public List<OrgUserItemResp> listOrgUsers(Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 按 orgId 查询用户组织关联（使用 SysUserOrgTableDef，不静态导入）
+        // 鎸?orgId 鏌ヨ鐢ㄦ埛缁勭粐鍏宠仈锛堜娇鐢?SysUserOrgTableDef锛屼笉闈欐€佸鍏ワ級
         cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
         com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()
             .where(suo.TENANT_ID.eq(tenantId))
@@ -419,14 +380,14 @@ public class OrgServiceImpl implements OrgService {
             return List.of();
         }
 
-        // 批量查询用户信息
+        // 鎵归噺鏌ヨ鐢ㄦ埛淇℃伅
         java.util.Set<Long> userIds = userOrgs.stream()
             .map(SysUserOrg::getUserId)
             .collect(java.util.stream.Collectors.toSet());
         Map<Long, SysUser> userMap = userDomainService.selectValidByIds(tenantId, userIds).stream()
             .collect(java.util.stream.Collectors.toMap(SysUser::getId, u -> u));
 
-        // 按关联顺序组装响应
+        // 鎸夊叧鑱旈『搴忕粍瑁呭搷搴?
         return userOrgs.stream()
             .map(uo -> {
                 SysUser user = userMap.get(uo.getUserId());
@@ -444,14 +405,12 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 将组织实体转换为响应对象
+     * 灏嗙粍缁囧疄浣撹浆鎹负鍝嶅簲瀵硅薄
      * <p>
-     * 转换组织实体为API响应格式，包含子组织列表。
-     * </p>
+     * 杞崲缁勭粐瀹炰綋涓篈PI鍝嶅簲鏍煎紡锛屽寘鍚瓙缁勭粐鍒楄〃銆?     * </p>
      *
-     * @param org 组织实体
-     * @param children 子组织响应列表
-     * @return 组织响应对象
+     * @param org 缁勭粐瀹炰綋
+     * @param children 瀛愮粍缁囧搷搴斿垪琛?     * @return 缁勭粐鍝嶅簲瀵硅薄
      */
     private OrgResp toResp(SysOrg org, List<OrgResp> children) {
         return new OrgResp(
@@ -462,15 +421,10 @@ public class OrgServiceImpl implements OrgService {
     }
 
     /**
-     * 构建组织树
-     * <p>
-     * 将组织列表转换为树形结构，递归构建子组织。
-     * </p>
+     * 鏋勫缓缁勭粐鏍?     * <p>
+     * 灏嗙粍缁囧垪琛ㄨ浆鎹负鏍戝舰缁撴瀯锛岄€掑綊鏋勫缓瀛愮粍缁囥€?     * </p>
      *
-     * @param all 所有组织列表
-     * @param parentId 当前层级父组织ID（0表示根级）
-     * @return 组织树列表
-     */
+     * @param all 鎵€鏈夌粍缁囧垪琛?     * @param parentId 褰撳墠灞傜骇鐖剁粍缁嘔D锛?琛ㄧず鏍圭骇锛?     * @return 缁勭粐鏍戝垪琛?     */
     private List<OrgResp> buildTree(List<SysOrg> all, Long parentId) {
         return all.stream()
             .filter(o -> parentId.equals(o.getParentId()))

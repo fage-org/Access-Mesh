@@ -786,6 +786,7 @@ admin-service 查询示例：
 - 查询接口只返回权限事实和资源业务键，不查询 admin-service 的组织、角色、菜单业务表。
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
 - AccessMesh 管理端中，`ADMIN_USER`/`ADMIN_ORG` 的 `resourceCode` 固定使用 admin-service 本地主键字符串，避免与组织编码、用户名等可变业务字段混用。
+- AccessMesh 管理端中，ADMIN_USER/ADMIN_ORG 的 resourceCode 固定使用 admin-service 本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。

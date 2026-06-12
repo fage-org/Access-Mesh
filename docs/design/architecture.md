@@ -89,7 +89,7 @@
 - admin-service 中的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
 - admin-service 中的组织既是业务树，也是角色容器。组织结构由 admin-service 主维护；与组织相关的角色、用户角色事实最终落在 permission-center。
 - `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由 admin-service 编排触发，permission-center 负责保存最终权限事实。
-- 权限中心内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(ADMIN_USER)` 表示被管理用户资源，`resource_entity(ADMIN_ORG)` 表示被管理组织资源，`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。
+- 权限中心内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(ADMIN_USER)` 表示被管理用户资源，`resource_entity(ADMIN_ORG)` 表示被管理组织资源，`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin-service 不存储这些事实的内部 ID，所有跨服务操作使用业务键。
 - 业务域只承担角色、权限分类和后台管理视角隔离职责，不承担数据权限载体、运行时鉴权主链或资源归属重构职责。
 - 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
@@ -200,8 +200,7 @@
 - `admin-service.sys_user` 是**事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
 - 用户生命周期由默认组织树承载。创建用户时必须绑定默认组织树中的组织节点；禁用、删除、重置密码等高危账号操作不属于非默认组织树成员管理。
 - 用户创建/更新/删除时，通过 **API 同步**到权限中心的 `abstract_user`，用于主体解析和鉴权。
-- 若需要 `ADMIN_USER:{userId}` 实例级管理权限，用户还必须同步为 `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)`，用于“被管理用户资源”解析。
-- `sys_user.id` 对应权限中心的 `abstract_user.external_id`
+- 若需要 `ADMIN_USER:{userId}` 实例级管理权限，用户还必须同步为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id` 定位。
 - 同步字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
 
 关键字段（概要）：
@@ -288,6 +287,8 @@ admin-service                        permission-center
                                             │ + 级联清理关联
 ```
 
+所有同步操作使用业务键定位，不回填 permission-center 内部 ID。
+
 用户同步的两个事实不能混淆：
 
 - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=ADMIN_USER + externalId=sys_user.id`。
@@ -311,14 +312,14 @@ admin-service                        permission-center
 
 #### 3.4.4 组织与权限中心同步
 
-组织同步有两条并行语义：
+组织同步有两条并行语义，均使用业务键定位，不回填内部 ID：
 
 1. **组织作为可管理资源**：同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)`，用于 `ADMIN_ORG:{orgId}` 实例级权限校验和 `auth/query-resources` 查询可管理组织。
 2. **组织作为角色容器**：按 `orgType` 同步为权限中心的 `abstract_role`。
    - 普通组织 → `role_type=ORG`
    - 岗位 → `role_type=POSITION`
 
-每个组织/岗位节点对应一个角色，用户关联到组织时，admin-service 必须在权限中心写入对应 `user_role`。组织树层级需要同时落到 `resource_entity.parent_id` 与 `abstract_role.parent_id`，但这两个 parent 都必须使用 permission-center 内部对应表的 ID，不能直接传 admin-service 的 `sys_org.parent_id`。
+每个组织/岗位节点对应一个角色，用户关联到组织时，admin-service 必须在权限中心写入对应 `user_role`。组织树层级在 permission-center 内自动维护，admin-service 只传当前节点和父节点的业务键。
 
 这样用户通过所在组织/岗位自动获得该组织角色上配置的权限，同时管理员对组织节点的增删改仍可通过 `ADMIN_ORG` 资源权限独立控制。
 
@@ -401,7 +402,7 @@ perm-sdk/
 | #   | 事项              | 决策                                                                 |
 | --- | ----------------- | -------------------------------------------------------------------- |
 | Q1  | 菜单数据归属      | admin-service 存完整菜单表(sys_menu)，同步到权限中心 resource_entity |
-| Q2  | 组织-权限中心映射 | 组织同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)` 双事实 |
+| Q2  | 组织-权限中心映射 | 组织同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)` 双事实，均使用业务键定位 |
 | Q3  | 限流方案          | 首期不做，后续按需集成                                               |
 | Q4  | 任务调度          | Spring Scheduler（轻量），兼演示定时任务的权限控制                   |
 | Q5  | 前端技术栈        | Vue 3 + Element Plus                                                 |

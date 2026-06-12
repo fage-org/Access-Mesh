@@ -14,6 +14,10 @@ public record ResourceCreateReq(
      * 父资源ID
      */
     Long parentId,
+    String parentResourceTypeCode,
+    String parentResourceCode,
+    String parentCodeType,
+    String parentDomainCode,
     /**
      * 资源类型码
      */

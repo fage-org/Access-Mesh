@@ -93,8 +93,6 @@ CREATE TABLE sys_user (
     gender          SMALLINT NOT NULL DEFAULT 0,
     status          SMALLINT NOT NULL DEFAULT 1,
     user_type       INT NOT NULL DEFAULT 1,
-    perm_user_id    BIGINT,
-    perm_resource_id BIGINT,
     force_reset_pwd BOOLEAN NOT NULL DEFAULT true,
     created_by      BIGINT,
     updated_by      BIGINT,
@@ -107,8 +105,6 @@ CREATE TABLE sys_user (
 
 CREATE UNIQUE INDEX uk_user_username ON sys_user (tenant_id, username) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_user_phone ON sys_user (tenant_id, phone) WHERE delete_flag = 0 AND phone IS NOT NULL;
-CREATE INDEX idx_user_perm_id ON sys_user (perm_user_id) WHERE perm_user_id IS NOT NULL;
-CREATE INDEX idx_user_perm_resource_id ON sys_user (perm_resource_id) WHERE perm_resource_id IS NOT NULL;
 
 COMMENT ON TABLE sys_user IS '用户表，admin-service 事实源；默认组织树是用户目录/身份池，负责用户生命周期';
 COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
@@ -116,8 +112,6 @@ COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 �
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
 COMMENT ON COLUMN sys_user.status IS '状态：0=停用，1=启用';
 COMMENT ON COLUMN sys_user.user_type IS '用户类型（对应权限中心 user_type），默认 1=人员';
-COMMENT ON COLUMN sys_user.perm_user_id IS '权限中心 abstract_user.id（同步后回填），用于主体解析';
-COMMENT ON COLUMN sys_user.perm_resource_id IS '权限中心 resource_entity.id（ADMIN_USER 管理资源，同步后回填），用于用户实例级管理权限';
 COMMENT ON COLUMN sys_user.force_reset_pwd IS '是否需要强制修改密码（首次登录/管理员重置后）';
 COMMENT ON COLUMN sys_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
@@ -136,8 +130,6 @@ CREATE TABLE sys_org (
     sort_order   INT NOT NULL DEFAULT 0,
     leader_id    BIGINT,
     status       SMALLINT NOT NULL DEFAULT 1,
-    perm_role_id BIGINT,
-    perm_org_id  BIGINT,
     created_by   BIGINT,
     updated_by   BIGINT,
     deleted_by   BIGINT,
@@ -151,14 +143,12 @@ CREATE UNIQUE INDEX uk_org_code ON sys_org (tenant_id, code) WHERE delete_flag =
 CREATE INDEX idx_org_parent ON sys_org (tenant_id, parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_org_path ON sys_org (tenant_id, path) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系';
+COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ADMIN_ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission-center 内部 ID';
 COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，NULL=根节点';
 COMMENT ON COLUMN sys_org.org_type IS '组织类型标签（字典管理），仅分类用';
 COMMENT ON COLUMN sys_org.code IS '组织编码，租户内唯一';
 COMMENT ON COLUMN sys_org.path IS '物化路径（如 /1/3/7/），加速树查询';
 COMMENT ON COLUMN sys_org.level IS '层级深度（根节点=1），最大 10 层';
-COMMENT ON COLUMN sys_org.perm_role_id IS '权限中心 abstract_role.id（ORG/POSITION 角色容器，同步后回填）';
-COMMENT ON COLUMN sys_org.perm_org_id IS '权限中心 resource_entity.id（ADMIN_ORG 管理资源，同步后回填）；不得与 perm_role_id 混用';
 COMMENT ON COLUMN sys_org.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- -----------------------------------------------------------------------------

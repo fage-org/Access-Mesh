@@ -9,14 +9,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 系统用户实体类
- * <p>
- * 对应数据库表sys_user，用于存储用户基本信息。
- * 包括用户名、密码、个人信息、状态、权限用户关联等。
  * 用户身份事实源（生命周期规则见 @see 第 1-2 节）。
  * 权限中心映射规则见 @see 第 4.2 节。
  * @see docs/design/default-org-tree-user-lifecycle.md
- * </p>
  */
 @Getter
 @Setter
@@ -78,11 +73,6 @@ public class SysUser {
      * 用户类型
      */
     private Integer userType;
-
-    /**
-     * 权限中心用户ID（abstract_user.id）
-     */
-    private Long permUserId;
 
     /**
      * 是否强制重置密码

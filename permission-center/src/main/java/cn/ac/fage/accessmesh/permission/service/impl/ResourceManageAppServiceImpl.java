@@ -11,6 +11,10 @@ import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingUpdateReq;
 
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceCreateReq;
 
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
+
+import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
+
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceUpdateReq;
 
 import cn.ac.fage.accessmesh.permission.dto.resp.ApiMappingResp;
@@ -160,9 +164,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new SecurityException("无创建资源的权限");
         }
 
+        Long parentId = resolveParentId(tenantId, req);
+
         ResourceEntity entity = new ResourceEntity();
         entity.setTenantId(tenantId);
-        entity.setParentId(req.parentId());
+        entity.setParentId(parentId);
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
         if (resourceType == null) {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
@@ -200,8 +206,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
 
         Set<Long> allParentIds = reqs.stream()
-            .map(ResourceCreateReq::parentId)
-            .filter(id -> id != null && id > 0)
+            .filter(req -> !hasParentBusinessKey(req))
+            .map(req -> normalizeParentId(req.parentId()))
+            .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         Set<String> allCodes = reqs.stream()
             .map(ResourceCreateReq::code)
@@ -210,6 +217,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         Map<Long, ResourceEntity> parentMap = resourceEntityDomainService.batchSelectByIdsMap(tenantId, allParentIds);
         Set<String> existingCodes = resourceEntityDomainService.findExistingCodes(tenantId, allCodes);
+        List<ResourceResolveRequest> parentResolveRequests = reqs.stream()
+            .filter(this::hasParentBusinessKey)
+            .map(this::toParentResolveRequest)
+            .collect(Collectors.toList());
+        Map<ResourceResolveKey, Long> parentIdByKey = typeResolutionService.batchResolveResourceIds(tenantId, parentResolveRequests);
 
         Set<String> typeCodes = reqs.stream()
             .map(ResourceCreateReq::resourceTypeCode)
@@ -224,7 +236,19 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (int i = 0; i < reqs.size(); i++) {
             ResourceCreateReq req = reqs.get(i);
 
-            if (req.parentId() != null && req.parentId() > 0 && !parentMap.containsKey(req.parentId())) {
+            Long parentId;
+            if (hasParentBusinessKey(req)) {
+                ResourceResolveRequest parentReq = toParentResolveRequest(req);
+                parentId = parentIdByKey.get(parentReq.toKey());
+                if (parentId == null) {
+                    errors.add("req[" + i + "]: parent resource not found: " + parentKeyText(parentReq));
+                    continue;
+                }
+            } else {
+                parentId = normalizeParentId(req.parentId());
+            }
+
+            if (!hasParentBusinessKey(req) && req.parentId() != null && req.parentId() > 0 && !parentMap.containsKey(req.parentId())) {
                 errors.add("req[" + i + "]: 父资源不存在: " + req.parentId());
                 continue;
             }
@@ -242,7 +266,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
             ResourceEntity entity = new ResourceEntity();
             entity.setTenantId(tenantId);
-            entity.setParentId(req.parentId());
+            entity.setParentId(parentId);
             entity.setResourceType(resourceType);
             entity.setCode(req.code());
             entity.setCodeType(req.codeType());
@@ -579,6 +603,50 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceApiMapping updated = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
         return toApiMappingResp(updated);
+    }
+
+    private Long resolveParentId(Long tenantId, ResourceCreateReq req) {
+        if (!hasParentBusinessKey(req)) {
+            return normalizeParentId(req.parentId());
+        }
+        ResourceResolveRequest parentReq = toParentResolveRequest(req);
+        Long parentId = typeResolutionService.resolveResourceId(
+            tenantId,
+            parentReq.resourceTypeCode(),
+            parentReq.resourceCode(),
+            parentReq.codeType(),
+            parentReq.domainCode()
+        );
+        if (parentId == null) {
+            throw new BizException(
+                PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                "parent resource not found: " + parentKeyText(parentReq)
+            );
+        }
+        return parentId;
+    }
+
+    private boolean hasParentBusinessKey(ResourceCreateReq req) {
+        return req != null
+            && req.parentResourceTypeCode() != null && !req.parentResourceTypeCode().isBlank()
+            && req.parentResourceCode() != null && !req.parentResourceCode().isBlank();
+    }
+
+    private ResourceResolveRequest toParentResolveRequest(ResourceCreateReq req) {
+        return new ResourceResolveRequest(
+            req.parentResourceTypeCode(),
+            req.parentResourceCode(),
+            req.parentCodeType(),
+            req.parentDomainCode()
+        );
+    }
+
+    private Long normalizeParentId(Long parentId) {
+        return parentId != null && parentId > 0 ? parentId : null;
+    }
+
+    private String parentKeyText(ResourceResolveRequest req) {
+        return req.resourceTypeCode() + ":" + req.resourceCode();
     }
 
     private ResourceResp toResourceResp(ResourceEntity entity) {

@@ -48,6 +48,18 @@
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND org_id != #{orgId} AND delete_flag = 0
     </update>
 
+    <update id="updatePrimaryByUserIdAndOrgIds">
+        UPDATE sys_user_org
+        SET is_primary = #{isPrimary}, updated_at = #{updatedAt}
+        WHERE tenant_id = #{tenantId}
+          AND user_id = #{userId}
+          AND delete_flag = 0
+          AND org_id IN
+        <foreach collection="orgIds" item="orgId" open="(" separator="," close=")">
+            #{orgId}
+        </foreach>
+    </update>
+
     <select id="selectByUserIdsSet" resultType="cn.ac.fage.accessmesh.admin.entity.SysUserOrg">
         SELECT * FROM sys_user_org
         WHERE tenant_id = #{tenantId} AND delete_flag = 0

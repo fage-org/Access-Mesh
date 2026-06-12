@@ -49,7 +49,8 @@ import java.util.stream.Collectors;
  * 提供组织角色创建、菜单权限授予/撤销、用户角色和权限加载等功能。
  * 通过Feign调用permission-center服务，使用统一 CacheService 管理缓存。
  * 设计约束：组织/岗位角色类型应使用 permission-center 的 ORG/POSITION，
- * 旧的 ORG_ROLE 字符串仅是当前实现遗留，后续组织同步和授权代理不得继续扩散。
+ * 旧的 ORG_ROLE 字符串仅是当前实现遗留，后续不得继续扩散。
+ * 角色操作均使用业务键（roleTypeCode + externalId）定位。
  * </p>
  */
 @Service

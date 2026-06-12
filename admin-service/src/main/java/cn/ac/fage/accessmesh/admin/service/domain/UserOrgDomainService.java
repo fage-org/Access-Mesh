@@ -78,6 +78,8 @@ public interface UserOrgDomainService {
      */
     void setPrimaryOrg(Long tenantId, Long userId, Long orgId);
 
+    void setPrimaryOrgInScope(Long tenantId, Long userId, Long orgId, List<Long> scopeOrgIds);
+
     /**
      * 获取用户的组织简要信息列表
      * <p>

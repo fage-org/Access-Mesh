@@ -82,6 +82,10 @@ public class MenuSyncHandlerImpl implements MenuSyncHandler {
     private Long createNewResource(Long tenantId, SysMenu menu, String code) {
         ResourceCreateReq req = new ResourceCreateReq(
             menu.getParentId() != null && menu.getParentId() != 0L ? menu.getParentId() : 0L,
+            null,
+            null,
+            null,
+            null,
             RESOURCE_TYPE_MENU,
             code,
             null, // codeType
