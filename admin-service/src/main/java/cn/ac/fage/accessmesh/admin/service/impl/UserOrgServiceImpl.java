@@ -9,10 +9,13 @@ import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.UserOrgService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
+import cn.ac.fage.accessmesh.admin.sync.model.SyncTaskEnvelope;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,15 +35,21 @@ public class UserOrgServiceImpl implements UserOrgService {
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
+    private final SyncTaskDomainService syncTaskDomainService;
+    private final SyncTaskBuilder syncTaskBuilder;
 
     public UserOrgServiceImpl(UserOrgDomainService userOrgDomainService,
                               OrgTreeConfigDomainService orgTreeConfigDomainService,
                               OrgDomainService orgDomainService,
-                              AdminPermissionValidator permissionValidator) {
+                              AdminPermissionValidator permissionValidator,
+                              SyncTaskDomainService syncTaskDomainService,
+                              SyncTaskBuilder syncTaskBuilder) {
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
+        this.syncTaskDomainService = syncTaskDomainService;
+        this.syncTaskBuilder = syncTaskBuilder;
     }
 
     @Override
@@ -95,6 +105,26 @@ public class UserOrgServiceImpl implements UserOrgService {
         }
         if (!toInsert.isEmpty()) {
             userOrgDomainService.insertBatch(toInsert);
+
+            // Outbox: enqueue PERM_USER_ROLE_SYNC BIND envelopes for each new user-org assignment
+            // 一次批量加载 SysOrg，按 orgType 解析 roleTypeCode（ORG/POSITION），避免 builder 端做静默二级 fallback
+            Set<Long> insertOrgIds = toInsert.stream().map(SysUserOrg::getOrgId).collect(Collectors.toSet());
+            Map<Long, cn.ac.fage.accessmesh.admin.entity.SysOrg> orgMap =
+                orgDomainService.batchSelectValidByIdsMap(tenantId, insertOrgIds);
+            for (SysUserOrg assoc : toInsert) {
+                cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgMap.get(assoc.getOrgId());
+                if (org == null) {
+                    throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                        "user-org bind sync: org not found, orgId=" + assoc.getOrgId());
+                }
+                String roleTypeCode = "POSITION".equalsIgnoreCase(org.getOrgType()) ? "POSITION" : "ORG";
+                String relationKey = roleTypeCode + ":" + assoc.getOrgId();
+                String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(
+                    tenantId, assoc.getOrgId());
+                SyncTaskEnvelope env = syncTaskBuilder.userOrgBind(assoc.getUserId(), assoc.getOrgId(),
+                    roleTypeCode, relationKey, treeRootExternalId);
+                syncTaskDomainService.enqueue(tenantId, env);
+            }
         }
     }
 
@@ -111,6 +141,20 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         // 非默认树移除成员只应删除关系并回收对应 user_role，不应影响用户生命周期。
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
+
+        // Outbox: enqueue PERM_USER_ROLE_SYNC UNBIND envelope
+        // 解析 roleTypeCode 必须读 sys_org.orgType；与 BIND 链路保持对称，确保 business_key 匹配
+        cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
+        if (org == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                "user-org unbind sync: org not found, orgId=" + orgId);
+        }
+        String roleTypeCode = "POSITION".equalsIgnoreCase(org.getOrgType()) ? "POSITION" : "ORG";
+        String relationKey = roleTypeCode + ":" + orgId;
+        String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
+        SyncTaskEnvelope env = syncTaskBuilder.userOrgUnbind(userId, orgId, roleTypeCode,
+            relationKey, treeRootExternalId);
+        syncTaskDomainService.enqueue(tenantId, env);
     }
 
     @Override

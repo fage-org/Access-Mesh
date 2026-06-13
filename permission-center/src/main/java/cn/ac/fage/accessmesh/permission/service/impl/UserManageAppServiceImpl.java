@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
-import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleListReq;
@@ -111,45 +110,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         this.auditDomainService = auditDomainService;
         this.objectMapper = objectMapper;
         this.engine = engine;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-user-sync", targetType = "abstract_user", targetId = "#result.id()", summary = "'sync user ' + #req.externalId()")
-    public UserResp syncUser(Long tenantId, UserSyncReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.SYNC)) {
-            throw new SecurityException("No permission to sync user");
-        }
-
-        Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
-        if (userType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
-        }
-        AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
-
-        if (existing != null) {
-            existing.setName(req.name() != null ? req.name() : existing.getName());
-            existing.setEnabled(req.enabled() != null ? req.enabled() : existing.getEnabled());
-            existing.setExtra(req.extra() != null ? req.extra() : existing.getExtra());
-            existing.setUpdatedAt(LocalDateTime.now());
-            abstractUserMapper.update(existing);
-            return toUserResp(existing);
-        }
-
-        AbstractUser user = new AbstractUser();
-        user.setTenantId(tenantId);
-        user.setUserType(userType);
-        user.setExternalId(req.externalId());
-        user.setName(req.name());
-        user.setEnabled(req.enabled() != null ? req.enabled() : true);
-        user.setExtra(req.extra());
-        LocalDateTime now = LocalDateTime.now();
-        user.setCreatedAt(now);
-        user.setUpdatedAt(now);
-        user.setDeleteFlag(0L);
-        abstractUserMapper.insert(user);
-        return toUserResp(user);
     }
 
     @Override

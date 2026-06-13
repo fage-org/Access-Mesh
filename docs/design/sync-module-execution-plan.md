@@ -136,12 +136,25 @@
 - 父资源解析使用 `parentResourceTypeCode + parentResourceCode + parentCodeType`。
 - POSITION 的 `relationKey=ORG:{orgExternalId}` 解析到组织角色 `abstract_role.id`，写入 `user_role.relation_id`。
 - `PERM_USER_ROLE_SYNC` 只允许 `sourceType=SYS_USER_ORG` 且 `roleTypeCode in (ORG, POSITION)`。
+- USER_ROLE 全量校准必须按 `item.roleTypeCode` 拆分为多个 envelope，每个 envelope 内 `item.roleTypeCode` 与 `scope.roleTypeCode` 严格相等；admin-service 必须按 binding 对应组织的类型（ORG/POSITION）分组后再调用 `userOrgFullSync`，并将 `orgTypeByOrgId` 映射作为入参传入以确保 item 字段对齐。permission-center 收到 `item.roleTypeCode != scope.roleTypeCode` 时记录 `NON_RETRYABLE` 单条失败（`reason=ROLE_TYPE_CODE_MISMATCH_WITH_SCOPE`），不进入 `markStatus`。
 
 **验证标准**
 - Controller 层测试确认所有接口为 POST + JSON Body。
 - 契约测试覆盖成功应用、旧版本 stale、依赖缺失、不可重试错误、安全拒绝。
 - 批量 full-sync 测试覆盖补齐缺失、清理多余、同 scope 限定、跨 ownership 互不删除。
 - N+1 检查：full-sync 实现必须批量解析类型和业务键，禁止循环内单条 DB 查询。
+- **full-sync 必须批量解析 + 批量写**（P7 防回归 checklist）：
+  - 阶段 A 收集：遍历 items 收集所有需批量解析的键集（externalIds/parent codes/relationKey 三元组等）。
+  - 阶段 B 批量解析：使用 `typeResolutionService.batchResolve*` + 各 Mapper 的批量查询方法（如
+    `AbstractUserMapper.selectByTypeAndExternalIds`、`AbstractRoleMapper.selectByTypeAndExternalIds`、
+    `ResourceEntityMapper.selectByTypeAndCodesAndCodeTypes`、
+    `UserRoleMapper.selectValidByUserTargetRelation`）一次性预加载现有实体与依赖。
+  - 阶段 C 批量写：基于阶段 B 的 in-memory 索引判定 insert/update，差异校准统一收集 targetIds 后调用一次
+    `softDeleteBatch`；禁止循环内 `Mapper.selectXxx` / `typeResolutionService.resolve*` 单条调用。
+  - `doSyncOne` 仅供单条 sync(req) 入口使用，不得在 fullSync 内循环调用未携带预加载缓存的版本。
+  - `permission-center` 提供 `FullSyncN1GuardTest`：构造 100 个 items，断言批量 select &lt; 10、单条 select &lt; 5、
+    类型解析单条 &lt; 5；新增 fullSync 实现必须扩展该用例覆盖。
+- **禁止 full-sync 引入独立顶层响应类型**（如已删除的 `FullSyncResultResp`）；统一用 `SyncResultResp` + 嵌套 `detail`，详见 api-contract §6.2.2.6。
 
 ### S4. admin-service 任务生产器
 
@@ -169,10 +182,11 @@
 - 实现原子 claim、stale lock 恢复、退避重试和 retryClass 分类处理。
 - 实现 `syncAction -> Handler -> Feign/API` 路由。
 - 实现 `STALE_VERSION` 成功 no-op 处理。
+- Feign 客户端必须配套 `FeignInternalSyncInterceptor`，统一注入 `X-Service-Code` 与 `X-Internal-Secret`；`X-Tenant-Id` 通过调度端在 `processOne` 设置 `TenantContextHolder` 后由 `FeignTenantInterceptor` 注入；禁止在 `SyncTaskFeignClient` 方法签名声明 `@RequestHeader("X-Service-Code")`。详见 `permission-center/api-contract.md` §6.2.2.5。
 
 **接口标准**
 - Handler 不读取 `displayAttrs` 做执行判断。
-- 默认 stale lock timeout：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`、`PERM_USER_ROLE_SYNC` 为 60s，full-sync 阶段任务为 300s；通过 `application.yml` 的 `sync-task.stale-lock-timeout.{syncAction}` 覆盖。
+- 默认 stale lock timeout：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`、`PERM_USER_ROLE_SYNC` 为 60s，full-sync 阶段任务为 300s；通过 `application.yml` 的 `accessmesh.sync.scheduler.stale-lock-timeout.{syncAction}` 覆盖。
 - `DEPENDENCY_MISSING` 使用短退避。
 - `RETRYABLE` 使用指数退避。
 - `NON_RETRYABLE/SECURITY_DENIED` 直接进入 `FAILED`。
@@ -195,6 +209,10 @@
 - 每次全量校准生成唯一 `batchKey=sourceService={sourceService}&runId={uuid}`。
 - 一个阶段失败时，后续阶段不得执行。
 - full-sync scope 必须足够小，禁止默认全租户清理。
+- USER_ROLE / ORG_ROLE 阶段的 `treeRootExternalId` 必须通过 `OrgTreeConfigDomainService.resolveTreeRootExternalIds`（批量 resolver）解析每个 binding/org 的实际归属，与增量同链路，租户无默认组织树时立即抛 `FULL_SYNC_NO_DEFAULT_TREE`，**禁止 fallback `"1"`**。
+- ORG_ROLE / USER_ROLE 阶段必须按 `(treeRootExternalId, roleTypeCode)` **二维分桶**发 envelope，每个 envelope 内 `item.roleTypeCode` 与 `scope.roleTypeCode` 严格相等；调用方负责分桶，`SyncTaskBuilder.userOrgFullSync` 直接信任入参 `roleTypeCode`，不再做"未知 orgType → ORG"的二级 fallback 推断（fail-fast：非 `ORG`/`POSITION` 抛 `IllegalArgumentException`）。
+- **不生成空桶 envelope**。首期不依赖空桶 markStatus 兜底——若某 (treeRoot, roleTypeCode) 组合当前无 binding，permission-center 该 scope 下不会触发 `markStatus(UNBOUND)` 校准。
+- 任一 active org 或 binding.orgId 无法解析到树根（游离 / 已软删但 binding 残留），立即抛 `BizException(ORG_TREE_ROOT_NOT_RESOLVED)` 终止本次 full-sync，`enqueueAll` 不被调用。
 
 **验证标准**
 - 模拟上一阶段失败，下一阶段不被 claim。
@@ -247,7 +265,13 @@
 | ownership | `service-config/sync` 与 `resource-entity/full-sync` 互不删除对方事实 |
 | 崩溃恢复 | PROCESSING 超时后可重新 claim |
 | 权限 | 同步任务管理接口具备门禁和操作日志 |
-| N+1 | 批量解析、批量查询，禁止循环单条 DB 查询 |
+| N+1 | 批量解析、批量查询，禁止循环单条 DB 查询；full-sync 必须遵循"阶段 A 收集 / 阶段 B 批量解析 / 阶段 C 批量写"三段式（详见 §S3 验证标准）|
+| 服务间认证 | sync/full-sync 请求必含 `X-Tenant-Id` + `X-Service-Code` + `X-Internal-Secret` 三 Header；缺任一应返回 401 |
+| full-sync 响应契约 | 顶层与 sync 一致，明细放 `data.detail`，禁止独立顶层 DTO |
+| 拦截器链路防回归 | 拦截器顺序与判断逻辑必须显式注释；任何顺序/路径/决策变更必须配套端到端集成测试（最低标准：MockMvc 拦截器链 + 至少 8 用例覆盖矩阵） |
+| 安全决策原则 | 拦截器之间的“已认证”信号必须通过 request attribute（仅前置拦截器可写）传递；**禁止**基于未验证的请求头（如直接读 `X-Tenant-Id` / `X-Internal-Secret`）做信任决策 |
+| 拦截器顺序契约 | order=1 InternalApiSecretInterceptor（仅 `/api/perm/**`）→ order=2 HeaderSignatureInterceptor → order=3 PermTenantInterceptor；变更顺序须同步更新 `PermWebMvcConfig` javadoc 与 api-contract §6.2.2.5 |
+| 跨模块契约一致性 | Header 名称、密钥配置项、决策语义如有改动，必须三端 grep 一致：permission-center（拦截器实现）、perm-sdk（FeignInternalSyncInterceptor）、admin-service（FeignTenantInterceptor / 调度器）|
 
 ## 5. 实施顺序建议
 

@@ -77,6 +77,24 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                                @Param("codes") Set<String> codes);
 
     /**
+     * 批量查询指定类型 + 编码 + 编码类型的资源（按编码类型分桶后再查询）。
+     * <p>
+     * 用于 full-sync 阶段 B 一次性预加载所有 (resourceType, code, codeType) 组合，避免循环单条 select。
+     * codeType 可能存在多种取值（如 "default"、"path"），此查询按 codeType 列表展开 OR 条件。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值
+     * @param codes        编码集合
+     * @param codeTypes    编码类型集合
+     * @return 资源列表（包含 (codeType, code) 命中的所有有效行；调用方再按 (code, codeType) 二维 key 分组）
+     */
+    List<ResourceEntity> selectByTypeAndCodesAndCodeTypes(@Param("tenantId") Long tenantId,
+                                                          @Param("resourceType") Integer resourceType,
+                                                          @Param("codes") Set<String> codes,
+                                                          @Param("codeTypes") Set<String> codeTypes);
+
+    /**
      * 查询指定租户和类型的所有API资源
      *
      * @param tenantId     租户ID

@@ -160,7 +160,7 @@ admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表。主�
 | `PERM_USER_ROLE_SYNC` | `BIND` / `UNBIND` | `sys_user_org -> user_role` |
 | `PERM_RESOURCE_ENTITY_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user/sys_org/sys_menu -> resource_entity` |
 
-`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口 `/api/sync/{operation}`。
+`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口（参见 `sync-module-execution-plan.md` §1.1 禁用项）。
 
 `resource_entity` 同步走 permission-center 的专用幂等入口 `POST /api/perm/resource-entity/sync`，不提供跨实体的万能 replay 入口。`role_resource_permission` 属于 permission-center 授权管理域，不纳入 admin-service 同步任务。
 
@@ -221,6 +221,23 @@ admin-service 发起全量校准时必须按依赖顺序编排：
 - 删除默认组织树或默认树节点时，必须先处理其下用户身份归属，不允许造成有效用户无默认树归属。
 - `single_assoc=true` 在默认组织树中表示用户在身份目录内只有一个主归属；岗位树等非默认树可允许多归属。
 
+### 7.1 组织树归属解析约定
+
+user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 resolver 解析得出：
+
+- 任意 `orgId` 必须能沿 `SysOrg` 父链反查到唯一一个 `SysOrgTreeConfig.rootOrgId`，命中条件为：
+  - 该 org 自身 `id ∈ rootOrgId 集合`；或
+  - 该 org 的某个祖先 `id ∈ rootOrgId 集合`。
+- 不能反查命中的 org 视为**游离 org**，禁止参与 user-org / user_role 同步，必须以业务异常 `ORG_TREE_ROOT_NOT_RESOLVED` 中断。
+- 增量（`UserOrgServiceImpl.assignUserToOrgs` / `removeUserFromOrg`）与全量（`SyncFullSyncOrchestrator.startFullSyncRun`）必须使用同一 resolver 入口：
+  - 增量：`OrgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId)` —— 单条解析；
+  - 全量：`OrgTreeConfigDomainService.resolveTreeRootExternalIds(tenantId, orgIds)` —— **批量解析**：一次加载租户全部 `SysOrgTreeConfig` 与全部相关 `SysOrg` 路径，内存内交集匹配，避免循环单条调用导致的 N+1。
+- **批量 resolver 语义**：任一 `orgId` 不命中（org 不存在、游离、或租户无任何 tree config）即抛 `BizException(ORG_TREE_ROOT_NOT_RESOLVED)`，message 含全部缺失项以便排障；**禁止部分返回**，**禁止 fallback `"1"`**。空入参 → 返回空 Map，不调任何 mapper。
+- 全量校准要求租户至少存在一棵默认组织树（`SysOrgTreeConfig.is_default=true` 且 `rootOrgId` 非空）；缺失即抛 `FULL_SYNC_NO_DEFAULT_TREE`，禁止 fallback。
+- 全量同步的 `ORG_ROLE` / `USER_ROLE` 阶段按 **`(treeRootExternalId, roleTypeCode)` 二维分桶**发 envelope：`treeRoot` 由批量 resolver 解析每个 binding/org 的实际归属得出，**不再**依赖 `trees.get(0).getRootOrgId()` 隐式单树假设。
+- 解析阶段不限 `is_default`：user-org 关系适用于任何已配置树（默认 + 非默认），均通过业务键 `treeRootExternalId = String.valueOf(rootOrgId)` 与 permission-center scopeKey 对账。
+- **禁止任何形式的 `treeRootExternalId` 默认值**（如硬编码 `"1"`），无论增量、全量、或 fallback 路径。
+
 ---
 
 ## 8. 实现影响清单
@@ -237,7 +254,7 @@ admin-service 发起全量校准时必须按依赖顺序编排：
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
-| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口 `/api/sync/{operation}`；补齐单次任务、失败重发和分领域全量校准同步。 |
+| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口（详见 `sync-module-execution-plan.md`）；补齐单次任务、失败重发和分领域全量校准同步。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 
 ---
@@ -249,3 +266,4 @@ admin-service 发起全量校准时必须按依赖顺序编排：
 - 禁止在 admin-service 存储 permission-center 的内部主键 ID（`abstract_user.id`、`resource_entity.id`、`abstract_role.id` 等）。所有跨服务引用使用业务键。
 - 禁止在 `user-org` 非默认树操作中删除用户所有组织关系。
 - 禁止让添加成员候选集默认包含租户内所有用户。
+- 禁止在 user-org / user_role 同步链路上 fallback `treeRootExternalId="1"` 或其他静默默认值；缺失或解析失败必须以业务异常中断。

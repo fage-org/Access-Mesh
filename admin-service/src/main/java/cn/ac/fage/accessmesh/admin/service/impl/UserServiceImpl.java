@@ -19,18 +19,17 @@ import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
-import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
+import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.UserService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.admin.service.domain.UserSyncHandler;
+import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mybatisflex.core.paginate.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +38,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,16 +65,12 @@ public class UserServiceImpl implements UserService {
     private final UserOrgDomainService userOrgDomainService;
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final OrgDomainService orgDomainService;
-    private final UserSyncHandler userSyncHandler;
-    private final SyncRetryService syncRetryService;
-    private final ObjectMapper objectMapper;
+    private final SyncTaskDomainService syncTaskDomainService;
+    private final SyncTaskBuilder syncTaskBuilder;
     private final AdminPermissionValidator permissionValidator;
 
     /**
      * 构造函数注入依赖
-     * <p>
-     * 注意：构造函数依赖较多(10个)，建议后续重构抽离同步和重试逻辑到独立服务。
-     * </p>
      *
      * @param userMapper 用户数据访问Mapper
      * @param userOrgMapper 用户组织关联Mapper
@@ -84,9 +78,8 @@ public class UserServiceImpl implements UserService {
      * @param userOrgDomainService 用户组织关联领域服务，处理组织分配
      * @param orgTreeConfigDomainService 组织树配置领域服务，校验默认树归属
      * @param orgDomainService 组织领域服务，校验组织是否属于默认树
-     * @param userSyncHandler 用户同步处理器，同步用户数据到permission-center
-     * @param syncRetryService 同步重试服务，记录同步失败任务
-     * @param objectMapper JSON序列化工具
+     * @param syncTaskDomainService 同步任务领域服务，S4 任务生产器写入 sys_sync_task（Outbox Pattern）
+     * @param syncTaskBuilder 同步任务 envelope 构造器
      * @param permissionValidator 权限校验器，校验用户操作权限
      */
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
@@ -94,18 +87,17 @@ public class UserServiceImpl implements UserService {
                            UserOrgDomainService userOrgDomainService,
                            OrgTreeConfigDomainService orgTreeConfigDomainService,
                            OrgDomainService orgDomainService,
-                           UserSyncHandler userSyncHandler,
-                           SyncRetryService syncRetryService,
-                           ObjectMapper objectMapper, AdminPermissionValidator permissionValidator) {
+                           SyncTaskDomainService syncTaskDomainService,
+                           SyncTaskBuilder syncTaskBuilder,
+                           AdminPermissionValidator permissionValidator) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
-        this.userSyncHandler = userSyncHandler;
-        this.syncRetryService = syncRetryService;
-        this.objectMapper = objectMapper;
+        this.syncTaskDomainService = syncTaskDomainService;
+        this.syncTaskBuilder = syncTaskBuilder;
         this.permissionValidator = permissionValidator;
     }
 
@@ -159,27 +151,9 @@ public class UserServiceImpl implements UserService {
         // 事务内：插入用户 + 记录同步任务（原子性，Outbox Pattern）
         userMapper.insert(user);
 
-        // 同一事务内记录同步任务，确保用户创建与任务记录原子性
-        try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "userId", user.getId(),
-                "username", user.getUsername(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "user:create:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getId()),
-                "create",
-                payload,
-                null
-            );
-            log.info("Recorded sync task for user creation: userId={}", user.getId());
-        } catch (Exception e) {
-            log.error("Failed to record sync task for user creation: userId={}, error={}", user.getId(), e.getMessage());
-            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
-        }
+        // 同一事务内入队同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
+        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.userUpsert(user));
+        log.info("Enqueued user upsert sync envelopes: userId={}", user.getId());
 
         // 创建用户是身份目录操作，orgId 必须属于默认组织树。
         if (req.orgId() != null) {
@@ -260,32 +234,9 @@ public class UserServiceImpl implements UserService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
 
-        // 同步更新到权限中心 - 记录同步任务
-        try {
-            Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("userId", user.getId());
-            payloadMap.put("subjectTypeCode", AdminResourceType.USER);
-            payloadMap.put("subjectExternalId", String.valueOf(user.getId()));
-            payloadMap.put("name", user.getName());
-            payloadMap.put("phone", user.getPhone());
-            payloadMap.put("email", user.getEmail());
-            payloadMap.put("status", user.getStatus());
-            payloadMap.put("enabled", user.getStatus() != null && user.getStatus() == 1);
-            String payload = objectMapper.writeValueAsString(payloadMap);
-            syncRetryService.recordSyncFailure(
-                "user:update:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getId()),
-                "update",
-                payload,
-                null
-            );
-            log.info("Recorded update sync task for user: userId={}", user.getId());
-        } catch (Exception e) {
-            log.error("Failed to record update sync task for user: userId={}, error={}", user.getId(), e.getMessage());
-            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
-        }
+        // 同步更新到权限中心 — 事务内入队 abstract_user + ADMIN_USER resource_entity 双 envelope
+        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.userUpsert(user));
+        log.info("Enqueued user update sync envelopes: userId={}", user.getId());
     }
 
     /**
@@ -323,18 +274,11 @@ public class UserServiceImpl implements UserService {
         // 1. 先执行本地软删除
         userDomainService.softDeleteBatch(tenantId, req.ids());
 
-        // 2. 记录删除同步任务
+        // 2. 入队删除同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
         for (SysUser user : users) {
-            syncRetryService.recordSyncFailure(
-                "user:delete:" + user.getId(),
-                "permission-center",
-                "abstract_user",
-                String.valueOf(user.getId()),
-                "delete",
-                null,
-                null
-            );
-            log.info("Recorded delete sync task for user: userId={}", user.getId());
+            syncTaskDomainService.enqueueAll(tenantId,
+                syncTaskBuilder.userDelete(user.getId(), String.valueOf(user.getId())));
+            log.info("Enqueued user delete sync envelopes: userId={}", user.getId());
         }
     }
 
@@ -373,33 +317,16 @@ public class UserServiceImpl implements UserService {
         if (!validIds.isEmpty()) {
             userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
 
-            // 同步状态变更到权限中心 - 记录同步任务
+            // 同步状态变更到权限中心 — 事务内入队双 envelope
             boolean enabled = req.status() == 1;
-            String syncAction = enabled ? "user:enable:" : "user:disable:";
             for (SysUser user : existingUsers) {
-                try {
-                    Map<String, Object> payloadMap = new HashMap<>();
-                    payloadMap.put("userId", user.getId());
-                    payloadMap.put("subjectTypeCode", AdminResourceType.USER);
-                    payloadMap.put("subjectExternalId", String.valueOf(user.getId()));
-                    payloadMap.put("enabled", enabled);
-                    String payload = objectMapper.writeValueAsString(payloadMap);
-                    syncRetryService.recordSyncFailure(
-                        syncAction + user.getId(),
-                        "permission-center",
-                        "abstract_user",
-                        String.valueOf(user.getId()),
-                        "update",
-                        payload,
-                        null
-                    );
-                    log.info("Recorded {} sync task for user: userId={}",
-                        enabled ? "enable" : "disable", user.getId());
-                } catch (Exception e) {
-                    log.error("Failed to record {} sync task for user: userId={}, error={}",
-                        enabled ? "enable" : "disable", user.getId(), e.getMessage());
-                    throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "用户同步任务记录失败");
-                }
+                // 反映最新 status 给 builder
+                user.setStatus(req.status());
+                List<cn.ac.fage.accessmesh.admin.sync.model.SyncTaskEnvelope> envelopes =
+                    enabled ? syncTaskBuilder.userEnable(user) : syncTaskBuilder.userDisable(user);
+                syncTaskDomainService.enqueueAll(tenantId, envelopes);
+                log.info("Enqueued user {} sync envelopes: userId={}",
+                    enabled ? "enable" : "disable", user.getId());
             }
         }
     }

@@ -89,11 +89,18 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 请求预处理
+     * 请求预处理 — 4 路径决策树
      * <p>
-     * 验证请求头签名的有效性。
-     * 检查签名是否存在、时间戳是否在有效窗口内、签名值是否正确。
+     * 决策原则：基于已验证的 attribute（仅 InternalApiSecretInterceptor 可写）
+     * 而非未验证的请求头进行信任判定，防止请求头注入与拦截器顺序绕过。
      * </p>
+     * <ol>
+     *   <li>路径 1：服务间内部调用 — request attribute INTERNAL_AUTHENTICATED=true
+     *       表示已通过 {@link InternalApiSecretInterceptor} 校验，直接放行。</li>
+     *   <li>路径 2：完全匿名请求 — 无任何用户身份头（actuator 健康检查、未登录探活），放行。</li>
+     *   <li>路径 3：仅 X-Tenant-Id 而无 X-User-Id 且非内部已认证 — 异常请求，记录安全日志后 403。</li>
+     *   <li>路径 4：用户态调用（X-User-Id 存在）— 必须存在合法 HMAC 签名，进入完整 HMAC 校验流程。</li>
+     * </ol>
      *
      * @param request  HTTP请求对象
      * @param response HTTP响应对象
@@ -103,15 +110,36 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                              Object handler) throws Exception {
-        // 签名验证始终强制执行 - 无启用检查
         String userId = request.getHeader(HEADER_USER_ID);
         String tenantId = request.getHeader(HEADER_TENANT_ID);
+        boolean internalAuthenticated = Boolean.TRUE.equals(
+            request.getAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED)
+        );
 
-        // 无用户身份头时跳过验证
+        // 路径 1：服务间内部调用（已通过 InternalApiSecretInterceptor 校验）
+        if (internalAuthenticated) {
+            return true;
+        }
+
+        // 路径 2：完全匿名（actuator 健康检查、未登录探活）
         if (StringUtils.isBlank(userId) && StringUtils.isBlank(tenantId)) {
             return true;
         }
 
+        // 路径 3：仅 tenantId 无 userId 且非内部已认证 — 异常请求
+        if (StringUtils.isBlank(userId)) {
+            SecurityLogUtil.logSecurityEvent(
+                SecurityEventType.BLOCKED_REQUEST,
+                request,
+                "tenant-only request without internal authentication",
+                null,
+                tenantId
+            );
+            sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, ERROR_ACCESS_DENIED);
+            return false;
+        }
+
+        // 路径 4：用户态调用 — 必须验签
         String providedSignature = request.getHeader(HEADER_SIGNATURE);
         String timestampStr = request.getHeader(HEADER_TIMESTAMP);
 

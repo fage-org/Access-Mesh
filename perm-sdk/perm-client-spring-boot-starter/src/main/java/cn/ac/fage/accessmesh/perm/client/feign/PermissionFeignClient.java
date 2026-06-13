@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissions
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,16 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "permission-center")
 public interface PermissionFeignClient {
 
-    // ========== 用户同步 ==========
-
-    /**
-     * 同步用户到权限中心
-     *
-     * @param req 用户同步请求
-     * @return 同步结果，包含用户详细信息
-     */
-    @PostMapping("/api/perm/abstract-user/sync")
-    PermResult<UserResp> syncUser(@RequestBody UserSyncReq req);
+    // ========== 用户管理 ==========
 
     /**
      * 批量删除用户
@@ -92,6 +82,9 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/perm/abstract-role/list")
     PermResult<PaginatedResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
+
+    @PostMapping("/api/perm/abstract-role/detail")
+    PermResult<RoleResp> getRole(@RequestBody IdReq req);
 
     /**
      * 查询用户角色列表

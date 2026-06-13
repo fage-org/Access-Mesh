@@ -79,9 +79,9 @@ public final class AdminResourceType {
      */
     public static final String ORG_TREE_CONFIG = "ADMIN_ORG_TREE_CONFIG";
     /**
-     * 同步重试资源
+     * 同步任务资源（对应 sys_sync_task 表）
      */
-    public static final String SYNC_RETRY = "ADMIN_SYNC_RETRY";
+    public static final String SYNC_TASK = "ADMIN_SYNC_TASK";
 
     /**
      * 私有构造方法（常量类）

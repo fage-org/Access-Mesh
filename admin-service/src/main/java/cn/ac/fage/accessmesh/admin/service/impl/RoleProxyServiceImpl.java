@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.admin.cache.AdminCacheCatalog;
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.entity.SysMenu;
+import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
@@ -11,6 +12,7 @@ import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
+import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -18,6 +20,7 @@ import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
@@ -48,8 +51,7 @@ import java.util.stream.Collectors;
  * 将admin-domain概念（用户、组织、菜单）转换为permission-center概念（角色、资源、权限）。
  * 提供组织角色创建、菜单权限授予/撤销、用户角色和权限加载等功能。
  * 通过Feign调用permission-center服务，使用统一 CacheService 管理缓存。
- * 设计约束：组织/岗位角色类型应使用 permission-center 的 ORG/POSITION，
- * 旧的 ORG_ROLE 字符串仅是当前实现遗留，后续不得继续扩散。
+ * 设计约束：组织/岗位角色类型使用 permission-center 的 ORG/POSITION。
  * 角色操作均使用业务键（roleTypeCode + externalId）定位。
  * </p>
  */
@@ -63,19 +65,21 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
     /**
      * 角色类型编码到显示名的映射。
-     * TODO: ORG_ROLE 是旧口径，目标模型中组织/岗位角色类型为 ORG/POSITION。
+     * 组织/岗位角色类型为 ORG/POSITION。
      */
     private static final Map<String, String> ROLE_TYPE_LABELS = Map.of(
         "BASIC_ROLE", "基础角色",
         "GROUP_ROLE", "分组角色",
         "PERSONAL", "个人角色",
-        "ORG_ROLE", "组织角色"
+        "ORG", "组织角色",
+        "POSITION", "岗位角色"
     );
 
     private static final int RESOURCE_TYPE_MENU = 1;
 
     private final PermissionFeignClient permissionFeignClient;
     private final UserOrgDomainService userOrgDomainService;
+    private final OrgDomainService orgDomainService;
     private final MenuDomainService menuDomainService;
     private final AdminPermissionValidator permissionValidator;
     private final CacheService cacheService;
@@ -91,11 +95,13 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     public RoleProxyServiceImpl(PermissionFeignClient permissionFeignClient,
                             UserOrgDomainService userOrgDomainService,
+                            OrgDomainService orgDomainService,
                             MenuDomainService menuDomainService,
                             AdminPermissionValidator permissionValidator,
                             CacheService cacheService) {
         this.permissionFeignClient = permissionFeignClient;
         this.userOrgDomainService = userOrgDomainService;
+        this.orgDomainService = orgDomainService;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
         this.cacheService = cacheService;
@@ -143,11 +149,10 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 为组织创建角色
      * <p>
-     * 在permission-center创建组织专属角色(ORG_ROLE类型)。
+     * 在permission-center创建组织/岗位专属角色。
      * 执行类型级权限校验(CREATE)。
      * 角色外部ID为组织ID，用于关联组织与角色。
-     * TODO: 目标设计应改为由组织同步流程创建 abstract_role(ORG/POSITION,
-     * externalId=sys_org.id)，不要继续创建 ORG_ROLE。
+     * 角色类型由 sys_org.org_type 映射为 ORG/POSITION，externalId=sys_org.id。
      * </p>
      *
      * @param roleName 角色名称
@@ -161,9 +166,15 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         // 权限检查 — ADMIN_ROLE 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.ROLE, AdminOperationCode.CREATE);
 
+        SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
+        if (org == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
+        }
+        String roleTypeCode = resolveOrgRoleTypeCode(org);
+
         RoleCreateReq req = new RoleCreateReq(
             null, // parentId
-            "ORG_ROLE", // TODO 旧口径：目标模型改为 ORG/POSITION
+            roleTypeCode,
             String.valueOf(orgId), // externalId
             roleName,
             null, // sortOrder
@@ -200,6 +211,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             String.valueOf(roleId),
             AdminOperationCode.GRANT
         );
+        RoleRef roleRef = resolveRoleRef(roleId);
 
         // 获取菜单信息（通过 DomainService，符合分层规范）
         SysMenu menu = menuDomainService.selectValidById(tenantId, menuId);
@@ -226,8 +238,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
         RoleGrantReq req = new RoleGrantReq(
             null,             // domainCode
-            "ORG_ROLE",       // TODO 旧口径：目标模型改为 ORG/POSITION
-            String.valueOf(roleId), // roleExternalId
+            roleRef.roleTypeCode(),
+            roleRef.externalId(),
             List.of(addItem), // add
             List.of(),        // update
             List.of()         // remove
@@ -270,6 +282,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             String.valueOf(roleId),
             AdminOperationCode.REVOKE
         );
+        RoleRef roleRef = resolveRoleRef(roleId);
 
         // 获取菜单信息（通过 DomainService，符合分层规范）
         SysMenu menu = menuDomainService.selectValidById(tenantId, menuId);
@@ -287,8 +300,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             // 1. 查询角色的现有权限
             UserPermissionViewReq viewReq = new UserPermissionViewReq(
                 "ROLE",            // targetType
-                "ORG_ROLE",        // TODO 旧口径：目标模型改为 ORG/POSITION
-                String.valueOf(roleId), // subjectExternalId
+                roleRef.roleTypeCode(),
+                roleRef.externalId(),
                 null,              // domainCode
                 null,              // roleTypeCode
                 null,              // roleExternalId
@@ -335,8 +348,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             // 4. 调用 permission-center 的批量撤销接口
             BatchRevokeReq revokeReq = new BatchRevokeReq(
                 null,                      // domainCode
-                "ORG_ROLE",                // TODO 旧口径：目标模型改为 ORG/POSITION
-                String.valueOf(roleId),    // roleExternalId
+                roleRef.roleTypeCode(),
+                roleRef.externalId(),
                 permissionIds              // permissionIds
             );
 
@@ -388,6 +401,39 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         List<String> permissions = List.of();
 
         return new UserInfoResp(userId, null, null, null, null, null, null, roles, permissions, orgInfos);
+    }
+
+    private RoleRef resolveRoleRef(Long roleId) {
+        PermResult<RoleResp> result = permissionFeignClient.getRole(new IdReq(roleId));
+        if (result == null || result.getCode() != 200 || result.getData() == null) {
+            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                "Failed to query role detail: " + roleId);
+        }
+
+        RoleResp role = result.getData();
+        if (!hasText(role.roleTypeCode()) || !hasText(role.externalId())) {
+            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                "Role detail missing business key: " + roleId);
+        }
+        return new RoleRef(role.roleTypeCode(), role.externalId());
+    }
+
+    private String resolveOrgRoleTypeCode(SysOrg org) {
+        String orgType = org.getOrgType();
+        if ("2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType)) {
+            return "POSITION";
+        }
+        if ("1".equals(orgType) || "ORG".equalsIgnoreCase(orgType)) {
+            return "ORG";
+        }
+        throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "Invalid org type: " + orgType);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record RoleRef(String roleTypeCode, String externalId) {
     }
 
     /**

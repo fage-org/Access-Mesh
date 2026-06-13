@@ -155,7 +155,12 @@ public enum PermissionErrorCode {
     /**
      * 用户角色关系不存在
      */
-    USER_ROLE_RELATION_NOT_FOUND(20029, "用户角色关系不存在");
+    USER_ROLE_RELATION_NOT_FOUND(20029, "用户角色关系不存在"),
+
+    /**
+     * 同步元数据 targetStatus 非法
+     */
+    SYNC_TARGET_STATUS_INVALID(20030, "同步 targetStatus 不在 entityKind 允许范围内");
 
     private final int code;
     private final String message;

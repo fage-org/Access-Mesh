@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserListReq;
-import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserResp;
@@ -42,21 +41,6 @@ public class UserController {
      */
     public UserController(UserManageAppService userManageService) {
         this.userManageService = userManageService;
-    }
-
-    /**
-     * 同步用户信息
-     * <p>
-     * 从外部系统同步用户信息到权限中心。
-     * 如果用户已存在则更新，不存在则创建。
-     * </p>
-     *
-     * @param req 用户同步请求，包含外部用户ID、用户名、类型等
-     * @return 同步后的用户详情
-     */
-    @PostMapping("/sync")
-    public PermResult<UserResp> syncUser(@Valid @RequestBody UserSyncReq req) {
-        return PermResult.success(userManageService.syncUser(TenantContextHolder.getTenantId(), req));
     }
 
     /**

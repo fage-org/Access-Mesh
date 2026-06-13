@@ -29,6 +29,11 @@
         WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND is_default = true
     </select>
 
+    <select id="selectAllValid" resultType="cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig">
+        SELECT * FROM sys_org_tree_config
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
     <update id="clearAllDefaults">
         UPDATE sys_org_tree_config
         SET is_default = false, updated_at = #{updatedAt}

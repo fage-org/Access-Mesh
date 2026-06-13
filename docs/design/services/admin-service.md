@@ -60,7 +60,7 @@
 
 ### 同步任务模型
 
-admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而不是仅在失败后记录重试。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放，不再拼接旧全局万能 replay 入口 `/api/sync/{operation}`。
+admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而不是仅在失败后记录重试。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放，不再拼接旧全局万能 replay 入口（参见 `../sync-module-execution-plan.md` §1.1 禁用项）。
 
 同步动作收敛为 4 类领域级 action，具体行为由 payload 中的 `operation` 区分：
 
@@ -81,7 +81,7 @@ admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而�
 
 `payloadVersion` 高于当前 Handler 支持上限时，Handler 必须拒绝执行并把任务置为 `FAILED`，错误分类记为 `NON_RETRYABLE`；后续由人工触发 `rebuild-from-fact` 生成当前版本 payload。低版本 payload 只有在 Handler 明确提供 adapter 时才可兼容执行。
 
-任务状态固定为 `PENDING/PROCESSING/SUCCESS/FAILED`。调度器通过原子 claim 写入 `lockedAt/lockedBy` 后执行；失败且可重试时回到 `PENDING` 并设置 `nextRetryAt`，超过上限或不可重试时进入 `FAILED`。`PROCESSING` 必须支持崩溃恢复：按 `syncAction` 配置 stale lock timeout，任务满足 `status=PROCESSING AND lockedAt < now - timeout(syncAction)` 时可被其他 worker 重新 claim；worker 成功 claim 后必须刷新 `lockedAt/lockedBy`。默认 stale lock timeout：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`、`PERM_USER_ROLE_SYNC` 为 60s，full-sync 阶段任务为 300s；通过 `application.yml` 的 `sync-task.stale-lock-timeout.{syncAction}` 覆盖。首期人工补偿只支持 `retry-now/reset` 与 `rebuild-from-fact`，不开放手工编辑 payload；每次尝试首期只保留 `lastError`，详细排障依赖结构化日志和 trace。
+任务状态固定为 `PENDING/PROCESSING/SUCCESS/FAILED`。调度器通过原子 claim 写入 `lockedAt/lockedBy` 后执行；失败且可重试时回到 `PENDING` 并设置 `nextRetryAt`，超过上限或不可重试时进入 `FAILED`。`PROCESSING` 必须支持崩溃恢复：按 `syncAction` 配置 stale lock timeout，任务满足 `status=PROCESSING AND lockedAt < now - timeout(syncAction)` 时可被其他 worker 重新 claim；worker 成功 claim 后必须刷新 `lockedAt/lockedBy`。默认 stale lock timeout：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`、`PERM_USER_ROLE_SYNC` 为 60s，full-sync 阶段任务为 300s；通过 `application.yml` 的 `accessmesh.sync.scheduler.stale-lock-timeout.{syncAction}` 覆盖。首期人工补偿只支持 `retry-now/reset` 与 `rebuild-from-fact`，不开放手工编辑 payload；每次尝试首期只保留 `lastError`，详细排障依赖结构化日志和 trace。
 
 全量校准任务必须写入 `batchKey` 与 `batchKeyHash`。同一次 full-sync 编排中的所有阶段任务共享同一个 `batchKey`，建议格式为 `sourceService={sourceService}&runId={uuid}`；实时单次同步的 `batchKey` 为空。调度器按 `batchKeyHash + phase` 分阶段推进，只有上一阶段同一批次任务全部 `SUCCESS` 后，才能 claim 下一阶段任务：
 

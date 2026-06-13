@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserRoleListReq;
-import cn.ac.fage.accessmesh.permission.dto.req.UserSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.UserRolesResp;
@@ -20,19 +19,6 @@ import java.util.List;
  * </p>
  */
 public interface UserManageAppService {
-
-    /**
-     * 从外部系统同步用户
-     * <p>
-     * 根据tenantId+userType+externalId进行用户同步（upsert操作）。
-     * 如果用户不存在则创建，存在则更新。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      用户同步请求，包含外部系统用户信息
-     * @return 同步后的用户详情
-     */
-    UserResp syncUser(Long tenantId, UserSyncReq req);
 
     /**
      * 创建用户

@@ -266,7 +266,12 @@ public enum AdminErrorCode {
     /**
      * 组织树配置不存在
      */
-    ORG_TREE_CONFIG_NOT_FOUND(11001, "组织树配置不存在");
+    ORG_TREE_CONFIG_NOT_FOUND(11001, "组织树配置不存在"),
+
+    /**
+     * 组织树根无法解析（org 不属于任何已配置的组织树，游离 org）
+     */
+    ORG_TREE_ROOT_NOT_RESOLVED(11002, "组织树根无法解析");
 
     /**
      * 错误码

@@ -11,11 +11,10 @@ import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.MenuService;
-import cn.ac.fage.accessmesh.admin.service.SyncRetryService;
+import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
-import cn.ac.fage.accessmesh.admin.service.domain.MenuSyncHandler;
+import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -42,33 +40,29 @@ public class MenuServiceImpl implements MenuService {
 
     private final SysMenuMapper menuMapper;
     private final MenuDomainService menuDomainService;
-    private final MenuSyncHandler menuSyncHandler;
     private final AdminPermissionValidator permissionValidator;
-    private final SyncRetryService syncRetryService;
-    private final ObjectMapper objectMapper;
+    private final SyncTaskDomainService syncTaskDomainService;
+    private final SyncTaskBuilder syncTaskBuilder;
 
     /**
      * 构造函数注入依赖
      *
      * @param menuMapper 菜单数据访问Mapper
      * @param menuDomainService 菜单领域服务，处理菜单数据查询
-     * @param menuSyncHandler 菜单同步处理器，同步菜单数据到permission-center
      * @param permissionValidator 权限校验器，校验菜单操作权限
-     * @param syncRetryService 同步重试服务，记录同步失败任务
-     * @param objectMapper JSON序列化工具
+     * @param syncTaskDomainService 同步任务领域服务，事务内入队 sync envelope
+     * @param syncTaskBuilder 同步任务信封构造器
      */
     public MenuServiceImpl(SysMenuMapper menuMapper,
                            MenuDomainService menuDomainService,
-                           MenuSyncHandler menuSyncHandler,
                            AdminPermissionValidator permissionValidator,
-                           SyncRetryService syncRetryService,
-                           ObjectMapper objectMapper) {
+                           SyncTaskDomainService syncTaskDomainService,
+                           SyncTaskBuilder syncTaskBuilder) {
         this.menuMapper = menuMapper;
         this.menuDomainService = menuDomainService;
-        this.menuSyncHandler = menuSyncHandler;
         this.permissionValidator = permissionValidator;
-        this.syncRetryService = syncRetryService;
-        this.objectMapper = objectMapper;
+        this.syncTaskDomainService = syncTaskDomainService;
+        this.syncTaskBuilder = syncTaskBuilder;
     }
 
     /**
@@ -123,27 +117,9 @@ public class MenuServiceImpl implements MenuService {
         menu.setDeleteFlag(0L);
         menuMapper.insert(menu);
 
-        // 记录同步任务，异步同步到权限中心
-        try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                "menuId", menu.getId(),
-                "menuName", menu.getName(),
-                "tenantId", tenantId
-            ));
-            syncRetryService.recordSyncFailure(
-                "menu:create:" + menu.getId(),
-                "permission-center",
-                "resource_entity",
-                String.valueOf(menu.getId()),
-                "create",
-                payload,
-                null  // 不记录错误，只是记录待同步任务
-            );
-            log.info("Recorded sync task for menu creation: menuId={}", menu.getId());
-        } catch (Exception e) {
-            log.error("Failed to record sync task for menu creation: menuId={}, error={}", menu.getId(), e.getMessage());
-            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
-        }
+        // Outbox: enqueue resource_entity(ADMIN_MENU) UPSERT envelope within same tx
+        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuUpsert(menu));
+        log.info("Enqueued menu upsert sync envelope: menuId={}", menu.getId());
 
         return menu.getId();
     }
@@ -208,10 +184,8 @@ public class MenuServiceImpl implements MenuService {
         menu.setUpdatedAt(LocalDateTime.now());
         menuMapper.update(menu);
 
-        // 使用 SyncHandler 同步更新到权限中心
-        if (menu.getPermResourceId() != null || (req.perms() != null && !req.perms().isBlank())) {
-            menuSyncHandler.syncMenuToPermissionCenter(tenantId, menu);
-        }
+        // 事务内入队菜单更新同步任务（abstract_role + ADMIN_MENU resource_entity 双 envelope）
+        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuUpsert(menu));
     }
 
     /**
@@ -250,22 +224,9 @@ public class MenuServiceImpl implements MenuService {
         // 1. 先执行本地软删除
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
 
-        // 2. 记录删除同步任务
-        try {
-            syncRetryService.recordSyncFailure(
-                "menu:delete:" + id,
-                "permission-center",
-                "resource_entity",
-                String.valueOf(id),
-                "delete",
-                null,
-                null
-            );
-            log.info("Recorded delete sync task for menu: menuId={}", id);
-        } catch (Exception e) {
-            log.error("Failed to record delete sync task for menu: menuId={}, error={}", id, e.getMessage());
-            throw new BizException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(), "菜单同步任务记录失败");
-        }
+        // 2. Outbox: enqueue resource_entity(ADMIN_MENU) DELETE envelope within same tx
+        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuDelete(id, String.valueOf(id)));
+        log.info("Enqueued menu delete sync envelope: menuId={}", id);
     }
 
     /**

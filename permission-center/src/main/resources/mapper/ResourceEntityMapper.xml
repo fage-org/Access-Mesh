@@ -77,6 +77,21 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectByTypeAndCodesAndCodeTypes" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND code_type IN
+        <foreach collection="codeTypes" item="ct" open="(" separator="," close=")">
+            #{ct}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
     <select id="selectApiResourcesByType" resultType="cn.ac.fage.accessmesh.permission.entity.ResourceEntity">
         SELECT * FROM resource_entity
         WHERE tenant_id = #{tenantId}

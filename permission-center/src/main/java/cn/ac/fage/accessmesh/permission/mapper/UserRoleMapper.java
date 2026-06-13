@@ -155,4 +155,24 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
     List<UserRole> selectByTargetTypeAndTargetId(@Param("tenantId") Long tenantId,
                                                     @Param("targetType") String targetType,
                                                     @Param("targetId") Long targetId);
+
+    /**
+     * 批量查询指定 (userId, targetId, relationId) 三元组的有效用户角色（同 targetType）。
+     * <p>
+     * 用于 user-role full-sync 阶段 B 一次性预加载所有 items 对应的 user_role 行，避免循环单条 select。
+     * 入参 {@code userIds/targetIds/relationIds} 仅用于收窄候选集；调用方按三元组 in-memory 过滤。
+     * </p>
+     *
+     * @param tenantId    租户 ID
+     * @param userIds     候选用户 ID 集合
+     * @param targetIds   候选 targetId 集合
+     * @param relationIds 候选 relationId 集合
+     * @param targetType  target 类型常量
+     * @return 命中候选范围的用户角色列表
+     */
+    List<UserRole> selectValidByUserTargetRelation(@Param("tenantId") Long tenantId,
+                                                    @Param("userIds") Set<Long> userIds,
+                                                    @Param("targetIds") Set<Long> targetIds,
+                                                    @Param("relationIds") Set<Long> relationIds,
+                                                    @Param("targetType") String targetType);
 }

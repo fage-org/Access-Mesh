@@ -564,6 +564,8 @@
 }
 ```
 
+> full-sync 接口顶层字段同 sync；批量明细可选放入 `data.detail`，结构详见 §6.2.2.6。**禁止**为 full-sync 引入独立顶层响应类型（如已删除的 `FullSyncResultResp`）。
+
 #### 6.2.2.3 主体、角色、用户角色同步接口
 
 admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。
@@ -727,6 +729,7 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
     {
       "subjectTypeCode": "ADMIN_USER",
       "subjectExternalId": "10001",
+      "roleTypeCode": "POSITION",
       "roleExternalId": "3001",
       "relationKey": "ORG:2001",
       "validFrom": null,
@@ -742,12 +745,104 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 }
 ```
 
+> `items[].roleTypeCode` 为必填字段，且必须与 `scope.roleTypeCode` 严格相等；不一致时该 item 返回 `NON_RETRYABLE`（`reason=ROLE_TYPE_CODE_MISMATCH_WITH_SCOPE`），不进入 `markStatus` 路径。admin-service 必须按 binding 对应组织的 `orgType`（ORG/POSITION）拆分为多个 envelope，每个 envelope 内 item.roleTypeCode 与 scope.roleTypeCode 对齐。
+
 非资源实体 full-sync 规则：
 
 - `abstract-user/full-sync` 对比 `sync_metadata(entityKind=ABSTRACT_USER, sourceService, scopeKey)`。
 - `abstract-role/full-sync` 对比 `sync_metadata(entityKind=ABSTRACT_ROLE, sourceService, scopeKey)`；item 的父角色默认与 scope 中的 `roleTypeCode` 同类型，如需跨类型必须显式传 `parentRoleTypeCode`。
 - `user-role/full-sync` 对比 `sync_metadata(entityKind=USER_ROLE, sourceService, scopeKey)`；请求缺失的旧关系按 `UNBOUND` 处理，不删除正式功能角色分配。
 - 所有 full-sync 接口只清理命中 `sync_metadata` 的同步事实，不扫描删除人工维护或正式管理 API 创建的事实。
+
+#### 6.2.2.5 服务间内部调用认证（sync/full-sync 专用）
+
+admin-service 调度器通过 Feign 调用 permission-center 的 8 个 sync/full-sync 接口属于无 HTTP 上下文的服务间内部调用，不走前端会话与 Gateway 鉴权。请求必须同时携带以下三个 Header：
+
+| Header | 注入方 | 说明 |
+|--------|--------|------|
+| `X-Tenant-Id` | 调用方业务侧拦截器（如 admin-service `FeignTenantInterceptor`） | 调度端 `processOne` 按任务 `tenantId` 设置 `TenantContextHolder` 后由拦截器从 ThreadLocal 读取并注入 |
+| `X-Service-Code` | `perm-sdk` 的 `FeignInternalSyncInterceptor` | 默认值取自 `perm.service-code`（admin-service 固定 `admin-service`）；调用方已显式声明的值不被覆盖 |
+| `X-Internal-Secret` | `perm-sdk` 的 `FeignInternalSyncInterceptor` | 取自 `perm.internal-secret`，与 permission-center 端配置共享同一密钥 |
+
+permission-center 端拦截器执行顺序与决策语义（自 S5fix2 起）：
+
+| order | 拦截器 | 路径 | 决策语义 |
+|-------|--------|------|----------|
+| 1 | `InternalApiSecretInterceptor` | `/api/perm/**` | 校验 `X-Internal-Secret`，通过则在 request 写 `INTERNAL_AUTHENTICATED=true` attribute；失败直接 403 终止链。 |
+| 2 | `HeaderSignatureInterceptor` | `/api/**`, `/internal/**`, `/actuator/**` | 4 路径决策树（见下）。 |
+| 3 | `PermTenantInterceptor` | `/api/**`, `/internal/**`, `/actuator/**` | 提取并设置租户上下文。 |
+
+`HeaderSignatureInterceptor` 4 路径决策树：
+
+1. **路径 1（服务间内部调用）**：`request.getAttribute(INTERNAL_AUTHENTICATED) == true` → 直接放行。该 attribute 仅由 order=1 拦截器在密钥校验通过后写入，请求方无法伪造。
+2. **路径 2（完全匿名）**：`X-User-Id` 与 `X-Tenant-Id` 均缺失 → 放行（actuator 健康检查、未登录探活）。
+3. **路径 3（异常请求）**：仅有 `X-Tenant-Id` 而无 `X-User-Id`，且未通过路径 1（无 INTERNAL_AUTHENTICATED）→ 记录 `BLOCKED_REQUEST` 安全事件后 403。这是 P0 修复前调度 Feign 同步请求被误拒的场景，现在仅在 InternalApiSecret 未通过时才会触发。
+4. **路径 4（用户态调用）**：`X-User-Id` 存在 → 必须存在合法 `X-User-Signature` + `X-Signature-Timestamp`，按 HMAC-SHA256(`userId|tenantId|timestamp`) 校验；时间戳超过 `perm.signature.valid-seconds` 或签名错误均 403。
+
+**安全决策原则**：基于已验证的 attribute（仅前置拦截器可写）而非未验证的请求头。任何拦截器对外暴露的“信任决策”都不允许直接读未经验证的 `X-*` 请求头；这是 P0 防御 — 否则攻击方只需带 `X-Tenant-Id` 就能绕过 HMAC 校验，或者反之让合法 Feign 调用被误判为篡改。
+
+密钥管理：
+
+- 通过 `PERM_INTERNAL_SECRET` 环境变量注入；K8s 部署使用 Secret，本地开发使用 `.env` 或 Vault；密钥不进 git。
+- 密钥轮换通过双密钥窗口期实现：在过渡期允许新旧两个密钥同时通过校验，所有调用方滚动更新后再下线旧密钥。
+
+调用方契约：
+
+- **MUST NOT** 在 `SyncTaskFeignClient` 等内部调用 Feign 接口的方法签名声明 `@RequestHeader("X-Service-Code")` —— 由拦截器统一注入。
+- 调度器 `@Scheduled` 触发时无 HTTP 上下文，**MUST** 在 `processOne` 入口按任务 `tenantId` 设置 `TenantContextHolder`，并在 finally 中恢复或清理，避免线程池租户串味。
+- 仅当配置了 `perm.internal-secret` 时 `FeignInternalSyncInterceptor` 才生效；前端服务依赖 perm-sdk 但未配置该密钥时不会启动失败、也不会注入相关 Header。
+
+#### 6.2.2.6 FullSyncDetail 结构
+
+full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` 中返回批量明细。结构如下：
+
+```json
+{
+  "accepted": true,
+  "applied": true,
+  "stale": false,
+  "retryClass": null,
+  "reason": null,
+  "detail": {
+    "appliedCount": 3,
+    "staleCount": 0,
+    "failedCount": 0,
+    "deactivatedCount": 1,
+    "itemResults": [
+      { "businessKey": "subjectTypeCode=USER&subjectExternalId=u1", "applied": true,  "stale": false, "retryClass": null, "reason": null },
+      { "businessKey": "subjectTypeCode=USER&subjectExternalId=u2", "applied": false, "stale": false, "retryClass": "DEPENDENCY_MISSING", "reason": "PARENT_NOT_FOUND" }
+    ]
+  }
+}
+```
+
+字段：
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `appliedCount` | int | 成功 apply 的 item 数量 |
+| `staleCount` | int | 因 syncVersion 较旧而被钝化的 item 数量 |
+| `failedCount` | int | 因依赖/参数/权限失败的 item 数量 |
+| `deactivatedCount` | int | scope 内未出现而被自动 DELETE/UNBIND 的业务键数量 |
+| `itemResults[]` | array | 每个 item 的明细结果 |
+
+`itemResults[]` 元素：
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `businessKey` | string | 业务键（按 §6.2.2.4 编码） |
+| `applied` | boolean | 是否成功落库 |
+| `stale` | boolean | 是否因版本较旧被钝化 |
+| `retryClass` | string\|null | 失败/钝化分类（与 §6.2.2.2 同枚举） |
+| `reason` | string\|null | 可读原因 |
+
+顶层字段联动规则：
+
+- 全部成功：`accepted=true, applied=true, retryClass=null`，`detail.failedCount=0`。
+- 部分失败：`accepted=true, applied=false, retryClass=RETRYABLE, reason=FULL_SYNC_PARTIAL_FAILURE`，明细在 `detail.itemResults` 中按 item 给出原因。
+- 全局拒绝（身份/scope 不合法）：`accepted=false, applied=false, retryClass∈{SECURITY_DENIED,NON_RETRYABLE}`，并在 `detail.failedCount` 中记拒绝条数。
+
+> sync 接口固定 `data.detail = null`，调度器据顶层 retryClass/applied/stale 判定 outcome；full-sync 不引入额外顶层 DTO。
 
 #### 6.2.2.4 业务键与 scopeKey 规范
 

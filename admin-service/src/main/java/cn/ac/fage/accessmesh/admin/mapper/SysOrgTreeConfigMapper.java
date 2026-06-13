@@ -65,6 +65,18 @@ public interface SysOrgTreeConfigMapper extends BaseMapper<SysOrgTreeConfig> {
     List<SysOrgTreeConfig> selectDefaultConfigs(@Param("tenantId") Long tenantId);
 
     /**
+     * 查询当前租户下所有有效配置（租户隔离 + 未删除，不限 is_default）
+     * <p>
+     * 用于解析任意 orgId 所属组织树根：user-org 关系适用于任何已配置的树（不限默认树），
+     * 因此 root 解析需要遍历该租户全部 SysOrgTreeConfig.rootOrgId 集合。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 全部有效配置列表
+     */
+    List<SysOrgTreeConfig> selectAllValid(@Param("tenantId") Long tenantId);
+
+    /**
      * 清除当前租户下所有配置的默认标记（租户隔离 + 未删除 + is_default=true）
      *
      * @param tenantId   租户ID
