@@ -78,7 +78,7 @@ flowchart LR
 
 | 步骤 | 接口                                             | 关键入参                                              | 结果             |
 | ---- | ------------------------------------------------ | ----------------------------------------------------- | ---------------- |
-| 1    | `POST /api/perm/abstract-user/sync`              | `subjectTypeCode + externalId + name + version`       | 幂等同步用户     |
+| 1    | `POST /api/perm/abstract-user/sync`              | `subjectTypeCode + subjectExternalId + name + syncVersion` | 幂等同步用户 |
 | 2    | `POST /api/perm/abstract-role/create`            | `roleTypeCode + roleExternalId + name + domainCode`   | 创建可授权角色   |
 | 3    | `POST /api/perm/abstract-role/tree`              | `domainCode/roleTypeCode`                             | 查看角色层级     |
 | 4    | `POST /api/perm/user-role/assign`                | `subjectTypeCode + subjectExternalId + assignments[]` | 给用户分配角色   |
@@ -86,10 +86,11 @@ flowchart LR
 
 关键逻辑：
 
-- 用户同步以 `subjectTypeCode + externalId` 幂等定位。调用方全程使用业务键引用主体和资源，permission-center 内部解析为内部 ID，调用方无需回填或存储内部 ID。
-- 在 AccessMesh 管理端场景中，`sys_user` 至少需要同步为 `abstract_user(subjectTypeCode=ADMIN_USER, externalId=sys_user.id)`；同时同步为 `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)`，两类事实均使用业务键定位。
+- 用户同步以 `subjectTypeCode + subjectExternalId` 幂等定位。调用方全程使用业务键引用主体和资源，permission-center 内部解析为内部 ID，调用方无需回填或存储内部 ID。
+- 在 AccessMesh 管理端场景中，`sys_user` 至少需要同步为 `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`；同时通过 `POST /api/perm/resource-entity/sync` 同步为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。admin-service 应把 `sys_org` 同步为 `resource_entity(ADMIN_ORG)` 和 `abstract_role(ORG/POSITION)` 两类事实，均使用业务键定位，不回填内部 ID；维护 `user-org` 后，应根据组织默认角色和岗位映射规则调用 `user-role/assign`，把组织成员关系稳定落成 permission-center 的 `user_role` 事实。
+- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。admin-service 应把 `sys_org` 通过 `resource-entity/sync` 同步为 `resource_entity(ADMIN_ORG)`，并通过 `abstract-role/sync` 同步为 `abstract_role(ORG/POSITION)`，均使用业务键定位，不回填内部 ID；维护 `user-org` 后，应通过 `PERM_USER_ROLE_SYNC` / `POST /api/perm/user-role/sync` 把组织/岗位成员关系稳定落成 permission-center 的 `user_role` 事实。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
+- admin-service 的同步任务收敛为 4 类：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_USER_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`；具体 `UPSERT/DISABLE/BIND/UNBIND/DELETE` 放在 payload 的 `operation` 中。`role_resource_permission` 属于 permission-center 授权管理域，不进入 admin-service 同步任务。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。

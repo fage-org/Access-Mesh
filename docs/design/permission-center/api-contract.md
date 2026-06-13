@@ -120,7 +120,7 @@
 | `assign` | 分配用户角色关系                                 |
 | `revoke` | 回收用户角色或权限关系                           |
 | `grant`  | 权限授权，偏业务语义                             |
-| `sync`   | 外部系统全量同步                                 |
+| `sync`   | 外部系统幂等同步；全量语义必须在具体资源契约中限定范围 |
 | `check`  | 判定                                             |
 | `query`  | 运行时权限事实查询，返回可访问资源或范围权限集合 |
 | `detect` | 检测但不落库                                     |
@@ -150,12 +150,15 @@
 | `POST /api/perm/abstract-user/detail`             | 查询主体详情             |
 | `POST /api/perm/abstract-user/create`             | 创建主体，适合管理端     |
 | `POST /api/perm/abstract-user/sync`               | 幂等同步外部主体         |
+| `POST /api/perm/abstract-user/full-sync`          | 按 scope 全量校准外部主体 |
 | `POST /api/perm/abstract-user/update`             | 更新主体                 |
 | `POST /api/perm/abstract-user/remove`             | 删除主体，支持批量       |
 | `POST /api/perm/abstract-role/list`               | 查询角色列表             |
 | `POST /api/perm/abstract-role/tree`               | 查询角色树               |
 | `POST /api/perm/abstract-role/detail`             | 查询角色详情             |
 | `POST /api/perm/abstract-role/create`             | 创建角色                 |
+| `POST /api/perm/abstract-role/sync`               | 幂等同步外部角色         |
+| `POST /api/perm/abstract-role/full-sync`          | 按 scope 全量校准外部角色 |
 | `POST /api/perm/abstract-role/update`             | 更新角色                 |
 | `POST /api/perm/abstract-role/move`               | 移动角色树节点           |
 | `POST /api/perm/abstract-role/remove`             | 删除角色，支持批量       |
@@ -202,6 +205,8 @@
 | `POST /api/perm/resource-entity/update`       | 更新资源           |
 | `POST /api/perm/resource-entity/move`         | 移动资源树节点     |
 | `POST /api/perm/resource-entity/remove`       | 删除资源，支持批量 |
+| `POST /api/perm/resource-entity/sync`         | 资源实体专用幂等同步 |
+| `POST /api/perm/resource-entity/full-sync`    | 按 scope 全量校准资源 |
 
 ### 5.4 服务与接口映射
 
@@ -223,6 +228,8 @@
 | 接口                                                   | 说明                                           |
 | ------------------------------------------------------ | ---------------------------------------------- |
 | `POST /api/perm/user-role/list`                        | 查询用户角色关系                               |
+| `POST /api/perm/user-role/sync`                        | 幂等同步组织/岗位用户角色关系                   |
+| `POST /api/perm/user-role/full-sync`                   | 按 scope 全量校准组织/岗位用户角色关系           |
 | `POST /api/perm/user-role/assign`                      | 批量分配角色或分组                             |
 | `POST /api/perm/user-role/revoke`                      | 批量回收角色关系                               |
 | `POST /api/perm/user-role/batch-assign`                | 按角色视角批量分配多个用户                     |
@@ -425,6 +432,363 @@
 - 当 `req.permissionVersion == resp.permissionVersion` 时，服务端可返回 `notModified=true` 且 `allowedApis=[]`。
 - 当权限令牌变化时，服务端必须重新构建或读取新键下的快照，旧快照不能复用。
 - `scopeAll=true` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开 scopeAll 为逐条 API。实例级条目（`scopeAll=false`）仍按 `httpMethod + pathPattern` 精确匹配。
+
+### 6.2.2 资源实体专用同步
+
+`POST /api/perm/resource-entity/sync`
+
+用于外部事实源把业务对象幂等同步为 permission-center 的 `resource_entity`。该接口只处理资源实体，不是跨实体万能 replay 入口；不接受 `entityType + operationType + payload` 形式。
+
+> 服务间认证：现有文档仅定义内部 Feign 携带 `X-Service-Code`，尚未固化 Sa-Token 服务间认证、签名、nonce 和防重放契约。同步写接口实现前必须补充服务间认证设计；在该设计完成前，permission-center 不得只信任请求体 `sourceService`，至少必须校验可信 Header 中的服务身份与 `sourceService` 一致。
+
+请求：
+
+```json
+{
+  "operation": "UPSERT",
+  "resourceTypeCode": "ADMIN_ORG",
+  "resourceCode": "2001",
+  "codeType": "default",
+  "name": "研发部",
+  "parentResourceTypeCode": "ADMIN_ORG",
+  "parentResourceCode": "1000",
+  "path": null,
+  "status": 1,
+  "sortOrder": 10,
+  "extra": {
+    "orgType": "ORG",
+    "source": "admin-service"
+  },
+  "sourceService": "admin-service",
+  "sourceEntityType": "sys_org",
+  "sourceEntityId": "2001",
+  "syncVersion": {
+    "occurredAt": "2026-06-12T10:00:00.123",
+    "sequenceNo": 1024
+  }
+}
+```
+
+规则：
+
+- `operation` 首期固定为 `UPSERT`、`DISABLE` 或 `DELETE`；`UPSERT` 表示不存在则创建、存在则更新，`DISABLE` 表示幂等停用，`DELETE` 表示幂等软删除，不存在也视为成功。
+- 幂等业务键为 `businessKey=resourceTypeCode={resourceTypeCode}&resourceCode={resourceCode}&codeType={codeType}`，其中 `codeType` 默认 `default`；`tenantId/sourceService/entityKind` 由独立字段承载。
+- `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
+- 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发。
+- 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
+- admin-service 的 `PERM_RESOURCE_ENTITY_SYNC` 同步任务统一调用本接口；用户、角色、用户角色关系不走本接口。
+- admin-service 的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
+
+#### 6.2.2.1 资源实体分领域全量校准
+
+`POST /api/perm/resource-entity/full-sync`
+
+请求体必须携带强制 scope，permission-center 只在该 scope 对应的同步来源范围内做差异校准，禁止默认按租户全量清理。
+
+```json
+{
+  "scope": {
+    "sourceService": "admin-service",
+    "resourceTypeCode": "ADMIN_ORG"
+  },
+  "items": [
+    {
+      "resourceCode": "2001",
+      "codeType": "default",
+      "name": "研发部",
+      "parentResourceTypeCode": "ADMIN_ORG",
+      "parentResourceCode": "1000",
+      "parentCodeType": "default",
+      "status": 1,
+      "sortOrder": 10,
+      "extra": {
+        "orgType": "ORG"
+      },
+      "sourceEntityType": "sys_org",
+      "sourceEntityId": "2001",
+      "syncVersion": {
+        "occurredAt": "2026-06-12T10:00:00.123",
+        "sequenceNo": 1024
+      }
+    }
+  ]
+}
+```
+
+规则：
+
+- 单请求表示 `scope.sourceService` 字段与 `scopeKey=resourceTypeCode={resourceTypeCode}` 共同限定范围内的完整事实；`sourceService` 独立承载，不拼入 `scopeKey`。
+- full-sync item 的父资源默认与 scope 中的 `resourceTypeCode` 同类型、`codeType=default`；若不是默认值，必须显式传入 `parentResourceTypeCode` 和 `parentCodeType`。实现解析父节点时使用 `parentResourceTypeCode + parentResourceCode + parentCodeType`。
+- permission-center 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 作为 full-sync ownership 范围；请求中存在则 upsert 并更新 metadata，请求中缺失的 metadata 对应事实按删除语义软删除。`resource_entity.owner_service_code/maintain_source/sync_key` 不作为本接口的清理依据。
+- `resource-entity/full-sync` 与既有 `service-config/sync` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync`、`MANUAL` 或其他维护来源创建的事实。
+- 全量接口仍必须执行 source 白名单校验和旧版本 no-op 规则。
+- 组织资源等有树依赖的数据应按足够小的 scope 调用，避免单请求过大。
+
+#### 6.2.2.2 同步接口通用响应与错误分类
+
+所有 sync/full-sync 接口成功时仍使用统一响应壳。同步语义结果放在 `data` 中：
+
+```json
+{
+  "accepted": true,
+  "applied": true,
+  "stale": false,
+  "retryClass": null,
+  "reason": null
+}
+```
+
+失败时 `code != 200`，并在 `data.retryClass` 中显式返回调度分类：
+
+```json
+{
+  "accepted": false,
+  "applied": false,
+  "stale": false,
+  "retryClass": "DEPENDENCY_MISSING",
+  "reason": "PARENT_RESOURCE_NOT_FOUND"
+}
+```
+
+`retryClass` 固定枚举：`RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`、`STALE_VERSION`。其中 `STALE_VERSION` 必须使用成功响应，表示请求已接受但未覆盖更新版本。
+
+旧版本 no-op 必须返回成功响应壳，调度器据 `stale=true` 直接把任务置为 `SUCCESS`，不得重试：
+
+```json
+{
+  "accepted": true,
+  "applied": false,
+  "stale": true,
+  "retryClass": "STALE_VERSION",
+  "reason": "SYNC_VERSION_STALE"
+}
+```
+
+#### 6.2.2.3 主体、角色、用户角色同步接口
+
+admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。
+
+| 接口 | syncAction | scopeKey / businessKey |
+|------|------------|----------------|
+| `POST /api/perm/abstract-user/sync` | `PERM_ABSTRACT_USER_SYNC` | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}` |
+| `POST /api/perm/abstract-user/full-sync` | 全量主体校准 | scopeKey：`subjectTypeCode={subjectTypeCode}` |
+| `POST /api/perm/abstract-role/sync` | `PERM_ABSTRACT_ROLE_SYNC` | businessKey：`roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}` |
+| `POST /api/perm/abstract-role/full-sync` | 全量角色校准 | scopeKey：`roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| `POST /api/perm/user-role/sync` | `PERM_USER_ROLE_SYNC` | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}&roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}&relationKey={relationKey}` |
+| `POST /api/perm/user-role/full-sync` | 全量组织/岗位成员校准 | scopeKey：`sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+
+约束：
+
+- `PERM_USER_ROLE_SYNC` 仅允许 `sourceType=SYS_USER_ORG` 且 `roleTypeCode in (ORG, POSITION)`；BASIC_ROLE/GROUP_ROLE/PERSONAL 等功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+- `PERM_USER_ROLE_SYNC` 的 `relationKey` 使用所属组织角色业务键，固定格式为 `ORG:{orgExternalId}`。写入 `businessKey` 时必须按 §6.2.2.4 编码为 `relationKey=ORG%3A{orgExternalId}`。permission-center 通过 `roleTypeCode=ORG + roleExternalId=orgExternalId` 解析为所属组织 `abstract_role.id`，写入 `user_role.relation_id`。`relation_id` 因此表示关联组织角色 ID，不表示 `ADMIN_ORG resource_entity.id`，也不对外暴露为 API 入参。
+- 单次 sync 接口的 `operation` 使用混合严格语义：禁用为 `DISABLE`，删除为 `DELETE`，成员移除为 `UNBIND`。
+- full-sync 接口均为单请求全量校准接口，必须携带强制 scope，只在 scope 内补齐缺失并清理多余同步事实。
+- 所有 sync/full-sync 接口的调度分类以 §6.2.2.2 为准；错误响应返回 `RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`，旧版本 no-op 使用成功响应并返回 `STALE_VERSION`。
+
+主体同步请求：
+
+```json
+{
+  "operation": "UPSERT",
+  "subjectTypeCode": "ADMIN_USER",
+  "subjectExternalId": "10001",
+  "name": "张三",
+  "enabled": true,
+  "extra": {
+    "username": "zhangsan"
+  },
+  "sourceService": "admin-service",
+  "sourceEntityType": "sys_user",
+  "sourceEntityId": "10001",
+  "syncVersion": {
+    "occurredAt": "2026-06-12T10:00:00.123",
+    "sequenceNo": 1024
+  }
+}
+```
+
+主体全量校准请求：
+
+```json
+{
+  "scope": {
+    "sourceService": "admin-service",
+    "subjectTypeCode": "ADMIN_USER"
+  },
+  "items": [
+    {
+      "subjectExternalId": "10001",
+      "name": "张三",
+      "enabled": true,
+      "extra": {
+        "username": "zhangsan"
+      },
+      "sourceEntityType": "sys_user",
+      "sourceEntityId": "10001",
+      "syncVersion": {
+        "occurredAt": "2026-06-12T10:00:00.123",
+        "sequenceNo": 1024
+      }
+    }
+  ]
+}
+```
+
+角色同步请求：
+
+```json
+{
+  "operation": "UPSERT",
+  "roleTypeCode": "ORG",
+  "roleExternalId": "2001",
+  "name": "研发部",
+  "parentRoleTypeCode": "ORG",
+  "parentRoleExternalId": "1000",
+  "treeRootExternalId": "1",
+  "status": 1,
+  "sortOrder": 10,
+  "extra": {
+    "orgType": "ORG"
+  },
+  "sourceService": "admin-service",
+  "sourceEntityType": "sys_org",
+  "sourceEntityId": "2001",
+  "syncVersion": {
+    "occurredAt": "2026-06-12T10:00:00.123",
+    "sequenceNo": 1024
+  }
+}
+```
+
+角色全量校准请求：
+
+```json
+{
+  "scope": {
+    "sourceService": "admin-service",
+    "roleTypeCode": "ORG",
+    "treeRootExternalId": "1"
+  },
+  "items": [
+    {
+      "roleExternalId": "2001",
+      "name": "研发部",
+      "parentRoleExternalId": "1000",
+      "status": 1,
+      "sortOrder": 10,
+      "extra": {
+        "orgType": "ORG"
+      },
+      "sourceEntityType": "sys_org",
+      "sourceEntityId": "2001",
+      "syncVersion": {
+        "occurredAt": "2026-06-12T10:00:00.123",
+        "sequenceNo": 1024
+      }
+    }
+  ]
+}
+```
+
+用户角色同步请求：
+
+```json
+{
+  "operation": "BIND",
+  "sourceType": "SYS_USER_ORG",
+  "subjectTypeCode": "ADMIN_USER",
+  "subjectExternalId": "10001",
+  "roleTypeCode": "POSITION",
+  "roleExternalId": "3001",
+  "relationKey": "ORG:2001",
+  "validFrom": null,
+  "validTo": null,
+  "sourceService": "admin-service",
+  "sourceEntityType": "sys_user_org",
+  "sourceEntityId": "10001:3001",
+  "syncVersion": {
+    "occurredAt": "2026-06-12T10:00:00.123",
+    "sequenceNo": 1024
+  }
+}
+```
+
+用户角色全量校准请求：
+
+```json
+{
+  "scope": {
+    "sourceService": "admin-service",
+    "sourceType": "SYS_USER_ORG",
+    "roleTypeCode": "POSITION",
+    "treeRootExternalId": "1"
+  },
+  "items": [
+    {
+      "subjectTypeCode": "ADMIN_USER",
+      "subjectExternalId": "10001",
+      "roleExternalId": "3001",
+      "relationKey": "ORG:2001",
+      "validFrom": null,
+      "validTo": null,
+      "sourceEntityType": "sys_user_org",
+      "sourceEntityId": "10001:3001",
+      "syncVersion": {
+        "occurredAt": "2026-06-12T10:00:00.123",
+        "sequenceNo": 1024
+      }
+    }
+  ]
+}
+```
+
+非资源实体 full-sync 规则：
+
+- `abstract-user/full-sync` 对比 `sync_metadata(entityKind=ABSTRACT_USER, sourceService, scopeKey)`。
+- `abstract-role/full-sync` 对比 `sync_metadata(entityKind=ABSTRACT_ROLE, sourceService, scopeKey)`；item 的父角色默认与 scope 中的 `roleTypeCode` 同类型，如需跨类型必须显式传 `parentRoleTypeCode`。
+- `user-role/full-sync` 对比 `sync_metadata(entityKind=USER_ROLE, sourceService, scopeKey)`；请求缺失的旧关系按 `UNBOUND` 处理，不删除正式功能角色分配。
+- 所有 full-sync 接口只清理命中 `sync_metadata` 的同步事实，不扫描删除人工维护或正式管理 API 创建的事实。
+
+#### 6.2.2.4 业务键与 scopeKey 规范
+
+所有同步任务、`sync_metadata` 和 full-sync 差异校准必须使用同一套规范化 key，禁止各模块自行拼接 `:`、`;` 等自由格式。
+
+通用规则：
+
+- `businessKey` 和 `scopeKey` 均使用 `key=value&key=value` 的有序参数串。
+- 参数名使用 camelCase，顺序由本节样例固定；缺省字段不得省略，除非样例未包含该字段。
+- 参数值使用 URL percent-encoding；因此 `relationKey=ORG:2001` 必须写为 `relationKey=ORG%3A2001`。
+- key 字符串不包含 `tenantId`、`sourceService`、`entityKind`，这些维度由表字段或请求 scope 单独承载。
+- `sync_metadata.sync_key` 使用 `sourceService|entityKind|businessKey`，仅用于来源内稳定定位，不参与对外 API 契约。
+- 关系库中必须同时保存 key 原文和 SHA-256 lowercase hex。原文用于排查，唯一约束与高频查询使用 hash 字段，避免长外部 ID 导致索引超长。
+
+`businessKey` 固定格式：
+
+| entityKind | businessKey |
+| ---------- | ----------- |
+| `ABSTRACT_USER` | `subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}` |
+| `ABSTRACT_ROLE` | `roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}` |
+| `RESOURCE_ENTITY` | `resourceTypeCode={resourceTypeCode}&resourceCode={resourceCode}&codeType={codeType}` |
+| `USER_ROLE` | `subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}&roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}&relationKey={relationKey}` |
+
+`scopeKey` 固定格式：
+
+| full-sync 接口 | scopeKey |
+| -------------- | -------- |
+| `abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
+| `abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| `resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
+| `user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+
+`targetStatus` 固定映射：
+
+| entityKind | operation | targetStatus |
+| ---------- | --------- | ------------ |
+| `ABSTRACT_USER` / `ABSTRACT_ROLE` / `RESOURCE_ENTITY` | `UPSERT` | `ACTIVE` |
+| `ABSTRACT_USER` / `ABSTRACT_ROLE` / `RESOURCE_ENTITY` | `DISABLE` | `DISABLED` |
+| `ABSTRACT_USER` / `ABSTRACT_ROLE` / `RESOURCE_ENTITY` | `DELETE` | `DELETED` |
+| `USER_ROLE` | `BIND` | `ACTIVE` |
+| `USER_ROLE` | `UNBIND` | `UNBOUND` |
 
 ### 6.3 服务接口全量同步
 

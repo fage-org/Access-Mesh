@@ -10,6 +10,7 @@ docs/
 │   ├── project-rules.md               # 项目工程规范
 │   ├── architecture.md                # 微服务整体架构
 │   ├── default-org-tree-user-lifecycle.md # 默认组织树与用户生命周期
+│   ├── sync-module-execution-plan.md      # 同步模块执行计划
 │   ├── permission-center/             # 权限中心设计
 │   │   ├── overview.md                # 概念模型
 │   │   ├── api-contract.md            # API契约
@@ -42,6 +43,7 @@ docs/
 | 权限中心实现设计     | [design/permission-center/implementation.md](design/permission-center/implementation.md)                                             |
 | 项目诊断与完善计划   | [design/improvement-plan.md](design/improvement-plan.md)                                                                              |
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
+| 同步模块执行计划     | [design/sync-module-execution-plan.md](design/sync-module-execution-plan.md)                                                          |
 | PostgreSQL 表结构    | [design/schema/](design/schema/)                                                                                                     |
 | Service 层重构审查   | [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)                                             |
 | 前端集成方案         | [archive/2026-05-30/frontend-integration.md](archive/2026-05-30/frontend-integration.md)                                             |
@@ -54,7 +56,8 @@ docs/
 3. 开发权限中心前，按顺序读 [design/permission-center/overview.md](design/permission-center/overview.md)、[design/permission-center/api-contract.md](design/permission-center/api-contract.md)、[design/permission-center/core-flows.md](design/permission-center/core-flows.md)、[design/permission-center/implementation.md](design/permission-center/implementation.md)。了解重构历史可读 [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)。
 4. 开发具体服务时，读取 [design/services/](design/services/) 下对应服务设计。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)。
-6. 涉及表字段、索引、约束时，以 [design/schema/](design/schema/) 下 SQL 为准。
+6. 实施 admin-service 与 permission-center 同步模块时，读取 [design/sync-module-execution-plan.md](design/sync-module-execution-plan.md)。
+7. 涉及表字段、索引、约束时，以 [design/schema/](design/schema/) 下 SQL 为准。
 
 ## 文档治理规范
 

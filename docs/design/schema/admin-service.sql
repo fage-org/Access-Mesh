@@ -228,7 +228,6 @@ CREATE TABLE sys_menu (
     is_cache         BOOLEAN NOT NULL DEFAULT false,
     status           SMALLINT NOT NULL DEFAULT 1,
     extra            JSONB DEFAULT '{}',
-    perm_resource_id BIGINT,
     created_by       BIGINT,
     updated_by       BIGINT,
     deleted_by       BIGINT,
@@ -251,7 +250,6 @@ COMMENT ON COLUMN sys_menu.is_external IS '是否外链（新窗口打开）';
 COMMENT ON COLUMN sys_menu.is_frame IS '是否 iframe 嵌入（门户归集外部系统页面）';
 COMMENT ON COLUMN sys_menu.is_cache IS '是否缓存（keep-alive）';
 COMMENT ON COLUMN sys_menu.extra IS '路由元信息（query 参数等）';
-COMMENT ON COLUMN sys_menu.perm_resource_id IS '权限中心 resource_entity.id（同步后回填）';
 COMMENT ON COLUMN sys_menu.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- -----------------------------------------------------------------------------
@@ -511,46 +509,67 @@ COMMENT ON COLUMN sys_config.is_system IS '是否系统内置（不可删除）'
 COMMENT ON COLUMN sys_config.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- -----------------------------------------------------------------------------
--- 18. sys_sync_retry - 同步重试队列（本地消息表）
+-- 18. sys_sync_task - 同步任务表（本地消息表）
 -- -----------------------------------------------------------------------------
-CREATE TABLE sys_sync_retry (
-    id              BIGSERIAL PRIMARY KEY,
-    tenant_id       BIGINT NOT NULL,
-    message_key     VARCHAR(128) NOT NULL,
-    target_service  VARCHAR(64) NOT NULL,
-    entity_type     VARCHAR(64) NOT NULL,
-    external_id     VARCHAR(256) NOT NULL,
-    operation_type  VARCHAR(32) NOT NULL,
-    payload         JSONB NOT NULL DEFAULT '{}',
-    retry_count     INT NOT NULL DEFAULT 0,
-    max_retries     INT NOT NULL DEFAULT 3,
-    next_retry_at   TIMESTAMPTZ,
-    last_error      VARCHAR(1024),
-    status          VARCHAR(32) NOT NULL DEFAULT 'PENDING',
-    created_by      BIGINT,
-    updated_by      BIGINT,
-    deleted_by      BIGINT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at      TIMESTAMPTZ,
-    delete_flag     BIGINT NOT NULL DEFAULT 0
+CREATE TABLE sys_sync_task (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             BIGINT NOT NULL,
+    message_key           VARCHAR(192) NOT NULL,
+    sync_action           VARCHAR(64) NOT NULL,
+    business_key          TEXT NOT NULL,
+    business_key_hash     CHAR(64) NOT NULL,
+    batch_key             TEXT,
+    batch_key_hash        CHAR(64),
+    target_service        VARCHAR(64) NOT NULL DEFAULT 'permission-center',
+    payload               JSONB NOT NULL DEFAULT '{}',
+    payload_version       INT NOT NULL DEFAULT 1,
+    display_attrs         JSONB NOT NULL DEFAULT '{}',
+    sync_occurred_at      TIMESTAMPTZ NOT NULL,
+    sync_sequence_no      BIGINT NOT NULL,
+    phase                 VARCHAR(64),
+    retry_count           INT NOT NULL DEFAULT 0,
+    max_retries           INT NOT NULL DEFAULT 5,
+    next_retry_at         TIMESTAMPTZ,
+    locked_at             TIMESTAMPTZ,
+    locked_by             VARCHAR(128),
+    last_error            VARCHAR(1024),
+    status                VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    created_by            BIGINT,
+    updated_by            BIGINT,
+    deleted_by            BIGINT,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at            TIMESTAMPTZ,
+    delete_flag           BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_sync_retry_status ON sys_sync_retry (status, next_retry_at) WHERE delete_flag = 0;
-CREATE INDEX idx_sync_retry_message_key ON sys_sync_retry (message_key) WHERE delete_flag = 0;
-CREATE INDEX idx_sync_retry_external_id ON sys_sync_retry (entity_type, external_id) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_sync_task_message_key ON sys_sync_task (tenant_id, message_key) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_sync_task_pending_business ON sys_sync_task (tenant_id, sync_action, business_key_hash) WHERE status = 'PENDING' AND delete_flag = 0;
+CREATE INDEX idx_sync_task_due ON sys_sync_task (tenant_id, status, phase, next_retry_at) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_task_business_key ON sys_sync_task (tenant_id, sync_action, business_key_hash) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_task_batch_phase ON sys_sync_task (tenant_id, batch_key_hash, phase, status) WHERE delete_flag = 0 AND batch_key_hash IS NOT NULL;
 
-COMMENT ON TABLE sys_sync_retry IS '同步重试队列（本地消息表），保障与权限中心数据一致性';
-COMMENT ON COLUMN sys_sync_retry.message_key IS '消息唯一标识，防重复投递';
-COMMENT ON COLUMN sys_sync_retry.target_service IS '目标服务（如 permission-center）';
-COMMENT ON COLUMN sys_sync_retry.entity_type IS '实体类型（user/org/menu/role）';
-COMMENT ON COLUMN sys_sync_retry.external_id IS '外部系统实体ID（如 sys_user.id）';
-COMMENT ON COLUMN sys_sync_retry.operation_type IS '操作类型（create/update/delete）';
-COMMENT ON COLUMN sys_sync_retry.payload IS '同步请求参数快照';
-COMMENT ON COLUMN sys_sync_retry.retry_count IS '已重试次数';
-COMMENT ON COLUMN sys_sync_retry.next_retry_at IS '下次重试时间（退避策略计算）';
-COMMENT ON COLUMN sys_sync_retry.last_error IS '最后一次失败原因';
-COMMENT ON COLUMN sys_sync_retry.status IS '状态：PENDING/RETRYING/SUCCESS/FAILED/MAX_RETRIES_EXCEEDED';
+COMMENT ON TABLE sys_sync_task IS '同步任务表（本地消息表），保障与权限中心数据一致性；主业务事务内写任务，事务外重放';
+COMMENT ON COLUMN sys_sync_task.message_key IS '事件唯一键，每次业务变更唯一；合并 PENDING 任务时覆盖为最新事件 key，旧事件 key 不再保留';
+COMMENT ON COLUMN sys_sync_task.sync_action IS '同步动作：PERM_ABSTRACT_USER_SYNC/PERM_ABSTRACT_ROLE_SYNC/PERM_USER_ROLE_SYNC/PERM_RESOURCE_ENTITY_SYNC';
+COMMENT ON COLUMN sys_sync_task.business_key IS '同步业务键原文，采用 api-contract §6.2.2.4 的规范化 businessKey；用于排查，不直接参与唯一索引';
+COMMENT ON COLUMN sys_sync_task.business_key_hash IS 'business_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
+COMMENT ON COLUMN sys_sync_task.batch_key IS '全量校准批次键原文；单次实时同步为空。全量任务同一批次共享同一 batch_key';
+COMMENT ON COLUMN sys_sync_task.batch_key_hash IS 'batch_key 的 SHA-256 lowercase hex，用于同批次 phase 推进查询';
+COMMENT ON COLUMN sys_sync_task.target_service IS '目标服务（如 permission-center）';
+COMMENT ON COLUMN sys_sync_task.payload IS '同步请求参数快照，必须匹配 sync_action 对应的强类型 DTO';
+COMMENT ON COLUMN sys_sync_task.payload_version IS 'payload 契约版本；handler 遇到高于自身支持上限的版本必须拒绝并置为不可重试失败';
+COMMENT ON COLUMN sys_sync_task.display_attrs IS '仅供 UI/审计展示的冗余信息，如 entityType/externalId/operationType；严禁用于执行路由或业务判断';
+COMMENT ON COLUMN sys_sync_task.sync_occurred_at IS '源事件发生时间，参与 syncVersion 乱序判断';
+COMMENT ON COLUMN sys_sync_task.sync_sequence_no IS '源事件序号，和 sync_occurred_at 共同构成 syncVersion';
+COMMENT ON COLUMN sys_sync_task.phase IS '执行阶段枚举：USER_SUBJECT/USER_RESOURCE/ORG_RESOURCE/ORG_ROLE/USER_ROLE/MENU_RESOURCE/OTHER_RESOURCE；阶段推进规则见 admin-service.md';
+COMMENT ON COLUMN sys_sync_task.retry_count IS '已重试次数';
+COMMENT ON COLUMN sys_sync_task.max_retries IS '最大自动重试次数';
+COMMENT ON COLUMN sys_sync_task.next_retry_at IS '下次重试时间（退避策略计算）';
+COMMENT ON COLUMN sys_sync_task.locked_at IS '任务认领时间，用于多实例调度防重复执行';
+COMMENT ON COLUMN sys_sync_task.locked_by IS '任务认领节点标识';
+COMMENT ON COLUMN sys_sync_task.last_error IS '最后一次失败原因；首期不建 attempt 明细表';
+COMMENT ON COLUMN sys_sync_task.status IS '状态：PENDING/PROCESSING/SUCCESS/FAILED';
 
 -- 预置配置项
 INSERT INTO sys_config (tenant_id, config_key, config_value, config_name, is_system, created_by, created_at, updated_at)

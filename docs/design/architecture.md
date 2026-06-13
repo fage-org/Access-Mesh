@@ -21,7 +21,7 @@
 | -------- | ---------------------------------- | ------------------------------------ |
 | 注册中心 | Nacos                              | 服务发现 + 配置管理一体              |
 | 配置中心 | Nacos                              | 与注册中心复用                       |
-| 消息队列 | RocketMQ                           | 用户同步、权限变更通知等异步事件     |
+| 消息队列 | RocketMQ                           | 预留给未来异步事件；当前用户/权限同步采用 API + 本地同步任务表 |
 | 缓存     | Redis                              | L2 缓存、Sa-Token 会话存储、分布式锁 |
 | 对象存储 | S3 兼容（MinIO / 阿里云 OSS）      | 文件上传下载                         |
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
@@ -314,7 +314,7 @@ admin-service                        permission-center
 
 组织同步有两条并行语义，均使用业务键定位，不回填内部 ID：
 
-1. **组织作为可管理资源**：同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)`，用于 `ADMIN_ORG:{orgId}` 实例级权限校验和 `auth/query-resources` 查询可管理组织。
+1. **组织作为可管理资源**：同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`，用于 `ADMIN_ORG:{orgId}` 实例级权限校验和 `auth/query-resources` 查询可管理组织。
 2. **组织作为角色容器**：按 `orgType` 同步为权限中心的 `abstract_role`。
    - 普通组织 → `role_type=ORG`
    - 岗位 → `role_type=POSITION`

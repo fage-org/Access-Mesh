@@ -16,6 +16,7 @@
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 组织与用户·实现计划    | [org-user-page-impl-plan.md](org-user-page-impl-plan.md)                               |
+| 同步模块执行计划        | [sync-module-execution-plan.md](sync-module-execution-plan.md)                         |
 | API 核对清单            | [api-gap-analysis.md](api-gap-analysis.md)                                             |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
 
@@ -26,7 +27,8 @@
 3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)，再读 [org-user-permission-contract.md](org-user-permission-contract.md)。
-6. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
+6. 实施 admin-service 与 permission-center 同步模块时，读取 [sync-module-execution-plan.md](sync-module-execution-plan.md)。
+7. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
 
 ## 目录说明
 

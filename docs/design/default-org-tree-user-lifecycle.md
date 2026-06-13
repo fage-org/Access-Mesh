@@ -84,10 +84,10 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 | admin-service 对象 | permission-center 事实 | 用途 |
 |--------------------|------------------------|------|
-| `sys_user` | `abstract_user(subjectTypeCode=ADMIN_USER, externalId=sys_user.id)` | 作为权限主体参与鉴权。 |
-| `sys_user` | `resource_entity(resourceTypeCode=ADMIN_USER, code=sys_user.id)` | 作为被管理资源支持实例级用户管理权限。 |
-| `sys_org` | `resource_entity(resourceTypeCode=ADMIN_ORG, code=sys_org.id)` | 作为可管理组织资源支持组织实例权限。 |
-| `sys_org` | `abstract_role(roleTypeCode=ORG/POSITION, externalId=sys_org.id)` | 作为组织/岗位角色容器参与授权主链。 |
+| `sys_user` | `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)` | 作为权限主体参与鉴权。 |
+| `sys_user` | `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)` | 作为被管理资源支持实例级用户管理权限。 |
+| `sys_org` | `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)` | 作为可管理组织资源支持组织实例权限。 |
+| `sys_org` | `abstract_role(roleTypeCode=ORG/POSITION, roleExternalId=sys_org.id)` | 作为组织/岗位角色容器参与授权主链。 |
 | `sys_user_org` | `user_role(abstract_user -> abstract_role)` | 把组织成员关系落成权限计算事实。 |
 
 关键区分：
@@ -99,7 +99,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 这些概念不能混用。
 
-**admin-service 不存储 permission-center 的任何内部主键 ID。** 所有跨服务操作统一使用业务键定位：`abstract_user` 用 `subjectTypeCode + externalId`，`resource_entity` 用 `resourceTypeCode + resourceCode`，`abstract_role` 用 `roleTypeCode + externalId`。permission-center 内部通过 `TypeResolutionService` 解析业务键到内部 ID，已有 L1 Cache → L2 Redis → DB 三级缓存。
+**admin-service 不存储 permission-center 的任何内部主键 ID。** 所有跨服务操作统一使用业务键定位：`abstract_user` 用 `subjectTypeCode + subjectExternalId`，`resource_entity` 用 `resourceTypeCode + resourceCode`，`abstract_role` 用 `roleTypeCode + roleExternalId`。permission-center 内部通过 `TypeResolutionService` 解析业务键到内部 ID，已有 L1 Cache → L2 Redis → DB 三级缓存。
 
 ---
 
@@ -109,7 +109,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 用户同步必须覆盖两个事实，均使用业务键定位，不回填内部 ID：
 
-1. `sys_user -> abstract_user(subjectTypeCode=ADMIN_USER, externalId=sys_user.id)`
+1. `sys_user -> abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`
    - `enabled` 跟随 `sys_user.status`
 
 2. `sys_user -> resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`
@@ -128,9 +128,9 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
    - `extra` 建议包含 `orgType`、`treeConfigId`、`rootOrgId`、`isDefaultTree`、`level`、`leaderId`
 
 2. 组织作为角色容器：
-   - 普通组织 → `abstract_role(roleTypeCode=ORG, externalId=sys_org.id)`
-   - 岗位 → `abstract_role(roleTypeCode=POSITION, externalId=sys_org.id)`
-   - 父节点通过 `roleTypeCode + externalId` 定位
+   - 普通组织 → `abstract_role(roleTypeCode=ORG, roleExternalId=sys_org.id)`
+   - 岗位 → `abstract_role(roleTypeCode=POSITION, roleExternalId=sys_org.id)`
+   - 父节点通过 `roleTypeCode + roleExternalId` 定位
 
 实现上不再需要在 `sys_org` 表分别存储资源 ID 和角色 ID。
 
@@ -140,10 +140,55 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 - 新增关系：通过业务键定位 `abstract_user` 和 `abstract_role`，写入 `user_role`。
 - 删除关系：回收对应 `user_role`。
-- 岗位关系如需表达所属组织上下文，可使用 `user_role.relation_id` 记录关联组织。
+- 岗位关系如需表达所属组织上下文，使用业务关系键表达，不对外暴露 permission-center 内部 ID。
 - 分配/回收后必须失效用户有效角色缓存。
 
+`PERM_USER_ROLE_SYNC` 仅用于 `sys_user_org` 派生的组织/岗位关系，payload 必须满足 `sourceType=SYS_USER_ORG` 且 `roleTypeCode in (ORG, POSITION)`。功能角色分配（BASIC_ROLE/GROUP_ROLE/PERSONAL）不进入同步任务，必须走 permission-center 正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+
 非默认组织树的成员关系变更不得触发用户禁用、删除或 `abstract_user` 删除。
+
+### 5.4 同步任务与重发
+
+admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入 `sys_user`、`sys_org`、`sys_user_org` 等事实表和对应同步任务，事务外由调度器重放任务；不得在主业务事务内直接发起 Feign 同步。
+
+同步任务只保留 4 类领域级 `syncAction`，具体动作放入 payload 的 `operation`：
+
+| syncAction | payload.operation | 同步含义 |
+|------------|-------------------|----------|
+| `PERM_ABSTRACT_USER_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user -> abstract_user` |
+| `PERM_ABSTRACT_ROLE_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_org -> abstract_role(ORG/POSITION)` |
+| `PERM_USER_ROLE_SYNC` | `BIND` / `UNBIND` | `sys_user_org -> user_role` |
+| `PERM_RESOURCE_ENTITY_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user/sys_org/sys_menu -> resource_entity` |
+
+`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口 `/api/sync/{operation}`。
+
+`resource_entity` 同步走 permission-center 的专用幂等入口 `POST /api/perm/resource-entity/sync`，不提供跨实体的万能 replay 入口。`role_resource_permission` 属于 permission-center 授权管理域，不纳入 admin-service 同步任务。
+
+### 5.5 全量校准同步
+
+全量同步用于修复单次任务漏发、重试耗尽、权限中心数据误删或多余同步事实残留，不替代单次同步。全量同步采用 permission-center 分领域校准接口：admin-service 按强制 scope 上报该范围内完整事实，permission-center 在同一 source/scope 下对比自身同步事实，补齐缺失并清理多余数据。全量校准可以生成或执行 `UPSERT/BIND/DISABLE/DELETE/UNBIND`。
+
+全量校准采用单请求全量接口，不做 begin/upload/commit 批次协议；因此 scope 必须足够小且明确，禁止默认按全租户清理。建议 scope：
+
+| 领域 | 接口 | scope 示例 |
+|------|------|------------|
+| 主体 | `POST /api/perm/abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
+| 角色 | `POST /api/perm/abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| 资源实体 | `POST /api/perm/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
+
+admin-service 发起全量校准时必须按依赖顺序编排：
+
+1. `abstract_user/full-sync`：同步有效用户主体。
+2. `resource-entity/full-sync(resourceTypeCode=ADMIN_USER)`：同步用户管理资源。
+3. `resource-entity/full-sync(resourceTypeCode=ADMIN_ORG)`：同步组织/岗位管理资源，按 permission-center 内部规则处理父子关系。
+4. `abstract-role/full-sync(roleTypeCode=ORG/POSITION)`：同步组织/岗位角色容器。
+5. `user-role/full-sync(sourceType=SYS_USER_ORG)`：同步组织/岗位成员关系。
+6. 菜单、按钮等资源按资源类型调用 `resource-entity/full-sync`。
+
+单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` 任务；全量校准是最终一致性兜底，不是跳过单次任务的理由。
+
+`businessKey` 与 `scopeKey` 编码格式统一以 `permission-center/api-contract.md` §6.2.2.4 为准；本文档只描述领域顺序，不维护另一套拼接规则。
 
 ---
 
@@ -184,7 +229,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 |--------|--------|
 | P0 | 修正 `user-org/assign` 的跨树全量删除语义，避免破坏默认组织树归属。 |
 | P0 | 补齐 permission-center 鉴权与写入接口的业务键重载，使 admin-service 无需存储内部 ID。 |
-| P0 | 补齐 permission-center 创建接口的父节点业务键解析能力：`resource_entity` 和 `abstract_role` 创建时接受父节点业务键（`resourceTypeCode+resourceCode` / `roleTypeCode+externalId`），内部解析为 parentId。 |
+| P0 | 补齐 permission-center 创建接口的父节点业务键解析能力：`resource_entity` 和 `abstract_role` 创建时接受父节点业务键（`resourceTypeCode+resourceCode` / `roleTypeCode+roleExternalId`），内部解析为 parentId。 |
 | P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(ADMIN_USER)`，使用业务键定位。 |
 | P0 | 补齐 `sys_org -> resource_entity(ADMIN_ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
 | P0 | 删除 `sys_user.perm_user_id`、`sys_org.perm_role_id` 字段及所有引用，改为业务键调用。 |
@@ -192,7 +237,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
-| P1 | 同步重试 payload 与 permission-center Feign/API 契约对齐。 |
+| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口 `/api/sync/{operation}`；补齐单次任务、失败重发和分领域全量校准同步。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 
 ---

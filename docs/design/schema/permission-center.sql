@@ -1,5 +1,5 @@
 -- =============================================================================
--- 通用权限中心 - PostgreSQL 表结构（18 张表）
+-- 通用权限中心 - PostgreSQL 表结构（19 张表）
 -- 无外键，逻辑关联由应用保证
 -- 执行顺序按依赖关系，建议按序号依次执行
 -- =============================================================================
@@ -116,7 +116,7 @@ COMMENT ON COLUMN abstract_user.delete_flag IS '逻辑删除：0=未删除，删
 -- 4. 抽象角色表（树形结构，通过 parent_id 支持层级）
 --    角色类型说明：
 --      ORG(1) 组织：树形，同步自 sys_org
---      POSITION(2) 职位：平铺（不可有子级），分配给用户时 user_role.relation_id 记录所属组织
+--      POSITION(2) 职位：平铺（不可有子级），分配给用户时 user_role.relation_id 记录所属组织 abstract_role.id
 --      PERSONAL(3) 个人：平铺，每用户1个，独立
 --      GROUP_ROLE(5) 分组角色：树形，不直接配置权限，通过 extra.basicRoleIds 额外关联基本角色
 --      BASIC_ROLE(6) 基本角色：平铺（不可有子级），承载实际权限配置
@@ -233,9 +233,9 @@ COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';
 COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
-COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；服务全量同步创建的资源填调用方 serviceCode，人工维护资源为空';
-COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展';
-COMMENT ON COLUMN resource_entity.sync_key IS '同步源内稳定键，用于 FULL diff 判断。SERVICE_SYNC 默认使用 serviceCode + resourceCode 或接口路径组合';
+COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync 的 ownership 以 sync_metadata 为准';
+COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；新外部事实同步不依赖本字段做 full-sync 清理';
+COMMENT ON COLUMN resource_entity.sync_key IS '既有同步源内稳定键，用于 service-config/sync 等 FULL diff 判断；新 resource-entity/sync/full-sync 的 syncKey 以 sync_metadata 为准';
 
 -- -----------------------------------------------------------------------------
 -- 7. 接口资源映射表
@@ -327,7 +327,7 @@ COMMENT ON COLUMN permission_condition.condition_rules IS '条件规则(JSON)，
 COMMENT ON COLUMN permission_condition.enabled IS '是否启用';
 
 -- -----------------------------------------------------------------------------
--- 9. 用户关联表（统一关联角色，target_type 标记角色类型）
+-- 10. 用户关联表（统一关联角色，target_type 标记角色类型）
 -- -----------------------------------------------------------------------------
 CREATE TABLE user_role (
     id               BIGSERIAL PRIMARY KEY,
@@ -351,15 +351,58 @@ CREATE UNIQUE INDEX uk_user_role ON user_role (tenant_id, abstract_user_id, targ
 CREATE INDEX idx_user_role_user ON user_role (tenant_id, abstract_user_id) WHERE delete_flag = 0;
 CREATE INDEX idx_user_role_target ON user_role (tenant_id, target_type, target_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE user_role IS '用户关联表：target=abstract_role.id；POSITION 类型时 relation_id 记录所属组织，决定数据权限范围。外部系统的组织-用户关系变更须稳定映射为本表事实';
+COMMENT ON TABLE user_role IS '用户关联表：target=abstract_role.id；POSITION 类型时 relation_id 记录所属组织 abstract_role.id，决定数据权限范围。外部系统的组织-用户关系变更须稳定映射为本表事实';
 COMMENT ON COLUMN user_role.target_type IS '关联角色类型：ROLE=常规角色/ORG=组织/POSITION=职位/PERSONAL=个人/GROUP_ROLE=分组角色，与 abstract_role.role_type 对应';
 COMMENT ON COLUMN user_role.target_id IS '关联角色ID（abstract_role.id）';
-COMMENT ON COLUMN user_role.relation_id IS '关联ID，POSITION 类型时记录所属组织 ID（决定数据权限范围），其他类型时为 NULL';
+COMMENT ON COLUMN user_role.relation_id IS '关联ID，POSITION 类型时记录所属组织 abstract_role.id（由 relationKey=ORG:{orgExternalId} 解析，决定数据权限范围），其他类型时为 NULL';
 COMMENT ON COLUMN user_role.valid_from IS '生效开始时间，NULL 不限制';
 COMMENT ON COLUMN user_role.valid_to IS '生效结束时间，NULL 不限制';
 
 -- -----------------------------------------------------------------------------
--- 11. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
+-- 11. 同步元数据表（统一记录外部同步所有权、syncKey 与最后版本）
+-- -----------------------------------------------------------------------------
+CREATE TABLE sync_metadata (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             BIGINT NOT NULL,
+    entity_kind           VARCHAR(64) NOT NULL,
+    source_service        VARCHAR(128) NOT NULL,
+    scope_key             TEXT NOT NULL,
+    scope_key_hash        CHAR(64) NOT NULL,
+    business_key          TEXT NOT NULL,
+    business_key_hash     CHAR(64) NOT NULL,
+    sync_key              TEXT NOT NULL,
+    sync_key_hash         CHAR(64) NOT NULL,
+    target_id             BIGINT,
+    target_status         VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    last_sync_occurred_at TIMESTAMPTZ NOT NULL,
+    last_sync_sequence_no BIGINT NOT NULL,
+    extra                 JSONB DEFAULT '{}',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at            TIMESTAMPTZ,
+    delete_flag           BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX uk_sync_metadata_key ON sync_metadata (tenant_id, entity_kind, source_service, scope_key_hash, business_key_hash) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_metadata_scope ON sync_metadata (tenant_id, entity_kind, source_service, scope_key_hash) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_metadata_sync_key ON sync_metadata (tenant_id, source_service, sync_key_hash) WHERE delete_flag = 0;
+
+COMMENT ON TABLE sync_metadata IS '外部同步元数据表，统一记录 abstract_user/abstract_role/user_role/resource_entity 的同步来源、scope、业务键、目标内部ID和最后 syncVersion；用于旧版本 no-op 和 full-sync 差异校准';
+COMMENT ON COLUMN sync_metadata.entity_kind IS '同步实体类型：ABSTRACT_USER/ABSTRACT_ROLE/USER_ROLE/RESOURCE_ENTITY';
+COMMENT ON COLUMN sync_metadata.source_service IS '同步来源服务，如 admin-service；必须与服务间认证主体一致';
+COMMENT ON COLUMN sync_metadata.scope_key IS 'full-sync 清理范围键原文，采用 api-contract §6.2.2.4 的规范化 scopeKey，不包含 tenantId/sourceService/entityKind';
+COMMENT ON COLUMN sync_metadata.scope_key_hash IS 'scope_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
+COMMENT ON COLUMN sync_metadata.business_key IS '同步对象业务键原文，采用 api-contract §6.2.2.4 的规范化 businessKey，不包含 tenantId/sourceService/entityKind';
+COMMENT ON COLUMN sync_metadata.business_key_hash IS 'business_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
+COMMENT ON COLUMN sync_metadata.sync_key IS '来源内稳定同步键原文，用于定位同一外部事实，格式为 sourceService|entityKind|businessKey';
+COMMENT ON COLUMN sync_metadata.sync_key_hash IS 'sync_key 的 SHA-256 lowercase hex，用于查询索引';
+COMMENT ON COLUMN sync_metadata.target_id IS '目标表内部ID，仅 permission-center 内部使用，不作为对外契约';
+COMMENT ON COLUMN sync_metadata.target_status IS '目标同步状态：ABSTRACT_USER/ABSTRACT_ROLE/RESOURCE_ENTITY 仅允许 ACTIVE/DISABLED/DELETED；USER_ROLE 仅允许 ACTIVE/UNBOUND';
+COMMENT ON COLUMN sync_metadata.last_sync_occurred_at IS '最后一次已应用同步事件发生时间';
+COMMENT ON COLUMN sync_metadata.last_sync_sequence_no IS '最后一次已应用同步事件序号，和 occurred_at 共同判断新旧版本';
+
+-- -----------------------------------------------------------------------------
+-- 12. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
 --     批量授权接口格式 {add:[], update:[], delete:[]}
 --     只存勾选节点，查询接口支持展开父级/展开子级
 --     scope_all=true 表示该操作覆盖 resource_type 下全部范围资源，此时 resource_entity_id 为空
@@ -410,7 +453,7 @@ COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUA
 COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';
 
 -- -----------------------------------------------------------------------------
--- 12. 域配置表（三合一 + 子权限配置：SCOPE / RELATION / BINDING / SUB_PERM）
+-- 13. 域配置表（三合一 + 子权限配置：SCOPE / RELATION / BINDING / SUB_PERM）
 --     每个域独立配置，无继承，变更即时生效（缓存失效）
 -- -----------------------------------------------------------------------------
 CREATE TABLE domain_config (
@@ -435,7 +478,7 @@ COMMENT ON COLUMN domain_config.config_type IS 'SCOPE / RELATION / BINDING / SUB
 COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}, CLASSIFY示例: {"resourceTypeCodes":["ORG","USER"]}';
 
 -- -----------------------------------------------------------------------------
--- 13. 资源依赖表（操作位级别触发，支持自动补全）
+-- 14. 资源依赖表（操作位级别触发，支持自动补全）
 --     由外部系统通过接口维护，权限中心负责存储和查询
 -- -----------------------------------------------------------------------------
 CREATE TABLE resource_dependency (
@@ -474,7 +517,7 @@ COMMENT ON COLUMN resource_dependency.maintain_source IS '维护来源：ADMIN_U
 COMMENT ON COLUMN resource_dependency.sync_key IS '同步源内稳定键，用于 FULL diff 判断。不同维护来源只清理同 owner_service_code + maintain_source 范围内缺失的规则';
 
 -- -----------------------------------------------------------------------------
--- 14. 权限冲突规则表（角色互斥 + 权限互斥）
+-- 15. 权限冲突规则表（角色互斥 + 权限互斥）
 --     角色互斥：写入时检查，违反直接拒绝
 --     权限互斥：查询时检查，冲突权限失效 + 异步通知
 --     性能方案：查询时实时计算 + TTL 缓存（版本变更失效）
@@ -514,7 +557,7 @@ COMMENT ON COLUMN permission_conflict_rule.first_abstract_role_id IS '互斥角�
 COMMENT ON COLUMN permission_conflict_rule.second_abstract_role_id IS '互斥角色二（ROLE_MUTEX 时使用）';
 
 -- -----------------------------------------------------------------------------
--- 15. 权限版本表（角色级粒度，每个角色单独版本号）
+-- 16. 权限版本表（角色级粒度，每个角色单独版本号）
 --     权限变更时自动递增，仅用于缓存失效，不存快照
 -- -----------------------------------------------------------------------------
 CREATE TABLE permission_version (
@@ -539,7 +582,7 @@ COMMENT ON COLUMN permission_version.trigger_entity_type IS '触发变更的实�
 COMMENT ON COLUMN permission_version.trigger_entity_id IS '触发变更的实体ID';
 
 -- -----------------------------------------------------------------------------
--- 16. 权限变更记录表（详细权限变更 diff，方便排查权限问题）
+-- 17. 权限变更记录表（详细权限变更 diff，方便排查权限问题）
 -- -----------------------------------------------------------------------------
 CREATE TABLE permission_change_log (
     id                         BIGSERIAL PRIMARY KEY,
@@ -576,7 +619,7 @@ COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/S
 COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
 
 -- -----------------------------------------------------------------------------
--- 17. 系统配置表（租户级配置，如角色名唯一性等）
+-- 18. 系统配置表（租户级配置，如角色名唯一性等）
 -- -----------------------------------------------------------------------------
 CREATE TABLE system_config (
     id           BIGSERIAL PRIMARY KEY,
@@ -600,7 +643,7 @@ COMMENT ON COLUMN system_config.config_key IS '配置键，如 ROLE_NAME_UNIQUE_
 COMMENT ON COLUMN system_config.config_value IS '配置值(JSON)，如 {"mode":"DOMAIN_UNIQUE"} 或 {"mode":"NO_RESTRICT"}';
 
 -- -----------------------------------------------------------------------------
--- 18. 操作日志表（轻量全量记录所有写操作）
+-- 19. 操作日志表（轻量全量记录所有写操作）
 -- -----------------------------------------------------------------------------
 CREATE TABLE operation_log (
     id             BIGSERIAL PRIMARY KEY,
