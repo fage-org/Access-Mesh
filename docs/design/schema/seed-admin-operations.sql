@@ -12,6 +12,10 @@
 --   若不注册，PermQueryEngine.resolveOperationId 返回 null → 全量 denied
 --   （见 PermQueryEngine.java:273-275），导致真实环境所有非 CRUD 写操作被拒绝。
 --
+-- 注册原则：
+--   仅注册有实际调用方的操作码（grep AdminOperationCode / AdminResourceType
+--   交叉核对），无调用方的不种，避免误导。
+--
 -- 执行时机：
 --   在 permission-center.sql 建表后、admin-service 首次启动前执行。
 --   要求 type_definition 中已有对应的 resource_type 行（type_key='resource_type'），
@@ -27,6 +31,8 @@
 
 -- ---------------------------------------------------------------------------
 -- ADMIN_ORG（组织/岗位管理）—— 扩展操作码
+-- 调用方：OrgServiceImpl (CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION)
+--         UserOrgServiceImpl (ASSIGN_POSITION_USER)
 -- ---------------------------------------------------------------------------
 
 -- 岗位 CRUD 精化操作码（v1.3 操作码精化）
@@ -57,6 +63,7 @@ ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND
 
 -- ---------------------------------------------------------------------------
 -- ADMIN_USER（用户管理）—— 扩展操作码
+-- 调用方：UserServiceImpl (ENABLE/DISABLE/RESET_PASSWORD)
 -- ---------------------------------------------------------------------------
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
@@ -78,17 +85,8 @@ WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADM
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- ADMIN_MENU（菜单管理）—— 扩展操作码
--- ---------------------------------------------------------------------------
-
-INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'PUBLISH', '发布菜单', 16, 2, 0, 0, 0
-FROM type_definition td
-WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_MENU' AND td.delete_flag = 0
-ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
-
--- ---------------------------------------------------------------------------
 -- ADMIN_ROLE（角色管理）—— 扩展操作码
+-- 调用方：RoleProxyServiceImpl (GRANT/REVOKE)
 -- ---------------------------------------------------------------------------
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
@@ -104,15 +102,19 @@ WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADM
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- ADMIN_DICT / ADMIN_DICT_DATA（字典管理）—— 暂无扩展操作码
+-- ADMIN_NOTICE（通知公告）—— 扩展操作码
+-- 调用方：NoticeServiceImpl (PUBLISH)
 -- ---------------------------------------------------------------------------
 
--- ---------------------------------------------------------------------------
--- ADMIN_CONFIG（系统配置）—— 暂无扩展操作码
--- ---------------------------------------------------------------------------
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
+SELECT 1, td.type_value, 'PUBLISH', '发布公告', 16, 2, 0, 0, 0
+FROM type_definition td
+WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_NOTICE' AND td.delete_flag = 0
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- ADMIN_JOB（定时任务）—— 扩展操作码
+-- 调用方：JobServiceImpl (ENABLE/DISABLE/TRIGGER)
 -- ---------------------------------------------------------------------------
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
@@ -134,23 +136,26 @@ WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADM
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- ADMIN_SYNC_TASK（同步任务）—— 扩展操作码
+-- ADMIN_ORG_TREE_CONFIG（组织树配置）—— 扩展操作码
+-- 调用方：OrgTreeConfigServiceImpl (TOGGLE)
 -- ---------------------------------------------------------------------------
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'TRIGGER', '触发同步', 16, 2, 0, 0, 0
+SELECT 1, td.type_value, 'TOGGLE', '切换默认树/单关联', 16, 2, 0, 0, 0
 FROM type_definition td
-WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_SYNC_TASK' AND td.delete_flag = 0
-ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
-
-INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'TOGGLE', '切换状态', 32, 2, 0, 0, 0
-FROM type_definition td
-WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_SYNC_TASK' AND td.delete_flag = 0
+WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_ORG_TREE_CONFIG' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- ---------------------------------------------------------------------------
--- 备注：permission-center 内部资源类型（ROLE/RESOURCE/SERVICE/DOMAIN 等）
+-- 未注册的操作码（AdminOperationCode 中已定义但无实际调用方，暂不注册）
+-- ---------------------------------------------------------------------------
+-- ADMIN_MENU:PUBLISH     — 无调用方（PUBLISH 实际在 ADMIN_NOTICE 上）
+-- ADMIN_SYNC_TASK:TRIGGER — 无调用方（SYNC_TASK 只用 VIEW/UPDATE/DELETE）
+-- ADMIN_SYNC_TASK:TOGGLE  — 无调用方（TOGGLE 实际在 ADMIN_ORG_TREE_CONFIG 上）
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 备注：permission-center 内部资源类型（USER/ROLE/RESOURCE/SERVICE/DOMAIN 等）
 -- 使用 OperationCodeConstants（CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/...），
 -- 其操作码注册由 permission-center 自身在创建 resource_type 时或通过管理 API 完成，
 -- 不在此种子脚本范围内。
