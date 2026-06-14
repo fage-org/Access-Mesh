@@ -134,7 +134,9 @@ function filterPositionNodes(nodes: OrgTreeNode[]): OrgTreeNode[] {
 /** 加载组织树数据 */
 async function loadOrgTreeData() {
   try {
-    const treeData = await getOrgTree({ operationCode: "VIEW" });
+    // v1.4 后端 /org/tree 强制要求 orgType；新增组织表单的父组织选择器只关心普通组织（orgType=1），
+    // 后端已按类型过滤，下方 filterPositionNodes 二次过滤保留为防御性代码。
+    const treeData = await getOrgTree({ operationCode: "VIEW", orgType: 1 });
     // 过滤掉岗位节点（orgType=2），只保留普通组织
     orgTreeData.value = filterPositionNodes(treeData);
   } catch (error) {

@@ -137,8 +137,12 @@ async function loadConfigs() {
 
 async function loadTree() {
   const configId = props.treeConfigId ?? selectedConfigId.value;
+  // v1.4 后端 /org/tree 强制要求 orgType（按 orgType 分发 VIEW / VIEW_POSITION 门禁）；
+  // 主组织树面板语义为「普通组织树」，传 orgType=1。
+  // 若调用方需混合查询岗位，应在 props 上扩展并允许此处分别请求合并，而非传 null 走老语义。
   rawOrgTree.value = await getOrgTree({
     operationCode: "VIEW",
+    orgType: 1,
     treeConfigId: configId
   });
 }

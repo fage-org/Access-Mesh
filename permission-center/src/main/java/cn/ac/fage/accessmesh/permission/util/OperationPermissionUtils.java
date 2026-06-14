@@ -104,6 +104,36 @@ public final class OperationPermissionUtils {
     }
 
     /**
+     * 展开授予操作实际覆盖的目标操作集合。
+     * <p>
+     * 与 {@link #computeCoveringBitMask(Collection, Long)} 的方向相反：
+     * 前者用于「给定目标操作，找可命中的授权位」，本方法用于「给定授权操作，
+     * 枚举它的有效位掩码覆盖了哪些操作」。调用方可用它构建最终可用操作投影。
+     * </p>
+     *
+     * @param granted    显式授予的操作权限
+     * @param candidates 同资源类型下的候选操作权限集合
+     * @return granted 覆盖的操作权限列表，保持 candidates 的迭代顺序
+     */
+    public static List<OperationPermission> coveredOperations(
+            OperationPermission granted,
+            Collection<OperationPermission> candidates) {
+        if (granted == null || candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        List<OperationPermission> result = new ArrayList<>();
+        for (OperationPermission candidate : candidates) {
+            if (candidate == null || !Objects.equals(candidate.getResourceType(), granted.getResourceType())) {
+                continue;
+            }
+            if (covers(granted, candidate)) {
+                result.add(candidate);
+            }
+        }
+        return result;
+    }
+
+    /**
      * 按 resourceType + binaryBit 为操作权限建立索引
      *
      * @param operations 操作权限集合

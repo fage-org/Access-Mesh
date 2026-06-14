@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
@@ -297,13 +299,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     private ResourcePermissionView buildScopeAllPermissionView(
             String resourceTypeCode, List<RolePermEntry> entries, PermViewResult viewResult,
             PermViewFilter filter) {
-        Set<String> operationCodes = new LinkedHashSet<>();
-        for (RolePermEntry e : entries) {
-            if (e.grantedBits() == null || e.resourceType() == null) continue;
-            OperationPermission op = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
-                viewResult.getOperationMap(), e.resourceType(), e.grantedBits());
-            if (op != null && op.getCode() != null) operationCodes.add(op.getCode());
-        }
+        Set<String> operationCodes = operationCodesForEntries(entries, viewResult);
         Set<Long> matchedPermissionIds = entries.stream()
             .map(RolePermEntry::permissionId)
             .filter(Objects::nonNull)
@@ -358,17 +354,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             PermViewFilter filter) {
 
         // 操作码
-        Set<String> operationCodes = new LinkedHashSet<>();
-        for (RolePermEntry e : entries) {
-            if (e.grantedBits() == null || e.resourceType() == null) {
-                continue;
-            }
-            OperationPermission op = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
-                viewResult.getOperationMap(), e.resourceType(), e.grantedBits());
-            if (op != null && op.getCode() != null) {
-                operationCodes.add(op.getCode());
-            }
-        }
+        Set<String> operationCodes = operationCodesForEntries(entries, viewResult);
 
         // 匹配的权限ID
         Set<Long> matchedPermissionIds = entries.stream()
@@ -1008,6 +994,137 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             entityId, domainCode, resourceCode, resourceName,
             resourceTypeCode, codeType, scopeAll, operationCodes, children
         );
+    }
+
+    /**
+     * 用户有效权限码聚合查询（v1.4 双轨并行 / 命名空间统一）。
+     * <p>
+     * 实现路径（G-2 独立方法，不污染 {@link #getEffectivePermissions} 分页路径）：
+     * <ol>
+     *   <li>解析 userId 并门禁 USER:VIEW</li>
+     *   <li>解析有效角色集合</li>
+     *   <li>调 {@link PermQueryEngine#query(PermQuery)} 走 forUserView 管线</li>
+     *   <li>用 {@link PermViewAssembler#assemble} 应用资源类型白名单 + 排除 API + 不分页</li>
+     *   <li>遍历引擎返回的 effective 操作投影，拼成
+     *       {@code "<resourceTypeCode>:<operationCode>"}，写入 LinkedHashSet 去重</li>
+     * </ol>
+     * <p>
+     * 不分页 / 不截断：所有 entries 全量遍历，确保任何用户的所有有效权限码均被返回。
+     */
+    @Override
+    public UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
+        // 1. 解析 userId
+        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        if (userId == null) {
+            return new UserEffectivePermissionCodesResp(List.of());
+        }
+
+        // 2. 门禁：与 getEffectivePermissions 一致，操作者需对被查用户有 VIEW 权
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+        }
+
+        // 3. 解析有效角色
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        if (roleIds.isEmpty()) {
+            return new UserEffectivePermissionCodesResp(List.of());
+        }
+
+        // 4. 调引擎获取全量结果
+        PermQuery query = PermQuery.forUserView(tenantId, userId);
+        query.setRoleIds(roleIds);
+        PermResult result = engine.query(query);
+        if (!result.allowed()) {
+            return new UserEffectivePermissionCodesResp(List.of());
+        }
+
+        // 5. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
+        //    - 不传 pageNum/pageSize（PermViewAssembler.paginate 注释明说「分页延迟到调用方聚合后执行」，
+        //      assemble 总是返回全量已过滤 entries，故此处天然不分页）
+        //    - 不需要 sourceRoles（权限码下发无需来源角色）
+        PermViewFilter filter = new PermViewFilter();
+        filter.setResourceTypes(req.resourceTypeCodes() == null ? null : new LinkedHashSet<>(req.resourceTypeCodes()));
+        filter.setExcludeApiResources(true);
+        filter.setIncludeScopePermissions(true);
+        filter.setIncludeSourceRoles(false);
+        filter.setSourceRoleLimit(0);
+        // pageNum/pageSize 不影响 entries 内容（只影响 buildResponseFromView 的截断），
+        // 此处显式设为 1 避免 PermViewAssembler.paginate 走 "<= 0 用默认 20" 分支
+        filter.setPageNum(1);
+        filter.setPageSize(Integer.MAX_VALUE);
+
+        PermViewResult viewResult = permViewAssembler.assemble(tenantId, result, filter);
+
+        // 6. 从 effective 操作投影全量提取 resourceTypeCode:operationCode
+        //    PermViewResult.resourceTypeCodeMap 是 resourceId -> typeCode（实例级 view 用），
+        //    本接口需要 resourceType(int) -> typeCode，需要直接调 typeResolutionService 重新解析。
+        Set<Integer> resourceTypeValues = viewResult.getEntries().stream()
+            .map(RolePermEntry::resourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Integer, String> typeCodeMap = resourceTypeValues.isEmpty()
+            ? Map.of()
+            : typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
+
+        Set<String> permCodes = new LinkedHashSet<>();
+        for (PermResult.EffectiveOperationEntry entry : viewResult.getEffectiveOperationEntries()) {
+            if (entry.resourceType() == null
+                || entry.operationCode() == null) {
+                continue;
+            }
+            String resourceTypeCode = typeCodeMap.get(entry.resourceType());
+            if (resourceTypeCode == null) {
+                continue;
+            }
+            permCodes.add(resourceTypeCode + ":" + entry.operationCode());
+        }
+        return new UserEffectivePermissionCodesResp(new ArrayList<>(permCodes));
+    }
+
+    private Set<String> operationCodesForEntries(List<RolePermEntry> entries, PermViewResult viewResult) {
+        Set<String> allowedEntryKeys = entries.stream()
+            .map(this::effectiveSourceKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> operationCodes = viewResult.getEffectiveOperationEntries().stream()
+            .filter(e -> allowedEntryKeys.contains(effectiveSourceKey(e)))
+            .map(PermResult.EffectiveOperationEntry::operationCode)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!operationCodes.isEmpty()) {
+            return operationCodes;
+        }
+
+        for (RolePermEntry e : entries) {
+            if (e.grantedBits() == null || e.resourceType() == null) {
+                continue;
+            }
+            OperationPermission op = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
+                viewResult.getOperationMap(), e.resourceType(), e.grantedBits());
+            if (op != null && op.getCode() != null) {
+                operationCodes.add(op.getCode());
+            }
+        }
+        return operationCodes;
+    }
+
+    private String effectiveSourceKey(RolePermEntry entry) {
+        return entry.permissionId() + "|"
+            + entry.roleId() + "|"
+            + entry.resourceEntityId() + "|"
+            + entry.resourceType() + "|"
+            + entry.grantedBits() + "|"
+            + entry.scopeAll();
+    }
+
+    private String effectiveSourceKey(PermResult.EffectiveOperationEntry entry) {
+        return entry.permissionId() + "|"
+            + entry.roleId() + "|"
+            + entry.resourceEntityId() + "|"
+            + entry.resourceType() + "|"
+            + entry.grantedBits() + "|"
+            + entry.scopeAll();
     }
 
 }

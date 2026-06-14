@@ -1,7 +1,7 @@
 # 「组织与用户」融合页 · 权限契约
 
-> 状态：**v1.2 定稿**（2026-06-10 补充“默认组织树 = 用户目录/身份池”设计，明确非默认组织树只能管理成员关系）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
-> 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE`）为准；前端 perm 码用 `system:模块:动作` 约定。
+> 状态：**v1.4 定稿**（2026-06-14 双轨并行 + 命名空间统一：sys_menu 不再承载可用操作权限，前后端共用 `资源类型:操作码` 词法；VIEW 类细化到资源类型；启用/禁用合并 toggle 语义；普通组织成员关系拆出 `MANAGE_MEMBER`）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
+> 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/RESET_PASSWORD/GRANT/REVOKE/MANAGE_MEMBER/CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION/VIEW_POSITION/ASSIGN_POSITION_USER`）为准；前端 perm 串自 v1.4 起改用乙层格式 `资源类型:操作码`（如 `ADMIN_ORG:CREATE_POSITION`）。
 >
 > 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/plans/api-gap-analysis.md`（接口核对清单）、`docs/plans/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
 
@@ -50,6 +50,21 @@ permission-center（乙层：被管理的权限模型）
 | **甲层** | 操作本页所需的权限 | 前端按钮门控（`hasPerms`）+ **admin-service** `AdminPermissionValidator`（`AdminResourceType × AdminOperationCode`，经 Feign 落到权限中心 `checkAuth`） |
 | **乙层** | AccessMesh 被管理的权限模型本身 | permission-center 注册的资源类型（`ADMIN_ORG/ADMIN_USER/ADMIN_ROLE` 等）、操作码、业务域、角色定义；组织/岗位同步为内部角色 |
 
+### v1.4「双轨并行」下发机制（命名空间统一）
+
+v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作码`，如 `ADMIN_ORG:CREATE_POSITION`），可用操作权限**不再经 sys_menu 中转**：
+
+| 轨道 | 数据来源 | 用途 | 接口 |
+|------|---------|------|------|
+| **轨道 1：菜单可见性** | `sys_menu` 的 DIR/MENU 行（不含 BUTTON） → permission-center `resource_entity(ADMIN_MENU)` → `ADMIN_MENU:VIEW` 鉴权 | 决定哪些路由可达 | `/auth/user-menu` 返回 `menus` 树（已按 VIEW 过滤） |
+| **轨道 2：可用操作权限** | permission-center 真实资源类型上的有效操作码（`ADMIN_ORG/ADMIN_USER/ADMIN_ROLE/ROLE/...`） | 决定页面内按钮是否显示 | `/auth/user-menu` 返回 `permissions` 数组（perm 串 = `资源类型:操作码`） |
+
+可用操作权限下发的是**最终可用操作码**，不是数据库中显式授予的单个操作码。permission-center 会按 `operation_permission.inherit_mask` 展开 `effectiveBits`；例如仅显式授予 `ADMIN_USER:UPDATE` 且 UPDATE 继承 VIEW 时，下发结果必须同时包含 `ADMIN_USER:UPDATE` 和 `ADMIN_USER:VIEW`，前端不得自行复制操作继承规则。
+
+**收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ADMIN_ORG:CREATE")` 与后端 `engine.hasPermission(ADMIN_ORG, CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
+
+**实现**：`AuthServiceImpl.getUserPermissions` / `RoleProxyServiceImpl.fetchUserPermissions` 通过 Feign `getEffectivePermissionCodes` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回；`SyncTaskBuilder.menuUpsert/menuDisable/menuDelete` 在 BUTTON 行（`menuType="3"`）返回 null，调用方 `MenuServiceImpl` 用 `enqueueIfPresent` 跳过。
+
 ---
 
 ## 2. 核心结论：融合不会让乙层变乱
@@ -91,42 +106,42 @@ permission-center（乙层：被管理的权限模型）
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码（甲层） | 无权降级 |
 |---|---|---|---|
-| 查看组织树 | 读，无服务级门禁（`/org/tree`） | `system:org:view` | **页面入口最小权**（菜单可见性）；无则不可进 |
-| 新增根/子组织 | `ADMIN_ORG:CREATE`（`/org/create`） | `system:org:add` | 隐藏「+新增组织」 |
-| 编辑组织 | `ADMIN_ORG:UPDATE`（`/org/update`） | `system:org:edit` | 树只读，编辑按钮隐藏 |
-| 删除组织 | `ADMIN_ORG:DELETE`（`/org/delete`） | `system:org:delete` | 隐藏删除 |
-| 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `system:org:edit` | 禁用拖拽；允许时仅 inner（成为子节点），不支持 before/after 同级排序 |
-| 启用/禁用组织 | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `status`） | `system:org:edit` | 隐藏状态切换 |
+| 查看组织树 | `ADMIN_ORG:VIEW`（v1.4 由独立操作码控制，与菜单可见性 `ADMIN_MENU:VIEW` 形成双轨） | `ADMIN_ORG:VIEW` | 页面入口最小权；无则不可进 |
+| 新增根/子组织 | `ADMIN_ORG:CREATE`（`/org/create`） | `ADMIN_ORG:CREATE` | 隐藏「+新增组织」 |
+| 编辑组织 | `ADMIN_ORG:UPDATE`（`/org/update`） | `ADMIN_ORG:UPDATE` | 树只读，编辑按钮隐藏 |
+| 删除组织 | `ADMIN_ORG:DELETE`（`/org/delete`） | `ADMIN_ORG:DELETE` | 隐藏删除 |
+| 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `ADMIN_ORG:UPDATE` | 禁用拖拽；允许时仅 inner（成为子节点），不支持 before/after 同级排序 |
+| 启用/禁用组织 | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `status`） | `ADMIN_ORG:UPDATE` | 隐藏状态切换 |
 
 ### B. 成员（Tab：成员管理）—— 默认树用户目录 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看默认树用户目录 | 读，无服务级门禁（`/user/page`，仅默认组织树语义） | `system:user:view` | 成员 Tab 空/隐藏 |
-| 查看组织成员列表 | 读，无服务级门禁（`/org/users` 或成员列表接口） | `system:user:view` | 成员 Tab 空/隐藏 |
-| 创建用户（只能归默认组织树） | `ADMIN_USER:CREATE`（`/user/create`，`orgId` 必须属于默认组织树） | `system:user:add` | 隐藏「+创建用户」 |
-| 添加已有用户到当前组织 | **`ADMIN_ORG:UPDATE`** ²（目标组织实例；候选集来自默认树可见范围） | `system:org:member` | 隐藏「添加成员」 |
-| 编辑用户 | `ADMIN_USER:UPDATE`（`/user/update`，改己豁免） | `system:user:edit` | 隐藏「修改」 |
-| 删除用户 | `ADMIN_USER:DELETE`（`/user/delete`，批量实例级） | `system:user:delete` | 隐藏「删除」 |
-| 启用/禁用 | `ADMIN_USER:ENABLE/DISABLE`（`/user/enable`，批量实例级；status=1 使用 ENABLE，status=0 使用 DISABLE） | `system:user:enable` | 隐藏状态切换 |
-| 重置密码 | `ADMIN_USER:RESET_PASSWORD`（`/user/reset-password`，改己豁免） | `system:user:reset-pwd` | 隐藏「重置密码」 |
-| 移除成员 | **`ADMIN_ORG:UPDATE`** ²（非默认树只移除关系；默认树移除属于身份目录高危操作） | `system:org:member` | 成员增删只读 |
-| 设主组织 | **默认组织树内的目录操作** ²（首期仅允许默认树；不能影响其他组织树关系） | `system:org:member` | 主组织只读 |
+| 查看默认树用户目录 | `ADMIN_USER:VIEW`（`/user/page`，仅默认组织树语义） | `ADMIN_USER:VIEW` | 成员 Tab 空/隐藏 |
+| 查看组织成员列表 | `ADMIN_USER:VIEW`（`/org/users` 或成员列表接口） | `ADMIN_USER:VIEW` | 成员 Tab 空/隐藏 |
+| 创建用户（只能归默认组织树） | `ADMIN_USER:CREATE`（`/user/create`，`orgId` 必须属于默认组织树） | `ADMIN_USER:CREATE` | 隐藏「+创建用户」 |
+| 添加已有用户到当前组织 | **`ADMIN_ORG:MANAGE_MEMBER`** ²（目标组织实例；候选集来自默认树可见范围） | `ADMIN_ORG:MANAGE_MEMBER` | 隐藏「添加成员」 |
+| 编辑用户 | `ADMIN_USER:UPDATE`（`/user/update`，改己豁免） | `ADMIN_USER:UPDATE` | 隐藏「修改」 |
+| 删除用户 | `ADMIN_USER:DELETE`（`/user/delete`，批量实例级） | `ADMIN_USER:DELETE` | 隐藏「删除」 |
+| 启用/禁用 | `ADMIN_USER:ENABLE`（`/user/enable`，批量实例级；v1.4 起合并 toggle 语义，启用与禁用共用同一操作码） | `ADMIN_USER:ENABLE` | 隐藏状态切换 |
+| 重置密码 | `ADMIN_USER:RESET_PASSWORD`（`/user/reset-password`，改己豁免） | `ADMIN_USER:RESET_PASSWORD` | 隐藏「重置密码」 |
+| 移除成员 | **`ADMIN_ORG:MANAGE_MEMBER`** ²（非默认树只移除关系；默认树移除属于身份目录高危操作） | `ADMIN_ORG:MANAGE_MEMBER` | 成员增删只读 |
+| 设主组织 | **`ADMIN_ORG:MANAGE_MEMBER`** ²（默认组织树内的目录操作；首期仅允许默认树；不能影响其他组织树关系） | `ADMIN_ORG:MANAGE_MEMBER` | 主组织只读 |
 
 ### C. 功能角色分配（行点击→详情面板）—— 真正的角色 `ROLE`
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看用户角色 | 读，无服务级门禁（`/user-role/list`） | `system:user:view` | 角色区不显示 |
-| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；`/user-role/assign|revoke`，**Phase 2 待建代理**） | `system:user:role:assign` | 角色区只读 |
+| 查看用户角色 | `ADMIN_USER:VIEW`（`/user-role/list`） | `ADMIN_USER:VIEW` | 角色区不显示 |
+| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；`/user-role/assign|revoke`，**Phase 2 待建代理**） | `ROLE:MANAGE` | 角色区只读 |
 
 ### D. 岗位（Tab：岗位管理）—— 岗位 = 特殊组织 `ADMIN_ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
-| 查看岗位 | 读，无服务级门禁（`ADMIN_ORG`，按 `orgType=2` 过滤；`/org/page`） | `system:org:position:view` | 岗位 Tab 隐藏 |
-| 新增 / 编辑 / 删除岗位 | `ADMIN_ORG:CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` ⁴（特殊组织，经 `/org/*`，按 `orgType=2` 走精化操作码；同步 permission-center） | `system:org:position:add` / `:edit` / `:delete` | 隐藏增删改 |
-| 分配 / 移除用户到岗位 | **`ADMIN_ORG:ASSIGN_POSITION_USER`** ²（组织成员管理的岗位精化；作用在**岗位组织实例**；`/user-org/*`） | `system:org:position:assign` | 岗位区只读 |
+| 查看岗位 | `ADMIN_ORG:VIEW_POSITION`（按 `orgType=2` 过滤；`/org/page`；v1.4 起从 `ADMIN_ORG:VIEW` 拆出，与组织树查看解耦） | `ADMIN_ORG:VIEW_POSITION` | 岗位 Tab 隐藏 |
+| 新增 / 编辑 / 删除岗位 | `ADMIN_ORG:CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` ⁴（特殊组织，经 `/org/*`，按 `orgType=2` 走精化操作码；同步 permission-center） | `ADMIN_ORG:CREATE_POSITION` / `ADMIN_ORG:UPDATE_POSITION` / `ADMIN_ORG:DELETE_POSITION` | 隐藏增删改 |
+| 分配 / 移除用户到岗位 | **`ADMIN_ORG:ASSIGN_POSITION_USER`** ²（组织成员管理的岗位精化；作用在**岗位组织实例**；`/user-org/*`） | `ADMIN_ORG:ASSIGN_POSITION_USER` | 岗位区只读 |
 | ~~配置岗位权限（授予菜单/资源权限）~~ | `ADMIN_ROLE:GRANT/REVOKE`（`/role/grant-menu`、`/role/revoke-menu`） | — | **❌ 红线：不在本页**（详见 §6.3） |
 
 ---
@@ -136,7 +151,7 @@ permission-center（乙层：被管理的权限模型）
 | 备注 | 规则（核对后定稿） |
 |------|------|
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
-| ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织** → `ADMIN_ORG:UPDATE`（与改类操作共用）；**岗位**（orgType=2） → `ADMIN_ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。当前后端 `UserOrgServiceImpl` 已按 orgType 分发操作码，但全量替换语义需按该契约调整。 |
+| ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织（orgType=1）** → `ADMIN_ORG:MANAGE_MEMBER`（v1.4 起从 `UPDATE` 拆出独立操作码，与组织树结构修改解耦，便于"HR 只管成员、不动结构"细粒度配权）；**岗位**（orgType=2） → `ADMIN_ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删进一步解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。`UserOrgServiceImpl` 通过 `OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)` 声明式分发：普通组织走 `MANAGE_MEMBER`，岗位走 `ASSIGN_POSITION_USER`。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedIds(..., ROLE, 目标角色, MANAGE)` 强制；admin-service `/user-role/*` 代理 **Phase 2 待建**（api-gap §4），建成后须沿用此门禁，且**不得**复用 `ADMIN_ROLE:GRANT/REVOKE`（那是配权语义，属红线） |
 | ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）。**乙层操作码精化**：为支持"组织管理员 ≠ 岗位管理员"的细粒度配权，岗位 CRUD 与岗位用户挂载使用独立操作码（`CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`），资源类型仍为 `ADMIN_ORG`（不新增 `ADMIN_POSITION` 以避免锚点分裂、user-org 关系双写）；与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。orgType 字段不可变，禁止经 `/org/update` 在普通组织/岗位间互转。**声明式映射**：`OrgServiceImpl` / `UserOrgServiceImpl` 不再手写 if-else 分发 orgType → 操作码，而是通过 `OrgOperationCodeMapper`（单一事实源）统一解析：`resolve(orgType, baseOp)` 用于组织 CRUD（`OrgServiceImpl`），`resolveForUserOrg(orgType, UPDATE)` 用于成员关系（`UserOrgServiceImpl`，岗位走 `ASSIGN_POSITION_USER`）。新增 orgType 子类型只需扩展映射表，不需逐个 ServiceImpl 检查。|
 
@@ -145,7 +160,7 @@ permission-center（乙层：被管理的权限模型）
 ## 6. 四条军规（保证乙层不乱）
 
 1. **只造资源类型形状的权限，绝不造页面形状的资源类型。** 菜单可见性 = 由 `ADMIN_ORG/ADMIN_USER` 的可见读 **派生**，不单独设 `ADMIN_ORG_USER:*`。
-2. **关系动作钉死归属**（普通组织成员 = `ADMIN_ORG:UPDATE`；岗位用户挂载 = `ADMIN_ORG:ASSIGN_POSITION_USER`；默认树主组织 = 身份目录操作；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
+2. **关系动作钉死归属**（普通组织成员 = `ADMIN_ORG:MANAGE_MEMBER`；岗位用户挂载 = `ADMIN_ORG:ASSIGN_POSITION_USER`；默认树主组织 = 身份目录操作；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
 3. **守红线**：本页做「组织结构（含岗位作为特殊组织）+ 用户身份 + 成员/角色**关系**」，**不出现"配权 / 独立角色定义"类操作**。
    - **允许**：岗位实例 CRUD（`ADMIN_ORG:*`，岗位 Tab）—— 它是组织管理，不是角色定义。
    - **禁止**在本页暴露：`/role/grant-menu`、`/role/revoke-menu`（`ADMIN_ROLE:GRANT/REVOKE`，给组织/岗位/角色**配菜单与资源权限**）；`/role/create`（`ADMIN_ROLE:CREATE`，定义独立功能角色）；以及 orgType 字典 / 资源 / 操作 / 条件等定义。
@@ -161,11 +176,10 @@ permission-center（乙层：被管理的权限模型）
 ```
 角色：组织人事管理员（与页面无关、可复用）
   授予（组织人事业务域内）：
-    ADMIN_ORG:   CREATE, UPDATE, DELETE,                    # 普通组织（orgType=1）增删改 + 非默认树成员归属
-                 CREATE_POSITION, UPDATE_POSITION,          # 岗位（orgType=2）增删改、移动、改状态
-                 DELETE_POSITION, ASSIGN_POSITION_USER       # 岗位用户挂载/卸载/设主
-                                                            # 查看由菜单可见性派生
-    ADMIN_USER:  CREATE, UPDATE, DELETE, ENABLE, DISABLE, RESET_PASSWORD   # 用户身份本身
+    ADMIN_ORG:   VIEW, CREATE, UPDATE, DELETE, MANAGE_MEMBER,    # 普通组织（orgType=1）查看/增删改 + 成员关系
+                 VIEW_POSITION, CREATE_POSITION, UPDATE_POSITION, # 岗位（orgType=2）查看/增删改、移动、改状态
+                 DELETE_POSITION, ASSIGN_POSITION_USER            # 岗位用户挂载/卸载/设主
+    ADMIN_USER:  VIEW, CREATE, UPDATE, DELETE, ENABLE, RESET_PASSWORD   # 用户身份本身（v1.4 ENABLE 含禁用 toggle）
     ROLE:        MANAGE（仅对目标功能角色）                  # C 区"分配功能角色给用户"，不含角色定义
   不授予：
     ADMIN_ROLE:  CREATE / GRANT / REVOKE                    # 独立角色定义、给组织/岗位/角色配权 —— 红线之外
@@ -194,7 +208,7 @@ permission-center（乙层：被管理的权限模型）
    → 红线收窄为"配权与独立角色定义"，岗位的组织管理本身在本页内；矩阵 D 区据此定稿。
 
 4. **前端 perm 码约定** ✅
-   全仓 `hasPerms` 仅见样例页 `views/permission/button/perms.vue`（`permission:btn:add/edit/delete`）与指令 `directives/perms`。格式 = **冒号分隔 `模块:实体:动作`**。本页组件（`views/system/user/*`）**尚未接线** hasPerms——故本契约定名（`system:org:*` / `system:user:*` / `system:org:position:*` / `system:user:role:assign`）。注意：前端 perm 串由菜单/按钮配置（`sys_menu` 经 `/user/user-menus`、`/role/my-info` 下发）提供，与后端 `AdminResourceType` 是两套命名空间，需在菜单配置侧补齐对应按钮权限。
+   全仓 `hasPerms` 仅见样例页 `views/permission/button/perms.vue`（`permission:btn:add/edit/delete`）与指令 `directives/perms`。格式 = **冒号分隔 `模块:实体:动作`**。本页组件（`views/system/user/*`）**尚未接线** hasPerms——故本契约定名（`system:org:*` / `system:user:*` / `system:org:position:*` / `system:user:role:assign`）。注意：前端 perm 串由菜单/按钮配置（`sys_menu` 经 `/user/user-menus`、`/role/my-info` 下发）提供，与后端 `AdminResourceType` 是两套命名空间，需在菜单配置侧补齐对应可用操作权限。
 
 ### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 
@@ -219,3 +233,5 @@ permission-center（乙层：被管理的权限模型）
 | 2026-06-09 | v1.1 (实现对齐) | `UserOrgServiceImpl` 已按契约改为 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）门禁，移除 `ADMIN_USER:UPDATE` 与改己豁免语义。 |
 | 2026-06-10 | **v1.2 (定稿)** | 固化默认组织树身份目录设计：默认树负责用户生命周期；非默认树只管理已有用户关系；补充 `abstract_user` / `ADMIN_USER resource_entity`、`ADMIN_ORG resource_entity` / `ORG/POSITION abstract_role`、`user-org -> user_role` 同步闭环要求。 |
 | 2026-06-14 | **v1.3 (操作码精化)** | 岗位 CRUD 与岗位用户挂载从共用 `ADMIN_ORG:CREATE/UPDATE/DELETE` 拆出独立操作码 `CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`；资源类型仍为 `ADMIN_ORG`（避免锚点分裂、user-org 关系双写）；落实"组织管理员 ≠ 岗位管理员"细粒度配权。`OrgServiceImpl` / `UserOrgServiceImpl` 按 `sys_org.orgType` 分发操作码；`OrgUpdateReq` 不含 orgType 字段，普通组织/岗位间 orgType 不可变。前端 `utils/perms.ts` 已注释乙层映射对应关系。 |
+| 2026-06-14 | **v1.4 (双轨并行 + 命名空间统一)** | 解决 v1.3 仍存在的"前端 perm 串经 sys_menu 中转 → 后端从 ADMIN_MENU:VIEW 反查"5 层断链问题。① **菜单可见性 / 权限码下发双轨并行**：sys_menu 不再承载 BUTTON 行（仅 DIR/MENU），页面内操作权限直接由 permission-center 真实资源类型上的有效操作码下发。② **命名空间统一**：前端 perm 串改为乙层格式 `资源类型:操作码`（大写，如 `ADMIN_ORG:CREATE_POSITION`），与 `engine.hasPermission(ADMIN_ORG, CREATE_POSITION)` 同源、无翻译层、重命名编译期可见。③ **下发入口**：登录后调 `/auth/user-menu` 同时返回 `menus`（菜单树）+ `permissions`（perm 串数组），写入 Pinia + localStorage。④ **操作码细化**：VIEW 类细化到资源类型（新增 `ADMIN_ORG:VIEW`、`ADMIN_USER:VIEW`、`ADMIN_ORG:VIEW_POSITION`），原本 service 层无门禁的读接口现由独立 VIEW 操作码门控；普通组织成员关系从 `UPDATE` 拆出 `ADMIN_ORG:MANAGE_MEMBER`（HR 只管成员、不动结构）；启用/禁用合并为单 `ENABLE` toggle 语义（删除独立 DISABLE 操作码）。⑤ **代码改动**：`AuthServiceImpl.getUserPermissions` / `RoleProxyServiceImpl.fetchUserPermissions` 重写为查 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单拼 `资源类型:操作码`；`SyncTaskBuilder.menuUpsert/menuDisable/menuDelete` 在 BUTTON 行短路返回 null；新增 `OrgOperationCodeMapper` 声明式分发 orgType → 操作码；`docs/design/schema/seed-admin-operations.sql` 同步新增 ADMIN_ORG:VIEW/MANAGE_MEMBER/VIEW_POSITION 与 ADMIN_USER:VIEW、删除 *:DISABLE 行。 |
+| 2026-06-14 | **v1.4 (有效权限码聚合接口 + effective 展开)** | 在 v1.4 双轨并行的下发链路上，确立 **管理面 vs 可用操作权限面双视角语义**，并新建专用聚合接口杜绝分页截断风险：① **新增 `/api/perm/permission-view/effective-permission-codes`**：不分页、扁平 `资源类型:操作码` 字符串列表，**自动展开 `inherit_mask` 继承的有效操作码**（如显式授予 `ADMIN_USER:UPDATE` 时，下发同时含 `ADMIN_USER:UPDATE` + `ADMIN_USER:VIEW`），与后端 `engine.hasPermission` 的 `effectiveBits` 覆盖判定语义对齐。`PermQueryEngine` 在 `forUserView` 管线下默认产出 `EffectiveOperationEntry` 投影；`PermViewAssembler` 透传投影、过滤优先按 effective 权限判断；`/effective-permission-codes` 直接消费投影。② **`/effective-permissions` 保持显式语义**：管理员视图按"显式授予"展示 `operationCodes`，**不展开继承操作** —— 这是有意的双视角设计（管理面记录授权行为，可用操作权限面记录最终可用能力），不是 bug。③ **接口分离**：admin-service `AuthServiceImpl.getUserPermissions` / `RoleProxyServiceImpl.fetchUserPermissions` 切换到 `/effective-permission-codes`，删除 `pageNum=1, pageSize=500` 硬编码 —— 大权限用户不再被分页截断。④ **schema 词法统一**：`READ` → `VIEW`（仅注释/文档调整，无 DB 行迁移；`READ` 行从未在代码中插入），`docs/design/schema/permission-center.sql` 新增唯一索引 `uk_operation_permission_typed_bit (tenant_id, resource_type, binary_bit)` 阻止"同位多 code"；`OperationPermissionMapper.xml` 加 `ORDER BY id` 防御 Postgres 物理顺序变化。 |

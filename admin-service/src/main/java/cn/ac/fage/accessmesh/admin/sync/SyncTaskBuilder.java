@@ -490,36 +490,73 @@ public final class SyncTaskBuilder {
 
     // =====================================================================
     // 菜单：单 envelope (resource_entity for ADMIN_MENU)
+    //
+    // v1.4「双轨并行」：sys_menu 仅承载 DIR/MENU 行（菜单可见性轨道），BUTTON 行不再
+    // 同步到 permission-center —— 按钮权限改为通过真实资源类型 × 操作码下发，
+    // 由前端 hasPerms("ADMIN_ORG:CREATE") 直接校验。
+    // 因此本类的 menuUpsert/menuDisable/menuDelete 在 BUTTON 行（menuType="3"）时返回 null，
+    // 调用方需 null-skip。
     // =====================================================================
+
+    /** menu_type 字典码：3 = BUTTON。DIR/MENU 走资源同步，BUTTON 不再同步。 */
+    private static final String MENU_TYPE_BUTTON = "3";
 
     /**
      * 菜单创建/更新事件 → resource_entity(ADMIN_MENU) UPSERT。
+     * <p>
+     * v1.4：BUTTON 行（menuType="3"）返回 null，不再同步到 permission-center。
      *
      * @param menu 菜单快照
-     * @return 单条 envelope
+     * @return 单条 envelope；BUTTON 行返回 null
      */
     public SyncTaskEnvelope menuUpsert(SysMenu menu) {
+        if (isButtonMenu(menu)) {
+            return null;
+        }
         return buildMenuResource(menu, "UPSERT", "upsert");
     }
 
     /**
      * 菜单停用事件 → resource_entity(ADMIN_MENU) DISABLE。
+     * <p>
+     * v1.4：BUTTON 行返回 null。
      *
      * @param menu 菜单快照
-     * @return 单条 envelope
+     * @return 单条 envelope；BUTTON 行返回 null
      */
     public SyncTaskEnvelope menuDisable(SysMenu menu) {
+        if (isButtonMenu(menu)) {
+            return null;
+        }
         return buildMenuResource(menu, "DISABLE", "disable");
     }
 
     /**
      * 菜单删除事件 → resource_entity(ADMIN_MENU) DELETE。
+     * <p>
+     * v1.4：传入 menuType 用于 BUTTON 行短路（避免回查 sys_menu）。
+     * 调用方若已知 menuType 应使用 {@link #menuDelete(Long, String, String)} 重载。
      *
      * @param menuId     菜单 ID
      * @param externalId 外部 ID（通常等于 menuId.toString()）
      * @return 单条 envelope
      */
     public SyncTaskEnvelope menuDelete(Long menuId, String externalId) {
+        return menuDelete(menuId, externalId, null);
+    }
+
+    /**
+     * 菜单删除事件（v1.4 重载，提供 menuType 用于 BUTTON 行短路）。
+     *
+     * @param menuId     菜单 ID
+     * @param externalId 外部 ID
+     * @param menuType   被删菜单的 menu_type；为 BUTTON 时返回 null（不同步）
+     * @return 单条 envelope；BUTTON 行返回 null
+     */
+    public SyncTaskEnvelope menuDelete(Long menuId, String externalId, String menuType) {
+        if (MENU_TYPE_BUTTON.equals(menuType)) {
+            return null;
+        }
         Map<String, Object> payloadMap = new LinkedHashMap<>();
         payloadMap.put("operation", "DELETE");
         payloadMap.put("resourceTypeCode", AdminResourceType.MENU);
@@ -543,6 +580,11 @@ public final class SyncTaskBuilder {
             null,
             null
         );
+    }
+
+    /** BUTTON 类型菜单不再同步到权限中心（v1.4 双轨并行）。 */
+    private static boolean isButtonMenu(SysMenu menu) {
+        return menu != null && MENU_TYPE_BUTTON.equals(menu.getMenuType());
     }
 
     private SyncTaskEnvelope buildMenuResource(SysMenu menu, String operation, String auditOpType) {

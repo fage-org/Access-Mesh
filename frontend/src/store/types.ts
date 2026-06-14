@@ -42,6 +42,8 @@ export type userType = {
   nickname?: string;
   roles?: Array<string>;
   permissions?: Array<string>;
+  /** 后端下发的菜单树（v1.4 双轨并行：菜单可见性轨道） */
+  menus?: Array<any>;
   isRemembered?: boolean;
   loginDay?: number;
 };

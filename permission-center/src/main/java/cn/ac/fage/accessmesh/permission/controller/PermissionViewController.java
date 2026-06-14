@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionExplainReq;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionRecentChangesReq;
@@ -55,6 +57,19 @@ public class PermissionViewController {
     @PostMapping("/effective-permissions")
     public PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(@Valid @RequestBody UserPermissionViewReq req) {
         return PermResult.success(permissionViewAppService.getEffectivePermissions(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 用户有效权限码聚合下发（v1.4 双轨并行 / 命名空间统一）。
+     * <p>
+     * 不分页、扁平 perm 串列表，可供前端 hasPerms、功能开关、客户端能力下发等场景使用。
+     * 与 effective-permissions 解耦，
+     * 杜绝大权限用户被分页截断（原 page=1, size=500 模式）。
+     */
+    @PostMapping("/effective-permission-codes")
+    public PermResult<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
+            @Valid @RequestBody UserEffectivePermissionCodesReq req) {
+        return PermResult.success(permissionViewAppService.getEffectivePermissionCodes(TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/resource-users")

@@ -111,5 +111,40 @@ export default defineFakeRoute([
         data: buildLoginPayload(username)
       };
     }
+  },
+  {
+    /**
+     * v1.4 双轨并行下发入口（mock）。
+     * <p>
+     * 真后端从 token 解析 userId 后查权限中心；mock 无 token 解码逻辑，
+     * 通过 token 字段 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
+     * 切真后端时本 mock 自动让位（fake server 仅在未配置真接口时生效）。
+     * <p>
+     * 响应壳必须与真后端 `PermResult<UserMenuResp>`（code=200/message/data）一致 ——
+     * 前端 store/user.ts 通过 `unwrap` 解包，旧的 `{ success, data }` 壳会被当作 code 缺失抛错。
+     */
+    url: "/auth/user-menu",
+    method: "post",
+    response: ({ headers }) => {
+      const auth = (headers?.authorization ??
+        headers?.Authorization ??
+        "") as string;
+      // Authorization 形如 "Bearer mock-token-{username}"
+      const match = /mock-token-([a-z0-9_-]+)/i.exec(auth);
+      const username = match?.[1] ?? "admin";
+      const profile = ROLE_PROFILES[username] ?? ROLE_PROFILES.admin;
+      const permissions = ROLE_PERM_MATRIX[username] ?? ROLE_PERM_MATRIX.admin;
+      return {
+        code: 200,
+        message: "ok",
+        data: {
+          // mock 暂不下发菜单树（前端路由由 /get-async-routes 提供，菜单可见性轨道仍走旧路径）；
+          // 真后端此处会返回完整 DIR/MENU 树
+          menus: [],
+          roles: [profile.nickname ?? username],
+          permissions
+        }
+      };
+    }
   }
 ]);

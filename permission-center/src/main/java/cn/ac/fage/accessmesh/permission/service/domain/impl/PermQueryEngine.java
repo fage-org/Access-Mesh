@@ -519,7 +519,8 @@ public class PermQueryEngine {
         Set<Long> allEntityIds = new HashSet<>();
         Set<Long> targetOpIds = resolveOperationIds(q);
         Map<Integer, Set<Long>> grantedBitsByType = new LinkedHashMap<>();
-        Stream.concat(scopeAll.stream(), instance.stream()).forEach(e -> {
+        List<RolePermEntry> entries = Stream.concat(scopeAll.stream(), instance.stream()).toList();
+        entries.forEach(e -> {
             if (e.resourceEntityId() != null) allEntityIds.add(e.resourceEntityId());
             if (e.resourceType() != null && e.grantedBits() != null) {
                 grantedBitsByType.computeIfAbsent(e.resourceType(), _unused -> new LinkedHashSet<>()).add(e.grantedBits());
@@ -531,24 +532,85 @@ public class PermQueryEngine {
         if (q.includeResources()) {
             builder.resourceMap(batchLoadResources(q.tenantId(), allEntityIds));
         }
+        Map<Integer, List<OperationPermission>> operationsByType = Map.of();
         if (q.includeOperations()) {
             Map<Long, OperationPermission> operationMap = new LinkedHashMap<>(batchLoadOperations(q.tenantId(), targetOpIds));
-            Map<Integer, List<OperationPermission>> operationsByType = batchLoadOperationsByResourceTypes(
+            operationsByType = batchLoadOperationsByResourceTypes(
                 q.tenantId(),
                 grantedBitsByType.keySet()
             );
             for (Map.Entry<Integer, Set<Long>> entry : grantedBitsByType.entrySet()) {
                 for (OperationPermission operation : operationsByType.getOrDefault(entry.getKey(), List.of())) {
-                    if (entry.getValue().contains(operation.getBinaryBit())) {
+                    if (q.evaluateMatchesBit() || entry.getValue().contains(operation.getBinaryBit())) {
                         operationMap.put(operation.getId(), operation);
                     }
                 }
             }
             builder.operationMap(operationMap);
         }
+        if (shouldBuildEffectiveOperationEntries(q)) {
+            if (operationsByType.isEmpty()) {
+                operationsByType = batchLoadOperationsByResourceTypes(q.tenantId(), grantedBitsByType.keySet());
+            }
+            builder.effectiveOperationEntries(buildEffectiveOperationEntries(entries, operationsByType));
+        }
         if (q.includeRoles() && roleIds != null && !roleIds.isEmpty()) {
             builder.roleMap(batchLoadRoles(q.tenantId(), roleIds));
         }
+    }
+
+    private boolean shouldBuildEffectiveOperationEntries(PermQuery q) {
+        return q.evaluateMatchesBit() && q.includeOperations();
+    }
+
+    private List<PermResult.EffectiveOperationEntry> buildEffectiveOperationEntries(
+        List<RolePermEntry> entries,
+        Map<Integer, List<OperationPermission>> operationsByType) {
+        if (entries == null || entries.isEmpty() || operationsByType == null || operationsByType.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, PermResult.EffectiveOperationEntry> result = new LinkedHashMap<>();
+        for (RolePermEntry entry : entries) {
+            if (entry.resourceType() == null || entry.grantedBits() == null) {
+                continue;
+            }
+            List<OperationPermission> operations = operationsByType.getOrDefault(entry.resourceType(), List.of());
+            OperationPermission granted = OperationPermissionUtils.findByResourceTypeAndBinaryBit(
+                operations, entry.resourceType(), entry.grantedBits());
+            if (granted == null) {
+                continue;
+            }
+            for (OperationPermission covered : OperationPermissionUtils.coveredOperations(granted, operations)) {
+                if (covered.getCode() == null || covered.getBinaryBit() == null) {
+                    continue;
+                }
+                PermResult.EffectiveOperationEntry projection = new PermResult.EffectiveOperationEntry(
+                    entry.permissionId(),
+                    entry.roleId(),
+                    entry.resourceEntityId(),
+                    entry.resourceType(),
+                    entry.grantedBits(),
+                    granted.getCode(),
+                    OperationPermissionUtils.effectiveBits(granted),
+                    covered.getCode(),
+                    covered.getBinaryBit(),
+                    entry.grantSource(),
+                    entry.scopeAll()
+                );
+                result.putIfAbsent(effectiveOperationKey(projection), projection);
+            }
+        }
+        return List.copyOf(result.values());
+    }
+
+    private String effectiveOperationKey(PermResult.EffectiveOperationEntry entry) {
+        return entry.permissionId() + "|"
+            + entry.roleId() + "|"
+            + entry.resourceEntityId() + "|"
+            + entry.resourceType() + "|"
+            + entry.operationBinaryBit() + "|"
+            + entry.scopeAll();
     }
 
     /**
@@ -867,18 +929,31 @@ public class PermQueryEngine {
         if (q.includeResources()) {
             builder.resourceMap(batchLoadResources(q.tenantId(), allEntityIds));
         }
+        Map<Integer, List<OperationPermission>> operationsByType = Map.of();
         if (q.includeOperations()) {
             // 按所有资源类型批量加载操作权限
             Set<Integer> allResourceTypes = entries.stream()
                 .map(RolePermEntry::resourceType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+            operationsByType = batchLoadOperationsByResourceTypes(q.tenantId(), allResourceTypes);
             Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
-            for (Integer rt : allResourceTypes) {
-                operationPermissionMapper.selectByTenantAndResourceType(q.tenantId(), rt)
-                    .forEach(op -> opMap.put(op.getId(), op));
+            for (List<OperationPermission> operations : operationsByType.values()) {
+                for (OperationPermission op : operations) {
+                    opMap.put(op.getId(), op);
+                }
             }
             builder.operationMap(opMap);
+        }
+        if (shouldBuildEffectiveOperationEntries(q)) {
+            if (operationsByType.isEmpty()) {
+                Set<Integer> allResourceTypes = entries.stream()
+                    .map(RolePermEntry::resourceType)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+                operationsByType = batchLoadOperationsByResourceTypes(q.tenantId(), allResourceTypes);
+            }
+            builder.effectiveOperationEntries(buildEffectiveOperationEntries(entries, operationsByType));
         }
         if (q.includeRoles() && roleIds != null && !roleIds.isEmpty()) {
             builder.roleMap(batchLoadRoles(q.tenantId(), roleIds));

@@ -6,71 +6,79 @@
  * - 角色矩阵 mock：`mock/login.ts` 反向 import 本对象拼装 ROLE_PERM_MATRIX
  * - 各组件 v-if/computed：直接 `hasPerms(ORG_USER_PERMS.XXX)`
  *
- * ## 甲层 ↔ 乙层映射
- * 与 `docs/design/org-user-permission-contract.md` §4 权限矩阵一一对应。
- * **甲层**（这里）：前端按钮可见性 perm 串，按 UI 模块切分以便菜单细粒度配权（如 HR 只管组织不管岗位）。
- * **乙层**：admin-service 的 `permissionValidator` 走资源类型 × 操作码门禁
- *           （`ADMIN_ORG/ADMIN_USER/ADMIN_ROLE` × `CREATE/UPDATE/DELETE/...`）。
+ * ## v1.4「双轨并行」命名空间统一
+ * 前后端统一使用 `资源类型:操作码` 词法（permission-center 的乙层模型），
+ * 不再经 `sys_menu.perm_code` 中转，也无 `system:模块:动作` 翻译层：
+ * - 前端 `hasPerms("ADMIN_ORG:CREATE_POSITION")` 与后端 `engine.hasPermission(... ADMIN_ORG, CREATE_POSITION)` 同源
+ * - 管理员只在权限中心一处配权，前端按钮即时跟随
  *
- * 前端 hasPerms 通过 ≠ 接口必能调通，后端是真权威；本目录仅做 UX 隐藏。
+ * 双轨：
+ * - 轨道 1（菜单可见性）：`ADMIN_MENU:VIEW` —— 决定路由可达，不在本表登记
+ * - 轨道 2（按钮权限）：本表所有条目 —— 决定页面内按钮是否显示
  *
- * ## 「岗位 = 特殊组织」契约（§D 备注 ⁴，v1.3 操作码精化）
+ * 详见 `docs/design/org-user-permission-contract.md` v1.4 + §4 权限矩阵。
+ *
+ * ## 「岗位 = 特殊组织」
  * 岗位与普通组织共用 `/org/*` 端点（通过 `orgType=2` 区分），资源类型同为 `ADMIN_ORG`，
  * 但乙层使用**独立的精化操作码**实现"组织管理员 ≠ 岗位管理员"细粒度配权：
+ *   - 岗位查看      → `ADMIN_ORG:VIEW_POSITION`
  *   - 岗位 CRUD     → `ADMIN_ORG:CREATE_POSITION / UPDATE_POSITION / DELETE_POSITION`
  *   - 岗位用户挂载  → `ADMIN_ORG:ASSIGN_POSITION_USER`
- * 与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。
  * **不新增 `ADMIN_POSITION` 资源类型**，以保持锚点单一性、避免 user-org 关系双写。
  */
 export const ORG_USER_PERMS = {
-  // ===== 组织树（A 区）—— 乙层 ADMIN_ORG（orgType=1） =====
-  /** 页面/树可见性（菜单可见性派生，最小入口权） */
-  ORG_VIEW: "system:org:view",
-  /** 新增根/子组织 → ADMIN_ORG:CREATE */
-  ORG_ADD: "system:org:add",
-  /** 编辑/移动/启停组织 → ADMIN_ORG:UPDATE（admin-service 改类操作折叠到 UPDATE） */
-  ORG_EDIT: "system:org:edit",
-  /** 删除组织 → ADMIN_ORG:DELETE */
-  ORG_DELETE: "system:org:delete",
+  // ===== 组织树（A 区）—— ADMIN_ORG（orgType=1） =====
+  /** 查看组织树 */
+  ORG_VIEW: "ADMIN_ORG:VIEW",
+  /** 新增根/子组织 */
+  ORG_ADD: "ADMIN_ORG:CREATE",
+  /** 编辑/移动/启停组织节点（与「成员管理」解耦） */
+  ORG_EDIT: "ADMIN_ORG:UPDATE",
+  /** 删除组织 */
+  ORG_DELETE: "ADMIN_ORG:DELETE",
   /**
-   * 普通组织成员关系操作（添加/移除成员、设主组织）→ ADMIN_ORG:UPDATE（实例级，作用在普通组织实例）
+   * 普通组织成员关系（添加/移除成员、设主组织）
    *
+   * v1.4 从 UPDATE 拆出独立操作码 MANAGE_MEMBER，与岗位的 ASSIGN_POSITION_USER 同构。
    * **默认树语义边界**：默认组织树上「添加/移除/设主」具有身份目录含义，
-   * 最终由后端按 `docs/design/default-org-tree-user-lifecycle.md` 二次拒绝。
+   * 由后端按 `docs/design/default-org-tree-user-lifecycle.md` 二次拒绝。
    */
-  ORG_MEMBER: "system:org:member",
+  ORG_MEMBER: "ADMIN_ORG:MANAGE_MEMBER",
 
-  // ===== 成员（B 区）—— 乙层 ADMIN_USER =====
-  USER_VIEW: "system:user:view",
-  /** 创建用户（只能归默认组织树）→ ADMIN_USER:CREATE */
-  USER_ADD: "system:user:add",
-  /** 编辑用户（改己豁免）→ ADMIN_USER:UPDATE */
-  USER_EDIT: "system:user:edit",
-  /** 删除用户 → ADMIN_USER:DELETE */
-  USER_DELETE: "system:user:delete",
-  /** 启用/禁用（toggle status）→ ADMIN_USER:ENABLE / DISABLE */
-  USER_ENABLE: "system:user:enable",
-  /** 重置密码（改己豁免）→ ADMIN_USER:RESET_PASSWORD */
-  USER_RESET_PWD: "system:user:reset-pwd",
+  // ===== 成员（B 区）—— ADMIN_USER =====
+  /** 查看用户列表 */
+  USER_VIEW: "ADMIN_USER:VIEW",
+  /** 创建用户（只能归默认组织树） */
+  USER_ADD: "ADMIN_USER:CREATE",
+  /** 编辑用户（改己豁免） */
+  USER_EDIT: "ADMIN_USER:UPDATE",
+  /** 删除用户 */
+  USER_DELETE: "ADMIN_USER:DELETE",
+  /** 启用/禁用切换（v1.4 toggle 语义，DISABLE 已合并入 ENABLE） */
+  USER_ENABLE: "ADMIN_USER:ENABLE",
+  /** 重置密码（改己豁免） */
+  USER_RESET_PWD: "ADMIN_USER:RESET_PASSWORD",
 
-  // ===== 功能角色分配（C 区）—— 乙层 ROLE:MANAGE =====
-  USER_ROLE_ASSIGN: "system:user:role:assign",
+  // ===== 功能角色分配（C 区）—— permission-center 的 ROLE 资源类型 =====
+  /** 分配/回收功能角色（跨资源类型映射：前端在用户域，后端锚定 ROLE 实例） */
+  USER_ROLE_ASSIGN: "ROLE:MANAGE",
 
-  // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— 乙层 ADMIN_ORG + 精化操作码 =====
-  POSITION_VIEW: "system:org:position:view",
-  /** 新增岗位 → ADMIN_ORG:CREATE_POSITION（岗位组织实例） */
-  POSITION_ADD: "system:org:position:add",
-  /** 编辑岗位 → ADMIN_ORG:UPDATE_POSITION */
-  POSITION_EDIT: "system:org:position:edit",
-  /** 删除岗位 → ADMIN_ORG:DELETE_POSITION */
-  POSITION_DELETE: "system:org:position:delete",
+  // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— ADMIN_ORG + 精化操作码 =====
+  /** 查看岗位 Tab（v1.4 VIEW 类细化到资源类型，与 ADMIN_ORG:VIEW 解耦） */
+  POSITION_VIEW: "ADMIN_ORG:VIEW_POSITION",
+  /** 新增岗位 */
+  POSITION_ADD: "ADMIN_ORG:CREATE_POSITION",
+  /** 编辑岗位 */
+  POSITION_EDIT: "ADMIN_ORG:UPDATE_POSITION",
+  /** 删除岗位 */
+  POSITION_DELETE: "ADMIN_ORG:DELETE_POSITION",
   /**
-   * 挂载/卸载/设主 岗位用户 → ADMIN_ORG:ASSIGN_POSITION_USER
+   * 挂载/卸载/设主 岗位用户
    *
-   * 与普通组织成员归属（`ADMIN_ORG:UPDATE` / ORG_MEMBER）解耦，便于
+   * 与普通组织成员归属（ADMIN_ORG:MANAGE_MEMBER）解耦，便于
    * "岗位用户运营"独立配权。资源锚点仍是岗位 org 实例。
    */
-  POSITION_ASSIGN: "system:org:position:assign"
+  POSITION_ASSIGN: "ADMIN_ORG:ASSIGN_POSITION_USER"
 } as const;
 
 export type OrgUserPermKey = keyof typeof ORG_USER_PERMS;

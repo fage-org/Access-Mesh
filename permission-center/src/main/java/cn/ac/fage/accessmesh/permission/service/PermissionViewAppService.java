@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionExplainReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserEffectiveRolesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserPermissionViewReq;
@@ -84,4 +86,22 @@ public interface PermissionViewAppService {
      * @return 资源权限树响应列表
      */
     List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req);
+
+    /**
+     * 获取用户有效权限码聚合（v1.4 双轨并行 / 命名空间统一）。
+     * <p>
+     * 不分页、扁平 {@code resourceTypeCode:operationCode} 字符串集；可供前端 hasPerms、
+     * 功能开关、客户端能力下发等场景使用。
+     * 与 {@link #getEffectivePermissions} 的差异：
+     * <ul>
+     *   <li>本接口不分页 —— 大权限用户的所有有效权限码均会被返回，杜绝截断风险</li>
+     *   <li>不携带来源角色、scopeAll、resource 实例等管理面字段</li>
+     *   <li>必须在 req.resourceTypeCodes 显式声明白名单，避免下发无关资源类型</li>
+     * </ul>
+     *
+     * @param tenantId 租户ID
+     * @param req      有效权限码聚合请求
+     * @return 有效权限码响应（perm 串列表）
+     */
+    UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req);
 }

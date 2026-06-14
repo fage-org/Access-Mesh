@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.admin.service.MenuService;
 import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
+import cn.ac.fage.accessmesh.admin.sync.model.SyncTaskEnvelope;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,9 +118,9 @@ public class MenuServiceImpl implements MenuService {
         menu.setDeleteFlag(0L);
         menuMapper.insert(menu);
 
-        // Outbox: enqueue resource_entity(ADMIN_MENU) UPSERT envelope within same tx
-        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuUpsert(menu));
-        log.info("Enqueued menu upsert sync envelope: menuId={}", menu.getId());
+        // Outbox: enqueue resource_entity(ADMIN_MENU) UPSERT envelope（v1.4 BUTTON 行不再同步，envelope 可能为 null）
+        enqueueIfPresent(tenantId, syncTaskBuilder.menuUpsert(menu));
+        log.info("Enqueued menu upsert sync envelope: menuId={}, menuType={}", menu.getId(), menu.getMenuType());
 
         return menu.getId();
     }
@@ -184,8 +185,8 @@ public class MenuServiceImpl implements MenuService {
         menu.setUpdatedAt(LocalDateTime.now());
         menuMapper.update(menu);
 
-        // 事务内入队菜单更新同步任务（abstract_role + ADMIN_MENU resource_entity 双 envelope）
-        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuUpsert(menu));
+        // 事务内入队菜单更新同步任务（v1.4 BUTTON 行不再同步，envelope 可能为 null）
+        enqueueIfPresent(tenantId, syncTaskBuilder.menuUpsert(menu));
     }
 
     /**
@@ -224,9 +225,10 @@ public class MenuServiceImpl implements MenuService {
         // 1. 先执行本地软删除
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
 
-        // 2. Outbox: enqueue resource_entity(ADMIN_MENU) DELETE envelope within same tx
-        syncTaskDomainService.enqueue(tenantId, syncTaskBuilder.menuDelete(id, String.valueOf(id)));
-        log.info("Enqueued menu delete sync envelope: menuId={}", id);
+        // 2. Outbox: enqueue resource_entity(ADMIN_MENU) DELETE envelope（v1.4 BUTTON 行不再同步）
+        // 传入 menuType 让 builder 短路 BUTTON 行；menu 在删除前已加载（前置校验路径），此处复用其 menuType
+        enqueueIfPresent(tenantId, syncTaskBuilder.menuDelete(id, String.valueOf(id), menu.getMenuType()));
+        log.info("Enqueued menu delete sync envelope: menuId={}, menuType={}", id, menu.getMenuType());
     }
 
     /**
@@ -307,5 +309,15 @@ public class MenuServiceImpl implements MenuService {
                 buildTree(all, m.getId())
             ))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 入队同步信封，envelope 为 null 时跳过（v1.4：BUTTON 行不再同步到权限中心）。
+     */
+    private void enqueueIfPresent(Long tenantId, SyncTaskEnvelope envelope) {
+        if (envelope == null) {
+            return;
+        }
+        syncTaskDomainService.enqueue(tenantId, envelope);
     }
 }

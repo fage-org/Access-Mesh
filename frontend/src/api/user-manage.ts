@@ -2,27 +2,10 @@
  * 用户管理 API
  * 经 @/utils/http 调用 admin-service 端点；Phase 1 由 mock/user-manage.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */
 import { http } from "@/utils/http";
-
-// ========== 统一响应信封（对齐 common.model.PermResult） ==========
-
-/** 后端统一响应包装：code=200 为成功 */
-export type PermResult<T> = {
-  code: number;
-  message: string;
-  data: T;
-  requestId?: string;
-  traceId?: string;
-};
-
-/** 按 code 解包，非 200 抛错，交由调用方 try/catch 处理 */
-function unwrap<T>(res: PermResult<T>): T {
-  if (res.code !== 200) {
-    throw new Error(res.message || "请求失败");
-  }
-  return res.data;
-}
+import { type PermResult, unwrap } from "./_envelope";
 
 // ========== 类型定义 ==========
 

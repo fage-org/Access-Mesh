@@ -100,6 +100,16 @@ public enum AdminErrorCode {
      */
     ORG_SINGLE_ASSOC_VIOLATION(10106, "该树只允许单关联"),
 
+    /**
+     * 组织读接口必须显式指定 orgType
+     * <p>
+     * v1.4 起 /org/page、/org/tree 等读接口要求显式声明 orgType（1=普通组织 / 2=岗位），
+     * 以便服务端按 orgType 分发独立 VIEW 操作码（VIEW / VIEW_POSITION）做权限门控。
+     * 不传将拒绝请求，避免「混合查询绕过细粒度 VIEW 配权」。
+     * </p>
+     */
+    ORG_TYPE_REQUIRED(10107, "请显式指定 orgType（1=普通组织 / 2=岗位）"),
+
     // ===== 菜单相关错误（10201-10299） =====
 
     /**

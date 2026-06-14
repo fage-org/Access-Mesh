@@ -126,7 +126,7 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 | `PermQuery.forResourceCheck`  | 资源检查 | 全范围+实例，完整评估条件/冲突                  |
 | `PermQuery.forValidate`       | 管理校验 | 类型+实例，无评估，最小输出                     |
 | `PermQuery.forScopeQuery`     | 范围查询 | 无提前返回，不评估，返回所有辅助信息            |
-| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录，不按位过滤，完整数据输出      |
+| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录，不按位过滤；同时按 `effectiveBits` 生成最终可用操作投影 |
 
 **对外接口：**
 

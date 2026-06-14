@@ -50,6 +50,12 @@ import java.util.stream.Collectors;
  * 实现跨服务数据同步机制，通过Outbox Pattern确保用户创建与同步任务记录原子性。
  * 用户修改自己的信息无需权限校验，其他操作需要相应权限。
  * 使用BCrypt进行密码哈希，SecureRandom生成随机密码。
+ *
+ * @implNote v1.4 起所有读接口（{@link #getUser}、{@link #pageUsers}）必须经过
+ *           {@code permissionValidator.checkTypeLevel(USER, VIEW)} 门禁。
+ *           前端隐藏不是安全边界，禁止在新增读接口时省略。
+ *           契约依据：{@code docs/design/org-user-permission-contract.md} v1.4 §4 B 区。
+ *
  * @see docs/design/default-org-tree-user-lifecycle.md
  * </p>
  */
@@ -301,8 +307,8 @@ public class UserServiceImpl implements UserService {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(禁用)或1(启用)");
         }
 
-        // 权限检查 — 批量实例级，启用用 ENABLE，禁用用 DISABLE
-        String operationCode = req.status() == 0 ? AdminOperationCode.DISABLE : AdminOperationCode.ENABLE;
+        // 权限检查 — 批量实例级，启用与禁用共用 ENABLE（toggle 语义，v1.4 合并）
+        String operationCode = AdminOperationCode.ENABLE;
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
@@ -343,6 +349,9 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserResp getUser(Long id) {
+        // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
+        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
+
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 使用 DomainService 获取用户
@@ -373,6 +382,9 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
+        // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
+        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
+
         Long tenantId = TenantContextHolder.getTenantId();
 
         int pageNum = req.getPageNum();

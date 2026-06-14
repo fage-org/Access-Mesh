@@ -44,6 +44,15 @@ public class PermResult {
     private final List<RolePermEntry> instanceEntries;
 
     /**
+     * 有效操作权限投影列表
+     * <p>
+     * 基于已命中的原始授权条目和 {@code OperationPermission.effectiveBits}
+     * 展开得到。它表示调用方最终可用的操作集合，不替代原始授权条目。
+     * </p>
+     */
+    private final List<EffectiveOperationEntry> effectiveOperationEntries;
+
+    /**
      * 资源实体映射
      */
     private final Map<Long, ResourceEntity> resourceMap;
@@ -65,6 +74,7 @@ public class PermResult {
         boolean scopeAllMatched,
         List<RolePermEntry> scopeAllEntries,
         List<RolePermEntry> instanceEntries,
+        List<EffectiveOperationEntry> effectiveOperationEntries,
         Map<Long, ResourceEntity> resourceMap,
         Map<Long, OperationPermission> operationMap,
         Map<Long, AbstractRole> roleMap
@@ -74,6 +84,8 @@ public class PermResult {
         this.scopeAllMatched = scopeAllMatched;
         this.scopeAllEntries = List.copyOf(scopeAllEntries != null ? scopeAllEntries : List.of());
         this.instanceEntries = List.copyOf(instanceEntries != null ? instanceEntries : List.of());
+        this.effectiveOperationEntries = List.copyOf(
+            effectiveOperationEntries != null ? effectiveOperationEntries : List.of());
         this.resourceMap = resourceMap == null ? null : Map.copyOf(resourceMap);
         this.operationMap = operationMap == null ? null : Map.copyOf(operationMap);
         this.roleMap = roleMap == null ? null : Map.copyOf(roleMap);
@@ -86,6 +98,7 @@ public class PermResult {
     public boolean scopeAllMatched() { return scopeAllMatched; }
     public List<RolePermEntry> scopeAllEntries() { return scopeAllEntries; }
     public List<RolePermEntry> instanceEntries() { return instanceEntries; }
+    public List<EffectiveOperationEntry> effectiveOperationEntries() { return effectiveOperationEntries; }
     public Map<Long, ResourceEntity> resourceMap() { return resourceMap; }
     public Map<Long, OperationPermission> operationMap() { return operationMap; }
     public Map<Long, AbstractRole> roleMap() { return roleMap; }
@@ -143,4 +156,38 @@ public class PermResult {
             .map(RolePermEntry::permissionId).filter(Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
     }
+
+    /**
+     * 有效操作权限投影。
+     * <p>
+     * 一条显式授权可能展开为多条有效操作，例如 UPDATE 通过 inheritMask
+     * 覆盖 VIEW 时，会产生 UPDATE 和 VIEW 两条投影。permissionId/roleId
+     * 等来源字段仍指向原始授权条目，便于调用方追溯来源。
+     * </p>
+     *
+     * @param permissionId         原始权限ID
+     * @param roleId               来源角色ID
+     * @param resourceEntityId     资源实体ID，scopeAll 权限可为空
+     * @param resourceType         资源类型值
+     * @param grantedBits          原始授予操作位
+     * @param grantedOperationCode 原始授予操作码
+     * @param effectiveBits        原始授予操作的有效位掩码
+     * @param operationCode        最终可用操作码
+     * @param operationBinaryBit   最终可用操作位
+     * @param grantSource          授权来源
+     * @param scopeAll             是否全范围权限
+     */
+    public record EffectiveOperationEntry(
+        Long permissionId,
+        Long roleId,
+        Long resourceEntityId,
+        Integer resourceType,
+        Long grantedBits,
+        String grantedOperationCode,
+        Long effectiveBits,
+        String operationCode,
+        Long operationBinaryBit,
+        String grantSource,
+        Boolean scopeAll
+    ) {}
 }

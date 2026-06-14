@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -110,6 +111,30 @@ public class AuthServiceImpl implements AuthService {
 
     private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
     private static final String OPERATION_VIEW = "VIEW";
+
+    /**
+     * 「有效权限码下发」查询的资源类型白名单（v1.4 双轨并行）。
+     * <p>
+     * 包含所有产生前端 hasPerms 校验串的资源类型，不含 ADMIN_MENU
+     * （菜单可见性由 {@code filterAllowedMenus} 独立处理）。
+     * 新增需要下发权限码的资源类型时在此追加。
+     */
+    private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
+        AdminResourceType.ORG,
+        AdminResourceType.USER,
+        AdminResourceType.ROLE,
+        AdminResourceType.NOTICE,
+        AdminResourceType.JOB,
+        AdminResourceType.DICT,
+        AdminResourceType.DICT_DATA,
+        AdminResourceType.CONFIG,
+        AdminResourceType.OAUTH2_CLIENT,
+        AdminResourceType.FILE,
+        AdminResourceType.ORG_TREE_CONFIG,
+        AdminResourceType.SYNC_TASK,
+        // permission-center 内部 ROLE 资源类型，承载 C 区「分配功能角色给用户」 → ROLE:MANAGE
+        "ROLE"
+    );
 
     /**
      * 构造函数注入依赖
@@ -647,52 +672,37 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 获取用户按钮级权限列表
+     * 获取用户有效权限码列表（v1.4「双轨并行」权限码下发轨道）。
      * <p>
-     * 通过Feign调用permission-center获取用户对MENU资源类型的操作权限。
-     * 权限码格式为"资源编码:操作编码"，如"system:user:add"。
-     * </p>
+     * 通过 Feign 查询 permission-center 上用户在「真实资源类型」（ADMIN_ORG / ADMIN_USER /
+     * ADMIN_ROLE / ROLE 等）上的有效操作权限，拼成 {@code resourceTypeCode:operationCode}
+     * 格式（如 {@code "ADMIN_ORG:CREATE_POSITION"}）作为前端 hasPerms 的 perm 串。
+     * <p>
+     * 与 {@link #filterAllowedMenus} 的 ADMIN_MENU:VIEW（菜单可见性轨道）独立工作：
+     * <ul>
+     *   <li>菜单可见性 → 决定哪些路由可达（ADMIN_MENU 资源类型）</li>
+     *   <li>有效权限码 → 决定页面内操作、功能开关等能力是否可用（真实资源类型 × 操作码，本方法）</li>
+     * </ul>
+     * 前后端共用同一套词法（资源类型:操作码），不再经 sys_menu 中转翻译。
      *
-     * @param tenantId 租户ID
-     * @param userId 用户ID
-     * @return 权限码列表
+     * @param tenantId 租户 ID
+     * @param userId   用户 ID
+     * @return 形如 {@code "ADMIN_ORG:CREATE"} 的 perm 串列表
      */
     private List<String> getUserPermissions(Long tenantId, Long userId) {
         try {
-            cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq req =
-                new cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq(
-                    "USER",
+            // v1.4：切换到 /effective-permission-codes 专用聚合接口（不分页、扁平 perm 串），
+            // 避免 effective-permissions 的 page=1, size=500 模式在大权限用户上被截断。
+            cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq(
                     SUBJECT_TYPE_ADMIN_USER,
                     String.valueOf(userId),
-                    null,
-                    null,
-                    null,
-                    List.of("MENU"),
-                    null,
-                    null,
-                    null,
-                    Boolean.FALSE,
-                    Boolean.FALSE,
-                    Boolean.FALSE,
-                    null,
-                    1,
-                    100
+                    EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES
                 );
-            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp> result =
-                permissionFeignClient.getEffectivePermissions(req);
-            if (result != null && result.getData() != null && result.getData().items() != null) {
-                Set<String> permCodes = new HashSet<>();
-                for (var item : result.getData().items()) {
-                    String resourceCode = item.resourceCode();
-                    // 修复：operationCodes 是复数 List<String>，而非单数 operationCode
-                    List<String> opCodes = item.operationCodes();
-                    if (opCodes != null) {
-                        for (String opCode : opCodes) {
-                            permCodes.add(resourceCode + ":" + opCode);
-                        }
-                    }
-                }
-                return new ArrayList<>(permCodes);
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp> result =
+                permissionFeignClient.getEffectivePermissionCodes(req);
+            if (result != null && result.getData() != null && result.getData().permissions() != null) {
+                return new ArrayList<>(result.getData().permissions());
             }
         } catch (Exception e) {
             log.warn("Failed to get user permissions for tenant={}, userId={}", tenantId, userId, e);

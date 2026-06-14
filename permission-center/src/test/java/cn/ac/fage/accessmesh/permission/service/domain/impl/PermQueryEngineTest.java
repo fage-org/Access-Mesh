@@ -198,6 +198,12 @@ class PermQueryEngineTest {
         assertTrue(result.resourceMap().containsKey(200L));
         assertTrue(result.resourceMap().containsKey(201L));
         assertTrue(result.operationMap().size() >= 3);
+        List<String> effectiveType1Ops = result.effectiveOperationEntries().stream()
+            .filter(e -> Integer.valueOf(1).equals(e.resourceType()))
+            .map(PermResult.EffectiveOperationEntry::operationCode)
+            .toList();
+        assertTrue(effectiveType1Ops.contains("VIEW"));
+        assertTrue(effectiveType1Ops.contains("MANAGE"));
         assertEquals(1, result.roleMap().size());
         assertTrue(result.roleMap().containsKey(20L));
 

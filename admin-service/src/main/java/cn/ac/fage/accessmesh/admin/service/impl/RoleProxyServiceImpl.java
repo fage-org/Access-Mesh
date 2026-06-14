@@ -27,10 +27,12 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
 import org.slf4j.Logger;
@@ -76,6 +78,32 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     );
 
     private static final int RESOURCE_TYPE_MENU = 1;
+
+    /** 主体类型码：admin-service 的所有用户在权限中心都以 ADMIN_USER 为主体。 */
+    private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
+
+    /**
+     * 「有效权限码下发」查询的资源类型白名单（v1.4 双轨并行）。
+     * <p>
+     * 与 {@code AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES} 保持一致；产生前端 hasPerms perm 串
+     * 的全部资源类型，不含 ADMIN_MENU（菜单可见性轨道独立）。
+     */
+    private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
+        AdminResourceType.ORG,
+        AdminResourceType.USER,
+        AdminResourceType.ROLE,
+        AdminResourceType.NOTICE,
+        AdminResourceType.JOB,
+        AdminResourceType.DICT,
+        AdminResourceType.DICT_DATA,
+        AdminResourceType.CONFIG,
+        AdminResourceType.OAUTH2_CLIENT,
+        AdminResourceType.FILE,
+        AdminResourceType.ORG_TREE_CONFIG,
+        AdminResourceType.SYNC_TASK,
+        // permission-center 内部 ROLE 资源类型，承载 C 区「分配功能角色给用户」 → ROLE:MANAGE
+        "ROLE"
+    );
 
     private final PermissionFeignClient permissionFeignClient;
     private final UserOrgDomainService userOrgDomainService;
@@ -375,32 +403,95 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     }
 
     /**
-     * 加载用户角色和权限
+     * 加载用户角色和权限（v1.4「双轨并行」权限码下发轨道复用）。
      * <p>
-     * 获取用户的组织关联、角色和按钮级权限。
-     * 通过UserOrgDomainService获取用户组织关联。
-     * 角色和权限通过permission-center获取（待实现）。
-     * </p>
+     * 与 {@code AuthServiceImpl.getUserMenu} 共享同一鉴权下发链路：
+     * <ul>
+     *   <li>角色：经 Feign 查 permission-center {@code /api/user/roles}</li>
+     *   <li>权限：经 Feign 查 permission-center 有效权限码（按 {@link #EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES} 限定），
+     *       拼成 {@code "资源类型:操作码"}（如 {@code "ADMIN_ORG:CREATE_POSITION"}）作为前端 hasPerms 的 perm 串</li>
+     *   <li>组织：经本地 {@code userOrgDomainService} 查询</li>
+     * </ul>
+     * 失败时各项独立降级为空 List，不阻断整体响应。
      *
      * @param userId 用户ID
-     * @return 用户信息响应，包含组织、角色、权限列表
+     * @return 用户信息响应（角色/权限/组织三部分）
      */
     @Override
     public UserInfoResp loadUserRolesAndPermissions(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
-        List<SysUserOrg> userOrgs = userOrgDomainService.findByUserId(tenantId, userId);
 
+        List<SysUserOrg> userOrgs = userOrgDomainService.findByUserId(tenantId, userId);
         List<UserInfoResp.OrgInfo> orgInfos = userOrgs.stream()
             .map(uo -> new UserInfoResp.OrgInfo(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());
 
-        // 通过 /api/user/roles 从 permission-center 获取角色
-        List<UserInfoResp.RoleInfo> roles = List.of();
-
-        // 通过 /api/permission-view/user 从 permission-center 获取权限
-        List<String> permissions = List.of();
+        List<UserInfoResp.RoleInfo> roles = fetchUserRoles(tenantId, userId);
+        List<String> permissions = fetchUserPermissions(tenantId, userId);
 
         return new UserInfoResp(userId, null, null, null, null, null, null, roles, permissions, orgInfos);
+    }
+
+    /**
+     * 通过 Feign 查询用户角色，转为 {@link UserInfoResp.RoleInfo}。
+     * <p>
+     * permission-center 业务键导向（{@code roleExternalId} 是 String），admin-service 的
+     * RoleInfo 需要 Long roleId——若 externalId 不能解析为 Long 则降级为 null（前端只用 roleName 显示）。
+     */
+    private List<UserInfoResp.RoleInfo> fetchUserRoles(Long tenantId, Long userId) {
+        try {
+            cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq(
+                    SUBJECT_TYPE_ADMIN_USER,
+                    String.valueOf(userId)
+                );
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
+                permissionFeignClient.getUserRoles(req);
+            if (result != null && result.getData() != null && result.getData().roles() != null) {
+                return result.getData().roles().stream()
+                    .map(r -> new UserInfoResp.RoleInfo(parseRoleId(r.roleExternalId()), r.roleName()))
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch user roles for tenant={}, userId={}", tenantId, userId, e);
+        }
+        return List.of();
+    }
+
+    /**
+     * 通过 Feign 查询用户在白名单资源类型上的有效权限码，拼成 {@code "类型:操作码"} perm 串。
+     * <p>
+     * 与 {@code AuthServiceImpl.getUserPermissions} 同语义；两端都返回相同格式，前端 hasPerms 通用。
+     */
+    private List<String> fetchUserPermissions(Long tenantId, Long userId) {
+        try {
+            // v1.4：切换到 /effective-permission-codes 专用聚合接口（不分页、扁平 perm 串），
+            // 避免 effective-permissions 的 page=1, size=500 模式在大权限用户上被截断。
+            UserEffectivePermissionCodesReq req = new UserEffectivePermissionCodesReq(
+                SUBJECT_TYPE_ADMIN_USER,
+                String.valueOf(userId),
+                EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES
+            );
+            PermResult<UserEffectivePermissionCodesResp> result = permissionFeignClient.getEffectivePermissionCodes(req);
+            if (result != null && result.getData() != null && result.getData().permissions() != null) {
+                return new ArrayList<>(result.getData().permissions());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch user permissions for tenant={}, userId={}", tenantId, userId, e);
+        }
+        return List.of();
+    }
+
+    /** 把 permission-center 的 roleExternalId（String）尽力解析为 Long，失败则返回 null。 */
+    private static Long parseRoleId(String externalId) {
+        if (externalId == null || externalId.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(externalId);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private RoleRef resolveRoleRef(Long roleId) {

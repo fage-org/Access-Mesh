@@ -159,8 +159,8 @@ COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删
 
 -- -----------------------------------------------------------------------------
 -- 5. 操作权限表（绑定资源类型，binary_bit + inherit_mask 用 BIGINT）
---    创建 resource_type 时自动预置 CRUD 四个操作：
---    CREATE(bit=1,mask=0) READ(bit=2,mask=0) UPDATE(bit=4,mask=2继承READ) DELETE(bit=8,mask=2继承READ)
+--    创建 resource_type 时自动预置 CRUD 四个操作（v1.4 起词法统一为 VIEW，原 READ 为历史命名）：
+--    CREATE(bit=1,mask=0) VIEW(bit=2,mask=0) UPDATE(bit=4,mask=2继承VIEW) DELETE(bit=8,mask=2继承VIEW)
 --    每个 resource_type 最多 63 个操作（BIGINT 63 位）
 --    操作无启停状态，用删除代替
 -- -----------------------------------------------------------------------------
@@ -183,10 +183,14 @@ CREATE TABLE operation_permission (
 
 CREATE UNIQUE INDEX uk_operation_permission_typed ON operation_permission (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0;
 CREATE UNIQUE INDEX uk_operation_permission_global ON operation_permission (tenant_id, code) WHERE resource_type IS NULL AND delete_flag = 0;
+-- v1.4 强约束：同 (tenant, resource_type, binary_bit) 下只能有一个有效 code。
+-- 阻止「同 bit 多 code」（如 READ+VIEW 同位 bit=2）造成
+-- OperationPermissionUtils.findByResourceTypeAndBinaryBit 反查歧义。
+CREATE UNIQUE INDEX uk_operation_permission_typed_bit ON operation_permission (tenant_id, resource_type, binary_bit) WHERE resource_type IS NOT NULL AND delete_flag = 0;
 
-COMMENT ON TABLE operation_permission IS '操作权限；effective = binary_bit | inherit_mask；预置CRUD：CREATE(1,0) READ(2,0) UPDATE(4,2) DELETE(8,2)';
+COMMENT ON TABLE operation_permission IS '操作权限；effective = binary_bit | inherit_mask；预置CRUD：CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)';
 COMMENT ON COLUMN operation_permission.resource_type IS '适用的资源类型枚举值，NULL 表示适用所有';
-COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、READ、UPDATE、DELETE';
+COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW、UPDATE、DELETE（v1.4 起统一用 VIEW，原 READ 为历史命名）';
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 

@@ -313,7 +313,7 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 | `PermQuery.forResourceCheck`  | 资源检查 | 全范围+实例，完整评估条件/冲突，含资源和操作           |
 | `PermQuery.forValidate`       | 管理校验 | 类型+实例，不评估，最小输出                            |
 | `PermQuery.forScopeQuery`     | 范围查询 | 不提前返回，不评估，返回全部辅助信息                   |
-| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录（`selectValidByRoleIds`），不按位过滤 |
+| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录（`selectValidByRoleIds`），不按位过滤；按 `effectiveBits` 生成最终可用操作投影 |
 
 ### 3.2 引擎核心类
 
@@ -335,7 +335,8 @@ PermQueryEngine.query(PermQuery q)
     │     ├─ resolveRoleIds → SubjectDomainService
     │     ├─ selectValidByRoleIds → 全量角色权限（不按位过滤）
     │     ├─ evaluateIfNeeded → 条件+冲突
-    │     └─ loadAncillaryForView → 批量加载 Resource/Operation/Role
+    │     ├─ loadAncillaryForView → 批量加载 Resource/Operation/Role
+    │     └─ buildEffectiveOperationEntries → 按 effectiveBits 展开最终可用操作
     │
     └─ 通用查询：
           ├─ 0. 创建 ResolveContext（预解析 resourceTypes + operationIds）
@@ -358,6 +359,7 @@ PermQueryEngine.query(PermQuery q)
 
 - `allowed` / `reason`
 - `scopeAllMatched` / `scopeAllEntries` / `instanceEntries`
+- `effectiveOperationEntries`：基于已命中的原始授权条目和 `OperationPermission.effectiveBits` 展开的最终可用操作投影；不替代原始授权条目
 - `resourceMap` / `operationMap` / `roleMap`（按 `includeXxx` 标志选择性加载）
 
 `PermResultUtils` 提供转换方法将 `PermResult` 转为对外响应：

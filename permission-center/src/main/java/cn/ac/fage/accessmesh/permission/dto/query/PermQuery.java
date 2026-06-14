@@ -113,7 +113,11 @@ public class PermQuery {
     private boolean evaluateConflicts = true;
 
     /**
-     * 是否评估位匹配
+     * 是否评估操作位语义。
+     * <p>
+     * 目标操作查询中，位语义用于按 effectiveBits 计算 SQL 查询掩码；
+     * 用户视图查询中，位语义用于把显式授权操作展开为最终可用操作投影。
+     * </p>
      */
     private boolean evaluateMatchesBit = true;
 
@@ -372,7 +376,7 @@ public class PermQuery {
      * <p>
      * 查询该用户的全部权限，不指定具体资源或操作。
      * 引擎跳过资源类型/操作ID/位掩码解析，直接用 {@code selectValidByRoleIds}
-     * 查询全部角色权限记录，不按位过滤，返回完整数据。
+     * 查询全部角色权限记录，不按位过滤；随后按 effectiveBits 展开最终可用操作投影。
      * </p>
      *
      * @param tenantId 租户ID
@@ -388,7 +392,7 @@ public class PermQuery {
         q.earlyReturnOnScopeAll = false;
         q.evaluateConditions = true;
         q.evaluateConflicts = true;
-        q.evaluateMatchesBit = false;
+        q.evaluateMatchesBit = true;
         q.includeResources = true;
         q.includeOperations = true;
         q.includeRoles = true;

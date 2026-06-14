@@ -1,7 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.query.PermViewResult;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionExplainReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.permission.dto.req.UserResourceTreeReq;
@@ -19,8 +24,10 @@ import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermViewAssembler;
+import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -131,5 +139,48 @@ class PermissionViewAppServiceImplTest {
 
         assertNotNull(tree);
         assertTrue(tree.isEmpty());
+    }
+
+    @Test
+    void getEffectivePermissionCodesShouldReturnInheritedEffectiveOperationCodes() {
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "10")).thenReturn(10L);
+        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 10L, OperationCodeConstants.VIEW))
+            .thenReturn(true);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+
+        RolePermEntry entry = new RolePermEntry(
+            501L, 20L, 200L, null, 1, 4L,
+            "UPDATE", 6L, "DIRECT", true, null, false, null, false
+        );
+        PermResult result = PermResult.builder(true, null)
+            .instanceEntries(List.of(entry))
+            .effectiveOperationEntries(List.of(
+                new PermResult.EffectiveOperationEntry(
+                    501L, 20L, 200L, 1, 4L, "UPDATE", 6L,
+                    "UPDATE", 4L, "DIRECT", false),
+                new PermResult.EffectiveOperationEntry(
+                    501L, 20L, 200L, 1, 4L, "UPDATE", 6L,
+                    "VIEW", 2L, "DIRECT", false)
+            ))
+            .build();
+        when(engine.query(any(PermQuery.class))).thenReturn(result);
+        when(permViewAssembler.assemble(eq(1L), eq(result), any()))
+            .thenReturn(PermViewResult.builder()
+                .entries(List.of(entry))
+                .effectiveOperationEntries(result.effectiveOperationEntries())
+                .resourceMap(Map.of())
+                .operationMap(Map.of())
+                .roleMap(Map.of())
+                .build());
+        when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
+            .thenReturn(Map.of(1, "ADMIN_USER"));
+
+        UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodes(
+            1L,
+            new UserEffectivePermissionCodesReq("ADMIN_USER", "10", List.of("ADMIN_USER"))
+        );
+
+        assertTrue(resp.permissions().contains("ADMIN_USER:UPDATE"));
+        assertTrue(resp.permissions().contains("ADMIN_USER:VIEW"));
     }
 }

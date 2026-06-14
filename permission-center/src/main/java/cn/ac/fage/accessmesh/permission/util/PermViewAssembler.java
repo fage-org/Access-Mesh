@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.util;
 
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.permission.dto.query.PermResult.EffectiveOperationEntry;
 import cn.ac.fage.accessmesh.permission.dto.query.PermViewFilter;
 import cn.ac.fage.accessmesh.permission.dto.query.PermViewResult;
 import cn.ac.fage.accessmesh.permission.dto.query.PermViewResult.RoleInfo;
@@ -57,6 +58,7 @@ public class PermViewAssembler {
      */
     public PermViewResult assemble(Long tenantId, PermResult result, PermViewFilter filter) {
         List<RolePermEntry> entries = result.allEntries();
+        List<EffectiveOperationEntry> effectiveOperationEntries = result.effectiveOperationEntries();
         Map<Long, ResourceEntity> resourceMap = result.resourceMap() != null ? result.resourceMap() : Map.of();
         Map<Long, OperationPermission> operationMap = result.operationMap() != null ? result.operationMap() : Map.of();
         Map<Long, AbstractRole> roleMap = result.roleMap() != null ? result.roleMap() : Map.of();
@@ -75,11 +77,12 @@ public class PermViewAssembler {
 
         // Filtering pipeline
         entries = filterByScopePermissions(entries, filter);
-        entries = filterByOperationCodes(entries, filter, operationMap);
+        entries = filterByOperationCodes(entries, filter, operationMap, effectiveOperationEntries);
         entries = filterByResourceTypes(entries, filter, resourceMap, resourceTypeCodeMap);
         entries = filterByKeyword(entries, filter, resourceMap);
         entries = filterExcludeApiResources(entries, filter, resourceMap, resourceTypeCodeMap);
         entries = filterByDomainCode(entries, filter, resourceMap, resourceTypeCodeMap, tenantId);
+        effectiveOperationEntries = filterEffectiveOperationEntries(effectiveOperationEntries, entries, filter);
 
         // Build resource type code map (resourceId -> resourceTypeCode)
         Map<Long, String> resTypeCodeMap = new HashMap<>();
@@ -97,7 +100,8 @@ public class PermViewAssembler {
         Map<Long, RoleInfo> sourceRoleMap = buildSourceRoleMap(entries, roleMap, filter, tenantId);
 
         // Paginate
-        return paginate(entries, filter, resourceMap, operationMap, roleMap, sourceRoleMap, resTypeCodeMap, domainCodeMap);
+        return paginate(entries, effectiveOperationEntries, filter, resourceMap, operationMap, roleMap,
+            sourceRoleMap, resTypeCodeMap, domainCodeMap);
     }
 
     // ===== 过滤方法 =====
@@ -112,12 +116,22 @@ public class PermViewAssembler {
     }
 
     private List<RolePermEntry> filterByOperationCodes(List<RolePermEntry> entries, PermViewFilter filter,
-                                                        Map<Long, OperationPermission> operationMap) {
+                                                        Map<Long, OperationPermission> operationMap,
+                                                        List<EffectiveOperationEntry> effectiveOperationEntries) {
         if (filter.getOperationCodes() == null || filter.getOperationCodes().isEmpty()
-            || operationMap.isEmpty()) {
+            || (operationMap.isEmpty() && effectiveOperationEntries.isEmpty())) {
             return entries;
         }
         Set<String> codes = filter.getOperationCodes();
+        if (!effectiveOperationEntries.isEmpty()) {
+            Set<String> matchedEntryKeys = effectiveOperationEntries.stream()
+                .filter(e -> e.operationCode() != null && codes.contains(e.operationCode()))
+                .map(this::effectiveSourceKey)
+                .collect(Collectors.toSet());
+            return entries.stream()
+                .filter(e -> matchedEntryKeys.contains(effectiveSourceKey(e)))
+                .collect(Collectors.toList());
+        }
         return entries.stream()
             .filter(e -> {
                 if (e.grantedBits() == null || e.resourceType() == null) {
@@ -128,6 +142,42 @@ public class PermViewAssembler {
                 return op != null && op.getCode() != null && codes.contains(op.getCode());
             })
             .collect(Collectors.toList());
+    }
+
+    private List<EffectiveOperationEntry> filterEffectiveOperationEntries(
+            List<EffectiveOperationEntry> effectiveOperationEntries,
+            List<RolePermEntry> entries,
+            PermViewFilter filter) {
+        if (effectiveOperationEntries == null || effectiveOperationEntries.isEmpty()) {
+            return List.of();
+        }
+        Set<String> allowedEntryKeys = entries.stream()
+            .map(this::effectiveSourceKey)
+            .collect(Collectors.toSet());
+        Set<String> operationCodes = filter.getOperationCodes();
+        return effectiveOperationEntries.stream()
+            .filter(e -> allowedEntryKeys.contains(effectiveSourceKey(e)))
+            .filter(e -> operationCodes == null || operationCodes.isEmpty()
+                || (e.operationCode() != null && operationCodes.contains(e.operationCode())))
+            .collect(Collectors.toList());
+    }
+
+    private String effectiveSourceKey(RolePermEntry entry) {
+        return entry.permissionId() + "|"
+            + entry.roleId() + "|"
+            + entry.resourceEntityId() + "|"
+            + entry.resourceType() + "|"
+            + entry.grantedBits() + "|"
+            + entry.scopeAll();
+    }
+
+    private String effectiveSourceKey(EffectiveOperationEntry entry) {
+        return entry.permissionId() + "|"
+            + entry.roleId() + "|"
+            + entry.resourceEntityId() + "|"
+            + entry.resourceType() + "|"
+            + entry.grantedBits() + "|"
+            + entry.scopeAll();
     }
 
     private List<RolePermEntry> filterByResourceTypes(List<RolePermEntry> entries, PermViewFilter filter,
@@ -324,7 +374,7 @@ public class PermViewAssembler {
     // ===== 分页 =====
 
     private PermViewResult paginate(
-        List<RolePermEntry> entries, PermViewFilter filter,
+        List<RolePermEntry> entries, List<EffectiveOperationEntry> effectiveOperationEntries, PermViewFilter filter,
         Map<Long, ResourceEntity> resourceMap, Map<Long, OperationPermission> operationMap,
         Map<Long, AbstractRole> roleMap, Map<Long, RoleInfo> sourceRoleMap,
         Map<Long, String> resourceTypeCodeMap, Map<Long, String> domainCodeMap) {
@@ -335,6 +385,7 @@ public class PermViewAssembler {
         // 分页延迟到调用方聚合后执行，此处返回全量已过滤条目
         return PermViewResult.builder()
             .entries(entries)
+            .effectiveOperationEntries(effectiveOperationEntries)
             .resourceMap(resourceMap)
             .operationMap(operationMap)
             .roleMap(roleMap)

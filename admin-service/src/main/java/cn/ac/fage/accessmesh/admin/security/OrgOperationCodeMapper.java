@@ -11,11 +11,16 @@ import java.util.Map;
  *
  * <h3>映射总览</h3>
  * <table border="1" cellpadding="4">
- *   <tr><th>orgType</th><th>含义</th><th>CREATE</th><th>UPDATE</th><th>DELETE</th><th>成员关系(UPDATE)</th></tr>
- *   <tr><td>null / "1" / "ORG"</td><td>普通组织</td><td>CREATE</td><td>UPDATE</td><td>DELETE</td><td>UPDATE</td></tr>
- *   <tr><td>"2" / "POSITION"</td><td>岗位</td><td>CREATE_POSITION</td><td>UPDATE_POSITION</td><td>DELETE_POSITION</td><td>ASSIGN_POSITION_USER</td></tr>
+ *   <tr><th>orgType</th><th>含义</th><th>CREATE</th><th>UPDATE</th><th>DELETE</th><th>VIEW</th><th>成员关系</th></tr>
+ *   <tr><td>null / "1" / "ORG"</td><td>普通组织</td><td>CREATE</td><td>UPDATE</td><td>DELETE</td><td>VIEW</td><td>MANAGE_MEMBER</td></tr>
+ *   <tr><td>"2" / "POSITION"</td><td>岗位</td><td>CREATE_POSITION</td><td>UPDATE_POSITION</td><td>DELETE_POSITION</td><td>VIEW_POSITION</td><td>ASSIGN_POSITION_USER</td></tr>
  * </table>
  *
+ * <p>
+ * v1.4 起普通组织的成员关系从 UPDATE 拆出 MANAGE_MEMBER，与岗位的 ASSIGN_POSITION_USER 同构，
+ * 实现「编辑组织节点」与「管理组织成员」的独立配权。
+ * 同版本 VIEW 类操作码细化到资源类型并区分岗位（VIEW_POSITION），
+ * 实现「看普通组织 ≠ 看岗位」独立配权。
  * <p>
  * 详见 docs/design/org-user-permission-contract.md §4 D 区与 §5 备注⁴。
  */
@@ -49,25 +54,36 @@ public final class OrgOperationCodeMapper {
         ORG_TYPE_POSITION_LABEL, AdminOperationCode.DELETE_POSITION
     );
 
+    /**
+     * 读类操作码映射：岗位 → VIEW_POSITION，普通组织 → VIEW（v1.4 VIEW 类细化到资源类型）。
+     * 与 CREATE/UPDATE/DELETE 同构，实现「读普通组织 ≠ 读岗位」独立配权。
+     */
+    private static final Map<String, String> VIEW_MAP = Map.of(
+        ORG_TYPE_POSITION_NUM, AdminOperationCode.VIEW_POSITION,
+        ORG_TYPE_POSITION_LABEL, AdminOperationCode.VIEW_POSITION
+    );
+
     // ===== 成员关系操作码映射（UserOrgServiceImpl 使用） =====
 
     /**
-     * 岗位的成员关系操作码：ASSIGN_POSITION_USER（与普通组织 UPDATE 解耦）。
-     * 普通组织成员增删/设主仍走 UPDATE。
+     * 成员关系操作码：普通组织 MANAGE_MEMBER，岗位 ASSIGN_POSITION_USER（与各自的 UPDATE 解耦）。
+     * v1.4 起普通组织从 UPDATE 拆出 MANAGE_MEMBER，便于独立配权。
      */
     private static final Map<String, String> USER_ORG_UPDATE_MAP = Map.of(
+        ORG_TYPE_REGULAR_NUM, AdminOperationCode.MANAGE_MEMBER,
+        ORG_TYPE_REGULAR_LABEL, AdminOperationCode.MANAGE_MEMBER,
         ORG_TYPE_POSITION_NUM, AdminOperationCode.ASSIGN_POSITION_USER,
         ORG_TYPE_POSITION_LABEL, AdminOperationCode.ASSIGN_POSITION_USER
     );
 
     /**
-     * 根据 orgType 解析组织 CRUD 操作码。
+     * 根据 orgType 解析组织 CRUD/VIEW 操作码。
      * <p>
-     * 岗位（orgType="2" 或 "POSITION"）返回精化操作码（如 CREATE_POSITION），
-     * 普通组织（orgType=null / "1" / "ORG" / 其他）返回标准操作码（如 CREATE）。
+     * 岗位（orgType="2" 或 "POSITION"）返回精化操作码（如 CREATE_POSITION / VIEW_POSITION），
+     * 普通组织（orgType=null / "1" / "ORG" / 其他）返回标准操作码（如 CREATE / VIEW）。
      *
      * @param orgType     sys_org.orgType 值，可为 null
-     * @param baseOperation 基础操作码（CREATE / UPDATE / DELETE）
+     * @param baseOperation 基础操作码（CREATE / UPDATE / DELETE / VIEW）
      * @return 对应 orgType 的操作码
      */
     public static String resolve(String orgType, String baseOperation) {
@@ -75,6 +91,7 @@ public final class OrgOperationCodeMapper {
             case AdminOperationCode.CREATE -> CREATE_MAP;
             case AdminOperationCode.UPDATE -> UPDATE_MAP;
             case AdminOperationCode.DELETE -> DELETE_MAP;
+            case AdminOperationCode.VIEW -> VIEW_MAP;
             default -> Map.of();
         };
         return map.getOrDefault(normalize(orgType), baseOperation);
@@ -83,16 +100,19 @@ public final class OrgOperationCodeMapper {
     /**
      * 根据 orgType 解析成员关系操作码（UserOrgServiceImpl 使用）。
      * <p>
-     * 与 {@link #resolve} 的区别：岗位的成员关系走 ASSIGN_POSITION_USER 而非 UPDATE_POSITION，
-     * 普通组织的成员关系仍走 UPDATE。
+     * 与 {@link #resolve} 的区别：成员关系（添加/移除成员、设主）走独立操作码——
+     * 普通组织 → MANAGE_MEMBER，岗位 → ASSIGN_POSITION_USER；
+     * 与组织节点本身的 UPDATE（编辑名称/移动/启停）解耦，便于独立配权。
      *
-     * @param orgType     sys_org.orgType 值，可为 null
-     * @param baseOperation 基础操作码（目前仅 UPDATE 有区分）
+     * @param orgType     sys_org.orgType 值，可为 null（按普通组织处理）
+     * @param baseOperation 基础操作码（目前仅 UPDATE 有区分，其他透明回退到 {@link #resolve}）
      * @return 对应 orgType 的成员关系操作码
      */
     public static String resolveForUserOrg(String orgType, String baseOperation) {
         if (AdminOperationCode.UPDATE.equals(baseOperation)) {
-            return USER_ORG_UPDATE_MAP.getOrDefault(normalize(orgType), baseOperation);
+            // null / 未匹配的 orgType 默认按普通组织处理 → MANAGE_MEMBER
+            String mapped = USER_ORG_UPDATE_MAP.get(normalize(orgType));
+            return mapped != null ? mapped : AdminOperationCode.MANAGE_MEMBER;
         }
         return resolve(orgType, baseOperation);
     }

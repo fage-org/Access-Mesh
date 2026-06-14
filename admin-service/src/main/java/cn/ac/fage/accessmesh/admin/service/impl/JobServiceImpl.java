@@ -272,9 +272,8 @@ public class JobServiceImpl implements JobService {
             throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
-        // 权限检查 — 实例级 ENABLE/DISABLE
-        String operationCode = status == JOB_STATUS_ENABLED ? AdminOperationCode.ENABLE : AdminOperationCode.DISABLE;
-        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), operationCode);
+        // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）
+        permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), AdminOperationCode.ENABLE);
 
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());

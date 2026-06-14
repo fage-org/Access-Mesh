@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.dto.query.PermResult.EffectiveOperationEntry;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -25,6 +26,11 @@ public class PermViewResult {
      * 权限条目列表（经过过滤和分页，防御性拷贝）
      */
     private final List<RolePermEntry> entries;
+
+    /**
+     * 有效操作权限投影列表（与 entries 经过相同来源条目过滤）
+     */
+    private final List<EffectiveOperationEntry> effectiveOperationEntries;
 
     /**
      * 资源实体映射（key: resourceEntityId，防御性拷贝）
@@ -84,6 +90,7 @@ public class PermViewResult {
     @Builder
     private PermViewResult(
         List<RolePermEntry> entries,
+        List<EffectiveOperationEntry> effectiveOperationEntries,
         Map<Long, ResourceEntity> resourceMap,
         Map<Long, OperationPermission> operationMap,
         Map<Long, AbstractRole> roleMap,
@@ -96,6 +103,8 @@ public class PermViewResult {
         Map<Long, String> domainCodeMap
     ) {
         this.entries = List.copyOf(entries != null ? entries : List.of());
+        this.effectiveOperationEntries = List.copyOf(
+            effectiveOperationEntries != null ? effectiveOperationEntries : List.of());
         this.resourceMap = resourceMap == null ? Map.of() : Map.copyOf(resourceMap);
         this.operationMap = operationMap == null ? Map.of() : Map.copyOf(operationMap);
         this.roleMap = roleMap == null ? Map.of() : Map.copyOf(roleMap);

@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissions
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -173,4 +174,18 @@ public interface PermissionFeignClient {
     @PostMapping("/api/perm/permission-view/effective-permissions")
     PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(
         @RequestBody UserPermissionViewReq req);
+
+    /**
+     * 查询用户有效权限码聚合（v1.4 双轨并行 / 命名空间统一）。
+     * <p>
+     * 不分页、扁平 {@code resourceTypeCode:operationCode} 字符串列表，可供前端 hasPerms、
+     * 功能开关、客户端能力下发等场景使用。
+     * 与 {@link #getEffectivePermissions} 解耦，杜绝大权限用户被分页截断的故障模式。
+     *
+     * @param req 有效权限码聚合请求（含 resourceTypeCodes 白名单）
+     * @return perm 串列表
+     */
+    @PostMapping("/api/perm/permission-view/effective-permission-codes")
+    PermResult<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
+        @RequestBody UserEffectivePermissionCodesReq req);
 }

@@ -396,6 +396,24 @@ function filterTreeByName(nodes, keyword) {
     .map(n => ({ ...n, children: filterTreeByName(n.children, keyword) }));
 }
 
+/**
+ * 按 orgType 过滤组织树（与真后端 selectOrgsForTree 的 SQL where org_type = ? 行为对齐）。
+ * 注意：保留祖先链以避免子节点孤立——实际真后端是平铺查询，前端拼树时祖先链由 buildTree 处理。
+ * mock 简化：递归过滤，子节点匹配则保留父节点。
+ */
+function filterTreeByOrgType(nodes, orgType) {
+  const result = [];
+  for (const n of nodes) {
+    const filteredChildren = n.children
+      ? filterTreeByOrgType(n.children, orgType)
+      : [];
+    if (n.orgType === orgType || filteredChildren.length > 0) {
+      result.push({ ...n, children: filteredChildren });
+    }
+  }
+  return result;
+}
+
 /** 在组织树中查找组织名称 */
 function findOrgName(tree, orgId) {
   for (const node of tree) {
@@ -632,11 +650,22 @@ export default defineFakeRoute([
     url: "/org/tree",
     method: "post",
     response: ({ body }) => {
+      // 与真后端 v1.4 行为对齐：必须显式声明 orgType（按 orgType 分发 VIEW / VIEW_POSITION 门禁）。
+      // 不传则拒绝，避免 mock 下放行而真后端拒绝的「环境差异 bug」。
+      if (body?.orgType === undefined || body?.orgType === null) {
+        return {
+          code: 10107,
+          message: "请显式指定 orgType（1=普通组织 / 2=岗位）",
+          data: null
+        };
+      }
       let tree = mockOrgTree;
       if (body?.treeConfigId === 2) tree = mockTeamTree;
       if (body?.orgName) {
         tree = filterTreeByName(tree, body.orgName);
       }
+      // mock 简化：按 orgType 过滤树（真后端 SQL where org_type = ?）
+      tree = filterTreeByOrgType(tree, body.orgType);
       return ok(tree);
     }
   },

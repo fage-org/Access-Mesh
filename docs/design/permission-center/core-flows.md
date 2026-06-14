@@ -122,7 +122,7 @@ flowchart LR
 ```
 PermQueryEngine.query(PermQuery)
     │
-    ├─ forUserView ──► 全量角色权限记录（不按位过滤）
+    ├─ forUserView ──► 全量角色权限记录（不按位过滤）+ effective 操作投影
     │
     ├─ forAuthCheck / forValidate / forInterfaceCheck
     │      ├─ resolveRoleIds ──► SubjectDomainService

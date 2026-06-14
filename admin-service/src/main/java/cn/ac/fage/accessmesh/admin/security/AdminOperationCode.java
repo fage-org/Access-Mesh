@@ -31,13 +31,13 @@ public final class AdminOperationCode {
     // ===== 状态操作 =====
 
     /**
-     * 启用操作
+     * 启用/禁用状态切换（toggle）。
+     * <p>
+     * 启用与禁用共用同一操作码：UI 上是同一个 toggle 控件，业务上无独立配权必要。
+     * 调用方按目标状态设置实体字段，但权限校验只用 ENABLE 一个码。
+     * 历史上的 DISABLE 已合并入此码（v1.4）。
      */
     public static final String ENABLE = "ENABLE";
-    /**
-     * 禁用操作
-     */
-    public static final String DISABLE = "DISABLE";
 
     // ===== 用户专属操作 =====
 
@@ -72,6 +72,20 @@ public final class AdminOperationCode {
      */
     public static final String TOGGLE = "TOGGLE";
 
+    // ===== 组织专属操作 =====
+
+    /**
+     * 管理普通组织成员关系（添加/移除成员、设主组织）。
+     * <p>
+     * 与组织树节点的「编辑」（{@link #UPDATE}）解耦：UPDATE 仅控制组织节点本身的属性变更，
+     * MANAGE_MEMBER 控制组织实例下的 user-org 关系。两者业务上是不同 UX 控制点，
+     * 配权也常需独立（如 HR 可编辑组织树但不能调整成员，组织管理员相反）。
+     * <p>
+     * 与岗位的 {@link #ASSIGN_POSITION_USER} 同构（普通组织 ↔ 岗位 各自一码）。
+     * 由 {@link OrgOperationCodeMapper#resolveForUserOrg} 按 orgType 分发。
+     */
+    public static final String MANAGE_MEMBER = "MANAGE_MEMBER";
+
     // ===== 岗位专属操作（资源类型仍为 ADMIN_ORG，按 sys_org.orgType=2 区分） =====
     //
     // 设计动机：岗位 = 特殊组织，与普通组织共用 /org/* 端点和 ADMIN_ORG 资源锚点，
@@ -89,6 +103,13 @@ public final class AdminOperationCode {
      * 映射关系：{@code OrgOperationCodeMapper.resolve(orgType, CREATE)} → orgType=2 时返回本常量。
      */
     public static final String CREATE_POSITION = "CREATE_POSITION";
+    /**
+     * 查看岗位 Tab（与组织树查看权限解耦——v1.4 VIEW 类细化到资源类型）
+     * <p>
+     * 与 ADMIN_ORG:VIEW（组织树查看）独立，便于"只能看组织不能看岗位"或反之的细粒度配权。
+     * 资源类型仍为 {@link AdminResourceType#ORG}，按 orgType=2 实例过滤。
+     */
+    public static final String VIEW_POSITION = "VIEW_POSITION";
     /**
      * 更新岗位（含编辑、移动、改状态，与普通组织 UPDATE 解耦）
      * <p>
