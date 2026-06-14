@@ -52,6 +52,7 @@ docs/
 | 权限中心实现设计     | [design/permission-center/implementation.md](design/permission-center/implementation.md)                                             |
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
 | admin-service 与 permission-center 同步 | [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)                                      |
+| admin-service 对前端 API 契约 | [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) |
 | PostgreSQL 表结构    | [design/schema/](design/schema/)                                                                                                     |
 
 ## 执行计划
@@ -67,7 +68,7 @@ docs/
 1. 先读 [design/project-rules.md](design/project-rules.md)，确认接口、分层、DTO、异常、数据库等通用约束。
 2. 再读 [design/architecture.md](design/architecture.md)，理解 Gateway、admin-service、permission-center、example-service 的边界。
 3. 开发权限中心前，按顺序读 [design/permission-center/overview.md](design/permission-center/overview.md)、[design/permission-center/api-contract.md](design/permission-center/api-contract.md)、[design/permission-center/core-flows.md](design/permission-center/core-flows.md)、[design/permission-center/implementation.md](design/permission-center/implementation.md)。了解重构历史可读 [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)。
-4. 开发具体服务时，读取 [design/services/](design/services/) 下对应服务设计。
+4. 开发具体服务时，读取 [design/services/](design/services/) 下对应服务设计；涉及组织与用户页 admin 接口契约时, 读取 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md)。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)。
 6. 涉及 admin-service 与 permission-center 同步时，读取 [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)。
 7. 跟进仍在推进的任务时，读取 [plans/README.md](plans/README.md)。

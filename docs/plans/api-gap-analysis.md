@@ -3,6 +3,8 @@
 > Phase 1：逐接口核对前端 mock 与后端真实规格，标记 ✅/🔧/❌。
 > Phase 2：后端按此清单改造 🔧❌ 项。
 >
+> 16 个 🔧 接口的契约已在 ../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14), 待 Phase 2 后端实现.
+>
 > **响应信封**：mock 经 `vite-plugin-fake-server`（`mock/user-manage.ts`）统一返回后端
 > `PermResult<T> = { code, message, data, requestId, traceId }`（`code=200` 成功），
 > 与 `project-rules.md` §1.1 及 `common/model/PermResult.java` 一致；
@@ -33,12 +35,12 @@
 
 | 接口 | 服务 | 状态 | 备注 |
 |------|------|------|------|
-| `POST /user/page` | admin-service | 🔧 | 需明确为默认组织树用户目录查询；组织成员列表与添加成员候选集不再复用同一语义 |
-| `POST /user/member-candidates` | admin-service | 🔧 | 新增候选用户查询：从默认组织树中按操作者可见/可管理范围筛选，并排除目标组织已有成员 |
-| `POST /user/create` | admin-service | 🔧 | 返回 `UserCreateResp(id, initialPassword)`；支持 `orgId`+`primaryOrg` 一步组织分配，且 **orgId 必须属于默认组织树**；需同步 `abstract_user` + `ADMIN_USER resource_entity` |
+| `POST /user/page` | admin-service | 🔧 | 需明确为默认组织树用户目录查询；组织成员列表与添加成员候选集不再复用同一语义；契约 v1.0 见 admin-service-api-contract.md §4.1 |
+| `POST /user/member-candidates` | admin-service | 🔧 | 新增候选用户查询：从默认组织树中按操作者可见/可管理范围筛选，并排除目标组织已有成员；契约 v1.0 见 admin-service-api-contract.md §4.1 |
+| `POST /user/create` | admin-service | 🔧 | 返回 `UserCreateResp(id, initialPassword)`；支持 `orgId`+`primaryOrg` 一步组织分配，且 **orgId 必须属于默认组织树**；需同步 `abstract_user` + `ADMIN_USER resource_entity`；契约 v1.0 见 admin-service-api-contract.md §4.1 |
 | `POST /user/update` | admin-service | ✅ | |
-| `POST /user/delete` | admin-service | 🔧 | 软删除，`IdsReq { ids: List<Long> }`；生命周期高危操作，只能通过默认组织树身份目录边界管理 |
-| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；status=0 禁用(DISABLE)，status=1 启用(ENABLE)；非默认组织树成员管理员不得获得该能力 |
+| `POST /user/delete` | admin-service | 🔧 | 软删除，`IdsReq { ids: List<Long> }`；生命周期高危操作，只能通过默认组织树身份目录边界管理；契约 v1.0 见 admin-service-api-contract.md §4.1 |
+| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；status=0 禁用(DISABLE)，status=1 启用(ENABLE)；非默认组织树成员管理员不得获得该能力；契约 v1.0 见 admin-service-api-contract.md §4.1 |
 
 ### create 组织分配
 
@@ -55,9 +57,9 @@
 | 接口 | 服务 | 状态 | 备注 |
 |------|------|------|------|
 | `POST /user-org/list` | admin-service | ✅ | 后端 `getUserOrgBriefs` 正确返回 `orgName`+`orgType` |
-| `POST /user-org/assign` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE` 已对齐；写入语义需改为关系级追加或显式树内替换，禁止删除用户所有组织树关系；需同步 `user_role` |
-| `POST /user-org/remove` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE`；非默认树只删除关系并回收对应 `user_role`，默认树移除按身份目录高危操作处理 |
-| `POST /user-org/set-primary` | admin-service | 🔧 | 首期只允许默认组织树主归属；不能全局清除其他组织树主标记；如未来需要每树一个主节点，需显式树维度 |
+| `POST /user-org/assign` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE` 已对齐；写入语义需改为关系级追加或显式树内替换，禁止删除用户所有组织树关系；需同步 `user_role`；契约 v1.0 见 admin-service-api-contract.md §4.3 |
+| `POST /user-org/remove` | admin-service | 🔧 | 门禁为目标组织实例 `ADMIN_ORG:UPDATE`；非默认树只删除关系并回收对应 `user_role`，默认树移除按身份目录高危操作处理；契约 v1.0 见 admin-service-api-contract.md §4.3 |
+| `POST /user-org/set-primary` | admin-service | 🔧 | 首期只允许默认组织树主归属；不能全局清除其他组织树主标记；如未来需要每树一个主节点，需显式树维度；契约 v1.0 见 admin-service-api-contract.md §4.3 |
 
 ### 多组织树成员关系决策
 
@@ -86,9 +88,9 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 
 | 接口 | 权限中心原接口 | 前端 mock（即 admin 代理规格） | 状态 |
 |------|---------------|-------------------------------|------|
-| 查询角色 | `POST /api/perm/user-role/list` | `POST /user-role/list` `{ userId }` → `UserRoleItem[]` | 🔧 需 admin 新增代理 |
-| 分配角色 | `POST /api/perm/user-role/assign` | `POST /user-role/assign` → `{ userId, roleId, validFrom?, validTo? }` | 🔧 需 admin 新增代理 |
-| 回收角色 | `POST /api/perm/user-role/revoke` | `POST /user-role/revoke` → `{ userId, roleId }` | 🔧 需 admin 新增代理 |
+| 查询角色 | `POST /api/perm/user-role/list` | `POST /user-role/list` `{ userId }` → `UserRoleItem[]` | 🔧 需 admin 新增代理；契约 v1.0 见 admin-service-api-contract.md §4.4 |
+| 分配角色 | `POST /api/perm/user-role/assign` | `POST /user-role/assign` → `{ userId, roleId, validFrom?, validTo? }` | 🔧 需 admin 新增代理；契约 v1.0 见 admin-service-api-contract.md §4.4 |
+| 回收角色 | `POST /api/perm/user-role/revoke` | `POST /user-role/revoke` → `{ userId, roleId }` | 🔧 需 admin 新增代理；契约 v1.0 见 admin-service-api-contract.md §4.4 |
 
 **Phase 2 后端改造清单**（admin-service）：
 1. 新增 `UserRoleController`，暴露 `/user-role/list`、`/user-role/assign`、`/user-role/revoke`
@@ -103,14 +105,14 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 
 | 接口 | 服务 | 状态 | 备注 |
 |------|------|------|------|
-| `POST /org/create` | admin-service | 🔧 | P0 mock 先行；组织 CRUD 含岗位（特殊组织） |
-| `POST /org/update` | admin-service | 🔧 | 含移动（改 parentOrgId）、状态切换 |
-| `POST /org/delete` | admin-service | 🔧 | `IdReq` |
+| `POST /org/create` | admin-service | 🔧 | P0 mock 先行；组织 CRUD 含岗位（特殊组织）；契约 v1.0 见 admin-service-api-contract.md §4.2 |
+| `POST /org/update` | admin-service | 🔧 | 含移动（改 parentOrgId）、状态切换；契约 v1.0 见 admin-service-api-contract.md §4.2 |
+| `POST /org/delete` | admin-service | 🔧 | `IdReq`；契约 v1.0 见 admin-service-api-contract.md §4.2 |
 | `POST /org/page` | admin-service | ✅ | `OrgPageReq` 新增 `orgId` 字段，支持子树筛选语义（岗位 Tab 按选中组织筛选） |
 | `POST /org/users` | admin-service | ✅ | `IdReq { id: orgId }` → `OrgUserItemResp[]`；查询组织/岗位下用户列表 |
 | `POST /role/list` | admin-service | ✅ | `RoleListQueryReq(roleTypeCodes?)` → `RoleListItemResp[]`；默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）；代理调用 permission-center `roleTypeCodes[]` 多类型过滤 |
-| `POST /user/reset-password` | admin-service | 🔧 | `ResetPasswordReq(newPassword可选)` → `ResetPasswordResp(newPassword)`；不传自动生成；生命周期高危操作，只能由默认组织树身份目录边界授权 |
-| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；同 §2，非默认组织树成员管理员不得获得该能力 |
+| `POST /user/reset-password` | admin-service | 🔧 | `ResetPasswordReq(newPassword可选)` → `ResetPasswordResp(newPassword)`；不传自动生成；生命周期高危操作，只能由默认组织树身份目录边界授权；契约 v1.0 见 admin-service-api-contract.md §4.1 |
+| `POST /user/enable` | admin-service | 🔧 | `UserUpdateStatusReq(ids, status)` 启停一体；同 §2，非默认组织树成员管理员不得获得该能力；契约 v1.0 见 admin-service-api-contract.md §4.1 |
 
 ## 6. 其他页面接口（不在本页核对范围）
 
@@ -132,5 +134,6 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 |------|------|------|
 | ✅ 已对齐 | 6 | org/tree + org/page + org/users + user/update + user-org/list + role/list |
 | 🔧 需后端改造 | 16 | 默认树用户目录与候选用户查询、user/create/delete/enable/reset-password 生命周期边界、user-org assign/remove/set-primary 跨树语义与 user_role 同步、user-role/list/assign/revoke 代理、org/create/update/delete |
+| 契约已定稿（待实现） | 16 | 上述 16 个 🔧 接口的请求/响应契约已在 ../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14) |
 | ❌ 重大差异 | 0 | |
 | ⏳ 待核对（其他页面） | 5 | 角色管理、权限授予、变更日志、业务域、类型定义 |
