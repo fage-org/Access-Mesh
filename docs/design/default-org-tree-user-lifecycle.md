@@ -2,7 +2,7 @@
 
 > 状态：**v1.0 定稿**（2026-06-10）。本文固化“默认组织树作为用户目录/身份池”的设计，用于约束多组织树场景下用户生命周期、组织成员关系、权限资源建模和同步逻辑。
 >
-> 关联文档：`architecture.md`、`services/admin-service.md`、`org-user-permission-contract.md`、`api-gap-analysis.md`、`permission-center/overview.md`、`schema/admin-service.sql`、`schema/permission-center.sql`。
+> 关联文档：`architecture.md`、`services/admin-service.md`、`org-user-permission-contract.md`、`../plans/api-gap-analysis.md`、`permission-center/overview.md`、`schema/admin-service.sql`、`schema/permission-center.sql`。
 
 ---
 
@@ -160,7 +160,7 @@ admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表。主�
 | `PERM_USER_ROLE_SYNC` | `BIND` / `UNBIND` | `sys_user_org -> user_role` |
 | `PERM_RESOURCE_ENTITY_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user/sys_org/sys_menu -> resource_entity` |
 
-`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口（参见 `sync-module-execution-plan.md` §1.1 禁用项）。
+`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口（参见 `cross-service/admin-permission-sync.md`）。
 
 `resource_entity` 同步走 permission-center 的专用幂等入口 `POST /api/perm/resource-entity/sync`，不提供跨实体的万能 replay 入口。`role_resource_permission` 属于 permission-center 授权管理域，不纳入 admin-service 同步任务。
 
@@ -254,7 +254,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
-| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口（详见 `sync-module-execution-plan.md`）；补齐单次任务、失败重发和分领域全量校准同步。 |
+| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口（详见 `cross-service/admin-permission-sync.md`）；补齐单次任务、失败重发和分领域全量校准同步。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 
 ---

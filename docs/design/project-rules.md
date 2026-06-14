@@ -1145,6 +1145,6 @@ Closes #123
 
 1. **Phase N**: 实现阶段目标（独立提交）
 2. **fix**: 代码审查修复（独立提交）
-3. **docs**: 阶段完成后归档过程文档到 `docs/archive/YYYY-MM-DD/`
+3. **docs**: 仍在推进的计划放在 `docs/plans/`；阶段完成后把过程文档归档到 `docs/archive/YYYY-MM-DD/`，并将长期有效结论沉淀到 `docs/design/`
 
 每个 Phase 保持可独立交付，避免一次性大改动导致难以审查。

@@ -308,7 +308,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 **产出物**：
 - 前端页面代码（在 `frontend/` 中，mock 数据驱动）
-- API 核对清单（汇总在 `docs/design/api-gap-analysis.md`）
+- API 核对清单（汇总在 `docs/plans/api-gap-analysis.md`）
 
 ---
 
@@ -420,7 +420,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 | 文档 | 更新内容 | 来源阶段 |
 |------|----------|----------|
-| `docs/design/api-gap-analysis.md` | API 核对清单（组织与用户页已核对，其余待各页面设计阶段） | Phase 1 |
+| `docs/plans/api-gap-analysis.md` | API 核对清单（组织与用户页已核对，其余待各页面设计阶段） | Phase 1 |
 | `docs/design/permission-center/api-contract.md` | 接口变更 | Phase 2 |
 | `docs/design/permission-center/core-flows.md` | 自动授权流程 | Phase 2 |
 | `docs/design/architecture.md` | 前端架构说明 | Phase 1~3 |
@@ -464,7 +464,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 **Phase 1 第一阶段（页面盘点）已完成**。页面地图经融合后共 14 页 + 1 占位，分 3 批执行。
 
-**当前进度**：第 1 批 2.1「组织与用户」P0 前端骨架约 90% 完成（`org-user-page-impl-plan.md` §8），仅剩 P0-9 详情面板迁移（`otherRoles` 排除 POSITION + 新增「所属岗位」节）。P0 其余任务（路由改名、2 Tabs + 顶部组织卡片、成员 Tab、组织树可编辑、岗位 Tab 折叠卡片、OrgForm、API/Mock 扩充）均已提交。P1 后端契约与 P2 权限接线待 P0 收尾后推进。
+**当前进度**：第 1 批 2.1「组织与用户」P0 前端骨架约 90% 完成（`docs/plans/org-user-page-impl-plan.md` §8），仅剩 P0-9 详情面板迁移（`otherRoles` 排除 POSITION + 新增「所属岗位」节）。P0 其余任务（路由改名、2 Tabs + 顶部组织卡片、成员 Tab、组织树可编辑、岗位 Tab 折叠卡片、OrgForm、API/Mock 扩充）均已提交。P1 后端契约与 P2 权限接线待 P0 收尾后推进。
 
 ---
 

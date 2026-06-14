@@ -1,6 +1,6 @@
 # Admin Service 设计
 
-本文档是 admin-service 的精简设计入口。旧版完整设计已归档到 `../archive/2026-04-28/admin-service-design.full.md`，仅用于追溯。
+本文档是 admin-service 的精简设计入口。旧版完整设计已归档到 `../../archive/2026-04-28/admin-service-design.full.md`，仅用于追溯。
 
 ## 职责边界
 
@@ -60,7 +60,7 @@
 
 ### 同步任务模型
 
-admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而不是仅在失败后记录重试。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放，不再拼接旧全局万能 replay 入口（参见 `../sync-module-execution-plan.md` §1.1 禁用项）。
+admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而不是仅在失败后记录重试。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放，不再拼接旧全局万能 replay 入口（参见 `../cross-service/admin-permission-sync.md`）。
 
 同步动作收敛为 4 类领域级 action，具体行为由 payload 中的 `operation` 区分：
 

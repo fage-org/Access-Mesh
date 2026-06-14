@@ -12,12 +12,10 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
-| 项目诊断与完善计划    | [improvement-plan.md](improvement-plan.md)                                             |
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
-| 组织与用户·实现计划    | [org-user-page-impl-plan.md](org-user-page-impl-plan.md)                               |
-| 同步模块执行计划        | [sync-module-execution-plan.md](sync-module-execution-plan.md)                         |
-| API 核对清单            | [api-gap-analysis.md](api-gap-analysis.md)                                             |
+| 跨服务设计              | [cross-service/](cross-service/)                                                       |
+| admin-service 与 permission-center 同步 | [cross-service/admin-permission-sync.md](cross-service/admin-permission-sync.md)       |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
 
 ## 推荐阅读顺序
@@ -27,16 +25,19 @@
 3. 开发权限中心前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)，再读 [org-user-permission-contract.md](org-user-permission-contract.md)。
-6. 实施 admin-service 与 permission-center 同步模块时，读取 [sync-module-execution-plan.md](sync-module-execution-plan.md)。
-7. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
+6. 涉及 admin-service 与 permission-center 同步模块时，读取 [cross-service/admin-permission-sync.md](cross-service/admin-permission-sync.md)。
+7. 需要跟进执行计划、API 核对清单或阶段路线图时，读取 [../plans/](../plans/)。
+8. 涉及表字段、索引、约束时，以 [schema/](schema/) 下 SQL 为准。
 
 ## 目录说明
 
 | 路径                 | 说明                                             |
 | -------------------- | ------------------------------------------------ |
 | `permission-center/` | 权限中心的概念、API、流程、实现设计              |
+| `cross-service/`     | 跨越多个服务边界、描述服务之间职责/契约/数据流/一致性约束的当前有效设计 |
 | `services/`          | Gateway、admin-service、example-service 设计     |
 | `schema/`            | 当前有效 PostgreSQL schema                       |
+| `../plans/`          | 仍在推进的执行计划、核对清单和阶段路线图，不作为契约来源 |
 | `../archive/`        | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
 
 Claude 按需技能位于 `.claude/skills/`。
@@ -45,6 +46,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../archive/2026-06-14/` | 同步模块重构执行计划归档；长期有效设计已沉淀到 `cross-service/admin-permission-sync.md` |
 | `../archive/2026-06-05/` | 编码与创作风格分析报告，可操作知识已合并到项目规范；报告保留作历史追溯 |
 | `../archive/2026-06-03/` | Round 1-7 模块与接口核对诊断记录，问题已修复 |
 | `../archive/2026-05-30/` | 统一权限查询引擎重构文档（2 篇 PlantUML）、重构实施完成记录、前端集成计划（前端已删除）、Service 层重构审查（Phase 1-5 完成）、跨模块影响分析 |

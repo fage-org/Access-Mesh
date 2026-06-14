@@ -1,6 +1,6 @@
 # 「组织与用户」融合页 · 设计 / 实现计划
 
-> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）、`docs/design/api-gap-analysis.md`（接口契约）。
+> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）、`docs/plans/api-gap-analysis.md`（API 核对清单）。
 > 已锁定设计决策：
 > ① 岗位 = 折叠卡片列表（**按左树选中组织筛选，展示该组织及其子组织下的岗位**）；② 成员含子级 = 子树匹配；
 > ③ 默认组织树初始选中，且默认树是用户目录/身份池；④ 主组织仅表示默认树主归属；⑤ 初始密码先弹窗（Phase 2 后端定下发）；

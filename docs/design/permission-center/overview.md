@@ -171,4 +171,4 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 
 ## 非权威内容
 
-旧版完整设计和产品功能长文档已移动到 [../archive/2026-04-28/](../archive/2026-04-28/)。归档内容仅用于追溯，不作为实现依据。
+旧版完整设计和产品功能长文档已移动到 [../../archive/2026-04-28/](../../archive/2026-04-28/)。归档内容仅用于追溯，不作为实现依据。

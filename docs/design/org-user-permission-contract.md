@@ -3,7 +3,7 @@
 > 状态：**v1.2 定稿**（2026-06-10 补充“默认组织树 = 用户目录/身份池”设计，明确非默认组织树只能管理成员关系）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
 > 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE`）为准；前端 perm 码用 `system:模块:动作` 约定。
 >
-> 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/design/api-gap-analysis.md`（接口契约）、`docs/design/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
+> 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/plans/api-gap-analysis.md`（接口核对清单）、`docs/plans/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
 
 ---
 
