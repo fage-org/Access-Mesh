@@ -18,6 +18,8 @@ import {
 } from "@/api/user-manage";
 import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+import { hasPerms } from "@/utils/auth";
+import { ORG_USER_PERMS } from "../utils/perms";
 import Remove from "~icons/ep/remove";
 import AddFill from "~icons/ri/add-circle-line";
 import Star from "~icons/ep/star-filled";
@@ -70,6 +72,15 @@ const emit = defineEmits<{
 const roles = ref<UserRoleItem[]>([]);
 const loading = ref(false);
 const userOrgs = ref<UserOrgItem[]>([]);
+
+// ========== 权限门控 ==========
+// 与 docs/design/org-user-permission-contract.md §4 矩阵 B/C 区对齐。
+// 详情弹窗自身不区分「默认树/非默认树」，前端只把它折叠到 ORG_MEMBER：
+// 默认树主组织（设主）按身份目录操作处理，落地仍由后端 admin-service 二次拒绝。
+const canManageOrgMember = computed(() => hasPerms(ORG_USER_PERMS.ORG_MEMBER));
+const canAssignFunctionalRole = computed(() =>
+  hasPerms(ORG_USER_PERMS.USER_ROLE_ASSIGN)
+);
 
 /**
  * 仅展示功能角色：排除 ORG（组织角色 = 组织成员关系）和 POSITION（岗位 = 特殊组织）。
@@ -312,6 +323,7 @@ function formatDate(val: string | null): string {
           />
           <span class="text-sm font-medium">组织归属</span>
           <el-button
+            v-if="canManageOrgMember"
             link
             type="primary"
             size="small"
@@ -357,11 +369,13 @@ function formatDate(val: string | null): string {
             size="small"
             :type="org.isPrimary ? 'primary' : 'info'"
             effect="plain"
-            closable
+            :closable="canManageOrgMember"
             class="org-tag"
             @close="handleRemoveOrg(org.orgId)"
           >
+            <!-- 有写权：可点击切换主组织；无写权：纯文本展示，与「添加按钮」隐藏的降级语言一致 -->
             <el-button
+              v-if="canManageOrgMember"
               link
               size="small"
               class="org-primary-btn"
@@ -377,6 +391,16 @@ function formatDate(val: string | null): string {
               />
               {{ org.orgName }}
             </el-button>
+            <span v-else class="org-readonly-name">
+              <IconifyIconOffline
+                v-if="org.isPrimary"
+                :icon="Star"
+                width="12px"
+                height="12px"
+                class="mr-0.5"
+              />
+              {{ org.orgName }}
+            </span>
           </el-tag>
         </div>
         <span v-else class="text-xs text-gray-400">无组织归属</span>
@@ -424,6 +448,7 @@ function formatDate(val: string | null): string {
           />
           <span class="text-sm font-medium">角色列表</span>
           <el-button
+            v-if="canAssignFunctionalRole"
             link
             type="primary"
             size="small"
@@ -481,6 +506,7 @@ function formatDate(val: string | null): string {
                   <span class="text-sm">{{ role.roleName }}</span>
                 </div>
                 <el-button
+                  v-if="canAssignFunctionalRole"
                   link
                   size="small"
                   title="移除角色"
@@ -581,6 +607,13 @@ function formatDate(val: string | null): string {
   &.is-primary {
     color: var(--el-color-primary);
   }
+}
+
+.org-readonly-name {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  vertical-align: baseline;
 }
 
 .role-item {

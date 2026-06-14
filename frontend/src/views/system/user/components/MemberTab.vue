@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, h, watch } from "vue";
+import { ref, reactive, h, watch, computed } from "vue";
 import { useUserManage } from "../utils/hook";
 import { PureTableBar } from "@/components/RePureTableBar";
 import UserForm from "../form.vue";
@@ -7,6 +7,8 @@ import { addDialog } from "@/components/ReDialog";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
+import { hasPerms } from "@/utils/auth";
+import { ORG_USER_PERMS } from "../utils/perms";
 import type { UserFormData } from "../utils/types";
 import Delete from "~icons/ep/delete";
 import EditPen from "~icons/ep/edit-pen";
@@ -62,6 +64,27 @@ watch(
   },
   { immediate: true }
 );
+
+// ========== 权限门控 ==========
+// 与 docs/design/org-user-permission-contract.md §4 矩阵 B/C 区对齐。
+// computed 包装而非顶层 const，是为了响应 store.permissions 变化（角色切换时刷新）。
+const canCreateUser = computed(() => hasPerms(ORG_USER_PERMS.USER_ADD));
+const canEditUser = computed(() => hasPerms(ORG_USER_PERMS.USER_EDIT));
+const canDeleteUser = computed(() => hasPerms(ORG_USER_PERMS.USER_DELETE));
+const canToggleUserStatus = computed(() =>
+  hasPerms(ORG_USER_PERMS.USER_ENABLE)
+);
+const canResetPwd = computed(() => hasPerms(ORG_USER_PERMS.USER_RESET_PWD));
+/** 行内可见操作数量，===1 时直渲单按钮，>1 才用 dropdown 避免「更多」二字虚假预期 */
+const visibleMoreCount = computed(() => {
+  let c = 0;
+  if (canEditUser.value) c++;
+  if (canResetPwd.value) c++;
+  if (canDeleteUser.value) c++;
+  return c;
+});
+const canShowMoreMenu = computed(() => visibleMoreCount.value > 1);
+const canShowSingleMore = computed(() => visibleMoreCount.value === 1);
 
 // Dialog form data
 const dialogFormData = reactive<UserFormData>({
@@ -165,21 +188,40 @@ function openEditDialog(row: any) {
 
 // 下拉菜单命令处理
 function handleCommand(command: string, row: any) {
+  // 纵深防御：v-if 已在 dropdown-item 上隐藏，但保留二次校验防 future 调用路径漏门控
   switch (command) {
     case "edit":
-      openEditDialog(row);
+      if (canEditUser.value) openEditDialog(row);
       break;
     case "resetPwd":
-      handleResetPassword(row);
+      if (canResetPwd.value) handleResetPassword(row);
       break;
     case "delete":
-      handleDelete(row);
+      if (canDeleteUser.value) handleDelete(row);
       break;
   }
 }
 async function handleToggleStatus(row: any, newVal: number) {
   const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
   const actionText = newStatus === 1 ? "启用" : "禁用";
+  // 禁用方向需二次确认（影响登录），启用方向直通
+  if (newStatus === 0) {
+    try {
+      await ElMessageBox.confirm(
+        `确认禁用用户 "${row.name}"？禁用后该用户将无法登录。`,
+        "禁用确认",
+        {
+          confirmButtonText: "确认禁用",
+          cancelButtonText: "取消",
+          type: "warning"
+        }
+      );
+    } catch {
+      // 取消时恢复 switch
+      row.status = 1;
+      return;
+    }
+  }
   try {
     await enableUsers({ ids: [row.id], status: newStatus });
     row.status = newStatus;
@@ -293,6 +335,7 @@ const columns = [
         </template>
         <template #buttons>
           <el-button
+            v-if="canCreateUser"
             type="primary"
             :icon="useRenderIcon(AddFill)"
             @click="openCreateDialog"
@@ -323,20 +366,23 @@ const columns = [
             @page-current-change="onPageChange"
           >
             <template #status="{ row }">
-              <el-switch
-                v-model="row.status"
-                :active-value="1"
-                :inactive-value="0"
-                inline-prompt
-                active-text="启用"
-                inactive-text="禁用"
-                style="
-
-                  --el-switch-on-color: var(--el-color-success);
-                  --el-switch-off-color: var(--el-color-danger);
-                "
-                @change="(val: number) => handleToggleStatus(row, val)"
-              />
+              <el-tooltip
+                :disabled="canToggleUserStatus"
+                content="无权限切换状态"
+                placement="top"
+              >
+                <el-switch
+                  v-model="row.status"
+                  class="status-switch"
+                  :active-value="1"
+                  :inactive-value="0"
+                  :disabled="!canToggleUserStatus"
+                  inline-prompt
+                  active-text="启用"
+                  inactive-text="禁用"
+                  @change="(val: number) => handleToggleStatus(row, val)"
+                />
+              </el-tooltip>
             </template>
             <template #primaryOrg="{ row }">
               <span class="text-sm">
@@ -357,7 +403,44 @@ const columns = [
               >
                 查看
               </el-button>
+              <!-- 仅一项可见时直渲单按钮（避免「更多」字面虚假预期） -->
+              <template v-if="canShowSingleMore">
+                <el-button
+                  v-if="canEditUser"
+                  class="reset-margin"
+                  link
+                  type="primary"
+                  :size="size"
+                  :icon="useRenderIcon(EditPen)"
+                  @click="openEditDialog(row)"
+                >
+                  修改
+                </el-button>
+                <el-button
+                  v-else-if="canResetPwd"
+                  class="reset-margin"
+                  link
+                  type="primary"
+                  :size="size"
+                  :icon="useRenderIcon(Key)"
+                  @click="handleResetPassword(row)"
+                >
+                  重置密码
+                </el-button>
+                <el-button
+                  v-else-if="canDeleteUser"
+                  class="reset-margin"
+                  link
+                  type="danger"
+                  :size="size"
+                  :icon="useRenderIcon(Delete)"
+                  @click="handleDelete(row)"
+                >
+                  删除
+                </el-button>
+              </template>
               <el-dropdown
+                v-else-if="canShowMoreMenu"
                 :size="size"
                 trigger="click"
                 @command="(cmd: string) => handleCommand(cmd, row)"
@@ -373,15 +456,19 @@ const columns = [
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item command="edit">
+                    <el-dropdown-item v-if="canEditUser" command="edit">
                       <el-icon><EditPen /></el-icon>
                       <span class="ml-1">修改</span>
                     </el-dropdown-item>
-                    <el-dropdown-item command="resetPwd">
+                    <el-dropdown-item v-if="canResetPwd" command="resetPwd">
                       <el-icon><Key /></el-icon>
                       <span class="ml-1">重置密码</span>
                     </el-dropdown-item>
-                    <el-dropdown-item command="delete" divided>
+                    <el-dropdown-item
+                      v-if="canDeleteUser"
+                      command="delete"
+                      divided
+                    >
                       <el-icon><Delete /></el-icon>
                       <span class="ml-1" style="color: var(--el-color-danger)"
                         >删除</span
@@ -404,6 +491,11 @@ const columns = [
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.status-switch {
+  --el-switch-on-color: var(--el-color-success);
+  --el-switch-off-color: var(--el-color-danger);
 }
 
 .search-form-inline {

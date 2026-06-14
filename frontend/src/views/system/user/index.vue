@@ -10,13 +10,31 @@ import { getOrgTree, createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import { OfficeBuilding, Edit, Plus } from "@element-plus/icons-vue";
 import { message } from "@/utils/message";
-import { h, ref } from "vue";
+import { hasPerms } from "@/utils/auth";
+import { ORG_USER_PERMS } from "./utils/perms";
+import { h, ref, computed, watch } from "vue";
 
 defineOptions({
   name: "SystemUser"
 });
 
 const activeTab = ref("member");
+
+// ========== 权限门控 ==========
+// 与 docs/design/org-user-permission-contract.md §4 矩阵 A/D 区对齐。
+// 树编辑能力对其中任意一项写权限敏感（add/edit/delete 三选一即提供 hover 操作面板）。
+const canAddOrg = computed(() => hasPerms(ORG_USER_PERMS.ORG_ADD));
+const canEditOrg = computed(() => hasPerms(ORG_USER_PERMS.ORG_EDIT));
+const canDeleteOrg = computed(() => hasPerms(ORG_USER_PERMS.ORG_DELETE));
+/** 岗位 Tab 整体可见性（无 view 权限直接隐藏 Tab） */
+const canViewPosition = computed(() => hasPerms(ORG_USER_PERMS.POSITION_VIEW));
+
+// 角色热切换（mock）后，若用户停留在 position tab 而权限消失，自动切回 member 避免空白页
+watch(canViewPosition, visible => {
+  if (!visible && activeTab.value === "position") {
+    activeTab.value = "member";
+  }
+});
 
 const {
   selectedOrgId,
@@ -195,6 +213,30 @@ async function onNodeDelete(node: OrgTreeNode) {
     message(error.message || "删除失败", { type: "error" });
   }
 }
+
+/**
+ * 组织拖拽 → 调用 /org/update 修改 parentOrgId（契约 §4 A 区第 5 行：
+ * 移动节点 = ADMIN_ORG:UPDATE → system:org:edit），不调则刷新即丢
+ */
+async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
+  try {
+    await updateOrg({
+      id: node.id,
+      orgName: node.orgName,
+      code: node.code,
+      orgType: node.orgType,
+      parentOrgId: targetParentId,
+      status: node.status,
+      sort: node.sort
+    });
+    message("移动成功", { type: "success" });
+    orgTreePanelRef.value?.loadTree?.();
+  } catch (error: any) {
+    message(error.message || "移动失败", { type: "error" });
+    // 失败时刷新树以恢复 UI 状态
+    orgTreePanelRef.value?.loadTree?.();
+  }
+}
 </script>
 
 <template>
@@ -203,12 +245,15 @@ async function onNodeDelete(node: OrgTreeNode) {
     <ReOrgTreePanel
       ref="orgTreePanelRef"
       class="tree-panel"
-      :editable="true"
+      :can-add="canAddOrg"
+      :can-edit="canEditOrg"
+      :can-delete="canDeleteOrg"
       :org-type-filter="[1]"
       @org-change="onOrgChange"
       @node-add="onNodeAdd"
       @node-edit="onNodeEdit"
       @node-delete="onNodeDelete"
+      @node-move="onNodeMove"
     />
 
     <!-- 右侧内容区 -->
@@ -242,6 +287,7 @@ async function onNodeDelete(node: OrgTreeNode) {
           </div>
           <div class="org-info-actions">
             <el-button
+              v-if="canEditOrg"
               type="primary"
               plain
               size="small"
@@ -251,6 +297,7 @@ async function onNodeDelete(node: OrgTreeNode) {
               编辑部门
             </el-button>
             <el-button
+              v-if="canAddOrg"
               type="primary"
               plain
               size="small"
@@ -272,7 +319,7 @@ async function onNodeDelete(node: OrgTreeNode) {
             @open-user-detail="openUserDetail"
           />
         </el-tab-pane>
-        <el-tab-pane label="岗位管理" name="position">
+        <el-tab-pane v-if="canViewPosition" label="岗位管理" name="position">
           <PositionTab :org-id="selectedOrgId" />
         </el-tab-pane>
       </el-tabs>
@@ -305,8 +352,8 @@ async function onNodeDelete(node: OrgTreeNode) {
 
 /* 顶部组织信息卡片 */
 .org-info-card {
-  padding: 16px;
-  margin: 12px 12px 0;
+  padding: var(--space-4);
+  margin: var(--space-3) var(--space-3) 0;
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
@@ -316,13 +363,13 @@ async function onNodeDelete(node: OrgTreeNode) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .org-info-title {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
@@ -339,7 +386,7 @@ async function onNodeDelete(node: OrgTreeNode) {
 
 .org-info-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .org-parent-info {

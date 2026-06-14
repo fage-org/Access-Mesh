@@ -27,17 +27,29 @@ const props = withDefaults(
     compact?: boolean;
     /** 指定树配置 ID（不传则自动取默认树） */
     treeConfigId?: number;
-    /** 是否可编辑（显示增删改按钮） */
-    editable?: boolean;
     /** 组织类型过滤（不传不过滤） */
     orgTypeFilter?: number[];
+    /**
+     * 细粒度权限（fail-closed）。三项均为 false 时树进入纯只读模式：
+     * 不显示"+新增"、不允许拖拽、hover 操作按钮全部隐藏。
+     */
+    canAdd?: boolean;
+    canEdit?: boolean;
+    canDelete?: boolean;
   }>(),
   {
     showConfig: true,
     showSearch: true,
     compact: false,
-    editable: false
+    canAdd: false,
+    canEdit: false,
+    canDelete: false
   }
+);
+
+/** 树是否进入可编辑模式：任一写权限即足够。语义内聚于本组件，调用方只需传三个细粒度 prop */
+const editable = computed(
+  () => props.canAdd || props.canEdit || props.canDelete
 );
 
 const emit = defineEmits<{
@@ -320,7 +332,7 @@ defineExpose({
       />
       <!-- 新增组织按钮 -->
       <el-button
-        v-if="editable"
+        v-if="editable && canAdd"
         type="primary"
         size="small"
         class="mt-1.5 w-full!"
@@ -349,8 +361,8 @@ defineExpose({
         :filter-node-method="filterOrgNode"
         highlight-current
         draggable
-        :allow-drag="() => editable"
-        :allow-drop="() => editable"
+        :allow-drag="() => editable && canEdit"
+        :allow-drop="() => editable && canEdit"
         @node-click="(_data: any) => selectNode(_data)"
         @node-drag-end="
           (draggingNode: any, dropNode: any) => {
@@ -394,6 +406,7 @@ defineExpose({
               @click.stop
             >
               <el-button
+                v-if="canAdd"
                 link
                 type="primary"
                 size="small"
@@ -402,6 +415,7 @@ defineExpose({
                 @click="onAddChild(data)"
               />
               <el-button
+                v-if="canEdit"
                 link
                 type="primary"
                 size="small"
@@ -410,6 +424,7 @@ defineExpose({
                 @click="onEdit(data)"
               />
               <el-button
+                v-if="canDelete"
                 link
                 type="danger"
                 size="small"

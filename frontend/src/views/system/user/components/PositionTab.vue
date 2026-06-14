@@ -16,6 +16,8 @@ import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { addDialog } from "@/components/ReDialog";
+import { hasPerms } from "@/utils/auth";
+import { ORG_USER_PERMS } from "../utils/perms";
 import OrgForm from "./OrgForm.vue";
 import AddFill from "~icons/ri/add-circle-line";
 import User from "~icons/ep/user";
@@ -26,6 +28,7 @@ import Search from "~icons/ep/search";
 import Refresh from "~icons/ep/refresh";
 import EditPen from "~icons/ep/edit-pen";
 import Plus from "~icons/ep/plus";
+import Location from "~icons/ep/location";
 
 defineOptions({
   name: "PositionTab"
@@ -35,6 +38,18 @@ const props = defineProps<{
   orgId: number | null;
   orgTree?: any[];
 }>();
+
+// ========== 权限门控 ==========
+// 与 docs/design/org-user-permission-contract.md §4 矩阵 D 区对齐。
+const canAddPosition = computed(() => hasPerms(ORG_USER_PERMS.POSITION_ADD));
+const canEditPosition = computed(() => hasPerms(ORG_USER_PERMS.POSITION_EDIT));
+const canDeletePosition = computed(() =>
+  hasPerms(ORG_USER_PERMS.POSITION_DELETE)
+);
+/** 挂载/移除岗位用户（无该权限时整体只读） */
+const canAssignPositionUser = computed(() =>
+  hasPerms(ORG_USER_PERMS.POSITION_ASSIGN)
+);
 
 // ========== 类型 ==========
 
@@ -132,10 +147,10 @@ async function loadPositions() {
       orgId: props.orgId ?? undefined
     });
     positionList.value = res.items as PositionItem[];
-    // 加载每个岗位的用户数
-    for (const pos of positionList.value) {
-      await loadPositionUserCount(pos.id);
-    }
+    // 并行加载每个岗位的用户数（避免 N+1 串行阻塞渲染）
+    await Promise.all(
+      positionList.value.map(pos => loadPositionUserCount(pos.id))
+    );
   } catch {
     message("加载岗位失败", { type: "error" });
   } finally {
@@ -232,9 +247,8 @@ function openCreatePositionDialog() {
   });
 }
 
-/** 打开编辑岗位弹窗 */
-function openEditPositionDialog(position: PositionItem, event: Event) {
-  event.stopPropagation();
+/** 打开编辑岗位弹窗（模板已加 @click.stop，无需在此再次 stopPropagation） */
+function openEditPositionDialog(position: PositionItem) {
   let formRef: any = null;
   addDialog({
     title: "编辑岗位",
@@ -286,9 +300,8 @@ function openEditPositionDialog(position: PositionItem, event: Event) {
   });
 }
 
-/** 删除岗位 */
-async function handleDeletePosition(position: PositionItem, event: Event) {
-  event.stopPropagation();
+/** 删除岗位（模板已加 @click.stop） */
+async function handleDeletePosition(position: PositionItem) {
   try {
     await ElMessageBox.confirm(
       `确认删除岗位 "${position.orgName}"？`,
@@ -345,24 +358,19 @@ async function handleAddUsers() {
     message("请选择用户", { type: "warning" });
     return;
   }
+  const positionId = currentPositionId.value;
+  if (!positionId) return;
   try {
-    if (currentPositionId.value) {
-      await assignUserOrgs({
-        userId: selectedUserIds.value[0], // 逐个添加
-        orgIds: [currentPositionId.value]
-      });
-      // 批量添加其他用户
-      for (let i = 1; i < selectedUserIds.value.length; i++) {
-        await assignUserOrgs({
-          userId: selectedUserIds.value[i],
-          orgIds: [currentPositionId.value]
-        });
-      }
-      message("添加成功", { type: "success" });
-      // 刷新该岗位的用户列表（删除缓存，强制重新加载）
-      delete positionUsers.value[currentPositionId.value];
-      await loadPositionUsers(currentPositionId.value);
-    }
+    // 并行挂载所有选中用户（无序列依赖）
+    await Promise.all(
+      selectedUserIds.value.map(userId =>
+        assignUserOrgs({ userId, orgIds: [positionId] })
+      )
+    );
+    message("添加成功", { type: "success" });
+    // 刷新该岗位的用户列表（删除缓存，强制重新加载）
+    delete positionUsers.value[positionId];
+    await loadPositionUsers(positionId);
     userSelectorVisible.value = false;
   } catch {
     message("添加失败", { type: "error" });
@@ -438,6 +446,7 @@ watch(
         重置
       </el-button>
       <el-button
+        v-if="canAddPosition"
         type="primary"
         :icon="useRenderIcon(Plus)"
         @click="openCreatePositionDialog"
@@ -479,11 +488,20 @@ watch(
                   />
                   {{ positionUserCounts[position.id] || 0 }} 人已分配
                 </span>
-                <span class="meta-item"> 📍 {{ getOrgPath(position) }} </span>
+                <span class="meta-item">
+                  <IconifyIconOffline
+                    :icon="useRenderIcon(Location)"
+                    width="12px"
+                    height="12px"
+                    class="text-gray-400 mr-0.5"
+                  />
+                  {{ getOrgPath(position) }}
+                </span>
               </div>
             </div>
             <div class="position-actions">
               <el-button
+                v-if="canAssignPositionUser"
                 link
                 type="primary"
                 size="small"
@@ -493,20 +511,22 @@ watch(
                 添加成员
               </el-button>
               <el-button
+                v-if="canEditPosition"
                 link
                 type="primary"
                 size="small"
                 :icon="useRenderIcon(EditPen)"
-                @click.stop="openEditPositionDialog(position, $event)"
+                @click.stop="openEditPositionDialog(position)"
               >
                 编辑
               </el-button>
               <el-button
+                v-if="canDeletePosition"
                 link
                 type="danger"
                 size="small"
                 :icon="useRenderIcon(Delete)"
-                @click.stop="handleDeletePosition(position, $event)"
+                @click.stop="handleDeletePosition(position)"
               >
                 删除
               </el-button>
@@ -548,6 +568,7 @@ watch(
                     </div>
                   </div>
                   <el-button
+                    v-if="canAssignPositionUser"
                     link
                     type="danger"
                     size="small"
