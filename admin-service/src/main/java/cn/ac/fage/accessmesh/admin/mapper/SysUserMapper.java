@@ -147,4 +147,21 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      */
     List<SysUser> selectExistingByPhones(@Param("tenantId") Long tenantId,
                                          @Param("phones") Set<String> phones);
+
+    /**
+     * 在指定用户 ID 集合内，按关键字分页查询用户（租户隔离 + 未删除）。
+     * <p>
+     * 用于候选用户查询：从默认树可见范围的 userIds 中按 keyword 过滤并分页。
+     * keyword 按 username/name/phone/email 模糊匹配。
+     *
+     * @param page     分页参数
+     * @param tenantId 租户ID
+     * @param userIds  候选用户 ID 列表
+     * @param keyword  关键字（可选，模糊匹配 username/name/phone/email）
+     * @return 分页用户列表
+     */
+    Page<SysUser> paginateUsersByIdsAndKeyword(@Param("page") Page<SysUser> page,
+                                                @Param("tenantId") Long tenantId,
+                                                @Param("userIds") List<Long> userIds,
+                                                @Param("keyword") String keyword);
 }

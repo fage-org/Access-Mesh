@@ -2,14 +2,17 @@ package cn.ac.fage.accessmesh.admin.service.impl;
 
 import cn.ac.fage.accessmesh.admin.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.MemberCandidatesReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateStatusReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.MemberCandidateItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.ResetPasswordResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserResp;
+import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.entity.SysUserOrg;
@@ -172,9 +175,16 @@ public class UserServiceImpl implements UserService {
                 belongsToDefaultTree = subtreeIds.contains(req.orgId());
             }
             if (!belongsToDefaultTree) {
-                throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
-                    "组织ID必须属于默认组织树");
+                throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                    AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
             }
+
+            // 带 orgId 时还需 ADMIN_ORG:UPDATE@orgId 门禁
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.ORG,
+                String.valueOf(req.orgId()),
+                AdminOperationCode.UPDATE
+            );
 
             SysUserOrg userOrg = new SysUserOrg();
             userOrg.setTenantId(tenantId);
@@ -187,6 +197,23 @@ public class UserServiceImpl implements UserService {
             userOrgDomainService.insertBatch(List.of(userOrg));
             log.info("Assigned user to org on creation: userId={}, orgId={}, isPrimary={}",
                 user.getId(), req.orgId(), userOrg.getIsPrimary());
+
+            // 契约 §4.1.3 同步动作 4：带 orgId 时入队 PERM_USER_ROLE_SYNC (BIND)
+            SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
+            String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
+            String relationKey = "ORG:" + req.orgId();
+            // 组织树根 externalId：取默认树根 orgId
+            Long defaultRootId = defaultConfigs.get(0).getRootOrgId();
+            syncTaskDomainService.enqueueAll(tenantId,
+                List.of(syncTaskBuilder.userOrgBind(
+                    user.getId(),
+                    req.orgId(),
+                    roleTypeCode,
+                    relationKey,
+                    String.valueOf(defaultRootId)
+                )));
+            log.info("Enqueued user-org bind sync: userId={}, orgId={}, roleTypeCode={}",
+                user.getId(), req.orgId(), roleTypeCode);
         }
 
         return new UserCreateResp(user.getId(), initialPassword);
@@ -246,14 +273,16 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 批量删除用户
+     * 批量删除用户（高危身份目录操作）
      * <p>
      * 软删除多个用户，不允许删除自己。
-     * 执行批量实例级权限校验，先本地软删除再记录同步任务。
-     * </p>
+     * 执行批量实例级权限校验 + 默认树边界二次校验。
+     * 先记录每条 user-org 的 UNBIND 同步任务，再本地软删除，最后入队 DELETE 同步。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.5
      *
      * @param req ID集合请求，包含待删除的用户ID列表
-     * @throws BizException 不能删除自己、用户不存在、同步任务记录失败等
+     * @throws BizException 不能删除自己、不在默认树可管范围、同步任务记录失败等
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -274,13 +303,33 @@ public class UserServiceImpl implements UserService {
             .collect(Collectors.toList());
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.DELETE);
 
+        // 默认树边界二次校验：每个目标用户必须在操作者默认树可管范围内
+        validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
+
         // 批量获取用户
         List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
 
-        // 1. 先执行本地软删除
+        // 1. 先入队每条 user-org 的 UNBIND 同步任务（必须在软删前查，否则关系被清）
+        List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, req.ids());
+        // 获取默认树根（用于 treeRootExternalId）
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        String defaultRootExternalId = !defaultConfigs.isEmpty()
+            ? String.valueOf(defaultConfigs.get(0).getRootOrgId()) : null;
+
+        for (SysUserOrg uo : allUserOrgs) {
+            SysOrg org = orgDomainService.selectValidById(tenantId, uo.getOrgId());
+            String roleTypeCode = resolveOrgRoleTypeCode(org);
+            String relationKey = "ORG:" + uo.getOrgId();
+            syncTaskDomainService.enqueueAll(tenantId,
+                List.of(syncTaskBuilder.userOrgUnbind(
+                    uo.getUserId(), uo.getOrgId(), roleTypeCode, relationKey, defaultRootExternalId)));
+        }
+        log.info("Enqueued {} user-org unbind sync envelopes for delete batch", allUserOrgs.size());
+
+        // 2. 执行本地软删除（含级联清理 sys_user_org）
         userDomainService.softDeleteBatch(tenantId, req.ids());
 
-        // 2. 入队删除同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
+        // 3. 入队删除同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
         for (SysUser user : users) {
             syncTaskDomainService.enqueueAll(tenantId,
                 syncTaskBuilder.userDelete(user.getId(), String.valueOf(user.getId())));
@@ -289,15 +338,17 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 批量启用/禁用用户
+     * 批量启用/禁用用户（启停一体，高危生命周期操作）
      * <p>
      * 根据请求中的 status 字段批量启用或禁用用户账号。
      * status=1 启用，status=0 禁用。
-     * 执行批量实例级权限校验，更新后记录同步任务到permission-center。
-     * </p>
+     * 执行批量实例级权限校验 + 默认树边界二次校验。
+     * 不允许禁用操作者本人。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.6
      *
      * @param req 用户状态变更请求，包含用户ID列表和目标状态
-     * @throws BizException 用户不存在、状态参数无效、同步任务记录失败等
+     * @throws BizException 状态参数无效、不能禁用自己、不在默认树范围、同步任务记录失败等
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -305,6 +356,17 @@ public class UserServiceImpl implements UserService {
         // 状态参数校验
         if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(禁用)或1(启用)");
+        }
+
+        // 禁用时不允许禁用自己
+        if (req.status() == 0) {
+            long currentUserId = StpUtil.getLoginIdAsLong();
+            for (Long id : req.ids()) {
+                if (id.equals(currentUserId)) {
+                    throw new BizException(AdminErrorCode.CANNOT_DISABLE_SELF.getCode(),
+                        AdminErrorCode.CANNOT_DISABLE_SELF.getMessage());
+                }
+            }
         }
 
         // 权限检查 — 批量实例级，启用与禁用共用 ENABLE（toggle 语义，v1.4 合并）
@@ -315,6 +377,9 @@ public class UserServiceImpl implements UserService {
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, operationCode);
 
         Long tenantId = TenantContextHolder.getTenantId();
+
+        // 默认树边界二次校验
+        validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
 
         // 使用批量查询验证有效ID（避免N+1问题）
         List<SysUser> existingUsers = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
@@ -368,14 +433,18 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 分页查询用户列表
+     * 分页查询用户列表（默认组织树身份目录视角）
      * <p>
      * 支持按用户名、姓名、手机号、邮箱、状态过滤。
      * 批量查询用户组织关联避免N+1问题。
      * 按创建时间倒序排列。
-     * 目标设计中该接口应收敛为默认组织树用户目录查询；组织成员列表
-     * 和添加成员候选集需要独立语义，避免普通组织管理员看到全租户用户。
-     * </p>
+     * <p>
+     * v1.4 契约对齐：
+     * <ul>
+     *   <li>语义收敛为"默认组织树身份目录查询"；组织成员列表和添加成员候选集需独立接口</li>
+     *   <li>{@code orgId} 非空时必须属于默认组织树，否则抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}</li>
+     *   <li>OrgBrief 填充 orgName/orgType（便于前端区分组织与岗位）</li>
+     * </ul>
      *
      * @param req 分页查询请求，包含分页参数和过滤条件
      * @return 分页用户列表结果
@@ -391,6 +460,9 @@ public class UserServiceImpl implements UserService {
         int pageSize = req.getPageSize();
         Set<Long> orgIds = null;
         if (req.orgId() != null) {
+            // 契约 §4.1.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
+            validateOrgInDefaultTree(tenantId, req.orgId());
+
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
             if (subtreeIds.isEmpty()) {
                 return new PaginatedResult<>(
@@ -419,6 +491,14 @@ public class UserServiceImpl implements UserService {
         // 批量查询用户组织关系
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(userIds));
 
+        // 收集所有 orgId，批量查询 org 信息以填充 orgName/orgType
+        Set<Long> allOrgIds = allUserOrgs.stream()
+            .map(SysUserOrg::getOrgId)
+            .collect(Collectors.toSet());
+        Map<Long, SysOrg> orgMap = allOrgIds.isEmpty()
+            ? Map.of()
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, allOrgIds);
+
         // 按 userId 分组
         Map<Long, List<SysUserOrg>> userOrgMap = allUserOrgs.stream()
             .collect(Collectors.groupingBy(SysUserOrg::getUserId));
@@ -427,7 +507,15 @@ public class UserServiceImpl implements UserService {
             .map(u -> {
                 List<SysUserOrg> userOrgs = userOrgMap.getOrDefault(u.getId(), List.of());
                 List<UserPageItemResp.OrgBrief> orgs = userOrgs.stream()
-                    .map(uo -> new UserPageItemResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
+                    .map(uo -> {
+                        SysOrg org = orgMap.get(uo.getOrgId());
+                        return new UserPageItemResp.OrgBrief(
+                            uo.getOrgId(),
+                            org != null ? org.getName() : null,
+                            org != null ? org.getOrgType() : null,
+                            Boolean.TRUE.equals(uo.getIsPrimary())
+                        );
+                    })
                     .collect(Collectors.toList());
                 return new UserPageItemResp(
                     u.getId(), u.getUsername(), u.getName(), u.getPhone(),
@@ -444,17 +532,19 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 重置用户密码
+     * 重置用户密码（高危生命周期操作）
      * <p>
+     * 管理员重置用户密码，需默认树边界二次校验。
      * 用户重置自己的密码无需权限校验（自我修改豁免）。
      * 如果 newPassword 为空，系统自动生成随机密码。
      * 使用BCrypt哈希后更新，响应中返回生效的密码明文。
-     * </p>
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.7
      *
      * @param userId      用户ID
      * @param newPassword 新密码（可为空，空时自动生成）
      * @return 重置密码响应，包含生效的密码
-     * @throws BizException 用户不存在
+     * @throws BizException 用户不存在、不在默认树范围
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -468,6 +558,10 @@ public class UserServiceImpl implements UserService {
                 String.valueOf(userId),
                 AdminOperationCode.RESET_PASSWORD
             );
+
+            // 默认树边界二次校验（非自我修改时）
+            Long tenantId = TenantContextHolder.getTenantId();
+            validateUsersInDefaultTreeScope(tenantId, Set.of(userId));
         }
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -533,5 +627,195 @@ public class UserServiceImpl implements UserService {
         }
 
         return password.toString();
+    }
+
+    // ==================== 候选用户查询（§4.1.2） ====================
+
+    /**
+     * 查询候选用户（添加组织/岗位成员时使用）。
+     * <p>
+     * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
+     * 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
+     *
+     * @param req 候选用户查询请求（含 targetOrgId）
+     * @return 分页候选用户列表
+     */
+    @Override
+    public PaginatedResult<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.ORG,
+            String.valueOf(req.targetOrgId()),
+            AdminOperationCode.UPDATE
+        );
+
+        // 校验目标组织存在
+        SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.targetOrgId());
+        if (targetOrg == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+        }
+
+        // 1. 确定默认组织树中操作者可见的组织范围
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (defaultConfigs.isEmpty()) {
+            return emptyMemberCandidates(req);
+        }
+        Long defaultRootOrgId = defaultConfigs.get(0).getRootOrgId();
+        List<Long> visibleOrgIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, defaultRootOrgId);
+        if (visibleOrgIds.isEmpty()) {
+            return emptyMemberCandidates(req);
+        }
+
+        // 2. 收集默认树可见范围内的用户 ID
+        Set<Long> defaultTreeOrgIdSet = Set.copyOf(visibleOrgIds);
+        List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+            tenantId, List.copyOf(defaultTreeOrgIdSet));
+        Set<Long> candidateUserIds = defaultTreeUserOrgs.stream()
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
+        if (candidateUserIds.isEmpty()) {
+            return emptyMemberCandidates(req);
+        }
+
+        // 3. 排除目标组织已有成员
+        List<SysUserOrg> targetOrgUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+            tenantId, List.of(req.targetOrgId()));
+        Set<Long> existingMemberIds = targetOrgUserOrgs.stream()
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
+        candidateUserIds.removeAll(existingMemberIds);
+        if (candidateUserIds.isEmpty()) {
+            return emptyMemberCandidates(req);
+        }
+
+        // 4. 分页查询候选用户
+        int pageNum = req.getPageNum();
+        int pageSize = req.getPageSize();
+        Page<SysUser> page = Page.of(pageNum, pageSize);
+        Page<SysUser> result = userMapper.paginateUsersByIdsAndKeyword(
+            page, tenantId, List.copyOf(candidateUserIds), req.keyword());
+
+        // 5. 批量获取用户的主组织名（默认树主归属）
+        Set<Long> resultUserIds = result.getRecords().stream()
+            .map(SysUser::getId)
+            .collect(Collectors.toSet());
+        if (resultUserIds.isEmpty()) {
+            return emptyMemberCandidates(req);
+        }
+
+        // 查用户主组织关系
+        List<SysUserOrg> primaryOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(resultUserIds));
+        // 过滤主组织 & 在默认树范围内
+        Map<Long, Long> userPrimaryOrgIdMap = primaryOrgs.stream()
+            .filter(uo -> Boolean.TRUE.equals(uo.getIsPrimary()) && defaultTreeOrgIdSet.contains(uo.getOrgId()))
+            .collect(Collectors.toMap(SysUserOrg::getUserId, SysUserOrg::getOrgId, (a, b) -> a));
+        // 批量查组织名
+        Map<Long, SysOrg> primaryOrgMap = userPrimaryOrgIdMap.isEmpty()
+            ? Map.of()
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, new java.util.HashSet<>(userPrimaryOrgIdMap.values()));
+
+        List<MemberCandidateItemResp> items = result.getRecords().stream()
+            .map(u -> {
+                Long primaryOrgId = userPrimaryOrgIdMap.get(u.getId());
+                SysOrg primaryOrg = primaryOrgId != null ? primaryOrgMap.get(primaryOrgId) : null;
+                return new MemberCandidateItemResp(
+                    u.getId(),
+                    u.getUsername(),
+                    u.getName(),
+                    null, // avatar 暂不填充
+                    primaryOrg != null ? primaryOrg.getName() : null,
+                    false // 服务端已过滤，固定 false
+                );
+            })
+            .collect(Collectors.toList());
+
+        long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
+        return new PaginatedResult<>(
+            items,
+            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
+        );
+    }
+
+    private PaginatedResult<MemberCandidateItemResp> emptyMemberCandidates(MemberCandidatesReq req) {
+        return new PaginatedResult<>(
+            List.of(),
+            new PaginatedResult.PaginationMeta(0, req.getPageNum(), req.getPageSize(), 0)
+        );
+    }
+
+    // ==================== 辅助方法 ====================
+
+    /**
+     * 校验组织是否属于默认组织树。不属于时抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}。
+     */
+    private void validateOrgInDefaultTree(Long tenantId, Long orgId) {
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (defaultConfigs.isEmpty()) {
+            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+        }
+        Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
+        List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
+        if (!subtreeIds.contains(orgId)) {
+            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+        }
+    }
+
+    /**
+     * 从 SysOrg.orgType 推导权限中心角色类型码（ORG / POSITION）。
+     * 与 {@code RoleProxyServiceImpl#resolveOrgRoleTypeCode} 同语义。
+     */
+    private String resolveOrgRoleTypeCode(SysOrg org) {
+        if (org == null) return "ORG";
+        String orgType = org.getOrgType();
+        if ("2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType)) return "POSITION";
+        return "ORG";
+    }
+
+    /**
+     * 默认树边界二次校验：校验目标用户是否在操作者默认树可管范围内。
+     * <p>
+     * 实现策略：验证每个目标用户在默认组织树中至少有一个组织关系（sys_user_org）。
+     * 若任一用户不在默认树范围内，整批操作拒绝。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §2 门禁规范
+     *
+     * @param tenantId 租户 ID
+     * @param userIds  目标用户 ID 集合
+     * @throws BizException 任一用户不在默认树可管范围
+     */
+    private void validateUsersInDefaultTreeScope(Long tenantId, Set<Long> userIds) {
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (defaultConfigs.isEmpty()) {
+            // 无默认树配置，无法验证，放行（由门禁层兜底）
+            return;
+        }
+        Long defaultRootOrgId = defaultConfigs.get(0).getRootOrgId();
+        List<Long> defaultTreeOrgIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, defaultRootOrgId);
+        if (defaultTreeOrgIds.isEmpty()) {
+            throw new BizException(AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getCode(),
+                AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getMessage());
+        }
+
+        // 查默认树范围内的用户组织关系
+        List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+            tenantId, List.copyOf(defaultTreeOrgIds));
+        Set<Long> usersInDefaultTree = defaultTreeUserOrgs.stream()
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
+
+        // 任一目标用户不在默认树范围内则拒绝
+        for (Long userId : userIds) {
+            if (!usersInDefaultTree.contains(userId)) {
+                throw new BizException(AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getCode(),
+                    AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getMessage());
+            }
+        }
     }
 }

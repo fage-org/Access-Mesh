@@ -1,0 +1,442 @@
+# 用户角色代理修复计划（admin-service P1/P2 修复）
+
+> 状态：进行中
+> 关联设计：
+> - [docs/design/services/admin-service-api-contract.md](../design/services/admin-service-api-contract.md) §4.1.1 / §4.1.2 / §4.1.5 / §4.4
+> - [docs/design/permission-center/api-contract.md](../design/permission-center/api-contract.md) §6.2.2.4（user-role sync）、§6.2.4
+> - [docs/design/permission-center/overview.md](../design/permission-center/overview.md) "对外接口仅用业务键"设计哲学
+> - [docs/design/org-user-permission-contract.md](../design/org-user-permission-contract.md) v1.2 权限矩阵
+> - [docs/plans/org-user-page-impl-plan.md](org-user-page-impl-plan.md)（前置 P1 实现，本计划是其后续修复）
+>
+> 创建日期：2026-06-14
+> 触发：上一轮 P1 16 接口实现后，用户提交 6 项 P1/P2 findings；6 视角 ultracode 审查暴露 12 条已确认 high+ 担忧 + 17 条计划未覆盖的同类问题。
+>
+> 用户已确认决策（2026-06-14）：
+> ① P1-3 反转方向 —— **不**改 perm-center 契约，admin 代理层自己反查 roleId
+> ② 本 PR 范围 —— 采纳全部 11 项（含可见性裁剪、fail-safe）
+
+---
+
+## 1. 目标
+
+修复用户角色代理链路（admin-service `/user-role/{list,assign,revoke}`、`/user/member-candidates`、`/user/page`、`/user/delete` 等）共 6 项已确认 P1/P2 缺陷，并把同根因暴露的 12 条扩散问题一次性收敛，保证：
+
+1. **接口可调通**：assign/revoke 不再被 `@NotBlank` 校验拒绝。
+2. **门禁与契约对齐**：admin 层用 `ADMIN_ROLE:GRANT/REVOKE`，permission-center 内部 `ROLE:MANAGE`，双层都通过。
+3. **业务键边界干净**：admin 代理层不把 `parseLong(externalId)` 当 roleId，不污染 perm-center 业务键导向契约。
+4. **同步 envelope 一致**：`relationKey` 在 createUser / deleteUser / UserOrgService / SyncTaskBuilder 4 处用同一 helper 拼装，POSITION 用户的 BIND/UNBIND businessKey 不再对不上。
+5. **可见性裁剪到位**：默认树后代查询不再给到非操作者可见的用户/组织（消除 §4.1.1 / §4.1.2 / §4.1.5 越权风险）。
+6. **同步链 fail-safe**：permission-center 端 user 删除时本地兜底清 `user_role`，即使 admin 端 envelope 漏发或乱序也不残留。
+
+## 2. 非目标
+
+- **不**新建 admin 端 ROLE:MANAGE 操作码（已删除常量）。
+- **不**改 permission-center 的 `RoleResp` / `UserRolesResp.RoleSummary` 增加内部 ID 字段（违反业务键导向设计哲学）。
+- **不**对 `BatchAuthCheckReq` 上限做服务端硬限制（仅 admin 端分批 + cap）。
+- **不**做 `getDescendantIdsIncludingSelf` cap 的全局推广（只裁剪默认树场景，其它路径单独 issue）。
+- **不**重构 perm-common 与 permission-center 内部 DTO 的双份维护问题（中期债务，单独 issue）。
+
+## 3. 背景：6 项已确认 P1/P2 + 12 条审查发现
+
+### 3.1 用户提交的 6 项原始 findings
+
+| ID | 严重度 | 问题 | 根因 |
+|----|--------|------|------|
+| P1-A | P1 阻断 | assign/revoke 传 `domainCode=null`，但 perm-common `UserAssignRoleReq.AssignItem.domainCode` / `UserRoleBatchRevokeReq.RevokeItem.domainCode` 都是 `@NotBlank`；permission-center controller 有 `@Valid`，请求被 400 拒绝 | DTO 校验语义与代理层调用契约不一致；`RoleResp` 不返回 `domainCode`，代理层无法填值 |
+| P1-B | P1 阻断 | admin 代理用了 `ADMIN_ROLE:MANAGE`，但契约 `admin-service-api-contract.md` §4.4.2 要求 `ADMIN_ROLE:GRANT@roleId`、§4.4.3 要求 `ADMIN_ROLE:REVOKE@roleId` | 上一轮误读契约新增 `MANAGE` 常量；与已定义权限点 + 前端 perm 串不一致 |
+| P1-C | P1 阻断 | `RoleProxyServiceImpl.listUserRoles` 把 `roleExternalId` 强行 `parseLong` 当 roleId 返回；功能角色（externalId 为业务键字符串）必崩 | `UserRolesResp.RoleSummary` 只暴露业务键，不返回 `abstract_role.id`；代理层用 `parseRoleId` 兜底 null |
+| P1-D | P1 越权 | `/user/member-candidates` 取默认树根全量后代，没按操作者 `ADMIN_ORG:VIEW` 可见范围裁剪 | 实现绕过"操作者可见范围"语义，仅做了入口边界 + 目标 org 排除 |
+| P1-E | P1 残留 | `/user/delete` UNBIND envelope 写死 `relationKey = "ORG:" + orgId`；岗位 POSITION 用户被删时 perm-center 残留 user_role | 与 `UserOrgServiceImpl` 的 `roleTypeCode + ":" + orgId` 不一致；硬编码 prefix |
+| P2-F | P2 显示 | `listUserRoles` 丢弃 perm-center 返回的 `validFrom/validTo`，固定填 null | 复制粘贴时填了 null 占位但没回填 |
+
+### 3.2 审查发现的 12 条已确认扩散问题
+
+> 来源：6 视角 workflow 审查（架构合规性 / 安全语义 / 数据一致性 / API 兼容性 / 性能规模 / 完整性批判），48 个 agent 对抗性核实。
+
+| ID | 严重度 | 问题 | 关联原 finding |
+|----|--------|------|----------------|
+| EXT-1 | high | `RoleProxyServiceImpl.fetchUserRoles` line 458 同样用 `parseRoleId` 把业务键转 Long，影响登录用户信息的 `roles` 字段 | P1-C 水下复发点 |
+| EXT-2 | blocker | `UserServiceImpl.createUser` line 204 同样写死 `"ORG:" + req.orgId()`；line 203 已算出 `roleTypeCode` 但没用 | P1-E 水下复发点 |
+| EXT-3 | high | `UserServiceImpl.pageUsers` line 466 在 `req.orgId` 为空时只做 `ADMIN_USER:VIEW` 类型级，没按 `ADMIN_ORG:VIEW` 可见范围裁剪 | P1-D 水下复发点（§4.1.1 越权） |
+| EXT-4 | high | `validateUsersInDefaultTreeScope` line 793-820 只验"目标用户在默认树边界内"，没验"操作者对该用户的归属组织有 `ADMIN_ORG:VIEW`"。被 delete/enable/reset-password 共用 | P1-D 水下复发点（§4.1.5 越权） |
+| EXT-5 | high | `createUser/deleteUser` 把 `defaultConfigs.get(0).getRootOrgId()` 直接当 `treeRootExternalId` 喂给 `userOrgBind/Unbind`；当用户在多默认树或岗位场景下，envelope 桶 scopeKey 错配 | 与 `UserOrgServiceImpl.assignUserToOrgs` 用的 `orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId)` 不一致 |
+| EXT-6 | blocker | MANAGE→GRANT/REVOKE 切换形成双层门禁：admin 层 `ADMIN_ROLE:GRANT`，但 permission-center `UserManageAppServiceImpl.assignRole` line 295 / `revokeRolesBatch` line 548 内部用 `engine.getDeniedIds(... ROLE ... MANAGE)` **再校一次**。需核实 perm-center 内部 ROLE 资源类型的 MANAGE 操作码种子是否存在 | P1-B 关联 |
+| EXT-7 | high | `permission-center.PermissionCheckAppServiceImpl.batchCheck` line 102-127 是 `for` 循环逐条 `engine.query`，没批处理。1k 默认树后代会触发 1000 次 SQL 查询 | P1-D 性能放大风险 |
+| EXT-8 | high | admin `SyncTaskDomainServiceImpl.enqueueAll` line 138-145 同样 `for` 循环逐条 `insert`。删 100 用户产生 300+ 次 INSERT | P1-E 关联性能 |
+| EXT-9 | high | `UserServiceImpl.deleteUser` 三步在同一事务里没问题，但不同 envelope 之间没批次约束。publisher 可能乱序处理（先 user DELETE 再 UNBIND，导致 perm-center 残留 user_role） | P1-E 关联一致性 |
+| EXT-10 | medium | perm-common 和 permission-center 内部 DTO 双份维护是结构性债务（每次 DTO 演进必双改） | P1-A 暴露的元问题 |
+| EXT-11 | medium | `getDescendantIdsIncludingSelf` 在 5 处使用，全无规模限制；超大默认树会爆 | EXT-3/EXT-4 关联性能 |
+| EXT-12 | medium | `permission-center` 内部 `UserAssignRoleReq.AssignItem.domainCode` 也是 `@NotBlank`；perm-common 单独放宽不够 | P1-A 双份 DTO 必须同改 |
+
+### 3.3 设计决策（用户已确认）
+
+| 决策点 | 选项 | 决策 |
+|--------|------|------|
+| `domainCode` 处理 | A) perm-common 放宽 `@NotBlank`；B) perm-center `RoleResp` 加字段；C) admin 多一次反查 | **A**：放宽 `@NotBlank`，配合服务端跨字段业务校验（ORG/POSITION 必带 domainCode） |
+| 门禁码 | A) 用契约 GRANT/REVOKE；B) 保留 MANAGE 改契约 | **A**：按契约用 GRANT/REVOKE |
+| 可见性裁剪 | A) `engine.getDeniedIds` 批量过滤；B) perm-center 暴露专用接口；C) 不裁剪 | **A**：`batchCheckAuth` 批量过滤默认树后代，配合操作者级缓存 |
+| roleId 补全 | A) admin 反查（保契约纯净）；B) perm-center `RoleSummary` 加字段 | **A**：admin 自己反查，**保护 perm-center 业务键导向契约** |
+| 本 PR 范围 | A) 全部一次到位；B) 最小集；C) 拆分迭代 | **A**：13 项主改动 + 3 项配套全部一次到位 |
+
+---
+
+## 4. 修复方案（13 项主改动 M1-M13 + 3 项配套 S1-S3）
+
+> 用户决策"采纳全部 11 项"指 6 视角审查后归并的逻辑批次（DTO+操作码 / 业务键边界 / relationKey 收敛 / 可见性裁剪 / fail-safe），落到具体改动 = 13 项主改 + 3 项配套。命名 M = Main change，S = Supporting change。
+
+### 第 1 批：DTO + 操作码（基础设施，4 项）
+
+#### M1：DTO 放宽 `@NotBlank`（双端同改）
+
+| 文件 | 改动 |
+|------|------|
+| `perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/dto/req/UserAssignRoleReq.java` | `AssignItem.domainCode` 去掉 `@NotBlank`；javadoc 标注"功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）允许 null 表示全局域；ORG/POSITION 必填" |
+| `perm-sdk/perm-common/.../UserRoleBatchRevokeReq.java` | `RevokeItem.domainCode` 同上 |
+| `permission-center/src/main/java/cn/ac/fage/accessmesh/permission/dto/req/UserAssignRoleReq.java` | 内部 DTO 同步放宽 |
+| `permission-center/.../dto/req/UserRoleBatchRevokeReq.java` | 同步放宽 |
+
+**校验**：服务端实现 (`UserManageAppServiceImpl` line 257/288/328 等) 已全部用 `item.domainCode() != null ? item.domainCode() : ""` 兜底，**无需改 service 实现**。
+
+**关联**：覆盖 P1-A、EXT-12。
+
+#### M2：服务端跨字段业务校验（防 silently invalid）
+
+| 文件 | 改动 |
+|------|------|
+| `permission-center/.../UserManageAppServiceImpl.java` `assignRole` 入口 | 新增校验：`for item in req.items()`：若 `roleTypeCode IN (ORG, POSITION) && (domainCode == null || domainCode.isBlank())` → 抛 `BizException(ErrorCode.INVALID_PARAM, "ORG/POSITION 角色必须指定 domainCode")` |
+| `UserManageAppServiceImpl.assignRolesBatch` | 同样校验 |
+| `UserManageAppServiceImpl.revokeRolesBatch` | 同样校验 |
+
+**关联**：覆盖审查担忧 "DTO 放宽缺补偿性校验"。
+
+#### M3：门禁码切回契约 GRANT/REVOKE
+
+| 文件 | 改动 |
+|------|------|
+| `admin-service/.../RoleProxyServiceImpl.java` `assignRole` line 604-605 | `AdminOperationCode.MANAGE` → `AdminOperationCode.GRANT` |
+| `RoleProxyServiceImpl.revokeRole` line 654-655 | `AdminOperationCode.MANAGE` → `AdminOperationCode.REVOKE` |
+
+**关联**：覆盖 P1-B。
+
+#### M4：删除 `AdminOperationCode.MANAGE` 常量
+
+| 文件 | 改动 |
+|------|------|
+| `admin-service/.../security/AdminOperationCode.java` line 62-69 | 删除 `public static final String MANAGE = "MANAGE";` |
+
+**核实**：上一轮 grep 已确认 `AdminOperationCode.MANAGE` **仅** 在 `RoleProxyServiceImpl` 的 2 处使用（M3 改完后无引用），删除安全。
+
+**关联**：覆盖 P1-B 收尾。
+
+---
+
+### 第 2 批：业务键边界（保 perm-center 契约纯净，3 项）
+
+#### M5：admin 代理层 `RoleResolver` —— 业务键 → roleId 反查
+
+**新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/service/RoleResolver.java`
+
+```java
+public interface RoleResolver {
+    /**
+     * 根据业务键反查 abstract_role.id
+     * @return roleId，若 perm-center 不存在则返回 null
+     */
+    Long resolveRoleId(String roleTypeCode, String roleExternalId);
+
+    /** 批量反查（一次 Feign 调用） */
+    Map<RoleBusinessKey, Long> batchResolveRoleIds(Set<RoleBusinessKey> keys);
+
+    record RoleBusinessKey(String roleTypeCode, String roleExternalId) {}
+}
+```
+
+**实现**：`RoleResolverImpl` 通过 `permissionFeignClient.listRoles(RoleListReq{roleTypeCodes, externalIds})` 批量查询，本地 60s TTL 缓存（`AdminCacheCatalog.ROLE_BUSINESS_KEY_TO_ID`）。
+
+**调用方**：
+
+| 文件 | 改动 |
+|------|------|
+| `RoleProxyServiceImpl.listUserRoles` line 564-583 | `parseRoleId(r.roleExternalId())` → 批量调 `roleResolver.batchResolveRoleIds`，按 (roleTypeCode, externalId) 取 roleId；查不到时 roleId=null（前端按 null 跳过 revoke 按钮即可） |
+| `RoleProxyServiceImpl.fetchUserRoles` line 442-460（**EXT-1 修复**） | 同样改批量反查 |
+
+**关联**：覆盖 P1-C、EXT-1。
+
+#### M6：删除 `RoleProxyServiceImpl.parseRoleId` 私有方法
+
+修改 M5 后，`parseRoleId` 不再被任何路径调用，删除避免后续误用。
+
+#### M7：`listUserRoles` 透传 `validFrom/validTo`
+
+| 文件 | 改动 |
+|------|------|
+| `RoleProxyServiceImpl.listUserRoles` line 580-581 | `null, // validFrom \n null  // validTo` → `r.validFrom(), r.validTo()` |
+
+**关联**：覆盖 P2-F。
+---
+
+### 第 3 批：relationKey 收敛（统一 helper，3 项）
+
+#### M8：抽 `UserOrgKeys` helper
+
+**新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/support/UserOrgKeys.java`
+
+```java
+public final class UserOrgKeys {
+    private UserOrgKeys() {}
+
+    /**
+     * 用户-组织关联同步的 relationKey 拼装
+     * 格式：{roleTypeCode}:{orgId}
+     * 例：ORG:1001（普通组织）/ POSITION:2001（岗位）
+     *
+     * 与 permission-center api-contract.md §6.2.2.4 (PERM_USER_ROLE_SYNC) 对齐
+     */
+    public static String relationKey(String roleTypeCode, Object orgIdOrExternalId) {
+        if (roleTypeCode == null || roleTypeCode.isBlank()) {
+            throw new IllegalArgumentException("roleTypeCode 不能为空");
+        }
+        if (orgIdOrExternalId == null) {
+            throw new IllegalArgumentException("orgIdOrExternalId 不能为空");
+        }
+        return roleTypeCode + ":" + orgIdOrExternalId;
+    }
+}
+```
+
+#### M9：UserServiceImpl 两处替换
+
+| 文件 | 改动 |
+|------|------|
+| `admin-service/.../UserServiceImpl.java` `createUser` line 204（**EXT-2 修复**） | `String relationKey = "ORG:" + req.orgId();` → `String relationKey = UserOrgKeys.relationKey(roleTypeCode, req.orgId());` |
+| `UserServiceImpl.deleteUser` line 322（**P1-E 修复**） | `String relationKey = "ORG:" + uo.getOrgId();` → `String relationKey = UserOrgKeys.relationKey(roleTypeCode, uo.getOrgId());` |
+
+#### M10：UserOrgServiceImpl + SyncTaskBuilder 收敛到 helper
+
+| 文件 | 改动 |
+|------|------|
+| `admin-service/.../UserOrgServiceImpl.java` line 132 | `String relationKey = roleTypeCode + ":" + assoc.getOrgId();` → `UserOrgKeys.relationKey(...)` |
+| `UserOrgServiceImpl.java` line 208 | `String relationKey = roleTypeCode + ":" + orgId;` → `UserOrgKeys.relationKey(...)` |
+| `admin-service/.../SyncTaskBuilder.java` line 931 | `String relationKey = roleTypeCode + ":" + orgExternalId;` → `UserOrgKeys.relationKey(...)` |
+
+**额外修复 EXT-5**：
+
+| 文件 | 改动 |
+|------|------|
+| `UserServiceImpl.createUser` line 206-213 | `Long defaultRootId = defaultConfigs.get(0).getRootOrgId();` → `String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, req.orgId());` |
+| `UserServiceImpl.deleteUser` line 316-325（每个 user-org 关系单独解析） | 把 `defaultRootExternalId` 移到 for 循环内 per-org 解析：`String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, uo.getOrgId());` |
+
+**关联**：覆盖 P1-E、EXT-2、EXT-5。
+
+---
+
+### 第 4 批：可见性裁剪（消 §4.1.1 / §4.1.2 / §4.1.5 越权风险，2 项）
+
+#### M11：抽 `OrgVisibilityService`
+
+**新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/service/security/OrgVisibilityService.java`
+
+```java
+public interface OrgVisibilityService {
+    /**
+     * 过滤出操作者通过 ADMIN_ORG:VIEW 可见的组织子集
+     * @param operatorId 操作者用户 ID（默认从 StpUtil 取）
+     * @param orgIds     候选组织 ID 集合
+     * @return 可见的子集（保留顺序）
+     */
+    Set<Long> filterVisibleOrgIds(Long operatorId, Collection<Long> orgIds);
+
+    /**
+     * 取操作者在默认树范围内可见的所有组织 ID
+     * @param tenantId 租户 ID
+     * @param operatorId 操作者用户 ID
+     * @return 默认树后代 ∩ 操作者 ADMIN_ORG:VIEW 通过的子集
+     */
+    Set<Long> getOperatorVisibleDefaultTreeOrgIds(Long tenantId, Long operatorId);
+}
+```
+
+**实现**：
+- 内部用 `permissionFeignClient.batchCheckAuth(BatchAuthCheckReq{ADMIN_ORG, orgIds, VIEW})` 批量校验。
+- 缓存：`(operatorId, defaultRootId)` → 可见 orgId Set，60s TTL。
+- 分批：`orgIds` 超过 500 时按 500 一批分次调用（防 EXT-7 服务端 N 次循环放大；服务端 N 次循环优化是本 PR 范围外的 issue）。
+
+#### M12：4 处共用 OrgVisibilityService
+
+| 调用点 | 改动 |
+|--------|------|
+| `UserServiceImpl.memberCandidates` line 663-672（**P1-D 修复**） | 取默认树后代后，调 `orgVisibilityService.filterVisibleOrgIds(operatorId, descendantIds)` 裁剪 |
+| `UserServiceImpl.pageUsers` line 466（**EXT-3 修复**） | `req.orgId == null` 时也按操作者可见默认树裁剪：用 `orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId)` 作为 `orgIds` 过滤；`req.orgId != null` 时验证 orgId 在可见集合中 |
+| `UserServiceImpl.validateUsersInDefaultTreeScope` line 793-820（**EXT-4 修复**） | 改为 `validateUsersUnderOperatorVisibleScope(tenantId, operatorId, userIds)`：取每个 userId 的所属组织，验证至少一个组织在 `getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId)` 中；否则抛 `USER_NOT_IN_OPERATOR_VISIBLE_SCOPE`（新错误码）|
+| 错误码 `AdminErrorCode` | 新增 `USER_NOT_IN_OPERATOR_VISIBLE_SCOPE(11016, "用户不在操作者可见范围内")` |
+
+**关联**：覆盖 P1-D、EXT-3、EXT-4。
+
+---
+
+### 第 5 批：fail-safe（防一致性故障，1 项）
+
+#### M13：permission-center user 删除时本地兜底清 user_role
+
+| 文件 | 改动 |
+|------|------|
+| `permission-center/.../AbstractUserSyncAppServiceImpl.java` `applyToTargetWithExisting` `OP_DELETE` 分支 line 270-275 | `abstractUserMapper.softDeleteBatch(...)` 之后追加 `userRoleMapper.softDeleteByAbstractUserId(tenantId, existing.getId(), now);`，并 enqueue 缓存失效（同已有模式） |
+
+**目的**：即使 admin envelope 漏发或 publisher 乱序处理（先 user DELETE 再 UNBIND），perm-center 自己也能保证 `user_role` 一致。
+
+**关联**：覆盖 EXT-9（envelope 顺序风险兜底）。
+
+---
+
+### 配套：前端 + 种子 + 契约测试
+
+#### S1：前端 perm 串同步
+
+| 文件 | 改动 |
+|------|------|
+| `frontend/src/views/system/user/utils/perms.ts` | `USER_ROLE_ASSIGN: "ROLE:MANAGE"` → `USER_ROLE_ASSIGN: "ADMIN_ROLE:GRANT"`；新增 `USER_ROLE_REVOKE: "ADMIN_ROLE:REVOKE"`（如未独立分） |
+| 前端 mock 角色矩阵 | `frontend/mock/auth.ts` 或角色定义文件中 admin/hr 的 perm 列表加 `ADMIN_ROLE:GRANT/REVOKE` |
+
+#### S2：种子数据核实 + 补丁
+
+**核实步骤**：
+1. `grep -E "ADMIN_ROLE.*GRANT|ADMIN_ROLE.*REVOKE" docs/design/schema/seed-admin-operations.sql`（审查驳斥已确认存在 line 130-144）→ 无需改
+2. `grep -E "resource_type.*ROLE.*MANAGE|MANAGE.*ROLE" docs/design/schema/permission-center*.sql` 核实 perm-center 内部 ROLE 资源类型的 MANAGE 操作码种子是否存在
+3. 若 perm-center 内部 ROLE:MANAGE 缺种子 → 补 `INSERT INTO operation_permission`（若 perm-center 服务实际启动时已自动创建则跳过；以 `mvn test` 集成测试为准）
+4. 角色矩阵核实：admin 角色（admin/hr/sec/auditor）需同时持有 `ADMIN_ROLE:GRANT/REVOKE`（admin 入口门禁）和 `ROLE:MANAGE`（perm-center 内部门禁）
+
+**关联**：覆盖 EXT-6（双层门禁的种子数据 + 角色矩阵核实）。
+
+#### S3：契约一致性测试
+
+**新增文件**：`admin-service/src/test/java/cn/ac/fage/accessmesh/admin/contract/PermCommonReqContractTest.java`
+
+```java
+@Test
+void perm_common_dto_should_match_permission_center_internal_dto() {
+    // 反射比对 RecordComponent[] 结构
+    // perm-common UserAssignRoleReq vs permission.dto.req.UserAssignRoleReq
+    // perm-common UserRoleBatchRevokeReq vs permission.dto.req.UserRoleBatchRevokeReq
+    // 字段名、类型、注解（@NotBlank / @NotNull / @Size 等）必须一一对应
+}
+```
+
+**目的**：防 EXT-10 类问题（双份 DTO 漏改一份）静默复发。
+
+---
+
+## 5. 实施顺序
+
+| 阶段 | 改动批次 | 编译/测试边界 |
+|------|---------|---------------|
+| 1 | M1（perm-common DTO 放宽）+ M3 + M4（admin 门禁码切换 + 删常量）+ S1（前端 perms.ts 同步切换）| `mvn compile -pl perm-sdk/perm-common,admin-service -am` + `pnpm build`<br>**注：M3/M4 与 S1 必须同提交、同上线，否则前端 `hasPerms("ROLE:MANAGE")` 与后端 `ADMIN_ROLE:GRANT` 不匹配，分配/回收按钮全隐藏** |
+| 2 | M2（permission-center 跨字段校验）| `mvn compile -pl permission-center` |
+| 3 | M8（UserOrgKeys helper） | `mvn compile -pl admin-service` |
+| 4 | M9 + M10（UserServiceImpl + UserOrgServiceImpl + SyncTaskBuilder 收敛） | `mvn compile -pl admin-service` |
+| 5 | M5 + M6（RoleResolver + 删 parseRoleId）+ M7（透传 validFrom/validTo） | `mvn compile -pl admin-service` |
+| 6 | M11 + M12（OrgVisibilityService + 4 处共用） | `mvn compile -pl admin-service` |
+| 7 | M13（perm-center fail-safe） | `mvn compile -pl permission-center` |
+| 8 | 配套 S2（种子核实）+ S3（契约测试） | `mvn test`（admin-service contract test）|
+
+每阶段完成后运行 `mvn compile`，第 8 阶段全跑 `mvn test`。
+
+**配套 S2 / S3 移到第 8 阶段；S1 已前置到第 1 阶段（必须与 M3/M4 同步切换）。**
+
+---
+
+## 6. 验收标准
+
+### 6.1 功能可用
+
+- [ ] `/user-role/assign` 传 `domainCode=null`（功能角色场景）请求成功，permission-center 服务端按全局域处理
+- [ ] `/user-role/assign` 传 `roleTypeCode=ORG && domainCode=null` 被服务端 `BizException` 拒绝（M2）
+- [ ] `/user-role/list` 返回的 `roleId` 对功能角色（externalId 是业务键字符串）也是正确的 `abstract_role.id`（M5 反查命中）
+- [ ] `/user-role/list` 返回的 `validFrom/validTo` 与 perm-center 一致，不再固定 null
+- [ ] `/user/member-candidates` 仅返回操作者通过 `ADMIN_ORG:VIEW` 可见的默认树用户
+- [ ] `/user/page` 在 `req.orgId == null` 时按操作者可见范围裁剪
+- [ ] `/user/delete` 对 ORG 用户 / POSITION 用户都正确生成 UNBIND envelope 且 `relationKey` 与 BIND 时一致
+- [ ] `/user/create` 指定 POSITION orgId 时 BIND envelope `relationKey` 是 `POSITION:{orgId}` 而非 `ORG:{orgId}`
+
+### 6.2 门禁正确
+
+- [ ] 操作者持有 `ADMIN_ROLE:GRANT@roleId` + `ROLE:MANAGE`（perm-center 内部）→ assign 通过
+- [ ] 操作者只持有 `ADMIN_ROLE:GRANT` 缺 `ROLE:MANAGE` → 在 perm-center 内部被拒（双层门禁正确生效）
+- [ ] 前端 `hasPerms("ADMIN_ROLE:GRANT")` 与后端入口门禁一致（无误判）
+
+### 6.3 数据一致性
+
+- [ ] 删 1 个 POSITION 用户后，`select * from user_role where ...` 在 perm-center 中无残留
+- [ ] 即使人为禁用 admin envelope publisher，删用户后 perm-center 内部仍能通过 M13 fail-safe 清掉 user_role
+
+### 6.4 编译/测试
+
+- [ ] `mvn compile` 三模块全通过
+- [ ] `mvn test -pl admin-service` 通过 `PermCommonReqContractTest`
+- [ ] `pnpm build && pnpm typecheck && pnpm lint` 前端通过
+- [ ] 上一轮 P1 16 接口的回归测试不退化
+
+### 6.5 文档
+
+- [ ] 本计划文档 `progress` 章节记录每项完成状态
+- [ ] `docs/plans/org-user-page-impl-plan.md` 第 8 节更新（P1 完成 → 含本轮修复）
+- [ ] S2 核实结果记录在 §8 当前进度（包括 perm-center ROLE:MANAGE 种子是否存在 + 角色矩阵是否同时配 GRANT/REVOKE 与 MANAGE）
+- [ ] 若 perm-center 内部 ROLE:MANAGE 种子真有缺失，更新 `docs/design/schema/` 对应 SQL
+
+---
+
+## 7. 风险 / 回滚
+
+| 风险 | 缓解 |
+|------|------|
+| M5 RoleResolver 反查失败（perm-center 不可达），listUserRoles 全量退化为 roleId=null | 缓存命中即正常；首次调用失败时 try-catch 降级返回 null + 日志告警，前端按 null 跳过操作按钮 |
+| M11 OrgVisibilityService batchCheckAuth 在大默认树（>10k）放大延迟 | 60s 缓存吸收高频；分 500 一批降低单次时延；超大租户后续单独优化（EXT-7 服务端 endpoint） |
+| M2 跨字段校验过严导致存量数据迁移问题 | 仅在 assign/revoke 入口新增校验，不影响存量 user_role；上线前预跑 `select * from user_role where role_type_code IN ('ORG','POSITION') and (domain_code IS NULL or domain_code='')` 核实存量无脏数据 |
+| M13 perm-center fail-safe 与 admin UNBIND envelope 双写导致 user_role 重复软删 | `softDeleteByAbstractUserId` 内置幂等（已删的记录跳过）；不影响功能 |
+| 双层门禁切换期，部分用户已配 `ROLE:MANAGE` 但缺 `ADMIN_ROLE:GRANT` | S1+S2 同步前端 perm 串和种子；rollout 前先核实角色矩阵；可观测：日志记录 `permissionValidator.checkInstanceLevel` 拒绝事件 |
+
+**回滚策略**：以 git revert 维度，按"第 5 批 → 第 4 批 → 第 3 批 → 第 2 批 → 第 1 批"逆序回滚。各批之间无环依赖（M5 不依赖 M11，M11 不依赖 M2 等）。M2 服务端校验最容易引发回归，可通过 feature flag `permission.assign.strict-domain-check` 控制开关（实施时按需）。
+
+---
+
+## 8. 当前进度
+
+| ID | 改动 | 状态 |
+|----|------|------|
+| M1 | perm-common DTO 放宽 `@NotBlank` | ❌ 未开始 |
+| M2 | permission-center 跨字段业务校验 | ❌ 未开始 |
+| M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ❌ 未开始 |
+| M4 | 删除 `AdminOperationCode.MANAGE` | ❌ 未开始 |
+| M5 | 新增 `RoleResolver` + listUserRoles/fetchUserRoles 改用 | ❌ 未开始 |
+| M6 | 删除 `parseRoleId` | ❌ 未开始 |
+| M7 | listUserRoles 透传 `validFrom/validTo` | ❌ 未开始 |
+| M8 | 新增 `UserOrgKeys` helper | ❌ 未开始 |
+| M9 | UserServiceImpl createUser/deleteUser 用 helper | ❌ 未开始 |
+| M10 | UserOrgServiceImpl + SyncTaskBuilder + treeRootExternalId 修复 | ❌ 未开始 |
+| M11 | 新增 `OrgVisibilityService` | ❌ 未开始 |
+| M12 | memberCandidates / pageUsers / validateUsersInDefaultTreeScope 共用 | ❌ 未开始 |
+| M13 | permission-center user 删除 fail-safe | ❌ 未开始 |
+| S1 | 前端 perms.ts + mock 矩阵 | ❌ 未开始 |
+| S2 | 种子数据核实 | ❌ 未开始 |
+| S3 | PermCommonReqContractTest | ❌ 未开始 |
+
+---
+
+## 9. 不在本 PR 处理（已记录、单独 issue）
+
+| 编号 | 问题 | 决策 |
+|------|------|------|
+| DEFERRED-1 | EXT-7：`PermissionCheckAppServiceImpl.batchCheck` for 循环 N 次 `engine.query` 性能放大 | 单独 PR：perm-center 新增 `POST /api/perm/auth/filter-allowed`（一次完成，复用 `engine.getDeniedIds`） |
+| DEFERRED-2 | EXT-8：admin `SyncTaskDomainServiceImpl.enqueueAll` for 循环 N 次 INSERT | 单独 PR：实现 `enqueueAllBatch` 批量入库 + businessKeyHash dedup |
+| DEFERRED-3 | EXT-10：perm-common 与 permission-center 内部 DTO 双份维护 | 中期：让 perm-center controller 直接消费 perm-common DTO，删除内部副本 |
+| DEFERRED-4 | EXT-11：`getDescendantIdsIncludingSelf` 全局加 cap（5 处使用） | 单独 PR：在 `OrgDomainServiceImpl` 加 `admin.org.descendant-cap` 配置（默认 50_000） |
+| DEFERRED-5 | RoleProxyServiceImpl#createOrgRole `String.valueOf(orgId)` 当 externalId 写入 | 当前正确（ORG/POSITION 业务键约定 externalId == sys_org.id 字符串），仅在契约文档形式化（org-user-permission-contract.md 加"角色业务键约定"小节） |
+
+---
+
+## 10. 归档条件
+
+满足以下条件之一时归档到 `docs/archive/YYYY-MM-DD/`：
+- 16 项改动（M1-M13 + S1-S3）全部完成且 `mvn test` 通过
+- 验收标准 §6.1 / §6.2 / §6.3 全部勾选
+- 上一轮的 `org-user-page-impl-plan.md` 第 8 节已同步刷新
+- 任何遗留问题已转移至 §9 DEFERRED 列表并关联 issue 编号

@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.admin.service;
 
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.UserRoleItemResp;
 
 import java.util.List;
 
@@ -79,4 +80,48 @@ public interface RoleProxyService {
      * @return 用户信息响应，包含角色和权限列表
      */
     UserInfoResp loadUserRolesAndPermissions(Long userId);
+
+    /**
+     * 查询用户角色列表（admin 代理 permission-center）。
+     * <p>
+     * 返回全类型角色（ORG/POSITION/BASIC_ROLE/GROUP_ROLE/PERSONAL），
+     * 代理层补 relationOrgName 等显示字段。
+     * 门禁：ADMIN_USER:VIEW@userId。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.1
+     *
+     * @param userId 用户 ID
+     * @return 用户角色列表
+     */
+    List<UserRoleItemResp> listUserRoles(Long userId);
+
+    /**
+     * 为用户分配功能角色（admin 代理 permission-center）。
+     * <p>
+     * 前端传入 admin 数字 ID，代理层完成 ID → 业务键翻译后调用 permission-center。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
+     *
+     * @param userId    用户 ID
+     * @param roleId    角色 ID（permission-center abstract_role.id）
+     * @param validFrom 有效期起始（可选）
+     * @param validTo   有效期截止（可选）
+     */
+    void assignRole(Long userId, Long roleId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo);
+
+    /**
+     * 回收用户功能角色（admin 代理 permission-center）。
+     * <p>
+     * 前端传入 admin 数字 ID，代理层完成 ID → 业务键翻译后调用 permission-center。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
+     *
+     * @param userId 用户 ID
+     * @param roleId 角色 ID（permission-center abstract_role.id）
+     */
+    void revokeRole(Long userId, Long roleId);
 }

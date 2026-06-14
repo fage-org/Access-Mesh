@@ -23,11 +23,14 @@ import cn.ac.fage.accessmesh.perm.common.dto.req.BatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.IdReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
+import cn.ac.fage.accessmesh.admin.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
@@ -147,6 +150,9 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     @Override
     public List<RoleListItemResp> listRoles(List<String> roleTypeCodes) {
+        // 门禁：ROLE:VIEW 类型级
+        permissionValidator.checkTypeLevel(AdminResourceType.ROLE, AdminOperationCode.VIEW);
+
         List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
             ? roleTypeCodes
             : FUNCTIONAL_ROLE_TYPES;
@@ -518,6 +524,168 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             return "ORG";
         }
         throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "Invalid org type: " + orgType);
+    }
+
+    /**
+     * 查询用户角色列表（admin 代理 permission-center）。
+     * <p>
+     * 门禁：ADMIN_USER:VIEW@userId。
+     * 代理 permission-center /api/perm/user-role/list（业务键 subjectTypeCode=ADMIN_USER），
+     * 再通过本地 sys_org 补 relationOrgName。
+     */
+    @Override
+    public List<UserRoleItemResp> listUserRoles(Long userId) {
+        // 门禁
+        permissionValidator.checkInstanceLevel(AdminResourceType.USER,
+            String.valueOf(userId), AdminOperationCode.VIEW);
+
+        try {
+            cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq req =
+                new cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq(
+                    SUBJECT_TYPE_ADMIN_USER,
+                    String.valueOf(userId)
+                );
+            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
+                permissionFeignClient.getUserRoles(req);
+            if (result == null || result.getData() == null || result.getData().roles() == null) {
+                return List.of();
+            }
+
+            // 收集需要补 relationOrgName 的 relationId（POSITION 角色的所属组织 abstract_role.id）
+            List<Long> orgIdsToLookup = result.getData().roles().stream()
+                .filter(r -> "POSITION".equals(r.roleTypeCode()) && r.relationId() != null)
+                .map(cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp.RoleSummary::relationId)
+                .collect(Collectors.toList());
+            Map<Long, SysOrg> orgMap = orgIdsToLookup.isEmpty()
+                ? Map.of()
+                : orgDomainService.batchSelectValidByIdsMap(
+                    TenantContextHolder.getTenantId(), new java.util.HashSet<>(orgIdsToLookup));
+
+            return result.getData().roles().stream()
+                .map(r -> {
+                    String relationOrgName = null;
+                    if ("POSITION".equals(r.roleTypeCode()) && r.relationId() != null) {
+                        SysOrg org = orgMap.get(r.relationId());
+                        relationOrgName = org != null ? org.getName() : null;
+                    }
+                    Long roleId = parseRoleId(r.roleExternalId());
+                    return new UserRoleItemResp(
+                        roleId,
+                        r.roleName(),
+                        r.roleTypeCode(),
+                        ROLE_TYPE_LABELS.getOrDefault(r.roleTypeCode(), r.roleTypeCode()),
+                        r.targetType(),
+                        r.relationId(),
+                        relationOrgName,
+                        null, // validFrom
+                        null  // validTo
+                    );
+                })
+                .collect(Collectors.toList());
+        } catch (BizException | SystemException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Failed to list user roles for userId={}", userId, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * 为用户分配功能角色（admin 代理 permission-center）。
+     * <p>
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
+     */
+    @Override
+    public void assignRole(Long userId, Long roleId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
+        // 1. 实例级 ROLE:MANAGE 门禁
+        permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
+            String.valueOf(roleId), AdminOperationCode.MANAGE);
+
+        // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
+        RoleRef roleRef = resolveRoleRef(roleId);
+        if ("ORG".equals(roleRef.roleTypeCode()) || "POSITION".equals(roleRef.roleTypeCode())) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                "ORG/POSITION 角色请通过组织归属接口分配，不支持直接分配角色");
+        }
+
+        // 3. 调用 permission-center 分配角色
+        try {
+            UserAssignRoleReq.AssignItem assignItem = new UserAssignRoleReq.AssignItem(
+                SUBJECT_TYPE_ADMIN_USER,
+                String.valueOf(userId),
+                null, // domainCode
+                roleRef.roleTypeCode(),
+                roleRef.externalId(),
+                null, // relationId
+                validFrom,
+                validTo
+            );
+            UserAssignRoleReq req = new UserAssignRoleReq(List.of(assignItem));
+            PermResult<Void> result = permissionFeignClient.assignRole(req);
+            if (result == null || result.getCode() != 200) {
+                log.warn("Failed to assign role to user: userId={}, roleId={}", userId, roleId);
+                throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                    "Failed to assign role to user");
+            }
+            log.info("Assigned role to user: userId={}, roleId={}", userId, roleId);
+        } catch (BizException | SystemException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error assigning role to user: userId={}, roleId={}, error={}", userId, roleId, e.getMessage());
+            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                "Failed to assign role to user: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 回收用户功能角色（admin 代理 permission-center）。
+     * <p>
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
+     */
+    @Override
+    public void revokeRole(Long userId, Long roleId) {
+        // 1. 实例级 ROLE:MANAGE 门禁
+        permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
+            String.valueOf(roleId), AdminOperationCode.MANAGE);
+
+        // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
+        RoleRef roleRef = resolveRoleRef(roleId);
+        if ("ORG".equals(roleRef.roleTypeCode()) || "POSITION".equals(roleRef.roleTypeCode())) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                "ORG/POSITION 角色请通过组织归属接口回收，不支持直接回收角色");
+        }
+
+        // 3. 调用 permission-center 回收角色
+        try {
+            UserRoleBatchRevokeReq.RevokeItem revokeItem = new UserRoleBatchRevokeReq.RevokeItem(
+                SUBJECT_TYPE_ADMIN_USER,
+                String.valueOf(userId),
+                null, // domainCode
+                roleRef.roleTypeCode(),
+                roleRef.externalId(),
+                null  // relationId
+            );
+            UserRoleBatchRevokeReq req = new UserRoleBatchRevokeReq(List.of(revokeItem));
+            PermResult<Void> result = permissionFeignClient.revokeRoles(req);
+            if (result == null || result.getCode() != 200) {
+                log.warn("Failed to revoke role from user: userId={}, roleId={}", userId, roleId);
+                throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                    "Failed to revoke role from user");
+            }
+            log.info("Revoked role from user: userId={}, roleId={}", userId, roleId);
+        } catch (BizException | SystemException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error revoking role from user: userId={}, roleId={}, error={}", userId, roleId, e.getMessage());
+            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
+                "Failed to revoke role from user: " + e.getMessage());
+        }
     }
 
     private boolean hasText(String value) {

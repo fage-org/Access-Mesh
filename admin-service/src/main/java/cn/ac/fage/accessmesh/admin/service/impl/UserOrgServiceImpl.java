@@ -92,14 +92,7 @@ public class UserOrgServiceImpl implements UserOrgService {
                 OrgOperationCodeMapper.resolveForUserOrg("2", AdminOperationCode.UPDATE));
         }
 
-        /*
-         * 设计约束：
-         * - 默认/非默认树约束见 default-org-tree-user-lifecycle.md 第 1-2 节。
-         * - 该方法后续必须改为关系级追加或显式树内替换，不能删除用户
-         *   在默认树或其他树下的全部关系。
-         * - user-org 变更还必须同步为 permission-center user_role（使用业务键）。
-         * 当前实现保留旧的全量替换行为，仅作为待改造点标注。
-         */
+        // 默认树单关联约束
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
             if (Boolean.TRUE.equals(config.getSingleAssoc()) && requestedOrgIds.size() > 1) {
@@ -108,6 +101,7 @@ public class UserOrgServiceImpl implements UserOrgService {
             }
         }
 
+        // 关系级追加：仅插入不存在的关系，禁止全量替换
         Set<Long> existingOrgIds = userOrgDomainService.findByUserId(tenantId, req.userId()).stream()
             .map(SysUserOrg::getOrgId)
             .collect(Collectors.toSet());
@@ -132,7 +126,6 @@ public class UserOrgServiceImpl implements UserOrgService {
             userOrgDomainService.insertBatch(toInsert);
 
             // Outbox: enqueue PERM_USER_ROLE_SYNC BIND envelopes for each new user-org assignment
-            // 复用前面已加载的 orgMap 解析 roleTypeCode（ORG/POSITION），避免 builder 端做静默二级 fallback
             for (SysUserOrg assoc : toInsert) {
                 cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgMap.get(assoc.getOrgId());
                 String roleTypeCode = isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
@@ -144,30 +137,73 @@ public class UserOrgServiceImpl implements UserOrgService {
                 syncTaskDomainService.enqueue(tenantId, env);
             }
         }
+
+        // 处理 primaryOrgId：若指定了 primaryOrgId 且非新增关系中，需额外设主
+        if (req.primaryOrgId() != null && toInsert.stream().noneMatch(a -> a.getOrgId().equals(req.primaryOrgId()))) {
+            // primaryOrgId 在已有关系中或刚插入的关系中，确保主标记正确
+            // 已有关系的 primary 设定由 setPrimaryOrgInScope 处理
+            List<Long> defaultOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
+            if (defaultOrgIds.contains(req.primaryOrgId())) {
+                userOrgDomainService.setPrimaryOrgInScope(tenantId, req.userId(), req.primaryOrgId(), defaultOrgIds);
+            }
+        }
     }
 
+    /**
+     * 移除单条 user-org 关系。默认树关系按身份目录高危处理。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.3.3
+     * <ul>
+     *   <li>非默认树关系：ADMIN_ORG:UPDATE@orgId 门禁</li>
+     *   <li>默认树关系：ADMIN_USER:UPDATE@userId 门禁（按身份目录边界）</li>
+     *   <li>移除后默认树关系归 0 时拒绝（身份目录高危保护）</li>
+     * </ul>
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeUserFromOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 先加载 org 确定类型，再按类型分发操作码（声明式映射，见 OrgOperationCodeMapper）
+        // 加载 org 确定类型
         cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
                 "user-org unbind: org not found, orgId=" + orgId);
         }
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(orgId),
-            OrgOperationCodeMapper.resolveForUserOrg(org.getOrgType(), AdminOperationCode.UPDATE)
-        );
 
-        // 非默认树移除成员只应删除关系并回收对应 user_role，不应影响用户生命周期。
+        // 判断该 org 是否属于默认树 → 决定门禁策略
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        List<Long> defaultTreeOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
+        boolean isDefaultTreeOrg = defaultTreeOrgIds.contains(orgId);
+
+        if (isDefaultTreeOrg) {
+            // 默认树关系 → 身份目录边界门禁：ADMIN_USER:UPDATE@userId
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.USER,
+                String.valueOf(userId),
+                AdminOperationCode.UPDATE
+            );
+
+            // 检查移除后用户在默认树是否还有归属关系
+            List<SysUserOrg> userDefaultOrgs = userOrgDomainService.findByUserId(tenantId, userId).stream()
+                .filter(uo -> defaultTreeOrgIds.contains(uo.getOrgId()) && !uo.getOrgId().equals(orgId))
+                .collect(Collectors.toList());
+            if (userDefaultOrgs.isEmpty()) {
+                throw new BizException(AdminErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getCode(),
+                    AdminErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getMessage());
+            }
+        } else {
+            // 非默认树关系 → ADMIN_ORG:UPDATE@orgId（按 orgType 分发操作码）
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.ORG,
+                String.valueOf(orgId),
+                OrgOperationCodeMapper.resolveForUserOrg(org.getOrgType(), AdminOperationCode.UPDATE)
+            );
+        }
+
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
 
         // Outbox: enqueue PERM_USER_ROLE_SYNC UNBIND envelope
-        // 复用前面已加载的 org 解析 roleTypeCode；与 BIND 链路保持对称，确保 business_key 匹配
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
         String relationKey = roleTypeCode + ":" + orgId;
         String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
@@ -176,16 +212,20 @@ public class UserOrgServiceImpl implements UserOrgService {
         syncTaskDomainService.enqueue(tenantId, env);
     }
 
+    /**
+     * 设置用户主组织（首期仅允许默认组织树主归属）。
+     * <p>
+     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.3.4
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setPrimaryOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 先加载目标 org 确定类型；设主组织受默认树约束（见下），但操作码仍按 orgType 分发（声明式映射，见 OrgOperationCodeMapper）
         cn.ac.fage.accessmesh.admin.entity.SysOrg targetOrg = orgDomainService.selectValidById(tenantId, orgId);
         if (targetOrg == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                "set-primary: org not found, orgId=" + orgId);
+                AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
@@ -193,29 +233,27 @@ public class UserOrgServiceImpl implements UserOrgService {
             OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), AdminOperationCode.UPDATE)
         );
 
-        // 首期主组织仅表示默认组织树下的主归属，后续实现需避免影响其他组织树关系。
+        // 首期主组织仅表示默认组织树下的主归属
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                 AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
 
-        List<Long> defaultOrgIds = defaultConfigs.stream()
-            .map(SysOrgTreeConfig::getRootOrgId)
-            .filter(rootOrgId -> rootOrgId != null)
-            .flatMap(rootOrgId -> orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId).stream())
-            .distinct()
-            .toList();
+        List<Long> defaultOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
         if (!defaultOrgIds.contains(orgId)) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "primary org must belong to default org tree");
+            throw new BizException(AdminErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getCode(),
+                AdminErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getMessage());
         }
 
         boolean targetAssigned = userOrgDomainService.findByUserId(tenantId, userId).stream()
             .anyMatch(userOrg -> orgId.equals(userOrg.getOrgId()));
         if (!targetAssigned) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "user is not assigned to target org");
+            throw new BizException(AdminErrorCode.USER_ORG_RELATION_NOT_FOUND.getCode(),
+                AdminErrorCode.USER_ORG_RELATION_NOT_FOUND.getMessage());
         }
 
+        // 仅在默认树内切换主标记，不影响其他组织树的 is_primary
         userOrgDomainService.setPrimaryOrgInScope(tenantId, userId, orgId, defaultOrgIds);
     }
 
@@ -233,5 +271,17 @@ public class UserOrgServiceImpl implements UserOrgService {
      */
     private static boolean isPositionOrg(String orgType) {
         return OrgOperationCodeMapper.isPositionOrg(orgType);
+    }
+
+    /**
+     * 解析默认组织树的全部组织 ID（含根）。
+     */
+    private List<Long> resolveDefaultTreeOrgIds(Long tenantId, List<SysOrgTreeConfig> defaultConfigs) {
+        return defaultConfigs.stream()
+            .map(SysOrgTreeConfig::getRootOrgId)
+            .filter(rootOrgId -> rootOrgId != null)
+            .flatMap(rootOrgId -> orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId).stream())
+            .distinct()
+            .toList();
     }
 }

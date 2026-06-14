@@ -96,6 +96,30 @@ public interface PermissionFeignClient {
     @PostMapping("/api/perm/user-role/list")
     PermResult<UserRolesResp> getUserRoles(@RequestBody UserRoleListReq req);
 
+    /**
+     * 为用户分配角色
+     * <p>
+     * 将指定角色分配给用户，用户将获得该角色下的所有权限。
+     * </p>
+     *
+     * @param req 用户角色分配请求
+     * @return 操作成功结果
+     */
+    @PostMapping("/api/perm/user-role/assign")
+    PermResult<Void> assignRole(@RequestBody UserAssignRoleReq req);
+
+    /**
+     * 批量撤销用户角色
+     * <p>
+     * 批量撤销用户的角色关联，用户将失去这些角色的权限。
+     * </p>
+     *
+     * @param req 批量角色撤销请求
+     * @return 操作成功结果
+     */
+    @PostMapping("/api/perm/user-role/revoke")
+    PermResult<Void> revokeRoles(@RequestBody UserRoleBatchRevokeReq req);
+
     // ========== 赋源同步 ==========
 
     /**

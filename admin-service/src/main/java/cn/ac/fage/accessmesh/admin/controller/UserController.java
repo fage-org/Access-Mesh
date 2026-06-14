@@ -3,12 +3,14 @@ package cn.ac.fage.accessmesh.admin.controller;
 import cn.ac.fage.accessmesh.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.admin.dto.req.MemberCandidatesReq;
 import cn.ac.fage.accessmesh.admin.dto.req.ResetPasswordReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserBatchCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserPageReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.admin.dto.req.UserUpdateStatusReq;
+import cn.ac.fage.accessmesh.admin.dto.resp.MemberCandidateItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.ResetPasswordResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserPageItemResp;
@@ -139,6 +141,22 @@ public class UserController {
     @PostMapping("/page")
     public PermResult<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
         return PermResult.success(userService.pageUsers(req));
+    }
+
+    /**
+     * 查询候选用户（添加组织/岗位成员时使用）
+     * <p>
+     * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
+     * 契约依据：admin-service-api-contract.md §4.1.2
+     * </p>
+     *
+     * @param req 候选用户查询请求（含 targetOrgId）
+     * @return 分页候选用户列表
+     */
+    @PostMapping("/member-candidates")
+    public PermResult<PaginatedResult<MemberCandidateItemResp>> memberCandidates(
+        @Valid @RequestBody MemberCandidatesReq req) {
+        return PermResult.success(userService.memberCandidates(req));
     }
 
     /**

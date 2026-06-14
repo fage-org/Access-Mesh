@@ -68,6 +68,11 @@ public enum AdminErrorCode {
      */
     INVALID_PARAM(10008, "参数格式错误"),
 
+    /**
+     * 不能禁用当前登录用户
+     */
+    CANNOT_DISABLE_SELF(10009, "不能禁用当前登录用户"),
+
     // ===== 组织相关错误（10101-10199） =====
 
     /**
@@ -281,7 +286,34 @@ public enum AdminErrorCode {
     /**
      * 组织树根无法解析（org 不属于任何已配置的组织树，游离 org）
      */
-    ORG_TREE_ROOT_NOT_RESOLVED(11002, "组织树根无法解析");
+    ORG_TREE_ROOT_NOT_RESOLVED(11002, "组织树根无法解析"),
+
+    // ===== 默认组织树边界（11011-11029） =====
+
+    /**
+     * 指定组织不属于默认组织树（身份目录边界校验失败）
+     */
+    ORG_NOT_IN_DEFAULT_TREE(11011, "指定组织不属于默认组织树"),
+
+    /**
+     * 用户不在默认组织树可见范围内（身份目录边界校验失败）
+     */
+    USER_NOT_IN_DEFAULT_TREE_SCOPE(11012, "用户不在默认组织树可见范围内"),
+
+    /**
+     * 移除后用户在默认组织树无归属关系（身份目录高危保护）
+     */
+    USER_LOSE_DEFAULT_TREE_HOME(11013, "移除后用户在默认组织树无归属关系"),
+
+    /**
+     * 主组织必须属于默认组织树
+     */
+    PRIMARY_MUST_BE_IN_DEFAULT_TREE(11014, "主组织必须属于默认组织树"),
+
+    /**
+     * 用户与目标组织不存在关联关系
+     */
+    USER_ORG_RELATION_NOT_FOUND(11015, "用户与目标组织不存在关联关系");
 
     /**
      * 错误码

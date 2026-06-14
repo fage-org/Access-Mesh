@@ -100,13 +100,13 @@
 | P1-6 | 新增 `/user-role/{list,assign,revoke}` 代理，门禁 `ROLE:MANAGE` | 契约 §8 遗留②、备注 ③ |
 | P1-7 | 岗位经 `/org/*`(orgType) + `/user-org/*`；`/role/list` 仅功能角色 | 契约 §8 遗留③ |
 
-### P2 — 权限接线 + 降级
+### P2 — 权限接线 + 降级 ✅ 已完成
 
-| # | 任务 | 要点 |
-|---|------|------|
-| P2-1 | 按钮门控 | 全部操作按 §4 包 `<Perms>` / `v-perms` / `hasPerms()` |
-| P2-2 | 无权降级 | 隐藏/只读/Tab 隐藏（按矩阵第 4 列）；树 `editable = hasPerms('ADMIN_ORG:UPDATE')` |
-| P2-3 | 菜单下发 | v1.4 起前后端共用 `资源类型:操作码` 词法，`sys_menu` 不再承载可用操作权限；`hasPerms` 直接命中乙层操作码 |
+| # | 任务 | 要点 | 状态 |
+|---|------|------|------|
+| P2-1 | 按钮门控 | 18 个操作点全部使用 `hasPerms(ORG_USER_PERMS.XXX)` 门控，perm 码来自 SSOT `perms.ts` | ✅ |
+| P2-2 | 无权降级 | 树 `editable` = 三个写权限 OR；拖拽 `allow-drag/allow-drop` 受门控；岗位 Tab `v-if`；启用/禁用 `:disabled` + tooltip；组织归属读写分支 | ✅ |
+| P2-3 | 菜单下发 | v1.4 双轨并行：`/auth/user-menu` 返回 `permissions[]`（perm 串列表），store 写入 Pinia + localStorage；mock 角色矩阵从 SSOT 反向导入（admin/hr/sec/auditor） | ✅ |
 
 ---
 
@@ -285,14 +285,15 @@ interface OrgUserItem {
 
 ## 7. 建议执行顺序
 
-`P0-1 → P0-2 → P0-10(mock 先行) → P0-4(树过滤+可编辑) → P0-6(顶部卡片) → P0-3(成员Tab) → P0-8(岗位Tab折叠卡片) → P0-9(详情面板) → P0-5(OrgForm) → 自测` ⇒ 前端骨架完整可演示（纯 mock）。
-随后 `P1`（后端并行）→ `P2`（接线降级）。P0 不被后端阻塞。
+`P0-1 → P0-2 → P0-10(mock 先行) → P0-4(树过滤+可编辑) → P0-6(顶部卡片) → P0-3(成员Tab) → P0-8(岗位Tab折叠卡片) → P0-9(详情面板) → P0-5(OrgForm) → 自测` ⇒ P0 前端骨架 ✅。
+`P2`(权限接线 + 降级) ⇒ ✅。
+随后 `P1`（后端契约改造）。
 
 ---
 
-## 8. 当前进度（2026-06-07 更新）
+## 8. 当前进度（2026-06-14 更新）
 
-### P0 完成度：100%
+### P0 完成度：100% ✅
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
@@ -303,36 +304,39 @@ interface OrgUserItem {
 | P0-5 组织表单 | ✅ | OrgForm.vue 字段对齐 |
 | P0-6 顶部组织信息卡片 | ✅ | 展示选中组织详情 |
 | P0-8 岗位 Tab | ✅ | 折叠卡片 + CRUD + 挂载用户 |
+| P0-9 详情面板迁移 | ✅ | `otherRoles` 排除 POSITION + 新增「所属岗位」节 |
 | P0-10 API + Mock 扩充 | ✅ | `/org/users` + `/org/page` 子树筛选 |
-| **P0-9 详情面板迁移** | ✅ **已完成** | `otherRoles` 排除 POSITION + 新增「所属岗位」节 |
 
-### P0-8 实现细节
+### P2 完成度：100% ✅
 
-**已完成功能**：
-- ✅ 按选中组织及其子组织筛选岗位（`/org/page` 传 `orgId` 参数）
-- ✅ 折叠卡片展示：岗位名、编码、所属组织路径、已分配人数
-- ✅ 展开后显示用户列表（调用 `/org/users`）
-- ✅ 岗位 CRUD：新增、编辑、删除（复用 OrgForm，orgType 固定为 2）
-- ✅ 用户挂载：弹窗选择用户，调用 `/user-org/assign`
-- ✅ 用户卸载：点击移除，调用 `/user-org/remove`
-- ✅ 搜索过滤：按岗位名称实时搜索
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| P2-1 按钮门控 | ✅ | 18 个操作点 `hasPerms(ORG_USER_PERMS.XXX)` 门控 |
+| P2-2 无权降级 | ✅ | 树 editable / 拖拽 / Tab 隐藏 / disabled / 读写分支 |
+| P2-3 菜单下发 | ✅ | `/auth/user-menu` → store → `hasPerms()`；mock 4 角色矩阵 |
 
-**已知问题（已修复）**：
-- ✅ `h is not defined` — 已导入 `h` 函数
-- ✅ `Failed to resolve component: Key` — MemberTab.vue 已导入 Key 图标
-- ✅ 添加成员后岗位为空 — 缓存清空逻辑修复（`delete` 替代 `= []`）
+### P1 完成度：100% ✅（后端契约改造，16 个 🔧 接口）
+
+| 任务 | 状态 | 备注 |
+|------|------|------|
+| P1-1 `/user/page` 收敛为默认树用户目录查询 | ✅ | orgId 子树语义 + 默认树校验 |
+| P1-2 新增 `/user/member-candidates` | ✅ | 默认树候选范围 + 排除已有成员 |
+| P1-3 `/user/create` 增 orgId + 初始密码返回 | ✅ | Outbox 双信封同步 |
+| P1-4 `/user/enable`、`/user/reset-password` 身份目录边界 | ✅ | 默认树边界 + 权限门禁 |
+| P1-5 `/user-org/*` 跨树语义 + user_role 同步 | ✅ | 关系级追加 + 高危保护 |
+| P1-6 新增 `/user-role/{list,assign,revoke}` 代理 | ✅ | ID↔业务键翻译 + ROLE:MANAGE 门禁 |
+| P1-7 岗位经 `/org/*` + `/role/list` 仅功能角色 | ✅ | orgType 区分权限 |
 
 ### 下一步
 
-1. **P0-9**：详情面板迁移（`UserDetailPanel.vue`）
-   - `otherRoles` 过滤排除 POSITION
-   - 新增「所属岗位」节（只读，从 `getUserOrgs` 按 `orgType=2` 拆分）
-   - 角色候选改为「功能角色」数据源（去掉 301/302 岗位项）
-
-2. **P1**：后端契约（与后端并行）
-   - `/user/page` 落实 `orgId` 子树语义
-   - `/user-role/{list,assign,revoke}` 代理
-
-3. **P2**：权限接线 + 降级
-   - 按钮门控 `<Perms>` / `hasPerms()`
-   - 菜单下发 `sys_menu` 配置
+**P1 后端契约改造**（16 个 🔧 接口，契约已定稿 v1.0）：
+1. `/user/page` 落实 `orgId` 子树语义
+2. `/user/member-candidates` 新增候选用户查询
+3. `/user/create` 增 orgId + 初始密码返回 + 同步 abstract_user + ADMIN_USER resource_entity
+4. `/user/delete` 软删除 + 身份目录边界
+5. `/user/enable`、`/user/reset-password` 身份目录生命周期权限
+6. `/user-org/assign` 关系级追加 + user_role 同步
+7. `/user-org/remove` 跨树语义 + user_role 回收
+8. `/user-org/set-primary` 默认树主归属约束
+9. `/user-role/{list,assign,revoke}` 代理（ID ↔ 业务键翻译）
+10. `/org/create`、`/org/update`、`/org/delete` 组织 CRUD

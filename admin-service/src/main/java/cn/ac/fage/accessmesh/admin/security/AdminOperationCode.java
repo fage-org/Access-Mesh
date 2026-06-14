@@ -60,6 +60,15 @@ public final class AdminOperationCode {
     // ===== 其他操作 =====
 
     /**
+     * 管理操作（分配/回收角色等复合管理权限）。
+     * <p>
+     * 与 GRANT/REVOKE 的区别：MANAGE 是面向终端用户的「角色分配给用户」语义，
+     * GRANT/REVOKE 是面向角色配置的「给角色配权限」语义。
+     * 前端 {@code ROLE:MANAGE} 对应本操作码。
+     */
+    public static final String MANAGE = "MANAGE";
+
+    /**
      * 发布操作
      */
     public static final String PUBLISH = "PUBLISH";

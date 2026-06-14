@@ -1,0 +1,44 @@
+package cn.ac.fage.accessmesh.perm.common.dto.req;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * 用户分配角色请求体（perm-common 共享）。
+ * <p>
+ * 用于分配用户与角色的关联关系，支持有效期配置。
+ * 与 permission-center 内部 UserAssignRoleReq 同构。
+ * </p>
+ *
+ * @param items 分配条目列表，必填且不能为空
+ */
+public record UserAssignRoleReq(
+    @NotEmpty List<@Valid AssignItem> items
+) {
+    /**
+     * 分配条目
+     *
+     * @param subjectTypeCode   用户类型编码，必填
+     * @param subjectExternalId 用户外部标识，必填
+     * @param domainCode        业务域编码，必填
+     * @param roleTypeCode      角色类型编码，必填
+     * @param roleExternalId    角色外部标识，必填
+     * @param relationId        关系ID，可选
+     * @param validFrom         有效期开始时间，可选
+     * @param validTo           有效期结束时间，可选
+     */
+    public record AssignItem(
+        @NotBlank String subjectTypeCode,
+        @NotBlank String subjectExternalId,
+        @NotBlank String domainCode,
+        @NotBlank String roleTypeCode,
+        @NotBlank String roleExternalId,
+        Long relationId,
+        LocalDateTime validFrom,
+        LocalDateTime validTo
+    ) {}
+}

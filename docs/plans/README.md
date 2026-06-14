@@ -7,7 +7,8 @@
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
-| [org-user-page-impl-plan.md](org-user-page-impl-plan.md) | 页面实现计划 | 进行中 | “组织与用户”融合页的前端实现、后端契约和权限接线计划 |
+| [org-user-page-impl-plan.md](org-user-page-impl-plan.md) | 页面实现计划 | 进行中 | "组织与用户"融合页的前端实现、后端契约和权限接线计划 |
+| [user-role-proxy-fix-plan.md](user-role-proxy-fix-plan.md) | 缺陷修复计划 | 进行中 | admin-service 用户角色代理链路 6 项 P1/P2 修复（含 12 条审查发现的扩散问题），共 13 项主改动 (M1-M13) + 3 项配套 (S1-S3) |
 | [api-gap-analysis.md](api-gap-analysis.md) | API 核对清单 | 进行中 | 前端 mock 与后端接口规格的差异清单 |
 
 ## 管理规则

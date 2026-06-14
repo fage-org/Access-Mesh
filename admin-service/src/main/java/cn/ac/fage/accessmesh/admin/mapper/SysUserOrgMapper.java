@@ -108,4 +108,16 @@ public interface SysUserOrgMapper extends BaseMapper<SysUserOrg> {
      */
     List<SysUserOrg> selectByUserIdsSet(@Param("tenantId") Long tenantId,
                                         @Param("userIds") Set<Long> userIds);
+
+    /**
+     * 根据组织 ID 列表和租户 ID 查询用户组织关联（租户隔离 + 未删除）。
+     * <p>
+     * 用于候选用户查询：获取默认树可见范围内的所有用户 ID。
+     *
+     * @param tenantId 租户ID
+     * @param orgIds   组织ID列表
+     * @return 用户组织关联列表
+     */
+    List<SysUserOrg> selectByOrgIdsAndTenant(@Param("tenantId") Long tenantId,
+                                              @Param("orgIds") List<Long> orgIds);
 }
