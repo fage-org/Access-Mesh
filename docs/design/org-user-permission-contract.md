@@ -207,8 +207,8 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
    - **配置岗位/角色权限（红线）**：`RoleProxyServiceImpl.grantMenuToRole/revokeMenuFromRole→ADMIN_ROLE:GRANT/REVOKE`；`createRoleForOrg→ADMIN_ROLE:CREATE`（`/role/*`）。
    → 红线收窄为"配权与独立角色定义"，岗位的组织管理本身在本页内；矩阵 D 区据此定稿。
 
-4. **前端 perm 码约定** ✅
-   全仓 `hasPerms` 仅见样例页 `views/permission/button/perms.vue`（`permission:btn:add/edit/delete`）与指令 `directives/perms`。格式 = **冒号分隔 `模块:实体:动作`**。本页组件（`views/system/user/*`）**尚未接线** hasPerms——故本契约定名（`system:org:*` / `system:user:*` / `system:org:position:*` / `system:user:role:assign`）。注意：前端 perm 串由菜单/按钮配置（`sys_menu` 经 `/user/user-menus`、`/role/my-info` 下发）提供，与后端 `AdminResourceType` 是两套命名空间，需在菜单配置侧补齐对应可用操作权限。
+4. **前端 perm 码约定** ✅ ~~v1.4 已统一为乙层格式，下文为历史记录~~
+   全仓 `hasPerms` 仅见样例页 `views/permission/button/perms.vue`（`permission:btn:add/edit/delete`）与指令 `directives/perms`。v1.4 起 perm 码统一为乙层格式 **`资源类型:操作码`**（如 `ADMIN_ORG:CREATE`），前后端共用同一命名空间，`sys_menu` 不再承载可用操作权限。本页 perm 码 SSOT 见 `frontend/src/views/system/user/utils/perms.ts`。
 
 ### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 

@@ -50,7 +50,7 @@ public record MenuCreateReq(
     String component,
 
     /**
-     * 权限标识（如：system:user:add）
+     * 权限标识（如：ADMIN_USER:CREATE）
      */
     String perms,
 

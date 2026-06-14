@@ -78,7 +78,7 @@
 | P0-6 | 顶部组织信息卡片 | `index.vue` 内联 | 展示选中组织详情 + 编辑按钮（复用 OrgForm） | ✅ 已完成 |
 | P0-7 | ~~子组织 Tab~~ | ~~已移除~~ | ~~子组织通过左侧树展开查看，不再设 Tab~~ | ✅ 已移除 |
 | P0-8 | 岗位 Tab（折叠卡片） | `components/PositionTab.vue`(新) | **折叠卡片（el-collapse）**展示岗位（`orgType=岗位`）+ CRUD（复用 OrgForm，orgType 固定）+ "挂载用户"（选用户→`/user-org/assign`）。**按左树选中组织筛选**，展示该组织及其子组织下的岗位。卡片内展示：岗位名、所属组织路径、已分配人数、展开后的用户列表（调用 `/org/users`） | ✅ 已完成 |
-| P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（P0 用 mock 列表，去掉 301/302 岗位项） | ⏳ 待开发 |
+| P0-9 | 详情面板迁移 | `UserDetailPanel.vue` | `otherRoles` 排除 POSITION + 新增「所属岗位」节（只读，取 `getUserOrgs` 按 `orgType=岗位` 拆分）；角色候选改"功能角色"数据源（去掉 301/302 岗位项） | ✅ 已完成 |
 | P0-10 | API + Mock 扩充 | `api/user-manage.ts`、`mock/user-manage.ts` | 见下「接口增量」 | ✅ 已完成 |
 
 **接口增量（P0 先 mock）**：
@@ -105,31 +105,35 @@
 | # | 任务 | 要点 |
 |---|------|------|
 | P2-1 | 按钮门控 | 全部操作按 §4 包 `<Perms>` / `v-perms` / `hasPerms()` |
-| P2-2 | 无权降级 | 隐藏/只读/Tab 隐藏（按矩阵第 4 列）；树 `editable = hasPerms('system:org:edit'...)` |
-| P2-3 | 菜单下发 | `sys_menu` 配置本页按钮权限码，确保 `hasPerms` 命中（前端 perm 串 ≠ 后端 AdminResourceType） |
+| P2-2 | 无权降级 | 隐藏/只读/Tab 隐藏（按矩阵第 4 列）；树 `editable = hasPerms('ADMIN_ORG:UPDATE')` |
+| P2-3 | 菜单下发 | v1.4 起前后端共用 `资源类型:操作码` 词法，`sys_menu` 不再承载可用操作权限；`hasPerms` 直接命中乙层操作码 |
 
 ---
 
 ## 4. 权限接线清单（hasPerms → 按钮 → 降级）
 
-| 区域 / 控件 | 前端 perm 码 | 乙层门禁（参考） | 无权表现 |
+> v1.4 起 perm 码统一为乙层格式 `资源类型:操作码`（如 `ADMIN_ORG:CREATE`），前端 `hasPerms` 与后端 `engine.hasPermission` 同源。
+> 完整 SSOT 见 `frontend/src/views/system/user/utils/perms.ts`。
+
+| 区域 / 控件 | 前端 perm 码（v1.4） | 后端门禁 | 无权表现 |
 |---|---|---|---|
-| 页面/树可见 | `system:org:view` | 菜单可见性 | 不可进 |
-| 树·新增根/子组织 | `system:org:add` | `ADMIN_ORG:CREATE` | 隐藏 |
-| 树·编辑/移动节点 | `system:org:edit` | `ADMIN_ORG:UPDATE` | 隐藏/禁拖拽 |
-| 树·删除组织 | `system:org:delete` | `ADMIN_ORG:DELETE` | 隐藏 |
-| 成员表可见 | `system:user:view` | 读（无服务门禁） | Tab 空 |
-| 成员·创建用户 | `system:user:add` | `ADMIN_USER:CREATE`（仅默认组织树） | 隐藏 |
-| 成员·添加已有用户 | `system:org:member` | `ADMIN_ORG:UPDATE`（目标组织；候选来自默认树可见范围） | 隐藏 |
-| 成员·修改 | `system:user:edit` | `ADMIN_USER:UPDATE` | 隐藏 |
-| 成员·删除 | `system:user:delete` | `ADMIN_USER:DELETE` | 隐藏 |
-| 成员·启用/禁用 | `system:user:enable` | `ADMIN_USER:ENABLE/DISABLE`（status=1 启用，status=0 禁用） | 隐藏切换 |
-| 成员·重置密码 | `system:user:reset-pwd` | `ADMIN_USER:RESET_PASSWORD` | 隐藏 |
-| 详情·组织归属增删/设主 | `system:org:member` | 非默认树增删为 `ADMIN_ORG:UPDATE`；默认树设主为身份目录操作 | 只读 |
-| 详情·分配/回收功能角色 | `system:user:role:assign` | `ROLE:MANAGE`（目标角色） | 只读 |
-| 岗位 Tab 可见 | `system:org:position:view` | 读 | Tab 隐藏 |
-| 岗位·增/改/删 | `system:org:position:add` / `:edit` / `:delete` | `ADMIN_ORG:CREATE/UPDATE/DELETE` | 隐藏 |
-| 岗位·挂载/卸载用户 | `system:org:position:assign` | `ADMIN_ORG:UPDATE`（岗位组织） | 只读 |
+| 页面/树可见 | `ADMIN_ORG:VIEW` | 菜单可见性 | 不可进 |
+| 树·新增根/子组织 | `ADMIN_ORG:CREATE` | `ADMIN_ORG:CREATE` | 隐藏 |
+| 树·编辑/移动节点 | `ADMIN_ORG:UPDATE` | `ADMIN_ORG:UPDATE` | 隐藏/禁拖拽 |
+| 树·删除组织 | `ADMIN_ORG:DELETE` | `ADMIN_ORG:DELETE` | 隐藏 |
+| 成员表可见 | `ADMIN_USER:VIEW` | 读 | Tab 空 |
+| 成员·创建用户 | `ADMIN_USER:CREATE` | `ADMIN_USER:CREATE`（仅默认组织树） | 隐藏 |
+| 成员·添加/移除/设主组织 | `ADMIN_ORG:MANAGE_MEMBER` | `ADMIN_ORG:MANAGE_MEMBER`（目标组织） | 只读 |
+| 成员·修改 | `ADMIN_USER:UPDATE` | `ADMIN_USER:UPDATE` | 隐藏 |
+| 成员·删除 | `ADMIN_USER:DELETE` | `ADMIN_USER:DELETE` | 隐藏 |
+| 成员·启用/禁用 | `ADMIN_USER:ENABLE` | `ADMIN_USER:ENABLE` | 隐藏切换 |
+| 成员·重置密码 | `ADMIN_USER:RESET_PASSWORD` | `ADMIN_USER:RESET_PASSWORD` | 隐藏 |
+| 详情·分配/回收功能角色 | `ROLE:MANAGE` | `ROLE:MANAGE`（目标角色） | 只读 |
+| 岗位 Tab 可见 | `ADMIN_ORG:VIEW_POSITION` | 读 | Tab 隐藏 |
+| 岗位·新增 | `ADMIN_ORG:CREATE_POSITION` | `ADMIN_ORG:CREATE_POSITION` | 隐藏 |
+| 岗位·编辑 | `ADMIN_ORG:UPDATE_POSITION` | `ADMIN_ORG:UPDATE_POSITION` | 隐藏 |
+| 岗位·删除 | `ADMIN_ORG:DELETE_POSITION` | `ADMIN_ORG:DELETE_POSITION` | 隐藏 |
+| 岗位·挂载/卸载用户 | `ADMIN_ORG:ASSIGN_POSITION_USER` | `ADMIN_ORG:ASSIGN_POSITION_USER` | 只读 |
 | ❌ 配置岗位/角色权限 | —（不在本页） | `ADMIN_ROLE:GRANT/REVOKE` | 红线 |
 
 ---
@@ -288,7 +292,7 @@ interface OrgUserItem {
 
 ## 8. 当前进度（2026-06-07 更新）
 
-### P0 完成度：90%
+### P0 完成度：100%
 
 | 任务 | 状态 | 备注 |
 |------|------|------|
@@ -300,7 +304,7 @@ interface OrgUserItem {
 | P0-6 顶部组织信息卡片 | ✅ | 展示选中组织详情 |
 | P0-8 岗位 Tab | ✅ | 折叠卡片 + CRUD + 挂载用户 |
 | P0-10 API + Mock 扩充 | ✅ | `/org/users` + `/org/page` 子树筛选 |
-| **P0-9 详情面板迁移** | ⏳ **待开发** | `otherRoles` 排除 POSITION + 新增「所属岗位」节 |
+| **P0-9 详情面板迁移** | ✅ **已完成** | `otherRoles` 排除 POSITION + 新增「所属岗位」节 |
 
 ### P0-8 实现细节
 

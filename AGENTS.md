@@ -157,7 +157,10 @@ Set<Long> denied = permissionValidator.getDeniedIds(tenantId, operatorId, "DOMAI
 ## 常用命令（开发阶段预估）
 
 ```bash
-# 构建
+# 全量构建（含 install，确保 SNAPSHOT 依赖刷新到本地仓库）
+mvn clean install -DskipTests
+
+# 仅编译（不刷新本地仓库，依赖方可能拿到旧 SNAPSHOT）
 mvn clean compile
 
 # 运行测试
@@ -169,3 +172,7 @@ mvn spring-boot:run -pl <module>
 # Docker Compose 启动基础设施
 docker compose -f docker-compose.yml up -d nacos redis postgresql
 ```
+
+> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter` → `admin-service`）。
+> `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
+> 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。

@@ -119,7 +119,7 @@ class SyncPayloadContractTest {
         menu.setStatus(1);
         menu.setSortOrder(10);
         menu.setMenuType("MENU");
-        menu.setPermCode("system:user:list");
+        menu.setPermCode("ADMIN_USER:VIEW");
         menu.setPath("/user");
         menu.setComponent("UserView");
         menu.setIcon("user");
@@ -134,7 +134,7 @@ class SyncPayloadContractTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> extraMap = (Map<String, Object>) extra;
         assertThat(extraMap).containsEntry("menuType", "MENU");
-        assertThat(extraMap).containsEntry("permCode", "system:user:list");
+        assertThat(extraMap).containsEntry("permCode", "ADMIN_USER:VIEW");
         assertThat(extraMap).containsEntry("path", "/user");
         assertThat(extraMap).containsEntry("component", "UserView");
         assertThat(extraMap).containsEntry("icon", "user");
