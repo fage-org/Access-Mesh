@@ -80,18 +80,25 @@ public final class AdminOperationCode {
     // 之于 UPDATE）将这两类管理权限解耦，避免新增独立 ADMIN_POSITION 资源类型造成
     // 锚点分裂、user-org 关系双写等问题。
     //
+    // orgType → 操作码声明式映射见 {@link OrgOperationCodeMapper}。
     // 详见 docs/design/org-user-permission-contract.md §4 D 区与备注 ⁴。
 
     /**
      * 创建岗位（orgType=2 的 sys_org 实例）
+     * <p>
+     * 映射关系：{@code OrgOperationCodeMapper.resolve(orgType, CREATE)} → orgType=2 时返回本常量。
      */
     public static final String CREATE_POSITION = "CREATE_POSITION";
     /**
      * 更新岗位（含编辑、移动、改状态，与普通组织 UPDATE 解耦）
+     * <p>
+     * 映射关系：{@code OrgOperationCodeMapper.resolve(orgType, UPDATE)} → orgType=2 时返回本常量。
      */
     public static final String UPDATE_POSITION = "UPDATE_POSITION";
     /**
      * 删除岗位
+     * <p>
+     * 映射关系：{@code OrgOperationCodeMapper.resolve(orgType, DELETE)} → orgType=2 时返回本常量。
      */
     public static final String DELETE_POSITION = "DELETE_POSITION";
     /**
@@ -99,7 +106,8 @@ public final class AdminOperationCode {
      * <p>
      * 与普通组织成员归属（ADMIN_ORG:UPDATE）解耦：作用在 orgType=2 的 sys_org 实例上的
      * user-org 关系动作走此操作码，便于"岗位用户运营"独立配权。
-     * </p>
+     * <p>
+     * 映射关系：{@code OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)} → orgType=2 时返回本常量。
      */
     public static final String ASSIGN_POSITION_USER = "ASSIGN_POSITION_USER";
 

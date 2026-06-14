@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.admin.service.OrgService;
 import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
@@ -74,12 +75,11 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
-        // 岗位（orgType=2）走独立操作码 CREATE_POSITION，普通组织走 CREATE
-        // 详见 AdminOperationCode#CREATE_POSITION
-        boolean isPosition = req.orgType() != null && req.orgType() == 2;
+        // 按 orgType 分发操作码（声明式映射，见 OrgOperationCodeMapper）
+        String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
         permissionValidator.checkTypeLevel(
             AdminResourceType.ORG,
-            isPosition ? AdminOperationCode.CREATE_POSITION : AdminOperationCode.CREATE
+            OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE)
         );
 
         Long tenantId = TenantContextHolder.getTenantId();
@@ -128,18 +128,16 @@ public class OrgServiceImpl implements OrgService {
     public void updateOrg(OrgUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 先加载实例确定 orgType，再按类型分发操作码：
-        // 岗位（orgType=2）走 UPDATE_POSITION，普通组织走 UPDATE
+        // 先加载实例确定 orgType，再按类型分发操作码（声明式映射，见 OrgOperationCodeMapper）
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        boolean isPosition = isPositionOrg(org.getOrgType());
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(req.id()),
-            isPosition ? AdminOperationCode.UPDATE_POSITION : AdminOperationCode.UPDATE
+            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE)
         );
 
         // 注：OrgUpdateReq 不含 orgType 字段，orgType 由 API 契约保证不可变（普通组织/岗位互转），
@@ -182,18 +180,16 @@ public class OrgServiceImpl implements OrgService {
     public void deleteOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 先加载快照确定 orgType，再按类型分发操作码：
-        // 岗位（orgType=2）走 DELETE_POSITION，普通组织走 DELETE
+        // 先加载快照确定 orgType，再按类型分发操作码（声明式映射，见 OrgOperationCodeMapper）
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        boolean isPosition = isPositionOrg(org.getOrgType());
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(id),
-            isPosition ? AdminOperationCode.DELETE_POSITION : AdminOperationCode.DELETE
+            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.DELETE)
         );
 
         if (orgDomainService.hasChildren(tenantId, id)) {
@@ -321,11 +317,10 @@ public class OrgServiceImpl implements OrgService {
     /**
      * 判断 sys_org.orgType 是否为岗位类型。
      * <p>
-     * 历史上 orgType 字段同时使用过数值字符串（"1"/"2"）和语义字符串（"ORG"/"POSITION"），
-     * 与 {@code RoleProxyServiceImpl#mapOrgTypeToRoleType} 保持兼容。
+     * 委托 {@link OrgOperationCodeMapper#isPositionOrg}。
      * </p>
      */
     private static boolean isPositionOrg(String orgType) {
-        return "2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType);
+        return OrgOperationCodeMapper.isPositionOrg(orgType);
     }
 }

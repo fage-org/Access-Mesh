@@ -33,30 +33,37 @@
 -- ADMIN_ORG（组织/岗位管理）—— 扩展操作码
 -- 调用方：OrgServiceImpl (CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION)
 --         UserOrgServiceImpl (ASSIGN_POSITION_USER)
+--
+-- orgType → 操作码映射（声明式，见 OrgOperationCodeMapper）：
+--   orgType         含义      CREATE              UPDATE              DELETE              成员关系(UPDATE)
+--   ──────────      ────      ──────              ──────              ──────              ────────────────
+--   null / "1"      普通组织  CREATE              UPDATE              DELETE              UPDATE
+--   "2" / "POSITION" 岗位     CREATE_POSITION     UPDATE_POSITION     DELETE_POSITION     ASSIGN_POSITION_USER
 -- ---------------------------------------------------------------------------
 
 -- 岗位 CRUD 精化操作码（v1.3 操作码精化）
+-- 适用 orgType: "2" / "POSITION"（岗位），见 OrgOperationCodeMapper
 -- 详见 docs/design/org-user-permission-contract.md §4 D 区 + §5 备注 ⁴
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'CREATE_POSITION', '创建岗位', 16, 2, 0, 0, 0
+SELECT 1, td.type_value, 'CREATE_POSITION', '创建岗位', 16, 2, 0, 0, 0  -- orgType="2"/"POSITION"
 FROM type_definition td
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_ORG' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'UPDATE_POSITION', '编辑/移动/启停岗位', 32, 2, 0, 0, 0
+SELECT 1, td.type_value, 'UPDATE_POSITION', '编辑/移动/启停岗位', 32, 2, 0, 0, 0  -- orgType="2"/"POSITION"
 FROM type_definition td
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_ORG' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'DELETE_POSITION', '删除岗位', 64, 2, 0, 0, 0
+SELECT 1, td.type_value, 'DELETE_POSITION', '删除岗位', 64, 2, 0, 0, 0  -- orgType="2"/"POSITION"
 FROM type_definition td
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_ORG' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
-SELECT 1, td.type_value, 'ASSIGN_POSITION_USER', '岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0
+SELECT 1, td.type_value, 'ASSIGN_POSITION_USER', '岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0  -- orgType="2"/"POSITION"
 FROM type_definition td
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = 'ADMIN_ORG' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
