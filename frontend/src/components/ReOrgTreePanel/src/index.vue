@@ -362,7 +362,7 @@ defineExpose({
         highlight-current
         draggable
         :allow-drag="() => editable && canEdit"
-        :allow-drop="() => editable && canEdit"
+        :allow-drop="(_draggingNode: any, _dropNode: any, type: string) => editable && canEdit && type === 'inner'"
         @node-click="(_data: any) => selectNode(_data)"
         @node-drag-end="
           (draggingNode: any, dropNode: any) => {

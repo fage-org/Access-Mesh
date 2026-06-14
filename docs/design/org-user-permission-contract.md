@@ -95,7 +95,7 @@ permission-center（乙层：被管理的权限模型）
 | 新增根/子组织 | `ADMIN_ORG:CREATE`（`/org/create`） | `system:org:add` | 隐藏「+新增组织」 |
 | 编辑组织 | `ADMIN_ORG:UPDATE`（`/org/update`） | `system:org:edit` | 树只读，编辑按钮隐藏 |
 | 删除组织 | `ADMIN_ORG:DELETE`（`/org/delete`） | `system:org:delete` | 隐藏删除 |
-| 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `system:org:edit` | 禁用拖拽 |
+| 移动节点（改 parent） | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `parentOrgId`） | `system:org:edit` | 禁用拖拽；允许时仅 inner（成为子节点），不支持 before/after 同级排序 |
 | 启用/禁用组织 | `ADMIN_ORG:UPDATE` ¹（`/org/update` 改 `status`） | `system:org:edit` | 隐藏状态切换 |
 
 ### B. 成员（Tab：成员管理）—— 默认树用户目录 `ADMIN_USER` + 组织成员关系 `ADMIN_ORG`
