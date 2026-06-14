@@ -9,10 +9,12 @@ import {
   removeUserOrg,
   setPrimaryOrg,
   getOrgTree,
+  getRoleList,
   type UserItem,
   type UserRoleItem,
   type OrgBrief,
-  type OrgTreeNode
+  type OrgTreeNode,
+  type RoleItem
 } from "@/api/user-manage";
 import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -28,19 +30,27 @@ defineOptions({
 type UserOrgItem = {
   orgId: number;
   orgName: string;
+  /** 1=普通组织, 2=岗位（特殊组织）；与 OrgBrief.orgType 对齐 */
+  orgType?: number;
   isPrimary: boolean;
 };
 
 type TagType = "primary" | "success" | "warning" | "danger" | "info";
 
-/** 角色类型 → 标签色 */
+/**
+ * 角色类型 → 标签色
+ *
+ * 注：本面板只展示「功能角色」（BASIC_ROLE / GROUP_ROLE / PERSONAL），
+ * ORG 与 POSITION 已迁移为组织模型（org-user-permission-contract.md v1.2），
+ * 它们在 otherRoles 中被过滤掉，对应分类的 tag 颜色仅作向后兼容保留。
+ */
 const roleTagTypeMap: Record<string, TagType> = {
-  ORG: "primary",
-  POSITION: "success",
   PERSONAL: "warning",
   GROUP_ROLE: "info",
   BASIC_ROLE: "info"
 };
+
+const ORG_TYPE_POSITION = 2;
 
 type OrgSelectorNode = OrgTreeNode & {
   disabled?: boolean;
@@ -61,8 +71,24 @@ const roles = ref<UserRoleItem[]>([]);
 const loading = ref(false);
 const userOrgs = ref<UserOrgItem[]>([]);
 
+/**
+ * 仅展示功能角色：排除 ORG（组织角色 = 组织成员关系）和 POSITION（岗位 = 特殊组织）。
+ * 这两类已迁移到 /user-org/* 与岗位 Tab 管理；详见 org-user-permission-contract.md v1.2 §2。
+ */
 const otherRoles = computed(() =>
-  roles.value.filter(r => r.roleTypeCode !== "ORG")
+  roles.value.filter(
+    r => r.roleTypeCode !== "ORG" && r.roleTypeCode !== "POSITION"
+  )
+);
+
+/** 用户所属岗位（只读，由 getUserOrgs 按 orgType=2 拆出） */
+const userPositions = computed(() =>
+  userOrgs.value.filter(o => o.orgType === ORG_TYPE_POSITION)
+);
+
+/** 组织归属：仅普通组织（orgType !== 2），与岗位区分展示 */
+const userPlainOrgs = computed(() =>
+  userOrgs.value.filter(o => o.orgType !== ORG_TYPE_POSITION)
 );
 
 // 组织管理状态
@@ -73,20 +99,16 @@ const selectedOrgIds = ref<number[]>([]);
 // 角色分配状态
 const roleSelectorVisible = ref(false);
 const selectedRoleId = ref<number | null>(null);
-
-// mock 可选角色列表
-const assignableRoles = [
-  { roleId: 301, roleName: "后端开发", roleTypeCode: "POSITION" },
-  { roleId: 302, roleName: "后端组长", roleTypeCode: "POSITION" },
-  { roleId: 201, roleName: "基础用户", roleTypeCode: "BASIC_ROLE" },
-  { roleId: 202, roleName: "高级用户", roleTypeCode: "BASIC_ROLE" },
-  { roleId: 401, roleName: "核心开发组", roleTypeCode: "GROUP_ROLE" }
-];
+const assignableRoles = ref<RoleItem[]>([]);
+const assignableRolesLoaded = ref(false);
 
 function mapUserOrgs(orgs: Array<OrgBrief | UserOrgItem>): UserOrgItem[] {
   return orgs.map(org => ({
     orgId: org.orgId,
     orgName: org.orgName,
+    // OrgBrief.orgType 后端为 string；UserOrgItem 内部统一为 number，便于和岗位常量比较
+    orgType:
+      typeof org.orgType === "string" ? Number(org.orgType) : org.orgType,
     isPrimary: org.isPrimary
   }));
 }
@@ -173,15 +195,26 @@ async function handleRevoke(role: UserRoleItem) {
   }
 }
 
-function openRoleSelector() {
+async function openRoleSelector() {
   if (!props.user) return;
   selectedRoleId.value = null;
   roleSelectorVisible.value = true;
+  // 懒加载功能角色候选；后端 /role/list 默认仅返回 BASIC_ROLE / GROUP_ROLE / PERSONAL
+  if (!assignableRolesLoaded.value) {
+    try {
+      assignableRoles.value = await getRoleList();
+      assignableRolesLoaded.value = true;
+    } catch {
+      message("加载角色列表失败", { type: "error" });
+    }
+  }
 }
 
 async function handleAssignRole() {
   if (!props.user || !selectedRoleId.value) return;
-  const role = assignableRoles.find(r => r.roleId === selectedRoleId.value);
+  const role = assignableRoles.value.find(
+    r => r.roleId === selectedRoleId.value
+  );
   if (!role) return;
   try {
     await assignRole({ userId: props.user.id, roleId: role.roleId });
@@ -317,9 +350,9 @@ function formatDate(val: string | null): string {
             </el-button>
           </div>
         </div>
-        <div v-if="userOrgs.length > 0" class="flex flex-wrap gap-1.5">
+        <div v-if="userPlainOrgs.length > 0" class="flex flex-wrap gap-1.5">
           <el-tag
-            v-for="org in userOrgs"
+            v-for="org in userPlainOrgs"
             :key="org.orgId"
             size="small"
             :type="org.isPrimary ? 'primary' : 'info'"
@@ -347,6 +380,37 @@ function formatDate(val: string | null): string {
           </el-tag>
         </div>
         <span v-else class="text-xs text-gray-400">无组织归属</span>
+      </div>
+
+      <!-- 所属岗位（只读） -->
+      <div class="mb-4">
+        <div class="flex items-center gap-1.5 mb-2">
+          <IconifyIconOffline
+            :icon="useRenderIcon('ep/postcard')"
+            width="14px"
+            height="14px"
+            class="text-warning"
+          />
+          <span class="text-sm font-medium">所属岗位</span>
+          <el-tooltip
+            content="岗位由「岗位管理」Tab 维护，本面板仅展示"
+            placement="top"
+          >
+            <el-tag size="small" type="info" effect="plain">只读</el-tag>
+          </el-tooltip>
+        </div>
+        <div v-if="userPositions.length > 0" class="flex flex-wrap gap-1.5">
+          <el-tag
+            v-for="pos in userPositions"
+            :key="pos.orgId"
+            size="small"
+            type="success"
+            effect="plain"
+          >
+            {{ pos.orgName }}
+          </el-tag>
+        </div>
+        <span v-else class="text-xs text-gray-400">未分配岗位</span>
       </div>
 
       <!-- 角色列表 -->
@@ -377,7 +441,7 @@ function formatDate(val: string | null): string {
         >
           <el-select
             v-model="selectedRoleId"
-            placeholder="选择角色"
+            placeholder="选择功能角色"
             filterable
             class="w-full! mb-2"
           >

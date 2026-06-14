@@ -178,7 +178,7 @@ function handleCommand(command: string, row: any) {
   }
 }
 async function handleToggleStatus(row: any, newVal: number) {
-  const newStatus = newVal;
+  const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
   const actionText = newStatus === 1 ? "启用" : "禁用";
   try {
     await enableUsers({ ids: [row.id], status: newStatus });
@@ -331,6 +331,7 @@ const columns = [
                 active-text="启用"
                 inactive-text="禁用"
                 style="
+
                   --el-switch-on-color: var(--el-color-success);
                   --el-switch-off-color: var(--el-color-danger);
                 "

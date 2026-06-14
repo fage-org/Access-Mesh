@@ -246,7 +246,6 @@ function openEditPositionDialog(position: PositionItem, event: Event) {
         },
         mode: "edit",
         initialData: {
-          id: position.id,
           orgName: position.orgName,
           code: position.code,
           orgType: position.orgType,
@@ -432,11 +431,7 @@ watch(
           />
         </template>
       </el-input>
-      <el-button
-        type="primary"
-        :icon="useRenderIcon(Search)"
-        @click="onSearch"
-      >
+      <el-button type="primary" :icon="useRenderIcon(Search)" @click="onSearch">
         搜索
       </el-button>
       <el-button :icon="useRenderIcon(Refresh)" @click="onReset">
@@ -460,10 +455,7 @@ watch(
           class="position-card"
         >
           <!-- 卡片头部（可点击展开/收起） -->
-          <div
-            class="position-card-header"
-            @click="toggleExpand(position.id)"
-          >
+          <div class="position-card-header" @click="toggleExpand(position.id)">
             <div class="position-info">
               <div class="position-name">
                 <IconifyIconOffline
@@ -473,12 +465,7 @@ watch(
                   class="text-primary mr-1"
                 />
                 <span class="font-medium">{{ position.orgName }}</span>
-                <el-tag
-                  size="small"
-                  type="info"
-                  effect="plain"
-                  class="ml-2"
-                >
+                <el-tag size="small" type="info" effect="plain" class="ml-2">
                   {{ position.code }}
                 </el-tag>
               </div>
@@ -492,9 +479,7 @@ watch(
                   />
                   {{ positionUserCounts[position.id] || 0 }} 人已分配
                 </span>
-                <span class="meta-item">
-                  📍 {{ getOrgPath(position) }}
-                </span>
+                <span class="meta-item"> 📍 {{ getOrgPath(position) }} </span>
               </div>
             </div>
             <div class="position-actions">
@@ -525,17 +510,10 @@ watch(
               >
                 删除
               </el-button>
-              <el-button
-                link
-                type="primary"
-                size="small"
-                class="expand-btn"
-              >
+              <el-button link type="primary" size="small" class="expand-btn">
                 <IconifyIconOffline
                   :icon="
-                    useRenderIcon(
-                      isExpanded(position.id) ? ArrowUp : ArrowDown
-                    )
+                    useRenderIcon(isExpanded(position.id) ? ArrowUp : ArrowDown)
                   "
                   width="14px"
                   height="14px"
@@ -547,10 +525,7 @@ watch(
 
           <!-- 展开后的用户列表 -->
           <el-collapse-transition>
-            <div
-              v-show="isExpanded(position.id)"
-              class="position-users"
-            >
+            <div v-show="isExpanded(position.id)" class="position-users">
               <div
                 v-if="
                   positionUsers[position.id] &&
@@ -583,11 +558,7 @@ watch(
                   </el-button>
                 </div>
               </div>
-              <el-empty
-                v-else
-                description="暂无成员"
-                :image-size="60"
-              />
+              <el-empty v-else description="暂无成员" :image-size="60" />
             </div>
           </el-collapse-transition>
         </div>
@@ -628,6 +599,19 @@ watch(
 </template>
 
 <style lang="scss" scoped>
+/* 响应式 */
+@media (width <= 768px) {
+  .position-card-header {
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: flex-start;
+  }
+
+  .position-actions {
+    margin-left: 0;
+  }
+}
+
 .position-tab {
   display: flex;
   flex-direction: column;
@@ -661,7 +645,7 @@ watch(
   transition: box-shadow 0.2s;
 
   &:hover {
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
+    box-shadow: 0 2px 12px 0 rgb(0 0 0 / 6%);
   }
 }
 
@@ -710,8 +694,8 @@ watch(
 .position-actions {
   display: flex;
   flex-shrink: 0;
-  align-items: center;
   gap: var(--space-2);
+  align-items: center;
   margin-left: var(--space-3);
 }
 
@@ -747,8 +731,8 @@ watch(
 
 .user-info {
   display: flex;
-  align-items: center;
   gap: var(--space-2);
+  align-items: center;
 }
 
 .user-avatar-sm {
@@ -777,18 +761,5 @@ watch(
 .user-username {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-
-/* 响应式 */
-@media (max-width: 768px) {
-  .position-card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-  }
-
-  .position-actions {
-    margin-left: 0;
-  }
 }
 </style>
