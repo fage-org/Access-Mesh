@@ -402,10 +402,10 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 | ID | 改动 | 状态 |
 |----|------|------|
-| M1 | perm-common DTO 放宽 `@NotBlank` | ❌ 未开始 |
+| M1 | perm-common DTO 放宽 `@NotBlank` | ✅ 完成（2026-06-14 Phase 1） |
 | M2 | permission-center 跨字段业务校验 | ❌ 未开始 |
-| M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ❌ 未开始 |
-| M4 | 删除 `AdminOperationCode.MANAGE` | ❌ 未开始 |
+| M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ✅ 完成（2026-06-14 Phase 1） |
+| M4 | 删除 `AdminOperationCode.MANAGE` | ✅ 完成（2026-06-14 Phase 1） |
 | M5 | 新增 `RoleResolver` + listUserRoles/fetchUserRoles 改用 | ❌ 未开始 |
 | M6 | 删除 `parseRoleId` | ❌ 未开始 |
 | M7 | listUserRoles 透传 `validFrom/validTo` | ❌ 未开始 |
@@ -415,7 +415,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M11 | 新增 `OrgVisibilityService` | ❌ 未开始 |
 | M12 | memberCandidates / pageUsers / validateUsersInDefaultTreeScope 共用 | ❌ 未开始 |
 | M13 | permission-center user 删除 fail-safe | ❌ 未开始 |
-| S1 | 前端 perms.ts + mock 矩阵 | ❌ 未开始 |
+| S1 | 前端 perms.ts + mock 矩阵 | ✅ 完成（2026-06-14 Phase 1，拆分 ASSIGN/REVOKE 双码） |
 | S2 | 种子数据核实 | ❌ 未开始 |
 | S3 | PermCommonReqContractTest | ❌ 未开始 |
 

@@ -81,6 +81,9 @@ const canManageOrgMember = computed(() => hasPerms(ORG_USER_PERMS.ORG_MEMBER));
 const canAssignFunctionalRole = computed(() =>
   hasPerms(ORG_USER_PERMS.USER_ROLE_ASSIGN)
 );
+const canRevokeFunctionalRole = computed(() =>
+  hasPerms(ORG_USER_PERMS.USER_ROLE_REVOKE)
+);
 
 /**
  * 仅展示功能角色：排除 ORG（组织角色 = 组织成员关系）和 POSITION（岗位 = 特殊组织）。
@@ -173,7 +176,10 @@ watch(
     } else {
       // v1.4 后端 /org/tree 强制要求 orgType；用户详情面板组织选择器仅可分配普通组织（orgType=1），
       // 岗位为只读视图不参与「分配组织」。
-      orgTreeData.value = await getOrgTree({ operationCode: "MANAGE", orgType: 1 });
+      orgTreeData.value = await getOrgTree({
+        operationCode: "MANAGE",
+        orgType: 1
+      });
     }
   },
   { immediate: true }
@@ -508,7 +514,7 @@ function formatDate(val: string | null): string {
                   <span class="text-sm">{{ role.roleName }}</span>
                 </div>
                 <el-button
-                  v-if="canAssignFunctionalRole"
+                  v-if="canRevokeFunctionalRole"
                   link
                   size="small"
                   title="移除角色"

@@ -59,9 +59,15 @@ export const ORG_USER_PERMS = {
   /** 重置密码（改己豁免） */
   USER_RESET_PWD: "ADMIN_USER:RESET_PASSWORD",
 
-  // ===== 功能角色分配（C 区）—— permission-center 的 ROLE 资源类型 =====
-  /** 分配/回收功能角色（跨资源类型映射：前端在用户域，后端锚定 ROLE 实例） */
-  USER_ROLE_ASSIGN: "ROLE:MANAGE",
+  // ===== 功能角色分配（C 区）—— admin-service 的 ADMIN_ROLE 资源类型 =====
+  //
+  // v1.4 切换：原 `ROLE:MANAGE` 是 permission-center 内部门禁，前端不应直接判定；
+  // admin-service 入口层使用独立的 GRANT / REVOKE 门禁（契约 §4.4.2 / §4.4.3）。
+  // permission-center 内部仍会做 `ROLE:MANAGE` 二次校验，形成双层门禁。
+  /** 分配功能角色（admin 入口门禁，资源锚点为目标 abstract_role） */
+  USER_ROLE_ASSIGN: "ADMIN_ROLE:GRANT",
+  /** 回收功能角色（admin 入口门禁，资源锚点为目标 abstract_role） */
+  USER_ROLE_REVOKE: "ADMIN_ROLE:REVOKE",
 
   // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— ADMIN_ORG + 精化操作码 =====
   /** 查看岗位 Tab（v1.4 VIEW 类细化到资源类型，与 ADMIN_ORG:VIEW 解耦） */

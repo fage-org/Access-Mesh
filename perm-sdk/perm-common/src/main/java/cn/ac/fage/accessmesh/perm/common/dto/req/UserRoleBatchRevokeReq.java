@@ -34,9 +34,10 @@ public record UserRoleBatchRevokeReq(
          */
         @NotBlank String subjectExternalId,
         /**
-         * 业务域码
+         * 业务域码：功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）允许 null 表示全局域；
+         * ORG/POSITION 必填（由服务端跨字段业务校验保证）。
          */
-        @NotBlank String domainCode,
+        String domainCode,
         /**
          * 角色类型码
          */

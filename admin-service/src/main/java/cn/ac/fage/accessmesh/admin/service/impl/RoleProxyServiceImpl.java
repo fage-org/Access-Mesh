@@ -593,16 +593,20 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 为用户分配功能角色（admin 代理 permission-center）。
      * <p>
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+    /**
+     * 分配用户功能角色（admin 代理 permission-center）。
+     * <p>
+     * 对目标角色做实例级 ADMIN_ROLE:GRANT 门禁（admin 入口层），permission-center
+     * 内部还会做 ROLE:MANAGE 二次校验，形成双层门禁。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
      */
     @Override
     public void assignRole(Long userId, Long roleId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
-        // 1. 实例级 ROLE:MANAGE 门禁
+        // 1. 实例级 ADMIN_ROLE:GRANT 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
         permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            String.valueOf(roleId), AdminOperationCode.MANAGE);
+            String.valueOf(roleId), AdminOperationCode.GRANT);
 
         // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
         RoleRef roleRef = resolveRoleRef(roleId);
@@ -643,16 +647,20 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 回收用户功能角色（admin 代理 permission-center）。
      * <p>
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+    /**
+     * 回收用户功能角色（admin 代理 permission-center）。
+     * <p>
+     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 门禁（admin 入口层），permission-center
+     * 内部还会做 ROLE:MANAGE 二次校验，形成双层门禁。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
      */
     @Override
     public void revokeRole(Long userId, Long roleId) {
-        // 1. 实例级 ROLE:MANAGE 门禁
+        // 1. 实例级 ADMIN_ROLE:REVOKE 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
         permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            String.valueOf(roleId), AdminOperationCode.MANAGE);
+            String.valueOf(roleId), AdminOperationCode.REVOKE);
 
         // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
         RoleRef roleRef = resolveRoleRef(roleId);

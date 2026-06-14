@@ -46,8 +46,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_DELETE,
     P.POSITION_ASSIGN
   ],
-  /** IT/安全管理员：仅 C 区写权（功能角色分配），其余只读 */
-  sec: [...ORG_USER_VIEW_PERMS, P.USER_ROLE_ASSIGN],
+  /** IT/安全管理员：仅 C 区写权（功能角色分配/回收），其余只读 */
+  sec: [...ORG_USER_VIEW_PERMS, P.USER_ROLE_ASSIGN, P.USER_ROLE_REVOKE],
   /** 审计员：全只读 */
   auditor: [...ORG_USER_VIEW_PERMS]
 };
