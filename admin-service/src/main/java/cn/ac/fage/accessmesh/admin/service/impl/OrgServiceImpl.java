@@ -74,7 +74,13 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
-        permissionValidator.checkTypeLevel(AdminResourceType.ORG, AdminOperationCode.CREATE);
+        // 岗位（orgType=2）走独立操作码 CREATE_POSITION，普通组织走 CREATE
+        // 详见 AdminOperationCode#CREATE_POSITION
+        boolean isPosition = req.orgType() != null && req.orgType() == 2;
+        permissionValidator.checkTypeLevel(
+            AdminResourceType.ORG,
+            isPosition ? AdminOperationCode.CREATE_POSITION : AdminOperationCode.CREATE
+        );
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -120,18 +126,24 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(req.id()),
-            AdminOperationCode.UPDATE
-        );
-
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // 先加载实例确定 orgType，再按类型分发操作码：
+        // 岗位（orgType=2）走 UPDATE_POSITION，普通组织走 UPDATE
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
+
+        boolean isPosition = isPositionOrg(org.getOrgType());
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.ORG,
+            String.valueOf(req.id()),
+            isPosition ? AdminOperationCode.UPDATE_POSITION : AdminOperationCode.UPDATE
+        );
+
+        // 注：OrgUpdateReq 不含 orgType 字段，orgType 由 API 契约保证不可变（普通组织/岗位互转），
+        // 操作码门禁始终基于已存实例类型 org.getOrgType() 决策。
 
         if (req.parentOrgId() != null) {
             long newParentId = req.parentOrgId();
@@ -168,18 +180,21 @@ public class OrgServiceImpl implements OrgService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(id),
-            AdminOperationCode.DELETE
-        );
-
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // 先加载快照确定 orgType，再按类型分发操作码：
+        // 岗位（orgType=2）走 DELETE_POSITION，普通组织走 DELETE
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
+
+        boolean isPosition = isPositionOrg(org.getOrgType());
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.ORG,
+            String.valueOf(id),
+            isPosition ? AdminOperationCode.DELETE_POSITION : AdminOperationCode.DELETE
+        );
 
         if (orgDomainService.hasChildren(tenantId, id)) {
             throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(), AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
@@ -301,5 +316,16 @@ public class OrgServiceImpl implements OrgService {
                 buildTree(all, o.getId())
             ))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 判断 sys_org.orgType 是否为岗位类型。
+     * <p>
+     * 历史上 orgType 字段同时使用过数值字符串（"1"/"2"）和语义字符串（"ORG"/"POSITION"），
+     * 与 {@code RoleProxyServiceImpl#mapOrgTypeToRoleType} 保持兼容。
+     * </p>
+     */
+    private static boolean isPositionOrg(String orgType) {
+        return "2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType);
     }
 }

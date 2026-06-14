@@ -14,12 +14,13 @@
  *
  * 前端 hasPerms 通过 ≠ 接口必能调通，后端是真权威；本目录仅做 UX 隐藏。
  *
- * ## 「岗位 = 特殊组织」契约（§D 备注 ⁴）
- * 岗位与普通组织共用 `/org/*` 端点（通过 `orgType=2` 区分），乙层同为 `ADMIN_ORG:CREATE/UPDATE/DELETE`。
- * 甲层把岗位拆成独立 `system:org:position:*` 串只是为了菜单切分，
- * **后端不存在独立 `ADMIN_POSITION` 资源类型**。
- * 因此 `POSITION_ASSIGN` 与 `ORG_MEMBER` 在乙层等价（均为 `ADMIN_ORG:UPDATE` 实例级门禁），
- * 仅 UI 命名拆分。
+ * ## 「岗位 = 特殊组织」契约（§D 备注 ⁴，v1.3 操作码精化）
+ * 岗位与普通组织共用 `/org/*` 端点（通过 `orgType=2` 区分），资源类型同为 `ADMIN_ORG`，
+ * 但乙层使用**独立的精化操作码**实现"组织管理员 ≠ 岗位管理员"细粒度配权：
+ *   - 岗位 CRUD     → `ADMIN_ORG:CREATE_POSITION / UPDATE_POSITION / DELETE_POSITION`
+ *   - 岗位用户挂载  → `ADMIN_ORG:ASSIGN_POSITION_USER`
+ * 与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。
+ * **不新增 `ADMIN_POSITION` 资源类型**，以保持锚点单一性、避免 user-org 关系双写。
  */
 export const ORG_USER_PERMS = {
   // ===== 组织树（A 区）—— 乙层 ADMIN_ORG（orgType=1） =====
@@ -32,7 +33,7 @@ export const ORG_USER_PERMS = {
   /** 删除组织 → ADMIN_ORG:DELETE */
   ORG_DELETE: "system:org:delete",
   /**
-   * 组织成员关系操作（添加/移除成员、设主组织）→ ADMIN_ORG:UPDATE（实例级，作用在目标组织）
+   * 普通组织成员关系操作（添加/移除成员、设主组织）→ ADMIN_ORG:UPDATE（实例级，作用在普通组织实例）
    *
    * **默认树语义边界**：默认组织树上「添加/移除/设主」具有身份目录含义，
    * 最终由后端按 `docs/design/default-org-tree-user-lifecycle.md` 二次拒绝。
@@ -55,16 +56,19 @@ export const ORG_USER_PERMS = {
   // ===== 功能角色分配（C 区）—— 乙层 ROLE:MANAGE =====
   USER_ROLE_ASSIGN: "system:user:role:assign",
 
-  // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— 乙层仍是 ADMIN_ORG =====
+  // ===== 岗位（D 区，岗位 = 特殊组织 orgType=2）—— 乙层 ADMIN_ORG + 精化操作码 =====
   POSITION_VIEW: "system:org:position:view",
-  /** 新增岗位 → ADMIN_ORG:CREATE（岗位组织实例） */
+  /** 新增岗位 → ADMIN_ORG:CREATE_POSITION（岗位组织实例） */
   POSITION_ADD: "system:org:position:add",
-  /** 编辑岗位 → ADMIN_ORG:UPDATE */
+  /** 编辑岗位 → ADMIN_ORG:UPDATE_POSITION */
   POSITION_EDIT: "system:org:position:edit",
-  /** 删除岗位 → ADMIN_ORG:DELETE */
+  /** 删除岗位 → ADMIN_ORG:DELETE_POSITION */
   POSITION_DELETE: "system:org:position:delete",
   /**
-   * 挂载/卸载岗位用户 → ADMIN_ORG:UPDATE（**乙层等价于 ORG_MEMBER**，仅 UI 命名拆分）
+   * 挂载/卸载/设主 岗位用户 → ADMIN_ORG:ASSIGN_POSITION_USER
+   *
+   * 与普通组织成员归属（`ADMIN_ORG:UPDATE` / ORG_MEMBER）解耦，便于
+   * "岗位用户运营"独立配权。资源锚点仍是岗位 org 实例。
    */
   POSITION_ASSIGN: "system:org:position:assign"
 } as const;

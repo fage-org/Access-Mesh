@@ -125,8 +125,8 @@ permission-center（乙层：被管理的权限模型）
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
 | 查看岗位 | 读，无服务级门禁（`ADMIN_ORG`，按 `orgType=2` 过滤；`/org/page`） | `system:org:position:view` | 岗位 Tab 隐藏 |
-| 新增 / 编辑 / 删除岗位 | `ADMIN_ORG:CREATE` / `UPDATE` / `DELETE` ⁴（特殊组织，经 `/org/*`，同步 permission-center） | `system:org:position:add` / `:edit` / `:delete` | 隐藏增删改 |
-| 分配 / 移除用户到岗位 | **`ADMIN_ORG:UPDATE`** ²（组织成员管理；作用在**岗位组织实例**；`/user-org/*`） | `system:org:position:assign` | 岗位区只读 |
+| 新增 / 编辑 / 删除岗位 | `ADMIN_ORG:CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` ⁴（特殊组织，经 `/org/*`，按 `orgType=2` 走精化操作码；同步 permission-center） | `system:org:position:add` / `:edit` / `:delete` | 隐藏增删改 |
+| 分配 / 移除用户到岗位 | **`ADMIN_ORG:ASSIGN_POSITION_USER`** ²（组织成员管理的岗位精化；作用在**岗位组织实例**；`/user-org/*`） | `system:org:position:assign` | 岗位区只读 |
 | ~~配置岗位权限（授予菜单/资源权限）~~ | `ADMIN_ROLE:GRANT/REVOKE`（`/role/grant-menu`、`/role/revoke-menu`） | — | **❌ 红线：不在本页**（详见 §6.3） |
 
 ---
@@ -136,16 +136,16 @@ permission-center（乙层：被管理的权限模型）
 | 备注 | 规则（核对后定稿） |
 |------|------|
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
-| ² | **成员增删 / 岗位用户 = 组织成员管理 = `ADMIN_ORG:UPDATE`（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。当前后端 `UserOrgServiceImpl` 已做 `ADMIN_ORG:UPDATE` 门禁，但全量替换语义需按该契约调整。 |
+| ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织** → `ADMIN_ORG:UPDATE`（与改类操作共用）；**岗位**（orgType=2） → `ADMIN_ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。当前后端 `UserOrgServiceImpl` 已按 orgType 分发操作码，但全量替换语义需按该契约调整。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedIds(..., ROLE, 目标角色, MANAGE)` 强制；admin-service `/user-role/*` 代理 **Phase 2 待建**（api-gap §4），建成后须沿用此门禁，且**不得**复用 `ADMIN_ROLE:GRANT/REVOKE`（那是配权语义，属红线） |
-| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）|
+| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ADMIN_ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `OrgSyncHandler` 同步至 permission-center（内部对应 `RoleType.POSITION`）。**乙层操作码精化**：为支持"组织管理员 ≠ 岗位管理员"的细粒度配权，岗位 CRUD 与岗位用户挂载使用独立操作码（`CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`），资源类型仍为 `ADMIN_ORG`（不新增 `ADMIN_POSITION` 以避免锚点分裂、user-org 关系双写）；与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。orgType 字段不可变，禁止经 `/org/update` 在普通组织/岗位间互转。|
 
 ---
 
 ## 6. 四条军规（保证乙层不乱）
 
 1. **只造资源类型形状的权限，绝不造页面形状的资源类型。** 菜单可见性 = 由 `ADMIN_ORG/ADMIN_USER` 的可见读 **派生**，不单独设 `ADMIN_ORG_USER:*`。
-2. **关系动作钉死归属**（非默认树成员/岗位用户 = 组织成员管理 `ADMIN_ORG:UPDATE`；默认树主组织 = 身份目录操作；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
+2. **关系动作钉死归属**（普通组织成员 = `ADMIN_ORG:UPDATE`；岗位用户挂载 = `ADMIN_ORG:ASSIGN_POSITION_USER`；默认树主组织 = 身份目录操作；功能角色分配 = `ROLE:MANAGE`），写进第 4/5 节当契约，永不二义。
 3. **守红线**：本页做「组织结构（含岗位作为特殊组织）+ 用户身份 + 成员/角色**关系**」，**不出现"配权 / 独立角色定义"类操作**。
    - **允许**：岗位实例 CRUD（`ADMIN_ORG:*`，岗位 Tab）—— 它是组织管理，不是角色定义。
    - **禁止**在本页暴露：`/role/grant-menu`、`/role/revoke-menu`（`ADMIN_ROLE:GRANT/REVOKE`，给组织/岗位/角色**配菜单与资源权限**）；`/role/create`（`ADMIN_ROLE:CREATE`，定义独立功能角色）；以及 orgType 字典 / 资源 / 操作 / 条件等定义。
@@ -161,12 +161,14 @@ permission-center（乙层：被管理的权限模型）
 ```
 角色：组织人事管理员（与页面无关、可复用）
   授予（组织人事业务域内）：
-    ADMIN_ORG:   CREATE, UPDATE, DELETE        # 组织 + 岗位（特殊组织）的增删改、移动、改状态；
-                                               # 非默认树成员/岗位用户归属含于 ADMIN_ORG:UPDATE；查看由菜单可见性派生
+    ADMIN_ORG:   CREATE, UPDATE, DELETE,                    # 普通组织（orgType=1）增删改 + 非默认树成员归属
+                 CREATE_POSITION, UPDATE_POSITION,          # 岗位（orgType=2）增删改、移动、改状态
+                 DELETE_POSITION, ASSIGN_POSITION_USER       # 岗位用户挂载/卸载/设主
+                                                            # 查看由菜单可见性派生
     ADMIN_USER:  CREATE, UPDATE, DELETE, ENABLE, DISABLE, RESET_PASSWORD   # 用户身份本身
-    ROLE:        MANAGE（仅对目标功能角色）      # C 区"分配功能角色给用户"，不含角色定义
+    ROLE:        MANAGE（仅对目标功能角色）                  # C 区"分配功能角色给用户"，不含角色定义
   不授予：
-    ADMIN_ROLE:  CREATE / GRANT / REVOKE       # 独立角色定义、给组织/岗位/角色配权 —— 红线之外
+    ADMIN_ROLE:  CREATE / GRANT / REVOKE                    # 独立角色定义、给组织/岗位/角色配权 —— 红线之外
     RESOURCE / OPERATION / CONDITION 定义       # 红线之外
 ```
 
@@ -216,3 +218,4 @@ permission-center（乙层：被管理的权限模型）
 | 2026-06-09 | v1.1 (勘误) | §1 页面结构描述与实现计划对齐：4 Tab（组织信息/成员/岗位/子组织）→ 2 Tab（成员管理/岗位管理）+ 顶部组织信息卡片；左树过滤 `orgType=1` 仅显示普通组织；用户详情面板增加「所属岗位(只读)」 |
 | 2026-06-09 | v1.1 (实现对齐) | `UserOrgServiceImpl` 已按契约改为 `ADMIN_ORG:UPDATE`（目标组织/岗位实例）门禁，移除 `ADMIN_USER:UPDATE` 与改己豁免语义。 |
 | 2026-06-10 | **v1.2 (定稿)** | 固化默认组织树身份目录设计：默认树负责用户生命周期；非默认树只管理已有用户关系；补充 `abstract_user` / `ADMIN_USER resource_entity`、`ADMIN_ORG resource_entity` / `ORG/POSITION abstract_role`、`user-org -> user_role` 同步闭环要求。 |
+| 2026-06-14 | **v1.3 (操作码精化)** | 岗位 CRUD 与岗位用户挂载从共用 `ADMIN_ORG:CREATE/UPDATE/DELETE` 拆出独立操作码 `CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`；资源类型仍为 `ADMIN_ORG`（避免锚点分裂、user-org 关系双写）；落实"组织管理员 ≠ 岗位管理员"细粒度配权。`OrgServiceImpl` / `UserOrgServiceImpl` 按 `sys_org.orgType` 分发操作码；`OrgUpdateReq` 不含 orgType 字段，普通组织/岗位间 orgType 不可变。前端 `utils/perms.ts` 已注释乙层映射对应关系。 |

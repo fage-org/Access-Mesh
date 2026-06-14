@@ -58,14 +58,39 @@ public class UserOrgServiceImpl implements UserOrgService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         List<Long> requestedOrgIds = new ArrayList<>(new LinkedHashSet<>(req.orgIds()));
-        List<String> orgResourceCodes = requestedOrgIds.stream()
-            .map(String::valueOf)
-            .toList();
-        permissionValidator.checkBatchInstanceLevel(
-            AdminResourceType.ORG,
-            orgResourceCodes,
-            AdminOperationCode.UPDATE
-        );
+        if (requestedOrgIds.isEmpty()) {
+            return;
+        }
+
+        // 一次性加载目标 orgs，按 orgType 分桶后用各自操作码批量校验：
+        // - 普通组织（orgType≠2）→ ADMIN_ORG:UPDATE
+        // - 岗位（orgType=2）   → ADMIN_ORG:ASSIGN_POSITION_USER
+        // 详见 AdminOperationCode#ASSIGN_POSITION_USER
+        Map<Long, cn.ac.fage.accessmesh.admin.entity.SysOrg> orgMap =
+            orgDomainService.batchSelectValidByIdsMap(tenantId, new LinkedHashSet<>(requestedOrgIds));
+        for (Long orgId : requestedOrgIds) {
+            if (!orgMap.containsKey(orgId)) {
+                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                    "org not found, orgId=" + orgId);
+            }
+        }
+        List<String> regularOrgCodes = new ArrayList<>();
+        List<String> positionCodes = new ArrayList<>();
+        for (Long orgId : requestedOrgIds) {
+            if (isPositionOrg(orgMap.get(orgId).getOrgType())) {
+                positionCodes.add(String.valueOf(orgId));
+            } else {
+                regularOrgCodes.add(String.valueOf(orgId));
+            }
+        }
+        if (!regularOrgCodes.isEmpty()) {
+            permissionValidator.checkBatchInstanceLevel(
+                AdminResourceType.ORG, regularOrgCodes, AdminOperationCode.UPDATE);
+        }
+        if (!positionCodes.isEmpty()) {
+            permissionValidator.checkBatchInstanceLevel(
+                AdminResourceType.ORG, positionCodes, AdminOperationCode.ASSIGN_POSITION_USER);
+        }
 
         /*
          * 设计约束：
@@ -107,17 +132,10 @@ public class UserOrgServiceImpl implements UserOrgService {
             userOrgDomainService.insertBatch(toInsert);
 
             // Outbox: enqueue PERM_USER_ROLE_SYNC BIND envelopes for each new user-org assignment
-            // 一次批量加载 SysOrg，按 orgType 解析 roleTypeCode（ORG/POSITION），避免 builder 端做静默二级 fallback
-            Set<Long> insertOrgIds = toInsert.stream().map(SysUserOrg::getOrgId).collect(Collectors.toSet());
-            Map<Long, cn.ac.fage.accessmesh.admin.entity.SysOrg> orgMap =
-                orgDomainService.batchSelectValidByIdsMap(tenantId, insertOrgIds);
+            // 复用前面已加载的 orgMap 解析 roleTypeCode（ORG/POSITION），避免 builder 端做静默二级 fallback
             for (SysUserOrg assoc : toInsert) {
                 cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgMap.get(assoc.getOrgId());
-                if (org == null) {
-                    throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                        "user-org bind sync: org not found, orgId=" + assoc.getOrgId());
-                }
-                String roleTypeCode = "POSITION".equalsIgnoreCase(org.getOrgType()) ? "POSITION" : "ORG";
+                String roleTypeCode = isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
                 String relationKey = roleTypeCode + ":" + assoc.getOrgId();
                 String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(
                     tenantId, assoc.getOrgId());
@@ -133,23 +151,25 @@ public class UserOrgServiceImpl implements UserOrgService {
     public void removeUserFromOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // 先加载 org 确定类型，再按类型分发操作码
+        cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
+        if (org == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                "user-org unbind: org not found, orgId=" + orgId);
+        }
+        boolean isPosition = isPositionOrg(org.getOrgType());
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(orgId),
-            AdminOperationCode.UPDATE
+            isPosition ? AdminOperationCode.ASSIGN_POSITION_USER : AdminOperationCode.UPDATE
         );
 
         // 非默认树移除成员只应删除关系并回收对应 user_role，不应影响用户生命周期。
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
 
         // Outbox: enqueue PERM_USER_ROLE_SYNC UNBIND envelope
-        // 解析 roleTypeCode 必须读 sys_org.orgType；与 BIND 链路保持对称，确保 business_key 匹配
-        cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
-        if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                "user-org unbind sync: org not found, orgId=" + orgId);
-        }
-        String roleTypeCode = "POSITION".equalsIgnoreCase(org.getOrgType()) ? "POSITION" : "ORG";
+        // 复用前面已加载的 org 解析 roleTypeCode；与 BIND 链路保持对称，确保 business_key 匹配
+        String roleTypeCode = isPosition ? "POSITION" : "ORG";
         String relationKey = roleTypeCode + ":" + orgId;
         String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
         SyncTaskEnvelope env = syncTaskBuilder.userOrgUnbind(userId, orgId, roleTypeCode,
@@ -162,10 +182,17 @@ public class UserOrgServiceImpl implements UserOrgService {
     public void setPrimaryOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // 先加载目标 org 确定类型；设主组织受默认树约束（见下），但操作码仍按 orgType 分发
+        cn.ac.fage.accessmesh.admin.entity.SysOrg targetOrg = orgDomainService.selectValidById(tenantId, orgId);
+        if (targetOrg == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                "set-primary: org not found, orgId=" + orgId);
+        }
+        boolean isPosition = isPositionOrg(targetOrg.getOrgType());
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG,
             String.valueOf(orgId),
-            AdminOperationCode.UPDATE
+            isPosition ? AdminOperationCode.ASSIGN_POSITION_USER : AdminOperationCode.UPDATE
         );
 
         // 首期主组织仅表示默认组织树下的主归属，后续实现需避免影响其他组织树关系。
@@ -198,5 +225,16 @@ public class UserOrgServiceImpl implements UserOrgService {
     public List<UserPageItemResp.OrgBrief> getUserOrgs(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgDomainService.getUserOrgBriefs(tenantId, userId);
+    }
+
+    /**
+     * 判断 sys_org.orgType 是否为岗位类型。
+     * <p>
+     * 历史上 orgType 字段同时使用过数值字符串（"1"/"2"）和语义字符串（"ORG"/"POSITION"），
+     * 与 {@code RoleProxyServiceImpl#mapOrgTypeToRoleType} 保持兼容。
+     * </p>
+     */
+    private static boolean isPositionOrg(String orgType) {
+        return "2".equals(orgType) || "POSITION".equalsIgnoreCase(orgType);
     }
 }
