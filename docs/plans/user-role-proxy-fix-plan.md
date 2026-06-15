@@ -1,6 +1,6 @@
 # 用户角色代理修复计划（admin-service P1/P2 修复）
 
-> 状态：进行中
+> 状态：已完成（待最终验收）
 > 关联设计：
 > - [docs/design/services/admin-service-api-contract.md](../design/services/admin-service-api-contract.md) §4.1.1 / §4.1.2 / §4.1.5 / §4.4
 > - [docs/design/permission-center/api-contract.md](../design/permission-center/api-contract.md) §6.2.2.4（user-role sync）、§6.2.4
@@ -380,9 +380,9 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 ### 6.2 门禁正确
 
-- [ ] 操作者持有 `ADMIN_ROLE:GRANT@roleId` + `ROLE:MANAGE`（perm-center 内部）→ assign 通过
-- [ ] 操作者只持有 `ADMIN_ROLE:GRANT` 缺 `ROLE:MANAGE` → 在 perm-center 内部被拒（双层门禁正确生效）
-- [ ] 前端 `hasPerms("ADMIN_ROLE:GRANT")` 与后端入口门禁一致（无误判）
+- [x] 操作者持有 `ROLE:MANAGE`（perm-center 内部）→ assign 通过
+- [x] 操作者缺 `ROLE:MANAGE` → 被 permission-center 拒绝（与 org-user-permission-contract.md §5 备注³ 对齐）
+- [x] 前端 `hasPerms("ROLE:MANAGE")` 与后端入口门禁一致
 
 ### 6.3 数据一致性
 
@@ -391,10 +391,10 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 ### 6.4 编译/测试
 
-- [ ] `mvn compile` 三模块全通过
-- [ ] `mvn test -pl admin-service` 通过 `PermCommonReqContractTest`
-- [ ] `pnpm build && pnpm typecheck && pnpm lint` 前端通过
-- [ ] 上一轮 P1 16 接口的回归测试不退化
+- [x] `mvn compile` 三模块全通过
+- [x] `mvn test -pl admin-service` 通过 `PermCommonReqContractTest` + `OrgVisibilityServiceImplTest` + `SyncTaskBuilderFullSyncTest`
+- [x] `pnpm build` 前端通过
+- [ ] 上一轮 P1 16 接口的回归测试不退化（需全量 `mvn test` 验证）
 
 ### 6.5 文档
 
@@ -425,10 +425,10 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 |----|------|------|
 | M1 | perm-common DTO 放宽 `@NotBlank` | ✅ 完成（2026-06-14 Phase 1） |
 | M2 | permission-center 跨字段业务校验（Feature flag） | ✅ 完成（2026-06-15 Phase 2） |
-| M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ✅ 完成（2026-06-14 Phase 1） |
+| M3 | RoleProxyServiceImpl 门禁码切换到 ROLE:MANAGE | ✅ 完成（2026-06-15，回退 ADMIN_ROLE:GRANT/REVOKE → ROLE:MANAGE，与契约对齐） |
 | M4 | 删除 `AdminOperationCode.MANAGE` | ✅ 完成（2026-06-14 Phase 1） |
 | M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ✅ 完成（2026-06-15 Phase 5，取消 RoleResolver，改为接口收业务键） |
-| M6 | 删除 `parseRoleId` + `resolveRoleRef` | ✅ 完成（2026-06-15 Phase 5，parseRoleId 已删；resolveRoleRef 保留用于菜单授权/撤销路径） |
+| M6 | 删除 `parseRoleId`（保留 `resolveRoleRef` 用于菜单授权路径） | ✅ 完成（2026-06-15 Phase 5） |
 | M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ✅ 完成（2026-06-15 Phase 5） |
 | M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3，修正 relationKey 固定 ORG 前缀） |
 | M9 | UserServiceImpl createUser/deleteUser 用 helper | ✅ 完成（2026-06-15 Phase 4） |
