@@ -356,7 +356,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | 5 | M5 + M6 + M7（DTO 改业务键 + 删 parseRoleId/resolveRoleRef + 透传 validFrom/To）| ✅ 已完成（2026-06-15） |
 | 6 | M11 + M12（OrgVisibilityService + 4 处共用） | ✅ 已完成（2026-06-15） |
 | 7 | M13（permission-center 延迟补偿定时任务） | ✅ 已完成（2026-06-15） |
-| 8 | 配套 S2（种子核实）+ S3（契约测试） | `mvn test`（admin-service contract test）|
+| 8 | 配套 S2（种子核实）+ S3（契约测试） | ✅ 已完成（2026-06-15） |
 
 每阶段完成后运行 `mvn compile`，第 8 阶段全跑 `mvn test`。
 
@@ -437,8 +437,8 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M12 | memberCandidates / pageUsers / validateUsersInDefaultTreeScope 共用 | ✅ 完成（2026-06-15 Phase 6，3 处裁剪 + 新增 USER_NOT_IN_OPERATOR_VISIBLE_SCOPE 错误码） |
 | M13 | permission-center 延迟补偿定时任务 | ✅ 完成（2026-06-15 Phase 7，UserRoleOrphanCleanupTask + 5min 窗口期 + @EnableScheduling） |
 | S1 | 前端 perms.ts + mock 矩阵 | ✅ 完成（2026-06-14 Phase 1，拆分 ASSIGN/REVOKE 双码） |
-| S2 | 种子数据核实 | ❌ 未开始 |
-| S3 | PermCommonReqContractTest | ❌ 未开始 |
+| S2 | 种子数据核实 | ✅ 完成（2026-06-15 Phase 8，新增 seed-perm-operations.sql 补 ROLE:MANAGE） |
+| S3 | PermCommonReqContractTest | ✅ 完成（2026-06-15 Phase 8，10 个断言守卫 domainCode 放宽契约） |
 
 ---
 
