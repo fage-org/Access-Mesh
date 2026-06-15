@@ -355,7 +355,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | 4 | M9 + M10（UserServiceImpl + UserOrgServiceImpl + SyncTaskBuilder 收敛 + EXT-5 批量解析） | ✅ 已完成（2026-06-15） |
 | 5 | M5 + M6 + M7（DTO 改业务键 + 删 parseRoleId/resolveRoleRef + 透传 validFrom/To）| ✅ 已完成（2026-06-15） |
 | 6 | M11 + M12（OrgVisibilityService + 4 处共用） | ✅ 已完成（2026-06-15） |
-| 7 | M13（permission-center 延迟补偿定时任务） | `mvn compile -pl permission-center` |
+| 7 | M13（permission-center 延迟补偿定时任务） | ✅ 已完成（2026-06-15） |
 | 8 | 配套 S2（种子核实）+ S3（契约测试） | `mvn test`（admin-service contract test）|
 
 每阶段完成后运行 `mvn compile`，第 8 阶段全跑 `mvn test`。
@@ -435,7 +435,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ✅ 完成（2026-06-15 Phase 4，relationKey 全部收敛到 UserOrgKeys + resolveTreeRootExternalIds 批量解析） |
 | M11 | 新增 `OrgVisibilityService` | ✅ 完成（2026-06-15 Phase 6） |
 | M12 | memberCandidates / pageUsers / validateUsersInDefaultTreeScope 共用 | ✅ 完成（2026-06-15 Phase 6，3 处裁剪 + 新增 USER_NOT_IN_OPERATOR_VISIBLE_SCOPE 错误码） |
-| M13 | permission-center 延迟补偿定时任务 | ❌ 未开始（修订：从直接清改为延迟补偿） |
+| M13 | permission-center 延迟补偿定时任务 | ✅ 完成（2026-06-15 Phase 7，UserRoleOrphanCleanupTask + 5min 窗口期 + @EnableScheduling） |
 | S1 | 前端 perms.ts + mock 矩阵 | ✅ 完成（2026-06-14 Phase 1，拆分 ASSIGN/REVOKE 双码） |
 | S2 | 种子数据核实 | ❌ 未开始 |
 | S3 | PermCommonReqContractTest | ❌ 未开始 |
