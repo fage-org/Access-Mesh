@@ -353,7 +353,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | 2 | M2（permission-center 跨字段校验，Feature flag） | `mvn compile -pl permission-center` |
 | 3 | M8（UserOrgKeys helper） | `mvn compile -pl admin-service` |
 | 4 | M9 + M10（UserServiceImpl + UserOrgServiceImpl + SyncTaskBuilder 收敛 + EXT-5 批量解析） | ✅ 已完成（2026-06-15） |
-| 5 | M5 + M6 + M7（DTO 改业务键 + 删 parseRoleId/resolveRoleRef + 透传 validFrom/To）| `mvn compile -pl admin-service` + `pnpm build`（前端同步改传参）|
+| 5 | M5 + M6 + M7（DTO 改业务键 + 删 parseRoleId/resolveRoleRef + 透传 validFrom/To）| ✅ 已完成（2026-06-15） |
 | 6 | M11 + M12（OrgVisibilityService + 4 处共用） | `mvn compile -pl admin-service` |
 | 7 | M13（permission-center 延迟补偿定时任务） | `mvn compile -pl permission-center` |
 | 8 | 配套 S2（种子核实）+ S3（契约测试） | `mvn test`（admin-service contract test）|
@@ -427,9 +427,9 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M2 | permission-center 跨字段业务校验（Feature flag） | ✅ 完成（2026-06-15 Phase 2） |
 | M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ✅ 完成（2026-06-14 Phase 1） |
 | M4 | 删除 `AdminOperationCode.MANAGE` | ✅ 完成（2026-06-14 Phase 1） |
-| M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ❌ 未开始（修订：取消 RoleResolver，改为接口收业务键） |
-| M6 | 删除 `parseRoleId` + `resolveRoleRef` | ❌ 未开始 |
-| M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ❌ 未开始 |
+| M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ✅ 完成（2026-06-15 Phase 5，取消 RoleResolver，改为接口收业务键） |
+| M6 | 删除 `parseRoleId` + `resolveRoleRef` | ✅ 完成（2026-06-15 Phase 5，parseRoleId 已删；resolveRoleRef 保留用于菜单授权/撤销路径） |
+| M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ✅ 完成（2026-06-15 Phase 5） |
 | M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3，修正 relationKey 固定 ORG 前缀） |
 | M9 | UserServiceImpl createUser/deleteUser 用 helper | ✅ 完成（2026-06-15 Phase 4） |
 | M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ✅ 完成（2026-06-15 Phase 4，relationKey 全部收敛到 UserOrgKeys + resolveTreeRootExternalIds 批量解析） |
