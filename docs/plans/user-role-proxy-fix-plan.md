@@ -352,7 +352,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | 1 | M1（perm-common DTO 放宽）+ M3 + M4（admin 门禁码切换 + 删常量）+ S1（前端 perms.ts 同步切换）| ✅ 已完成（2026-06-14） |
 | 2 | M2（permission-center 跨字段校验，Feature flag） | `mvn compile -pl permission-center` |
 | 3 | M8（UserOrgKeys helper） | `mvn compile -pl admin-service` |
-| 4 | M9 + M10（UserServiceImpl + UserOrgServiceImpl + SyncTaskBuilder 收敛 + EXT-5 批量解析） | `mvn compile -pl admin-service` |
+| 4 | M9 + M10（UserServiceImpl + UserOrgServiceImpl + SyncTaskBuilder 收敛 + EXT-5 批量解析） | ✅ 已完成（2026-06-15） |
 | 5 | M5 + M6 + M7（DTO 改业务键 + 删 parseRoleId/resolveRoleRef + 透传 validFrom/To）| `mvn compile -pl admin-service` + `pnpm build`（前端同步改传参）|
 | 6 | M11 + M12（OrgVisibilityService + 4 处共用） | `mvn compile -pl admin-service` |
 | 7 | M13（permission-center 延迟补偿定时任务） | `mvn compile -pl permission-center` |
@@ -376,7 +376,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 - [ ] `/user/member-candidates` 仅返回操作者通过 `ADMIN_ORG:VIEW` 可见的默认树用户
 - [ ] `/user/page` 在 `req.orgId == null` 时按操作者可见范围裁剪
 - [ ] `/user/delete` 对 ORG 用户 / POSITION 用户都正确生成 UNBIND envelope 且 `relationKey` 与 BIND 时一致
-- [ ] `/user/create` 指定 POSITION orgId 时 BIND envelope `relationKey` 是 `POSITION:{orgId}` 而非 `ORG:{orgId}`
+- [ ] `/user/create` 指定 POSITION orgId 时 BIND envelope `relationKey` 是 `ORG:{orgId}`（与契约 §6.2.2.4 一致，前缀固定 ORG）
 
 ### 6.2 门禁正确
 
@@ -431,8 +431,8 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M6 | 删除 `parseRoleId` + `resolveRoleRef` | ❌ 未开始 |
 | M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ❌ 未开始 |
 | M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3，修正 relationKey 固定 ORG 前缀） |
-| M9 | UserServiceImpl createUser/deleteUser 用 helper | ❌ 未开始 |
-| M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ❌ 未开始（修订：批量 resolveTreeRootExternalIds） |
+| M9 | UserServiceImpl createUser/deleteUser 用 helper | ✅ 完成（2026-06-15 Phase 4） |
+| M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ✅ 完成（2026-06-15 Phase 4，relationKey 全部收敛到 UserOrgKeys + resolveTreeRootExternalIds 批量解析） |
 | M11 | 新增 `OrgVisibilityService` | ❌ 未开始 |
 | M12 | memberCandidates / pageUsers / validateUsersInDefaultTreeScope 共用 | ❌ 未开始 |
 | M13 | permission-center 延迟补偿定时任务 | ❌ 未开始（修订：从直接清改为延迟补偿） |
