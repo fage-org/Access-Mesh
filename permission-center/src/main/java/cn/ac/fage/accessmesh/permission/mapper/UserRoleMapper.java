@@ -175,4 +175,18 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
                                                     @Param("targetIds") Set<Long> targetIds,
                                                     @Param("relationIds") Set<Long> relationIds,
                                                     @Param("targetType") String targetType);
+
+    /**
+     * 查询孤儿用户角色关联：用户已被软删但 user_role 仍存活。
+     * <p>
+     * 用于延迟补偿定时任务（UserRoleOrphanCleanupTask），
+     * 在确认 UNBIND envelope 未能到达后兜底清理残留的 user_role。
+     * cutoff 参数给 envelope 处理留窗口期（默认 5 分钟）。
+     *
+     * @param tenantId 租户 ID
+     * @param cutoff   截止时间，仅清理 update_time 早于此时间的记录
+     * @return 孤儿 user_role 列表
+     */
+    List<UserRole> selectOrphansByCutoff(@Param("tenantId") Long tenantId,
+                                          @Param("cutoff") LocalDateTime cutoff);
 }

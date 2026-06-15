@@ -142,4 +142,15 @@
           AND delete_flag = 0
     </select>
 
+    <!-- 孤儿 user_role 查询：用户已软删但 user_role 仍存活（延迟补偿用） -->
+    <select id="selectOrphansByCutoff" resultType="cn.ac.fage.accessmesh.permission.entity.UserRole">
+        SELECT ur.*
+        FROM user_role ur
+        JOIN abstract_user au ON ur.abstract_user_id = au.id AND au.tenant_id = ur.tenant_id
+        WHERE ur.tenant_id = #{tenantId}
+          AND ur.delete_flag = 0
+          AND au.delete_flag != 0
+          AND ur.update_time &lt; #{cutoff}
+    </select>
+
 </mapper>
