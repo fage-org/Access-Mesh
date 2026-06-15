@@ -112,7 +112,7 @@ const selectedOrgIds = ref<number[]>([]);
 
 // 角色分配状态
 const roleSelectorVisible = ref(false);
-const selectedRoleId = ref<number | null>(null);
+const selectedRoleKey = ref<string | null>(null);
 const assignableRoles = ref<RoleItem[]>([]);
 const assignableRolesLoaded = ref(false);
 
@@ -206,8 +206,18 @@ const availableOrgs = computed(() => {
 
 async function handleRevoke(role: UserRoleItem) {
   try {
-    await revokeRole({ userId: props.user!.id, roleId: role.roleId });
-    roles.value = roles.value.filter(r => r.roleId !== role.roleId);
+    await revokeRole({
+      userId: props.user!.id,
+      roleTypeCode: role.roleTypeCode,
+      roleExternalId: role.roleExternalId
+    });
+    roles.value = roles.value.filter(
+      r =>
+        !(
+          r.roleTypeCode === role.roleTypeCode &&
+          r.roleExternalId === role.roleExternalId
+        )
+    );
     message("角色已移除", { type: "success" });
   } catch {
     message("移除失败", { type: "error" });
@@ -216,7 +226,7 @@ async function handleRevoke(role: UserRoleItem) {
 
 async function openRoleSelector() {
   if (!props.user) return;
-  selectedRoleId.value = null;
+  selectedRoleKey.value = null;
   roleSelectorVisible.value = true;
   // 懒加载功能角色候选；后端 /role/list 默认仅返回 BASIC_ROLE / GROUP_ROLE / PERSONAL
   if (!assignableRolesLoaded.value) {
@@ -230,13 +240,17 @@ async function openRoleSelector() {
 }
 
 async function handleAssignRole() {
-  if (!props.user || !selectedRoleId.value) return;
+  if (!props.user || !selectedRoleKey.value) return;
   const role = assignableRoles.value.find(
-    r => r.roleId === selectedRoleId.value
+    r => `${r.roleTypeCode}:${r.roleExternalId}` === selectedRoleKey.value
   );
   if (!role) return;
   try {
-    await assignRole({ userId: props.user.id, roleId: role.roleId });
+    await assignRole({
+      userId: props.user.id,
+      roleTypeCode: role.roleTypeCode,
+      roleExternalId: role.roleExternalId
+    });
     roles.value = await getUserRoles(props.user.id);
     roleSelectorVisible.value = false;
     message("角色已分配", { type: "success" });
@@ -473,16 +487,16 @@ function formatDate(val: string | null): string {
           class="mb-2 p-2 rounded border border-solid border-(--el-border-color)"
         >
           <el-select
-            v-model="selectedRoleId"
+            v-model="selectedRoleKey"
             placeholder="选择功能角色"
             filterable
             class="w-full! mb-2"
           >
             <el-option
               v-for="r in assignableRoles"
-              :key="r.roleId"
+              :key="`${r.roleTypeCode}:${r.roleExternalId}`"
               :label="r.roleName"
-              :value="r.roleId"
+              :value="`${r.roleTypeCode}:${r.roleExternalId}`"
             />
           </el-select>
           <div class="flex gap-1">
@@ -499,7 +513,7 @@ function formatDate(val: string | null): string {
           <template v-if="otherRoles.length > 0">
             <div
               v-for="role in otherRoles"
-              :key="role.roleId"
+              :key="`${role.roleTypeCode}:${role.roleExternalId}`"
               class="role-item"
             >
               <div class="flex items-center justify-between">

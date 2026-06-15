@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 用户-角色代理控制器
  * <p>
  * 代理 permission-center 的用户角色查询/分配/回收接口。
- * 前端使用 admin 数字 ID，Controller 内部完成 ID ↔ 业务键翻译。
+ * 前端使用业务键（roleTypeCode + roleExternalId），Controller 直接透传，
+ * 无需 ID ↔ 业务键翻译。
  * 仅服务功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG/POSITION（后者走 /user-org/*）。
  * <p>
  * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4
@@ -52,18 +53,19 @@ public class UserRoleController {
      * 为用户分配功能角色
      * <p>
      * 代理 permission-center /api/perm/user-role/assign。
-     * 前端传入 admin 数字 ID（userId + roleId），代理层完成 ID → 业务键翻译。
+     * 前端传入业务键（roleTypeCode + roleExternalId），代理层直接透传。
      * 对目标角色做实例级 ADMIN_ROLE:GRANT 权限校验。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *
-     * @param req 用户角色分配请求（含 userId + roleId）
+     * @param req 用户角色分配请求（含 userId + roleTypeCode + roleExternalId）
      * @return 操作成功结果
      */
     @PostMapping("/assign")
     public PermResult<Void> assignRole(
         @Valid @RequestBody UserRoleAssignReq req) {
-        roleProxyService.assignRole(req.userId(), req.roleId(), req.validFrom(), req.validTo());
+        roleProxyService.assignRole(req.userId(), req.roleTypeCode(), req.roleExternalId(),
+            req.validFrom(), req.validTo());
         return PermResult.success();
     }
 
@@ -71,18 +73,18 @@ public class UserRoleController {
      * 回收用户功能角色
      * <p>
      * 代理 permission-center /api/perm/user-role/revoke。
-     * 前端传入 admin 数字 ID（userId + roleId），代理层完成 ID → 业务键翻译。
+     * 前端传入业务键（roleTypeCode + roleExternalId），代理层直接透传。
      * 对目标角色做实例级 ADMIN_ROLE:REVOKE 权限校验。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *
-     * @param req 用户角色回收请求（含 userId + roleId）
+     * @param req 用户角色回收请求（含 userId + roleTypeCode + roleExternalId）
      * @return 操作成功结果
      */
     @PostMapping("/revoke")
     public PermResult<Void> revokeRole(
         @Valid @RequestBody UserRoleRevokeReq req) {
-        roleProxyService.revokeRole(req.userId(), req.roleId());
+        roleProxyService.revokeRole(req.userId(), req.roleTypeCode(), req.roleExternalId());
         return PermResult.success();
     }
 }

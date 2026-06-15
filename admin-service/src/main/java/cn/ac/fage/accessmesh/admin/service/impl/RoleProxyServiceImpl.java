@@ -172,9 +172,9 @@ public class RoleProxyServiceImpl implements RoleProxyService {
 
         return roles.stream()
             .map(r -> new RoleListItemResp(
-                r.id(),
-                r.name(),
                 r.roleTypeCode(),
+                r.externalId(),
+                r.name(),
                 ROLE_TYPE_LABELS.getOrDefault(r.roleTypeCode(), r.roleTypeCode())
             ))
             .collect(Collectors.toList());
@@ -441,8 +441,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 通过 Feign 查询用户角色，转为 {@link UserInfoResp.RoleInfo}。
      * <p>
-     * permission-center 业务键导向（{@code roleExternalId} 是 String），admin-service 的
-     * RoleInfo 需要 Long roleId——若 externalId 不能解析为 Long 则降级为 null（前端只用 roleName 显示）。
+     * 使用业务键标识角色；前端仅显示 roleName，不依赖内部 ID。
      */
     private List<UserInfoResp.RoleInfo> fetchUserRoles(Long tenantId, Long userId) {
         try {
@@ -455,7 +454,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 permissionFeignClient.getUserRoles(req);
             if (result != null && result.getData() != null && result.getData().roles() != null) {
                 return result.getData().roles().stream()
-                    .map(r -> new UserInfoResp.RoleInfo(parseRoleId(r.roleExternalId()), r.roleName()))
+                    .map(r -> new UserInfoResp.RoleInfo(null, r.roleName()))
                     .collect(Collectors.toList());
             }
         } catch (Exception e) {
@@ -486,18 +485,6 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             log.warn("Failed to fetch user permissions for tenant={}, userId={}", tenantId, userId, e);
         }
         return List.of();
-    }
-
-    /** 把 permission-center 的 roleExternalId（String）尽力解析为 Long，失败则返回 null。 */
-    private static Long parseRoleId(String externalId) {
-        if (externalId == null || externalId.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(externalId);
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     private RoleRef resolveRoleRef(Long roleId) {
@@ -568,17 +555,16 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                         SysOrg org = orgMap.get(r.relationId());
                         relationOrgName = org != null ? org.getName() : null;
                     }
-                    Long roleId = parseRoleId(r.roleExternalId());
                     return new UserRoleItemResp(
-                        roleId,
-                        r.roleName(),
                         r.roleTypeCode(),
+                        r.roleExternalId(),
+                        r.roleName(),
                         ROLE_TYPE_LABELS.getOrDefault(r.roleTypeCode(), r.roleTypeCode()),
                         r.targetType(),
                         r.relationId(),
                         relationOrgName,
-                        null, // validFrom
-                        null  // validTo
+                        r.validFrom(),
+                        r.validTo()
                     );
                 })
                 .collect(Collectors.toList());
@@ -603,14 +589,14 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
      */
     @Override
-    public void assignRole(Long userId, Long roleId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
+    public void assignRole(Long userId, String roleTypeCode, String roleExternalId,
+                           java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
         // 1. 实例级 ADMIN_ROLE:GRANT 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
         permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            String.valueOf(roleId), AdminOperationCode.GRANT);
+            roleExternalId, AdminOperationCode.GRANT);
 
-        // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
-        RoleRef roleRef = resolveRoleRef(roleId);
-        if ("ORG".equals(roleRef.roleTypeCode()) || "POSITION".equals(roleRef.roleTypeCode())) {
+        // 2. 校验角色类型为功能角色
+        if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "ORG/POSITION 角色请通过组织归属接口分配，不支持直接分配角色");
         }
@@ -621,8 +607,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 SUBJECT_TYPE_ADMIN_USER,
                 String.valueOf(userId),
                 null, // domainCode
-                roleRef.roleTypeCode(),
-                roleRef.externalId(),
+                roleTypeCode,
+                roleExternalId,
                 null, // relationId
                 validFrom,
                 validTo
@@ -630,15 +616,18 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             UserAssignRoleReq req = new UserAssignRoleReq(List.of(assignItem));
             PermResult<Void> result = permissionFeignClient.assignRole(req);
             if (result == null || result.getCode() != 200) {
-                log.warn("Failed to assign role to user: userId={}, roleId={}", userId, roleId);
+                log.warn("Failed to assign role to user: userId={}, roleTypeCode={}, roleExternalId={}",
+                    userId, roleTypeCode, roleExternalId);
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                     "Failed to assign role to user");
             }
-            log.info("Assigned role to user: userId={}, roleId={}", userId, roleId);
+            log.info("Assigned role to user: userId={}, roleTypeCode={}, roleExternalId={}",
+                userId, roleTypeCode, roleExternalId);
         } catch (BizException | SystemException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error assigning role to user: userId={}, roleId={}, error={}", userId, roleId, e.getMessage());
+            log.error("Error assigning role to user: userId={}, roleTypeCode={}, roleExternalId={}, error={}",
+                userId, roleTypeCode, roleExternalId, e.getMessage());
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                 "Failed to assign role to user: " + e.getMessage());
         }
@@ -657,14 +646,13 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
      */
     @Override
-    public void revokeRole(Long userId, Long roleId) {
+    public void revokeRole(Long userId, String roleTypeCode, String roleExternalId) {
         // 1. 实例级 ADMIN_ROLE:REVOKE 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
         permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            String.valueOf(roleId), AdminOperationCode.REVOKE);
+            roleExternalId, AdminOperationCode.REVOKE);
 
-        // 2. 解析角色 ID → 业务键，校验角色类型为功能角色
-        RoleRef roleRef = resolveRoleRef(roleId);
-        if ("ORG".equals(roleRef.roleTypeCode()) || "POSITION".equals(roleRef.roleTypeCode())) {
+        // 2. 校验角色类型为功能角色
+        if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "ORG/POSITION 角色请通过组织归属接口回收，不支持直接回收角色");
         }
@@ -675,22 +663,25 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 SUBJECT_TYPE_ADMIN_USER,
                 String.valueOf(userId),
                 null, // domainCode
-                roleRef.roleTypeCode(),
-                roleRef.externalId(),
+                roleTypeCode,
+                roleExternalId,
                 null  // relationId
             );
             UserRoleBatchRevokeReq req = new UserRoleBatchRevokeReq(List.of(revokeItem));
             PermResult<Void> result = permissionFeignClient.revokeRoles(req);
             if (result == null || result.getCode() != 200) {
-                log.warn("Failed to revoke role from user: userId={}, roleId={}", userId, roleId);
+                log.warn("Failed to revoke role from user: userId={}, roleTypeCode={}, roleExternalId={}",
+                    userId, roleTypeCode, roleExternalId);
                 throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                     "Failed to revoke role from user");
             }
-            log.info("Revoked role from user: userId={}, roleId={}", userId, roleId);
+            log.info("Revoked role from user: userId={}, roleTypeCode={}, roleExternalId={}",
+                userId, roleTypeCode, roleExternalId);
         } catch (BizException | SystemException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Error revoking role from user: userId={}, roleId={}, error={}", userId, roleId, e.getMessage());
+            log.error("Error revoking role from user: userId={}, roleTypeCode={}, roleExternalId={}, error={}",
+                userId, roleTypeCode, roleExternalId, e.getMessage());
             throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
                 "Failed to revoke role from user: " + e.getMessage());
         }

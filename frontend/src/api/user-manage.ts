@@ -81,9 +81,9 @@ export type PaginatedResult<T> = {
 };
 
 export type UserRoleItem = {
-  roleId: number;
+  roleTypeCode: string;
+  roleExternalId: string;
   roleName: string;
-  roleTypeCode: "ORG" | "POSITION" | "PERSONAL" | "GROUP_ROLE" | "BASIC_ROLE";
   roleTypeLabel: string;
   targetType: string;
   relationId: number | null;
@@ -166,9 +166,9 @@ export type OrgPageItem = {
 
 /** 功能角色列表项（仅 BASIC_ROLE / GROUP_ROLE / PERSONAL，不含 ORG / POSITION） */
 export type RoleItem = {
-  roleId: number;
-  roleName: string;
   roleTypeCode: string;
+  roleExternalId: string;
+  roleName: string;
   roleTypeLabel?: string;
 };
 
@@ -301,10 +301,11 @@ export const getUserRoles = async (userId: number): Promise<UserRoleItem[]> => {
   return unwrap(res).items;
 };
 
-/** 分配角色（POST /user-role/assign） */
+/** 分配角色（POST /user-role/assign，业务键标识） */
 export const assignRole = async (data: {
   userId: number;
-  roleId: number;
+  roleTypeCode: string;
+  roleExternalId: string;
   validFrom?: string;
   validTo?: string;
 }): Promise<void> => {
@@ -313,10 +314,11 @@ export const assignRole = async (data: {
   );
 };
 
-/** 回收角色（POST /user-role/revoke） */
+/** 回收角色（POST /user-role/revoke，业务键标识） */
 export const revokeRole = async (data: {
   userId: number;
-  roleId: number;
+  roleTypeCode: string;
+  roleExternalId: string;
 }): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>("post", "/user-role/revoke", { data })
@@ -392,9 +394,13 @@ export const resetUserPassword = async (data: {
 
 /** 获取功能角色列表（POST /role/list，仅 BASIC_ROLE / GROUP_ROLE / PERSONAL） */
 export const getRoleList = async (): Promise<RoleItem[]> => {
-  const res = await http.request<PermResult<{ items: RoleItem[] }>>("post", "/role/list", {
-    data: {}
-  });
+  const res = await http.request<PermResult<{ items: RoleItem[] }>>(
+    "post",
+    "/role/list",
+    {
+      data: {}
+    }
+  );
   return unwrap(res).items;
 };
 

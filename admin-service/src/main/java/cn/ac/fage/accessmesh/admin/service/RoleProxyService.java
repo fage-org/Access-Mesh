@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserRoleItemResp;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -12,6 +13,8 @@ import java.util.List;
  * 提供admin-service与permission-center之间的角色操作代理方法。
  * 用于在admin-service中创建和管理permission-center的角色，
  * 实现跨服务的角色权限管理功能。
+ * 接口使用业务键（roleTypeCode + roleExternalId）标识角色，
+ * 不暴露 permission-center 内部 ID。
  * </p>
  */
 public interface RoleProxyService {
@@ -19,7 +22,7 @@ public interface RoleProxyService {
     /**
      * 查询功能角色列表
      * <p>
-     * 从permission-center查询指定类型的角色列表，转换为前端展示格式。
+     * 从permission-center查询指定类型的角色，转换为前端展示格式。
      * 默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG 和 POSITION。
      * </p>
      *
@@ -98,30 +101,33 @@ public interface RoleProxyService {
     /**
      * 为用户分配功能角色（admin 代理 permission-center）。
      * <p>
-     * 前端传入 admin 数字 ID，代理层完成 ID → 业务键翻译后调用 permission-center。
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 前端传入业务键，代理层直接透传给 permission-center。
+     * 对目标角色做实例级 ADMIN_ROLE:GRANT 权限校验。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
      *
-     * @param userId    用户 ID
-     * @param roleId    角色 ID（permission-center abstract_role.id）
-     * @param validFrom 有效期起始（可选）
-     * @param validTo   有效期截止（可选）
+     * @param userId         用户 ID
+     * @param roleTypeCode   角色类型码（如 BASIC_ROLE / GROUP_ROLE / PERSONAL）
+     * @param roleExternalId 角色外部标识（permission-center 业务键）
+     * @param validFrom      有效期起始（可选）
+     * @param validTo        有效期截止（可选）
      */
-    void assignRole(Long userId, Long roleId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo);
+    void assignRole(Long userId, String roleTypeCode, String roleExternalId,
+                    LocalDateTime validFrom, LocalDateTime validTo);
 
     /**
      * 回收用户功能角色（admin 代理 permission-center）。
      * <p>
-     * 前端传入 admin 数字 ID，代理层完成 ID → 业务键翻译后调用 permission-center。
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 前端传入业务键，代理层直接透传给 permission-center。
+     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 权限校验。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
      *
-     * @param userId 用户 ID
-     * @param roleId 角色 ID（permission-center abstract_role.id）
+     * @param userId         用户 ID
+     * @param roleTypeCode   角色类型码
+     * @param roleExternalId 角色外部标识（permission-center 业务键）
      */
-    void revokeRole(Long userId, Long roleId);
+    void revokeRole(Long userId, String roleTypeCode, String roleExternalId);
 }
