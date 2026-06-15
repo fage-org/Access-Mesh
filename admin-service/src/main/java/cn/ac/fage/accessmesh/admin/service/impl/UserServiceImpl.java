@@ -25,6 +25,7 @@ import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.admin.service.UserService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.admin.service.security.OrgVisibilityService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
@@ -78,6 +79,7 @@ public class UserServiceImpl implements UserService {
     private final SyncTaskDomainService syncTaskDomainService;
     private final SyncTaskBuilder syncTaskBuilder;
     private final AdminPermissionValidator permissionValidator;
+    private final OrgVisibilityService orgVisibilityService;
 
     /**
      * 构造函数注入依赖
@@ -99,7 +101,8 @@ public class UserServiceImpl implements UserService {
                            OrgDomainService orgDomainService,
                            SyncTaskDomainService syncTaskDomainService,
                            SyncTaskBuilder syncTaskBuilder,
-                           AdminPermissionValidator permissionValidator) {
+                           AdminPermissionValidator permissionValidator,
+                           OrgVisibilityService orgVisibilityService) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
@@ -109,6 +112,7 @@ public class UserServiceImpl implements UserService {
         this.syncTaskDomainService = syncTaskDomainService;
         this.syncTaskBuilder = syncTaskBuilder;
         this.permissionValidator = permissionValidator;
+        this.orgVisibilityService = orgVisibilityService;
     }
 
     /**
@@ -469,14 +473,37 @@ public class UserServiceImpl implements UserService {
             // 契约 §4.1.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
             validateOrgInDefaultTree(tenantId, req.orgId());
 
+            // EXT-3 修复：验证操作者对该 orgId 有 ADMIN_ORG:VIEW 权限
+            Long operatorId = StpUtil.getLoginIdAsLong();
+            Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+            if (!visibleOrgIds.contains(req.orgId())) {
+                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                    AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            }
+
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
-            if (subtreeIds.isEmpty()) {
+            // 裁剪子树到操作者可见范围
+            Set<Long> visibleSubtree = subtreeIds.stream()
+                .filter(visibleOrgIds::contains)
+                .collect(Collectors.toSet());
+            if (visibleSubtree.isEmpty()) {
                 return new PaginatedResult<>(
                     List.of(),
                     new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
                 );
             }
-            orgIds = Set.copyOf(subtreeIds);
+            orgIds = visibleSubtree;
+        } else {
+            // EXT-3 修复：orgId 为空时也按操作者可见默认树裁剪，不再返回全量
+            Long operatorId = StpUtil.getLoginIdAsLong();
+            Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+            if (visibleOrgIds.isEmpty()) {
+                return new PaginatedResult<>(
+                    List.of(),
+                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                );
+            }
+            orgIds = visibleOrgIds;
         }
 
         Page<SysUser> page = Page.of(pageNum, pageSize);
@@ -666,19 +693,15 @@ public class UserServiceImpl implements UserService {
                 AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        // 1. 确定默认组织树中操作者可见的组织范围
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        if (defaultConfigs.isEmpty()) {
-            return emptyMemberCandidates(req);
-        }
-        Long defaultRootOrgId = defaultConfigs.get(0).getRootOrgId();
-        List<Long> visibleOrgIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, defaultRootOrgId);
+        // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ADMIN_ORG:VIEW 裁剪）
+        Long operatorId = StpUtil.getLoginIdAsLong();
+        Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
             return emptyMemberCandidates(req);
         }
 
         // 2. 收集默认树可见范围内的用户 ID
-        Set<Long> defaultTreeOrgIdSet = Set.copyOf(visibleOrgIds);
+        Set<Long> defaultTreeOrgIdSet = visibleOrgIds;
         List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
             tenantId, List.copyOf(defaultTreeOrgIdSet));
         Set<Long> candidateUserIds = defaultTreeUserOrgs.stream()
@@ -785,16 +808,16 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 默认树边界二次校验：校验目标用户是否在操作者默认树可管范围内。
+     * 默认树边界 + 操作者可见范围二次校验（EXT-4 修复）。
      * <p>
-     * 实现策略：验证每个目标用户在默认组织树中至少有一个组织关系（sys_user_org）。
-     * 若任一用户不在默认树范围内，整批操作拒绝。
+     * 验证每个目标用户在操作者 ADMIN_ORG:VIEW 可见的默认树组织范围内有至少一个归属关系。
+     * 若任一用户不在操作者可见范围内，整批操作拒绝。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §2 门禁规范
      *
-     * @param tenantId 租户 ID
-     * @param userIds  目标用户 ID 集合
-     * @throws BizException 任一用户不在默认树可管范围
+     * @param tenantId   租户 ID
+     * @param userIds    目标用户 ID 集合
+     * @throws BizException 任一用户不在操作者可见范围
      */
     private void validateUsersInDefaultTreeScope(Long tenantId, Set<Long> userIds) {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
@@ -802,25 +825,27 @@ public class UserServiceImpl implements UserService {
             // 无默认树配置，无法验证，放行（由门禁层兜底）
             return;
         }
-        Long defaultRootOrgId = defaultConfigs.get(0).getRootOrgId();
-        List<Long> defaultTreeOrgIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, defaultRootOrgId);
-        if (defaultTreeOrgIds.isEmpty()) {
-            throw new BizException(AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getCode(),
-                AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getMessage());
+
+        // EXT-4 修复：使用操作者可见范围替代全量默认树后代
+        Long operatorId = StpUtil.getLoginIdAsLong();
+        Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+        if (visibleOrgIds.isEmpty()) {
+            throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
         }
 
-        // 查默认树范围内的用户组织关系
-        List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
-            tenantId, List.copyOf(defaultTreeOrgIds));
-        Set<Long> usersInDefaultTree = defaultTreeUserOrgs.stream()
+        // 查操作者可见范围内的用户组织关系
+        List<SysUserOrg> visibleUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+            tenantId, List.copyOf(visibleOrgIds));
+        Set<Long> usersInVisibleScope = visibleUserOrgs.stream()
             .map(SysUserOrg::getUserId)
             .collect(Collectors.toSet());
 
-        // 任一目标用户不在默认树范围内则拒绝
+        // 任一目标用户不在操作者可见范围内则拒绝
         for (Long userId : userIds) {
-            if (!usersInDefaultTree.contains(userId)) {
-                throw new BizException(AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getCode(),
-                    AdminErrorCode.USER_NOT_IN_DEFAULT_TREE_SCOPE.getMessage());
+            if (!usersInVisibleScope.contains(userId)) {
+                throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                    AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
             }
         }
     }

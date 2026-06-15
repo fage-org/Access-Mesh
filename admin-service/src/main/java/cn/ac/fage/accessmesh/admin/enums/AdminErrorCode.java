@@ -313,7 +313,12 @@ public enum AdminErrorCode {
     /**
      * 用户与目标组织不存在关联关系
      */
-    USER_ORG_RELATION_NOT_FOUND(11015, "用户与目标组织不存在关联关系");
+    USER_ORG_RELATION_NOT_FOUND(11015, "用户与目标组织不存在关联关系"),
+
+    /**
+     * 用户不在操作者可见范围内（权限边界校验失败）
+     */
+    USER_NOT_IN_OPERATOR_VISIBLE_SCOPE(11016, "用户不在操作者可见范围内");
 
     /**
      * 错误码
