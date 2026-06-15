@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.admin.service.UserOrgService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.admin.support.UserOrgKeys;
 import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
 import cn.ac.fage.accessmesh.admin.sync.model.SyncTaskEnvelope;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -129,7 +130,7 @@ public class UserOrgServiceImpl implements UserOrgService {
             for (SysUserOrg assoc : toInsert) {
                 cn.ac.fage.accessmesh.admin.entity.SysOrg org = orgMap.get(assoc.getOrgId());
                 String roleTypeCode = isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-                String relationKey = roleTypeCode + ":" + assoc.getOrgId();
+                String relationKey = UserOrgKeys.relationKey(assoc.getOrgId());
                 String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(
                     tenantId, assoc.getOrgId());
                 SyncTaskEnvelope env = syncTaskBuilder.userOrgBind(assoc.getUserId(), assoc.getOrgId(),
@@ -205,7 +206,7 @@ public class UserOrgServiceImpl implements UserOrgService {
 
         // Outbox: enqueue PERM_USER_ROLE_SYNC UNBIND envelope
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-        String relationKey = roleTypeCode + ":" + orgId;
+        String relationKey = UserOrgKeys.relationKey(orgId);
         String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
         SyncTaskEnvelope env = syncTaskBuilder.userOrgUnbind(userId, orgId, roleTypeCode,
             relationKey, treeRootExternalId);

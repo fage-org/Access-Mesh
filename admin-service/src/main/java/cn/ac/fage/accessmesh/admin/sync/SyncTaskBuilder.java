@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.admin.support.UserOrgKeys;
 import cn.ac.fage.accessmesh.admin.sync.model.SyncTaskEnvelope;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -928,7 +929,7 @@ public final class SyncTaskBuilder {
                 String userExternalId = String.valueOf(b.getUserId());
                 String orgExternalId = String.valueOf(b.getOrgId());
                 // 调用方已按桶分组：item.roleTypeCode 直接信任 scope.roleTypeCode，不再二级推断
-                String relationKey = roleTypeCode + ":" + orgExternalId;
+                String relationKey = UserOrgKeys.relationKey(orgExternalId);
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("subjectTypeCode", AdminResourceType.USER);
                 item.put("subjectExternalId", userExternalId);

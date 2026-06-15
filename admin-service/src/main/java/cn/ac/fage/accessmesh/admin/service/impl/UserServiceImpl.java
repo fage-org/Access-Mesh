@@ -28,6 +28,7 @@ import cn.ac.fage.accessmesh.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.admin.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.admin.support.UserOrgKeys;
 import cn.ac.fage.accessmesh.admin.sync.SyncTaskBuilder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -201,16 +202,17 @@ public class UserServiceImpl implements UserService {
             // 契约 §4.1.3 同步动作 4：带 orgId 时入队 PERM_USER_ROLE_SYNC (BIND)
             SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
-            String relationKey = "ORG:" + req.orgId();
-            // 组织树根 externalId：取默认树根 orgId
-            Long defaultRootId = defaultConfigs.get(0).getRootOrgId();
+            String relationKey = UserOrgKeys.relationKey(req.orgId());
+            // 组织树根 externalId：通过 resolver 精确解析，避免多默认树 / 岗位场景错配
+            String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(
+                tenantId, req.orgId());
             syncTaskDomainService.enqueueAll(tenantId,
                 List.of(syncTaskBuilder.userOrgBind(
                     user.getId(),
                     req.orgId(),
                     roleTypeCode,
                     relationKey,
-                    String.valueOf(defaultRootId)
+                    treeRootExternalId
                 )));
             log.info("Enqueued user-org bind sync: userId={}, orgId={}, roleTypeCode={}",
                 user.getId(), req.orgId(), roleTypeCode);
@@ -311,18 +313,22 @@ public class UserServiceImpl implements UserService {
 
         // 1. 先入队每条 user-org 的 UNBIND 同步任务（必须在软删前查，否则关系被清）
         List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, req.ids());
-        // 获取默认树根（用于 treeRootExternalId）
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        String defaultRootExternalId = !defaultConfigs.isEmpty()
-            ? String.valueOf(defaultConfigs.get(0).getRootOrgId()) : null;
+        // 批量解析 treeRootExternalId（避免循环单条调用，EXT-5 修复）
+        Set<Long> orgIds = allUserOrgs.stream()
+            .map(SysUserOrg::getOrgId)
+            .collect(Collectors.toSet());
+        Map<Long, String> rootExternalIdMap = orgIds.isEmpty()
+            ? Map.of()
+            : orgTreeConfigDomainService.resolveTreeRootExternalIds(tenantId, orgIds);
 
         for (SysUserOrg uo : allUserOrgs) {
             SysOrg org = orgDomainService.selectValidById(tenantId, uo.getOrgId());
             String roleTypeCode = resolveOrgRoleTypeCode(org);
-            String relationKey = "ORG:" + uo.getOrgId();
+            String relationKey = UserOrgKeys.relationKey(uo.getOrgId());
+            String treeRootExternalId = rootExternalIdMap.get(uo.getOrgId());
             syncTaskDomainService.enqueueAll(tenantId,
                 List.of(syncTaskBuilder.userOrgUnbind(
-                    uo.getUserId(), uo.getOrgId(), roleTypeCode, relationKey, defaultRootExternalId)));
+                    uo.getUserId(), uo.getOrgId(), roleTypeCode, relationKey, treeRootExternalId)));
         }
         log.info("Enqueued {} user-org unbind sync envelopes for delete batch", allUserOrgs.size());
 
