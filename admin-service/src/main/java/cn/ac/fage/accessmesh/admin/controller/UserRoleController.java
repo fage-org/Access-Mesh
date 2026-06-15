@@ -6,19 +6,18 @@ import cn.ac.fage.accessmesh.admin.dto.req.UserRoleRevokeReq;
 import cn.ac.fage.accessmesh.admin.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * 用户-角色代理控制器
  * <p>
  * 代理 permission-center 的用户角色查询/分配/回收接口。
- * 前端使用 admin-service 数字 ID，Controller 内部完成 ID ↔ 业务键翻译。
+ * 前端使用 admin 数字 ID，Controller 内部完成 ID ↔ 业务键翻译。
  * 仅服务功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG/POSITION（后者走 /user-org/*）。
  * <p>
  * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4
@@ -41,12 +40,12 @@ public class UserRoleController {
      * </p>
      *
      * @param req 用户角色列表查询请求（含 userId）
-     * @return 用户角色列表
+     * @return 用户角色列表（{ items: [...] } 包装）
      */
     @PostMapping("/list")
-    public PermResult<List<UserRoleItemResp>> listUserRoles(
+    public PermResult<ItemsResp<UserRoleItemResp>> listUserRoles(
         @Valid @RequestBody UserRoleListReq req) {
-        return PermResult.success(roleProxyService.listUserRoles(req.userId()));
+        return PermResult.success(new ItemsResp<>(roleProxyService.listUserRoles(req.userId())));
     }
 
     /**
@@ -54,7 +53,7 @@ public class UserRoleController {
      * <p>
      * 代理 permission-center /api/perm/user-role/assign。
      * 前端传入 admin 数字 ID（userId + roleId），代理层完成 ID → 业务键翻译。
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 对目标角色做实例级 ADMIN_ROLE:GRANT 权限校验。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *
@@ -73,7 +72,7 @@ public class UserRoleController {
      * <p>
      * 代理 permission-center /api/perm/user-role/revoke。
      * 前端传入 admin 数字 ID（userId + roleId），代理层完成 ID → 业务键翻译。
-     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
+     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 权限校验。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *

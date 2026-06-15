@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.enums.DefaultOpCode;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
@@ -54,11 +55,11 @@ public class RoleController {
      * @return 角色列表
      */
     @PostMapping("/list")
-    public PermResult<List<RoleListItemResp>> listRoles(@RequestBody(required = false) RoleListQueryReq req) {
+    public PermResult<ItemsResp<RoleListItemResp>> listRoles(@RequestBody(required = false) RoleListQueryReq req) {
         List<String> typeCodes = req != null && req.roleTypeCodes() != null
             ? req.roleTypeCodes()
             : null;
-        return PermResult.success(roleProxyService.listRoles(typeCodes));
+        return PermResult.success(new ItemsResp<>(roleProxyService.listRoles(typeCodes)));
     }
 
     /**

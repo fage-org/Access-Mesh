@@ -189,25 +189,24 @@ M5 重构 `listUserRoles` 时一并修复 `validFrom/validTo` 透传（原 line 
 
 **新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/support/UserOrgKeys.java`
 
+> **修正（2026-06-15）**：初版错误地使用 `roleTypeCode` 当前缀（POSITION → `POSITION:xxx`），
+> 但契约 §6.2.2.4 明确 relationKey **固定格式 `ORG:{orgExternalId}`**，无论角色类型。
+> 已修正为 `relationKey(Object orgIdOrExternalId)`，前缀固定 `ORG:`。
+
 ```java
 public final class UserOrgKeys {
     private UserOrgKeys() {}
 
     /**
-     * 用户-组织关联同步的 relationKey 拼装
-     * 格式：{roleTypeCode}:{orgId}
-     * 例：ORG:1001（普通组织）/ POSITION:2001（岗位）
-     *
-     * 与 permission-center api-contract.md §6.2.2.4 (PERM_USER_ROLE_SYNC) 对齐
+     * relationKey 固定格式 ORG:{orgIdOrExternalId}
+     * 与 permission-center api-contract.md §6.2.2.4 对齐
+     * 即使角色类型为 POSITION，前缀也使用 ORG
      */
-    public static String relationKey(String roleTypeCode, Object orgIdOrExternalId) {
-        if (roleTypeCode == null || roleTypeCode.isBlank()) {
-            throw new IllegalArgumentException("roleTypeCode 不能为空");
-        }
+    public static String relationKey(Object orgIdOrExternalId) {
         if (orgIdOrExternalId == null) {
             throw new IllegalArgumentException("orgIdOrExternalId 不能为空");
         }
-        return roleTypeCode + ":" + orgIdOrExternalId;
+        return "ORG:" + orgIdOrExternalId;
     }
 }
 ```
@@ -216,16 +215,16 @@ public final class UserOrgKeys {
 
 | 文件 | 改动 |
 |------|------|
-| `admin-service/.../UserServiceImpl.java` `createUser` line 204（**EXT-2 修复**） | `String relationKey = "ORG:" + req.orgId();` → `String relationKey = UserOrgKeys.relationKey(roleTypeCode, req.orgId());` |
-| `UserServiceImpl.deleteUser` line 322（**P1-E 修复**） | `String relationKey = "ORG:" + uo.getOrgId();` → `String relationKey = UserOrgKeys.relationKey(roleTypeCode, uo.getOrgId());` |
+| `admin-service/.../UserServiceImpl.java` `createUser` line 204（**EXT-2 修复**） | `String relationKey = "ORG:" + req.orgId();` → `String relationKey = UserOrgKeys.relationKey(req.orgId());` |
+| `UserServiceImpl.deleteUser` line 322（**P1-E 修复**） | `String relationKey = "ORG:" + uo.getOrgId();` → `String relationKey = UserOrgKeys.relationKey(uo.getOrgId());` |
 
 #### M10：UserOrgServiceImpl + SyncTaskBuilder 收敛到 helper
 
 | 文件 | 改动 |
 |------|------|
-| `admin-service/.../UserOrgServiceImpl.java` line 132 | `String relationKey = roleTypeCode + ":" + assoc.getOrgId();` → `UserOrgKeys.relationKey(...)` |
-| `UserOrgServiceImpl.java` line 208 | `String relationKey = roleTypeCode + ":" + orgId;` → `UserOrgKeys.relationKey(...)` |
-| `admin-service/.../SyncTaskBuilder.java` line 931 | `String relationKey = roleTypeCode + ":" + orgExternalId;` → `UserOrgKeys.relationKey(...)` |
+| `admin-service/.../UserOrgServiceImpl.java` line 132 | `String relationKey = roleTypeCode + ":" + assoc.getOrgId();` → `UserOrgKeys.relationKey(assoc.getOrgId())` |
+| `UserOrgServiceImpl.java` line 208 | `String relationKey = roleTypeCode + ":" + orgId;` → `UserOrgKeys.relationKey(orgId)` |
+| `admin-service/.../SyncTaskBuilder.java` line 931 | `String relationKey = roleTypeCode + ":" + orgExternalId;` → `UserOrgKeys.relationKey(orgExternalId)` |
 
 **额外修复 EXT-5**：
 
@@ -431,7 +430,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ❌ 未开始（修订：取消 RoleResolver，改为接口收业务键） |
 | M6 | 删除 `parseRoleId` + `resolveRoleRef` | ❌ 未开始 |
 | M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ❌ 未开始 |
-| M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3） |
+| M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3，修正 relationKey 固定 ORG 前缀） |
 | M9 | UserServiceImpl createUser/deleteUser 用 helper | ❌ 未开始 |
 | M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ❌ 未开始（修订：批量 resolveTreeRootExternalIds） |
 | M11 | 新增 `OrgVisibilityService` | ❌ 未开始 |

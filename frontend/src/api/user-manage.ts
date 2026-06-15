@@ -293,12 +293,12 @@ export const setPrimaryOrg = async (data: {
 
 /** 获取用户角色列表（POST /user-role/list） */
 export const getUserRoles = async (userId: number): Promise<UserRoleItem[]> => {
-  const res = await http.request<PermResult<UserRoleItem[]>>(
+  const res = await http.request<PermResult<{ items: UserRoleItem[] }>>(
     "post",
     "/user-role/list",
     { data: { userId } }
   );
-  return unwrap(res);
+  return unwrap(res).items;
 };
 
 /** 分配角色（POST /user-role/assign） */
@@ -392,10 +392,10 @@ export const resetUserPassword = async (data: {
 
 /** 获取功能角色列表（POST /role/list，仅 BASIC_ROLE / GROUP_ROLE / PERSONAL） */
 export const getRoleList = async (): Promise<RoleItem[]> => {
-  const res = await http.request<PermResult<RoleItem[]>>("post", "/role/list", {
+  const res = await http.request<PermResult<{ items: RoleItem[] }>>("post", "/role/list", {
     data: {}
   });
-  return unwrap(res);
+  return unwrap(res).items;
 };
 
 // ========== /org/users 查询组织下用户 ==========
