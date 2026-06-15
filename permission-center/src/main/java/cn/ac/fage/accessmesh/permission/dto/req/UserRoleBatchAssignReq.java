@@ -14,7 +14,9 @@ import java.util.List;
  *
  * @param subjectExternalIds 用户外部标识列表，必填且不能为空
  * @param subjectTypeCode    用户类型编码，必填
- * @param domainCode         业务域编码，必填
+ * @param domainCode         业务域编码：功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）允许 null
+ *                           表示全局域；ORG/POSITION 必填（由 UserManageAppServiceImpl 入口
+ *                           跨字段业务校验保证）
  * @param roleTypeCode       角色类型编码，必填
  * @param roleExternalId     角色外部标识，必填
  * @param relationId         关系ID，可选，用于指定关联记录
@@ -22,7 +24,7 @@ import java.util.List;
 public record UserRoleBatchAssignReq(
     @NotEmpty List<String> subjectExternalIds,
     @NotBlank String subjectTypeCode,
-    @NotBlank String domainCode,
+    String domainCode,
     @NotBlank String roleTypeCode,
     @NotBlank String roleExternalId,
     Long relationId

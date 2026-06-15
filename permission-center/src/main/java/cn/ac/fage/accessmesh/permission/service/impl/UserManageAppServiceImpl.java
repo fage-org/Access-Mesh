@@ -69,6 +69,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     private static final Logger log = LoggerFactory.getLogger(UserManageAppServiceImpl.class);
 
+    private static final Set<String> ROLE_TYPES_REQUIRING_DOMAIN = Set.of("ORG", "POSITION");
+
     private final AbstractUserMapper abstractUserMapper;
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
@@ -78,6 +80,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private final AuditDomainService auditDomainService;
     private final ObjectMapper objectMapper;
     private final PermQueryEngine engine;
+
+    /**
+     * Feature flag：是否启用 ORG/POSITION 角色的 domainCode 必填校验。
+     * 上线时先设 false 观察一轮，确认存量无脏数据后再改为 true。
+     */
+    @org.springframework.beans.factory.annotation.Value("${permission.assign.strict-domain-check:true}")
+    private boolean strictDomainCheck;
 
     /**
      * 构造函数注入依赖
@@ -110,6 +119,19 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         this.auditDomainService = auditDomainService;
         this.objectMapper = objectMapper;
         this.engine = engine;
+    }
+
+    /**
+     * 跨字段业务校验：ORG/POSITION 角色必须指定 domainCode。
+     * 由 Feature flag {@code permission.assign.strict-domain-check} 控制开关。
+     */
+    private void validateDomainCodeForOrgPosition(String roleTypeCode, String domainCode) {
+        if (strictDomainCheck
+            && ROLE_TYPES_REQUIRING_DOMAIN.contains(roleTypeCode)
+            && (domainCode == null || domainCode.isBlank())) {
+            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                "ORG/POSITION 角色必须指定 domainCode");
+        }
     }
 
     @Override
@@ -245,6 +267,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         if (req.items() == null || req.items().isEmpty()) {
             throw new BizException(PermissionErrorCode.REQUEST_ITEMS_EMPTY.getCode(), "items must not be empty");
+        }
+
+        // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
+        for (UserAssignRoleReq.AssignItem item : req.items()) {
+            validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
 
         Map<String, Set<String>> userExternalIdsByType = req.items().stream()
@@ -388,6 +415,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             return;
         }
 
+        // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
+        validateDomainCodeForOrgPosition(req.roleTypeCode(), req.domainCode());
+
         Long operatorId = OperatorContext.getOperatorId();
 
         Map<String, Long> userIdMap = typeResolutionService.batchResolveUserIds(
@@ -495,6 +525,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (req.items() == null || req.items().isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
+        }
+
+        // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
+        for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
+            validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
 
         Set<String> roleExternalIds = req.items().stream()

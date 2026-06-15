@@ -425,7 +425,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | ID | 改动 | 状态 |
 |----|------|------|
 | M1 | perm-common DTO 放宽 `@NotBlank` | ✅ 完成（2026-06-14 Phase 1） |
-| M2 | permission-center 跨字段业务校验（Feature flag） | ❌ 未开始 |
+| M2 | permission-center 跨字段业务校验（Feature flag） | ✅ 完成（2026-06-15 Phase 2） |
 | M3 | RoleProxyServiceImpl 门禁码切换 GRANT/REVOKE | ✅ 完成（2026-06-14 Phase 1） |
 | M4 | 删除 `AdminOperationCode.MANAGE` | ✅ 完成（2026-06-14 Phase 1） |
 | M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ❌ 未开始（修订：取消 RoleResolver，改为接口收业务键） |
