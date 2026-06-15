@@ -145,7 +145,7 @@ class SyncTaskBuilderFullSyncTest {
     }
 
     @Test
-    @DisplayName("userOrgFullSync: roleTypeCode=POSITION 桶 → item.roleTypeCode=POSITION 且 relationKey 前缀 POSITION")
+    @DisplayName("userOrgFullSync: roleTypeCode=POSITION 桶 → item.roleTypeCode=POSITION 且 relationKey 前缀固定 ORG")
     void userOrgFullSync_positionItem_yieldsPositionRoleType() throws Exception {
         SysUserOrg b = new SysUserOrg();
         b.setUserId(10002L);
@@ -160,7 +160,9 @@ class SyncTaskBuilderFullSyncTest {
 
         JsonNode item = root.get("items").get(0);
         assertThat(item.get("roleTypeCode").asText()).isEqualTo("POSITION");
-        assertThat(item.get("relationKey").asText()).isEqualTo("POSITION:3001");
+        // M10 修正：relationKey 前缀固定为 ORG（与 api-contract.md §6.2.2.4 对齐），
+        // 无论 roleTypeCode 是 ORG 还是 POSITION
+        assertThat(item.get("relationKey").asText()).isEqualTo("ORG:3001");
         assertThat(item.get("subjectExternalId").asText()).isEqualTo("10002");
         assertThat(item.get("roleExternalId").asText()).isEqualTo("3001");
     }

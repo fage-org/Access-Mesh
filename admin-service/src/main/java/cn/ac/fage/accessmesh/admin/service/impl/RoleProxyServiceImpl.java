@@ -582,8 +582,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 分配用户功能角色（admin 代理 permission-center）。
      * <p>
-     * 对目标角色做实例级 ADMIN_ROLE:GRANT 门禁（admin 入口层），permission-center
-     * 内部还会做 ROLE:MANAGE 二次校验，形成双层门禁。
+     * 对目标角色做实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
@@ -591,9 +590,9 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     @Override
     public void assignRole(Long userId, String roleTypeCode, String roleExternalId,
                            java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
-        // 1. 实例级 ADMIN_ROLE:GRANT 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
-        permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            roleExternalId, AdminOperationCode.GRANT);
+        // 1. 实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）
+        permissionValidator.checkInstanceLevel("ROLE",
+            roleExternalId, "MANAGE");
 
         // 2. 校验角色类型为功能角色
         if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {
@@ -639,17 +638,16 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     /**
      * 回收用户功能角色（admin 代理 permission-center）。
      * <p>
-     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 门禁（admin 入口层），permission-center
-     * 内部还会做 ROLE:MANAGE 二次校验，形成双层门禁。
+     * 对目标角色做实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
      */
     @Override
     public void revokeRole(Long userId, String roleTypeCode, String roleExternalId) {
-        // 1. 实例级 ADMIN_ROLE:REVOKE 门禁（admin 入口层；perm-center 内部另有 ROLE:MANAGE）
-        permissionValidator.checkInstanceLevel(AdminResourceType.ROLE,
-            roleExternalId, AdminOperationCode.REVOKE);
+        // 1. 实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）
+        permissionValidator.checkInstanceLevel("ROLE",
+            roleExternalId, "MANAGE");
 
         // 2. 校验角色类型为功能角色
         if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {

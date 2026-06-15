@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
  * 代理 permission-center 的用户角色查询/分配/回收接口。
  * 前端使用业务键（roleTypeCode + roleExternalId），Controller 直接透传，
  * 无需 ID ↔ 业务键翻译。
+ * 门禁：ROLE:MANAGE（与 org-user-permission-contract.md §5 备注³ 对齐，
+ * 功能角色分配/回收使用同一操作码，不得复用 ADMIN_ROLE:GRANT/REVOKE）。
  * 仅服务功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），排除 ORG/POSITION（后者走 /user-org/*）。
  * <p>
  * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4
@@ -54,7 +56,7 @@ public class UserRoleController {
      * <p>
      * 代理 permission-center /api/perm/user-role/assign。
      * 前端传入业务键（roleTypeCode + roleExternalId），代理层直接透传。
-     * 对目标角色做实例级 ADMIN_ROLE:GRANT 权限校验。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *
@@ -74,7 +76,7 @@ public class UserRoleController {
      * <p>
      * 代理 permission-center /api/perm/user-role/revoke。
      * 前端传入业务键（roleTypeCode + roleExternalId），代理层直接透传。
-     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 权限校验。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * </p>
      *

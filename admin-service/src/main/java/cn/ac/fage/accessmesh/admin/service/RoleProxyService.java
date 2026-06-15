@@ -102,7 +102,8 @@ public interface RoleProxyService {
      * 为用户分配功能角色（admin 代理 permission-center）。
      * <p>
      * 前端传入业务键，代理层直接透传给 permission-center。
-     * 对目标角色做实例级 ADMIN_ROLE:GRANT 权限校验。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验
+     * （与 org-user-permission-contract.md §5 备注³ 对齐）。
      * 仅允许分配功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
@@ -120,7 +121,8 @@ public interface RoleProxyService {
      * 回收用户功能角色（admin 代理 permission-center）。
      * <p>
      * 前端传入业务键，代理层直接透传给 permission-center。
-     * 对目标角色做实例级 ADMIN_ROLE:REVOKE 权限校验。
+     * 对目标角色做实例级 ROLE:MANAGE 权限校验
+     * （与 org-user-permission-contract.md §5 备注³ 对齐）。
      * 仅允许回收功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），ORG/POSITION 走 /user-org/*。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.3
