@@ -431,7 +431,7 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 | M5 | DTO 改业务键 + RoleProxyServiceImpl 逻辑简化 | ❌ 未开始（修订：取消 RoleResolver，改为接口收业务键） |
 | M6 | 删除 `parseRoleId` + `resolveRoleRef` | ❌ 未开始 |
 | M7 | listUserRoles 透传 `validFrom/validTo`（合并到 M5） | ❌ 未开始 |
-| M8 | 新增 `UserOrgKeys` helper | ❌ 未开始 |
+| M8 | 新增 `UserOrgKeys` helper | ✅ 完成（2026-06-15 Phase 3） |
 | M9 | UserServiceImpl createUser/deleteUser 用 helper | ❌ 未开始 |
 | M10 | UserOrgServiceImpl + SyncTaskBuilder + EXT-5 批量解析 | ❌ 未开始（修订：批量 resolveTreeRootExternalIds） |
 | M11 | 新增 `OrgVisibilityService` | ❌ 未开始 |
