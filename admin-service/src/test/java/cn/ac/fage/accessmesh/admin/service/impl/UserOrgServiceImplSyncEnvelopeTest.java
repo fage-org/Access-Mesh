@@ -142,7 +142,7 @@ class UserOrgServiceImplSyncEnvelopeTest {
         SyncTaskEnvelope env = captor.getValue();
         JsonNode payload = objectMapper.readTree(env.payload());
         assertThat(payload.get("roleTypeCode").asText()).isEqualTo("POSITION");
-        assertThat(payload.get("relationKey").asText()).isEqualTo("POSITION:800");
+        assertThat(payload.get("relationKey").asText()).isEqualTo("ORG:800");
         // business_key 必须使用 POSITION，否则与 abstract_role(POSITION,...) 创建路径错位
         assertThat(env.businessKey()).contains("POSITION");
     }

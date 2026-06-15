@@ -314,7 +314,7 @@ const mockUsers = [
 const mockUserRoles = {
   1: [
     {
-      roleId: 201,
+      roleExternalId: "BASIC_201",
       roleName: "基础用户",
       roleTypeCode: "BASIC_ROLE",
       roleTypeLabel: "基础角色",
@@ -325,7 +325,7 @@ const mockUserRoles = {
       validTo: null
     },
     {
-      roleId: 401,
+      roleExternalId: "GROUP_401",
       roleName: "核心开发组",
       roleTypeCode: "GROUP_ROLE",
       roleTypeLabel: "分组角色",
@@ -338,7 +338,7 @@ const mockUserRoles = {
   ],
   2: [
     {
-      roleId: 201,
+      roleExternalId: "BASIC_201",
       roleName: "基础用户",
       roleTypeCode: "BASIC_ROLE",
       roleTypeLabel: "基础角色",
@@ -351,7 +351,7 @@ const mockUserRoles = {
   ],
   3: [
     {
-      roleId: 202,
+      roleExternalId: "BASIC_202",
       roleName: "高级用户",
       roleTypeCode: "BASIC_ROLE",
       roleTypeLabel: "基础角色",
@@ -628,6 +628,24 @@ function randomPassword() {
   return pwd;
 }
 
+/**
+ * 将 mock 角色项中缺失的字段补齐，与前端 UserRoleItem 类型对齐。
+ * mock 数据已使用 roleExternalId 替代 roleId，补齐 targetType 等展示字段。
+ */
+function normalizeUserRoleItem(item) {
+  return {
+    roleTypeCode: item.roleTypeCode,
+    roleExternalId: item.roleExternalId,
+    roleName: item.roleName,
+    roleTypeLabel: item.roleTypeLabel,
+    targetType: item.targetType || item.roleTypeCode,
+    relationId: item.relationId ?? null,
+    relationOrgName: item.relationOrgName ?? null,
+    validFrom: item.validFrom ?? null,
+    validTo: item.validTo ?? null
+  };
+}
+
 // ========== 路由 ==========
 
 export default defineFakeRoute([
@@ -865,7 +883,10 @@ export default defineFakeRoute([
   {
     url: "/user-role/list",
     method: "post",
-    response: ({ body }) => ok(mockUserRoles[body?.userId] ?? [])
+    response: ({ body }) =>
+      ok({
+        items: (mockUserRoles[body?.userId] ?? []).map(normalizeUserRoleItem)
+      })
   },
 
   // POST /user-role/assign
@@ -1049,37 +1070,39 @@ export default defineFakeRoute([
     url: "/role/list",
     method: "post",
     response: () =>
-      ok([
-        {
-          roleId: 201,
-          roleName: "基础用户",
-          roleTypeCode: "BASIC_ROLE",
-          roleTypeLabel: "基础角色"
-        },
-        {
-          roleId: 202,
-          roleName: "高级用户",
-          roleTypeCode: "BASIC_ROLE",
-          roleTypeLabel: "基础角色"
-        },
-        {
-          roleId: 401,
-          roleName: "核心开发组",
-          roleTypeCode: "GROUP_ROLE",
-          roleTypeLabel: "分组角色"
-        },
-        {
-          roleId: 402,
-          roleName: "产品组",
-          roleTypeCode: "GROUP_ROLE",
-          roleTypeLabel: "分组角色"
-        },
-        {
-          roleId: 501,
-          roleName: "个人角色A",
-          roleTypeCode: "PERSONAL",
-          roleTypeLabel: "个人角色"
-        }
-      ])
+      ok({
+        items: [
+          {
+            roleExternalId: "BASIC_201",
+            roleName: "基础用户",
+            roleTypeCode: "BASIC_ROLE",
+            roleTypeLabel: "基础角色"
+          },
+          {
+            roleExternalId: "BASIC_202",
+            roleName: "高级用户",
+            roleTypeCode: "BASIC_ROLE",
+            roleTypeLabel: "基础角色"
+          },
+          {
+            roleExternalId: "GROUP_401",
+            roleName: "核心开发组",
+            roleTypeCode: "GROUP_ROLE",
+            roleTypeLabel: "分组角色"
+          },
+          {
+            roleExternalId: "GROUP_402",
+            roleName: "产品组",
+            roleTypeCode: "GROUP_ROLE",
+            roleTypeLabel: "分组角色"
+          },
+          {
+            roleExternalId: "PERSONAL_501",
+            roleName: "个人角色A",
+            roleTypeCode: "PERSONAL",
+            roleTypeLabel: "个人角色"
+          }
+        ]
+      })
   }
 ]);

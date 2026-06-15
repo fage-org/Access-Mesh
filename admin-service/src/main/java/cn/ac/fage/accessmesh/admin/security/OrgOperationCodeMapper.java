@@ -132,11 +132,21 @@ public final class OrgOperationCodeMapper {
     }
 
     /**
-     * 规范化 orgType：null / 空串 / "1" / "ORG" 均视为普通组织，返回原值用于 Map lookup。
-     * 当前实现直接返回原值，因为 Map 已包含所有已知的岗位 orgType 形式，
-     * 未知值自然 fallback 到基础操作码。
+     * 规范化 orgType：null / 空串 / "1" / "ORG" 均视为普通组织，返回 "1" 用于 Map lookup。
+     * <p>
+     * 此方法保证返回值永远不为 null，从而避免 {@code Map.of().get(null)} 抛出 NPE
+     * （{@code Map.of()} 底层不可变实现在 {@code get(null)} 时调用 {@code key.hashCode()} 会 NPE）。
+     * <p>
+     * 规范化后的值参与 {@link #CREATE_MAP} / {@link #USER_ORG_UPDATE_MAP} 等的 lookup；
+     * 未知值（非 null / "1" / "ORG" / "2" / "POSITION"）原样返回，自然 fallback 到基础操作码。
      */
     private static String normalize(String orgType) {
+        if (orgType == null || orgType.isEmpty()) {
+            return ORG_TYPE_REGULAR_NUM; // "1" — 普通组织
+        }
+        if (ORG_TYPE_REGULAR_LABEL.equalsIgnoreCase(orgType)) {
+            return ORG_TYPE_REGULAR_NUM; // "ORG" → "1"，统一用数值键 lookup
+        }
         return orgType;
     }
 

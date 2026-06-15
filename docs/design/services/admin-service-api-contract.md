@@ -73,8 +73,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/user-org/set-primary` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
 | `/user-role/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
-| `/user-role/assign` | `ADMIN_ROLE` | 实例级 (roleId) | `GRANT` | admin 代理 `permission-center /api/perm/user-role/assign`; permission-center 内部仍按 `ROLE:MANAGE` 校验 |
-| `/user-role/revoke` | `ADMIN_ROLE` | 实例级 (roleId) | `REVOKE` | 同上 |
+| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 代理 `permission-center /api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)` |
+| `/user-role/revoke` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | 同上 |
 | `/role/list` | `ADMIN_ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
 > **默认树身份目录边界二次校验**: `/user/create`、`/user/delete`、`/user/enable`、`/user/reset-password`、`/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
@@ -706,7 +706,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ### 4.4 用户-角色代理 (`/user-role`)
 
-> **核心决策**: admin-service 新增 `UserRoleController` 代理 permission-center `/api/perm/user-role/*`. 内部完成 `userId ↔ subjectExternalId`, `roleId ↔ (domainCode + roleTypeCode + roleExternalId)` 翻译. 前端不感知业务键. 仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*).
+> **核心决策**: admin-service 新增 `UserRoleController` 代理 permission-center `/api/perm/user-role/*`. 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色, 前端直接传业务键. 门禁统一使用 `ROLE:MANAGE@roleExternalId`. 仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*).
 
 #### 4.4.1 `POST /user-role/list` 🔧
 
@@ -718,15 +718,15 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 |------|------|------|------|
 | `userId` | `Long` | 是 | sys_user.id |
 
-**响应**: `PermResult<List<UserRoleItemResp>>` (Phase 2 包装 `{ items: [...] }`)
+**响应**: `PermResult<{ items: UserRoleItemResp[] }>`
 
 `UserRoleItemResp`:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `roleId` | `Long` | 角色 ID (admin 用 `abstract_role.id` 二次查询补; 仅用于同模块的 assign/revoke 链路) |
-| `roleName` | `String` | 角色名 |
 | `roleTypeCode` | `String` | `ORG` / `POSITION` / `PERSONAL` / `GROUP_ROLE` / `BASIC_ROLE` |
+| `roleExternalId` | `String` | 角色业务键（前端据此回传 assign/revoke） |
+| `roleName` | `String` | 角色名 |
 | `roleTypeLabel` | `String` | 显示名 (代理层映射) |
 | `targetType` | `String` | (前端展示用, 同 `roleTypeCode`) |
 | `relationId` | `Long` | POSITION 角色对应的所属组织 abstract_role.id; 其他类型为 null. 内部参考字段, 前端不直接消费 |
@@ -736,7 +736,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
 
-**代理动作**: admin 调 `permission-center /api/perm/user-role/list` (业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`); 响应每条记录通过本地 `sys_org` / `permission-center role` 拼接显示字段.
+**代理动作**: admin 调 `permission-center /api/perm/user-role/list` (业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`); 响应每条记录通过本地 `sys_org` / `permission-center role` 拼接显示字段. 返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId.
 
 **错误码段**: 10500-10519
 
@@ -744,7 +744,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **验收要点**:
 - `userId` 不存在 → `BizException(USER_NOT_FOUND)`.
-- `roleId` 由 admin-service 通过 permission-center 查询响应中携带的角色业务键二次解析为 `abstract_role.id` (仅用于本模块 assign/revoke 链路, 与 §2.1 规则相符).
+- 前端通过 `(roleTypeCode, roleExternalId)` 业务键回传 assign/revoke，不再使用 roleId.
 
 ---
 
@@ -752,22 +752,23 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL). admin 代理直调 permission-center `/api/perm/user-role/assign`.
 
-**请求 DTO**: `UserRoleAssignReq` (新增)
+**请求 DTO**: `UserRoleAssignReq`
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `userId` | `Long` | 是 | |
-| `roleId` | `Long` | 是 | 功能角色 ID; 必须为 BASIC_ROLE/GROUP_ROLE/PERSONAL, 否则拒绝 |
+| `roleTypeCode` | `String` | 是 | 必须为 BASIC_ROLE/GROUP_ROLE/PERSONAL, 否则拒绝 |
+| `roleExternalId` | `String` | 是 | 角色业务键 |
 | `validFrom` | `LocalDateTime` | 否 | |
 | `validTo` | `LocalDateTime` | 否 | |
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_ROLE:GRANT@roleId` (admin 层); permission-center 内部仍按 `ROLE:MANAGE` 校验.
+**门禁**: `ROLE:MANAGE@roleExternalId` (admin 层与 permission-center 内部统一).
 
 **代理动作**:
-1. 校验 `roleId` 对应角色 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED, 应走 /user-org/*)`).
-2. 翻译 `userId → subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`; `roleId → domainCode + roleTypeCode + roleExternalId`.
+1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED, 应走 /user-org/*)`).
+2. 翻译 `userId → subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`; 直接用入参 `(roleTypeCode, roleExternalId)`.
 3. 调 permission-center `/api/perm/user-role/assign` (`items[]` 单元素); 透传 `validFrom/validTo`.
 4. **不**写 sys_sync_task.
 
@@ -776,7 +777,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **当前差距**: 接口未实现.
 
 **验收要点**:
-- 目标 `roleId` 类型为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED)`.
+- `roleTypeCode` 为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED)`.
 - permission-center 返回非 200 → 透传错误码与 message; admin 层不吞错.
 
 ---
@@ -785,20 +786,21 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **目的**: 回收用户的功能角色.
 
-**请求 DTO**: `UserRoleRevokeReq` (新增)
+**请求 DTO**: `UserRoleRevokeReq`
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `userId` | `Long` | 是 | |
-| `roleId` | `Long` | 是 | 同 assign 约束 |
+| `roleTypeCode` | `String` | 是 | 同 assign 约束 |
+| `roleExternalId` | `String` | 是 | 角色业务键 |
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_ROLE:REVOKE@roleId`.
+**门禁**: `ROLE:MANAGE@roleExternalId`.
 
 **代理动作**:
-1. 同 assign 翻译.
-2. 调 permission-center `/api/perm/user-role/revoke` (`items[]` 含 `domainCode + roleTypeCode + roleExternalId + subjectTypeCode + subjectExternalId`, `relationId=null`).
+1. 校验 `roleTypeCode` (同 assign).
+2. 调 permission-center `/api/perm/user-role/revoke` (`items[]` 含 `roleTypeCode + roleExternalId + subjectTypeCode + subjectExternalId`, `relationId=null`).
 3. 不写 sys_sync_task.
 
 **错误码段**: 10550-10579
@@ -819,16 +821,16 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 |------|------|------|------|
 | `roleTypeCodes` | `List<String>` | 否 | 不传时默认 `[BASIC_ROLE, GROUP_ROLE, PERSONAL]` |
 
-**响应**: `PermResult<List<RoleListItemResp>>` (Phase 2 包装为 `{ items: [...] }`)
+**响应**: `PermResult<{ items: RoleListItemResp[] }>`
 
 `RoleListItemResp`:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `roleId` | `Long` | |
-| `roleName` | `String` | |
-| `roleTypeCode` | `String` | |
-| `roleTypeLabel` | `String` | |
+| `roleTypeCode` | `String` | 角色类型编码（BASIC_ROLE / GROUP_ROLE / PERSONAL） |
+| `roleExternalId` | `String` | 角色业务键（前端据此回传 assign/revoke） |
+| `roleName` | `String` | 角色名称 |
+| `roleTypeLabel` | `String` | 角色类型显示名 |
 
 **门禁**: `ADMIN_ROLE:VIEW`.
 
