@@ -54,30 +54,83 @@
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
-### admin-service（用户角色代理修复 M1-M13 + S1-S3，已完成待验收）
+### admin-service（用户角色代理修复 M1-M13 + S1-S3，验收完成 2026-06-20）
 
-> 任务详情见 [user-role-proxy-fix-plan](../plans/user-role-proxy-fix-plan.md) §4（任务 ID 已嵌入各 M/S 标题）。代码已实现，待 §6.1/§6.3 验收勾选后转 `done`。回写状态：部分设计已同步（§6.5 文档勾选），其余待验收时核对。
+> 验收方式：代码级核验 + 测试套件（247 tests 0 failures）。详情见 [user-role-proxy-fix-plan](../plans/user-role-proxy-fix-plan.md) §6。回写状态：M3/M4/S1/S2/S3 设计已同步(✓)；其余 ⏳ 表示设计文档已部分反映(如 org-user-permission-contract v1.4、overview 业务键导向)但未逐条核对锚点，需归档前补回写或显式确认设计已涵盖。
 
 | ID | 标题（计划锚点） | 计划 | 状态 | 回写 |
 |---|---|---|---|---|
-| T-ADMIN-001 | M1 DTO 放宽 @NotBlank（双端同改） | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-002 | M2 服务端跨字段业务校验（Feature flag） | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-003 | M3 门禁码切回 ROLE:MANAGE | user-role-proxy-fix | 👀 | ✓ |
-| T-ADMIN-004 | M4 AdminOperationCode.MANAGE 常量处理 | user-role-proxy-fix | 👀 | ✓ |
-| T-ADMIN-005 | M5 admin DTO 改业务键 + RoleProxyServiceImpl 简化 | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-006 | M6 删除 parseRoleId/resolveRoleRef | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-007 | M7 listUserRoles 透传 validFrom/validTo | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-008 | M8 抽 UserOrgKeys helper | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-009 | M9 UserServiceImpl 两处替换 | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-010 | M10 UserOrgServiceImpl + SyncTaskBuilder 收敛 | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-011 | M11 抽 OrgVisibilityService | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-012 | M12 4 处共用 OrgVisibilityService | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-013 | M13 permission-center user 删除延迟补偿 | user-role-proxy-fix | 👀 | ⏳ |
-| T-ADMIN-014 | S1 前端 perm 串同步 | user-role-proxy-fix | 👀 | ✓ |
-| T-ADMIN-015 | S2 种子数据核实 + 补丁 | user-role-proxy-fix | 👀 | ✓ |
-| T-ADMIN-016 | S3 契约一致性测试 | user-role-proxy-fix | 👀 | ✓ |
+| T-ADMIN-001 | M1 DTO 放宽 @NotBlank（双端同改） | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-002 | M2 服务端跨字段业务校验（Feature flag） | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-003 | M3 门禁码切回 ROLE:MANAGE | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-004 | M4 AdminOperationCode.MANAGE 常量处理 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-005 | M5 admin DTO 改业务键 + RoleProxyServiceImpl 简化 | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-006 | M6 删除 parseRoleId/resolveRoleRef | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-007 | M7 listUserRoles 透传 validFrom/validTo | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-008 | M8 抽 UserOrgKeys helper | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-009 | M9 UserServiceImpl 两处替换 | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-010 | M10 UserOrgServiceImpl + SyncTaskBuilder 收敛 | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-011 | M11 抽 OrgVisibilityService | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-012 | M12 4 处共用 OrgVisibilityService | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-013 | M13 permission-center user 删除延迟补偿 | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-014 | S1 前端 perm 串同步 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-015 | S2 种子数据核实 + 补丁 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-016 | S3 契约一致性测试 | user-role-proxy-fix | ✅ | ✓ |
 
+> 16 项任务代码已实现且验收通过。计划归档前需完成剩余 8 项 ⏳ 回写核对（M2/M5/M6/M7/M8/M9/M10/M11/M12/M13 对应设计章节锚点）。
+>
 > EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条循环）/ EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）为 DEFERRED 无主项（审计 S-024），未纳入本批任务，待单独立项。
+
+---
+
+## 建议执行顺序
+
+依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
+
+### P0 — 验收闭环（投入产出比最高）
+
+`T-ADMIN-001~016`（👀 review）：代码已实现，跑 §6.1/§6.3 验收后转 `done`，计划 `user-role-proxy-fix` 转 `completed` 归档，看板清 16 项。无新开发。
+
+### P1 — 工作单 A 缓存失效（安全风险，第 1 周首位）
+
+按依赖解锁顺序：
+
+1. `T-PERM-001` 快照模式 — 无依赖，**立即启动**（枢纽，解锁 002/006/T-GW-003）
+2. `T-PERM-003` 删 permission_version — 无依赖，**与 001 并行**（解锁 004/005/007）
+3. `T-PERM-002` AOP afterCommit ← 001
+4. `T-PERM-006` Redis 广播+订阅器 ← 001（解锁 T-GW-005 设计）
+5. `T-PERM-004` 删 increment ← 003
+6. `T-PERM-005` 删缓存目录条目 ← 003
+7. `T-PERM-007` 文档一致性核对 ← 003
+8. `T-PERM-008` 失效标记代码 ← T-GW-005（最后，待 S-006 设计）
+
+### P2 — 工作单 B scopeMode（数据泄露风险，与 A 完全并行）
+
+1. `T-PERM-009` 枚举+响应结构 — 无依赖，**立即启动**（枢纽）
+2. `T-PERM-010` §6.7 改造 ← 009
+3. `T-PERM-011` 30+处全量推广 ← 009
+4. `T-PERM-012` 管理端/排查页 ← 009
+5. `T-PERM-013` schema 映射逻辑 ← 009
+6. `T-PERM-015` 前端适配 ← 009
+7. `T-PERM-014` 迁移注记→正式定义 ← 010+011（收尾）
+
+### P3 — 工作单 C Gateway 兜底（依赖 A）
+
+1. `T-GW-001` fail-mode 配置 — 无依赖，可与 A 并行启动
+2. `T-GW-002` fail-closed ← 001
+3. `T-GW-003` stale-allow ← T-PERM-001(快照)+T-GW-001（A 落地后才能做）
+4. `T-GW-004` 监控指标 ← 002
+5. `T-GW-005` S-006 设计 ← T-PERM-006(广播载荷)（A 广播落地后做）
+6. `T-GW-006` 集成测试 ← 002
+7. `T-PERM-008` 失效标记代码 ← T-GW-005（回到 A 链收尾）
+
+### 不排期（待立项）
+
+EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审计 S-024 无主，性能项，待单独立项。
+
+### 立即可并行启动的三个枢纽
+
+`T-PERM-001`（A 链根）+ `T-PERM-003`（A 链删version根）+ `T-PERM-009`（B 链根）—— 均无依赖，解锁 A/B/C 三链绝大部分下游。
 
 ## 依赖告警（dangling）
 

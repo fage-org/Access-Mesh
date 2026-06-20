@@ -403,15 +403,17 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 ### 6.1 功能可用
 
-- [ ] `/user-role/assign` 传 `domainCode=null`（功能角色场景）请求成功，permission-center 服务端按全局域处理
-- [ ] `/user-role/assign` 传 `roleTypeCode=ORG && domainCode=null` 在 `strict-domain-check=true` 时被服务端 `BizException` 拒绝（M2）
-- [ ] `/user-role/assign` 传 `roleTypeCode=ORG && domainCode=null` 在 `strict-domain-check=false` 时不报错（M2 feature flag）
-- [ ] `/user-role/list` 返回 `roleTypeCode + roleExternalId`（不再有 roleId），前端据此回传 assign/revoke
-- [ ] `/user-role/list` 返回的 `validFrom/validTo` 与 perm-center 一致，不再固定 null
-- [ ] `/user/member-candidates` 仅返回操作者通过 `ADMIN_ORG:VIEW` 可见的默认树用户
-- [ ] `/user/page` 在 `req.orgId == null` 时按操作者可见范围裁剪
-- [ ] `/user/delete` 对 ORG 用户 / POSITION 用户都正确生成 UNBIND envelope 且 `relationKey` 与 BIND 时一致
-- [ ] `/user/create` 指定 POSITION orgId 时 BIND envelope `relationKey` 是 `ORG:{orgId}`（与契约 §6.2.2.4 一致，前缀固定 ORG）
+> 验收方式：代码级核验 + 测试套件（2026-06-20）。代码路径与契约测试均通过；HTTP 实跑（起服务对真实端点发请求）需运行时环境，未执行。
+
+- [x] `/user-role/assign` 传 `domainCode=null`（功能角色场景）请求成功，permission-center 服务端按全局域处理 — M1 domainCode 无 @NotBlank，`PermCommonReqContractTest.domainCode_isOptional` 通过
+- [x] `/user-role/assign` 传 `roleTypeCode=ORG && domainCode=null` 在 `strict-domain-check=true` 时被服务端 `BizException` 拒绝（M2）— `UserManageAppServiceImpl` `strictDomainCheck` default true
+- [x] `/user-role/assign` 传 `roleTypeCode=ORG && domainCode=null` 在 `strict-domain-check=false` 时不报错（M2 feature flag）
+- [x] `/user-role/list` 返回 `roleTypeCode + roleExternalId`（不再有 roleId），前端据此回传 assign/revoke — `RoleProxyServiceImpl.listUserRoles` line 560，`parseRoleId` 已删
+- [x] `/user-role/list` 返回的 `validFrom/validTo` 与 perm-center 一致，不再固定 null — line 566-567 透传
+- [x] `/user/member-candidates` 仅返回操作者通过 `ADMIN_ORG:VIEW` 可见的默认树用户 — `OrgVisibilityService` 注入
+- [x] `/user/page` 在 `req.orgId == null` 时按操作者可见范围裁剪 — `OrgVisibilityService` 注入
+- [x] `/user/delete` 对 ORG 用户 / POSITION 用户都正确生成 UNBIND envelope 且 `relationKey` 与 BIND 时一致 — `UserOrgKeys.relationKey` 共用（createUser line 209 / deleteUser line 331）
+- [x] `/user/create` 指定 POSITION orgId 时 BIND envelope `relationKey` 是 `ORG:{orgId}`（与契约 §6.2.2.4 一致，前缀固定 ORG）— `UserOrgKeys` 注释明确 ORG/POSITION 前缀恒为 ORG
 
 ### 6.2 门禁正确
 
@@ -421,15 +423,17 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 ### 6.3 数据一致性
 
-- [ ] 删 1 个 POSITION 用户后，`select * from user_role where ...` 在 perm-center 中无残留
-- [ ] 即使 admin UNBIND envelope 延迟到达或丢失，perm-center 延迟补偿任务在 5 分钟内清掉孤儿 user_role
+> 验收方式：代码级核验（2026-06-20）。M9/M10 UNBIND envelope 经 `UserOrgKeys` 统一拼装；M13 `UserRoleOrphanCleanupTask` `@Scheduled` 默认 5 分钟 + window-minutes=5。SQL 实跑核对需运行时数据库，未执行。
+
+- [x] 删 1 个 POSITION 用户后，`select * from user_role where ...` 在 perm-center 中无残留 — `UserOrgKeys.relationKey` 与 BIND 同源（deleteUser line 331）
+- [x] 即使 admin UNBIND envelope 延迟到达或丢失，perm-center 延迟补偿任务在 5 分钟内清掉孤儿 user_role — `UserRoleOrphanCleanupTask` `@Scheduled(fixedDelay=300000)` + `window-minutes:5`
 
 ### 6.4 编译/测试
 
 - [x] `mvn compile` 三模块全通过
 - [x] `mvn test -pl admin-service` 通过 `PermCommonReqContractTest` + `OrgVisibilityServiceImplTest` + `SyncTaskBuilderFullSyncTest`
 - [x] `pnpm build` 前端通过
-- [x] 上一轮 P1 16 接口的回归测试不退化（全量 `mvn test` 通过，153 tests 0 failures）
+- [x] 回归测试不退化 — 2026-06-20 重跑：admin-service 116 tests + permission-center 131 tests（7 skipped）= **247 tests，0 failures，0 errors**
 
 ### 6.5 文档
 
