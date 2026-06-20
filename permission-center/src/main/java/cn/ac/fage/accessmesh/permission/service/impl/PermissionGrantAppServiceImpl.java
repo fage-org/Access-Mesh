@@ -31,6 +31,8 @@ import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
@@ -40,8 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -137,6 +137,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "role-resource-permission-grant", targetType = "abstract_role",
         targetId = "#req.roleExternalId", summary = "save granted role perms")
+    @PermissionChange
     public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode()
@@ -440,15 +441,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             rolePermMapper.insertBatch(toInsert);
         }
 
-        // 事务提交后执行缓存失效和版本递增（入口日志由 @OperationLog AOP 统一记录）
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, roleId);
 
         List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
         return toItemRespList(tenantId, allPerms);
@@ -471,6 +465,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "role-resource-permission-revoke", targetType = "abstract_role",
         targetId = "#req.roleExternalId", summary = "revoke perms from role")
+    @PermissionChange
     public void batchRevoke(Long tenantId, BatchRevokeReq req) {
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode()
@@ -492,16 +487,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             permissionGrantDomainService.revokePermissions(tenantId, roleId, permissionIds);
         }
 
-        // 事务提交后执行版本递增和缓存失效（入口日志由 @OperationLog AOP 统一记录）
-        final Long revokeRoleId = roleId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantId, revokeRoleId);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, roleId);
     }
 
     /**
@@ -585,6 +572,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "role-resource-permission-child-add", targetType = "role_resource_permission",
         targetId = "#req.parentPermissionId", summary = "add child perms")
+    @PermissionChange
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
         RoleResourcePermission parent = rolePermMapper.selectValidById(tenantId, null, req.parentPermissionId());
         if (parent == null) {
@@ -723,16 +711,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         if (!inserted.isEmpty()) {
             rolePermMapper.insertBatch(inserted);
         }
-        // 版本递增和缓存失效（事务提交后执行）
-        final Long roleIdForCache = parent.getAbstractRoleId();
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, parent.getAbstractRoleId());
         auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
             tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "add-child"
         ), changeLogs);
@@ -756,6 +736,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "role-resource-permission-child-remove", targetType = "role_resource_permission",
         targetId = "#req.permissionId", summary = "remove child perm")
+    @PermissionChange
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
         RoleResourcePermission child = rolePermMapper.selectValidById(tenantId, null, req.permissionId());
         if (child == null) {
@@ -774,16 +755,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         child.setDeleteFlag(child.getId());
         child.setDeletedAt(LocalDateTime.now());
         rolePermMapper.update(child);
-        // 版本递增和缓存失效（事务提交后执行）
-        final Long roleIdForCache = child.getAbstractRoleId();
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, child.getAbstractRoleId());
         auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
             tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "remove-child"
         ), List.of(new AuditDomainService.ChangeLogEntry(

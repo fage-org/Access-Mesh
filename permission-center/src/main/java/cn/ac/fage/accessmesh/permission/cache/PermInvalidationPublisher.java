@@ -1,0 +1,53 @@
+package cn.ac.fage.accessmesh.permission.cache;
+
+import org.redisson.api.RTopic;
+import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.Set;
+
+/**
+ * 权限失效广播发布端
+ * <p>
+ * 通过 Redis pub/sub topic {@code perm:invalidate} 广播 {@link PermInvalidateEvent}。
+ * Gateway 订阅器（T-PERM-006 范围）接收后 evict 本地 INTERFACE_SNAPSHOT 缓存。
+ * </p>
+ * <p>
+ * 失败兜底（v3.5 §7.2）：发布失败仅记录 WARN，不影响已提交事务；订阅端丢失事件时靠
+ * TTL（30-60s）自然过期最终一致。
+ * </p>
+ */
+@Component
+public class PermInvalidationPublisher {
+
+    private static final Logger log = LoggerFactory.getLogger(PermInvalidationPublisher.class);
+
+    /** 广播 topic（IR-1.4：tenant_id 作为事件载荷分区，topic 全局共享） */
+    public static final String TOPIC = "perm:invalidate";
+
+    private final RedissonClient redissonClient;
+
+    public PermInvalidationPublisher(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
+    }
+
+    /**
+     * 广播失效事件。tenantId 为 null 时跳过（防御性）。
+     */
+    public void publish(Long tenantId, Set<Long> roleIds, Set<Long> userIds) {
+        if (tenantId == null) {
+            log.debug("Skip perm invalidation broadcast: tenantId is null");
+            return;
+        }
+        try {
+            RTopic topic = redissonClient.getTopic(TOPIC);
+            topic.publish(new PermInvalidateEvent(tenantId, roleIds, userIds));
+        } catch (Exception e) {
+            // 广播失败不抛异常，不影响已提交事务；订阅端靠 TTL 兜底
+            log.warn("Failed to publish PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}): {}",
+                tenantId, roleIds, userIds, e.getMessage());
+        }
+    }
+}
