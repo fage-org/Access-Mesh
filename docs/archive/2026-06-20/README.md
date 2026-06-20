@@ -28,4 +28,25 @@
 - [../../design/permission-center/api-contract.md](../../design/permission-center/api-contract.md) domainCode 跨字段校验语义
 - [../../design/cross-service/admin-permission-sync.md](../../design/cross-service/admin-permission-sync.md) §11.1 user_role 孤儿延迟补偿
 
+---
+
+## 第二轮：用户角色代理修复（审查发现，2026-06-20）
+
+> 原文：[user-role-proxy-fix-round2-plan.md](user-role-proxy-fix-round2-plan.md)
+
+第一轮归档后第二轮审查发现 4 项 P1/P2，经代码级核实全部成立并修复（247 tests 0 failures）：
+
+| 任务 | 发现 | 修复 |
+|---|---|---|
+| T-ADMIN-017 | P1-1 assign/revoke 预检把 roleExternalId 当 ROLE resource_entity.code，语义错位误拒 | 删除 admin 层重复预检，permission-center 用正确 abstract_role.id 兜底（assign+revokeRolesBatch 均覆盖）|
+| T-ADMIN-018 | P1-2 getUser 仅类型级 VIEW，知道 ID 可读不可见用户 | 复用 validateUsersInDefaultTreeScope，无组织用户拒绝 |
+| T-PERM-016 | P2-1 listUserRoles 用 relationId（abstract_role.id）错查 sys_org | permission-center UserRolesResp 增 relationExternalId（=sys_org.id），getUserRoles 批量解析；admin 改用该字段查 sys_org |
+| T-ADMIN-019 | P2-2 deleteUser 循环内逐条查组织 N+1 | 循环前 batchSelectValidByIdsMap，缺失组织 warn+跳过 |
+
+**设计回写**：
+- [../../design/services/admin-service-api-contract.md](../../design/services/admin-service-api-contract.md) 门禁矩阵 /user/detail、§4.4.2/4.4.3 门禁、relationExternalId 字段
+- [../../design/permission-center/api-contract.md](../../design/permission-center/api-contract.md) UserRolesResp relationExternalId 说明
+
+**澄清**：P2-1 的 C 假设（relationId 歪打正着=orgId）经核实不成立——`relation_id` 存 abstract_role 内部主键，与 sys_org.id 无对应（abstract_role.externalId 才=sys_org.id）。最终采 A 方案：permission-center 返回业务键，admin 据此查 sys_org。
+
 本文档仅作历史追溯，不再作为实现依据。

@@ -113,7 +113,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `archive/2026-06-20/` | 用户角色代理修复计划归档（M1-M13+S1-S3 全完成，验收 + 设计回写完成）。稳定结论已沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
+| `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。稳定结论已沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
 | `archive/2026-06/` | v3.0~v3.3 权限中心设计演进历史快照（双轨 AND + sys_menu.operations 元数据化等），已被 v3.5 取代。 | [archive/2026-06/README.md](archive/2026-06/README.md) |
 | `archive/2026-06-17/` | AccessMesh 设计评审记录（2026-06-17）。评审结论已沉淀至 `design/`，工作单 A-C 派生为 P0 计划，D/E/F 暂缓；D1-D10 文档数字勘误待 F-1.a 自动化根治。 | [archive/2026-06-17/README.md](archive/2026-06-17/README.md) |
 | `archive/2026-06-14/` | 同步模块重构执行计划归档；稳定设计已沉淀到 `design/cross-service/admin-permission-sync.md`。 | [archive/2026-06-14/README.md](archive/2026-06-14/README.md) |

@@ -21,7 +21,7 @@ last_updated: 2026-06-20
 
 > 状态：进行中
 > 来源：2026-06-20 第二轮代码审查，4 项 P1/P2 发现
-> 前置：[../archive/2026-06-20/user-role-proxy-fix-plan.md](../archive/2026-06-20/user-role-proxy-fix-plan.md)（第一轮 M1-M13+S1-S3 已归档）
+> 前置：[../../archive/2026-06-20/user-role-proxy-fix-plan.md](../../archive/2026-06-20/user-role-proxy-fix-plan.md)（第一轮 M1-M13+S1-S3 已归档）
 
 ## 背景
 
@@ -41,7 +41,7 @@ last_updated: 2026-06-20
 - **P2-1**：方案 A — permission-center 在 UserRolesResp.RoleSummary 增返回关联组织业务键（relationExternalId），admin 据此查 sys_org
 - **P2-2**：循环前批量加载 orgMap，缺失组织显式处理
 
-## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
+## 任务清单（引用 [../../tasks/README.md](../../tasks/README.md) 看板）
 
 | 任务 ID | 标题 | 关联发现 | 状态 |
 |---|---|---|---|
