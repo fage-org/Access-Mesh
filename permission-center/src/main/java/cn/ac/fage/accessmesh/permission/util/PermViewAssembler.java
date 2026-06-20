@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;

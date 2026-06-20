@@ -24,7 +24,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermViewAssembler;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;

@@ -3,19 +3,19 @@ package cn.ac.fage.accessmesh.perm.common.dto.resp;
 import java.util.List;
 
 /**
- * 接口快照响应体（T-PERM-001 迁入 perm-common 供 Gateway 共享）
+ * 接口权限快照响应体（T-PERM-001 迁入 perm-common 供 Gateway 共享）
  * <p>
  * 供Gateway消费的接口权限快照响应。
- * 包含租户的服务接口权限配置，支持基于权限令牌的增量刷新。
+ * 包含租户的服务接口权限配置，Gateway 本地内存匹配鉴权。
+ * </p>
+ * <p>
+ * T-PERM-018：移除 permissionVersion/notModified（缓存下沉）。permission-center 每次实时构建全量快照，
+ * Gateway 本地 Caffeine 缓存 + Redis 广播（perm:invalidate）+ TTL 兜底保证一致性。
  * </p>
  *
- * @param notModified       是否未修改（权限令牌未变化时为true）
- * @param permissionVersion 当前权限令牌
- * @param allowedApis       允许访问的API权限条目列表
+ * @param allowedApis 允许访问的API权限条目列表
  */
 public record InterfaceSnapshotResp(
-    boolean notModified,
-    String permissionVersion,
     List<ApiPermissionEntry> allowedApis
 ) {
     /**

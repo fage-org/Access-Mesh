@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.springframework.stereotype.Component;
 
 import java.util.*;

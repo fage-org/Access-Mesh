@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

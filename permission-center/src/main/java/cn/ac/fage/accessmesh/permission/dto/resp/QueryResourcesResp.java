@@ -5,17 +5,15 @@ import java.util.List;
 /**
  * 资源查询响应体
  * <p>
- * 返回用户可访问的资源列表，包括权限版本和缓存信息。
+ * 返回用户可访问的资源列表，包括缓存信息。
  * 用于资源查询接口的响应。
  * </p>
  *
- * @param items            资源条目列表
- * @param permissionVersion 权限版本号
- * @param cacheTtlSeconds  缓存有效时间（秒）
+ * @param items           资源条目列表
+ * @param cacheTtlSeconds 缓存有效时间（秒）
  */
 public record QueryResourcesResp(
     List<ResourceEntry> items,
-    String permissionVersion,
     int cacheTtlSeconds
 ) {
     /**

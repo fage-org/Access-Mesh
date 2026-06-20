@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.permission.dto.query;
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult.EffectiveOperationEntry;
 import lombok.Builder;
 import lombok.Getter;

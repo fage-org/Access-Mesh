@@ -126,32 +126,29 @@ public class PermissionClient {
     }
 
     /**
-     * 拉取用户接口权限快照（T-PERM-001 快照模式）
+     * 拉取用户接口权限快照（T-PERM-001 快照模式 / T-PERM-018 缓存下沉）
      * <p>
      * 调用 {@code POST /api/perm/auth/interface-snapshot}，获取用户在指定服务下可访问的接口集合，
-     * 供 Gateway 本地内存匹配。支持传入 {@code permissionVersion} 做条件请求——服务端令牌未变化时
-     * 返回 {@code notModified=true}，Gateway 沿用本地快照。
+     * 供 Gateway 本地内存匹配。permission-center 每次实时构建全量快照返回；Gateway 本地 Caffeine
+     * 缓存 + Redis 广播（perm:invalidate，T-PERM-006）+ TTL 兜底保证一致性。
      * </p>
      *
-     * @param subjectTypeCode  主体类型编码
-     * @param userId           用户ID，转换为 subjectExternalId
-     * @param serviceCode      服务编码
-     * @param permissionVersion 上次本地快照的权限令牌，首次拉取传 null
-     * @param tenantId         租户ID
+     * @param subjectTypeCode 主体类型编码
+     * @param userId          用户ID，转换为 subjectExternalId
+     * @param serviceCode     服务编码
+     * @param tenantId        租户ID
      * @return 接口快照响应 Mono
      */
     public Mono<PermResult<InterfaceSnapshotResp>> interfaceSnapshot(
-        String subjectTypeCode, Long userId, String serviceCode, String permissionVersion, Long tenantId) {
+        String subjectTypeCode, Long userId, String serviceCode, Long tenantId) {
 
         InterfaceSnapshotReq req = new InterfaceSnapshotReq(
             subjectTypeCode,
             String.valueOf(userId),
-            serviceCode,
-            permissionVersion
+            serviceCode
         );
 
-        log.debug("拉取接口权限快照: userId={}, serviceCode={}, hasVersion={}",
-            userId, serviceCode, permissionVersion != null);
+        log.debug("拉取接口权限快照: userId={}, serviceCode={}", userId, serviceCode);
 
         return webClient.post()
             .uri(interfaceSnapshotPath)
@@ -163,13 +160,9 @@ public class PermissionClient {
             .doOnSuccess(result -> {
                 if (result != null && result.getData() != null) {
                     InterfaceSnapshotResp resp = result.getData();
-                    if (resp.notModified()) {
-                        log.debug("快照未修改，沿用本地令牌: userId={}, serviceCode={}", userId, serviceCode);
-                    } else {
-                        log.debug("快照已刷新: userId={}, serviceCode={}, allowedApis={}",
-                            userId, serviceCode,
-                            resp.allowedApis() != null ? resp.allowedApis().size() : 0);
-                    }
+                    log.debug("快照已拉取: userId={}, serviceCode={}, allowedApis={}",
+                        userId, serviceCode,
+                        resp.allowedApis() != null ? resp.allowedApis().size() : 0);
                 }
             })
             .doOnError(e -> log.error("接口快照拉取失败: userId={}, serviceCode={}", userId, serviceCode));

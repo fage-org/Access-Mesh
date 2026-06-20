@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
-import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
@@ -18,13 +17,10 @@ import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.PermissionQueryAppService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
-import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
@@ -34,20 +30,15 @@ import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.util.SnapshotAssembler;
-import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -75,7 +66,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     private final PermissionConditionDomainService permissionConditionDomainService;
     private final TypeResolutionService typeResolutionService;
     private final CacheService cacheService;
-    private final PermissionVersionDomainService permissionVersionDomainService;
     private final DomainClassifyService domainClassifyService;
     private final PermQueryEngine engine;
     private final SnapshotAssembler snapshotAssembler;
@@ -90,7 +80,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
      * @param permissionConditionDomainService 权限条件领域服务
      * @param typeResolutionService            类型解析服务
      * @param cacheService                     缓存服务
-     * @param permissionVersionDomainService   权限版本领域服务
      * @param domainClassifyService            域分类服务
      * @param engine                           权限查询引擎
      * @param snapshotAssembler                快照装配器
@@ -102,7 +91,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                                           PermissionConditionDomainService permissionConditionDomainService,
                                           TypeResolutionService typeResolutionService,
                                           CacheService cacheService,
-                                          PermissionVersionDomainService permissionVersionDomainService,
                                           DomainClassifyService domainClassifyService,
                                           PermQueryEngine engine,
                                           SnapshotAssembler snapshotAssembler) {
@@ -113,7 +101,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         this.permissionConditionDomainService = permissionConditionDomainService;
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
-        this.permissionVersionDomainService = permissionVersionDomainService;
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
         this.snapshotAssembler = snapshotAssembler;
@@ -137,7 +124,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     @Transactional(readOnly = true)
     public QueryResourcesResp queryResources(Long tenantId, QueryResourcesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return new QueryResourcesResp(List.of(), "", 60);
+        if (userId == null) return new QueryResourcesResp(List.of(), 60);
 
         // Use forUserView to get all permissions (both scopeAll and instance-level)
         PermQuery q = PermQuery.forUserView(tenantId, userId);
@@ -145,13 +132,10 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             q.setContext(req.context());
         }
         PermResult r = engine.query(q);
-        Set<Long> effectiveRoles = r.matchedRoleIds();
-        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, effectiveRoles);
-        return buildQueryResourcesResponse(r, req, permissionVersion, tenantId);
+        return buildQueryResourcesResponse(r, req, tenantId);
     }
 
-    private QueryResourcesResp buildQueryResourcesResponse(PermResult r, QueryResourcesReq req,
-                                                            String permissionVersion, Long tenantId) {
+    private QueryResourcesResp buildQueryResourcesResponse(PermResult r, QueryResourcesReq req, Long tenantId) {
         Set<String> resourceTypeCodes = new HashSet<>(req.resourceTypeCodes());
         Set<String> operationCodes = new HashSet<>(req.operationCodes());
         String codeType = req.codeType();
@@ -284,7 +268,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 new ArrayList<>(ops), roleIds, permIds, sources));
         }
 
-        return new QueryResourcesResp(entries, permissionVersion, 60);
+        return new QueryResourcesResp(entries, 60);
     }
 
     /**
@@ -371,13 +355,13 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     public QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
-            return new QueryScopesResp("USER_NOT_FOUND", List.of(), List.of(), List.of(), "", 60);
+            return new QueryScopesResp("USER_NOT_FOUND", List.of(), List.of(), List.of(), 60);
         }
 
         Long parentResourceEntityId = typeResolutionService.resolveResourceId(
             tenantId, req.parentResourceTypeCode(), req.parentResourceCode(), req.parentCodeType(), req.domainCode());
         if (parentResourceEntityId == null) {
-            return new QueryScopesResp("OBJECT_KEY_NOT_FOUND", List.of(), List.of(), List.of(), "", 60);
+            return new QueryScopesResp("OBJECT_KEY_NOT_FOUND", List.of(), List.of(), List.of(), 60);
         }
 
         Map<String, Object> ctx = req.context() != null ? req.context() : Map.of();
@@ -387,21 +371,17 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         if (parentResult == null) {
             // 父资源无任何匹配权限 → 整体拒绝，所有 scope 格置 DENIED
             List<ScopeGroup> deniedGroups = buildDeniedGroups(req);
-            return new QueryScopesResp("NO_PERMISSION", List.of(), List.of(), deniedGroups, "", 60);
+            return new QueryScopesResp("NO_PERMISSION", List.of(), List.of(), deniedGroups, 60);
         }
 
         List<ScopeGroup> scopeGroups = processScopePermissions(tenantId, userId,
             req, parentResult.parentPermissionIds, ctx);
-
-        Set<Long> effectiveRoles = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, effectiveRoles);
 
         return new QueryScopesResp(
             null,
             new ArrayList<>(parentResult.matchedParentOps),
             new ArrayList<>(parentResult.parentPermissionIds),
             scopeGroups,
-            permissionVersion,
             60
         );
     }
@@ -592,30 +572,20 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     @Transactional(readOnly = true)
     public InterfaceSnapshotResp interfaceSnapshot(Long tenantId, InterfaceSnapshotReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return new InterfaceSnapshotResp(false, "", List.of());
+        if (userId == null) return new InterfaceSnapshotResp(List.of());
 
         Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
             ? Set.of()
             : permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
-        String permissionVersion = buildInterfacePermissionVersion(tenantId, validRoleIds);
-
-        if (permissionVersion.equals(req.permissionVersion())) {
-            return new InterfaceSnapshotResp(true, permissionVersion, List.of());
-        }
-
-        String cacheIdentifier = buildInterfaceSnapshotCacheIdentifier(req.serviceCode(), permissionVersion);
-        InterfaceSnapshot cached = cacheService.get(PermCacheCatalog.INTERFACE_SNAPSHOT, tenantId, cacheIdentifier);
-        if (cached != null) {
-            return new InterfaceSnapshotResp(false, permissionVersion, toApiPermissionEntries(cached.entries()));
-        }
 
         if (validRoleIds.isEmpty()) {
-            cacheInterfaceSnapshot(tenantId, req.serviceCode(), permissionVersion, List.of(), cacheIdentifier);
-            return new InterfaceSnapshotResp(false, permissionVersion, List.of());
+            // 无有效角色 → 空快照。Gateway 缓存空快照，靠 TTL + 广播最终一致。
+            return new InterfaceSnapshotResp(List.of());
         }
 
-        // 调引擎获取全量权限，通过 SnapshotAssembler 过滤 API 类型并构建快照条目
+        // T-PERM-018：缓存下沉——permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2) 与 permissionVersion。
+        // 每次实时调引擎构建全量快照（ROLE_PERM_SNAPSHOT 兜住角色权限记录读路径），交 Gateway 本地缓存匹配。
         PermQuery query = PermQuery.forUserView(tenantId, userId);
         query.setRoleIds(validRoleIds); // 使用已过滤互斥的角色
         PermResult result = engine.query(query);
@@ -633,64 +603,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             .stream()
             .toList();
 
-        cacheInterfaceSnapshot(tenantId, req.serviceCode(), permissionVersion, dedupedEntries, cacheIdentifier);
-        return new InterfaceSnapshotResp(false, permissionVersion, dedupedEntries);
-    }
-
-    private String buildInterfacePermissionVersion(Long tenantId, Set<Long> validRoleIds) {
-        // T-PERM-003（2026-06-20）：删除 permission_version 持久化层后，令牌不再包含 versionNo。
-        // 占位实现：基于有序 roleIds 的 sha256 指纹。令牌仅在角色集合变化时变化；
-        // 权限内容失效改由 Redis pub/sub 广播（T-PERM-006）+ TTL 兜底承担。
-        // T-PERM-001 落地后改为 sha256(permissions)（v3.5 §5.1 ETag）。
-        StringBuilder raw = new StringBuilder("perm:v2|");
-        List<Long> sortedRoleIds = validRoleIds.stream()
-            .sorted()
-            .toList();
-
-        if (sortedRoleIds.isEmpty()) {
-            raw.append("empty");
-        } else {
-            for (Long roleId : sortedRoleIds) {
-                raw.append(roleId).append(";");
-            }
-        }
-
-        return "perm:v2:" + sha256Hex(raw.toString());
-    }
-
-    private String buildInterfaceSnapshotCacheIdentifier(String serviceCode, String permissionVersion) {
-        return serviceCode + "|" + permissionVersion;
-    }
-
-    private void cacheInterfaceSnapshot(Long tenantId, String serviceCode, String permissionVersion,
-                                         List<ApiPermissionEntry> entries, String cacheIdentifier) {
-        InterfaceSnapshot snapshot = new InterfaceSnapshot(
-            tenantId,
-            serviceCode,
-            permissionVersion,
-            entries.stream()
-                .map(item -> new InterfaceSnapshot.InterfacePermEntry(
-                    item.serviceCode(), item.httpMethod(), item.pathPattern(), item.hasCondition(), item.conditionId(), item.scopeAll()
-                ))
-                .toList()
-        );
-        cacheService.put(PermCacheCatalog.INTERFACE_SNAPSHOT, tenantId, cacheIdentifier, snapshot);
-    }
-
-    private List<ApiPermissionEntry> toApiPermissionEntries(List<InterfaceSnapshot.InterfacePermEntry> entries) {
-        return entries.stream()
-            .map(e -> new ApiPermissionEntry(e.serviceCode(), e.httpMethod(), e.pathPattern(),
-                e.hasCondition(), e.conditionId(), e.scopeAll()))
-            .collect(Collectors.toList());
-    }
-
-    private String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new SystemException(PermissionErrorCode.SYSTEM_INIT_FAILED.getCode(), "SHA-256 algorithm is not available", e);
-        }
+        return new InterfaceSnapshotResp(dedupedEntries);
     }
 
     // ===== queryPermissionTree =====
@@ -700,15 +613,15 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     public PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req) {
         TreeContext context = prepareTreeContext(tenantId, req);
         if (context.userId == null) {
-            return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
+            return new PermissionTreeResp(null, List.of(), List.of(), 60);
         }
         if (context.rootResourceId == null) {
-            return new PermissionTreeResp(null, List.of(), List.of(), null, 60);
+            return new PermissionTreeResp(null, List.of(), List.of(), 60);
         }
         if (context.validRoleIds.isEmpty()) {
             ResourceEntity rootResource = resourceEntityMapper.selectOneById(context.rootResourceId);
             return new PermissionTreeResp(buildNode(context.rootResourceId, 0, Set.of(), false, null, rootResource, Map.of()),
-                List.of(), List.of(), null, 60);
+                List.of(), List.of(), 60);
         }
 
         Map<Long, List<RolePermEntry>> permissionMap = buildPermissionMap(tenantId, context);
@@ -823,9 +736,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 context.operationIds, context.operationMap, context.maxDepth, allResourceMap, resourceTypeCodeMap);
         }
 
-        String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(context.userId, tenantId, context.validRoleIds);
-
-        return new PermissionTreeResp(root, ancestors, descendants, permissionVersion, 60);
+        return new PermissionTreeResp(root, ancestors, descendants, 60);
     }
 
     private TreeNode buildNode(Long resourceId, int depth,

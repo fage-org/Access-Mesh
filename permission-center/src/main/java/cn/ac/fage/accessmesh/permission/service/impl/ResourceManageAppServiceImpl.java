@@ -504,6 +504,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "perm", action = "resource-api-mapping-add", targetType = "resource_api_mapping", targetId = "#result.id()", summary = "'add api mapping for service ' + #req.serviceCode()")
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -530,11 +531,14 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         mapping.setUpdatedAt(now);
         mapping.setDeleteFlag(0L);
         apiMappingMapper.insert(mapping);
+        // API mapping 变更不影响 ROLE_PERM_SNAPSHOT（perm 记录未变），仅影响 Gateway 本地快照 → 广播 serviceCodes
+        PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
         return toApiMappingResp(mapping);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "perm", action = "resource-api-mapping-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resource api mappings'")
     public void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -576,6 +580,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             return;
         }
 
+        // API mapping 删除影响 Gateway 本地快照构建 → 广播受影响 serviceCodes（perm 未变，不 markRoles）
+        PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
+
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + n + " resource_api_mapping row(s), ids=" + mappingIdsToDelete
         );
@@ -589,6 +596,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "perm", action = "resource-api-mapping-update", targetType = "resource_api_mapping", targetId = "#req.mappingId()", summary = "'update api mapping ' + #req.mappingId()")
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -619,6 +627,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
         mapping.setUpdatedAt(LocalDateTime.now());
         apiMappingMapper.update(mapping);
+
+        // API mapping 变更影响 Gateway 本地快照 → 广播 serviceCode（perm 未变，不 markRoles）
+        PermissionChangeContext.markServiceCodes(tenantId, mapping.getServiceCode());
 
         ResourceApiMapping updated = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
         return toApiMappingResp(updated);

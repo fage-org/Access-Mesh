@@ -21,7 +21,6 @@ import java.util.Set;
  *   <tr><th>常量名</th><th>code</th><th>模式</th><th>L1 TTL</th><th>L2 TTL</th></tr>
  *   <tr><td>EFFECTIVE_ROLES</td><td>perm:effective-roles</td><td>L1_L2</td><td>5min</td><td>30min</td></tr>
  *   <tr><td>ROLE_PERM_SNAPSHOT</td><td>perm:role-perm-snapshot</td><td>L1_L2</td><td>5min</td><td>30min</td></tr>
- *   <tr><td>INTERFACE_SNAPSHOT</td><td>perm:interface-snapshot</td><td>L1_L2</td><td>10min</td><td>60min</td></tr>
  *   <tr><td>TYPE_VALUE</td><td>perm:type-value</td><td>L1_L2</td><td>30min</td><td>120min</td></tr>
  *   <tr><td>TYPE_CODE</td><td>perm:type-code</td><td>L1_L2</td><td>30min</td><td>120min</td></tr>
  *   <tr><td>CONDITION_RULES</td><td>perm:condition-rules</td><td>L1_L2</td><td>10min</td><td>30min</td></tr>
@@ -59,31 +58,14 @@ public final class PermCacheCatalog {
      * T-PERM-018：engine forUserView 读路径激活（getBatch 批量查 roleIds，miss 集合 1 SQL，putBatch 回填）。
      * </p>
      */
-    public static final CacheCatalogEntry<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>> ROLE_PERM_SNAPSHOT =
-        CacheCatalogEntry.<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>>builder()
+    public static final CacheCatalogEntry<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermEntry>> ROLE_PERM_SNAPSHOT =
+        CacheCatalogEntry.<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermEntry>>builder()
             .code("perm:role-perm-snapshot")
             .mode(CacheMode.L1_L2)
             .l1TtlMinutes(5)
             .l1MaxSize(2000)
             .l2TtlMinutes(30)
-            .valueType(new TypeRef<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>>() {})
-            .build();
-
-    /**
-     * 接口权限快照缓存
-     * <p>
-        * Key: serviceCode + "|" + permissionVersion
-     * Value: InterfaceSnapshot
-     * </p>
-     */
-    public static final CacheCatalogEntry<cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot> INTERFACE_SNAPSHOT =
-        CacheCatalogEntry.<cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot>builder()
-            .code("perm:interface-snapshot")
-            .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(10)
-            .l1MaxSize(500)
-            .l2TtlMinutes(60)
-            .valueType(new TypeRef<cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot>() {})
+            .valueType(new TypeRef<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermEntry>>() {})
             .build();
 
     /**

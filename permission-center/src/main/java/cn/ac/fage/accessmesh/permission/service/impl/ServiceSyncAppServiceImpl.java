@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ServiceConfigSyncResp;
@@ -81,6 +83,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "perm", action = "service-interface-sync", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
     public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -102,6 +105,10 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
 
         SyncModeStrategy strategy = strategyFactory.getStrategy(req.syncMode());
         SyncResult result = strategy.execute(context, resourceSyncHandler, mappingSyncHandler);
+
+        // sync 改变 API mapping/资源 → 影响 Gateway 本地快照构建，广播 serviceCode（perm 未变，不 markRoles）
+        // cleanupOrphanedResources 仅软删 resource 不软删 perm，perm 未变不致 ROLE_PERM_SNAPSHOT 陈旧
+        PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
 
         return result.toResponse();
     }

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.permission.dto.query;
 
 import cn.ac.fage.accessmesh.permission.entity.AbstractRole;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

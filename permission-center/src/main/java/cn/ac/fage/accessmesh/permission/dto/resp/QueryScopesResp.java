@@ -23,7 +23,6 @@ import java.util.List;
  * @param matchedParentOperations 匹配的父操作列表（父资源鉴权结果，独立于数据范围）
  * @param parentPermissionIds    父权限ID列表
  * @param scopeGroups            数据范围分组，按 (resourceTypeCode, operationCode) 分类
- * @param permissionVersion      权限版本号（T-PERM-001 收尾移除）
  * @param cacheTtlSeconds        缓存有效时间（秒）
  */
 public record QueryScopesResp(
@@ -31,7 +30,6 @@ public record QueryScopesResp(
     List<String> matchedParentOperations,
     List<Long> parentPermissionIds,
     List<ScopeGroup> scopeGroups,
-    String permissionVersion,
     int cacheTtlSeconds
 ) {
     /**

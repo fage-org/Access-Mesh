@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.List;
 import java.util.Set;
@@ -43,5 +43,5 @@ public interface PermissionConflictDomainService {
      * @param passedEntries 通过初步检查的权限条目列表
      * @return 过滤后的权限条目列表（移除互斥权限）
      */
-    List<RolePermSnapshot.RolePermEntry> filterPermMutex(Long tenantId, List<RolePermSnapshot.RolePermEntry> passedEntries);
+    List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 }

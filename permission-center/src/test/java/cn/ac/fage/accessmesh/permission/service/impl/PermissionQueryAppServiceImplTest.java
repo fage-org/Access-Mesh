@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
@@ -18,13 +17,11 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.SnapshotAssembler;
-import cn.ac.fage.accessmesh.permission.vo.InterfaceSnapshot;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -34,19 +31,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,7 +58,6 @@ class PermissionQueryAppServiceImplTest {
     @Mock private PermissionConditionDomainService permissionConditionDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private CacheService cacheService;
-    @Mock private PermissionVersionDomainService permissionVersionDomainService;
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private SnapshotAssembler snapshotAssembler;
@@ -78,7 +70,7 @@ class PermissionQueryAppServiceImplTest {
             resourceEntityMapper, operationPermissionMapper,
             subjectDomainService, permissionConflictDomainService,
             permissionConditionDomainService, typeResolutionService, cacheService,
-            permissionVersionDomainService, domainClassifyService,
+            domainClassifyService,
             engine, snapshotAssembler
         );
     }
@@ -98,8 +90,6 @@ class PermissionQueryAppServiceImplTest {
             .thenReturn(Map.of("DEPT", 2));
         when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
             .thenReturn(Map.of("VIEW", 601L));
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
-        when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
 
         RolePermEntry parentEntry = new RolePermEntry(
             401L, 200L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
@@ -157,8 +147,6 @@ class PermissionQueryAppServiceImplTest {
             .thenReturn(Map.of("DEPT", 2));
         when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
             .thenReturn(Map.of("VIEW", 601L));
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
-        when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
 
         RolePermEntry parentEntry = new RolePermEntry(
             401L, 200L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
@@ -191,27 +179,11 @@ class PermissionQueryAppServiceImplTest {
         assertTrue(group.items().isEmpty());
     }
 
-    // ===== interfaceSnapshot tests =====
+    // ===== interfaceSnapshot tests (T-PERM-018：缓存下沉，移除令牌/notModified) =====
 
     @Nested
     @MockitoSettings(strictness = Strictness.LENIENT)
     class InterfaceSnapshotTests {
-
-        private Map<String, InterfaceSnapshot> snapshotCache;
-
-        @BeforeEach
-        void setUpSnapshot() {
-            snapshotCache = new HashMap<>();
-            lenient().when(cacheService.get(eq(PermCacheCatalog.INTERFACE_SNAPSHOT), eq(1L), any()))
-                .thenAnswer(invocation -> snapshotCache.get(invocation.getArgument(2, String.class)));
-            lenient().doAnswer(invocation -> {
-                snapshotCache.put(
-                    invocation.getArgument(2, String.class),
-                    invocation.getArgument(3, InterfaceSnapshot.class)
-                );
-                return null;
-            }).when(cacheService).put(eq(PermCacheCatalog.INTERFACE_SNAPSHOT), eq(1L), any(), any());
-        }
 
         private PermResult buildPermResult() {
             return PermResult.builder(true, null)
@@ -220,7 +192,8 @@ class PermissionQueryAppServiceImplTest {
         }
 
         @Test
-        void shouldReturnNotModifiedWhenPermissionTokenMatchesCurrentState() {
+        void shouldBuildSnapshotFromEngineEveryCallWithoutToken() {
+            // T-PERM-018：permission-center 每次实时构建全量快照，不再有 permissionVersion/notModified
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
             when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
@@ -232,76 +205,29 @@ class PermissionQueryAppServiceImplTest {
                 ));
 
             InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service", null));
-
+                "USER", "u-1", "admin-service"));
             InterfaceSnapshotResp second = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service", first.permissionVersion()));
+                "USER", "u-1", "admin-service"));
 
-            assertFalse(first.notModified());
+            // 每次都返回全量 entries（无 notModified 短路）
             assertEquals(1, first.allowedApis().size());
-            assertTrue(second.notModified());
-            assertEquals(first.permissionVersion(), second.permissionVersion());
-            assertTrue(second.allowedApis().isEmpty());
-            verify(snapshotAssembler, times(1)).buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2));
+            assertEquals(1, second.allowedApis().size());
+            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2));
         }
 
         @Test
-        void shouldRebuildSnapshotWhenPermissionTokenChanges() {
-            // T-PERM-003：令牌改为 roleIds 指纹，仅在角色集合变化时变化（不再反映权限内容变更）。
-            // 本用例通过切换角色集合触发令牌变化，验证令牌变化后快照重建。
+        void shouldReturnEmptySnapshotWhenNoEffectiveRoles() {
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(subjectDomainService.resolveEffectiveRoles(1L, 10L))
-                .thenReturn(Set.of(200L), Set.of(201L));
-            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
-            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
-            when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
-            when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
-                .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/list", false, null, false)
-                ))
-                .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/export", false, null, false)
-                ));
+            when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of())).thenReturn(Set.of());
 
-            InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service", null));
-            InterfaceSnapshotResp second = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service", first.permissionVersion()));
+            InterfaceSnapshotResp resp = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
+                "USER", "u-1", "admin-service"));
 
-            assertFalse(first.notModified());
-            assertFalse(second.notModified());
-            assertNotEquals(first.permissionVersion(), second.permissionVersion());
-            assertEquals("/api/user/list", first.allowedApis().get(0).pathPattern());
-            assertEquals("/api/user/export", second.allowedApis().get(0).pathPattern());
-        }
-
-        @Test
-        void shouldIsolateSnapshotsByPermissionTokenForDifferentUsers() {
-            when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(typeResolutionService.resolveUserId(1L, "USER", "u-2")).thenReturn(11L);
-            when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
-            when(subjectDomainService.resolveEffectiveRoles(1L, 11L)).thenReturn(Set.of(201L));
-            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
-            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
-            when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
-            when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
-                .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/list", false, null, false)
-                ))
-                .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/export", false, null, false)
-                ));
-
-            InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service", null));
-            InterfaceSnapshotResp second = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-2", "admin-service", null));
-
-            assertNotEquals(first.permissionVersion(), second.permissionVersion());
-            assertEquals("/api/user/list", first.allowedApis().get(0).pathPattern());
-            assertEquals("/api/user/export", second.allowedApis().get(0).pathPattern());
+            assertTrue(resp.allowedApis().isEmpty());
+            // 无有效角色短路，不调引擎
+            verify(engine, times(0)).query(any(PermQuery.class));
+            verify(snapshotAssembler, times(0)).buildSnapshot(any(), any(), any(), any());
         }
     }
 
@@ -314,7 +240,6 @@ class PermissionQueryAppServiceImplTest {
         @Test
         void shouldReturnScopeAllEntryWhenUserHasScopeAllPermission() {
             lenient().when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            lenient().when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
             lenient().when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
             lenient().when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
                 .thenReturn(Map.of(1, "REPORT"));

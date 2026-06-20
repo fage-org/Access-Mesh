@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -146,12 +146,12 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @return 过滤后的权限条目列表（移除互斥权限）
      */
     @Override
-    public List<RolePermSnapshot.RolePermEntry> filterPermMutex(Long tenantId, List<RolePermSnapshot.RolePermEntry> passedEntries) {
+    public List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.PERM_MUTEX.getValue());
 
         Set<Integer> resourceTypes = passedEntries.stream()
-            .map(RolePermSnapshot.RolePermEntry::resourceType)
+            .map(RolePermEntry::resourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 

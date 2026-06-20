@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.*;
 
@@ -121,12 +121,8 @@ public final class PermResultUtils {
      * @return 资源查询响应
      */
     public static QueryResourcesResp toQueryResourcesResp(PermResult r, int cacheTtlSeconds) {
-        return toQueryResourcesResp(r, cacheTtlSeconds, null);
-    }
-
-    public static QueryResourcesResp toQueryResourcesResp(PermResult r, int cacheTtlSeconds, String permissionVersion) {
         Map<Long, ResourceEntity> resMap = r.resourceMap();
-        if (resMap == null) return new QueryResourcesResp(List.of(), permissionVersion, cacheTtlSeconds);
+        if (resMap == null) return new QueryResourcesResp(List.of(), cacheTtlSeconds);
 
         Map<Long, List<RolePermEntry>> byResource = new LinkedHashMap<>();
         for (RolePermEntry e : r.allEntries()) {
@@ -153,6 +149,6 @@ public final class PermResultUtils {
                 false,
                 ops, roleIds, permIds, sources));
         }
-        return new QueryResourcesResp(entries, permissionVersion, cacheTtlSeconds);
+        return new QueryResourcesResp(entries, cacheTtlSeconds);
     }
 }

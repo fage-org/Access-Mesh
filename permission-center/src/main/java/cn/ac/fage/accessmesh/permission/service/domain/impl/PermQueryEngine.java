@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

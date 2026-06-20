@@ -10,17 +10,15 @@ import java.util.Set;
  * 用于权限树查询接口的响应。
  * </p>
  *
- * @param root             起始节点（可能没有权限）
- * @param ancestors        祖父节点链（direction=ANCESTORS/BOTH时返回）
- * @param descendants      子孙节点树（direction=DESCENDANTS/BOTH时返回）
- * @param permissionVersion 权限版本号
- * @param cacheTtlSeconds  缓存有效时间（秒）
+ * @param root            起始节点（可能没有权限）
+ * @param ancestors       祖父节点链（direction=ANCESTORS/BOTH时返回）
+ * @param descendants     子孙节点树（direction=DESCENDANTS/BOTH时返回）
+ * @param cacheTtlSeconds 缓存有效时间（秒）
  */
 public record PermissionTreeResp(
     TreeNode root,
     List<TreeNode> ancestors,
     List<TreeNode> descendants,
-    String permissionVersion,
     int cacheTtlSeconds
 ) {
     /**

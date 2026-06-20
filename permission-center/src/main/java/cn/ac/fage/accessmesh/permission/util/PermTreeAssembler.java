@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.query.PermViewFilter;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.*;
 

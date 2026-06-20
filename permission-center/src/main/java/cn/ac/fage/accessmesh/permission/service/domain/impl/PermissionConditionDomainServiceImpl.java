@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.permission.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,7 +64,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * @return 满足条件的权限条目列表
      */
     @Override
-    public List<RolePermSnapshot.RolePermEntry> evaluate(Long tenantId, List<RolePermSnapshot.RolePermEntry> entries,
+    public List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
                                                           Map<String, Object> context) {
         Map<Long, Boolean> conditionCache = new HashMap<>();
 

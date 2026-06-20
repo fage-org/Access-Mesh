@@ -33,7 +33,7 @@ import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;

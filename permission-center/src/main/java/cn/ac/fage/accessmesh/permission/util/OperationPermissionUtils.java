@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.permission.util;
 
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.*;
 

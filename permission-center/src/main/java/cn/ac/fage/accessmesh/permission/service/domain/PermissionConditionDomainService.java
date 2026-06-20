@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
-import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot;
+import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +28,6 @@ public interface PermissionConditionDomainService {
      * @param context  评估上下文，包含条件判断所需的参数
      * @return 通过条件检查的权限条目列表
      */
-    List<RolePermSnapshot.RolePermEntry> evaluate(Long tenantId, List<RolePermSnapshot.RolePermEntry> entries,
+    List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
                                                    Map<String, Object> context);
 }

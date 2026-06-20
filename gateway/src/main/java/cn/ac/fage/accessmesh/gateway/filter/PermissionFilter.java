@@ -117,14 +117,14 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             return writeForbidden(exchange, "无接口访问权限");
         }
 
-        // 未命中：回源拉取快照（首次无令牌，传入 null）
-        return permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, null, tenantId)
+        // 未命中：回源拉取快照（T-PERM-018：permission-center 实时构建全量快照）
+        return permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId)
             .flatMap(result -> {
                 InterfaceSnapshotResp snapshot = extractSnapshot(result);
                 if (snapshot == null) {
                     return writeForbidden(exchange, "无接口访问权限");
                 }
-                // 缓存拉取到的快照（含 notModified=false 的全量快照）
+                // 缓存拉取到的全量快照
                 interfaceSnapshotCache.put(cacheKey, snapshot);
                 if (InterfaceSnapshotMatcher.matches(snapshot, serviceCode, httpMethod, path)) {
                     return chain.filter(exchange);
@@ -143,10 +143,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      */
     private InterfaceSnapshotResp extractSnapshot(PermResult<InterfaceSnapshotResp> result) {
         if (result == null || result.getData() == null) {
-            return null;
-        }
-        // notModified=true 表示服务端令牌未变化但 Gateway 本地无快照（异常路径），按无权限处理
-        if (result.getData().notModified()) {
             return null;
         }
         return result.getData();
