@@ -722,6 +722,34 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             Map<Long, AbstractRole> roleMap = roles.stream()
                 .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
+            // 批量解析 relationId（关联组织角色 abstract_role.id）→ externalId，供 admin 解析组织名
+            // relationId 与 targetId 是不同角色（targetId=用户持有的角色，relationId=关联组织角色），
+            // 单独收集批量查询，避免 admin 层用内部主键错查 sys_org（P2-1 修复）
+            Set<Long> relationRoleIds = userRoles.stream()
+                .map(UserRole::getRelationId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+            Map<Long, String> relationExternalIdMap;
+            if (relationRoleIds.isEmpty()) {
+                relationExternalIdMap = java.util.Map.of();
+            } else {
+                // 复用已查的 roleMap，再补查未命中的 relationId
+                Set<Long> missing = new java.util.HashSet<>(relationRoleIds);
+                missing.removeAll(roleMap.keySet());
+                if (!missing.isEmpty()) {
+                    abstractRoleMapper.selectValidByIds(tenantId, missing)
+                        .forEach(r -> roleMap.put(r.getId(), r));
+                }
+                relationExternalIdMap = new java.util.HashMap<>();
+                for (Long rid : relationRoleIds) {
+                    AbstractRole r = roleMap.get(rid);
+                    if (r != null) {
+                        relationExternalIdMap.put(rid, r.getExternalId());
+                    }
+                }
+            }
+
+            final Map<Long, String> finalRelationExternalIdMap = relationExternalIdMap;
             summaries = userRoles.stream()
                 .map(ur -> {
                     AbstractRole role = roleMap.get(ur.getTargetId());
@@ -731,6 +759,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                         role != null ? typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()) : null,
                         ur.getTargetType(),
                         ur.getRelationId(),
+                        ur.getRelationId() != null ? finalRelationExternalIdMap.get(ur.getRelationId()) : null,
                         ur.getValidFrom(),
                         ur.getValidTo()
                     );

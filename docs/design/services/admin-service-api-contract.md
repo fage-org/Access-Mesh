@@ -69,7 +69,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user/delete` | `ADMIN_USER` | 实例级批量 (ids) | `DELETE` | 默认树身份目录边界 |
 | `/user/enable` | `ADMIN_USER` | 实例级批量 (ids) | `ENABLE` 或 `DISABLE` | 按入参 `status` 派发: 1=ENABLE, 0=DISABLE |
 | `/user/reset-password` | `ADMIN_USER` | 实例级 (userId) | `RESET_PASSWORD` | 默认树身份目录边界 |
-| `/user/detail` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | |
+| `/user/detail` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | 类型级 VIEW 门禁 + 默认树可见范围裁剪（P1-2：复用 `validateUsersInDefaultTreeScope`，与 `/user/page` 同等约束，防止知道 ID 即可读列表不可见用户；无组织关系用户拒绝）|
 | `/org/tree` | `ADMIN_ORG` | 类型级 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围; `CREATE`=新增用户时可选挂载点 (限默认树) |
 | `/org/page` | `ADMIN_ORG` | 类型级 | `VIEW` | |
 | `/org/users` | `ADMIN_ORG` | 实例级 (orgId) | `VIEW` | |
@@ -81,7 +81,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/user-org/set-primary` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
 | `/user-role/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
-| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 代理 `permission-center /api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)` |
+| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 代理 `permission-center /api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)`. **admin 层不做 ROLE:MANAGE 预检，由 permission-center 兜底**（P1-1：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code，语义错位会误拒；perm 用正确 abstract_role.id 校验）|
 | `/user-role/revoke` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | 同上 |
 | `/role/list` | `ADMIN_ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
@@ -737,14 +737,15 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `roleName` | `String` | 角色名 |
 | `roleTypeLabel` | `String` | 显示名 (代理层映射) |
 | `targetType` | `String` | (前端展示用, 同 `roleTypeCode`) |
-| `relationId` | `Long` | POSITION 角色对应的所属组织 abstract_role.id; 其他类型为 null. 内部参考字段, 前端不直接消费 |
-| `relationOrgName` | `String` | POSITION 角色对应的所属组织名 (代理层补) |
+| `relationId` | `Long` | POSITION 角色对应的所属组织 abstract_role.id（permission-center 内部主键）; 其他类型为 null. 内部参考字段, 前端不直接消费 |
+| `relationExternalId` | `String` | POSITION 角色对应的所属组织业务键（= sys_org.id 字符串，permission-center 返回）; admin 据此解析组织名（P2-1：替代用 relationId 错查 sys_org）|
+| `relationOrgName` | `String` | POSITION 角色对应的所属组织名 (代理层用 relationExternalId 查 sys_org 补) |
 | `validFrom` | `LocalDateTime` | |
 | `validTo` | `LocalDateTime` | |
 
 **门禁**: `ADMIN_USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
 
-**代理动作**: admin 调 `permission-center /api/perm/user-role/list` (业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`); 响应每条记录通过本地 `sys_org` / `permission-center role` 拼接显示字段. 返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId.
+**代理动作**: admin 调 `permission-center /api/perm/user-role/list` (业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`); permission-center 响应含 `relationExternalId`（关联组织角色业务键），admin 据此查 `sys_org` 补 `relationOrgName`. 返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId.
 
 **错误码段**: 10500-10519
 
@@ -772,7 +773,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ROLE:MANAGE@roleExternalId` (admin 层与 permission-center 内部统一).
+**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission-center 兜底**（admin 层不做预检，P1-1 修复：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位会误拒；permission-center `UserManageAppServiceImpl.assignRole` 用正确 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
 
 **代理动作**:
 1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED, 应走 /user-org/*)`).
@@ -804,7 +805,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ROLE:MANAGE@roleExternalId`.
+**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission-center 兜底**（同 assign，P1-1 修复；permission-center `revokeRolesBatch` 用 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
 
 **代理动作**:
 1. 校验 `roleTypeCode` (同 assign).

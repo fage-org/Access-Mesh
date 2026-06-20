@@ -24,13 +24,14 @@ public record UserRolesResp(
      * 表示用户拥有的单个角色信息，包括角色标识和有效期。
      * </p>
      *
-     * @param roleExternalId 角色外部标识
-     * @param roleName       角色名称
-     * @param roleTypeCode   角色类型编码
-     * @param targetType     关系目标类型
-     * @param relationId     关系ID
-     * @param validFrom      有效期开始时间
-     * @param validTo        有效期结束时间
+     * @param roleExternalId     角色外部标识
+     * @param roleName           角色名称
+     * @param roleTypeCode       角色类型编码
+     * @param targetType         关系目标类型
+     * @param relationId         关系ID（关联组织角色 abstract_role.id，permission-center 内部主键）
+     * @param relationExternalId 关联组织角色外部标识（= sys_org.id 字符串，供 admin 解析组织名；仅 POSITION 等带关联组织角色的关系非空）
+     * @param validFrom          有效期开始时间
+     * @param validTo            有效期结束时间
      */
     public record RoleSummary(
         String roleExternalId,
@@ -38,6 +39,7 @@ public record UserRolesResp(
         String roleTypeCode,
         String targetType,
         Long relationId,
+        String relationExternalId,
         java.time.LocalDateTime validFrom,
         java.time.LocalDateTime validTo
     ) {}

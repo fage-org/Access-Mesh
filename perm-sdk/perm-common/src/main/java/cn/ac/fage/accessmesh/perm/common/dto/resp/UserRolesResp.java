@@ -48,9 +48,13 @@ public record UserRolesResp(
          */
         String targetType,
         /**
-         * 关联关系ID
+         * 关联关系ID（关联组织角色 abstract_role.id，permission-center 内部主键）
          */
         Long relationId,
+        /**
+         * 关联组织角色外部ID（= sys_org.id 字符串，供 admin 解析组织名；仅 POSITION 等带关联组织角色的关系非空）
+         */
+        String relationExternalId,
         /**
          * 有效起始时间
          */

@@ -8,8 +8,8 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| permission-center | `T-PERM` | 016 |
-| admin-service | `T-ADMIN` | 017 |
+| permission-center | `T-PERM` | 017 |
+| admin-service | `T-ADMIN` | 020 |
 | gateway | `T-GW` | 007 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
 | 跨服务 API 契约 | `T-API` | 001 |
@@ -40,6 +40,7 @@
 | T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/permission-center.sql | T-PERM-009 | ⚙️ | ⏳ |
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-010, T-PERM-011 | ⚙️ | ⏳ |
 | T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 三分支 | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ⚙️ | ⏳ |
+| [T-PERM-016](T-PERM-016.md) | UserRolesResp.RoleSummary 增 relationExternalId + getUserRoles 批量解析关联组织角色 | [user-role-proxy-fix-round2](../plans/user-role-proxy-fix-round2-plan.md) | design/permission-center/api-contract.md（UserRolesResp 契约）| — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -54,9 +55,13 @@
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
-### admin-service
+### admin-service（用户角色代理修复第二轮，2026-06-20）
 
-_当前无活跃 T-ADMIN 任务。`T-ADMIN-001~016`（用户角色代理修复）已全部完成并归档，见下方"已完成"区。_
+| ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
+|---|---|---|---|---|---|---|
+| T-ADMIN-017 | 删除 assign/revoke 重复 ROLE:MANAGE 预检（交 perm 兜底） | [user-role-proxy-fix-round2](../plans/user-role-proxy-fix-round2-plan.md) | design/services/admin-service-api-contract.md §4.4 | — | ✅ | ✓ |
+| T-ADMIN-018 | getUser 加组织可见性裁剪（复用 validateUsersInDefaultTreeScope） | user-role-proxy-fix-round2 | design/services/admin-service-api-contract.md（getUser 门禁）| — | ✅ | ✓ |
+| T-ADMIN-019 | deleteUser 批量加载 orgMap 消除 N+1 | user-role-proxy-fix-round2 | — | — | ✅ | ✓ |
 
 > EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条循环）/ EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）为 DEFERRED 无主项（审计 S-024），未纳入本批任务，待单独立项。
 

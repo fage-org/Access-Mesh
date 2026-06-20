@@ -1791,7 +1791,8 @@ admin-service 查询示例：
 ```
 
 - 每条 `item` **必须**包含 `domainCode`，用于在「租户 + 域 + 全局」命名空间内唯一定位角色，避免跨业务域同名角色歧义。
-- `relationId` 与表 `user_role.relation_id` 一致（如 POSITION 等类型需要时填写，否则 `null`）。
+- `relationId` 与表 `user_role.relation_id` 一致（如 POSITION 等类型需要时填写，否则 `null`）。`relationId` 是关联组织角色的 `abstract_role.id`（permission-center 内部主键），**外部不应据此反查业务实体**。
+- `UserRolesResp.RoleSummary` 另含 `relationExternalId`（关联组织角色业务键 = sys_org.id 字符串，P2-1 增），供 admin 层解析组织名，避免用内部主键 `relationId` 错查 `sys_org`。permission-center `getUserRoles` 批量解析关联组织角色 externalId 填充。
 
 #### 6.10.3 `abstract-role/tree` 与 `extra-roles/*`
 

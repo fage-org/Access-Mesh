@@ -324,9 +324,19 @@ public class UserServiceImpl implements UserService {
         Map<Long, String> rootExternalIdMap = orgIds.isEmpty()
             ? Map.of()
             : orgTreeConfigDomainService.resolveTreeRootExternalIds(tenantId, orgIds);
+        // P2-2 修复：批量加载 orgMap，消除循环内逐条 selectValidById 的 N+1（缺失组织显式 warn 并跳过）
+        Map<Long, SysOrg> orgMap = orgIds.isEmpty()
+            ? Map.of()
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, orgIds);
 
         for (SysUserOrg uo : allUserOrgs) {
-            SysOrg org = orgDomainService.selectValidById(tenantId, uo.getOrgId());
+            SysOrg org = orgMap.get(uo.getOrgId());
+            if (org == null) {
+                // 组织已不存在（被并发删除或数据不一致），跳过该条 UNBIND 并记录，避免阻塞批量删除
+                log.warn("Org not found when deleting user, skip UNBIND envelope: userId={}, orgId={}",
+                    uo.getUserId(), uo.getOrgId());
+                continue;
+            }
             String roleTypeCode = resolveOrgRoleTypeCode(org);
             String relationKey = UserOrgKeys.relationKey(uo.getOrgId());
             String treeRootExternalId = rootExternalIdMap.get(uo.getOrgId());
@@ -428,6 +438,11 @@ public class UserServiceImpl implements UserService {
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
+
+        // P1-2 修复：组织可见性裁剪。pageUsers 已按 OrgVisibilityService 限制可见用户，
+        // getUser 须复用同等范围校验，否则知道 ID 即可读列表不可见范围内的用户（越权读取）。
+        // 决策：拒绝读取无组织关系的用户（正常不会有此类用户）。
+        validateUsersInDefaultTreeScope(tenantId, Set.of(id));
 
         // 使用 DomainService 获取用户
         SysUser user = userDomainService.selectValidById(tenantId, id);

@@ -538,10 +538,12 @@ public class RoleProxyServiceImpl implements RoleProxyService {
                 return List.of();
             }
 
-            // 收集需要补 relationOrgName 的 relationId（POSITION 角色的所属组织 abstract_role.id）
+            // 收集需要补 relationOrgName 的关联组织业务键（relationExternalId = sys_org.id 字符串）
+            // P2-1 修复：relationId 是 permission-center 的 abstract_role.id（内部主键），不能直接查 sys_org；
+            // 改用 permission-center 返回的 relationExternalId（= sys_org.id）解析组织名
             List<Long> orgIdsToLookup = result.getData().roles().stream()
-                .filter(r -> "POSITION".equals(r.roleTypeCode()) && r.relationId() != null)
-                .map(cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp.RoleSummary::relationId)
+                .filter(r -> "POSITION".equals(r.roleTypeCode()) && r.relationExternalId() != null)
+                .map(r -> Long.valueOf(r.relationExternalId()))
                 .collect(Collectors.toList());
             Map<Long, SysOrg> orgMap = orgIdsToLookup.isEmpty()
                 ? Map.of()
@@ -551,8 +553,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             return result.getData().roles().stream()
                 .map(r -> {
                     String relationOrgName = null;
-                    if ("POSITION".equals(r.roleTypeCode()) && r.relationId() != null) {
-                        SysOrg org = orgMap.get(r.relationId());
+                    if ("POSITION".equals(r.roleTypeCode()) && r.relationExternalId() != null) {
+                        SysOrg org = orgMap.get(Long.valueOf(r.relationExternalId()));
                         relationOrgName = org != null ? org.getName() : null;
                     }
                     return new UserRoleItemResp(
@@ -590,17 +592,17 @@ public class RoleProxyServiceImpl implements RoleProxyService {
     @Override
     public void assignRole(Long userId, String roleTypeCode, String roleExternalId,
                            java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
-        // 1. 实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）
-        permissionValidator.checkInstanceLevel("ROLE",
-            roleExternalId, "MANAGE");
-
-        // 2. 校验角色类型为功能角色
+        // 1. 校验角色类型为功能角色（ORG/POSITION 走 /user-org/*）
         if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "ORG/POSITION 角色请通过组织归属接口分配，不支持直接分配角色");
         }
 
-        // 3. 调用 permission-center 分配角色
+        // 2. 调用 permission-center 分配角色
+        // ROLE:MANAGE 实例级门禁由 permission-center UserManageAppServiceImpl.assignRole 兜底
+        // （用正确的 abstract_role.id 校验，admin 层不再重复预检——P1-1 修复：
+        //  admin 层原预检把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，
+        //  而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位且会误拒）
         try {
             UserAssignRoleReq.AssignItem assignItem = new UserAssignRoleReq.AssignItem(
                 SUBJECT_TYPE_ADMIN_USER,
@@ -645,17 +647,14 @@ public class RoleProxyServiceImpl implements RoleProxyService {
      */
     @Override
     public void revokeRole(Long userId, String roleTypeCode, String roleExternalId) {
-        // 1. 实例级 ROLE:MANAGE 门禁（与 org-user-permission-contract.md §5 备注³ 对齐）
-        permissionValidator.checkInstanceLevel("ROLE",
-            roleExternalId, "MANAGE");
-
-        // 2. 校验角色类型为功能角色
+        // 1. 校验角色类型为功能角色（ORG/POSITION 走 /user-org/*）
         if ("ORG".equals(roleTypeCode) || "POSITION".equals(roleTypeCode)) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "ORG/POSITION 角色请通过组织归属接口回收，不支持直接回收角色");
         }
 
-        // 3. 调用 permission-center 回收角色
+        // 2. 调用 permission-center 回收角色
+        // ROLE:MANAGE 实例级门禁由 permission-center 兜底（同 assignRole，P1-1 修复）
         try {
             UserRoleBatchRevokeReq.RevokeItem revokeItem = new UserRoleBatchRevokeReq.RevokeItem(
                 SUBJECT_TYPE_ADMIN_USER,
