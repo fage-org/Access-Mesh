@@ -9,7 +9,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | permission-center | `T-PERM` | 016 |
-| admin-service | `T-ADMIN` | 001 |
+| admin-service | `T-ADMIN` | 017 |
 | gateway | `T-GW` | 007 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
 | 跨服务 API 契约 | `T-API` | 001 |
@@ -53,6 +53,31 @@
 | T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503" | gateway-fail-mode | — | T-GW-002 | ⚙️ | ⏳ |
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
+
+### admin-service（用户角色代理修复 M1-M13 + S1-S3，已完成待验收）
+
+> 任务详情见 [user-role-proxy-fix-plan](../plans/user-role-proxy-fix-plan.md) §4（任务 ID 已嵌入各 M/S 标题）。代码已实现，待 §6.1/§6.3 验收勾选后转 `done`。回写状态：部分设计已同步（§6.5 文档勾选），其余待验收时核对。
+
+| ID | 标题（计划锚点） | 计划 | 状态 | 回写 |
+|---|---|---|---|---|
+| T-ADMIN-001 | M1 DTO 放宽 @NotBlank（双端同改） | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-002 | M2 服务端跨字段业务校验（Feature flag） | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-003 | M3 门禁码切回 ROLE:MANAGE | user-role-proxy-fix | 👀 | ✓ |
+| T-ADMIN-004 | M4 AdminOperationCode.MANAGE 常量处理 | user-role-proxy-fix | 👀 | ✓ |
+| T-ADMIN-005 | M5 admin DTO 改业务键 + RoleProxyServiceImpl 简化 | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-006 | M6 删除 parseRoleId/resolveRoleRef | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-007 | M7 listUserRoles 透传 validFrom/validTo | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-008 | M8 抽 UserOrgKeys helper | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-009 | M9 UserServiceImpl 两处替换 | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-010 | M10 UserOrgServiceImpl + SyncTaskBuilder 收敛 | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-011 | M11 抽 OrgVisibilityService | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-012 | M12 4 处共用 OrgVisibilityService | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-013 | M13 permission-center user 删除延迟补偿 | user-role-proxy-fix | 👀 | ⏳ |
+| T-ADMIN-014 | S1 前端 perm 串同步 | user-role-proxy-fix | 👀 | ✓ |
+| T-ADMIN-015 | S2 种子数据核实 + 补丁 | user-role-proxy-fix | 👀 | ✓ |
+| T-ADMIN-016 | S3 契约一致性测试 | user-role-proxy-fix | 👀 | ✓ |
+
+> EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条循环）/ EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）为 DEFERRED 无主项（审计 S-024），未纳入本批任务，待单独立项。
 
 ## 依赖告警（dangling）
 
