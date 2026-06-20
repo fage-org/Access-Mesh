@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -38,8 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -207,6 +207,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "abstract-user-remove", targetType = "abstract_user", targetId = "", summary = "'batch delete users'")
+    @PermissionChange
     public void deleteUsers(Long tenantId, List<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -247,21 +248,15 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         OperationLogRuntimeContext.setSummary("Deleted " + existingUserIds.size() + " users");
 
-        final Set<Long> existingUserIdsForCache = existingUserIds;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheBatch(tenantId, existingUserIdsForCache);
-                }
-            });
-        }
+        // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markUsers(tenantId, existingUserIds);
 
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "user-role-assign", targetType = "user_role", targetId = "", summary = "'assign user roles'")
+    @PermissionChange
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
@@ -395,20 +390,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             OperationLogRuntimeContext.markSkip();
         }
 
-        if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
-            final Set<Long> userIdsForCache = affectedUserIds;
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
-                }
-            });
+        // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        if (!affectedUserIds.isEmpty()) {
+            PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "user-role-batch-assign", targetType = "abstract_role", targetId = "#req.roleExternalId()", summary = "'batch assign role ' + #req.roleExternalId()")
+    @PermissionChange
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
         if (req.subjectExternalIds() == null || req.subjectExternalIds().isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -505,20 +496,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             OperationLogRuntimeContext.markSkip();
         }
 
-        if (!affectedUserIds.isEmpty() && TransactionSynchronizationManager.isSynchronizationActive()) {
-            final Set<Long> userIdsForCache = affectedUserIds;
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheBatch(tenantId, userIdsForCache);
-                }
-            });
+        // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        if (!affectedUserIds.isEmpty()) {
+            PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "user-role-revoke", targetType = "BATCH", targetId = "", summary = "'batch revoke user-role relations'")
+    @PermissionChange
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
@@ -664,15 +651,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         );
 
         Set<Long> uniqueUsers = new LinkedHashSet<>(affectedUserIds);
-        final Set<Long> uniqueUsersForCache = uniqueUsers;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheBatch(tenantId, uniqueUsersForCache);
-                }
-            });
-        }
+        // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markUsers(tenantId, uniqueUsers);
         ObjectNode diffRoot = objectMapper.createObjectNode();
         diffRoot.put("eventType", "USER_ROLE_CHANGE");
         diffRoot.set("items", itemsJson);

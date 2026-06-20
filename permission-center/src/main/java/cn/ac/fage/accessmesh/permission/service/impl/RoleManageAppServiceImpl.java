@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -18,8 +20,6 @@ import cn.ac.fage.accessmesh.permission.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
-import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
@@ -34,8 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -62,7 +60,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     private final AbstractRoleMapper abstractRoleMapper;
     private final SubjectDomainService subjectDomainService;
-    private final CacheService cacheService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
     private final ObjectMapper objectMapper;
@@ -74,7 +71,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
      *
      * @param abstractRoleMapper    抽象角色数据访问层
      * @param subjectDomainService  主体领域服务
-     * @param cacheService          缓存服务
      * @param typeResolutionService 类型解析服务
      * @param domainClassifyService 域分类服务
      * @param objectMapper          JSON解析器
@@ -83,7 +79,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
      */
     public RoleManageAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  SubjectDomainService subjectDomainService,
-                                 CacheService cacheService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
                                  ObjectMapper objectMapper,
@@ -91,7 +86,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
-        this.cacheService = cacheService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.objectMapper = objectMapper;
@@ -198,6 +192,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "abstract-role-remove", targetType = "BATCH", targetId = "", summary = "'batch remove roles'")
+    @PermissionChange
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -284,15 +279,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             itemsJson.add(it);
         }
 
-        final Set<Long> roleIdsToEvictForCache = allIdsToDelete;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIdsToEvictForCache);
-                }
-            });
-        }
+        // 登记需直清角色权限快照的角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoleSnapshots(tenantId, allIdsToDelete);
 
         ObjectNode diffRoot = objectMapper.createObjectNode();
         diffRoot.put("eventType", "ROLE_BATCH_DELETE");

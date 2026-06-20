@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,7 +26,6 @@ class RoleManageAppServiceImplTest {
 
     @Mock private AbstractRoleMapper abstractRoleMapper;
     @Mock private SubjectDomainService subjectDomainService;
-    @Mock private CacheService cacheService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private AuditDomainService auditDomainService;
@@ -40,7 +38,6 @@ class RoleManageAppServiceImplTest {
         service = new RoleManageAppServiceImpl(
             abstractRoleMapper,
             subjectDomainService,
-            cacheService,
             typeResolutionService,
             domainClassifyService,
             new ObjectMapper(),

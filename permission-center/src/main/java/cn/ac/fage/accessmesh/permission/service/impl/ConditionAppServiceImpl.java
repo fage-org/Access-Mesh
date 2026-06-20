@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.permission.dto.resp.ConditionResp;
@@ -11,13 +13,10 @@ import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionAppService;
-import cn.ac.fage.accessmesh.permission.service.domain.impl.PermissionConditionDomainServiceImpl;
 import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 
@@ -44,23 +43,15 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     private final PermQueryEngine engine;
 
     /**
-     * 权限条件领域服务，用于缓存失效
-     */
-    private final PermissionConditionDomainServiceImpl conditionDomainService;
-
-    /**
      * 构造函数注入依赖
      *
      * @param conditionMapper           权限条件数据访问层
      * @param engine                    权限查询引擎
-     * @param conditionDomainService    权限条件领域服务，用于缓存失效
      */
     public ConditionAppServiceImpl(PermissionConditionMapper conditionMapper,
-                                       PermQueryEngine engine,
-                                       PermissionConditionDomainServiceImpl conditionDomainService) {
+                                       PermQueryEngine engine) {
         this.conditionMapper = conditionMapper;
         this.engine = engine;
-        this.conditionDomainService = conditionDomainService;
     }
 
     /**
@@ -136,6 +127,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "permission-condition-update", targetType = "permission_condition", targetId = "#req.conditionId()", summary = "'update permission condition ' + #req.conditionId()")
+    @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE)) {
@@ -156,16 +148,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 
-        // 更新后失效缓存（事务提交后执行）
-        final Long conditionIdForCache = req.conditionId();
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    conditionDomainService.evictConditionCache(tenantId, conditionIdForCache);
-                }
-            });
-        }
+        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markConditions(tenantId, Set.of(req.conditionId()));
         return toConditionResp(condition);
     }
 
@@ -199,6 +183,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "permission-condition-remove", targetType = "permission_condition", targetId = "#conditionId", summary = "'remove permission condition ' + #conditionId")
+    @PermissionChange
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE)) {
@@ -215,17 +200,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         condition.setDeletedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 
-        // 删除后失效缓存（事务提交后执行）
-        final Long tenantIdForCache = tenantId;
-        final Long conditionIdForCache = conditionId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    conditionDomainService.evictConditionCache(tenantIdForCache, conditionIdForCache);
-                }
-            });
-        }
+        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markConditions(tenantId, Set.of(conditionId));
     }
 
     /**
@@ -245,6 +221,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "permission-condition-remove", targetType = "BATCH", targetId = "", summary = "'batch remove permission conditions'")
+    @PermissionChange
     public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -272,16 +249,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         conditionMapper.softDeleteBatch(tenantId, validIds.stream().toList(), now);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " permission_condition row(s)");
 
-        // 批量删除后失效缓存（事务提交后执行）
-        final Set<Long> validIdsForCache = validIds;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    conditionDomainService.evictConditionCacheBatch(tenantId, validIdsForCache);
-                }
-            });
-        }
+        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markConditions(tenantId, validIds);
     }
 
     /**

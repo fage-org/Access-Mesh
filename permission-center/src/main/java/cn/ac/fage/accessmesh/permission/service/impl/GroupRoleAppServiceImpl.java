@@ -17,12 +17,11 @@ import cn.ac.fage.accessmesh.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.permission.service.GroupRoleAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,7 +46,6 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
     private final AbstractRoleMapper abstractRoleMapper;
     private final UserRoleMapper userRoleMapper;
     private final TypeResolutionService typeResolutionService;
-    private final SubjectDomainService subjectDomainService;
     private final PermQueryEngine engine;
 
     /**
@@ -56,18 +54,15 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
      * @param abstractRoleMapper    抽象角色数据访问层
      * @param userRoleMapper        用户角色数据访问层
      * @param typeResolutionService 类型解析服务
-     * @param subjectDomainService  主体领域服务
      * @param engine                权限查询引擎
      */
     public GroupRoleAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                        UserRoleMapper userRoleMapper,
                                        TypeResolutionService typeResolutionService,
-                                       SubjectDomainService subjectDomainService,
                                        PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.userRoleMapper = userRoleMapper;
         this.typeResolutionService = typeResolutionService;
-        this.subjectDomainService = subjectDomainService;
         this.engine = engine;
     }
 
@@ -91,6 +86,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "group-role-extra-add", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'add extra role to group role ' + #req.groupRoleExternalId()")
+    @PermissionChange
     public void addGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -132,16 +128,8 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
         ur.setDeleteFlag(0L);
         userRoleMapper.insert(ur);
 
-        // 缓存失效（事务提交后执行）
-        final Long groupIdForCache = groupId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantId, groupIdForCache);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, groupId);
     }
 
     /**
@@ -160,6 +148,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "group-role-extra-remove", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'remove extra role from group role ' + #req.groupRoleExternalId()")
+    @PermissionChange
     public void removeGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -187,17 +176,8 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
         ur.setDeleteFlag(ur.getId());
         ur.setDeletedAt(LocalDateTime.now());
         userRoleMapper.update(ur);
-        // 缓存失效（事务提交后执行）
-        final Long tenantIdForCache = tenantId;
-        final Long groupIdForCache = groupId;
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    subjectDomainService.invalidateRoleCacheByRole(tenantIdForCache, groupIdForCache);
-                }
-            });
-        }
+        // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        PermissionChangeContext.markRoles(tenantId, groupId);
     }
 
     /**
