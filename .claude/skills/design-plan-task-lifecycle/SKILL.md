@@ -304,7 +304,13 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 ## 7. 一次性存量迁移 runbook
 
-> 本节是**一次性**迁移方案，需用户显式发起后再执行（不随 skill 触发自动跑）。迁移是结构性重构，按步骤分批提交，每批后 grep 修链接 + 刷新索引。
+> **迁移状态：Step 0-3 已执行（2026-06-20），Step 4-5 为渐进迁移。** 本节保留作历史记录与剩余工作的指引。
+>
+> 已完成：建 tasks/ 骨架 + design frontmatter（Step 0）；v3.5-design 迁入 design/（Step 1）；design-review 拆解归档（Step 2）；3 个 P0 计划 + user-role-proxy-fix 任务抽取至看板（Step 3a/3b）；3 份路线图/gap 计划补 frontmatter（Step 3c）。
+>
+> 渐进迁移（Step 4-5，触达时再做）：improvement-plan 痛点诊断沉淀至 design/；api-gap-analysis gap 转 T-API；org-user-page P0/P1 任务 ID 化（与 user-role-proxy-fix 去重）。这三者强行拆解会引入重复任务，故留待后续触达相关章节时按需迁移。
+>
+> 以下原文保留作迁移方法参考，不再逐字执行。
 
 ### 7.1 领域前缀分配（迁移用）
 
