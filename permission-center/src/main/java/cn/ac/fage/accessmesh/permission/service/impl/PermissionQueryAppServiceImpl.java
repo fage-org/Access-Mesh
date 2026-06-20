@@ -565,6 +565,11 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             items.putIfAbsent(itemKey, new QueryScopesResp.ScopeItem(
                 resource.getCode(), resource.getCodeType(), resource.getName()));
         }
+        // T-PERM-009 契约：INSTANCE 要求 items 非空；过滤后实例全失效（资源删除/不存在）→ EMPTY
+        if (items.isEmpty()) {
+            return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.EMPTY,
+                List.of(), List.of(), List.of(), List.of());
+        }
         return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.INSTANCE,
             new ArrayList<>(items.values()),
             new ArrayList<>(matchedRoleIds),

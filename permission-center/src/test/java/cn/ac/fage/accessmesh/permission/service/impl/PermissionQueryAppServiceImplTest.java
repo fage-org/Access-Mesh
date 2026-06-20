@@ -143,6 +143,54 @@ class PermissionQueryAppServiceImplTest {
         assertEquals("dept-a", group.items().get(0).resourceCode());
     }
 
+    @Test
+    void shouldReturnEmptyWhenInstanceItemsAllFilteredOut() {
+        // P2 修复：INSTANCE 收集后 items 全空（资源缺失/已删）→ EMPTY，符合 T-PERM-009 契约
+        QueryScopesReq req = new QueryScopesReq(
+            "USER", "u-1", "MENU", "sys:user", "default",
+            List.of("VIEW"), List.of("DEPT"), List.of("VIEW"), "default", null, Map.of()
+        );
+
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+        when(typeResolutionService.resolveResourceId(1L, "MENU", "sys:user", "default", null)).thenReturn(100L);
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DEPT")))
+            .thenReturn(Map.of("DEPT", 2));
+        when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 601L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+        when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
+
+        RolePermEntry parentEntry = new RolePermEntry(
+            401L, 200L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
+
+        // scope 条目指向 resourceEntityId=300，但 resourceMap 不含 300（资源缺失）→ items 收集为空
+        RolePermEntry scopeEntry = new RolePermEntry(
+            501L, 200L, 300L, "dept-a", 2, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, null);
+
+        OperationPermission viewOp = new OperationPermission();
+        viewOp.setId(601L); viewOp.setResourceType(2);
+        viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L); viewOp.setInheritMask(0L);
+
+        PermResult parentResult = PermResult.builder(true, null)
+            .instanceEntries(List.of(parentEntry)).build();
+        // resourceMap 为空 → scopeEntry 的资源缺失
+        PermResult scopeResult = PermResult.builder(true, null)
+            .instanceEntries(List.of(scopeEntry))
+            .resourceMap(Map.of())
+            .operationMap(Map.of(601L, viewOp)).build();
+
+        when(engine.query(any(PermQuery.class))).thenReturn(parentResult, scopeResult);
+        when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        QueryScopesResp resp = service.queryScopes(1L, req);
+
+        assertEquals(1, resp.scopeGroups().size());
+        QueryScopesResp.ScopeGroup group = resp.scopeGroups().get(0);
+        assertEquals(ScopeMode.EMPTY, group.scopeMode());
+        assertTrue(group.items().isEmpty());
+    }
+
     // ===== interfaceSnapshot tests =====
 
     @Nested

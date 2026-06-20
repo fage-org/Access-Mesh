@@ -8,7 +8,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| permission-center | `T-PERM` | 017 |
+| permission-center | `T-PERM` | 019 |
 | admin-service | `T-ADMIN` | 020 |
 | gateway | `T-GW` | 007 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
@@ -40,6 +40,8 @@
 | T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/permission-center.sql | T-PERM-009 | ⚙️ | ⏳ |
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-010, T-PERM-011 | ⚙️ | ⏳ |
 | T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 三分支 | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ⚙️ | ⏳ |
+| [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ⚙️ | ⏳ |
+| [T-PERM-018](T-PERM-018.md) | 权限令牌统一 sha256(permissions) + 写路径精确失效接口快照 | perm-cache-invalidation | v3.5 §5.1/§7.2 | T-PERM-002 | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
