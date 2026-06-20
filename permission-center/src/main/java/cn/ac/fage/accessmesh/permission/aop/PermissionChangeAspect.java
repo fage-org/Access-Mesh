@@ -60,6 +60,11 @@ public class PermissionChangeAspect {
                 PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
                 if (acc != null && !acc.isEmpty()) {
                     scheduleFlush(acc);
+                } else {
+                    // 成功但未登记变更（no-op 路径：空入参/已删/无受影响项）：
+                    // 立即清理 ThreadLocal，避免残留到线程池后续请求导致 bindIfAbsent 误判非 owner、
+                    // 真实变更 mark 落入旧 context 且无 owner flush/clear（失效与广播被跳过）。
+                    PermissionChangeContext.clear();
                 }
             }
             return result;
