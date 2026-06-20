@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.gateway.config;
 
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.context.annotation.Bean;
@@ -10,8 +11,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * 网关Caffeine本地缓存配置类
  * <p>
- * 配置权限校验的L1本地缓存，用于减少对permission-center的调用频率。
- * 缓存命中时直接返回结果，未命中时调用远程服务并缓存结果。
+ * T-PERM-001 快照模式：缓存 key 从 (user,service,method,path)→Boolean 改为
+ * user→InterfaceSnapshotResp（用户在某服务下的全量接口权限快照）。鉴权降为本地内存匹配。
+ * </p>
+ * <p>
+ * 缓存失效：TTL 兜底（30-60s）+ Redis pub/sub 主动广播（T-PERM-006 实现订阅器后 evict）。
  * </p>
  */
 @Configuration
@@ -21,9 +25,6 @@ public class CacheConfig {
 
     /**
      * 构造缓存配置
-     * <p>
-     * 注入网关属性配置，获取缓存参数。
-     * </p>
      *
      * @param gatewayProperties 网关配置属性
      */
@@ -32,18 +33,16 @@ public class CacheConfig {
     }
 
     /**
-     * 创建权限校验缓存实例
+     * 创建接口权限快照缓存实例
      * <p>
-     * 根据配置创建Caffeine缓存实例：
-     * - maximumSize: 最大缓存条目数
-     * - expireAfterWrite: 写入后过期时间
-     * - recordStats: 记录缓存统计信息用于监控
+     * 缓存维度：{@code (tenantId, subjectTypeCode, userId, serviceCode) → InterfaceSnapshotResp}。
+     * 鉴权时按本地匹配器查询快照内 allowedApis，命中即放行，未命中回源拉取。
      * </p>
      *
      * @return Caffeine缓存实例
      */
     @Bean
-    public Cache<String, Boolean> permissionCheckCache() {
+    public Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache() {
         GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
         return Caffeine.newBuilder()
             .maximumSize(l1.getMaxSize())

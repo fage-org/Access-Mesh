@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-001
 title: Gateway 缓存改快照模式（user → InterfaceSnapshot）
-status: proposed
+status: review
 plan: docs/plans/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
@@ -11,13 +11,17 @@ design_refs:
 depends_on: []
 blocks: [T-PERM-002, T-PERM-006, T-GW-003]
 acceptance:
-  - "Gateway 缓存 key 从 (user, path) → bool 改为 user → InterfaceSnapshot"
-  - "鉴权时本地内存 O(1) 匹配，不再每条路径打 RPC"
-  - "接入现成接口 POST /api/perm/auth/interface-snapshot"
-  - "缓存失效采用短 TTL（30-60s）兜底 + Redis pub/sub 主动广播（与 T-PERM-006 协同）"
+  - "[x] Gateway 缓存 key 从 (user,service,method,path)→bool 改为 (tenant,subjectType,userId,serviceCode)→InterfaceSnapshotResp"
+  - "[x] 鉴权时本地内存匹配(InterfaceSnapshotMatcher，Ant通配+scopeAll)，不再每条路径打 RPC"
+  - "[x] 接入现成接口 POST /api/perm/auth/interface-snapshot（PermissionClient.interfaceSnapshot）"
+  - "[x] 缓存失效采用短 TTL（30s）兜底；Redis pub/sub 主动广播为 T-PERM-006 协同范围"
+  - "[x] InterfaceSnapshotResp/Req 迁入 perm-common 供 Gateway 共享"
+  - "[x] fail-close 过渡期保留（stale-allow 为 T-GW-003）"
+  - "[x] gateway compile + permission-center 135 tests 0 failures"
+  - "[x] design/services/gateway.md + v3.5 §7.2 回写"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-06-20
 ---
 
@@ -35,6 +39,21 @@ last_updated: 2026-06-20
 - 鉴权：本地内存 hash 查找，O(1)
 - 接入现成接口 `POST /api/perm/auth/interface-snapshot`
 - 失效：短 TTL（30-60s）兜底 + Redis pub/sub 主动广播（T-PERM-006 实现广播）
+
+## 决策记录（用户确认 2026-06-20）
+
+| # | 议题 | 决策 |
+|---|---|---|
+| 1 | 本地快照路径匹配 | **支持 Ant 通配匹配**——pathPattern 含通配(如 `/api/user/**`)按 Ant 风格匹配；精确路径 equals。scopeAll=true 覆盖该 serviceCode 全部接口 |
+| 2 | 令牌统一 sha256(permissions) | **本任务不做**，保留 `buildInterfacePermissionVersion`（私有 roleIds 指纹）与 `buildPermissionVersionKey`（domain service 占位）现状。⏳ **待办**：v3.5 §5.1 要求令牌改 sha256(permissions)，统一两套生成逻辑——单独跟踪，勿遗漏 |
+| 3 | Fail-mode 过渡期 | **保持 fail-close 硬编码**——permission-center 不可达返回 503。stale-allow 是 T-GW-003 独立任务范围 |
+| 4 | 缓存未命中处理 | **回源拉取快照后本地匹配**——本地快照缺失/过期时同步调 interface-snapshot 拉取并缓存，再本地匹配 |
+
+## 范围边界
+
+- **本任务做**：Gateway 缓存结构改 InterfaceSnapshot、PermissionClient 增 interfaceSnapshot 调用、PermissionFilter 改本地匹配、TTL 统一 30-60s、CacheConfig/CacheCatalog 一致性
+- **本任务不做**：令牌算法升级(#2 待办)、stale-allow(T-GW-003)、Redis pub/sub 广播订阅(T-PERM-006)、fail-mode 配置化(T-GW-001)
+
 
 ## 验收
 

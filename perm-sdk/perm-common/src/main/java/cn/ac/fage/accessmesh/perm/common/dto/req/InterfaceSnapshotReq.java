@@ -1,9 +1,9 @@
-package cn.ac.fage.accessmesh.permission.dto.req;
+package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 接口快照请求体
+ * 接口快照请求体（T-PERM-001 迁入 perm-common 供 Gateway 共享）
  * <p>
  * 用于Gateway获取用户允许访问的API接口列表。
  * 租户ID不在请求体中，从X-Tenant-Id请求头获取。

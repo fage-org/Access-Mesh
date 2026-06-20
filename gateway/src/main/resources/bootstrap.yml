@@ -94,7 +94,8 @@ gateway:
   cache:
     l1:
       max-size: 50000
-      ttl-seconds: 10  # 缩短TTL以降低权限撤销后的风险窗口（原30秒）
+      # T-PERM-001 快照模式：TTL 兜底 30s，快照失效主要靠 Redis pub/sub 主动广播（T-PERM-006）
+      ttl-seconds: 30
 
   header:
     clean:
@@ -116,6 +117,8 @@ gateway:
   permission:
     service-url: lb://permission-center
     check-interface-path: /api/perm/auth/check-interface
+    # T-PERM-001 快照模式：Gateway 拉取用户全量接口权限快照用于本地匹配
+    interface-snapshot-path: /api/perm/auth/interface-snapshot
     unregistered-policy: DENY
 
   # Header signature configuration

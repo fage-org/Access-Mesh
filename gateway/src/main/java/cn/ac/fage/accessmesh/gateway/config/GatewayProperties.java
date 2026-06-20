@@ -67,7 +67,9 @@ public class GatewayProperties {
         @Setter
         public static class L1 {
             private long maxSize = 50000;
-            private int ttlSeconds = 10;  // 缩短TTL以降低权限撤销后的风险窗口（原30秒）
+            // T-PERM-001：快照模式下 TTL 兜底 30-60s（快照失效主要靠 Redis pub/sub 主动广播 T-PERM-006，
+            // TTL 仅作兜底）。原 check-interface 单值模式为 10s。
+            private int ttlSeconds = 30;
         }
     }
 
@@ -122,6 +124,8 @@ public class GatewayProperties {
     public static class Permission {
         private String serviceUrl = "lb://permission-center";
         private String checkInterfacePath = "/api/perm/auth/check-interface";
+        // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
+        private String interfaceSnapshotPath = "/api/perm/auth/interface-snapshot";
         private String unregisteredPolicy = "DENY";
     }
 

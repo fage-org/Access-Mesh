@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.permission.util;
 
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;

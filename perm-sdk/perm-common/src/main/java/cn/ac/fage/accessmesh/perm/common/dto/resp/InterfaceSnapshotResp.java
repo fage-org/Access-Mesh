@@ -1,9 +1,9 @@
-package cn.ac.fage.accessmesh.permission.dto.resp;
+package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
 import java.util.List;
 
 /**
- * 接口快照响应体
+ * 接口快照响应体（T-PERM-001 迁入 perm-common 供 Gateway 共享）
  * <p>
  * 供Gateway消费的接口权限快照响应。
  * 包含租户的服务接口权限配置，支持基于权限令牌的增量刷新。

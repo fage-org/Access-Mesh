@@ -3,7 +3,9 @@ package cn.ac.fage.accessmesh.gateway.service;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +31,7 @@ public class PermissionClient {
 
     private final WebClient webClient;
     private final String checkInterfacePath;
+    private final String interfaceSnapshotPath;
 
     @Value("${perm.internal-secret:}")
     private String internalSecret;
@@ -56,6 +59,7 @@ public class PermissionClient {
             .baseUrl(resolvedUrl)
             .build();
         this.checkInterfacePath = gatewayProperties.getPermission().getCheckInterfacePath();
+        this.interfaceSnapshotPath = gatewayProperties.getPermission().getInterfaceSnapshotPath();
     }
 
     /**
@@ -119,5 +123,55 @@ public class PermissionClient {
             })
             .doOnError(e -> log.error("permission-center调用失败: userId={}, serviceCode={}, path={}",
                 userId, serviceCode, path));
+    }
+
+    /**
+     * 拉取用户接口权限快照（T-PERM-001 快照模式）
+     * <p>
+     * 调用 {@code POST /api/perm/auth/interface-snapshot}，获取用户在指定服务下可访问的接口集合，
+     * 供 Gateway 本地内存匹配。支持传入 {@code permissionVersion} 做条件请求——服务端令牌未变化时
+     * 返回 {@code notModified=true}，Gateway 沿用本地快照。
+     * </p>
+     *
+     * @param subjectTypeCode  主体类型编码
+     * @param userId           用户ID，转换为 subjectExternalId
+     * @param serviceCode      服务编码
+     * @param permissionVersion 上次本地快照的权限令牌，首次拉取传 null
+     * @param tenantId         租户ID
+     * @return 接口快照响应 Mono
+     */
+    public Mono<PermResult<InterfaceSnapshotResp>> interfaceSnapshot(
+        String subjectTypeCode, Long userId, String serviceCode, String permissionVersion, Long tenantId) {
+
+        InterfaceSnapshotReq req = new InterfaceSnapshotReq(
+            subjectTypeCode,
+            String.valueOf(userId),
+            serviceCode,
+            permissionVersion
+        );
+
+        log.debug("拉取接口权限快照: userId={}, serviceCode={}, hasVersion={}",
+            userId, serviceCode, permissionVersion != null);
+
+        return webClient.post()
+            .uri(interfaceSnapshotPath)
+            .header("X-Tenant-Id", tenantId != null ? tenantId.toString() : "")
+            .header("X-Internal-Secret", internalSecret)
+            .bodyValue(req)
+            .retrieve()
+            .bodyToMono(new ParameterizedTypeReference<PermResult<InterfaceSnapshotResp>>() {})
+            .doOnSuccess(result -> {
+                if (result != null && result.getData() != null) {
+                    InterfaceSnapshotResp resp = result.getData();
+                    if (resp.notModified()) {
+                        log.debug("快照未修改，沿用本地令牌: userId={}, serviceCode={}", userId, serviceCode);
+                    } else {
+                        log.debug("快照已刷新: userId={}, serviceCode={}, allowedApis={}",
+                            userId, serviceCode,
+                            resp.allowedApis() != null ? resp.allowedApis().size() : 0);
+                    }
+                }
+            })
+            .doOnError(e -> log.error("接口快照拉取失败: userId={}, serviceCode={}", userId, serviceCode));
     }
 }
