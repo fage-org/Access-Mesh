@@ -1,3 +1,27 @@
+---
+doc_type: plan
+title: 权限缓存失效改造（工作单 A）
+status: proposed
+domain: permission-center
+design_refs:
+  - docs/design/permission-center-v3.5-design.md
+  - docs/design/permission-center/overview.md
+  - docs/design/permission-center/core-flows.md
+  - docs/design/permission-center/implementation.md
+  - docs/design/services/gateway.md
+tasks:
+  - T-PERM-001
+  - T-PERM-002
+  - T-PERM-003
+  - T-PERM-004
+  - T-PERM-005
+  - T-PERM-006
+  - T-PERM-007
+  - T-PERM-008
+acceptance: "A-1~A-7 全完成；代码无 permission_version 残留；Gateway 快照模式 + Redis 广播端到端验证通过（A-8 待 S-006 设计明确后单独跟踪）"
+last_updated: 2026-06-20
+---
+
 # 权限缓存失效改造计划（工作单 A）
 
 > 状态：待启动
@@ -20,18 +44,18 @@
 - 不做 Gateway 失效标记与订阅恢复策略的完整规范（S-006 待设计，本计划仅占位）
 - 不改 L1/L2 权限模型语义（仅改缓存失效驱动机制）
 
-## 任务清单（引用 design-review §4.1）
+## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
 
-| # | 任务 | 关联决策 |
-|---|---|---|
-| A-1 | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 |
-| A-2 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 |
-| A-3 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；**含存量环境 `DROP TABLE IF EXISTS permission_version CASCADE` migration 脚本**（权威 schema 文件不含破坏性语句，回滚由此任务承载）| A'-3 / S-001 |
-| A-4 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 |
-| A-5 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 |
-| A-6 | Redis pub/sub 广播 `PermInvalidateEvent`（topic: `perm:invalidate`）+ Gateway 订阅器 | A'-4 |
-| A-7 | 同步修订 overview.md / core-flows.md / implementation.md / api-contract.md interface-snapshot / coding-standards §5（文档层审计已部分完成，本任务核对代码层一致性）| S-001 |
-| A-8 | Gateway 失效标记与订阅恢复策略（**待设计 S-006**，本任务占位，规范明确后补）| S-006 |
+| 任务 ID | 标题 | 关联决策 | 状态 |
+|---|---|---|---|
+| [T-PERM-001](../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | ⚙️ |
+| T-PERM-002 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 | ⚙️ |
+| T-PERM-003 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；含存量环境 `DROP TABLE` migration 脚本 | A'-3 / S-001 | ⚙️ |
+| T-PERM-004 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 | ⚙️ |
+| T-PERM-005 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 | ⚙️ |
+| T-PERM-006 | Redis pub/sub 广播 `PermInvalidateEvent` + Gateway 订阅器 | A'-4 | ⚙️ |
+| T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ⚙️ |
+| T-PERM-008 | Gateway 失效标记与订阅恢复策略（**待设计 S-006**，规范明确后补；依赖 T-GW-005）| S-006 | ⚙️ |
 
 ## 准入条件
 

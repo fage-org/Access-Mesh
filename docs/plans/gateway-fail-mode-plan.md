@@ -1,3 +1,22 @@
+---
+doc_type: plan
+title: Gateway 失联兜底（工作单 C）
+status: proposed
+domain: gateway
+design_refs:
+  - docs/design/permission-center-v3.5-design.md
+  - docs/design/services/gateway.md
+tasks:
+  - T-GW-001
+  - T-GW-002
+  - T-GW-003
+  - T-GW-004
+  - T-GW-005
+  - T-GW-006
+acceptance: "C-1~C-4 + C-6 全完成（C-5/T-GW-005 待 S-006 设计明确后单独跟踪）；Gateway fail-mode 三模行为符合配置；监控指标接入 Prometheus"
+last_updated: 2026-06-20
+---
+
 # Gateway 失联兜底计划（工作单 C）
 
 > 状态：待启动
@@ -20,16 +39,16 @@
 - 不改 Gateway 鉴权主链路（仅加 fail-mode 兜底分支）
 - 不做 fail-mode 的动态切换 UI（配置项由运维通过配置中心管理）
 
-## 任务清单（引用 design-review §4.3）
+## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
 
-| # | 任务 | 关联决策 |
-|---|---|---|
-| C-1 | Gateway `gateway.perm.fail-mode` 配置项（closed/open/stale-allow，默认 closed）+ `stale-grace-seconds`（默认 30）| C1 |
-| C-2 | fail-closed 实现：permission-center 不可达 → 403/503 拒绝 | C1 |
-| C-3 | stale-allow 实现：用过期未驱逐快照续命，超 stale-grace-seconds 转 closed | C1 / C2 |
-| C-4 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + WARN 日志 + Prometheus 告警规则 | C2 |
-| C-5 | 与工作单 A 协作：Redis 广播失效时标记快照"已显式失效"（**待设计 S-006**，规范明确后补实现）| A'-4 / S-006 |
-| C-6 | 集成测试基线："杀 permission-center → Gateway 应 503" | C1 |
+| 任务 ID | 标题 | 关联决策 | 状态 |
+|---|---|---|---|
+| T-GW-001 | Gateway `gateway.perm.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ⚙️ |
+| T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ⚙️ |
+| [T-GW-003](../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ⚙️ |
+| T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ⚙️ |
+| T-GW-005 | 失效标记与订阅恢复策略设计（S-006 待设计项，规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ⚙️ |
+| T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503" | C1 | ⚙️ |
 
 ## 准入条件
 

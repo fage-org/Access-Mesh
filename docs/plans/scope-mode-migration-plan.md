@@ -1,3 +1,23 @@
+---
+doc_type: plan
+title: scopeMode 协议迁移（工作单 B）
+status: proposed
+domain: permission-center
+design_refs:
+  - docs/design/permission-center-v3.5-design.md
+  - docs/design/permission-center/api-contract.md
+tasks:
+  - T-PERM-009
+  - T-PERM-010
+  - T-PERM-011
+  - T-PERM-012
+  - T-PERM-013
+  - T-PERM-014
+  - T-PERM-015
+acceptance: "B-1~B-7 全完成；api-contract.md 无残留 scopeAll 作为协议字段（内部存储字段除外）；调用方按 scopeMode 三分支编程"
+last_updated: 2026-06-20
+---
+
 # scopeMode 协议迁移计划（工作单 B）
 
 > 状态：待启动
@@ -20,17 +40,17 @@
 - 不做端到端黄金路径测试（B4 决策：延后到 example-service，后者暂不实现）
 - 不改 schema `scope_all` 字段（仅内部存储，协议层映射为 scopeMode）
 
-## 任务清单（引用 design-review §4.2）
+## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
 
-| # | 任务 | 关联决策 |
-|---|---|---|
-| B-1 | 定义 `scopeMode` 枚举（INSTANCE/ALL/NONE）+ 响应结构 `{allowed, scopeMode, items[], scopeTypeCodes[]}` | B2 |
-| B-2 | api-contract.md §6.7 query-scopes 响应改造（scopeAll → scopeMode）| B2 / S-005 |
-| B-3 | api-contract.md §6.4-6.10 / §10.8 等约 30+ 处 `scopeAll` 全量推广到 `scopeMode` | S-005=A |
-| B-4 | 管理端授权配置 / 排查页响应改造（role-resource-permission save/grant、permission-view 等）| S-005=A |
-| B-5 | schema `scope_all` 字段保留（仅内部存储），协议层映射逻辑实现 | B2 |
-| B-6 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（审计 S-005 已登记，本任务实施时移除注记改为正式定义）| S-005 |
-| B-7 | 前端 hasPerms / Perms 组件适配 scopeMode 三分支（如涉及）| B2 |
+| 任务 ID | 标题 | 关联决策 | 状态 |
+|---|---|---|---|
+| [T-PERM-009](../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ⚙️ |
+| T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造 | B2 / S-005 | ⚙️ |
+| T-PERM-011 | api-contract.md 约 30+ 处 `scopeAll` 全量推广到 `scopeMode` | S-005=A | ⚙️ |
+| T-PERM-012 | 管理端授权配置 / 排查页响应改造 | S-005=A | ⚙️ |
+| T-PERM-013 | schema `scope_all` 字段保留（内部存储），协议层映射逻辑实现 | B2 | ⚙️ |
+| T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义）| S-005 | ⚙️ |
+| T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 三分支 | B2 | ⚙️ |
 
 ## 准入条件
 
