@@ -48,7 +48,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── LogQueryController
 │   ├── OperationController
 │   ├── PermissionGrantController
-│   ├── PermissionVersionController
+│   ├── ~~PermissionVersionController~~ (OBSOLETED S-001)
 │   ├── PermissionViewController
 │   ├── ResourceApiMappingController
 │   ├── ResourceController
@@ -72,7 +72,7 @@ cn.ac.fage.accessmesh.permission
 │   │   ├── PermissionCheckAppServiceImpl
 │   │   ├── PermissionGrantAppServiceImpl
 │   │   ├── PermissionQueryAppServiceImpl
-│   │   ├── PermissionVersionAppServiceImpl
+│   │   ├── ~~PermissionVersionAppServiceImpl~~ (OBSOLETED S-001)
 │   │   ├── PermissionViewAppServiceImpl
 │   │   ├── ResourceManageAppServiceImpl
 │   │   ├── RoleManageAppServiceImpl
@@ -88,7 +88,7 @@ cn.ac.fage.accessmesh.permission
 │       ├── PermissionConditionDomainService / *Impl
 │       ├── PermissionConflictDomainService / *Impl
 │       ├── PermissionGrantDomainService / *Impl
-│       ├── PermissionVersionDomainService / *Impl
+│       ├── ~~PermissionVersionDomainService / *Impl~~ (OBSOLETED S-001，已删除)
 │       ├── ResolveContext                            ← 类型预解析上下文
 │       ├── ResourceEntityDomainService / *Impl
 │       ├── ResourceSyncHandler / *Impl
@@ -105,7 +105,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── PermissionChangeLogMapper
 │   ├── PermissionConditionMapper
 │   ├── PermissionConflictRuleMapper
-│   ├── PermissionVersionMapper
+│   ├── ~~PermissionVersionMapper~~ (OBSOLETED S-001)
 │   ├── ResourceApiMappingMapper
 │   ├── ResourceDependencyMapper
 │   ├── ResourceEntityMapper
@@ -166,9 +166,12 @@ public interface SubjectDomainService {
 
 ---
 
-### 2.2 `PermissionVersionDomainService` — 权限版本管理
+### 2.2 ~~`PermissionVersionDomainService`~~ — 权限版本管理（**OBSOLETED 2026-06-20 审计 S-001**）
+
+> **已废弃**：`permission_version` 表与 `PermissionVersionDomainService` 全套（Service/Impl/AppService/Controller/Mapper/DTO）已决策完全删除（design-review §A'-3 + v3.5 §9.2）。缓存失效改由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底。以下内容仅作历史追溯，**不再作为实现依据**。
 
 ```java
+// OBSOLETED — 以下接口已删除，仅供历史追溯
 public interface PermissionVersionDomainService {
     long getCurrentVersion(Long tenantId, Long roleId);
     long increment(Long tenantId, Long roleId);
@@ -476,7 +479,7 @@ sequenceDiagram
     participant ENG as PermQueryEngine
     participant PGD as PermissionGrantDomainService
     participant Mapper as RoleResourcePermissionMapper
-    participant PVD as PermissionVersionDomainService
+    participant PUB as RedisPublisher (perm:invalidate)
     participant SUBJ as SubjectDomainService
 
     C->>PS: batchGrant(RoleGrantReq)
@@ -501,12 +504,12 @@ sequenceDiagram
 
     Note over PS: ④ 事务内写入
     PS->>PGD: revokePermissions(tenantId, roleId, removeItems)
-    Note over PGD: 级联软删子权限(不在此方法内递增版本)
+    Note over PGD: 级联软删子权限
     PS->>Mapper: update(updateItems)
     PS->>Mapper: insertBatch(addItems)
 
     Note over PS: ⑤ 事务提交后
-    PS->>PVD: registerSynchronization.afterCommit → increment(roleId)
+    PS->>PUB: afterCommit → publish(PermInvalidateEvent{tenantId, roleIds})
     PS->>SUBJ: afterCommit → invalidateRoleCacheByRole(roleId)
     Note over PS: ⑦ @OperationLog AOP 自动记录入口日志
 
@@ -541,20 +544,17 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         permissionGrantDomainService.revokePermissions(tenantId, roleId, removeItems); // 含级联子权限
         rolePermMapper.update(updateItems);
         rolePermMapper.insertBatch(toInsert);
-        // revokePermissions 不在此处递增版本，由外层 afterCommit 统一处理
 
-        // ⑤ 事务提交后：版本递增 + 缓存失效
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            public void afterCommit() {
-                permissionVersionDomainService.increment(tenantId, roleId);
-                subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-            }
-        });
+        // ⑤ DomainService 登记影响范围；AppService AOP afterCommit 统一发布广播 + evict
+        // （2026-06-20 审计 S-001/P1-B 修订：禁止业务侧手写 TransactionSynchronizationManager）
+        permissionGrantDomainService.markAffected(tenantId, affectedRoleIds, affectedUserIds);
+        // AOP afterCommit 自动：redisPublisher.publish("perm:invalidate", PermInvalidateEvent)
+        //                    + subjectDomainService.invalidateRoleCacheByRole(...)
         // 入口操作日志由 @OperationLog AOP 自动记录
     }
 ```
 
-> **TODO**: `auto-grant` 自动补全功能（`resource_dependency` 自动补全级联逻辑）尚未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 的版本递增由调用方在 `TransactionSynchronization.afterCommit` 中负责，而非方法内部自行递增。
+> **TODO**: `auto-grant` 自动补全功能（`resource_dependency` 自动补全级联逻辑）尚未完整实现。缓存失效由 AppService AOP afterCommit 统一处理（基于 `PermissionChangeContext` 登记的影响范围），不在 DomainService 内部手写 `TransactionSynchronization`（2026-06-20 审计 S-001/P1-B 修订）。
 
 ## 5. 缓存设计
 
@@ -564,19 +564,22 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 | --------------------------- | ------------------------------------------------------------------------------ | --------- | -------------------- |
 | 用户有效角色集合            | `perm:user:effective-roles:{tenantId}:{userId}`                                | 60 秒     | 5 分钟               |
 | 角色权限快照（资源+操作位） | `perm:role:perms:{tenantId}:{roleId}`                                          | 60 秒     | 5 分钟               |
-| 角色权限版本号              | `perm:permission-version:role:{tenantId}:{roleId}`                             | 不缓存 L1 | 永不过期（主动更新） |
-| Gateway 接口快照            | `perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionVersion}` | 30 秒     | 3 分钟               |
+| Gateway 接口快照            | `perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionDigest}`  | 30 秒     | 3 分钟               |
 | 角色互斥规则                | `perm:conflict-rule:role-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
 | 权限互斥规则                | `perm:conflict-rule:perm-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
+
+> **缓存 key 修订（2026-06-20 审计 S-001）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。Gateway 接口快照 key 中的 `{permissionVersion}` 改为 `{permissionDigest}` —— 由服务端对当前主体权限集合计算内容摘要（如 sha256）生成，与快照同 key 缓存（同失效），不再依赖 `permission_version` 表。失效由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底。
 
 ### 5.2 缓存失效触发点
 
 ```
 权限变更（role_resource_permission）
-  → 角色权限快照失效（evictRolePermSnapshot）
-    → 接口快照切换到新 permissionVersion 键（旧键自然冷却）
-  → 角色版本递增（setPermVersion）
-  → 关联用户角色缓存失效（查询 user_role WHERE target_id=roleId，逐一失效）
+  → DomainService 登记影响范围（PermissionChangeContext.markAffectedRoles/markAffectedUsers）
+  → AppService AOP afterCommit 统一处理：
+    → 角色权限快照失效（evictRolePermSnapshot）
+    → Redis pub/sub 广播 PermInvalidateEvent(tenantId, userIds, roleIds)
+    → 关联用户角色缓存失效（查询 user_role WHERE target_id=roleId，逐一失效）
+  → 订阅方（Gateway/前端）收到事件 evict 本地快照；TTL（30-60s）兜底
 
 用户-角色关联变更（user_role）
   → 该用户角色缓存失效（evictEffectiveRoles）
@@ -585,7 +588,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 依赖规则变更（resource_dependency）
   → 按 grant_dep_id 精准清理 role_resource_permission 中的 AUTO_DEP 补全记录
   → 重新评估受影响角色的自动补全状态（清理旧补全 + 补全新权限）
-  → 角色权限快照失效 + 接口快照失效 + 角色版本递增 + 用户缓存失效
+  → 角色权限快照失效 + 接口快照失效（permissionDigest 重算）+ 用户缓存失效 + Redis 广播 PermInvalidateEvent
 
 角色停用（abstract_role.status=0）
   → 递归失效关联所有用户的角色缓存

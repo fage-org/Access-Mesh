@@ -13,7 +13,7 @@
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | admin-service（管理服务）     | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9100       | 用户、组织、菜单、认证与管理端前端聚合入口；默认组织树是用户目录；组织既是业务树也是角色容器 |
 | permission-center（权限中心） | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9200       | 通用权限管理与鉴权引擎（已完成设计）                                   |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示权限中心对接与权限管控能力         |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示权限中心对接与权限管控能力 **（⚠️ 当前仅启动骨架 — 2026-06-20 审计 S-020：仅含 `ExampleServiceApplication`，演示 Controller/DTO 待 perm-sdk 与核心主线稳定后补齐）**         |
 
 ### 1.2 基础设施
 
@@ -251,23 +251,31 @@
 
 #### 3.3.3 菜单模型 (sys_menu)
 
-| 字段         | 类型         | 说明                                    |
-| ------------ | ------------ | --------------------------------------- |
-| id           | BIGSERIAL    | 主键                                    |
-| tenant_id    | BIGINT       | 租户ID                                  |
-| parent_id    | BIGINT       | 父菜单ID，NULL=根                       |
-| menu_type    | VARCHAR(16)  | 类型：DIR(目录)/MENU(菜单)/BUTTON(按钮) |
-| service_code | VARCHAR(64)  | 所属服务标识（admin-service 等）        |
-| name         | VARCHAR(64)  | 菜单名称                                |
-| path         | VARCHAR(256) | 路由路径                                |
-| component    | VARCHAR(256) | 前端组件路径                            |
-| icon         | VARCHAR(64)  | 图标                                    |
-| perm_code    | VARCHAR(128) | 权限标识（与权限中心资源编码关联）      |
-| sort_order   | INT          | 排序                                    |
-| visible      | BOOLEAN      | 是否可见                                |
-| is_frame     | BOOLEAN      | 是否 iframe 嵌入（门户归集外部页面）    |
-| status       | SMALLINT     | 状态（0=停用/1=启用）                   |
-| extra        | JSONB        | 扩展配置（路由元信息 query 参数等）     |
+> **schema 迁移（2026-06-20 审计 S-002=B）**：sys_menu 表结构按 v3.5 §2.1 最终态迁移 — `menu_type` 改 5 值枚举(DIR/MENU/EXTERNAL/IFRAME/HIDDEN)，删除 `BUTTON` 类型与 `visible`/`is_external`/`is_frame`/`is_cache`/`perm_code`/`primary_operation`/`operations`/`default_preset` 字段，新增 `source_service`/`resource_type`/`resource_code` 关联业务资源 link。详见 v3.5 §2.1 + §4.1 菜单可见性派生公式。原 BUTTON 行（按钮权限）不再由 sys_menu 承载，归 v3.5.1+ 评估。
+
+sys_menu 的权威 DDL 见 [`schema/admin-service.sql`](schema/admin-service.sql) §8（PostgreSQL）。本节仅列语义要点，不复制 DDL（避免与权威 schema 双源漂移）：
+
+| 字段            | 语义                                    |
+| --------------- | --------------------------------------- |
+| id              | 主键                                    |
+| tenant_id       | 租户ID                                  |
+| parent_id       | 父菜单ID，NULL=根                       |
+| display_name    | 菜单名称                                |
+| path            | 路由路径                                |
+| icon            | 图标                                    |
+| sort_order      | 排序                                    |
+| menu_type       | 类型：DIR/MENU/EXTERNAL/IFRAME/HIDDEN   |
+| status          | 状态：ENABLED/DISABLED                  |
+| resource_type   | 关联业务资源类型（不参与鉴权决策）      |
+| resource_code   | 关联业务资源实例（不参与鉴权决策）      |
+| source_service  | 业务服务标识（链路追溯）                |
+| delete_flag     | 软删标记                                |
+| created_at      | 创建时间                                |
+| updated_at      | 更新时间                                |
+
+唯一索引：`uk_sys_menu_tenant_resource (tenant_id, resource_type, resource_code)`、`uk_sys_menu_tenant_path (tenant_id, path)`。
+
+> **已废弃字段**（迁移期物理删除）：`perm_code` / `operations` / `primary_operation` / `default_preset` / `visible` / `is_external` / `is_frame` / `is_cache` / `component`（前端组件路径归前端路由配置，不在 sys_menu） / `extra`（JSONB 扩展，按需迁移） / `service_code`（被 `source_service` 替代）。
 
 ### 3.4 与权限中心的交互
 
@@ -304,10 +312,12 @@ admin-service                        permission-center
 
 #### 3.4.3 菜单与资源同步
 
-- **admin-service 是菜单数据的事实源**（sys_menu 表存完整菜单信息：路由、组件、图标等）
-- 菜单创建/更新/删除时，同步到权限中心作为 `resource_entity`（MENU/BUTTON 类型）
-- 同步字段映射：`sys_menu.perm_code → resource_entity.code`，`sys_menu.name → resource_entity.name`
-- 前端渲染菜单时：从 admin-service 拉取完整菜单树（含路由信息）+ 从权限中心获取用户有权的菜单列表 → 取交集
+> **v3.5 菜单零权限化（2026-06-20 审计 S-002）**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不再承载权限语义。菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，不再依赖 `perm_code`/`operations` 字段。
+
+- **admin-service 是菜单数据的事实源**（sys_menu 表存 UI 路由元数据 + 关联资源 link）
+- 菜单创建/更新/删除时，关联的 `resource_type`/`resource_code` 与权限中心 `resource_entity` 对应（不再有 MENU/BUTTON 类型区分，BUTTON 权限归 v3.5.1+）
+- 同步字段映射：`sys_menu.resource_type + resource_code → resource_entity(type, code)`，`sys_menu.display_name → resource_entity.name`
+- 前端渲染菜单：通过 v3.5 `/auth/user-menu` 单 RPC 原子返回 `menus[]`（已派生可见集）+ `permissions[]`，不再前端取交集
 - **动态路由**：前端登录后拉取用户有权菜单，动态注册 Vue Router 路由
 
 #### 3.4.4 组织与权限中心同步
@@ -365,7 +375,7 @@ perm-sdk/
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
 | perm-client-spring-boot-starter  | 权限中心客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式） |
 | perm-gateway-spring-boot-starter | 网关插件：接口权限缓存（L1 Caffeine）、回调权限中心鉴权、ConditionEvaluator 条件评估                                       |
-| perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存             |
+| perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存 **（⚠️ 规划中，未实现 — 2026-06-20 审计 S-011：当前模块仅含空 `PermDataAutoConfiguration`，注解/拦截器/SQL 改写均未落地，待核心主线稳定后补齐）**             |
 
 ### 4.5 核心 API 清单
 

@@ -15,7 +15,7 @@
 | 内部明细 ID | 仅用于已返回记录的更新、删除、子权限挂载，如 `permissionId`、`ids`                                                       |
 | 响应结构    | `data` 必须是对象，列表使用 `data.items`                                                                                 |
 | 事实来源    | `abstract_user`、`abstract_role`、`resource_entity`、`operation_permission`、`role_resource_permission` 等原表是事实来源 |
-| 缓存失效    | 权限关系、角色、资源、条件、依赖变更后递增相关角色 `permission_version` 并失效缓存                                       |
+| 缓存失效    | 权限关系、角色、资源、条件、依赖变更后通过 Redis pub/sub 主动广播失效事件（`PermInvalidateEvent`）+ TTL 兜底；**已删除 `permission_version` 机制**（2026-06-20 审计 S-001/S-018）|
 
 ## 2. 总体主链路
 
@@ -113,7 +113,7 @@ flowchart LR
 - 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源和操作。
 - 操作必须与资源类型匹配，或操作是全局操作。
 - 条件可选，填写 `conditionCode` 时必须存在且启用。
-- 写入后记录 `operation_log` 和 `permission_change_log`，递增该角色 `permission_version`，失效角色权限缓存。
+- 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018）
 
 ## 7. 权限查询引擎（PermQueryEngine）
 

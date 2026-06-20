@@ -450,9 +450,9 @@ void perm_common_dto_should_match_permission_center_internal_dto() {
 
 | 编号 | 问题 | 决策 |
 |------|------|------|
-| DEFERRED-1 | EXT-7：`PermissionCheckAppServiceImpl.batchCheck` for 循环 N 次 `engine.query` 性能放大 | 单独 PR：perm-center 新增 `POST /api/perm/auth/filter-allowed`（一次完成，复用 `engine.getDeniedIds`） |
-| DEFERRED-2 | EXT-8：admin `SyncTaskDomainServiceImpl.enqueueAll` for 循环 N 次 INSERT | 单独 PR：实现 `enqueueAllBatch` 批量入库 + businessKeyHash dedup |
-| DEFERRED-3 | EXT-10：perm-common 与 permission-center 内部 DTO 双份维护 | 中期：让 perm-center controller 直接消费 perm-common DTO，删除内部副本 |
+| DEFERRED-1 | EXT-7：`PermissionCheckAppServiceImpl.batchCheck` for 循环 N 次 `engine.query` 性能放大 | **无主（2026-06-20 审计 S-024）**：原计划"单独 PR"未立项，当前无负责人。design-review §8 已修正措辞不再声称"纳入工作单 D"。待单独立项或纳入后续评审。原方向：perm-center 新增 `POST /api/perm/auth/filter-allowed`（一次完成，复用 `engine.getDeniedIds`） |
+| DEFERRED-2 | EXT-8：admin `SyncTaskDomainServiceImpl.enqueueAll` for 循环 N 次 INSERT | **无主（2026-06-20 审计 S-024）**：同 DEFERRED-1，原计划未立项。待单独立项。原方向：实现 `enqueueAllBatch` 批量入库 + businessKeyHash dedup |
+| DEFERRED-3 | EXT-10：perm-common 与 permission-center 内部 DTO 双份维护 | 中期：让 perm-center controller 直接消费 perm-common DTO，删除内部副本（对应 design-review 工作单 F-1.b，落地暂缓） |
 | DEFERRED-4 | EXT-11：`getDescendantIdsIncludingSelf` 全局加 cap（5 处使用） | 单独 PR：在 `OrgDomainServiceImpl` 加 `admin.org.descendant-cap` 配置（默认 50_000） |
 | DEFERRED-5 | RoleProxyServiceImpl#createOrgRole `String.valueOf(orgId)` 当 externalId 写入 | 当前正确（ORG/POSITION 业务键约定 externalId == sys_org.id 字符串），仅在契约文档形式化（org-user-permission-contract.md 加"角色业务键约定"小节） |
 

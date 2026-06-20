@@ -134,7 +134,7 @@
 | 岗位·编辑 | `ADMIN_ORG:UPDATE_POSITION` | `ADMIN_ORG:UPDATE_POSITION` | 隐藏 |
 | 岗位·删除 | `ADMIN_ORG:DELETE_POSITION` | `ADMIN_ORG:DELETE_POSITION` | 隐藏 |
 | 岗位·挂载/卸载用户 | `ADMIN_ORG:ASSIGN_POSITION_USER` | `ADMIN_ORG:ASSIGN_POSITION_USER` | 只读 |
-| ❌ 配置岗位/角色权限 | —（不在本页） | `ADMIN_ROLE:GRANT/REVOKE` | 红线 |
+| ❌ 配置岗位/角色权限 | —（不在本页） | `ROLE:MANAGE`（v1.4 + user-role-proxy-fix M3 决策统一；2026-06-20 审计 S-015 修正，原 `ADMIN_ROLE:GRANT/REVOKE` 已废弃）| 红线 |
 
 ---
 

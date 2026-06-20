@@ -208,26 +208,27 @@ COMMENT ON COLUMN sys_user_org.is_primary IS '是否主组织；首期仅表示�
 COMMENT ON COLUMN sys_user_org.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- -----------------------------------------------------------------------------
--- 8. sys_menu - 菜单表（事实源，同步到权限中心 resource_entity）
+-- 8. sys_menu - 菜单表（UI 路由元数据 + 关联资源 link，v3.5 菜单零权限化）
+--    *** schema 迁移 2026-06-20 审计 S-002=B（v3.5 §2.1 最终态）***
+--    menu_type 改 5 值 ENUM(DIR/MENU/EXTERNAL/IFRAME/HIDDEN)，删除 BUTTON；
+--    删除 perm_code/visible/is_external/is_frame/is_cache/component/service_code 字段
+--    （权限语义不再由 sys_menu 承载，菜单可见性由 v3.5 §4.1 ∃ op 派生公式计算）；
+--    新增 source_service/resource_type/resource_code 关联业务资源 link。
+--    迁移期存量数据需：BUTTON 行归 v3.5.1+ 评估；perm_code 唯一索引下线。
 -- -----------------------------------------------------------------------------
 CREATE TABLE sys_menu (
     id               BIGSERIAL PRIMARY KEY,
     tenant_id        BIGINT NOT NULL,
     parent_id        BIGINT,
-    menu_type        VARCHAR(16) NOT NULL,
-    service_code     VARCHAR(64) NOT NULL DEFAULT 'admin-service',
-    name             VARCHAR(64) NOT NULL,
+    display_name     VARCHAR(128) NOT NULL,
     path             VARCHAR(256),
-    component        VARCHAR(256),
     icon             VARCHAR(64),
-    perm_code        VARCHAR(128),
     sort_order       INT NOT NULL DEFAULT 0,
-    visible          BOOLEAN NOT NULL DEFAULT true,
-    is_external      BOOLEAN NOT NULL DEFAULT false,
-    is_frame         BOOLEAN NOT NULL DEFAULT false,
-    is_cache         BOOLEAN NOT NULL DEFAULT false,
-    status           SMALLINT NOT NULL DEFAULT 1,
-    extra            JSONB DEFAULT '{}',
+    menu_type        VARCHAR(16) NOT NULL,   -- DIR/MENU/EXTERNAL/IFRAME/HIDDEN
+    status           SMALLINT NOT NULL DEFAULT 1,  -- 0=DISABLED, 1=ENABLED
+    resource_type    VARCHAR(64),            -- 关联业务资源类型（不参与鉴权决策）
+    resource_code    VARCHAR(64),            -- 关联业务资源实例（不参与鉴权决策）
+    source_service   VARCHAR(64),            -- 业务服务标识（链路追溯）
     created_by       BIGINT,
     updated_by       BIGINT,
     deleted_by       BIGINT,
@@ -237,20 +238,21 @@ CREATE TABLE sys_menu (
     delete_flag      BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX uk_menu_perm_code ON sys_menu (tenant_id, perm_code) WHERE delete_flag = 0 AND perm_code IS NOT NULL;
+CREATE UNIQUE INDEX uk_sys_menu_tenant_resource ON sys_menu (tenant_id, resource_type, resource_code) WHERE delete_flag = 0 AND resource_type IS NOT NULL;
+CREATE UNIQUE INDEX uk_sys_menu_tenant_path ON sys_menu (tenant_id, path) WHERE delete_flag = 0 AND path IS NOT NULL;
 CREATE INDEX idx_menu_parent ON sys_menu (tenant_id, parent_id) WHERE delete_flag = 0;
-CREATE INDEX idx_menu_service_tenant ON sys_menu (tenant_id, service_code) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_menu IS '菜单表：admin-service 事实源，MENU/BUTTON 类型同步到权限中心 resource_entity';
-COMMENT ON COLUMN sys_menu.menu_type IS '类型：DIR=目录，MENU=菜单，BUTTON=按钮';
-COMMENT ON COLUMN sys_menu.service_code IS '所属服务标识（admin-service/example-service 等），admin 统管所有服务菜单';
-COMMENT ON COLUMN sys_menu.perm_code IS '权限标识，同步到权限中心 resource_entity.code。MENU/BUTTON 必填，DIR 为空';
-COMMENT ON COLUMN sys_menu.visible IS '是否在菜单中可见（隐藏路由仍可访问）';
-COMMENT ON COLUMN sys_menu.is_external IS '是否外链（新窗口打开）';
-COMMENT ON COLUMN sys_menu.is_frame IS '是否 iframe 嵌入（门户归集外部系统页面）';
-COMMENT ON COLUMN sys_menu.is_cache IS '是否缓存（keep-alive）';
-COMMENT ON COLUMN sys_menu.extra IS '路由元信息（query 参数等）';
+COMMENT ON TABLE sys_menu IS '菜单表：admin-service 事实源，仅承载 UI 路由元数据 + 关联资源 link（v3.5 菜单零权限化，不承载权限语义）';
+COMMENT ON COLUMN sys_menu.menu_type IS '类型：DIR=目录，MENU=菜单，EXTERNAL=外链，IFRAME=嵌入，HIDDEN=隐藏路由（派生同 MENU，不进 menus[] 下发 hiddenRoutes[]）';
+COMMENT ON COLUMN sys_menu.status IS '状态：0=DISABLED，1=ENABLED';
+COMMENT ON COLUMN sys_menu.resource_type IS '关联业务资源类型（不参与鉴权决策，仅 link；v3.5 §4.1 派生公式用）';
+COMMENT ON COLUMN sys_menu.resource_code IS '关联业务资源实例（不参与鉴权决策，仅 link）';
+COMMENT ON COLUMN sys_menu.source_service IS '业务服务标识（链路追溯，替代原 service_code）';
 COMMENT ON COLUMN sys_menu.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
+
+-- 已废弃字段（迁移期物理删除）：perm_code / operations / primary_operation / default_preset /
+--   visible / is_external / is_frame / is_cache / component / extra / service_code
+-- 已废弃索引：uk_menu_perm_code（perm_code 唯一索引下线）、idx_menu_service_tenant（service_code 删除）
 
 -- -----------------------------------------------------------------------------
 -- 9. sys_dict_type - 字典类型

@@ -6,9 +6,15 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [design-review-2026-06-17.md](design-review-2026-06-17.md) | 设计评审 | 进行中 | 全量设计文档评审产出：信任锚点核实、设计意图备忘、6 个工作单（A-F，含问题/方案/推荐/修改后）、整体路线图与决策记录 |
+| [permission-center-v3.5-design-2026-06-18.md](permission-center-v3.5-design-2026-06-18.md) | 端到端设计（v3.5 简化版）| 进行中（PM 直接决策，无 R6 评审） | 权限中心**二层权限模型**设计契约：L1 操作 + L2 数据权限（调用方自决）+ 菜单零权限化 + 单 RPC 原子契约 + tenant 强制。经设计文档全面审计（2026-06-20）后 PM 大幅回退：删除 L3 字段维度 / entry_eligible / 跨业务域告警 / sys_menu_ref / snapshotVersion / 6 个实施章节。R5 SIGN_OFF 已失效。审计决策 27 项已落地 |
+| [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
 | [org-user-page-impl-plan.md](org-user-page-impl-plan.md) | 页面实现计划 | 进行中 | "组织与用户"融合页的前端实现、后端契约和权限接线计划 |
-| [user-role-proxy-fix-plan.md](user-role-proxy-fix-plan.md) | 缺陷修复计划 | 进行中 | admin-service 用户角色代理链路 6 项 P1/P2 修复（含 12 条审查发现的扩散问题），共 13 项主改动 (M1-M13) + 3 项配套 (S1-S3) |
+| [user-role-proxy-fix-plan.md](user-role-proxy-fix-plan.md) | 缺陷修复计划 | 已完成待验收 | admin-service 用户角色代理链路 6 项 P1/P2 修复（含 12 条审查发现的扩散问题），共 13 项主改动 (M1-M13) + 3 项配套 (S1-S3)。M1-M13 + S1-S3 全完成；待 §6.1/§6.3 验收勾选完成后归档；EXT-7/EXT-8 DEFERRED 无主（审计 S-024）|
+| [perm-cache-invalidation-plan.md](perm-cache-invalidation-plan.md) | P0 落地计划（工作单 A）| 待启动 | 权限缓存失效改造：Gateway 快照模式 + ThreadLocal 影响范围收集 + 删除 permission_version + Redis pub/sub 广播。关联审计 S-001/S-006 |
+| [scope-mode-migration-plan.md](scope-mode-migration-plan.md) | P0 落地计划（工作单 B）| 待启动 | scopeMode 三值枚举协议全量推广（运行时 + 管理端 + 排查页），替换 scopeAll boolean。关联审计 S-005 |
+| [gateway-fail-mode-plan.md](gateway-fail-mode-plan.md) | P0 落地计划（工作单 C）| 待启动 | Gateway 失联兜底：三模 fail-mode（closed/open/stale-allow）+ 监控指标。关联审计 S-006；依赖工作单 A 快照模式 |
 | [api-gap-analysis.md](api-gap-analysis.md) | API 核对清单 | 进行中 | 前端 mock 与后端接口规格的差异清单 |
 
 ## 管理规则

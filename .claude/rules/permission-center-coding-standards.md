@@ -186,13 +186,16 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 }
 
 // ✅ 缓存写入在事务提交后执行
-TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-    @Override
-    public void afterCommit() {
-        permissionVersionDomainService.increment(tenantId, roleId);
-        subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
-    }
-});
+// 【铁律 P1-B】禁止业务侧（DomainService / AppService 业务方法内）手写 TransactionSynchronizationManager。
+// 缓存失效与广播统一由 AppService AOP afterCommit 处理，DomainService 仅通过 PermissionChangeContext.markAffected* 登记影响范围。
+// 注：permissionVersionDomainService.increment 已删除（审计 S-001 / design-review §A'-3），
+// 缓存失效改由 Redis pub/sub 主动广播 PermInvalidateEvent + TTL 兜底。
+// DomainService 仅登记影响范围，AppService AOP afterCommit 统一发布广播 + evict
+// （2026-06-20 审计 P1-B：禁止业务侧手写 TransactionSynchronizationManager）
+permissionGrantDomainService.markAffected(tenantId, affectedRoleIds, affectedUserIds);
+// AOP afterCommit 自动执行：
+//   redisPublisher.publish("perm:invalidate", new PermInvalidateEvent(tenantId, userIds, roleIds));
+//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
 
 // ❌ 禁止 — 事务提交前失效缓存（缓存可能被回滚数据污染）
 cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleId);

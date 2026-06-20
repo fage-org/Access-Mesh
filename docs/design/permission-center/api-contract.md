@@ -2,6 +2,10 @@
 
 > 本文档定义 permission-center 对外稳定接口契约。目标是让权限中心既能服务 AccessMesh 内部 Gateway/SDK，又能作为通用权限管理服务暴露给外部业务系统。
 
+> **全局注记（2026-06-20 审计 S-001）**：本文档中出现的 `permissionVersion` 字段均为**不透明令牌**（ETag 语义），由服务端对当前主体权限集合计算内容摘要生成，**不依赖 `permission_version` 表**（该表已决策删除，见 design-review §A'-3 + v3.5 §9.2）。
+
+> **scopeAll → scopeMode 迁移注记（2026-06-20 审计 S-005=A）**：本文档中约 30+ 处 `scopeAll` (boolean) 字段计划全量迁移到 `scopeMode` 三值枚举（INSTANCE/ALL/NONE），覆盖运行时鉴权口 + 管理端授权配置 + 排查页（design-review §B-1 决策 + 审计 S-005=A）。**当前文档暂未逐处改造**，与工作单 B（落地暂缓，见 design-review §11）绑定，待工作单 B 派生 plan 时随代码一并落地。落地前 `scopeAll` 字段维持现状语义。
+
 ## 1. 设计目标
 
 - **统一命名空间**：所有稳定对外接口统一使用 `/api/perm/{resource}/{action}`。
@@ -277,7 +281,6 @@
 | `POST /api/perm/auth/query-scopes`        | 查询主体在某个主资源上下文内可用的范围资源权限集合     |
 | `POST /api/perm/auth/check-interface`     | Gateway 接口级判定                                     |
 | `POST /api/perm/auth/interface-snapshot`  | Gateway 接口权限快照，可选优化接口                     |
-| `POST /api/perm/permission-version/query` | 查询权限版本                                           |
 
 ### 5.8 视图与审计
 
@@ -384,7 +387,9 @@
 
 `POST /api/perm/auth/interface-snapshot`
 
-用于 Gateway 按服务拉取当前主体可访问的 API 快照。`permissionVersion` 是一个不透明字符串令牌，由权限中心根据当前有效角色集合和各角色权限版本摘要生成。
+用于 Gateway 按服务拉取当前主体可访问的 API 快照。`permissionVersion` 是一个不透明字符串令牌，由权限中心根据当前有效角色集合和各角色权限摘要生成。
+
+> **令牌来源（2026-06-20 审计 S-001）**：`permissionVersion` 令牌**不依赖 `permission_version` 表**（该表已决策删除，见 design-review §A'-3 + v3.5 §9.2）。令牌由服务端对当前主体有效权限集合计算内容摘要生成（如 `sha256(subjectTypeCode + subjectExternalId + serviceCode + sorted(allowedApis))`），作为不透明 ETag 使用。建议服务端将令牌与权限快照缓存到同一 Redis key（同失效），避免每次重算。
 
 请求：
 
@@ -972,7 +977,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 授权者必须已经拥有目标权限且该权限 `canGrant=true`，才能把同一权限授权给他人。
 - 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围。
 - permission-center 只校验授权者是否具备同一权限的委托能力，不负责生成候选被授权人列表。
-- 写入 `operation_log` 和 `permission_change_log`，递增 `permission_version`。
+- 写入 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效缓存（afterCommit）。~~递增 `permission_version`~~（已废弃，审计 S-001）。
 - 资源依赖自动补全产生的授权必须标记 `grantSource=AUTO_DEP`。
 
 ### 6.5 子权限/范围权限
@@ -1181,7 +1186,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `scopeAll=true` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应通过 `scopeAll=true` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 删除子权限只能通过 `remove-child` 或主权限级联删除完成。
-- 子权限写入、删除都必须记录 `permission_change_log`，并递增父角色的 `permission_version`。
+- 子权限写入、删除都必须记录 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效父角色缓存（afterCommit）。~~递增父角色的 `permission_version`~~（已废弃，审计 S-001）。
 
 ### 6.6 通用资源权限查询
 

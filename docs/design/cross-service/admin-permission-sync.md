@@ -8,6 +8,14 @@
 
 admin-service 是用户、组织、菜单等管理事实的来源；permission-center 是权限计算事实的来源。同步模块负责把 admin-service 中需要参与权限控制的事实稳定投递到 permission-center，并保证重试、乱序、全量校准和人工补偿都有明确边界。
 
+> **写后读一致性（2026-06-20 审计 S-008）**：同步为异步分钟级延迟（Q1 决策）。**admin 写操作完成后立即跳转 permission-center 查询页验证时，permission-view/* 直查 perm 数据可能读到旧事实**，这是预期行为而非 bug。
+>
+> **admin UI 回显规范**：admin 写操作（创建用户 / 调整组织 / 分配关系等）完成后，UI 应使用 **admin 本地事实**（admin 库 `sys_user` / `sys_org` / `sys_user_org` 等）即时回显，**不立即跳转查询 perm-center 派生视图**。例如：
+> - admin 创建用户 → 保存成功 → 列表立即显示新用户（读 admin `sys_user`），不跳"用户权限视图"查 perm
+> - admin 调整用户组织关系 → 保存成功 → 关系列表立即更新（读 admin `sys_user_org`），不查 perm `user_role`
+>
+> permission-center 派生视图（如"用户权限视图"）应在用户主动进入时查询，此时通常已过同步窗口。若 UI 必须呈现同步状态，可显示 sync_task 状态（但不阻塞跳转）。
+
 同步范围：
 
 | admin-service 事实 | permission-center 事实 | 说明 |

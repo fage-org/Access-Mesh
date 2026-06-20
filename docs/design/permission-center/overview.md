@@ -21,7 +21,7 @@
 | **ServiceIntegration（服务集成）** | `service_config`, `resource_api_mapping`, `resource_dependency` | 接入服务的注册信息和接口清单；接口与 Gateway 路径的映射储存在 `resource_api_mapping`；资源依赖规则表 `resource_dependency` 表达"授权源资源时自动补全目标资源权限"。API 类型资源由同步自动创建，标记 `ownerServiceCode` 和 `maintainSource=SERVICE_SYNC`。 |
 | **DomainConfig（域配置）**         | `biz_domain`, `domain_config`, `type_definition`                | 业务域是管理分区而非子租户；仅用于角色、资源、操作和子权限的分类与后台管理视角隔离；域配置约束域内允许的角色、资源、操作和子权限；类型定义（type_definition）完成 code-to-value 的稳定映射。                                                              |
 | **PermissionRule（权限规则）**     | `permission_condition`, `permission_conflict_rule`              | 可复用权限条件（时间范围/IP 白名单/黑名单）和冲突规则（角色互斥/权限互斥），在 PermQueryEngine 查询管线中统一评估。                                                                                                                                       |
-| **Audit（审计）**                  | `permission_version`, `permission_change_log`, `operation_log`  | 权限版本号（缓存失效驱动）、权限变更日志（diff 快照）和操作日志（入口写操作记录）。入口日志由 `@OperationLog` AOP 自动记录；内部动态日志（diff 快照、冲突通知）由 `AuditDomainService` 显式调用。                                                         |
+| **Audit（审计）**                  | `permission_change_log`, `operation_log`  | 权限变更日志（diff 快照）和操作日志（入口写操作记录）。入口日志由 `@OperationLog` AOP 自动记录；内部动态日志（diff 快照、冲突通知）由 `AuditDomainService` 显式调用。> **2026-06-20 审计 S-001**：`permission_version` 表与机制已决策完全删除（design-review §A'-3 + v3.5 §9.2），缓存失效改由 Redis pub/sub 主动广播 + TTL 兜底，详见 core-flows.md「缓存与一致性」。
 | **SystemConfig（系统配置）**       | `system_config`                                                 | 租户级配置（角色唯一性、默认策略等）。                                                                                                                                                                                                                    |
 
 ## 分层架构
@@ -154,9 +154,9 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 ## 缓存与一致性
 
 - 权限运行时计算应复用统一的 `PermQueryEngine` 角色解析、条件评估、冲突处理、租户过滤和缓存逻辑。
-- 角色关系、角色权限、资源、接口映射、条件、冲突规则变更后必须递增相关 `permission_version`。
+- **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-20 审计 S-001/S-018 修订）：写操作 afterCommit 阶段 `redissonClient.getTopic("perm:invalidate").publish(PermInvalidateEvent)`；订阅方（Gateway / 前端）收到事件后 evict 本地缓存；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原"递增 version 驱动失效"的设计已废弃，Gateway 不读 version、内部 evict 已够用）。
 - Gateway 可做本地 L1 缓存（Caffeine, TTL 30s），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `PermCacheCatalog` 统一管理）。
-- 缓存失效在事务提交后（`TransactionSynchronization.afterCommit`）执行，版本递增由调用方在 `afterCommit` 中显式调用 `PermissionVersionDomainService.increment()`。
+- 缓存失效在事务提交后（`TransactionSynchronization.afterCommit`）执行。
 - 接口级权限检查（`check-interface`）匹配 API 映射后直接走 `API.ACCESS` 引擎判定，无额外 VIEW 门禁。
 
 ## 关联文档

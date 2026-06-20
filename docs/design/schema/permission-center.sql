@@ -563,27 +563,34 @@ COMMENT ON COLUMN permission_conflict_rule.second_abstract_role_id IS '互斥角
 -- -----------------------------------------------------------------------------
 -- 16. 权限版本表（角色级粒度，每个角色单独版本号）
 --     权限变更时自动递增，仅用于缓存失效，不存快照
+--     *** OBSOLETED 2026-06-20 审计 S-001（design-review §A'-3 + v3.5 §9.2）***
+--     该表已决策完全删除：Gateway 不读 version、内部 evict 已够用。
+--     缓存失效改由 Redis pub/sub 主动广播 PermInvalidateEvent + TTL 兜底。
+--     以下 CREATE 语句已注释；存量环境回滚由工作单 A 派生 plan（perm-cache-invalidation-plan.md A-3）的 migration 脚本承载，本权威 schema 文件不含破坏性语句。
 -- -----------------------------------------------------------------------------
-CREATE TABLE permission_version (
-    id                  BIGSERIAL PRIMARY KEY,
-    tenant_id           BIGINT NOT NULL,
-    abstract_role_id    BIGINT,
-    version_no          BIGINT NOT NULL,
-    trigger_entity_type VARCHAR(64),
-    trigger_entity_id   BIGINT,
-    remark              VARCHAR(512),
-    created_by          BIGINT,
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- CREATE TABLE permission_version (
+--     id                  BIGSERIAL PRIMARY KEY,
+--     tenant_id           BIGINT NOT NULL,
+--     abstract_role_id    BIGINT,
+--     version_no          BIGINT NOT NULL,
+--     trigger_entity_type VARCHAR(64),
+--     trigger_entity_id   BIGINT,
+--     remark              VARCHAR(512),
+--     created_by          BIGINT,
+--     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+-- );
+--
+-- CREATE UNIQUE INDEX uk_permission_version ON permission_version (tenant_id, COALESCE(abstract_role_id, 0), version_no);
+-- CREATE INDEX idx_permission_version_role ON permission_version (tenant_id, abstract_role_id, created_at DESC);
+--
+-- COMMENT ON TABLE permission_version IS '权限版本游标：角色级粒度，权限变更时自动递增，仅用于缓存失效，不存快照';
+-- COMMENT ON COLUMN permission_version.abstract_role_id IS '角色ID，NULL 表示租户全局版本';
+-- COMMENT ON COLUMN permission_version.version_no IS '版本号，按角色递增';
+-- COMMENT ON COLUMN permission_version.trigger_entity_type IS '触发变更的实体类型';
+-- COMMENT ON COLUMN permission_version.trigger_entity_id IS '触发变更的实体ID';
 
-CREATE UNIQUE INDEX uk_permission_version ON permission_version (tenant_id, COALESCE(abstract_role_id, 0), version_no);
-CREATE INDEX idx_permission_version_role ON permission_version (tenant_id, abstract_role_id, created_at DESC);
-
-COMMENT ON TABLE permission_version IS '权限版本游标：角色级粒度，权限变更时自动递增，仅用于缓存失效，不存快照';
-COMMENT ON COLUMN permission_version.abstract_role_id IS '角色ID，NULL 表示租户全局版本';
-COMMENT ON COLUMN permission_version.version_no IS '版本号，按角色递增';
-COMMENT ON COLUMN permission_version.trigger_entity_type IS '触发变更的实体类型';
-COMMENT ON COLUMN permission_version.trigger_entity_id IS '触发变更的实体ID';
+-- 存量环境回滚（DROP TABLE）由工作单 A 派生 plan（perm-cache-invalidation-plan.md）的 migration 脚本承载，
+-- 本权威 schema 文件只保留最终态（CREATE 已注释 + OBSOLETED 说明），不含破坏性语句。
 
 -- -----------------------------------------------------------------------------
 -- 17. 权限变更记录表（详细权限变更 diff，方便排查权限问题）

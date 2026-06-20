@@ -1,9 +1,11 @@
 # API 核对清单
 
 > Phase 1：逐接口核对前端 mock 与后端真实规格，标记 ✅/🔧/❌。
-> Phase 2：后端按此清单改造 🔧❌ 项。
+> Phase 2：后端按此清单改造 🔧❌ 项.
 >
 > 16 个 🔧 接口的契约已在 ../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14), 待 Phase 2 后端实现.
+>
+> **范围限定（2026-06-20 审计 S-025）**：本清单**仅覆盖「组织与用户」页面**涉及的 22~27 个接口（汇总见文末，✅=6 + 🔧=16 + ❌=0 + ⏳=5 = 27）。**不代表 admin-service 全量接口** —— admin-service 实际约 90 个（@RequestBody）/ 101 个（@PostMapping），详见 [design-review-2026-06-17.md](design-review-2026-06-17.md) §2 D2 信任锚点核实。全量接口数字待工作单 F-1.a（脚本化 `_metrics.md`）落地后根治。
 >
 > **响应信封**：mock 经 `vite-plugin-fake-server`（`mock/user-manage.ts`）统一返回后端
 > `PermResult<T> = { code, message, data, requestId, traceId }`（`code=200` 成功），

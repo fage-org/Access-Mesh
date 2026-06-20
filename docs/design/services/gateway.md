@@ -17,6 +17,8 @@
 4. 按 `serviceCode + httpMethod + 原始 path` 调用权限中心接口级鉴权。
 5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
 
+> **平台超管跨租户（2026-06-20 审计 S-017）**：v3.5 **不支持**平台超级管理员跨租户操作。超管必须分别登录每个租户实例，`X-Tenant-Id` 始终对应当前登录租户。不支持双 Header（`X-Tenant-Id` + `X-Target-Tenant-Id`）跨租户切换；如未来需支持，作为 v3.5.1+ platform-admin 增量设计。`TenantManager.ignore()`（见 project-rules.md）仅用于内部测试/迁移场景，**非超管跨租户能力**，禁止用于生产跨租户访问。
+
 ## 与权限中心的约定
 
 - 接口级鉴权契约以 `../permission-center/api-contract.md` 为准。
