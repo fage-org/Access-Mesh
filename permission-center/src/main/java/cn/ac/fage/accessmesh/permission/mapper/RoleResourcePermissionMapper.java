@@ -53,6 +53,20 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                @Param("resourceIds") List<Long> resourceIds);
 
     /**
+     * 查询指定资源ID集合涉及的受影响角色ID集合（资源软删场景登记 ROLE_PERM_SNAPSHOT 失效）。
+     * <p>
+     * T-PERM-018：deleteResources 软删 role_resource_permission 前，查出受影响 roleIds 并 markRoles，
+     * afterCommit 由 @PermissionChange AOP evictBatch ROLE_PERM_SNAPSHOT。
+     * </p>
+     *
+     * @param tenantId    租户ID
+     * @param resourceIds 资源ID集合
+     * @return 受影响角色ID集合
+     */
+    Set<Long> selectRoleIdsByResourceIds(@Param("tenantId") Long tenantId,
+                                         @Param("resourceIds") List<Long> resourceIds);
+
+    /**
      * 批量软删除角色资源权限
      *
      * @param tenantId  租户ID

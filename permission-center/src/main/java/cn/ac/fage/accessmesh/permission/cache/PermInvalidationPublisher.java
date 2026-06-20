@@ -35,19 +35,24 @@ public class PermInvalidationPublisher {
 
     /**
      * 广播失效事件。tenantId 为 null 时跳过（防御性）。
+     *
+     * @param tenantId     租户ID
+     * @param roleIds      受影响角色ID集合
+     * @param userIds      受影响用户ID集合
+     * @param serviceCodes 受影响服务编码集合（API mapping/资源/sync 变更触发，Gateway 据此清本地快照）
      */
-    public void publish(Long tenantId, Set<Long> roleIds, Set<Long> userIds) {
+    public void publish(Long tenantId, Set<Long> roleIds, Set<Long> userIds, Set<String> serviceCodes) {
         if (tenantId == null) {
             log.debug("Skip perm invalidation broadcast: tenantId is null");
             return;
         }
         try {
             RTopic topic = redissonClient.getTopic(TOPIC);
-            topic.publish(new PermInvalidateEvent(tenantId, roleIds, userIds));
+            topic.publish(new PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes));
         } catch (Exception e) {
             // 广播失败不抛异常，不影响已提交事务；订阅端靠 TTL 兜底
-            log.warn("Failed to publish PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}): {}",
-                tenantId, roleIds, userIds, e.getMessage());
+            log.warn("Failed to publish PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}, serviceCodes={}): {}",
+                tenantId, roleIds, userIds, serviceCodes, e.getMessage());
         }
     }
 }

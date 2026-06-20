@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.PermissionConflictDomainS
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.RolePermEntryMapper;
+import cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -138,6 +140,10 @@ class PermQueryEngineTest {
     void testForUserView() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
 
+        // T-PERM-018：forUserView 走 ROLE_PERM_SNAPSHOT 读缓存；缓存 miss → 回源 selectValidByRoleIds
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
+
         RoleResourcePermission perm1 = new RoleResourcePermission();
         perm1.setId(501L);
         perm1.setAbstractRoleId(20L);
@@ -224,6 +230,8 @@ class PermQueryEngineTest {
     @Test
     void testForUserViewEmptyPermissionsShouldDeny() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 
         PermQuery query = PermQuery.forUserView(1L, 10L);
@@ -231,6 +239,104 @@ class PermQueryEngineTest {
 
         assertEquals(false, result.allowed());
         assertEquals("NO_PERMISSION", result.reason());
+    }
+
+    // ===== T-PERM-018: ROLE_PERM_SNAPSHOT 读缓存激活 =====
+
+    @Test
+    void forUserViewShouldHitCacheAndSkipDbWhenAllRolesCached() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+
+        RolePermEntry cachedEntry = new RolePermEntry(
+            501L, 20L, 200L, null, 1, 8L, null, null,
+            "DIRECT", true, null, false, null, true);
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, List.of(cachedEntry)));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        PermResult result = engine.query(PermQuery.forUserView(1L, 10L));
+
+        assertTrue(result.allowed());
+        assertEquals(1, result.allEntries().size());
+        // 全 hit：不应回源 DB
+        verify(rolePermMapper, never()).selectValidByRoleIds(any(), any());
+        verify(cacheService, never()).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), any());
+    }
+
+    @Test
+    void forUserViewShouldMissCacheAndBackfillBatch() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L, 21L));
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
+            .thenReturn(Map.of());
+
+        RoleResourcePermission perm1 = new RoleResourcePermission();
+        perm1.setId(501L); perm1.setAbstractRoleId(20L); perm1.setResourceEntityId(200L);
+        perm1.setResourceType(1); perm1.setGrantedBits(8L); perm1.setDeleteFlag(0L);
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L, 21L))).thenReturn(List.of(perm1));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        PermResult result = engine.query(PermQuery.forUserView(1L, 10L));
+
+        assertTrue(result.allowed());
+        assertEquals(1, result.allEntries().size());
+        // miss 集合 1 SQL 回源 + putBatch 回填（含 role 21 的空列表防穿透）
+        verify(rolePermMapper).selectValidByRoleIds(1L, Set.of(20L, 21L));
+        org.mockito.ArgumentCaptor<Map<Long, List<RolePermEntry>>> captor =
+            org.mockito.ArgumentCaptor.forClass(Map.class);
+        verify(cacheService).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), captor.capture());
+        Map<Long, List<RolePermEntry>> backfilled = captor.getValue();
+        assertEquals(2, backfilled.size());
+        assertEquals(1, backfilled.get(20L).size());
+        // 空权限角色缓存空列表（非 null）防穿透
+        assertTrue(backfilled.get(21L).isEmpty());
+    }
+
+    @Test
+    void forUserViewShouldHandleMixedHitAndMiss() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L, 21L));
+        // role 20 命中，role 21 miss
+        RolePermEntry cachedEntry = new RolePermEntry(
+            501L, 20L, 200L, null, 1, 8L, null, null,
+            "DIRECT", true, null, false, null, true);
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
+            .thenReturn(Map.of(20L, List.of(cachedEntry)));
+
+        RoleResourcePermission perm2 = new RoleResourcePermission();
+        perm2.setId(502L); perm2.setAbstractRoleId(21L); perm2.setResourceEntityId(201L);
+        perm2.setResourceType(2); perm2.setGrantedBits(4L); perm2.setDeleteFlag(0L);
+        // 仅查 miss 集合 {21}
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(21L))).thenReturn(List.of(perm2));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        PermResult result = engine.query(PermQuery.forUserView(1L, 10L));
+
+        assertTrue(result.allowed());
+        assertEquals(2, result.allEntries().size());
+        // 仅 miss 角色回源，命中角色不查 DB
+        verify(rolePermMapper).selectValidByRoleIds(1L, Set.of(21L));
+    }
+
+    @Test
+    void forUserViewShouldCacheEmptyListForRoleWithNoPermissions() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of());
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
+
+        PermResult result = engine.query(PermQuery.forUserView(1L, 10L));
+
+        assertEquals(false, result.allowed());
+        assertEquals("NO_PERMISSION", result.reason());
+        // 空权限角色缓存 List.of()（非 null）防穿透
+        org.mockito.ArgumentCaptor<Map<Long, List<RolePermEntry>>> captor =
+            org.mockito.ArgumentCaptor.forClass(Map.class);
+        verify(cacheService).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), captor.capture());
+        List<RolePermEntry> cachedForRole = captor.getValue().get(20L);
+        assertNotNull(cachedForRole);
+        assertTrue(cachedForRole.isEmpty());
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

@@ -113,11 +113,16 @@ public class PermissionChangeAspect {
         Set<Long> userIds = acc.userIds();
         Set<Long> conditionIds = acc.conditionIds();
         Set<Long> roleSnapshotIds = acc.roleSnapshotIds();
+        Set<String> serviceCodes = acc.serviceCodes();
 
         try {
             // 1. 角色维度失效（反查受影响用户，失效 EFFECTIVE_ROLES）
             for (Long roleId : roleIds) {
                 subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
+            }
+            // 角色权限变更（grant/revoke/资源删除）→ 失效 ROLE_PERM_SNAPSHOT（roleId 级精确）
+            if (!roleIds.isEmpty()) {
+                cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
             }
             // 2. 用户维度失效
             if (!userIds.isEmpty()) {
@@ -131,8 +136,8 @@ public class PermissionChangeAspect {
             if (!roleSnapshotIds.isEmpty()) {
                 cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds);
             }
-            // 5. 广播失效事件（Gateway 订阅后 evict 本地 INTERFACE_SNAPSHOT，T-PERM-006 实现）
-            publisher.publish(tenantId, roleIds, userIds);
+            // 5. 广播失效事件（含 serviceCodes：API mapping/资源/sync 变更触发 Gateway 清本地快照，T-PERM-006 实现）
+            publisher.publish(tenantId, roleIds, userIds, serviceCodes);
         } catch (Exception e) {
             // flush 失败不抛异常（事务已提交）；靠 TTL 兜底最终一致
             log.error("PermissionChange flush failed (tenantId={}): {}", tenantId, e.getMessage(), e);

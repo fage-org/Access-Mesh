@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
+import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
@@ -357,6 +359,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "perm", action = "resource-entity-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resources'")
     public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -403,10 +406,26 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             allIdsToDelete.addAll(descendants);
         }
 
-        List<Long> permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, new ArrayList<>(allIdsToDelete));
+        // T-PERM-018 (C9)：软删 perm 前登记受影响范围。资源软删会级联软删 role_resource_permission，
+        // ROLE_PERM_SNAPSHOT 缓存含旧 perm → 软删前查受影响 roleIds + serviceCodes 双重登记，afterCommit AOP 失效与广播
+        List<Long> resourceIdsToDelete = new ArrayList<>(allIdsToDelete);
+        Set<Long> affectedRoleIds = rolePermMapper.selectRoleIdsByResourceIds(tenantId, resourceIdsToDelete);
+        if (!affectedRoleIds.isEmpty()) {
+            PermissionChangeContext.markRoles(tenantId, affectedRoleIds);
+        }
+        // 资源 → API mapping → serviceCode：删除资源影响 Gateway 本地快照构建，软删前查出并 markServiceCodes
+        Set<String> affectedServiceCodes = apiMappingMapper.selectByResourceEntityIds(tenantId, allIdsToDelete).stream()
+            .map(ResourceApiMapping::getServiceCode)
+            .filter(code -> code != null && !code.isBlank())
+            .collect(Collectors.toSet());
+        if (!affectedServiceCodes.isEmpty()) {
+            PermissionChangeContext.markServiceCodes(tenantId, affectedServiceCodes);
+        }
+
+        List<Long> permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, resourceIdsToDelete);
 
         LocalDateTime now = LocalDateTime.now();
-        resourceEntityDomainService.softDeleteBatch(tenantId, new ArrayList<>(allIdsToDelete), now);
+        resourceEntityDomainService.softDeleteBatch(tenantId, resourceIdsToDelete, now);
 
         if (!permIds.isEmpty()) {
             rolePermMapper.softDeleteBatch(tenantId, permIds, now);

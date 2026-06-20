@@ -76,7 +76,7 @@ class PermissionChangeAspectTest {
         PermissionChangeContext.clear();
         // 空累积不应触发任何失效或广播
         verify(subjectDomainService, never()).invalidateRoleCacheByRole(anyLong(), anyLong());
-        verify(publisher, never()).publish(anyLong(), any(), any());
+        verify(publisher, never()).publish(anyLong(), any(), any(), any());
     }
 
     /**
@@ -98,9 +98,10 @@ class PermissionChangeAspectTest {
             aspect.around(joinPoint, pc);
         }
 
-        // flush 执行：失效角色缓存 + 广播
+        // flush 执行：失效角色缓存 + 失效 ROLE_PERM_SNAPSHOT + 广播（含 serviceCodes）
         verify(subjectDomainService).invalidateRoleCacheByRole(1L, 200L);
-        verify(publisher).publish(eq(1L), eq(Set.of(200L)), any());
+        verify(cacheService).evictBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
+        verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
         // clear 执行
         assertNull(PermissionChangeContext.snapshot());
     }

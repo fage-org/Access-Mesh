@@ -877,11 +877,8 @@ public class PermQueryEngine {
             return PermResult.deny("NO_ROLE");
         }
 
-        // 2. 查询全部角色权限（scopeAll + instance）
-        List<RolePermEntry> allEntries = rolePermMapper.selectValidByRoleIds(q.tenantId(), roleIds)
-            .stream()
-            .map(entryMapper::toEntry)
-            .toList();
+        // 2. 查询全部角色权限（scopeAll + instance）—— T-PERM-018 激活 ROLE_PERM_SNAPSHOT 读缓存
+        List<RolePermEntry> allEntries = loadRolePermEntriesWithCache(q.tenantId(), roleIds);
 
         if (allEntries.isEmpty()) {
             return PermResult.deny("NO_PERMISSION");
@@ -903,6 +900,53 @@ public class PermQueryEngine {
         loadAncillaryForView(q, builder, allEntries, roleIds);
 
         return builder.build();
+    }
+
+    /**
+     * 加载角色权限条目（带 ROLE_PERM_SNAPSHOT 读缓存）。
+     * <p>
+     * T-PERM-018 缓存下沉：getBatch 批量查 roleIds，miss 集合 1 SQL（selectValidByRoleIds），
+     * putBatch 回填；空权限角色缓存空列表（List.of()，非 null）防穿透。
+     * 缓存值为条件评估前、互斥过滤前的原始权限记录；条件实时评估（条件变更洞消失）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 全部角色的权限条目（合并，可变列表）
+     */
+    private List<RolePermEntry> loadRolePermEntriesWithCache(Long tenantId, Set<Long> roleIds) {
+        // 1. 批量读缓存
+        Map<Long, List<RolePermEntry>> cached = cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
+        List<RolePermEntry> allEntries = new ArrayList<>();
+        Set<Long> miss = new LinkedHashSet<>();
+        for (Long roleId : roleIds) {
+            List<RolePermEntry> entries = cached.get(roleId);
+            if (entries != null) {
+                // 命中（含空列表缓存，防穿透）
+                allEntries.addAll(entries);
+            } else {
+                miss.add(roleId);
+            }
+        }
+
+        // 2. miss 集合回源 1 SQL
+        if (!miss.isEmpty()) {
+            List<RoleResourcePermission> dbRows = rolePermMapper.selectValidByRoleIds(tenantId, miss);
+            Map<Long, List<RolePermEntry>> perRole = new LinkedHashMap<>();
+            for (RoleResourcePermission p : dbRows) {
+                perRole.computeIfAbsent(p.getAbstractRoleId(), k -> new ArrayList<>()).add(entryMapper.toEntry(p));
+            }
+
+            Map<Long, List<RolePermEntry>> toPut = new HashMap<>();
+            for (Long roleId : miss) {
+                List<RolePermEntry> entries = perRole.getOrDefault(roleId, List.of());
+                allEntries.addAll(entries);
+                toPut.put(roleId, entries); // 空列表（List.of()）也缓存，防穿透
+            }
+            cacheService.putBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, toPut);
+        }
+
+        return allEntries;
     }
 
     /**

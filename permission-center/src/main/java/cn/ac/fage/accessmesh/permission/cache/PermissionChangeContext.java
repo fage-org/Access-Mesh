@@ -143,6 +143,41 @@ public final class PermissionChangeContext {
     }
 
     /**
+     * 登记受影响服务编码（API mapping 增删改 / 资源删除 / syncInterfaces → 广播 serviceCodes，
+     * Gateway 订阅后清本地 interfaceSnapshotCache；permission-center 侧不清缓存）。
+     * <p>
+     * serviceCodes 仅触发广播，不清 permission-center 任何缓存——API mapping 变更不影响
+     * ROLE_PERM_SNAPSHOT（perm 记录未变），仅影响 Gateway 本地快照（含旧 mapping）。
+     * </p>
+     */
+    public static void markServiceCodes(Long tenantId, Set<String> serviceCodes) {
+        Accumulator acc = HOLDER.get();
+        if (acc == null) {
+            log.debug("markServiceCodes called without bound context (tenantId={}, serviceCodes={}) — no-op", tenantId, serviceCodes);
+            return;
+        }
+        acc.ensureTenant(tenantId);
+        if (serviceCodes != null) {
+            acc.serviceCodes.addAll(serviceCodes);
+        }
+    }
+
+    /**
+     * 登记受影响服务编码（单个 serviceCode 便捷重载）。
+     */
+    public static void markServiceCodes(Long tenantId, String serviceCode) {
+        Accumulator acc = HOLDER.get();
+        if (acc == null) {
+            log.debug("markServiceCodes called without bound context (tenantId={}, serviceCode={}) — no-op", tenantId, serviceCode);
+            return;
+        }
+        acc.ensureTenant(tenantId);
+        if (serviceCode != null && !serviceCode.isBlank()) {
+            acc.serviceCodes.add(serviceCode);
+        }
+    }
+
+    /**
      * 累积快照（不可变视图，供 AOP flush 读取）。
      */
     public static final class Accumulator {
@@ -151,6 +186,7 @@ public final class PermissionChangeContext {
         private final Set<Long> userIds = new HashSet<>();
         private final Set<Long> conditionIds = new HashSet<>();
         private final Set<Long> roleSnapshotIds = new HashSet<>();
+        private final Set<String> serviceCodes = new HashSet<>();
 
         void ensureTenant(Long tenantId) {
             if (this.tenantId == null) {
@@ -178,9 +214,14 @@ public final class PermissionChangeContext {
             return Collections.unmodifiableSet(roleSnapshotIds);
         }
 
+        public Set<String> serviceCodes() {
+            return Collections.unmodifiableSet(serviceCodes);
+        }
+
         public boolean isEmpty() {
             return roleIds.isEmpty() && userIds.isEmpty()
-                && conditionIds.isEmpty() && roleSnapshotIds.isEmpty();
+                && conditionIds.isEmpty() && roleSnapshotIds.isEmpty()
+                && serviceCodes.isEmpty();
         }
     }
 }

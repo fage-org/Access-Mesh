@@ -54,17 +54,19 @@ public final class PermCacheCatalog {
      * 角色权限快照缓存
      * <p>
      * Key: roleId
-     * Value: RolePermSnapshot
+     * Value: List&lt;RolePermEntry&gt; 角色的原始权限记录（条件评估前、互斥过滤前）。
+     * 空权限角色缓存空列表（List.of()，非 null）防穿透。
+     * T-PERM-018：engine forUserView 读路径激活（getBatch 批量查 roleIds，miss 集合 1 SQL，putBatch 回填）。
      * </p>
      */
-    public static final CacheCatalogEntry<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot> ROLE_PERM_SNAPSHOT =
-        CacheCatalogEntry.<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot>builder()
+    public static final CacheCatalogEntry<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>> ROLE_PERM_SNAPSHOT =
+        CacheCatalogEntry.<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>>builder()
             .code("perm:role-perm-snapshot")
             .mode(CacheMode.L1_L2)
             .l1TtlMinutes(5)
             .l1MaxSize(2000)
             .l2TtlMinutes(30)
-            .valueType(new TypeRef<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot>() {})
+            .valueType(new TypeRef<java.util.List<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot.RolePermEntry>>() {})
             .build();
 
     /**
