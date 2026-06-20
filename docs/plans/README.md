@@ -10,7 +10,7 @@
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
 | [org-user-page-impl-plan.md](org-user-page-impl-plan.md) | 页面实现计划 | 进行中 | "组织与用户"融合页的前端实现、后端契约和权限接线计划 |
-| [user-role-proxy-fix-plan.md](user-role-proxy-fix-plan.md) | 缺陷修复计划 | 已完成待验收 | admin-service 用户角色代理链路 6 项 P1/P2 修复（含 12 条审查发现的扩散问题），共 13 项主改动 (M1-M13) + 3 项配套 (S1-S3)。M1-M13 + S1-S3 全完成；待 §6.1/§6.3 验收勾选完成后归档；EXT-7/EXT-8 DEFERRED 无主（审计 S-024）|
+| ~~user-role-proxy-fix-plan~~ | （已归档）| — | 用户角色代理修复（M1-M13+S1-S3）已完成验收 + 设计回写，2026-06-20 归档至 [../archive/2026-06-20/](../archive/2026-06-20/)。任务 `T-ADMIN-001~016` 见 [../tasks/README.md](../tasks/README.md) 已完成区。EXT-7/EXT-8 DEFERRED 无主（审计 S-024）|
 | [perm-cache-invalidation-plan.md](perm-cache-invalidation-plan.md) | P0 落地计划（工作单 A）| 待启动 | 权限缓存失效改造：Gateway 快照模式 + ThreadLocal 影响范围收集 + 删除 permission_version + Redis pub/sub 广播。关联审计 S-001/S-006 |
 | [scope-mode-migration-plan.md](scope-mode-migration-plan.md) | P0 落地计划（工作单 B）| 待启动 | scopeMode 三值枚举协议全量推广（运行时 + 管理端 + 排查页），替换 scopeAll boolean。关联审计 S-005 |
 | [gateway-fail-mode-plan.md](gateway-fail-mode-plan.md) | P0 落地计划（工作单 C）| 待启动 | Gateway 失联兜底：三模 fail-mode（closed/open/stale-allow）+ 监控指标。关联审计 S-006；依赖工作单 A 快照模式 |

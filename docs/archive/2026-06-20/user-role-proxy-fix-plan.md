@@ -33,10 +33,10 @@ last_updated: 2026-06-20
 
 > 状态：✅ 完成（M1-M13 + S1-S3 全完成，§6 验收通过 + 设计回写完成，2026-06-20）。满足归档条件，待移入 `docs/archive/`。任务详情见 §4（任务 ID 已嵌入各 M/S 标题，看板 `T-ADMIN-001~016` 已转 done）。
 > 关联设计：
-> - [docs/design/services/admin-service-api-contract.md](../design/services/admin-service-api-contract.md) §4.1.1 / §4.1.2 / §4.1.5 / §4.4
-> - [docs/design/permission-center/api-contract.md](../design/permission-center/api-contract.md) §6.2.2.4（user-role sync）、§6.2.4
-> - [docs/design/permission-center/overview.md](../design/permission-center/overview.md) "对外接口仅用业务键"设计哲学
-> - [docs/design/org-user-permission-contract.md](../design/org-user-permission-contract.md) v1.2 权限矩阵
+> - [docs/design/services/admin-service-api-contract.md](../../design/services/admin-service-api-contract.md) §4.1.1 / §4.1.2 / §4.1.5 / §4.4
+> - [docs/design/permission-center/api-contract.md](../../design/permission-center/api-contract.md) §6.2.2.4（user-role sync）、§6.2.4
+> - [docs/design/permission-center/overview.md](../../design/permission-center/overview.md) "对外接口仅用业务键"设计哲学
+> - [docs/design/org-user-permission-contract.md](../../design/org-user-permission-contract.md) v1.2 权限矩阵
 > - [docs/plans/org-user-page-impl-plan.md](org-user-page-impl-plan.md)（前置 P1 实现，本计划是其后续修复）
 >
 > 创建日期：2026-06-14
@@ -118,7 +118,7 @@ last_updated: 2026-06-20
 
 ### 第 1 批：DTO + 操作码（基础设施，4 项）
 
-#### M1（[T-ADMIN-001](../tasks/README.md)）：DTO 放宽 `@NotBlank`（双端同改）
+#### M1（[T-ADMIN-001](../../tasks/README.md)）：DTO 放宽 `@NotBlank`（双端同改）
 
 | 文件 | 改动 |
 |------|------|
@@ -131,7 +131,7 @@ last_updated: 2026-06-20
 
 **关联**：覆盖 P1-A、EXT-12。
 
-#### M2（[T-ADMIN-002](../tasks/README.md)）：服务端跨字段业务校验（Feature flag 控制）
+#### M2（[T-ADMIN-002](../../tasks/README.md)）：服务端跨字段业务校验（Feature flag 控制）
 
 | 文件 | 改动 |
 |------|------|
@@ -143,7 +143,7 @@ last_updated: 2026-06-20
 
 **关联**：覆盖审查担忧 "DTO 放宽缺补偿性校验"。
 
-#### M3（[T-ADMIN-003](../tasks/README.md)）：门禁码切回 ROLE:MANAGE（与 perm-center 统一）
+#### M3（[T-ADMIN-003](../../tasks/README.md)）：门禁码切回 ROLE:MANAGE（与 perm-center 统一）
 
 | 文件 | 改动 |
 |------|------|
@@ -156,7 +156,7 @@ last_updated: 2026-06-20
 
 **关联**：覆盖 P1-B。
 
-#### M4（[T-ADMIN-004](../tasks/README.md)）：`AdminOperationCode.MANAGE` 常量处理
+#### M4（[T-ADMIN-004](../../tasks/README.md)）：`AdminOperationCode.MANAGE` 常量处理
 
 > **修订说明（2026-06-15）**：原方案删除 `MANAGE` 常量（Phase 1 时 M3 切到 GRANT/REVOKE，
 > `MANAGE` 无引用）。但 M3 修订后回退到 `ROLE:MANAGE`，`AdminOperationCode` 不再定义
@@ -175,7 +175,7 @@ last_updated: 2026-06-20
 > (roleTypeCode, roleExternalId)，admin 就可以直接调 perm-center，完全不需要反查。
 > 这比新增 resolve-ids 端点更干净——**不改 perm-center 契约，也不需要 RoleResolver**。
 
-#### M5（[T-ADMIN-005](../tasks/README.md)）：admin DTO 改业务键 + RoleProxyServiceImpl 逻辑简化
+#### M5（[T-ADMIN-005](../../tasks/README.md)）：admin DTO 改业务键 + RoleProxyServiceImpl 逻辑简化
 
 **核心变更**：assign/revoke 接口从收 `roleId` 改为收 `(roleTypeCode, roleExternalId)`，
 list 接口从返 `roleId` 改为返 `(roleTypeCode, roleExternalId)`。
@@ -208,11 +208,11 @@ list 接口从返 `roleId` 改为返 `(roleTypeCode, roleExternalId)`。
 
 **关联**：覆盖 P1-C、EXT-1。**消除 RoleResolver 需求**。
 
-#### M6（[T-ADMIN-006](../tasks/README.md)）：删除 `RoleProxyServiceImpl.parseRoleId` 私有方法 + `resolveRoleRef` 方法
+#### M6（[T-ADMIN-006](../../tasks/README.md)）：删除 `RoleProxyServiceImpl.parseRoleId` 私有方法 + `resolveRoleRef` 方法
 
 M5 改完后，`parseRoleId` 和 `resolveRoleRef` 均不再被任何路径调用，删除避免后续误用。
 
-#### M7（[T-ADMIN-007](../tasks/README.md)）：`listUserRoles` 透传 `validFrom/validTo`（合并到 M5 实现）
+#### M7（[T-ADMIN-007](../../tasks/README.md)）：`listUserRoles` 透传 `validFrom/validTo`（合并到 M5 实现）
 
 M5 重构 `listUserRoles` 时一并修复 `validFrom/validTo` 透传（原 line 580-581 的 `null, null` → `r.validFrom(), r.validTo()`）。
 
@@ -221,7 +221,7 @@ M5 重构 `listUserRoles` 时一并修复 `validFrom/validTo` 透传（原 line 
 
 ### 第 3 批：relationKey 收敛（统一 helper，3 项）
 
-#### M8（[T-ADMIN-008](../tasks/README.md)）：抽 `UserOrgKeys` helper
+#### M8（[T-ADMIN-008](../../tasks/README.md)）：抽 `UserOrgKeys` helper
 
 **新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/support/UserOrgKeys.java`
 
@@ -247,14 +247,14 @@ public final class UserOrgKeys {
 }
 ```
 
-#### M9（[T-ADMIN-009](../tasks/README.md)）：UserServiceImpl 两处替换
+#### M9（[T-ADMIN-009](../../tasks/README.md)）：UserServiceImpl 两处替换
 
 | 文件 | 改动 |
 |------|------|
 | `admin-service/.../UserServiceImpl.java` `createUser` line 204（**EXT-2 修复**） | `String relationKey = "ORG:" + req.orgId();` → `String relationKey = UserOrgKeys.relationKey(req.orgId());` |
 | `UserServiceImpl.deleteUser` line 322（**P1-E 修复**） | `String relationKey = "ORG:" + uo.getOrgId();` → `String relationKey = UserOrgKeys.relationKey(uo.getOrgId());` |
 
-#### M10（[T-ADMIN-010](../tasks/README.md)）：UserOrgServiceImpl + SyncTaskBuilder 收敛到 helper
+#### M10（[T-ADMIN-010](../../tasks/README.md)）：UserOrgServiceImpl + SyncTaskBuilder 收敛到 helper
 
 | 文件 | 改动 |
 |------|------|
@@ -275,7 +275,7 @@ public final class UserOrgKeys {
 
 ### 第 4 批：可见性裁剪（消 §4.1.1 / §4.1.2 / §4.1.5 越权风险，2 项）
 
-#### M11（[T-ADMIN-011](../tasks/README.md)）：抽 `OrgVisibilityService`
+#### M11（[T-ADMIN-011](../../tasks/README.md)）：抽 `OrgVisibilityService`
 
 **新增文件**：`admin-service/src/main/java/cn/ac/fage/accessmesh/admin/service/security/OrgVisibilityService.java`
 
@@ -304,7 +304,7 @@ public interface OrgVisibilityService {
 - 缓存：`(operatorId, defaultRootId)` → 可见 orgId Set，60s TTL。
 - 分批：`orgIds` 超过 500 时按 500 一批分次调用（防 EXT-7 服务端 N 次循环放大；服务端 N 次循环优化是本 PR 范围外的 issue）。
 
-#### M12（[T-ADMIN-012](../tasks/README.md)）：4 处共用 OrgVisibilityService
+#### M12（[T-ADMIN-012](../../tasks/README.md)）：4 处共用 OrgVisibilityService
 
 | 调用点 | 改动 |
 |--------|------|
@@ -319,7 +319,7 @@ public interface OrgVisibilityService {
 
 ### 第 5 批：fail-safe（防一致性故障，1 项）
 
-#### M13（[T-ADMIN-013](../tasks/README.md)）：permission-center user 删除延迟补偿——兜底清 user_role
+#### M13（[T-ADMIN-013](../../tasks/README.md)）：permission-center user 删除延迟补偿——兜底清 user_role
 
 > **策略修订（2026-06-15 用户确认）**：原方案是在 OP_DELETE 分支直接清 user_role，
 > 但 admin 端已有 UNBIND envelope 机制，直接清会形成双写。改为延迟补偿：
@@ -346,14 +346,14 @@ public interface OrgVisibilityService {
 
 ### 配套：前端 + 种子 + 契约测试
 
-#### S1（[T-ADMIN-014](../tasks/README.md)）：前端 perm 串同步
+#### S1（[T-ADMIN-014](../../tasks/README.md)）：前端 perm 串同步
 
 | 文件 | 改动 |
 |------|------|
 | `frontend/src/views/system/user/utils/perms.ts` | `USER_ROLE_ASSIGN` 和 `USER_ROLE_REVOKE` 统一使用 `ROLE:MANAGE`（与后端 admin 层门禁一致） |
 | 前端 mock 角色矩阵 | `frontend/mock/auth.ts` 或角色定义文件中 admin/hr 的 perm 列表确保含 `ROLE:MANAGE` |
 
-#### S2（[T-ADMIN-015](../tasks/README.md)）：种子数据核实 + 补丁
+#### S2（[T-ADMIN-015](../../tasks/README.md)）：种子数据核实 + 补丁
 
 **核实步骤**：
 1. `grep -E "ROLE.*MANAGE" docs/design/schema/permission-center*.sql` 核实 perm-center 内部 ROLE 资源类型的 MANAGE 操作码种子是否存在
@@ -362,7 +362,7 @@ public interface OrgVisibilityService {
 
 **关联**：覆盖 EXT-6（已通过 M3 修订统一为 ROLE:MANAGE，消除双层门禁）。
 
-#### S3（[T-ADMIN-016](../tasks/README.md)）：契约一致性测试
+#### S3（[T-ADMIN-016](../../tasks/README.md)）：契约一致性测试
 
 **新增文件**：`admin-service/src/test/java/cn/ac/fage/accessmesh/admin/contract/PermCommonReqContractTest.java`
 
