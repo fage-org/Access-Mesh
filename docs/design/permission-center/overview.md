@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: Permission Center 概念模型
+status: adopted
+domain: permission-center
+last_reviewed: 2026-06-20
+---
+
 # Permission Center 概念模型
 
 本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [api-contract.md](api-contract.md) 为准；表字段、索引、约束以 [../schema/permission-center.sql](../schema/permission-center.sql) 为准；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。

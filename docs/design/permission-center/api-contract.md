@@ -1,4 +1,12 @@
-# Permission Center 外部 API 契约草案
+---
+doc_type: design
+title: Permission Center 外部 API 契约
+status: adopted
+domain: permission-center
+last_reviewed: 2026-06-20
+---
+
+# Permission Center 外部 API 契约
 
 > 本文档定义 permission-center 对外稳定接口契约。目标是让权限中心既能服务 AccessMesh 内部 Gateway/SDK，又能作为通用权限管理服务暴露给外部业务系统。
 

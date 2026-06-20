@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: 权限中心 — 核心功能实现设计
+status: adopted
+domain: permission-center
+last_reviewed: 2026-06-20
+---
+
 # 权限中心 — 核心功能实现设计
 
 > 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。

@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: 微服务架构设计
+status: adopted
+domain: common
+last_reviewed: 2026-06-20
+---
+
 # 微服务架构设计
 
 本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。权限中心概念模型见 `permission-center/overview.md`。

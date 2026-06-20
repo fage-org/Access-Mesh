@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: Gateway 服务设计
+status: adopted
+domain: gateway
+last_reviewed: 2026-06-20
+---
+
 # Gateway 服务设计
 
 本文档是 Gateway 服务的精简设计入口。旧版完整设计已归档到 `../../archive/2026-04-28/gateway-design.full.md`，仅用于追溯。

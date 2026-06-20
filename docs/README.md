@@ -26,11 +26,11 @@ docs/
 │       ├── admin-service.sql
 │       ├── example-service.sql
 │       └── permission-center.sql
-├── plans/                             # 执行计划与核对清单（进行中，非权威设计）
+├── plans/                             # 执行计划（编排层，任务清单仅引用 ID）
 │   ├── README.md
-│   ├── improvement-plan.md
-│   ├── org-user-page-impl-plan.md
-│   └── api-gap-analysis.md
+│   └── <plan>.md
+├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
+│   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
     ├── 2026-06-14/
     ├── 2026-06-05/
@@ -81,7 +81,8 @@ docs/
 | 类型 | 目录 | 用途 |
 |------|------|------|
 | **权威文档** | `docs/design/` | 当前有效的设计、规范、API 契约，是实现的唯一依据 |
-| **执行计划** | `docs/plans/` | 仍在推进的阶段计划、核对清单、路线图；用于跟踪任务，不作为契约来源 |
+| **执行计划** | `docs/plans/` | 编排层：目标/非目标/准入/归档 + 任务清单引用；不作为契约来源 |
+| **任务** | `docs/tasks/` | 原子执行单元；看板为唯一权威任务清单；任务 done 前须回写其 design_refs |
 | **归档文档** | `docs/archive/` | 历史追溯，不作为实现依据；可能包含旧接口、旧字段或已废弃设计 |
 
 如归档内容与权威文档冲突，以本页"权威来源"列出的文档为准。

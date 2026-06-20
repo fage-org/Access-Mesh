@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: 项目开发规范（PROJECT RULES）
+status: adopted
+domain: common
+last_reviewed: 2026-06-20
+---
+
 # 项目开发规范（PROJECT RULES）
 
 > 本文档是项目全体开发成员必须遵守的工程规范，覆盖报文、接口、异常、日志、依赖、工具类、对象设计、事务、安全、缓存、数据库、MQ、服务调用、Git 等方面。

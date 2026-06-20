@@ -1,4 +1,12 @@
-# Admin Service 对前端 API 契约 (组织与用户域)
+---
+doc_type: design
+title: Admin Service 对前端 API 契约（组织与用户域）
+status: adopted
+domain: admin-service
+last_reviewed: 2026-06-20
+---
+
+# Admin Service 对前端 API 契约（组织与用户域）
 
 > 状态: v1.0 草案 (2026-06-14). 本文是「组织与用户」融合页所需 admin-service 接口的契约基线.
 >

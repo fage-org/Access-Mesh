@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: admin-service 与 permission-center 同步设计
+status: adopted
+domain: cross-service
+last_reviewed: 2026-06-20
+---
+
 # admin-service 与 permission-center 同步设计
 
 > 状态：**v1.0 定稿**（2026-06-14）。本文是 admin-service 与 permission-center 同步模块的当前有效设计。
