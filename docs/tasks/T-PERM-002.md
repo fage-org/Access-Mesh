@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-002
 title: PermissionChangeContext ThreadLocal + AppService AOP afterCommit（统一缓存失效与广播发布）
-status: in-progress
+status: done
 plan: docs/plans/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
@@ -20,7 +20,7 @@ acceptance:
   - "v3.5 §7.2 + coding-standards §5 回写"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-06-20
 ---
 

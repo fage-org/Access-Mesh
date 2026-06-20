@@ -187,15 +187,42 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
 // ✅ 缓存写入在事务提交后执行
 // 【铁律 P1-B】禁止业务侧（DomainService / AppService 业务方法内）手写 TransactionSynchronizationManager。
-// 缓存失效与广播统一由 AppService AOP afterCommit 处理，DomainService 仅通过 PermissionChangeContext.markAffected* 登记影响范围。
+// afterCommit 注册统一由 @PermissionChange AOP（PermissionChangeAspect，框架侧）完成；
+// 业务侧仅通过 PermissionChangeContext.mark* 登记影响范围。
+// 落地状态（T-PERM-002，2026-06-20）：业务侧 15 处手写同步已全部消除。
 // 注：permissionVersionDomainService.increment 已删除（审计 S-001 / design-review §A'-3），
 // 缓存失效改由 Redis pub/sub 主动广播 PermInvalidateEvent + TTL 兜底。
-// DomainService 仅登记影响范围，AppService AOP afterCommit 统一发布广播 + evict
-// （2026-06-20 审计 P1-B：禁止业务侧手写 TransactionSynchronizationManager）
-permissionGrantDomainService.markAffected(tenantId, affectedRoleIds, affectedUserIds);
-// AOP afterCommit 自动执行：
-//   redisPublisher.publish("perm:invalidate", new PermInvalidateEvent(tenantId, userIds, roleIds));
-//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
+//
+// AppService 写方法标注 @PermissionChange，方法体内登记影响范围：
+@Override
+@Transactional(rollbackFor = Exception.class)
+@OperationLog(...)
+@PermissionChange
+public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
+    // ... 业务逻辑 ...
+    // 登记受影响范围（mark 方法在未绑定时 no-op，越界调用安全）
+    PermissionChangeContext.markRoles(tenantId, roleId);
+    return toItemRespList(...);
+}
+// AOP afterCommit 自动执行（框架侧 PermissionChangeAspect.flush）：
+//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);   // roleIds
+//   subjectDomainService.invalidateRoleCacheBatch(tenantId, userIds);   // userIds
+//   cacheService.evictBatch(CONDITION_RULES, tenantId, conditionIds);   // conditionIds
+//   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds);     // roleSnapshotIds
+//   redissonClient.getTopic("perm:invalidate").publish(PermInvalidateEvent);
+
+// ✅ mark API（PermissionChangeContext，ThreadLocal 累积器，同 TenantContextHolder 语义）：
+//   markRoles(tenantId, roleIds|roleId)        // 角色权限变更 → 失效 EFFECTIVE_ROLES
+//   markUsers(tenantId, userIds)               // 用户角色关系变更 → 失效 EFFECTIVE_ROLES
+//   markConditions(tenantId, conditionIds)     // 条件规则变更 → 失效 CONDITION_RULES
+//   markRoleSnapshots(tenantId, roleIds)       // 角色删除 → 直清 ROLE_PERM_SNAPSHOT
+
+// ❌ 禁止 — 业务侧手写同步（违反 P1-B，已由 @PermissionChange AOP 取代）
+if (TransactionSynchronizationManager.isSynchronizationActive()) {
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override public void afterCommit() { subjectDomainService.invalidateRoleCacheByRole(...); }
+    });
+}
 
 // ❌ 禁止 — 事务提交前失效缓存（缓存可能被回滚数据污染）
 cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleId);

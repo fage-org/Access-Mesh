@@ -67,7 +67,11 @@ last_updated: 2026-06-20
 
 - 文档层：S-001 决策已反映到 overview/core-flows/implementation/api-contract/coding-standards（2026-06-20 审计落地）
 - schema 层：`permission-center.sql` permission_version 表 CREATE 已注释化 + OBSOLETED 说明（2026-06-20）；**存量环境 DROP TABLE 回滚由本计划 A-3 的 migration 脚本承载**（权威 schema 文件不含破坏性语句）
-- 代码层：**未启动**（PermissionVersion* 类、4 处 increment 调用、Gateway 缓存模型均未改）
+- 代码层：
+  - T-PERM-001 ✅ Gateway 快照模式已落地（commit de5d2cb26 + 4bf27f8fb）
+  - T-PERM-002 ✅ PermissionChangeContext + AOP afterCommit 已落地（commit 12c734c32 + 1e363945b）——业务侧 15 处手写 TransactionSynchronizationManager 全部消除（P1-B 达标），Redis 发布端 PermInvalidationPublisher 已就位
+  - T-PERM-003 ✅ 删 permission_version 已落地
+  - T-PERM-004/005/006/007/008 未启动
 
 ## 归档条件
 

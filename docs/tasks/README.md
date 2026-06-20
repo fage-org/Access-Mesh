@@ -26,11 +26,11 @@
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | [T-PERM-001](T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../plans/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | 👀 | ✓ |
-| T-PERM-002 | PermissionChangeContext ThreadLocal + AppService AOP afterCommit | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ⚙️ | ⏳ |
+| T-PERM-002 | PermissionChangeContext ThreadLocal + AppService AOP afterCommit | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ✅ | ✓ |
 | T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（含存量 DROP TABLE migration） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
 | T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-005 | 删除缓存目录 PermCacheCatalog.PERMISSION_VERSION + key 后缀 :{permissionVersion} | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
-| T-PERM-006 | Redis pub/sub 广播 PermInvalidateEvent（topic: perm:invalidate）+ Gateway 订阅器 | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ⚙️ | ⏳ |
+| T-PERM-006 | Gateway 订阅 perm:invalidate topic，evict 本地 INTERFACE_SNAPSHOT（发布端由 T-PERM-002 完成） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-002 | ⚙️ | ⏳ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（待设计 S-006，规范明确后补） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.4 | T-GW-005（S-006 设计）| ⚙️ | ⏳ |
 | T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../plans/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | 👀 | ✓ |

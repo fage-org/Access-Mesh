@@ -273,7 +273,9 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 > **实现进度（T-PERM-001，2026-06-20）**：Gateway 已落地快照模式——缓存 key 从 `(user,service,method,path)→Boolean` 改为 `(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp`，鉴权降为本地内存匹配（`InterfaceSnapshotMatcher`，支持 Ant 通配 + scopeAll 覆盖），未命中回源拉取 `interface-snapshot`。`InterfaceSnapshotResp`/`InterfaceSnapshotReq` 已迁入 perm-common 供 Gateway 共享。fail-close 过渡期保留（stale-allow 见 T-GW-003）。
 >
-> ⏳ **待办（令牌统一）**：当前快照令牌由 `PermissionQueryAppServiceImpl.buildInterfacePermissionVersion`（私有，roleIds 指纹占位）生成，`buildPermissionVersionKey`（domain service 占位）用于其他查询接口。v3.5 §5.1 要求令牌统一为 `sha256(permissions)` 反映权限内容变更——单独跟踪，勿遗漏。Redis pub/sub 广播订阅器为 T-PERM-006 范围。
+> **实现进度（T-PERM-002，2026-06-20）**：写路径缓存失效与广播已统一到 AOP 框架——`PermissionChangeContext`（ThreadLocal 累积器）+ `@PermissionChange` 注解 + `PermissionChangeAspect`（@Around，proceed 后注册单一 afterCommit sync 统一 flush：`invalidateRoleCacheByRole/Batch` + `evictBatch(CONDITION_RULES/ROLE_PERM_SNAPSHOT)` + 发布 `PermInvalidateEvent`）。业务方法体内通过 `markRoles/markUsers/markConditions/markRoleSnapshots` 登记影响范围，afterCommit 注册由框架侧统一完成（铁律 P1-B 达标，业务侧 15 处手写 `TransactionSynchronizationManager` 全部消除）。`PermInvalidationPublisher` 通过 Redis topic `perm:invalidate` 发布，失败仅 warn 靠 TTL 兜底。Gateway 订阅器为 T-PERM-006 范围（发布端已就位）。
+>
+> ⏳ **待办（令牌统一）**：当前快照令牌由 `PermissionQueryAppServiceImpl.buildInterfacePermissionVersion`（私有，roleIds 指纹占位）生成，`buildPermissionVersionKey`（domain service 占位）用于其他查询接口。v3.5 §5.1 要求令牌统一为 `sha256(permissions)` 反映权限内容变更——单独跟踪（T-PERM-018），勿遗漏。T-PERM-002 的 AOP flush 框架已建立，T-PERM-018 在 flush 中追加 INTERFACE_SNAPSHOT 精确失效即可。
 
 > **风险声明**：Redis 重启 / 网络分区 / 订阅断线时，权限主动撤销（HR 禁用员工 / 越权 token 紧急回收）退化为纯 TTL 失效，最长 stale 窗口 = `stale-grace-seconds` + TTL。与 PM「分钟级延迟可接受」决策一致。持久化 outbox 重投作为 v3.5.1+ 增量评估项。
 
