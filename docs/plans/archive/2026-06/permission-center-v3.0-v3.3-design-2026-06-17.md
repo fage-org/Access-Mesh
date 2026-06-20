@@ -12,7 +12,7 @@
 
 > 评审日期：2026-06-17
 > 产出方式：3 调研 + 3 派别设计 + 5 角色提案 + 3 对抗验证 + 9 角色对抗评审 + 综合（多智能体工作流，22 agents / 2.27M tokens）
-> 关联评审：[design-review-2026-06-17.md](./design-review-2026-06-17.md)
+> 关联评审：[../../archive/2026-06-17/design-review.md](../../archive/2026-06-17/design-review.md)
 > 状态：v3 合并版（2026-06-17）— 整合原 example-service-integration-design + menu-business-perm-alignment 两份文档；9 角色对抗 R1→R2 落盘；§10 多租户硬隔离补章
 
 **合并说明**：本文件合并自 2026-06-17 同日产出的两份姊妹文档：

@@ -466,7 +466,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 **当前进度**：第 1 批 2.1「组织与用户」P0 前端骨架约 90% 完成（`docs/plans/org-user-page-impl-plan.md` §8），仅剩 P0-9 详情面板迁移（`otherRoles` 排除 POSITION + 新增「所属岗位」节）。P0 其余任务（路由改名、2 Tabs + 顶部组织卡片、成员 Tab、组织树可编辑、岗位 Tab 折叠卡片、OrgForm、API/Mock 扩充）均已提交。P1 后端契约与 P2 权限接线待 P0 收尾后推进。
 
-> **与 design-review 决策对齐（2026-06-20 审计 S-026）**：本计划 §3.1 痛点 #3（自动授权）/ #4（动态数据权限）原标为 Phase 2 近期工作项，但 design-review-2026-06-17.md §11 已决策：
+> **与 design-review 决策对齐（2026-06-20 审计 S-026）**：本计划 §3.1 痛点 #3（自动授权）/ #4（动态数据权限）原标为 Phase 2 近期工作项，但 design-review §11（已归档至 [../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md)）已决策：
 > - **E4**：auto-grant 保留 TODO + 排期 Phase X（**未排期**）
 > - **Q7/B**：动态数据权限端到端测试延后到 example-service，且 example-service 暂不实现
 >

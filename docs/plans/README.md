@@ -6,8 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| [design-review-2026-06-17.md](design-review-2026-06-17.md) | 设计评审 | 进行中（评审结论已沉淀至 design/，工作单 A-C 已派生下列 P0 计划；原文待归档）| 全量设计文档评审产出：信任锚点核实、设计意图备忘、6 个工作单（A-F）。评审结论已沉淀至 `docs/design/`，工作单 A/B/C 派生为下列 P0 落地计划；原文将归档至 `../archive/2026-06-17/`（Step 2 迁移）|
-| ~~permission-center-v3.5-design~~ | （已迁出）| — | 已移至 `../design/permission-center-v3.5-design.md`（`status: adopted`），演进方向抽离为 `../design/permission-center-v3.5.1-evolution.md`（`status: evolution`）。本条为迁移痕迹，后续清理 |
+| ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 派生为下列 P0 落地计划，工作单 D/E/F 暂缓。详见归档批次 README |
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
 | [org-user-page-impl-plan.md](org-user-page-impl-plan.md) | 页面实现计划 | 进行中 | "组织与用户"融合页的前端实现、后端契约和权限接线计划 |

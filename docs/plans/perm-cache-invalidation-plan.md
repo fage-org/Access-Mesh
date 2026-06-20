@@ -1,7 +1,8 @@
 # 权限缓存失效改造计划（工作单 A）
 
 > 状态：待启动
-> 关联设计：[design-review-2026-06-17.md](design-review-2026-06-17.md) §4.1 工作单 A
+> 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
+> 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.1 工作单 A
 > 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，待设计）
 
 ## 目标
