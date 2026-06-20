@@ -1,3 +1,18 @@
+---
+doc_type: plan
+title: API 核对清单（组织与用户页）
+status: active
+domain: api
+design_refs:
+  - docs/design/services/admin-service-api-contract.md
+tasks: []
+acceptance: "27 个接口全部 ✅（当前 ✅=6 + 🔧=16 + ❌=0 + ⏳=5）；🔧 项 Phase 2 后端实现完成"
+last_updated: 2026-06-20
+note: |
+  本清单是 gap 清单型计划。每条 🔧/⏳ gap 转 T-API 任务待后续触达时渐进迁移
+  （与 org-user-page P1、user-role-proxy-fix 存在交叉，需去重后再登记）。
+---
+
 # API 核对清单
 
 > Phase 1：逐接口核对前端 mock 与后端真实规格，标记 ✅/🔧/❌。

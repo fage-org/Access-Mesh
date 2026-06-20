@@ -1,3 +1,20 @@
+---
+doc_type: plan
+title: 「组织与用户」融合页实现
+status: active
+domain: org-user
+design_refs:
+  - docs/design/org-user-permission-contract.md
+  - docs/design/default-org-tree-user-lifecycle.md
+  - docs/design/services/admin-service-api-contract.md
+tasks: []
+acceptance: "P0 前端骨架 + P1 后端契约 + P2 权限接线全部完成（当前 P0/P1/P2 均 100%）；待与 user-role-proxy-fix 验收联动后归档"
+last_updated: 2026-06-20
+note: |
+  任务 ID 化待后续触达时渐进迁移。P0 前端任务→T-FE，P1 后端任务部分已被
+  T-ADMIN-001~016（user-role-proxy-fix）覆盖，需去重后再登记，避免重复任务。
+---
+
 # 「组织与用户」融合页 · 设计 / 实现计划
 
 > 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）、`docs/plans/api-gap-analysis.md`（API 核对清单）。

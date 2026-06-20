@@ -1,3 +1,21 @@
+---
+doc_type: plan
+title: AccessMesh 项目诊断与完善路线图
+status: active
+domain: common
+design_refs:
+  - docs/design/architecture.md
+  - docs/design/project-rules.md
+tasks: []
+acceptance: "Phase 1-4 各阶段 DoD 达成（见 §5.1）；痛点 #3/#4 与 design-review E4/B 决策对齐"
+last_updated: 2026-06-20
+note: |
+  本计划是项目级路线图，含痛点诊断（§3）+ 4 阶段任务（§4）。
+  痛点诊断结论待后续触达时沉淀至 design/；4 阶段任务按实际领域拆为
+  T-FE/T-ADMIN/T-PERM 待渐进迁移。Phase 2 自动授权/动态数据权限已与
+  design-review E4/B 决策对齐（延后），见 §3.1 痛点 #3/#4 注记。
+---
+
 # AccessMesh 项目诊断与完善计划
 
 > 版本: v2.0 | 日期: 2026-06-06 | 状态: 待审查
