@@ -21,7 +21,6 @@ import java.util.Set;
  *   <tr><th>常量名</th><th>code</th><th>模式</th><th>L1 TTL</th><th>L2 TTL</th></tr>
  *   <tr><td>EFFECTIVE_ROLES</td><td>perm:effective-roles</td><td>L1_L2</td><td>5min</td><td>30min</td></tr>
  *   <tr><td>ROLE_PERM_SNAPSHOT</td><td>perm:role-perm-snapshot</td><td>L1_L2</td><td>5min</td><td>30min</td></tr>
- *   <tr><td>PERMISSION_VERSION</td><td>perm:permission-version</td><td>L2_ONLY</td><td>-</td><td>60min</td></tr>
  *   <tr><td>INTERFACE_SNAPSHOT</td><td>perm:interface-snapshot</td><td>L1_L2</td><td>10min</td><td>60min</td></tr>
  *   <tr><td>TYPE_VALUE</td><td>perm:type-value</td><td>L1_L2</td><td>30min</td><td>120min</td></tr>
  *   <tr><td>TYPE_CODE</td><td>perm:type-code</td><td>L1_L2</td><td>30min</td><td>120min</td></tr>
@@ -66,24 +65,6 @@ public final class PermCacheCatalog {
             .l1MaxSize(2000)
             .l2TtlMinutes(30)
             .valueType(new TypeRef<cn.ac.fage.accessmesh.permission.vo.RolePermSnapshot>() {})
-            .build();
-
-    /**
-     * 权限版本号缓存
-     * <p>
-     * Key: roleId
-     * Value: Long 版本号
-     * </p>
-     * <p>
-     * 使用 L2_ONLY 模式，版本号需要跨节点一致性，不应缓存到 L1。
-     * </p>
-     */
-    public static final CacheCatalogEntry<Long> PERMISSION_VERSION =
-        CacheCatalogEntry.<Long>builder()
-            .code("perm:permission-version")
-            .mode(CacheMode.L2_ONLY)
-            .l2TtlMinutes(60)
-            .valueType(new TypeRef<Long>() {})
             .build();
 
     /**

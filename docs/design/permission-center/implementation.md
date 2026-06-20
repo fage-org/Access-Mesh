@@ -174,18 +174,20 @@ public interface SubjectDomainService {
 
 ---
 
-### 2.2 ~~`PermissionVersionDomainService`~~ — 权限版本管理（**OBSOLETED 2026-06-20 审计 S-001**）
+### 2.2 `PermissionVersionDomainService` — 权限令牌占位构造器（**持久化层已删 2026-06-20 T-PERM-003**）
 
-> **已废弃**：`permission_version` 表与 `PermissionVersionDomainService` 全套（Service/Impl/AppService/Controller/Mapper/DTO）已决策完全删除（design-review §A'-3 + v3.5 §9.2）。缓存失效改由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底。以下内容仅作历史追溯，**不再作为实现依据**。
+> **持久化层已删除**：`permission_version` 表与 `PermissionVersionController` / `PermissionVersionAppService(Impl)` / `PermissionVersionMapper` / `PermissionVersion` 实体 / `PermissionVersionQueryReq` / `PermissionVersionResp` / `PermissionVersionDomainServiceImplTest` 已物理删除（design-review §A'-3 + v3.5 §9.2，T-PERM-003 落地）。缓存失效改由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底（T-PERM-006 落地广播）。
+>
+> **接口降级为占位（方案1）**：`PermissionVersionDomainService` 接口与其 Impl **保留**，但删除 `increment` / `batchGetCurrentVersions`，仅保留 `buildPermissionVersionKey` 作占位令牌构造器（基于 userId + 有序 roleIds 指纹，不读 DB）。占位令牌仅在角色集合变化时变化，**不反映权限内容变更**——内容失效靠广播 + TTL。T-PERM-001（Gateway 快照模式）落地 sha256(permissions) ETag 后，本接口与各 DTO 的 `permissionVersion` 字段一并彻底移除。
 
 ```java
-// OBSOLETED — 以下接口已删除，仅供历史追溯
+// T-PERM-003 后的占位接口（待 T-PERM-001 移除）
 public interface PermissionVersionDomainService {
-    long getCurrentVersion(Long tenantId, Long roleId);
-    long increment(Long tenantId, Long roleId);
-    void batchIncrement(Long tenantId, Collection<Long> roleIds);
+    String buildPermissionVersionKey(Long userId, Long tenantId, Set<Long> roleIds);
 }
 ```
+
+> 4 处 `permissionVersionDomainService.increment(...)` 调用（`PermissionGrantAppServiceImpl`）已删除；`PermissionGrantDomainServiceImpl` 的未用注入已清除。`buildInterfacePermissionVersion`（`PermissionQueryAppServiceImpl`）改为基于 roleIds 指纹，不再调 `batchGetCurrentVersions`。
 
 ---
 

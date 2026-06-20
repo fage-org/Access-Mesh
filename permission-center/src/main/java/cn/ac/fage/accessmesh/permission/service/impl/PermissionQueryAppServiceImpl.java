@@ -625,23 +625,20 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     }
 
     private String buildInterfacePermissionVersion(Long tenantId, Set<Long> validRoleIds) {
+        // T-PERM-003（2026-06-20）：删除 permission_version 持久化层后，令牌不再包含 versionNo。
+        // 占位实现：基于有序 roleIds 的 sha256 指纹。令牌仅在角色集合变化时变化；
+        // 权限内容失效改由 Redis pub/sub 广播（T-PERM-006）+ TTL 兜底承担。
+        // T-PERM-001 落地后改为 sha256(permissions)（v3.5 §5.1 ETag）。
         StringBuilder raw = new StringBuilder("perm:v2|");
         List<Long> sortedRoleIds = validRoleIds.stream()
             .sorted()
             .toList();
-        Map<Long, Long> currentVersions = permissionVersionDomainService.batchGetCurrentVersions(
-            tenantId,
-            new LinkedHashSet<>(sortedRoleIds)
-        );
 
         if (sortedRoleIds.isEmpty()) {
             raw.append("empty");
         } else {
             for (Long roleId : sortedRoleIds) {
-                raw.append(roleId)
-                    .append(":")
-                    .append(currentVersions.getOrDefault(roleId, 1L))
-                    .append(";");
+                raw.append(roleId).append(";");
             }
         }
 

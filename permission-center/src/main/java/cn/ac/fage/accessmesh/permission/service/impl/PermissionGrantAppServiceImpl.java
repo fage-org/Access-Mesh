@@ -74,7 +74,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final PermissionGrantDomainService permissionGrantDomainService;
-    private final PermissionVersionDomainService permissionVersionDomainService;
     private final AuditDomainService auditDomainService;
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
@@ -96,7 +95,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
                                       PermissionGrantDomainService permissionGrantDomainService,
-                                      PermissionVersionDomainService permissionVersionDomainService,
                                       AuditDomainService auditDomainService,
                                       SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
@@ -109,7 +107,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantDomainService = permissionGrantDomainService;
-        this.permissionVersionDomainService = permissionVersionDomainService;
         this.auditDomainService = auditDomainService;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -448,7 +445,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permissionVersionDomainService.increment(tenantId, roleId);
                     subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
                 }
             });
@@ -502,7 +498,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permissionVersionDomainService.increment(tenantId, revokeRoleId);
                     subjectDomainService.invalidateRoleCacheByRole(tenantId, revokeRoleId);
                 }
             });
@@ -734,7 +729,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permissionVersionDomainService.increment(tenantId, roleIdForCache);
                     subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
                 }
             });
@@ -786,7 +780,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    permissionVersionDomainService.increment(tenantId, roleIdForCache);
                     subjectDomainService.invalidateRoleCacheByRole(tenantId, roleIdForCache);
                 }
             });

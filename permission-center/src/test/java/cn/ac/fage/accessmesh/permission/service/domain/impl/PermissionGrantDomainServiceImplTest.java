@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService.GrantCheckKey;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,8 +39,6 @@ class PermissionGrantDomainServiceImplTest {
     private OperationPermissionMapper operationPermissionMapper;
     @Mock
     private RoleResourcePermissionMapper roleResourcePermissionMapper;
-    @Mock
-    private PermissionVersionDomainService permissionVersionDomainService;
 
     private PermissionGrantDomainServiceImpl service;
 
@@ -51,8 +48,7 @@ class PermissionGrantDomainServiceImplTest {
             typeResolutionService,
             subjectDomainService,
             operationPermissionMapper,
-            roleResourcePermissionMapper,
-            permissionVersionDomainService
+            roleResourcePermissionMapper
         );
     }
 

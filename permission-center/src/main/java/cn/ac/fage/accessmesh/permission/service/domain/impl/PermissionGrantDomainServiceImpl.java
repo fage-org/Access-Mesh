@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
@@ -49,7 +48,6 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private final SubjectDomainService subjectDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
-    private final PermissionVersionDomainService permissionVersionDomainService;
 
     /**
      * 构造函数注入依赖
@@ -58,18 +56,15 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * @param subjectDomainService        主体领域服务
      * @param operationPermissionMapper    操作权限数据访问层
      * @param roleResourcePermissionMapper 角色资源权限数据访问层
-     * @param permissionVersionDomainService 权限版本领域服务
      */
     public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
                                             SubjectDomainService subjectDomainService,
                                             OperationPermissionMapper operationPermissionMapper,
-                                            RoleResourcePermissionMapper roleResourcePermissionMapper,
-                                            PermissionVersionDomainService permissionVersionDomainService) {
+                                            RoleResourcePermissionMapper roleResourcePermissionMapper) {
         this.typeResolutionService = typeResolutionService;
         this.subjectDomainService = subjectDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
-        this.permissionVersionDomainService = permissionVersionDomainService;
     }
 
     // ===== canGrant 权限检查 =====

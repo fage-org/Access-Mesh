@@ -13,7 +13,6 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
-import cn.ac.fage.accessmesh.permission.service.domain.PermissionVersionDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
@@ -57,8 +56,6 @@ class PermissionGrantAppServiceImplTest {
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     /** 权限授予领域服务Mock */
     @Mock private PermissionGrantDomainService permissionGrantDomainService;
-    /** 权限版本领域服务Mock */
-    @Mock private PermissionVersionDomainService permissionVersionDomainService;
     /** 审计领域服务Mock */
     @Mock private AuditDomainService auditDomainService;
     /** 主体领域服务Mock */
@@ -80,7 +77,7 @@ class PermissionGrantAppServiceImplTest {
     void setUp() {
         service = new PermissionGrantAppServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
-            rolePermMapper, permissionGrantDomainService, permissionVersionDomainService,
+            rolePermMapper, permissionGrantDomainService,
             auditDomainService, subjectDomainService, typeResolutionService,
             domainClassifyService, engine
         );
