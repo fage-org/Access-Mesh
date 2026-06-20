@@ -102,6 +102,9 @@ last_reviewed: 2026-06-20
 | 用户/主体 | `subjectTypeCode` + `subjectExternalId`                         | `subjectTypeCode` 对应 `type_definition(type_key='user_type').type_code` |
 | 角色      | `domainCode` + `roleTypeCode` + `roleExternalId`                | 对外接口使用外部角色标识；可被外部调用分配/授权的角色必须有 `externalId` |
 | 业务域    | `domainCode`                                                    | 可空；为空表示全局域                                                     |
+
+> **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / GROUP_ROLE / PERSONAL）成立——为空表示全局域。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
+
 | 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
 | 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析；全局操作允许不绑定资源类型             |
 | 条件      | `conditionCode`                                                 | 可空                                                                     |

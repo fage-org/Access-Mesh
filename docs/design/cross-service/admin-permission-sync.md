@@ -235,6 +235,21 @@ accessmesh.sync.scheduler.stale-lock-timeout.{syncAction}
 - `NON_RETRYABLE/SECURITY_DENIED` 直接进入 `FAILED`。
 - `STALE_VERSION` 进入 `SUCCESS`。
 
+### 11.1 user_role 孤儿延迟补偿（fail-safe，2026-06-15 M13 落地）
+
+用户删除走 admin 端 `PERM_USER_ROLE_SYNC`(UNBIND) envelope 异步解耦 `user_role`。正常路径下 envelope 处理后 `user_role` 即清；但 envelope 可能延迟到达、乱序或丢失（EXT-9 一致性风险），导致 `abstract_user` 已软删而 `user_role` 仍残留。
+
+**兜底机制**：permission-center 新增 `UserRoleOrphanCleanupTask` 定时任务，作为 envelope 之外的最终一致兜底，**不与 envelope 形成双写冲突**（`softDeleteBatch` 幂等，已删跳过）。
+
+| 项 | 说明 |
+|---|---|
+| 触发 | `@Scheduled(fixedDelay = "${permission.orphan-cleanup.interval:300000}")`，默认每 5 分钟 |
+| 扫描条件 | `abstract_user.deleted=true` 且 `user_role.deleted=false` 且 `user_role.updated_at < now - window` |
+| 窗口 | `permission.orphan-cleanup.window-minutes`（默认 5），给 envelope 处理留时间，避免误清正常延迟中的记录 |
+| 监控 | 扫到孤儿时 `log.warn(tenantId, userId, roleId)`，用于排查 envelope 丢失根因 |
+
+> 此兜底仅覆盖"用户已删但 user_role 残留"一类孤儿；`user-org` 关系变更的 BIND/UNBIND 一致性仍以 envelope 为主，TTL + 本任务为辅。与 §1「写后读一致性」Q1 决策（分钟级延迟可接受）一致。
+
 ## 12. 管理与观测
 
 管理端可以提供：

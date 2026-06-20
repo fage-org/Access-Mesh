@@ -54,30 +54,30 @@
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
-### admin-service（用户角色代理修复 M1-M13 + S1-S3，验收完成 2026-06-20）
+### admin-service（用户角色代理修复 M1-M13 + S1-S3，验收 + 设计回写完成 2026-06-20）
 
-> 验收方式：代码级核验 + 测试套件（247 tests 0 failures）。详情见 [user-role-proxy-fix-plan](../plans/user-role-proxy-fix-plan.md) §6。回写状态：M3/M4/S1/S2/S3 设计已同步(✓)；其余 ⏳ 表示设计文档已部分反映(如 org-user-permission-contract v1.4、overview 业务键导向)但未逐条核对锚点，需归档前补回写或显式确认设计已涵盖。
+> 验收方式：代码级核验 + 测试套件（247 tests 0 failures）。详情见 [user-role-proxy-fix-plan](../plans/user-role-proxy-fix-plan.md) §6。设计回写：M2 补 api-contract 跨字段校验语义、M13 补 admin-permission-sync §11.1 孤儿延迟补偿；M5/M6/M7（业务键导向）、M8/M9/M10（relationKey 固定 ORG 前缀）、M11/M12（可见性裁剪）经核对设计文档已涵盖。16 项全部 ✅ done + ✓ 回写，计划满足归档条件。
 
 | ID | 标题（计划锚点） | 计划 | 状态 | 回写 |
 |---|---|---|---|---|
 | T-ADMIN-001 | M1 DTO 放宽 @NotBlank（双端同改） | user-role-proxy-fix | ✅ | ✓ |
-| T-ADMIN-002 | M2 服务端跨字段业务校验（Feature flag） | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-002 | M2 服务端跨字段业务校验（Feature flag） | user-role-proxy-fix | ✅ | ✓ |
 | T-ADMIN-003 | M3 门禁码切回 ROLE:MANAGE | user-role-proxy-fix | ✅ | ✓ |
 | T-ADMIN-004 | M4 AdminOperationCode.MANAGE 常量处理 | user-role-proxy-fix | ✅ | ✓ |
-| T-ADMIN-005 | M5 admin DTO 改业务键 + RoleProxyServiceImpl 简化 | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-006 | M6 删除 parseRoleId/resolveRoleRef | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-007 | M7 listUserRoles 透传 validFrom/validTo | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-008 | M8 抽 UserOrgKeys helper | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-009 | M9 UserServiceImpl 两处替换 | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-010 | M10 UserOrgServiceImpl + SyncTaskBuilder 收敛 | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-011 | M11 抽 OrgVisibilityService | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-012 | M12 4 处共用 OrgVisibilityService | user-role-proxy-fix | ✅ | ⏳ |
-| T-ADMIN-013 | M13 permission-center user 删除延迟补偿 | user-role-proxy-fix | ✅ | ⏳ |
+| T-ADMIN-005 | M5 admin DTO 改业务键 + RoleProxyServiceImpl 简化 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-006 | M6 删除 parseRoleId/resolveRoleRef | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-007 | M7 listUserRoles 透传 validFrom/validTo | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-008 | M8 抽 UserOrgKeys helper | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-009 | M9 UserServiceImpl 两处替换 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-010 | M10 UserOrgServiceImpl + SyncTaskBuilder 收敛 | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-011 | M11 抽 OrgVisibilityService | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-012 | M12 4 处共用 OrgVisibilityService | user-role-proxy-fix | ✅ | ✓ |
+| T-ADMIN-013 | M13 permission-center user 删除延迟补偿 | user-role-proxy-fix | ✅ | ✓ |
 | T-ADMIN-014 | S1 前端 perm 串同步 | user-role-proxy-fix | ✅ | ✓ |
 | T-ADMIN-015 | S2 种子数据核实 + 补丁 | user-role-proxy-fix | ✅ | ✓ |
 | T-ADMIN-016 | S3 契约一致性测试 | user-role-proxy-fix | ✅ | ✓ |
 
-> 16 项任务代码已实现且验收通过。计划归档前需完成剩余 8 项 ⏳ 回写核对（M2/M5/M6/M7/M8/M9/M10/M11/M12/M13 对应设计章节锚点）。
+> 16 项任务代码已实现、验收通过、设计回写完成（✅ done + ✓ 回写）。计划 `user-role-proxy-fix` 满足归档条件，可转 `completed` 并移入 `docs/archive/`。
 >
 > EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条循环）/ EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）为 DEFERRED 无主项（审计 S-024），未纳入本批任务，待单独立项。
 
@@ -87,9 +87,9 @@
 
 依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
 
-### P0 — 验收闭环（投入产出比最高）
+### P0 — 验收闭环（✅ 已完成 2026-06-20）
 
-`T-ADMIN-001~016`（👀 review）：代码已实现，跑 §6.1/§6.3 验收后转 `done`，计划 `user-role-proxy-fix` 转 `completed` 归档，看板清 16 项。无新开发。
+`T-ADMIN-001~016`：16 项验收 + 设计回写完成，转 ✅ done。计划 `user-role-proxy-fix` 满足归档条件（待执行归档至 `docs/archive/`，看板清理 16 项至"已完成"区）。无新开发。
 
 ### P1 — 工作单 A 缓存失效（安全风险，第 1 周首位）
 

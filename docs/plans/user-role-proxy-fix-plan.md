@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 用户角色代理修复（admin-service P1/P2）
-status: active
+status: completed
 domain: admin-service
 design_refs:
   - docs/design/services/admin-service-api-contract.md
@@ -31,7 +31,7 @@ last_updated: 2026-06-20
 
 # 用户角色代理修复计划（admin-service P1/P2 修复）
 
-> 状态：已完成代码实现（M1-M13 + S1-S3 全完成），待 §6.1/§6.3 最终验收后归档。任务详情见 §4（任务 ID 已嵌入各 M/S 标题，看板登记为 review）。
+> 状态：✅ 完成（M1-M13 + S1-S3 全完成，§6 验收通过 + 设计回写完成，2026-06-20）。满足归档条件，待移入 `docs/archive/`。任务详情见 §4（任务 ID 已嵌入各 M/S 标题，看板 `T-ADMIN-001~016` 已转 done）。
 > 关联设计：
 > - [docs/design/services/admin-service-api-contract.md](../design/services/admin-service-api-contract.md) §4.1.1 / §4.1.2 / §4.1.5 / §4.4
 > - [docs/design/permission-center/api-contract.md](../design/permission-center/api-contract.md) §6.2.2.4（user-role sync）、§6.2.4
