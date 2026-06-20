@@ -62,7 +62,7 @@ permission-center（乙层：被管理的权限模型）
 
 v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作码`，如 `ADMIN_ORG:CREATE_POSITION`），可用操作权限**不再经 sys_menu 中转**：
 
-> **轨道 1 鉴权语义已被 v3.5 菜单零权限化取代（2026-06-20 审计 C-1）**：v3.5（permission-center-v3.5-design-2026-06-18.md §0.2 + §2.4 + §4.1）已**删除 ADMIN_MENU 资源类型**，菜单可见性不再走 `ADMIN_MENU:VIEW` 鉴权，改为 `∃ op` 派生公式（用户对 menu 关联的 resource_type/resource_code 有任意 op 即可见）。以下轨道 1 描述保留作历史追溯，**菜单可见性权威以 v3.5 §4.1 为准**。轨道 2（可用操作权限下发 perm 串）不受影响，仍有效。
+> **轨道 1 鉴权语义已被 v3.5 菜单零权限化取代（2026-06-20 审计 C-1）**：v3.5（[permission-center-v3.5-design.md](permission-center-v3.5-design.md) §0.2 + §2.4 + §4.1）已**删除 ADMIN_MENU 资源类型**，菜单可见性不再走 `ADMIN_MENU:VIEW` 鉴权，改为 `∃ op` 派生公式（用户对 menu 关联的 resource_type/resource_code 有任意 op 即可见）。以下轨道 1 描述保留作历史追溯，**菜单可见性权威以 v3.5 §4.1 为准**。轨道 2（可用操作权限下发 perm 串）不受影响，仍有效。
 
 | 轨道 | 数据来源 | 用途 | 接口 |
 |------|---------|------|------|

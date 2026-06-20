@@ -1,7 +1,7 @@
 # AccessMesh 权限中心 v3 端到端设计（合并版）
 
 > ⚠️ **OBSOLETED by v3.4**（2026-06-18，v3.4 已被 v3.5 取代）
-> 本文档为 v3.0~v3.3 历史快照，已被 [v3.5 简化版](../../permission-center-v3.5-design-2026-06-18.md) 取代（v3.4 仅通过 git history 追溯）。
+> 本文档为 v3.0~v3.3 历史快照，已被 [v3.5 简化版](../../design/permission-center-v3.5-design.md) 取代（v3.4 仅通过 git history 追溯）。
 > - **本文范式**：双轨 AND（菜单 ADMIN_MENU:VIEW + 业务码）+ sys_menu.operations/primary_operation 元数据化
 > - **v3.4 范式**：单源派生（用户对业务资源有任何 is_entry 操作位 → 菜单可见）
 > - **OBSOLETED 原因**：双系统反模式（admin 模块 sys_menu.operations 等字段实际承担权限语义，与 perm-center 形成影子双系统）

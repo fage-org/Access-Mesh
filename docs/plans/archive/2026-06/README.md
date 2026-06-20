@@ -1,7 +1,7 @@
 # 2026-06 归档批次：permission-center v3.0~v3.3 设计演进
 
 > 归档日期：2026-06-18
-> 替代文档：[../../permission-center-v3.5-design-2026-06-18.md](../../permission-center-v3.5-design-2026-06-18.md)（v3.5 简化版；v3.4 已被 v3.5 取代，仅通过 git history 追溯）
+> 替代文档：[../../design/permission-center-v3.5-design.md](../../design/permission-center-v3.5-design.md)（v3.5 简化版，`status: adopted`；v3.4 已被 v3.5 取代，仅通过 git history 追溯）
 
 ## 归档原因
 

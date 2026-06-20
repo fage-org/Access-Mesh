@@ -1,9 +1,18 @@
+---
+doc_type: design
+title: 权限中心 v3.5 端到端设计（简化版）
+status: adopted
+domain: permission-center
+last_reviewed: 2026-06-20
+---
+
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）
 
 > 状态：v3.5 简化版（2026-06-18 PM 决策回退完成）
 > 范围：菜单零权限化 + 单 RPC 原子契约 + tenant 强制 + L1 操作 + L2 数据权限
-> 历史版本：[archive/2026-06/](archive/2026-06/) — v3.0~v3.3 OBSOLETED；v3.4 / v3.5 初版（含 L3 维度过度设计）通过 git history 追溯
-> 关联评审：[design-review-2026-06-17.md](design-review-2026-06-17.md)
+> 历史版本：[../archive/2026-06/](../archive/2026-06/) — v3.0~v3.3 OBSOLETED；v3.4 / v3.5 初版（含 L3 维度过度设计）通过 git history 追溯
+> 关联评审：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md)（原评审记录，已归档）
+> 演进方向：[permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（v3.5.1+ 增量，非约束）
 > 文档定位：**设计契约**（schema + 原则 + 公式 + 接口签名）。实施细节（审计 / 运营调控 / 迁移 / 兼容性 / 验收 / 监控 / 合规）作为 v3.5.1+ 增量章节。
 
 ---
@@ -27,25 +36,13 @@
 - 多租户硬隔离（IR-1.4 沿用）
 - **二层权限模型**：L1 操作权限 + L2 数据权限（调用方自决如何应用）
 
-### 0.3 v3.5.1+ 留待增量
+### 0.3 v3.5.1+ 增量
 
-以下内容**不在 v3.5 范围**，作为后续增量章节：
-
-| 内容 | 删除来源 |
-|---|---|
-| L3 字段级权限维度（`field_descriptor` 表 / `@FieldPermission` / DTO 字段裁切机制） | PM 判断 L2==L3，由调用方自决使用方式 |
-| `sys_menu_ref` 跨业务线菜单复用 | PM 决策：v3.5 不需要，留待业务真实需求出现时再增量 |
-| 审计与合规（原 §6） | PM 决策：实施细节，与设计相关性不高 |
-| 运营调控替代路径（原 §8） | 同上 |
-| 迁移计划（原 §10） | 同上 |
-| 兼容性策略（原 §11） | 同上 |
-| 验收用例（原 §13） | PM 决策：方案稳定后再考虑 |
-| 风险与回归监控（原 §14） | 同上 |
-| 法务/合规附件（原 §15） | PM 决策：合规话术待重新调研 |
+v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复用、审计/运营调控/迁移/兼容性/验收/监控/合规章节）已抽离为独立演进方向文档：[permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)，`status: evolution`，非约束。
 
 ### 0.4 v3.0~v3.3 OBSOLETED 关系图
 
-详见 [archive/2026-06/README.md](archive/2026-06/README.md) §"P1~P14 范式 OBSOLETED 关系图"。
+详见 [../archive/2026-06/README.md](../archive/2026-06/README.md) §"P1~P14 范式 OBSOLETED 关系图"。
 
 ---
 
@@ -73,7 +70,7 @@
 
 ### 2.1 sys_menu（极简化）
 
-sys_menu 表的权威 DDL 见 [`docs/design/schema/admin-service.sql`](../design/schema/admin-service.sql) §8（PostgreSQL，v3.5 菜单零权限化最终态）。本节仅描述 v3.5 关心的语义要点，不复制 DDL（避免与权威 schema 双源漂移）。
+sys_menu 表的权威 DDL 见 [`schema/admin-service.sql`](schema/admin-service.sql) §8（PostgreSQL，v3.5 菜单零权限化最终态）。本节仅描述 v3.5 关心的语义要点，不复制 DDL（避免与权威 schema 双源漂移）。
 
 **v3.5 语义要点**：
 - `menu_type`：5 值枚举 `DIR/MENU/EXTERNAL/IFRAME/HIDDEN`（schema 中以 VARCHAR(16) + 注释表达，PostgreSQL 无内联 ENUM）
@@ -82,7 +79,7 @@ sys_menu 表的权威 DDL 见 [`docs/design/schema/admin-service.sql`](../design
 - 唯一索引：`uk_sys_menu_tenant_resource (tenant_id, resource_type, resource_code)`、`uk_sys_menu_tenant_path (tenant_id, path)`
 - **已废弃字段**（迁移期物理删除）：`perm_code` / `operations` / `primary_operation` / `default_preset` / `visible` / `is_external` / `is_frame` / `is_cache` / `component` / `extra` / `service_code`
 
-> v3.5 不引入 `sys_menu_ref` 表（跨业务线菜单复用作为 v3.5.1+ 增量）。同一资源仅挂一个部门菜单树。
+> v3.5 不引入 `sys_menu_ref` 表（跨业务线菜单复用作为 v3.5.1+ 增量，见 [演进方向](permission-center-v3.5.1-evolution.md)）。同一资源仅挂一个部门菜单树。
 
 ### 2.2 OperationPermission（保持 v3.3 现状）
 
@@ -108,7 +105,7 @@ private String grantSource;
 private Long grantDepId;
 ```
 
-> 注：本字段清单仅列 v3.5 关心的语义字段（数据权限相关），**非完整结构**。完整 DDL 见 `docs/design/schema/permission-center.sql` `role_resource_permission` 表（含 `abstract_role_id` / `resource_entity_id` / `resource_type` / `granted_bits` 等核心定位字段）。
+> 注：本字段清单仅列 v3.5 关心的语义字段（数据权限相关），**非完整结构**。完整 DDL 见 `schema/permission-center.sql` `role_resource_permission` 表（含 `abstract_role_id` / `resource_entity_id` / `resource_type` / `granted_bits` 等核心定位字段）。
 
 ### 2.4 删除/废弃清单
 
@@ -158,7 +155,7 @@ private Long grantDepId;
 > - 调用方可用于字段级 DTO 裁切
 > - 调用方可用于其他维度（如导出脱敏 / 报表聚合等）
 >
-> 与 [docs/design/permission-center/core-flows.md](../design/permission-center/core-flows.md) line 178 立场一致：**"权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段"**。
+> 与 [permission-center/core-flows.md](permission-center/core-flows.md) line 178 立场一致：**"权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段"**。
 
 ---
 
@@ -192,7 +189,7 @@ visible(menu, user) :=
 
 ## §5. /auth/user-menu 单 RPC 原子契约
 
-> **服务归属**：本接口归 **admin-service**（前端唯一后端聚合入口，见 [architecture.md §1.5](../design/architecture.md) + [admin-service.md](../design/services/admin-service.md) §管理端前端聚合约束）。permission-center api-contract.md 不承载此端点（已移除）。admin-service 聚合时调用 permission-center 的 `/api/perm/auth/*` 运行时鉴权接口获取权限事实，组装为 `menus + permissions` 返回前端。
+> **服务归属**：本接口归 **admin-service**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md) + [services/admin-service.md](services/admin-service.md) §管理端前端聚合约束）。permission-center api-contract.md 不承载此端点（已移除）。admin-service 聚合时调用 permission-center 的 `/api/perm/auth/*` 运行时鉴权接口获取权限事实，组装为 `menus + permissions` 返回前端。
 >
 > **落地状态**：本接口为 v3.5 规划契约，尚未在 admin-service-api-contract.md 与代码中落地。实施时需同步 admin-service-api-contract.md。
 
@@ -280,7 +277,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 ### 7.3 错误响应协议
 
-错误响应（reasonCode / HTTP 状态码 / 业务状态码）**不在本文档定义**，统一归 [docs/design/permission-center/api-contract.md](../design/permission-center/api-contract.md) §7 单源。
+错误响应（reasonCode / HTTP 状态码 / 业务状态码）**不在本文档定义**，统一归 [permission-center/api-contract.md](permission-center/api-contract.md) §7 单源。
 
 > v3.5 立场：HTTP 响应码不作为业务状态码。reasonCode 分层、HTTP 与业务状态码分离、业务键解析失败语义等，纳入「项目响应码规范」统一设计（待设计项，见 §9.4）。
 

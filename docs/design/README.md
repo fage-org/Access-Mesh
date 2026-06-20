@@ -12,6 +12,8 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
+| 权限中心 v3.5 端到端设计 | [permission-center-v3.5-design.md](permission-center-v3.5-design.md)（`status: adopted`）|
+| 权限中心 v3.5.1+ 演进方向 | [permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（`status: evolution`，非约束）|
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
@@ -35,11 +37,27 @@
 | 路径                 | 说明                                             |
 | -------------------- | ------------------------------------------------ |
 | `permission-center/` | 权限中心的概念、API、流程、实现设计              |
+| 根目录 `*-design.md` / `*-evolution.md` | 端到端设计契约（`status: adopted`）与演进方向（`status: evolution`，非约束）|
 | `cross-service/`     | 跨越多个服务边界、描述服务之间职责/契约/数据流/一致性约束的当前有效设计 |
 | `services/`          | Gateway、admin-service、example-service 设计     |
 | `schema/`            | 当前有效 PostgreSQL schema                       |
-| `../plans/`          | 仍在推进的执行计划、核对清单和阶段路线图，不作为契约来源 |
+| `../plans/`          | 编排层计划：目标/非目标/准入 + 任务清单引用，不作为契约来源 |
+| `../tasks/`          | 原子任务看板（唯一权威任务清单）                 |
 | `../archive/`        | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
+
+### Frontmatter 状态约定
+
+每个设计文件头部含 `doc_type: design` + `status` 字段，取值：
+
+| status | 语义 | 是否约束实现 |
+|---|---|---|
+| `adopted` | 当前权威设计 | 是 |
+| `evolution` | 演进方向，非约束 | 否 |
+| `draft` | 探索讨论稿，未定 | 否 |
+| `superseded` | 被新设计取代，保留追溯（含 `superseded_by`）| 否 |
+| `archived` | 历史归档，移入 `../archive/` | 否 |
+
+设计状态变更触发任务依赖与回写核对，见 `.claude/skills/design-plan-task-lifecycle/SKILL.md`。
 
 Claude 按需技能位于 `.claude/skills/`。
 
