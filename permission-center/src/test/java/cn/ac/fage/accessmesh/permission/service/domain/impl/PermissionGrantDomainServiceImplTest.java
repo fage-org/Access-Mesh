@@ -25,7 +25,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -97,7 +96,8 @@ class PermissionGrantDomainServiceImplTest {
 
         verify(roleResourcePermissionMapper).softDeleteBatch(eq(1L), eq(List.of(501L)), any());
         verify(roleResourcePermissionMapper).cascadeSoftDeleteChildren(eq(1L), eq(List.of(501L)), any());
-        verifyNoInteractions(permissionVersionDomainService);
+        // T-PERM-003：permissionVersionDomainService 已从本服务移除，无 version 增量可校验。
+        // 此处仅验证软删 + 级联子项软删两条核心行为。
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

@@ -1294,86 +1294,74 @@ admin-service 查询示例：
 }
 ```
 
-响应：
+响应（T-PERM-009 分类模型，按 `(resourceTypeCode, operationCode)` 分组）：
 
 ```json
 {
-  "allowed": true,
   "reason": null,
   "matchedParentOperations": ["DATA_READ", "DATA_EDIT"],
   "parentPermissionIds": [200, 260],
-  "items": [
+  "scopeGroups": [
     {
       "resourceTypeCode": "DATA",
-      "resourceCode": "data:dept:A",
-      "resourceName": "A部门数据",
-      "codeType": "default",
-      "scopeAll": false,
-    },
-    {
-    },
-      "resourceTypeCode": "DATA",
-      "resourceCode": null,
-      "resourceName": null,
-      "codeType": null,
-      "scopeAll": true,
-      "operations": ["DATA_READ", "DATA_EDIT"],
-      "sources": ["DIRECT"],
-      "matchedRoleIds": [10],
-      "matchedPermissionIds": [301, 302],
-      "dependOnPermissionIds": []
-    {
-      "resourceTypeCode": "DATA",
-      "resourceCode": "data:dept:B",
-      "resourceName": "B部门数据",
-      "codeType": "default",
-      "scopeAll": false,
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
-      "operations": ["DATA_READ"],
-      "sources": ["DEPENDENT"],
-      "matchedRoleIds": [12],
-      "matchedPermissionIds": [401],
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
+      "items": [],
+      "matchedRoleIds": [10, 12],
+      "matchedPermissionIds": [301, 302, 401],
       "dependOnPermissionIds": [200]
     },
     {
       "resourceTypeCode": "DATA",
-      "resourceCode": null,
-      "resourceName": null,
-      "codeType": null,
-      "scopeAll": true,
-      "operations": ["DATA_EDIT"],
-      "sources": ["DIRECT"],
-      "matchedRoleIds": [15],
-      "matchedPermissionIds": [501],
+      "operationCode": "DATA_EDIT",
+      "scopeMode": "INSTANCE",
+      "items": [
+        { "resourceCode": "data:dept:A", "codeType": "default", "resourceName": "A部门数据" },
+        { "resourceCode": "data:dept:B", "codeType": "default", "resourceName": "B部门数据" }
+      ],
+      "matchedRoleIds": [10, 15],
+      "matchedPermissionIds": [302, 501],
+      "dependOnPermissionIds": []
+    },
+    {
+      "resourceTypeCode": "DATA",
+      "operationCode": "DATA_EXPORT",
+      "scopeMode": "DENIED",
+      "items": [],
+      "matchedRoleIds": [],
+      "matchedPermissionIds": [],
       "dependOnPermissionIds": []
     }
   ],
-  "mergeMode": "UNION",
   "permissionVersion": "u-10001:42",
   "cacheTtlSeconds": 60
 }
 ```
 
+`scopeMode` 四态语义（枚举定义于 perm-common `cn.ac.fage.accessmesh.perm.common.enums.ScopeMode`）：
+
+| scopeMode | 含义 | 业务方行为 |
+|---|---|---|
+| `DENIED` | 无操作权限（合并原 `allowed=false`） | 拒绝/403，不发 SQL |
+| `INSTANCE` | 有权限 + 具体实例授权 | `items[]` 非空，按 `resourceCode` 加 IN 过滤 |
+| `ALL` | 有权限 + 全量授权（`scopeAll`） | `items[]` 为空，不加范围过滤 |
+| `EMPTY` | 有权限但条件/互斥过滤后无数据 | 返回空结果，不发 SQL |
+
 规则：
 
 - 权限中心先按 `parentResourceTypeCode + parentResourceCode + parentCodeType + parentOperationCodes[]` 执行主权限判定。
-- 主权限全部不通过时，返回 `allowed=false`、`items=[]`，不继续返回范围权限。
+- 主权限全部不通过时，`reason="NO_PERMISSION"`，所有 `scopeGroups` 格置 `scopeMode=DENIED`，不返回范围实例。
+- 主体/主资源未解析时 `reason` 填 `USER_NOT_FOUND` / `OBJECT_KEY_NOT_FOUND`，`scopeGroups` 为空。
 - `DIRECT` 范围权限来自当前主体有效角色下 `depend_on IS NULL` 的范围资源授权。
 - `DEPENDENT` 范围权限来自 `depend_on IN parentPermissionIds` 的子权限授权，只在当前主资源上下文内生效。
 - 有效范围权限计算公式为 `effectiveScopes = DIRECT ∪ DEPENDENT`。
-- 多操作查询按范围资源聚合，按 `scopeAll + resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations/sources/matchedPermissionIds`。
+- **分类键为 `(resourceTypeCode, operationCode)`**：每个请求的 `scopeResourceTypeCodes × scopeOperationCodes` 笛卡尔积对应一个 `scopeGroup`，各格独立判定 `scopeMode`。
+- 单格判定优先级：无覆盖该操作的权限 → `DENIED`；有权限但条件/互斥过滤后为空 → `EMPTY`；过滤后含 `scopeAll` 条目 → `ALL`（`items` 为空，ALL 优先于 INSTANCE）；仅具体实例 → `INSTANCE`（`items` 去重列出有效实例）。
 - 范围操作必须被至少一个已通过的主操作激活。推荐在 example-service 中使用同名业务数据动作，例如 `report:sales + DATA_READ -> dept + DATA_READ`、`report:sales + DATA_EDIT -> dept + DATA_EDIT`；这只是推荐范例，不作为所有接入系统的强制标准。
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
-- `scopeAll=true` 表示该 `resourceTypeCode` 下全量范围权限，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围；实现不应展开返回全部部门明细。
-- `items=[]` 不表示全量范围，只表示没有显式范围权限；全量必须通过 `scopeAll=true` 明确表达。
-- 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行把 `resourceCode` 或 `scopeAll=true` 映射为查询条件。
+- `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
+- 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行按 `scopeMode` 决定是否发 SQL 及如何把 `items[].resourceCode` 映射为查询条件。
+- 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）。`permissionVersion` 字段保留至 T-PERM-001 收尾移除。
 
 ### 6.8 权限排查视图与近期变更
 

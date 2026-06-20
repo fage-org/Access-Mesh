@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.permission.dto.req.QueryScopesReq;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
@@ -41,6 +42,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -84,7 +86,7 @@ class PermissionQueryAppServiceImplTest {
     // ===== queryScopes tests =====
 
     @Test
-    void shouldIncludeViewScopeWhenManagePermissionCoversView() {
+    void shouldClassifyScopeGroupAsInstanceWhenSpecificEntryMatches() {
         QueryScopesReq req = new QueryScopesReq(
             "USER", "u-1", "MENU", "sys:user", "default",
             List.of("VIEW"), List.of("DEPT"), List.of("VIEW"), "default", null, Map.of()
@@ -96,6 +98,7 @@ class PermissionQueryAppServiceImplTest {
             .thenReturn(Map.of("DEPT", 2));
         when(typeResolutionService.batchResolveOperationIds(1L, "DEPT", Set.of("VIEW")))
             .thenReturn(Map.of("VIEW", 601L));
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
         when(permissionVersionDomainService.buildPermissionVersionKey(10L, 1L, Set.of())).thenReturn("v1");
 
         RolePermEntry parentEntry = new RolePermEntry(
@@ -129,10 +132,15 @@ class PermissionQueryAppServiceImplTest {
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
-        assertTrue(resp.allowed());
-        assertEquals(1, resp.items().size());
-        assertEquals(List.of("VIEW"), resp.items().get(0).operations());
-        assertEquals("dept-a", resp.items().get(0).resourceCode());
+        // 分类模型：(DEPT, VIEW) 应为 INSTANCE，items 含 dept-a
+        assertNull(resp.reason());
+        assertEquals(1, resp.scopeGroups().size());
+        QueryScopesResp.ScopeGroup group = resp.scopeGroups().get(0);
+        assertEquals("DEPT", group.resourceTypeCode());
+        assertEquals("VIEW", group.operationCode());
+        assertEquals(ScopeMode.INSTANCE, group.scopeMode());
+        assertEquals(1, group.items().size());
+        assertEquals("dept-a", group.items().get(0).resourceCode());
     }
 
     // ===== interfaceSnapshot tests =====
@@ -168,7 +176,6 @@ class PermissionQueryAppServiceImplTest {
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
             when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-            when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
             when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
@@ -192,11 +199,13 @@ class PermissionQueryAppServiceImplTest {
 
         @Test
         void shouldRebuildSnapshotWhenPermissionTokenChanges() {
+            // T-PERM-003：令牌改为 roleIds 指纹，仅在角色集合变化时变化（不再反映权限内容变更）。
+            // 本用例通过切换角色集合触发令牌变化，验证令牌变化后快照重建。
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
+            when(subjectDomainService.resolveEffectiveRoles(1L, 10L))
+                .thenReturn(Set.of(200L), Set.of(201L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
-            when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L)))
-                .thenReturn(Map.of(200L, 7L), Map.of(200L, 8L));
+            when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
             when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
@@ -227,8 +236,6 @@ class PermissionQueryAppServiceImplTest {
             when(subjectDomainService.resolveEffectiveRoles(1L, 11L)).thenReturn(Set.of(201L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(201L))).thenReturn(Set.of(201L));
-            when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(200L))).thenReturn(Map.of(200L, 7L));
-            when(permissionVersionDomainService.batchGetCurrentVersions(1L, Set.of(201L))).thenReturn(Map.of(201L, 7L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
             when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))

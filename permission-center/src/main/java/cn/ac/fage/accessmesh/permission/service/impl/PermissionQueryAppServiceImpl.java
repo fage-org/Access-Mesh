@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.PermissionTreeResp.TreeNode;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp;
-import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp.ScopeEntry;
+import cn.ac.fage.accessmesh.permission.dto.resp.QueryScopesResp.ScopeGroup;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
@@ -29,6 +29,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
@@ -369,12 +370,14 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     @Transactional(readOnly = true)
     public QueryScopesResp queryScopes(Long tenantId, QueryScopesReq req) {
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) return new QueryScopesResp(false, "USER_NOT_FOUND", List.of(), List.of(), List.of(), "UNION", "", 60);
+        if (userId == null) {
+            return new QueryScopesResp("USER_NOT_FOUND", List.of(), List.of(), List.of(), "", 60);
+        }
 
         Long parentResourceEntityId = typeResolutionService.resolveResourceId(
             tenantId, req.parentResourceTypeCode(), req.parentResourceCode(), req.parentCodeType(), req.domainCode());
         if (parentResourceEntityId == null) {
-            return new QueryScopesResp(false, "OBJECT_KEY_NOT_FOUND", List.of(), List.of(), List.of(), "UNION", "", 60);
+            return new QueryScopesResp("OBJECT_KEY_NOT_FOUND", List.of(), List.of(), List.of(), "", 60);
         }
 
         Map<String, Object> ctx = req.context() != null ? req.context() : Map.of();
@@ -382,67 +385,41 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         ParentPermissionsResult parentResult = validateParentPermissions(tenantId, userId,
             req, parentResourceEntityId, ctx);
         if (parentResult == null) {
-            return new QueryScopesResp(false, "NO_PERMISSION", List.of(), List.of(), List.of(), "UNION", "", 60);
+            // 父资源无任何匹配权限 → 整体拒绝，所有 scope 格置 DENIED
+            List<ScopeGroup> deniedGroups = buildDeniedGroups(req);
+            return new QueryScopesResp("NO_PERMISSION", List.of(), List.of(), deniedGroups, "", 60);
         }
 
-        Map<String, ScopeAccumulator> merged = processScopePermissions(tenantId, userId,
+        List<ScopeGroup> scopeGroups = processScopePermissions(tenantId, userId,
             req, parentResult.parentPermissionIds, ctx);
 
-        return buildQueryScopesResponse(merged, userId, tenantId, parentResult);
-    }
-
-    private ScopeAccumulator buildScopeAccumulator(RolePermEntry entry, String scopeTypeCode,
-                                                    Map<Long, ResourceEntity> scopeResourceMap,
-                                                    Map<String, ScopeAccumulator> merged) {
-        boolean scopeAll = entry.resourceEntityId() == null;
-        ResourceEntity resource = scopeAll ? null : scopeResourceMap.get(entry.resourceEntityId());
-        if (!scopeAll && (resource == null || resource.getDeleteFlag() != 0L)) {
-            return null;
-        }
-        String mergeKey = scopeAll
-            ? "ALL|" + scopeTypeCode
-            : "ONE|" + scopeTypeCode + "|" + resource.getCodeType() + "|" + resource.getCode();
-        return merged.computeIfAbsent(
-            mergeKey,
-            key -> new ScopeAccumulator(
-                scopeTypeCode,
-                scopeAll ? null : resource.getCode(),
-                scopeAll ? null : resource.getCodeType(),
-                scopeAll ? null : resource.getName(),
-                scopeAll
-            )
-        );
-    }
-
-    private QueryScopesResp buildQueryScopesResponse(Map<String, ScopeAccumulator> merged,
-                                                      Long userId, Long tenantId,
-                                                      ParentPermissionsResult parentResult) {
-        List<ScopeEntry> items = merged.values().stream()
-            .map(item -> new ScopeEntry(
-                item.resourceTypeCode,
-                item.resourceCode,
-                item.codeType,
-                item.resourceName,
-                item.scopeAll,
-                new ArrayList<>(item.operations),
-                new ArrayList<>(item.sources),
-                new ArrayList<>(item.matchedRoleIds),
-                new ArrayList<>(item.matchedPermissionIds),
-                new ArrayList<>(item.dependOnPermissionIds)
-            ))
-            .toList();
         Set<Long> effectiveRoles = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         String permissionVersion = permissionVersionDomainService.buildPermissionVersionKey(userId, tenantId, effectiveRoles);
+
         return new QueryScopesResp(
-            true,
             null,
             new ArrayList<>(parentResult.matchedParentOps),
             new ArrayList<>(parentResult.parentPermissionIds),
-            items,
-            "UNION",
+            scopeGroups,
             permissionVersion,
             60
         );
+    }
+
+    /**
+     * 构造全 DENIED 分组（父资源鉴权整体拒绝时使用）。
+     */
+    private List<ScopeGroup> buildDeniedGroups(QueryScopesReq req) {
+        List<ScopeGroup> groups = new ArrayList<>();
+        for (String scopeTypeCode : req.scopeResourceTypeCodes()) {
+            for (String scopeOpCode : req.scopeOperationCodes()) {
+                groups.add(new ScopeGroup(
+                    scopeTypeCode, scopeOpCode, ScopeMode.DENIED,
+                    List.of(), List.of(), List.of(), List.of()
+                ));
+            }
+        }
+        return groups;
     }
 
     private ParentPermissionsResult validateParentPermissions(Long tenantId, Long userId,
@@ -465,10 +442,22 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         return new ParentPermissionsResult(matchedParentOps, parentPermissionIds);
     }
 
-    private Map<String, ScopeAccumulator> processScopePermissions(Long tenantId, Long userId,
-                                                                   QueryScopesReq req,
-                                                                   Set<Long> parentPermissionIds,
-                                                                   Map<String, Object> ctx) {
+    /**
+     * 按 (resourceTypeCode, operationCode) 分桶处理数据范围权限。
+     * <p>
+     * 每格独立判定 {@link ScopeMode}：
+     * <ul>
+     *   <li>rawEntries 为空（无覆盖该操作的权限）→ {@link ScopeMode#DENIED}</li>
+     *   <li>rawEntries 非空但条件/互斥过滤后为空 → {@link ScopeMode#EMPTY}</li>
+     *   <li>过滤后含 scopeAll 条目 → {@link ScopeMode#ALL}（items 为空，ALL 覆盖 INSTANCE）</li>
+     *   <li>过滤后仅具体实例 → {@link ScopeMode#INSTANCE}（items = 实例集合）</li>
+     * </ul>
+     * </p>
+     */
+    private List<ScopeGroup> processScopePermissions(Long tenantId, Long userId,
+                                                      QueryScopesReq req,
+                                                      Set<Long> parentPermissionIds,
+                                                      Map<String, Object> ctx) {
         PermQuery q = PermQuery.forScopeQuery(tenantId, userId,
             new HashSet<>(req.scopeResourceTypeCodes()),
             new HashSet<>(req.scopeOperationCodes()));
@@ -486,55 +475,101 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         Map<String, Integer> scopeTypeValueMap = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type", new HashSet<>(req.scopeResourceTypeCodes()));
 
-        Map<String, ScopeAccumulator> merged = new LinkedHashMap<>();
+        List<ScopeGroup> groups = new ArrayList<>();
         for (String scopeTypeCode : req.scopeResourceTypeCodes()) {
             Integer scopeType = scopeTypeValueMap.get(scopeTypeCode);
-            if (scopeType == null) continue;
+            if (scopeType == null) {
+                // 类型未解析 → 该类型下所有操作 DENIED
+                for (String scopeOpCode : req.scopeOperationCodes()) {
+                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED,
+                        List.of(), List.of(), List.of(), List.of()));
+                }
+                continue;
+            }
             List<RolePermEntry> typeEntries = byType.getOrDefault(scopeType, List.of());
             Map<String, Long> scopeOpIdMap = typeResolutionService.batchResolveOperationIds(
                 tenantId, scopeTypeCode, new HashSet<>(req.scopeOperationCodes()));
 
-            processScopeOperations(tenantId, ctx, req, scopeTypeCode, scopeOpIdMap,
-                scopeOpId -> {
-                    OperationPermission targetOp = operationMap.get(scopeOpId);
-                    return typeEntries.stream()
-                        .filter(entry -> OperationPermissionUtils.covers(
-                            OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                                grantedOpIndex,
-                                entry.resourceType(),
-                                entry.grantedBits()
-                            ),
-                            targetOp
-                        ))
-                        .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
-                        .toList();
-                }, resourceMap, merged);
-        }
-        return merged;
-    }
-
-    private void processScopeOperations(Long tenantId, Map<String, Object> ctx,
-                                         QueryScopesReq req, String scopeTypeCode,
-                                         Map<String, Long> scopeOpIdMap,
-                                         java.util.function.Function<Long, List<RolePermEntry>> entriesSupplier,
-                                         Map<Long, ResourceEntity> scopeResourceMap,
-                                         Map<String, ScopeAccumulator> merged) {
-        for (String scopeOpCode : req.scopeOperationCodes()) {
-            Long scopeOpId = scopeOpIdMap.get(scopeOpCode);
-            if (scopeOpId == null) continue;
-            List<RolePermEntry> entries = entriesSupplier.apply(scopeOpId);
-            entries = permissionConditionDomainService.evaluate(tenantId, entries, ctx);
-            entries = permissionConflictDomainService.filterPermMutex(tenantId, entries);
-            for (RolePermEntry entry : entries) {
-                ScopeAccumulator accumulator = buildScopeAccumulator(entry, scopeTypeCode, scopeResourceMap, merged);
-                if (accumulator == null) continue;
-                accumulator.operations.add(scopeOpCode);
-                accumulator.sources.add(entry.dependOn() == null ? "DIRECT" : "DEPENDENT");
-                if (entry.roleId() != null) accumulator.matchedRoleIds.add(entry.roleId());
-                if (entry.permissionId() != null) accumulator.matchedPermissionIds.add(entry.permissionId());
-                if (entry.dependOn() != null) accumulator.dependOnPermissionIds.add(entry.dependOn());
+            for (String scopeOpCode : req.scopeOperationCodes()) {
+                Long scopeOpId = scopeOpIdMap.get(scopeOpCode);
+                if (scopeOpId == null) {
+                    groups.add(new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED,
+                        List.of(), List.of(), List.of(), List.of()));
+                    continue;
+                }
+                groups.add(buildScopeGroup(tenantId, ctx, scopeTypeCode, scopeOpCode, scopeOpId,
+                    typeEntries, grantedOpIndex, operationMap, resourceMap, parentPermissionIds));
             }
         }
+        return groups;
+    }
+
+    private ScopeGroup buildScopeGroup(Long tenantId, Map<String, Object> ctx,
+                                        String scopeTypeCode, String scopeOpCode, Long scopeOpId,
+                                        List<RolePermEntry> typeEntries,
+                                        Map<String, OperationPermission> grantedOpIndex,
+                                        Map<Long, OperationPermission> operationMap,
+                                        Map<Long, ResourceEntity> resourceMap,
+                                        Set<Long> parentPermissionIds) {
+        OperationPermission targetOp = operationMap.get(scopeOpId);
+        // rawEntries：覆盖目标操作且依赖父权限满足的条目（条件/互斥过滤前）
+        List<RolePermEntry> rawEntries = typeEntries.stream()
+            .filter(entry -> OperationPermissionUtils.covers(
+                OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                    grantedOpIndex, entry.resourceType(), entry.grantedBits()),
+                targetOp))
+            .filter(entry -> entry.dependOn() == null || parentPermissionIds.contains(entry.dependOn()))
+            .toList();
+
+        if (rawEntries.isEmpty()) {
+            return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.DENIED,
+                List.of(), List.of(), List.of(), List.of());
+        }
+
+        // 条件评估 + 互斥过滤
+        List<RolePermEntry> filtered = permissionConditionDomainService.evaluate(tenantId, rawEntries, ctx);
+        filtered = permissionConflictDomainService.filterPermMutex(tenantId, filtered);
+
+        Set<Long> matchedRoleIds = new LinkedHashSet<>();
+        Set<Long> matchedPermissionIds = new LinkedHashSet<>();
+        Set<Long> dependOnPermissionIds = new LinkedHashSet<>();
+        for (RolePermEntry e : filtered) {
+            if (e.roleId() != null) matchedRoleIds.add(e.roleId());
+            if (e.permissionId() != null) matchedPermissionIds.add(e.permissionId());
+            if (e.dependOn() != null) dependOnPermissionIds.add(e.dependOn());
+        }
+
+        if (filtered.isEmpty()) {
+            // 有操作权限但条件/互斥过滤后无数据
+            return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.EMPTY,
+                List.of(), List.of(), List.of(), List.of());
+        }
+
+        // ALL 优先：任一 scopeAll 条目存在 → 全量授权
+        boolean hasScopeAll = filtered.stream().anyMatch(e -> e.resourceEntityId() == null);
+        if (hasScopeAll) {
+            return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.ALL,
+                List.of(),
+                new ArrayList<>(matchedRoleIds),
+                new ArrayList<>(matchedPermissionIds),
+                new ArrayList<>(dependOnPermissionIds));
+        }
+
+        // INSTANCE：收集有效具体实例（去重，跳过已删除资源）
+        Map<String, QueryScopesResp.ScopeItem> items = new LinkedHashMap<>();
+        for (RolePermEntry entry : filtered) {
+            if (entry.resourceEntityId() == null) continue;
+            ResourceEntity resource = resourceMap.get(entry.resourceEntityId());
+            if (resource == null || resource.getDeleteFlag() != 0L) continue;
+            String itemKey = resource.getCodeType() + "|" + resource.getCode();
+            items.putIfAbsent(itemKey, new QueryScopesResp.ScopeItem(
+                resource.getCode(), resource.getCodeType(), resource.getName()));
+        }
+        return new ScopeGroup(scopeTypeCode, scopeOpCode, ScopeMode.INSTANCE,
+            new ArrayList<>(items.values()),
+            new ArrayList<>(matchedRoleIds),
+            new ArrayList<>(matchedPermissionIds),
+            new ArrayList<>(dependOnPermissionIds));
     }
 
     private static class ParentPermissionsResult {
@@ -543,33 +578,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         ParentPermissionsResult(Set<String> matchedParentOps, Set<Long> parentPermissionIds) {
             this.matchedParentOps = matchedParentOps;
             this.parentPermissionIds = parentPermissionIds;
-        }
-    }
-
-    private static final class ScopeAccumulator {
-        private final String resourceTypeCode;
-        private final String resourceCode;
-        private final String codeType;
-        private final String resourceName;
-        private final boolean scopeAll;
-        private final Set<String> operations = new LinkedHashSet<>();
-        private final Set<String> sources = new LinkedHashSet<>();
-        private final Set<Long> matchedRoleIds = new LinkedHashSet<>();
-        private final Set<Long> matchedPermissionIds = new LinkedHashSet<>();
-        private final Set<Long> dependOnPermissionIds = new LinkedHashSet<>();
-
-        private ScopeAccumulator(
-            String resourceTypeCode,
-            String resourceCode,
-            String codeType,
-            String resourceName,
-            boolean scopeAll
-        ) {
-            this.resourceTypeCode = resourceTypeCode;
-            this.resourceCode = resourceCode;
-            this.codeType = codeType;
-            this.resourceName = resourceName;
-            this.scopeAll = scopeAll;
         }
     }
 

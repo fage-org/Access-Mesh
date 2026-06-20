@@ -1,45 +1,94 @@
 ---
 doc_type: task
 id: T-PERM-009
-title: 定义 scopeMode 枚举 + 数据权限响应结构改造
-status: proposed
+title: scopeMode 枚举 + 响应结构重构（宽义）
+status: review
 plan: docs/plans/scope-mode-migration-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md#§3-数据权限契约
-  - docs/design/permission-center/api-contract.md
-depends_on: []
-blocks: [T-PERM-010, T-PERM-011, T-PERM-012, T-PERM-013, T-PERM-014, T-PERM-015]
+  - docs/design/permission-center/api-contract.md#§6.7
+depends_on: [T-PERM-003]
+blocks: [T-PERM-010, T-PERM-011, T-PERM-012, T-PERM-013, T-PERM-015]
 acceptance:
-  - "定义 scopeMode 三值枚举 INSTANCE | ALL | NONE"
-  - "数据权限响应体由 {allowed, items[], scopeAll} 改为 {allowed, scopeMode, items[], scopeTypeCodes[]}"
-  - "强制调用方按枚举三分支编程（编译期/类型系统暴露遗漏分支）"
-  - "不做新老兼容（项目未上线，直接换）"
+  - "[x] ScopeMode 4 态枚举定义(DENIED/INSTANCE/ALL/EMPTY)放 perm-common"
+  - "[x] QueryScopesResp 重构为分类模型: 按 (resourceTypeCode, operationCode) 双层 Map(scopeGroups[])"
+  - "[x] 每格各自 ScopeMode, items[] 挂格下仅 INSTANCE 非空"
+  - "[x] 删除 allowed(合并进 ScopeMode) + mergeMode + 顶层 ScopeEntry"
+  - "[x] queryScopes/processScopePermissions/buildScopeGroup 按 (resourceType,operation) 分桶重写"
+  - "[x] mvn test 通过(135 tests 0 failures) + api-contract §6.7 回写"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-06-20
 ---
 
-# T-PERM-009 scopeMode 枚举 + 响应结构改造
+# T-PERM-009 scopeMode 枚举 + 响应结构重构（宽义）
 
-> 来源：[scope-mode-migration-plan](../plans/scope-mode-migration-plan.md) 任务 B-1（工作单 B，方案 B2）
+> 来源：[scope-mode-migration-plan](../plans/scope-mode-migration-plan.md) 任务 B-1（工作单 B2）
+> 范围：宽义 = 定义枚举 + 重构 QueryScopesResp 结构（与 T-PERM-010 合并）
 
-## 背景
+## 方案定稿（用户确认 2026-06-20）
 
-数据权限"空集即全部"是 P0 静默安全风险：业务方看到 `items: []` 常误读为"不加过滤"→ 数据泄露。`scopeAll` boolean 把"空 ≠ 全量"语义责任甩给调用方。B2 用显式枚举 `scopeMode` 三分支，编译期暴露遗漏。
+### 1. ScopeMode 4 态枚举（合并 allowed）
 
-## 方案要点
+| 枚举 | 含义 | 业务方行为 |
+|---|---|---|
+| `DENIED` | 无操作权限（原 allowed=false） | 拒绝/403，不发 SQL |
+| `INSTANCE` | 有权限 + 具体实例授权 | items[] 加 IN 过滤 |
+| `ALL` | 有权限 + 全量授权 | 不加范围过滤 |
+| `EMPTY` | 有权限但无数据范围 | 返回空结果，不发 SQL |
 
-- `scopeMode`：`INSTANCE`（用 items[] 加 IN 过滤）/ `ALL`（不加范围过滤）/ `NONE`（直接返回空，不发 SQL）
-- 响应：`{allowed, scopeMode, items[], scopeTypeCodes[]}`（仅 INSTANCE 时 items 非空）
-- 兼容：直接换，不做新老并存（评审基准声明项目未上线）
+放 perm-common（`cn.ac.fage.accessmesh.perm.common.enums.ScopeMode`），供 admin/gateway 共用。
 
-## 阻塞下游
+### 2. 分类模型（不单 scopeMode，按资源类型×操作分类）
 
-B-2~B-7 全部依赖本任务的枚举与响应结构定义。
+分类键：`(resourceTypeCode, operationCode)` 双层 Map。每格各自 ScopeMode。
+
+### 3. 删除字段
+- `allowed`（合并进 ScopeMode）
+- `scopeTypeCodes[]`（分类模型下冗余——每格已明确 resourceType+operation，ALL 覆盖即该格自身）
+
+### 4. 新响应结构
+
+```json
+{
+  "scopeGroups": [
+    {
+      "resourceTypeCode": "REPORT",
+      "operationCode": "VIEW",
+      "scopeMode": "ALL",
+      "items": []
+    },
+    {
+      "resourceTypeCode": "REPORT",
+      "operationCode": "EXPORT",
+      "scopeMode": "INSTANCE",
+      "items": [{"resourceCode": "r-001", "codeType": "default", "resourceName": "..."}]
+    },
+    {
+      "resourceTypeCode": "REPORT",
+      "operationCode": "DELETE",
+      "scopeMode": "DENIED"
+    }
+  ],
+  "permissionVersion": "...",
+  "cacheTtlSeconds": 60
+}
+```
+
+保留 `permissionVersion`（T-PERM-001 收尾移除）、`cacheTtlSeconds`。
+保留 `reason`（DENIED 时填拒绝原因，挂顶层或每格？待重写时定——倾向顶层，DENIED 是整体拒绝）。
+
+## 待核实项（动手前）
+
+1. `QueryScopesReq` 结构：当前 queryScopes 是"父资源下子范围"查询（parentResourceTypeCode/parentCode），需确认双层 Map 键来源
+2. `processScopePermissions` / `ScopeAccumulator` 完整逻辑（权限合并语义）
+3. `buildQueryScopesResponse` 完整体
+4. 调用方（外部消费 QueryScopesResp）
+5. 测试
 
 ## 设计回写
 
-- `docs/design/permission-center-v3.5-design.md §3`：核对二层权限模型 L2 与 scopeMode 表述一致
-- `docs/design/permission-center/api-contract.md`：scopeMode 作为正式定义（与 T-PERM-014 协同移除迁移注记）
+- `api-contract.md §6.7`：QueryScopesResp 新结构 + ScopeMode 4 态语义
+- `permission-center-v3.5-design.md §3`：L2 数据权限契约对齐 scopeMode 分类模型
