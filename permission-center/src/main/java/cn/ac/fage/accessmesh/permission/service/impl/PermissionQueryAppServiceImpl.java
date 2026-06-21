@@ -111,12 +111,12 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
      * <p>
      * 使用 forUserView 查询管线获取用户的所有权限（scopeAll 和实例级）。
      * 支持按资源类型、操作码过滤，支持继承权限和子资源展开。
-     * 返回结果包含权限版本号用于客户端缓存校验。
+     * 返回用户可访问的资源列表与缓存有效期（T-PERM-018 后不再返回 permissionVersion）。
      * </p>
      *
      * @param tenantId 租户ID
      * @param req      资源查询请求
-     * @return 资源查询响应，包含资源列表和权限版本号
+     * @return 资源查询响应，包含资源列表和缓存有效期
      */
     // ===== queryResources =====
 

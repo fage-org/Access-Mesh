@@ -127,7 +127,7 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
     /**
      * 根据租户ID和角色ID查询角色资源权限列表
      * <p>
-     * 用于权限版本计算场景。
+     * 用于角色权限快照构建场景（engine ROLE_PERM_SNAPSHOT 读路径）。
      * </p>
      *
      * @param tenantId        租户ID

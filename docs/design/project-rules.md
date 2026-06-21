@@ -514,7 +514,7 @@ cn.ac.fage.accessmesh.{service}
 | 用户角色解析（带缓存）   | `SubjectDomainService.resolveEffectiveRoles()`                   | 调度层直接查询 `user_role` 表 |
 | 资源层级遍历             | `ResourceEntityDomainService.batchGetDescendantIds()`            | 调度层写递归遍历逻辑          |
 | 权限级联删除             | `PermissionGrantDomainService.revokePermissions()`               | 调度层写子权限删除循环        |
-| 权限版本递增             | `PermissionVersionDomainService.increment()`                     | 调度层直接更新版本字段        |
+| 角色关联用户缓存批量失效 | `SubjectDomainService.invalidateRoleCacheByRoles()`              | afterCommit 按角色循环逐个失效（N+1） |
 | 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()` | 调度层查 `type_definition` 表 |
 
 **判断标准**：如果逻辑涉及**单一领域实体**的原子操作（查、改、删、转换），应下沉到 DomainService。
@@ -590,7 +590,7 @@ cn.ac.fage.accessmesh.{service}
 调度层 PermissionGrantAppServiceImpl
   └→ 调用 SubjectDomainService.resolveEffectiveRoles()（带缓存）
   └→ 调用 PermissionGrantDomainService.revokePermissions()（级联删除）
-  └→ 调用 PermissionVersionDomainService.increment()（版本管理）
+  └→ 登记 PermissionChangeContext.markRoles()（@PermissionChange AOP afterCommit 失效 + 广播）
 
 调度层 PermissionViewAppServiceImpl
   └→ 调用 SubjectDomainService.resolveEffectiveRoles()（角色解析+缓存）
@@ -829,11 +829,11 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 示例：
 
-| Key                              | 说明                  |
-| -------------------------------- | --------------------- |
-| `1:perm:effective-roles:1234`    | 租户 1 的用户有效角色 |
-| `1:admin:dict-types:all`         | 租户 1 的字典类型列表 |
-| `1:perm:permission-version:5678` | 租户 1 的权限版本     |
+| Key                              | 说明                          |
+| -------------------------------- | ----------------------------- |
+| `1:perm:effective-roles:1234`    | 租户 1 的用户有效角色         |
+| `1:admin:dict-types:all`         | 租户 1 的字典类型列表         |
+| `1:perm:role-perm-snapshot:5678` | 租户 1 的角色权限快照（roleId）|
 
 规则：
 

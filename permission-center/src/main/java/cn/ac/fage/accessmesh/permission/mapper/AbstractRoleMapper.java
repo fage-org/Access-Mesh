@@ -62,6 +62,19 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     List<Long> selectAncestorGroupRoleIds(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
 
     /**
+     * 批量递归 CTE 查询多个角色的所有祖先 GROUP_ROLE ID（T-PERM-018 P2：消除按角色循环 N+1）。
+     * <p>
+     * 与 {@link #selectAncestorGroupRoleIds} 语义一致，起点改为多角色集合，
+     * 供 {@code invalidateRoleCacheByRoles} 一次查询多个角色关联的祖先组角色。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  起始角色ID集合
+     * @return 所有祖先 GROUP_ROLE ID列表（不含起始角色）
+     */
+    List<Long> selectAncestorGroupRoleIdsBatch(@Param("tenantId") Long tenantId, @Param("roleIds") Set<Long> roleIds);
+
+    /**
      * 根据ID和租户ID查询有效角色
      *
      * @param id       角色ID

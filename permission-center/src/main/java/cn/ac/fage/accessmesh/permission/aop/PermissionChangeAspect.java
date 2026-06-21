@@ -116,9 +116,9 @@ public class PermissionChangeAspect {
         Set<String> serviceCodes = acc.serviceCodes();
 
         try {
-            // 1. 角色维度失效（反查受影响用户，失效 EFFECTIVE_ROLES）
-            for (Long roleId : roleIds) {
-                subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);
+            // 1. 角色维度失效（反查受影响用户，失效 EFFECTIVE_ROLES）—— T-PERM-018 P2 批量化，消除按角色循环 N+1
+            if (!roleIds.isEmpty()) {
+                subjectDomainService.invalidateRoleCacheByRoles(tenantId, roleIds);
             }
             // 角色权限变更（grant/revoke/资源删除）→ 失效 ROLE_PERM_SNAPSHOT（roleId 级精确）
             if (!roleIds.isEmpty()) {

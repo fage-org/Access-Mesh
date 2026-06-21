@@ -174,20 +174,13 @@ public interface SubjectDomainService {
 
 ---
 
-### 2.2 `PermissionVersionDomainService` — 权限令牌占位构造器（**持久化层已删 2026-06-20 T-PERM-003**）
+### 2.2 ~~`PermissionVersionDomainService`~~ — 权限令牌机制（**已整体删除 2026-06-20 T-PERM-018**）
 
-> **持久化层已删除**：`permission_version` 表与 `PermissionVersionController` / `PermissionVersionAppService(Impl)` / `PermissionVersionMapper` / `PermissionVersion` 实体 / `PermissionVersionQueryReq` / `PermissionVersionResp` / `PermissionVersionDomainServiceImplTest` 已物理删除（design-review §A'-3 + v3.5 §9.2，T-PERM-003 落地）。缓存失效改由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底（T-PERM-006 落地广播）。
+> **已整体删除（T-PERM-018 缓存下沉，2026-06-20）**：`permission_version` 表与 `PermissionVersionController` / `PermissionVersionAppService(Impl)` / `PermissionVersionMapper` / `PermissionVersion` 实体 / `PermissionVersionQueryReq` / `PermissionVersionResp` / `PermissionVersionDomainServiceImplTest` 已物理删除（design-review §A'-3 + v3.5 §9.2，T-PERM-003）。占位接口 `PermissionVersionDomainService(Impl)` 与 `buildPermissionVersionKey` / `buildInterfacePermissionVersion`、各 DTO 的 `permissionVersion` / `notModified` 字段、INTERFACE_SNAPSHOT(L2) 缓存一并彻底移除（T-PERM-018）。
 >
-> **接口降级为占位（方案1）**：`PermissionVersionDomainService` 接口与其 Impl **保留**，但删除 `increment` / `batchGetCurrentVersions`，仅保留 `buildPermissionVersionKey` 作占位令牌构造器（基于 userId + 有序 roleIds 指纹，不读 DB）。占位令牌仅在角色集合变化时变化，**不反映权限内容变更**——内容失效靠广播 + TTL。T-PERM-001（Gateway 快照模式）落地 sha256(permissions) ETag 后，本接口与各 DTO 的 `permissionVersion` 字段一并彻底移除。
+> **令牌为何彻底删除**：核实确认令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」（`serviceCode|permissionVersion`）。占位令牌只含 roleIds 指纹，不反映角色内权限内容变更 → 撤权后最长 TTL 仍命中陈旧快照。缓存下沉方案（T-PERM-018）移除该 L2 缓存 + 激活 engine `ROLE_PERM_SNAPSHOT` 读缓存（per-role 精确失效）+ 扩展 `PermInvalidateEvent` serviceCodes，正确性不再依赖令牌；令牌随之失效，连带 304/notModified 死代码清除。
 
-```java
-// T-PERM-003 后的占位接口（待 T-PERM-001 移除）
-public interface PermissionVersionDomainService {
-    String buildPermissionVersionKey(Long userId, Long tenantId, Set<Long> roleIds);
-}
-```
-
-> 4 处 `permissionVersionDomainService.increment(...)` 调用（`PermissionGrantAppServiceImpl`）已删除；`PermissionGrantDomainServiceImpl` 的未用注入已清除。`buildInterfacePermissionVersion`（`PermissionQueryAppServiceImpl`）改为基于 roleIds 指纹，不再调 `batchGetCurrentVersions`。
+> 4 处原 `permissionVersionDomainService.increment(...)` 调用、`PermissionGrantDomainServiceImpl` 未用注入、`buildInterfacePermissionVersion`（`PermissionQueryAppServiceImpl`）均已删除。缓存失效改由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底（Gateway 订阅侧 T-PERM-006）。
 
 ---
 
@@ -574,11 +567,11 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 | --------------------------- | ------------------------------------------------------------------------------ | --------- | -------------------- |
 | 用户有效角色集合            | `perm:user:effective-roles:{tenantId}:{userId}`                                | 60 秒     | 5 分钟               |
 | 角色权限快照（资源+操作位） | `perm:role:perms:{tenantId}:{roleId}`                                          | 60 秒     | 5 分钟               |
-| Gateway 接口快照            | `perm:gateway:interface-snapshot:{tenantId}:{serviceCode}:{permissionDigest}`  | 30 秒     | 3 分钟               |
+| Gateway 接口快照            | `perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}`            | 30 秒     | 3 分钟               |
 | 角色互斥规则                | `perm:conflict-rule:role-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
 | 权限互斥规则                | `perm:conflict-rule:perm-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
 
-> **缓存 key 修订（2026-06-20 审计 S-001）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。Gateway 接口快照 key 中的 `{permissionVersion}` 改为 `{permissionDigest}` —— 由服务端对当前主体权限集合计算内容摘要（如 sha256）生成，与快照同 key 缓存（同失效），不再依赖 `permission_version` 表。失效由 Redis pub/sub 主动广播 `PermInvalidateEvent` + TTL 兜底。
+> **缓存 key 修订（2026-06-20 审计 S-001 + T-PERM-018）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。T-PERM-018 缓存下沉后，permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2)，Gateway 接口快照由 Gateway 本地 Caffeine 按 `(tenantId,subjectTypeCode,userId,serviceCode)` 缓存（key 不再含 `permissionVersion`/`permissionDigest`，令牌机制已整体移除），靠 Redis 广播 `PermInvalidateEvent`（含 serviceCodes）+ TTL 兜底失效。权威 key 见 `PermCacheCatalog` / `GatewayCacheCatalog`。
 
 ### 5.2 缓存失效触发点
 
@@ -598,7 +591,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 依赖规则变更（resource_dependency）
   → 按 grant_dep_id 精准清理 role_resource_permission 中的 AUTO_DEP 补全记录
   → 重新评估受影响角色的自动补全状态（清理旧补全 + 补全新权限）
-  → 角色权限快照失效 + 接口快照失效（permissionDigest 重算）+ 用户缓存失效 + Redis 广播 PermInvalidateEvent
+  → 角色权限快照失效（evictBatch ROLE_PERM_SNAPSHOT）+ 用户缓存失效 + Redis 广播 PermInvalidateEvent
 
 角色停用（abstract_role.status=0）
   → 递归失效关联所有用户的角色缓存
@@ -837,8 +830,7 @@ public record PermissionTreeResp(
     TreeNode root,                          // 起点节点
     List<TreeNode> ancestors,               // 父级链路（direction=ANCESTORS/BOTH）
     List<TreeNode> descendants,             // 子级树（direction=DESCENDANTS/BOTH）
-    String permissionVersion,
-    int cacheTtlSeconds
+    int cacheTtlSeconds                     // 缓存有效时间（秒）
 ) {
     public record TreeNode(
         Long resourceId,

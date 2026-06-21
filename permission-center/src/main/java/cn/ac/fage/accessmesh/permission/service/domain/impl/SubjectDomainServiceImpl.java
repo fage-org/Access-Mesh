@@ -421,4 +421,35 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
 
         cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
+
+    /**
+     * 批量失效多个角色关联的所有用户缓存（T-PERM-018 P2：消除按角色循环 N+1）。
+     * <p>
+     * 固定 ≤3 SQL：① 批量查多角色直接用户（ROLE）；② 批量递归查祖先 GROUP_ROLE；
+     * ③ 批量查组角色用户（GROUP_ROLE）。一次 evictBatch(EFFECTIVE_ROLES)。
+     * </p>
+     */
+    @Override
+    public void invalidateRoleCacheByRoles(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+
+        Set<Long> userIds = new HashSet<>(userRoleMapper.selectValidByTargetIdsAndType(
+                tenantId, roleIds, PermConstants.TargetType.ROLE)
+            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+
+        List<Long> ancestorGroupRoleIds = abstractRoleMapper.selectAncestorGroupRoleIdsBatch(tenantId, roleIds);
+        if (!ancestorGroupRoleIds.isEmpty()) {
+            userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
+                tenantId, new HashSet<>(ancestorGroupRoleIds), PermConstants.TargetType.GROUP_ROLE)
+            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+        }
+
+        if (userIds.isEmpty()) {
+            return;
+        }
+
+        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+    }
 }
