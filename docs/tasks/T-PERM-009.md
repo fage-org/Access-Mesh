@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-009
 title: scopeMode 枚举 + 响应结构重构（宽义）
-status: review
+status: done
 plan: docs/plans/scope-mode-migration-plan.md
 domain: permission-center
 design_refs:
@@ -20,7 +20,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-06-20
+last_updated: 2026-06-21
 ---
 
 # T-PERM-009 scopeMode 枚举 + 响应结构重构（宽义）

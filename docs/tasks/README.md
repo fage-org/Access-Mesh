@@ -25,7 +25,7 @@
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-PERM-001](T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../plans/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | 👀 | ✓ |
+| [T-PERM-001](T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../plans/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | ✅ | ✓ |
 | T-PERM-002 | PermissionChangeContext ThreadLocal + AppService AOP afterCommit | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ✅ | ✓ |
 | T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（含存量 DROP TABLE migration） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
 | T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
@@ -33,7 +33,7 @@
 | T-PERM-006 | Gateway 订阅 perm:invalidate topic，按 tenant+serviceCodes evict 本地 INTERFACE_SNAPSHOT（发布端 serviceCodes 载荷由 T-PERM-018 就位） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-018 | ⚙️ | ⏳ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（待设计 S-006，规范明确后补） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.4 | T-GW-005（S-006 设计）| ⚙️ | ⏳ |
-| T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../plans/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | 👀 | ✓ |
+| T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../plans/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | ✅ | ✓ |
 | T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（scopeAll → scopeMode）— 范围已合并进 T-PERM-009 完成（§6.7 已回写 scopeMode 四态） | scope-mode-migration | design/permission-center/api-contract.md §6.7 | T-PERM-009 | ✅ | ✓ |
 | T-PERM-011 | api-contract.md §6.4-6.10/§10.8 等约 30+ 处 scopeAll 全量推广到 scopeMode | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ⚙️ | ⏳ |
 | T-PERM-012 | 管理端授权配置/排查页响应改造（role-resource-permission save/grant、permission-view） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ⚙️ | ⏳ |
@@ -76,10 +76,10 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 按依赖解锁顺序：
 
-1. `T-PERM-001` 快照模式 — 无依赖，**立即启动**（枢纽，解锁 002/006/T-GW-003）
-2. `T-PERM-003` 删 permission_version — 无依赖，**与 001 并行**（解锁 004/005/007）
-3. `T-PERM-002` AOP afterCommit ← 001
-4. `T-PERM-006` Redis 广播+订阅器 ← 001（解锁 T-GW-005 设计）
+1. `T-PERM-001` 快照模式 — ✅ done（枢纽，解锁 002/006/T-GW-003）
+2. `T-PERM-003` 删 permission_version — ✅ done（解锁 004/005/007）
+3. `T-PERM-002` AOP afterCommit — ✅ done
+4. `T-PERM-006` Redis 广播+订阅器 ← T-PERM-018（发布端 serviceCodes 已就位；解锁 T-GW-005 设计）
 5. `T-PERM-004` 删 increment ← 003
 6. `T-PERM-005` 删缓存目录条目 ← 003
 7. `T-PERM-007` 文档一致性核对 ← 003
@@ -87,8 +87,8 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 ### P2 — 工作单 B scopeMode（数据泄露风险，与 A 完全并行）
 
-1. `T-PERM-009` 枚举+响应结构 — 无依赖，**立即启动**（枢纽）
-2. `T-PERM-010` §6.7 改造 ← 009
+1. `T-PERM-009` 枚举+响应结构 — ✅ done（枢纽）
+2. `T-PERM-010` §6.7 改造 — ✅ done（范围合并进 T-PERM-009）
 3. `T-PERM-011` 30+处全量推广 ← 009
 4. `T-PERM-012` 管理端/排查页 ← 009
 5. `T-PERM-013` schema 映射逻辑 ← 009
@@ -109,9 +109,9 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审计 S-024 无主，性能项，待单独立项。
 
-### 立即可并行启动的三个枢纽
+### 已完成的三个枢纽
 
-`T-PERM-001`（A 链根）+ `T-PERM-003`（A 链删version根）+ `T-PERM-009`（B 链根）—— 均无依赖，解锁 A/B/C 三链绝大部分下游。
+`T-PERM-001`（A 链根）+ `T-PERM-003`（A 链删version根）+ `T-PERM-009`（B 链根）均已完成。当前可优先并行推进 `T-PERM-004`、`T-PERM-005`、`T-PERM-006` 与 `T-PERM-011`。
 
 ## 依赖告警（dangling）
 

@@ -21,12 +21,12 @@ tasks:
   - T-PERM-017
   - T-PERM-018
 acceptance: "A-1~A-7 全完成；代码无 permission_version 残留；Gateway 快照模式 + Redis 广播端到端验证通过（A-8 待 S-006 设计明确后单独跟踪）"
-last_updated: 2026-06-20
+last_updated: 2026-06-21
 ---
 
 # 权限缓存失效改造计划（工作单 A）
 
-> 状态：进行中（T-PERM-001 review / 002·003·018 done / 004~008·017 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
+> 状态：进行中（T-PERM-001·002·003·018 done / 004~008·017 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.1 工作单 A
 > 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，待设计）
@@ -52,7 +52,7 @@ last_updated: 2026-06-20
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-001](../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | 👀 |
+| [T-PERM-001](../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | ✅ |
 | T-PERM-002 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 | ✅ |
 | T-PERM-003 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；含存量环境 `DROP TABLE` migration 脚本 | A'-3 / S-001 | ✅ |
 | T-PERM-004 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 | ⚙️ |
