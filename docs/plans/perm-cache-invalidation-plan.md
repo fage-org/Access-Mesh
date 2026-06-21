@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 权限缓存失效改造（工作单 A）
-status: proposed
+status: active
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md
@@ -18,13 +18,15 @@ tasks:
   - T-PERM-006
   - T-PERM-007
   - T-PERM-008
+  - T-PERM-017
+  - T-PERM-018
 acceptance: "A-1~A-7 全完成；代码无 permission_version 残留；Gateway 快照模式 + Redis 广播端到端验证通过（A-8 待 S-006 设计明确后单独跟踪）"
 last_updated: 2026-06-20
 ---
 
 # 权限缓存失效改造计划（工作单 A）
 
-> 状态：待启动
+> 状态：进行中（T-PERM-001 review / 002·003·018 done / 004~008·017 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.1 工作单 A
 > 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，待设计）
@@ -46,16 +48,20 @@ last_updated: 2026-06-20
 
 ## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
 
+> 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done。本表为快照，权威状态以看板为准。
+
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-001](../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | ⚙️ |
-| T-PERM-002 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 | ⚙️ |
-| T-PERM-003 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；含存量环境 `DROP TABLE` migration 脚本 | A'-3 / S-001 | ⚙️ |
+| [T-PERM-001](../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | 👀 |
+| T-PERM-002 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 | ✅ |
+| T-PERM-003 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；含存量环境 `DROP TABLE` migration 脚本 | A'-3 / S-001 | ✅ |
 | T-PERM-004 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 | ⚙️ |
 | T-PERM-005 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 | ⚙️ |
 | T-PERM-006 | Gateway 订阅 `perm:invalidate`，按 tenant+serviceCodes evict 本地 INTERFACE_SNAPSHOT（发布端 serviceCodes 载荷由 T-PERM-018 就位） | A'-4 | ⚙️ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ⚙️ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（**待设计 S-006**，规范明确后补；依赖 T-GW-005）| S-006 | ⚙️ |
+| [T-PERM-017](../tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 `gateway_evaluable` + 未下发回退 check-interface）| 工作单 A 扩展 | ⚙️ |
+| [T-PERM-018](../tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | A'-5（T-PERM-018 派生）| ✅ |
 
 ## 准入条件
 

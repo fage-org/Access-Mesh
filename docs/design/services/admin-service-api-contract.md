@@ -179,7 +179,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10001-10099 (用户查询)
 
-**当前差距 (来自 api-gap-analysis)**: 需要明确语义为"默认组织树身份目录查询"; 区别于添加组织成员时的候选用户查询 (后者改用 §4.1.2 `/user/member-candidates`).
+**当前差距 (来自 api-gap-analysis，已归档 `docs/archive/2026-06-21/`)**: 需要明确语义为"默认组织树身份目录查询"; 区别于添加组织成员时的候选用户查询 (后者改用 §4.1.2 `/user/member-candidates`). 该差距已由 admin-service 实现收口。
 
 **验收要点**:
 - 操作者无 `ADMIN_USER:VIEW` 时返回空列表 + `code=200` (不抛 SecurityException).
@@ -879,13 +879,13 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 | # | 决策 | 理由 |
 |---|------|------|
-| 1 | admin 代理 user-role/* 而非前端直连 permission-center | 避免业务键暴露给前端; 前端只感知数字 ID; admin 内部完成 ID↔业务键翻译 (api-gap-analysis §4 A 方案) |
+| 1 | admin 代理 user-role/* 而非前端直连 permission-center | 避免业务键暴露给前端; 前端只感知数字 ID; admin 内部完成 ID↔业务键翻译 (api-gap-analysis §4 A 方案，已归档 `docs/archive/2026-06-21/`) |
 | 2 | `/user/create` 一次性返回 `initialPassword` (明文) | 仅本次返回, 由前端弹窗展示给操作者; 后续无法再获取 |
 | 3 | `/user/enable` 启停一体 (`status=0/1`), 不拆 `/user/disable` | 前端 mock 已采用此形态; AppService 内部按 status 派发 ENABLE/DISABLE 门禁码 |
 | 4 | `/user-org/assign` 关系级追加, 禁止 wipe 模式 | 防止跨树意外清除 (default-org-tree §3.2); 已存在关系幂等忽略 |
-| 5 | `/user-org/set-primary` 首期只允许默认树主归属 | 不能全局清除其他组织树主标记 (api-gap-analysis §3) |
+| 5 | `/user-org/set-primary` 首期只允许默认树主归属 | 不能全局清除其他组织树主标记 (api-gap-analysis §3，已归档) |
 | 6 | 岗位 = 特殊组织 (`orgType=2`), 走 `/org/*` + `/user-org/*` | org-user-permission-contract.md v1.2 决策; `/user-role/*` 仅服务功能角色 |
-| 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
+| 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2（已归档）; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
 | 8 | 写操作必须在主事务内写 sys_sync_task, 收敛为 4 类 syncAction | admin-service.md §同步任务模型; 通过本地消息表 + 调度器重发保障最终一致 |
 | 9 | `/user-role/assign|revoke` 不写 sys_sync_task | 功能角色走 permission-center 正式管理 API; sys_sync_task 仅承载 SYS_USER_ORG 派生关系 (admin-service.md §同步任务模型) |
 | 10 | admin-service 不存储 permission-center 内部 ID | 跨服务统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
@@ -922,7 +922,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | `POST /user-role/revoke` | `revokeRole` | 🔧 |
 | `POST /role/list` | `getRoleList` | ✅ |
 
-合计: 22 项接口 (16 🔧 + 6 ✅), 与 api-gap-analysis.md "已核对接口汇总" 一致.
+合计: 22 项接口 (16 🔧 + 6 ✅), 与 api-gap-analysis.md "已核对接口汇总" 一致 (该清单 2026-06-21 归档至 `docs/archive/2026-06-21/`，16 个 🔧 接口已由 admin-service 实现).
 
 ---
 

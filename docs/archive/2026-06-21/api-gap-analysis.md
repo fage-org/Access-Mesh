@@ -1,26 +1,41 @@
 ---
 doc_type: plan
 title: API 核对清单（组织与用户页）
-status: active
+status: archived
 domain: api
 design_refs:
   - docs/design/services/admin-service-api-contract.md
 tasks: []
-acceptance: "27 个接口全部 ✅（当前 ✅=6 + 🔧=16 + ❌=0 + ⏳=5）；🔧 项 Phase 2 后端实现完成"
-last_updated: 2026-06-20
+acceptance: "「组织与用户」范围 22 个接口已收口（6 原对齐 + 16 已实现）；5 个 ⏳（perm-center 侧）迁出至后续页面设计阶段单独跟踪"
+last_updated: 2026-06-21
+archived_to: docs/archive/2026-06-21/api-gap-analysis.md
 note: |
   本清单是 gap 清单型计划。每条 🔧/⏳ gap 转 T-API 任务待后续触达时渐进迁移
   （与 org-user-page P1、user-role-proxy-fix 存在交叉，需去重后再登记）。
+  归档（2026-06-21）：「组织与用户」范围 22 个接口已收口 —— 6 个原已对齐（✅），
+  16 个 🔧 经代码核实已由 admin-service 实现（/user/member-candidates、/user-role/*
+  代理、/org/{create,update,delete}、/user/create 返回 UserCreateResp 等），
+  与 org-user-page-impl-plan P1=100% 一致；gap 跟踪目的达成，契约权威以
+  admin-service-api-contract.md v1.0 为准。
+  5 个 ⏳（perm-center 侧：角色管理/权限授予查询/变更日志/业务域/类型定义）不属于
+  「组织与用户」页范围，迁出至后续各自页面设计阶段单独跟踪，**不纳入本次收口**。
+  正文表格中的 🔧/⏳/❌ 标记为归档时点快照，保留作历史核对记录，不代表当前待办。
 ---
 
 # API 核对清单
 
+> ⚠️ **本清单已于 2026-06-21 归档**（移至 `docs/archive/2026-06-21/api-gap-analysis.md`）。
+> 16 个 🔧 接口经代码核实已由 admin-service 实现，与 [org-user-page-impl-plan](org-user-page-impl-plan.md)（同批次归档）P1=100% 一致。
+> 当前权威契约以 [../../design/services/admin-service-api-contract.md](../../design/services/admin-service-api-contract.md) v1.0 为准。
+> 下方内容保留作历史核对记录，**不再作为实现依据**；表中标 🔧 的接口实际已落地。
+> **归档收口口径**：「组织与用户」范围 22 个接口（6 ✅ + 16 🔧 已实现）已收口；5 个 ⏳（perm-center 侧）迁出至后续页面设计阶段，不在本次收口内。正文表格状态为归档时点快照。
+
 > Phase 1：逐接口核对前端 mock 与后端真实规格，标记 ✅/🔧/❌。
 > Phase 2：后端按此清单改造 🔧❌ 项.
 >
-> 16 个 🔧 接口的契约已在 ../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14), 待 Phase 2 后端实现.
+> 16 个 🔧 接口的契约已在 ../../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14)；归档时点（2026-06-21）已由 admin-service 实现收口，下方表格 🔧 标记保留为历史快照。
 >
-> **范围限定（2026-06-20 审计 S-025）**：本清单**仅覆盖「组织与用户」页面**涉及的 22~27 个接口（汇总见文末，✅=6 + 🔧=16 + ❌=0 + ⏳=5 = 27）。**不代表 admin-service 全量接口** —— admin-service 实际约 90 个（@RequestBody）/ 101 个（@PostMapping），详见 [../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §2 D2 信任锚点核实。全量接口数字待工作单 F-1.a（脚本化 `_metrics.md`）落地后根治。
+> **范围限定（2026-06-20 审计 S-025）**：本清单**仅覆盖「组织与用户」页面**涉及的 22~27 个接口（汇总见文末，✅=6 + 🔧=16 + ❌=0 + ⏳=5 = 27）。**不代表 admin-service 全量接口** —— admin-service 实际约 90 个（@RequestBody）/ 101 个（@PostMapping），详见 [../../archive/2026-06-17/design-review.md](../../archive/2026-06-17/design-review.md) §2 D2 信任锚点核实。全量接口数字待工作单 F-1.a（脚本化 `_metrics.md`）落地后根治。
 >
 > **响应信封**：mock 经 `vite-plugin-fake-server`（`mock/user-manage.ts`）统一返回后端
 > `PermResult<T> = { code, message, data, requestId, traceId }`（`code=200` 成功），
@@ -147,10 +162,11 @@ permission-center 的 `/api/perm/user-role/*` 使用业务键（`subjectTypeCode
 
 ## 已核对接口汇总
 
+> 下表为归档时点（2026-06-21）快照。**实际状态**：22 个「组织与用户」范围接口（6 ✅ + 16 🔧）已全部由 admin-service 实现收口；5 个 ⏳ 迁出至后续页面设计阶段。
+
 | 状态 | 数量 | 说明 |
 |------|------|------|
 | ✅ 已对齐 | 6 | org/tree + org/page + org/users + user/update + user-org/list + role/list |
-| 🔧 需后端改造 | 16 | 默认树用户目录与候选用户查询、user/create/delete/enable/reset-password 生命周期边界、user-org assign/remove/set-primary 跨树语义与 user_role 同步、user-role/list/assign/revoke 代理、org/create/update/delete |
-| 契约已定稿（待实现） | 16 | 上述 16 个 🔧 接口的请求/响应契约已在 ../design/services/admin-service-api-contract.md 定稿 v1.0 (2026-06-14) |
+| 🔧 需后端改造（归档时点快照，**已实现收口**） | 16 | 默认树用户目录与候选用户查询、user/create/delete/enable/reset-password 生命周期边界、user-org assign/remove/set-primary 跨树语义与 user_role 同步、user-role/list/assign/revoke 代理、org/create/update/delete。**已由 admin-service 实现**，契约见 ../../design/services/admin-service-api-contract.md v1.0 |
 | ❌ 重大差异 | 0 | |
-| ⏳ 待核对（其他页面） | 5 | 角色管理、权限授予、变更日志、业务域、类型定义 |
+| ⏳ 待核对（其他页面，**已迁出本次收口**） | 5 | 角色管理、权限授予、变更日志、业务域、类型定义 —— 属 perm-center 侧，非「组织与用户」页范围，待各自页面设计阶段单独跟踪 |

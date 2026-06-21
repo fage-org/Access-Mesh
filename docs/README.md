@@ -60,8 +60,8 @@ docs/
 | 主题 | 文档 |
 |------|------|
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
-| 组织与用户融合页实现计划 | [plans/org-user-page-impl-plan.md](plans/org-user-page-impl-plan.md) |
-| API 核对清单 | [plans/api-gap-analysis.md](plans/api-gap-analysis.md) |
+| ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
+| ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 
 ## 推荐阅读顺序
 
@@ -113,6 +113,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |
 | `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。稳定结论已沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
 | `archive/2026-06/` | v3.0~v3.3 权限中心设计演进历史快照（双轨 AND + sys_menu.operations 元数据化等），已被 v3.5 取代。 | [archive/2026-06/README.md](archive/2026-06/README.md) |
 | `archive/2026-06-17/` | AccessMesh 设计评审记录（2026-06-17）。评审结论已沉淀至 `design/`，工作单 A-C 派生为 P0 计划，D/E/F 暂缓；D1-D10 文档数字勘误待 F-1.a 自动化根治。 | [archive/2026-06-17/README.md](archive/2026-06-17/README.md) |

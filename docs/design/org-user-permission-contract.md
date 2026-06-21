@@ -11,7 +11,7 @@ last_reviewed: 2026-06-20
 > 状态：**v1.4 定稿**（2026-06-14 双轨并行 + 命名空间统一：sys_menu 不再承载可用操作权限，前后端共用 `资源类型:操作码` 词法；VIEW 类细化到资源类型；启用/禁用合并 toggle 语义；普通组织成员关系拆出 `MANAGE_MEMBER`）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
 > 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/RESET_PASSWORD/GRANT/REVOKE/MANAGE_MEMBER/CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION/VIEW_POSITION/ASSIGN_POSITION_USER`）为准；前端 perm 串自 v1.4 起改用乙层格式 `资源类型:操作码`（如 `ADMIN_ORG:CREATE_POSITION`）。
 >
-> 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/plans/api-gap-analysis.md`（接口核对清单）、`docs/plans/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。
+> 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/plans/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户）。原 `docs/plans/api-gap-analysis.md`（接口核对清单）16 个 🔧 接口已实现，2026-06-21 归档至 `docs/archive/2026-06-21/`。
 
 ---
 

@@ -34,7 +34,7 @@
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（待设计 S-006，规范明确后补） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.4 | T-GW-005（S-006 设计）| ⚙️ | ⏳ |
 | T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../plans/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | 👀 | ✓ |
-| T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（scopeAll → scopeMode） | scope-mode-migration | design/permission-center/api-contract.md §6.7 | T-PERM-009 | ⚙️ | ⏳ |
+| T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（scopeAll → scopeMode）— 范围已合并进 T-PERM-009 完成（§6.7 已回写 scopeMode 四态） | scope-mode-migration | design/permission-center/api-contract.md §6.7 | T-PERM-009 | ✅ | ✓ |
 | T-PERM-011 | api-contract.md §6.4-6.10/§10.8 等约 30+ 处 scopeAll 全量推广到 scopeMode | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ⚙️ | ⏳ |
 | T-PERM-012 | 管理端授权配置/排查页响应改造（role-resource-permission save/grant、permission-view） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ⚙️ | ⏳ |
 | T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/permission-center.sql | T-PERM-009 | ⚙️ | ⏳ |

@@ -1,23 +1,31 @@
 ---
 doc_type: plan
 title: 「组织与用户」融合页实现
-status: active
+status: archived
 domain: org-user
 design_refs:
   - docs/design/org-user-permission-contract.md
   - docs/design/default-org-tree-user-lifecycle.md
   - docs/design/services/admin-service-api-contract.md
 tasks: []
-acceptance: "P0 前端骨架 + P1 后端契约 + P2 权限接线全部完成（当前 P0/P1/P2 均 100%）；待与 user-role-proxy-fix 验收联动后归档"
-last_updated: 2026-06-20
+acceptance: "P0 前端骨架 + P1 后端契约 + P2 权限接线全部完成（P0/P1/P2 均 100%）。P1 的 16 个 🔧 接口已由 admin-service 实现；user-role-proxy-fix（T-ADMIN-001~019）已归档，联动验收已完成。"
+last_updated: 2026-06-21
+archived_to: docs/archive/2026-06-21/org-user-page-impl-plan.md
 note: |
-  任务 ID 化待后续触达时渐进迁移。P0 前端任务→T-FE，P1 后端任务部分已被
-  T-ADMIN-001~016（user-role-proxy-fix）覆盖，需去重后再登记，避免重复任务。
+  归档（2026-06-21）：P0/P1/P2 三阶段均 100% 完成。P1 的 16 个 🔧 接口已由
+  admin-service 实现（与同批次归档的 api-gap-analysis 核实一致）；P2 权限接线 +
+  降级完成；user-role-proxy-fix（T-ADMIN-001~019）已归档，联动验收已完成；
+  设计回写在 T-ADMIN-001~019 任务中完成。计划目标达成，归档作历史追溯。
+  下方 P0/P1/P2 内嵌任务表保留为历史记录，**不再作为实现依据**。
+  任务 ID 化因全量完成未再单独立项（P1 已被 T-ADMIN-001~019 覆盖，无重复登记必要）。
 ---
 
 # 「组织与用户」融合页 · 设计 / 实现计划
 
-> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）、`docs/plans/api-gap-analysis.md`（API 核对清单）。
+> ⚠️ **本计划已于 2026-06-21 归档**。P0/P1/P2 三阶段均 100% 完成，下方内嵌任务表保留作历史记录，**不再作为实现依据**。
+> 当前权威契约：[../../design/org-user-permission-contract.md](../../design/org-user-permission-contract.md) v1.2、[../../design/default-org-tree-user-lifecycle.md](../../design/default-org-tree-user-lifecycle.md)、[../../design/services/admin-service-api-contract.md](../../design/services/admin-service-api-contract.md) v1.0。
+
+> 配套文档：`docs/design/org-user-permission-contract.md`（权限契约 v1.2，本计划的门禁来源）、`docs/design/default-org-tree-user-lifecycle.md`（默认组织树与用户生命周期）。原 `docs/plans/api-gap-analysis.md`（API 核对清单）已于 2026-06-21 归档至 `docs/archive/2026-06-21/`——其 16 个 🔧 接口经代码核实已实现，与本计划 P1=100% 一致。
 > 已锁定设计决策：
 > ① 岗位 = 折叠卡片列表（**按左树选中组织筛选，展示该组织及其子组织下的岗位**）；② 成员含子级 = 子树匹配；
 > ③ 默认组织树初始选中，且默认树是用户目录/身份池；④ 主组织仅表示默认树主归属；⑤ 初始密码先弹窗（Phase 2 后端定下发）；
@@ -346,14 +354,18 @@ interface OrgUserItem {
 
 ### 下一步
 
-**P1 后端契约改造**（16 个 🔧 接口，契约已定稿 v1.0）：
-1. `/user/page` 落实 `orgId` 子树语义
-2. `/user/member-candidates` 新增候选用户查询
-3. `/user/create` 增 orgId + 初始密码返回 + 同步 abstract_user + ADMIN_USER resource_entity
-4. `/user/delete` 软删除 + 身份目录边界
-5. `/user/enable`、`/user/reset-password` 身份目录生命周期权限
-6. `/user-org/assign` 关系级追加 + user_role 同步
-7. `/user-org/remove` 跨树语义 + user_role 回收
-8. `/user-org/set-primary` 默认树主归属约束
-9. `/user-role/{list,assign,revoke}` 代理（ID ↔ 业务键翻译）
-10. `/org/create`、`/org/update`、`/org/delete` 组织 CRUD
+> ✅ **P1 后端契约改造已完成**（16 个 🔧 接口，契约 v1.0）。下列清单原为 TODO，现全部落地，代码核实见 admin-service：
+> `UserController`（`/user/page`、`/user/member-candidates`、`/user/create`→`UserCreateResp`、`/user/delete`、`/user/enable`、`/user/reset-password`）、
+> `UserOrgController`（`/user-org/{assign,remove,set-primary}`）、`UserRoleController` + `RoleProxyServiceImpl`（`/user-role/{list,assign,revoke}` 代理）、
+> `OrgController`（`/org/{create,update,delete}`）。原 api-gap-analysis 已据此归档。
+
+1. `/user/page` 落实 `orgId` 子树语义 ✅
+2. `/user/member-candidates` 新增候选用户查询 ✅
+3. `/user/create` 增 orgId + 初始密码返回 + 同步 abstract_user + ADMIN_USER resource_entity ✅
+4. `/user/delete` 软删除 + 身份目录边界 ✅
+5. `/user/enable`、`/user/reset-password` 身份目录生命周期权限 ✅
+6. `/user-org/assign` 关系级追加 + user_role 同步 ✅
+7. `/user-org/remove` 跨树语义 + user_role 回收 ✅
+8. `/user-org/set-primary` 默认树主归属约束 ✅
+9. `/user-role/{list,assign,revoke}` 代理（ID ↔ 业务键翻译）✅
+10. `/org/create`、`/org/update`、`/org/delete` 组织 CRUD ✅

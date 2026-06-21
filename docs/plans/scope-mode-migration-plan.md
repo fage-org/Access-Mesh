@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: scopeMode 协议迁移（工作单 B）
-status: proposed
+status: active
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md
@@ -20,7 +20,7 @@ last_updated: 2026-06-20
 
 # scopeMode 协议迁移计划（工作单 B）
 
-> 状态：待启动
+> 状态：进行中（T-PERM-009 review / 010 done（合并进 009）/ 011~015 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §3 数据权限契约
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.2 工作单 B
 > 关联审计：S-005（scopeMode 全量推广，A 决策）
@@ -42,10 +42,12 @@ last_updated: 2026-06-20
 
 ## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
 
+> 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done。本表为快照，权威状态以看板为准。
+
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-009](../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ⚙️ |
-| T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造 | B2 / S-005 | ⚙️ |
+| [T-PERM-009](../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | 👀 |
+| T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（范围已合并进 T-PERM-009 完成，§6.7 已回写） | B2 / S-005 | ✅ |
 | T-PERM-011 | api-contract.md 约 30+ 处 `scopeAll` 全量推广到 `scopeMode` | S-005=A | ⚙️ |
 | T-PERM-012 | 管理端授权配置 / 排查页响应改造 | S-005=A | ⚙️ |
 | T-PERM-013 | schema `scope_all` 字段保留（内部存储），协议层映射逻辑实现 | B2 | ⚙️ |
@@ -60,8 +62,10 @@ last_updated: 2026-06-20
 ## 当前进度
 
 - 文档层：api-contract.md 顶部已加 scopeMode 迁移注记（2026-06-20 审计 S-005，登记决策待工作单 B 派生）
-- 协议层：**未启动**（api-contract.md 30+ 处仍 scopeAll boolean）
-- 代码层：**未启动**
+- 代码层：T-PERM-009 ✅ 落地中（review）—— `ScopeMode` 4 态枚举（DENIED/INSTANCE/ALL/EMPTY）已定义、`QueryScopesResp` 重构为按 `(resourceTypeCode, operationCode)` 分桶的分类模型，135 tests 0 failures，api-contract §6.7 回写 done
+- 协议层：T-PERM-010 ✅（范围合并进 T-PERM-009，§6.7 已回写 scopeMode 四态）；T-PERM-011 全量推广（api-contract.md 30+ 处仍 scopeAll boolean）未启动
+- 前端适配：**未启动**（T-PERM-015 proposed）
+- 前端适配：**未启动**（T-PERM-015 proposed）
 
 ## 归档条件
 
