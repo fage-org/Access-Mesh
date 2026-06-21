@@ -563,30 +563,32 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
 ### 5.1 缓存 Key 与 TTL 汇总
 
-| 缓存内容                    | Redis Key 模式                                                                 | L1 TTL    | L2 TTL               |
-| --------------------------- | ------------------------------------------------------------------------------ | --------- | -------------------- |
-| 用户有效角色集合            | `perm:user:effective-roles:{tenantId}:{userId}`                                | 60 秒     | 5 分钟               |
-| 角色权限快照（资源+操作位） | `perm:role:perms:{tenantId}:{roleId}`                                          | 60 秒     | 5 分钟               |
-| Gateway 接口快照            | `perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}`            | 30 秒     | 3 分钟               |
-| 角色互斥规则                | `perm:conflict-rule:role-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
-| 权限互斥规则                | `perm:conflict-rule:perm-mutex:{tenantId}`                                     | 5 分钟    | 10 分钟              |
+| 缓存内容                    | Catalog / Key 模式                                                                 | 模式      | L1 TTL    | L2 TTL   |
+| --------------------------- | ---------------------------------------------------------------------------------- | --------- | --------- | -------- |
+| 用户有效角色集合            | `PermCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L1_L2`   | 5 分钟    | 30 分钟  |
+| 角色权限快照（资源+操作位） | `PermCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L1_L2` | 5 分钟    | 30 分钟  |
+| 条件规则                    | `PermCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L1_L2` | 10 分钟   | 30 分钟  |
+| 角色互斥规则                | `PermCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L1_L2`   | 10 分钟   | 30 分钟  |
+| 操作权限按资源类型索引      | `PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE` / `{tenantId}:perm:operation-permissions-by-type:op_perm:{resourceType}` | `L1_L2` | 60 分钟   | 120 分钟 |
+| Gateway 接口快照            | `PermissionFilter.buildCacheKey` / `perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}` | `L1_ONLY` | 默认 30 秒 | 无       |
 
-> **缓存 key 修订（2026-06-20 审计 S-001 + T-PERM-018）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。T-PERM-018 缓存下沉后，permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2)，Gateway 接口快照由 Gateway 本地 Caffeine 按 `(tenantId,subjectTypeCode,userId,serviceCode)` 缓存（key 不再含 `permissionVersion`/`permissionDigest`，令牌机制已整体移除），靠 Redis 广播 `PermInvalidateEvent`（含 serviceCodes）+ TTL 兜底失效。权威 key 见 `PermCacheCatalog` / `GatewayCacheCatalog`。
+> **缓存 key 修订（2026-06-20 审计 S-001 + T-PERM-018）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。T-PERM-018 缓存下沉后，permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2)，Gateway 接口快照由 Gateway 本地 Caffeine 按 `(tenantId,subjectTypeCode,userId,serviceCode)` 缓存（key 不再含 `permissionVersion`/`permissionDigest`，令牌机制已整体移除），靠 Redis 广播 `PermInvalidateEvent`（含 serviceCodes）+ TTL 兜底失效。permission-center 缓存 key 以 `PermCacheCatalog` + `CacheKeyUtil` 为准；Gateway 本地快照实际 key 由 `PermissionFilter.buildCacheKey` 构造，`GatewayCacheCatalog.INTERFACE_SNAPSHOT` 仅声明 `L1_ONLY` 目录语义。
 
 ### 5.2 缓存失效触发点
 
 ```
 权限变更（role_resource_permission）
-  → DomainService 登记影响范围（PermissionChangeContext.markAffectedRoles/markAffectedUsers）
+  → AppService/DomainService 登记影响范围（PermissionChangeContext.markRoles/markUsers）
   → AppService AOP afterCommit 统一处理：
-    → 角色权限快照失效（evictRolePermSnapshot）
-    → Redis pub/sub 广播 PermInvalidateEvent(tenantId, userIds, roleIds)
-    → 关联用户角色缓存失效（查询 user_role WHERE target_id=roleId，逐一失效）
+    → cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds)
+    → SubjectDomainService.invalidateRoleCacheByRoles(tenantId, roleIds)
+      （批量反查直接用户 + 祖先 GROUP_ROLE 用户，一次 evictBatch(EFFECTIVE_ROLES)）
+    → Redis pub/sub 广播 PermInvalidateEvent(tenantId, userIds, roleIds, serviceCodes)
   → 订阅方（Gateway/前端）收到事件 evict 本地快照；TTL（30-60s）兜底
 
 用户-角色关联变更（user_role）
-  → 该用户角色缓存失效（evictEffectiveRoles）
-  → 若目标为 GROUP_ROLE：递归失效所有子角色对应的用户缓存 + extra.basicRoleIds 引用的用户缓存
+  → PermissionChangeContext.markUsers 登记受影响用户
+  → afterCommit 批量失效 EFFECTIVE_ROLES（SubjectDomainService.invalidateRoleCacheBatch）
 
 依赖规则变更（resource_dependency）
   → 按 grant_dep_id 精准清理 role_resource_permission 中的 AUTO_DEP 补全记录
@@ -598,26 +600,26 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
   → 相关接口快照失效
 
 GROUP_ROLE 变更（parent_id 或 extra.basicRoleIds 修改）
-  → 递归失效关联该分组角色（含子角色）的所有用户缓存
+  → PermissionChangeContext.markRoles(groupRoleId)
+  → afterCommit 批量失效 ROLE_PERM_SNAPSHOT + 关联用户 EFFECTIVE_ROLES + 广播
 ```
 
 ### 5.3 Gateway 回调鉴权流程
 
 ```
-Gateway L1 缓存未命中时：
+Gateway 本地接口快照未命中时：
   1. 从 Token 中提取 tenant_id、abstract_user_id
   2. 从路由信息提取 serviceCode、httpMethod、path
-  3. 构建 context 对象：{ "ip": "从请求头提取", "timestamp": "当前时间", ... }
-  4. POST /api/perm/auth/check-interface → 权限中心
-     入参：{ tenantId, userId, serviceCode, httpMethod, path, context }
+  3. 构建本地快照 key：perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}
+  4. POST /api/perm/auth/interface-snapshot → 权限中心
+     入参：{ subjectTypeCode, subjectExternalId, serviceCode }
   5. 权限中心内部：
-     a. 读 Redis perm:user:roles:{tenantId}:{userId} → 用户有效角色集合
-     b. 对每个角色读 Redis perm:role:perms:{tenantId}:{roleId} → 角色权限
-     c. 匹配 serviceCode + httpMethod + path
-     d. 对有 hasCondition=true 的条目 → 使用 context 评估条件
-     e. 返回 allowed/denied + reason
-  6. 写入 L1 缓存（TTL 30s）
-  7. 放行或返回 403
+     a. SubjectDomainService.resolveEffectiveRoles 读取 EFFECTIVE_ROLES（CacheService L1/L2）
+     b. 过滤角色互斥
+     c. PermQueryEngine 通过 ROLE_PERM_SNAPSHOT getBatch 批量读取角色权限
+     d. 条件实时评估，API mapping 组装为 InterfaceSnapshotResp.allowedApis
+  6. Gateway 写入本地 Caffeine 快照（默认 TTL 30s）
+  7. Gateway 使用 InterfaceSnapshotMatcher 本地匹配 serviceCode + httpMethod + path，放行或返回 403
 
 无需版本轮询，无需快照拉取调度器。
 ```
