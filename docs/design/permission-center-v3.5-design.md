@@ -212,6 +212,8 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 ```
 
 > **缓存协商采用标准 HTTP ETag**，不在 body 中定义独立 `snapshotVersion` / `permFingerprint` 字段。失效广播由 Redis pub/sub 主动推送（与 ETag 协商解耦）。
+>
+> **令牌移除（T-PERM-018，2026-06-20）**：`user-menu` / `interface-snapshot` 等查询接口不再返回 `permissionVersion` / `notModified`，取消 HTTP ETag 协商路径。正确性改由 **缓存下沉** 保证——permission-center 侧移除 `INTERFACE_SNAPSHOT`（L2）与 `permissionVersion`，engine `forUserView` 读路径激活 `ROLE_PERM_SNAPSHOT`（per-role 精确失效，roleId 级 evictBatch）；Gateway 本地 Caffeine 仍存在，靠 Redis 广播（`PermInvalidateEvent`，含 `serviceCodes` 载荷，T-PERM-006 订阅侧）+ TTL 兜底。令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，连带 304/notModified 死代码一并清除。
 
 
 ### 5.2 性能基线
@@ -275,7 +277,12 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 >
 > **实现进度（T-PERM-002，2026-06-20）**：写路径缓存失效与广播已统一到 AOP 框架——`PermissionChangeContext`（ThreadLocal 累积器）+ `@PermissionChange` 注解 + `PermissionChangeAspect`（@Around，proceed 后注册单一 afterCommit sync 统一 flush：`invalidateRoleCacheByRole/Batch` + `evictBatch(CONDITION_RULES/ROLE_PERM_SNAPSHOT)` + 发布 `PermInvalidateEvent`）。业务方法体内通过 `markRoles/markUsers/markConditions/markRoleSnapshots` 登记影响范围，afterCommit 注册由框架侧统一完成（铁律 P1-B 达标，业务侧 15 处手写 `TransactionSynchronizationManager` 全部消除）。`PermInvalidationPublisher` 通过 Redis topic `perm:invalidate` 发布，失败仅 warn 靠 TTL 兜底。Gateway 订阅器为 T-PERM-006 范围（发布端已就位）。
 >
-> ⏳ **待办（令牌统一）**：当前快照令牌由 `PermissionQueryAppServiceImpl.buildInterfacePermissionVersion`（私有，roleIds 指纹占位）生成，`buildPermissionVersionKey`（domain service 占位）用于其他查询接口。v3.5 §5.1 要求令牌统一为 `sha256(permissions)` 反映权限内容变更——单独跟踪（T-PERM-018），勿遗漏。T-PERM-002 的 AOP flush 框架已建立，T-PERM-018 在 flush 中追加 INTERFACE_SNAPSHOT 精确失效即可。
+> **实现进度（T-PERM-018，2026-06-20）：缓存下沉**。在 T-PERM-002 的 AOP flush 框架上落地：
+> - **事件载荷扩展 serviceCodes**：`PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)`；`PermissionChangeContext` 加 `markServiceCodes(tenantId, Set<String>|String)` 重载，`Accumulator.isEmpty()` 纳入 serviceCodes。flush 对 `serviceCodes` 不清 permission-center 缓存，仅广播（Gateway 侧清本地快照，T-PERM-006）。
+> - **engine 读路径激活 ROLE_PERM_SNAPSHOT**：`queryForUserView` 走 `getBatch(ROLE_PERM_SNAPSHOT, roleIds)` → miss 集合 1 SQL（`selectValidByRoleIds`）→ `putBatch` 回填；空权限角色缓存 `List.of()`（非 null）防穿透。缓存值为条件评估前、互斥过滤前的原始权限记录（`List<RolePermEntry>`），条件实时评估 → 条件变更洞消失。flush 对 `roleIds` 追加 `evictBatch(ROLE_PERM_SNAPSHOT)`（roleId 级精确，非 evictAll）。`scopeAll`/`instance` 位掩码查询路径第一阶段不缓存（调用方多带过滤参数，缓存 key 复杂，留后续）。
+> - **移除 INTERFACE_SNAPSHOT(L2) + permissionVersion/notModified**：permission-center 侧删 `PermCacheCatalog.INTERFACE_SNAPSHOT`、`permission.vo.InterfaceSnapshot`、`PermissionVersionDomainService(Impl)` 及令牌构造/304 死代码；`InterfaceSnapshotResp`/`Req` 去 `permissionVersion`/`notModified`，`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 去 `permissionVersion`；Gateway `PermissionClient.interfaceSnapshot` 去令牌参数、`PermissionFilter` 去 notModified 分支。Gateway 本地 Caffeine `interfaceSnapshotCache` 保留。
+> - **写路径全路径登记**：资源软删（`deleteResources`）加 `@PermissionChange`，软删 perm 前双重登记 `markRoles`（查受影响 roleIds，新增 `selectRoleIdsByResourceIds`）+ `markServiceCodes`（资源→API mapping→serviceCode）；API mapping 增删改（`addApiMapping`/`updateApiMapping`/`removeApiMappingsByIds`）+ `syncInterfaces` 加 `@PermissionChange` 仅 `markServiceCodes`（perm 未变不 markRoles）。
+> - **边界（C10）**：T-PERM-018 仅就位 serviceCodes 事件载荷并发布；Gateway 订阅侧按 tenant+serviceCodes 主动清本地 `interfaceSnapshotCache` 属 T-PERM-006 范围。T-PERM-018 单独完成后，API mapping/resource/sync 变更的 Gateway 本地陈旧仍靠 Gateway TTL 兜底，直至 T-PERM-006 落地。
 
 > **风险声明**：Redis 重启 / 网络分区 / 订阅断线时，权限主动撤销（HR 禁用员工 / 越权 token 紧急回收）退化为纯 TTL 失效，最长 stale 窗口 = `stale-grace-seconds` + TTL。与 PM「分钟级延迟可接受」决策一致。持久化 outbox 重投作为 v3.5.1+ 增量评估项。
 

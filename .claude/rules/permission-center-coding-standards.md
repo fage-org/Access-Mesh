@@ -192,6 +192,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 // 落地状态（T-PERM-002，2026-06-20）：业务侧 15 处手写同步已全部消除。
 // 注：permissionVersionDomainService.increment 已删除（审计 S-001 / design-review §A'-3），
 // 缓存失效改由 Redis pub/sub 主动广播 PermInvalidateEvent + TTL 兜底。
+// T-PERM-018（2026-06-20）缓存下沉：INTERFACE_SNAPSHOT(L2)/permissionVersion/notModified 已移除，
+// engine forUserView 激活 ROLE_PERM_SNAPSHOT 读缓存（per-role 精确失效）；事件载荷扩展 serviceCodes。
 //
 // AppService 写方法标注 @PermissionChange，方法体内登记影响范围：
 @Override
@@ -205,17 +207,20 @@ public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) 
     return toItemRespList(...);
 }
 // AOP afterCommit 自动执行（框架侧 PermissionChangeAspect.flush）：
-//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);   // roleIds
+//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);   // roleIds（反查受影响用户）
+//   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds);     // roleIds → per-role 精确失效
 //   subjectDomainService.invalidateRoleCacheBatch(tenantId, userIds);   // userIds
 //   cacheService.evictBatch(CONDITION_RULES, tenantId, conditionIds);   // conditionIds
-//   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds);     // roleSnapshotIds
-//   redissonClient.getTopic("perm:invalidate").publish(PermInvalidateEvent);
+//   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds); // roleSnapshotIds（角色删除直清）
+//   publisher.publish(tenantId, roleIds, userIds, serviceCodes);        // 广播 PermInvalidateEvent
+// 注：markServiceCodes 仅触发广播（Gateway 侧清本地快照，T-PERM-006），不清 permission-center 缓存。
 
 // ✅ mark API（PermissionChangeContext，ThreadLocal 累积器，同 TenantContextHolder 语义）：
-//   markRoles(tenantId, roleIds|roleId)        // 角色权限变更 → 失效 EFFECTIVE_ROLES
-//   markUsers(tenantId, userIds)               // 用户角色关系变更 → 失效 EFFECTIVE_ROLES
-//   markConditions(tenantId, conditionIds)     // 条件规则变更 → 失效 CONDITION_RULES
-//   markRoleSnapshots(tenantId, roleIds)       // 角色删除 → 直清 ROLE_PERM_SNAPSHOT
+//   markRoles(tenantId, roleIds|roleId)          // 角色权限变更 → 失效 EFFECTIVE_ROLES + ROLE_PERM_SNAPSHOT
+//   markUsers(tenantId, userIds)                 // 用户角色关系变更 → 失效 EFFECTIVE_ROLES
+//   markConditions(tenantId, conditionIds)       // 条件规则变更 → 失效 CONDITION_RULES
+//   markRoleSnapshots(tenantId, roleIds)         // 角色删除 → 直清 ROLE_PERM_SNAPSHOT
+//   markServiceCodes(tenantId, serviceCodes|serviceCode) // API mapping/资源/sync 变更 → 广播（Gateway 清本地快照）
 
 // ❌ 禁止 — 业务侧手写同步（违反 P1-B，已由 @PermissionChange AOP 取代）
 if (TransactionSynchronizationManager.isSynchronizationActive()) {

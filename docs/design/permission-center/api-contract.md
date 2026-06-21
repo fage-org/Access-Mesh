@@ -10,7 +10,7 @@ last_reviewed: 2026-06-20
 
 > 本文档定义 permission-center 对外稳定接口契约。目标是让权限中心既能服务 AccessMesh 内部 Gateway/SDK，又能作为通用权限管理服务暴露给外部业务系统。
 
-> **全局注记（2026-06-20 审计 S-001）**：本文档中出现的 `permissionVersion` 字段均为**不透明令牌**（ETag 语义），由服务端对当前主体权限集合计算内容摘要生成，**不依赖 `permission_version` 表**（该表已决策删除，见 design-review §A'-3 + v3.5 §9.2）。
+> **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。本文档历史段落保留的字段描述仅作演进记录，**以代码为准**（`InterfaceSnapshotResp`/`InterfaceSnapshotReq`/`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 均不再含 `permissionVersion`）。
 
 > **scopeAll → scopeMode 迁移注记（2026-06-20 审计 S-005=A）**：本文档中约 30+ 处 `scopeAll` (boolean) 字段计划全量迁移到 `scopeMode` 三值枚举（INSTANCE/ALL/NONE），覆盖运行时鉴权口 + 管理端授权配置 + 排查页（design-review §B-1 决策 + 审计 S-005=A）。**当前文档暂未逐处改造**，与工作单 B（落地暂缓，见 design-review §11）绑定，待工作单 B 派生 plan 时随代码一并落地。落地前 `scopeAll` 字段维持现状语义。
 
@@ -398,9 +398,9 @@ last_reviewed: 2026-06-20
 
 `POST /api/perm/auth/interface-snapshot`
 
-用于 Gateway 按服务拉取当前主体可访问的 API 快照。`permissionVersion` 是一个不透明字符串令牌，由权限中心根据当前有效角色集合和各角色权限摘要生成。
+用于 Gateway 按服务拉取当前主体可访问的 API 快照。permission-center 每次实时调 engine 构建全量快照返回（T-PERM-018 缓存下沉，移除 `permissionVersion`/`notModified` 与条件请求），Gateway 本地 Caffeine 缓存 + Redis 广播（`perm:invalidate`，含 `serviceCodes` 载荷，T-PERM-006 订阅侧）+ TTL 兜底保证一致性。
 
-> **令牌来源（2026-06-20 审计 S-001）**：`permissionVersion` 令牌**不依赖 `permission_version` 表**（该表已决策删除，见 design-review §A'-3 + v3.5 §9.2）。令牌由服务端对当前主体有效权限集合计算内容摘要生成（如 `sha256(subjectTypeCode + subjectExternalId + serviceCode + sorted(allowedApis))`），作为不透明 ETag 使用。建议服务端将令牌与权限快照缓存到同一 Redis key（同失效），避免每次重算。
+> **令牌移除（T-PERM-018，2026-06-20）**：`permissionVersion` / `notModified` 字段已移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。permission-center 正确性改由 engine `ROLE_PERM_SNAPSHOT` 读缓存（per-role 精确失效）保证；Gateway 本地陈旧由广播 + TTL 兜底。
 
 请求：
 
@@ -408,8 +408,7 @@ last_reviewed: 2026-06-20
 {
   "subjectTypeCode": "USER",
   "subjectExternalId": "u-10001",
-  "serviceCode": "admin-service",
-  "permissionVersion": "perm:v2:6f4f10cfa4a99f4d8d7a7f0f97b2d6d4c796f8d5d5b154d5c55f9e42d16dc3c4"
+  "serviceCode": "admin-service"
 }
 ```
 
@@ -417,8 +416,6 @@ last_reviewed: 2026-06-20
 
 ```json
 {
-  "notModified": false,
-  "permissionVersion": "perm:v2:6f4f10cfa4a99f4d8d7a7f0f97b2d6d4c796f8d5d5b154d5c55f9e42d16dc3c4",
   "allowedApis": [
     {
       "serviceCode": "admin-service",
@@ -442,12 +439,9 @@ last_reviewed: 2026-06-20
 
 规则：
 
-- 服务端必须先计算当前 `permissionVersion`，再决定是否返回 `notModified=true`。
-- 快照缓存键必须至少包含 `serviceCode + permissionVersion`，不能只按 `serviceCode` 共享。
-- `permissionVersion` 是不透明令牌，调用方只能回传比较，不能解析其内部结构。
-- 当 `req.permissionVersion == resp.permissionVersion` 时，服务端可返回 `notModified=true` 且 `allowedApis=[]`。
-- 当权限令牌变化时，服务端必须重新构建或读取新键下的快照，旧快照不能复用。
+- permission-center 每次实时构建全量快照返回，不再有令牌比较 / 304 短路路径；无有效角色时返回 `allowedApis=[]`。
 - `scopeAll=true` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开 scopeAll 为逐条 API。实例级条目（`scopeAll=false`）仍按 `httpMethod + pathPattern` 精确匹配。
+- Gateway 本地缓存 key 为 `(tenantId,subjectTypeCode,userId,serviceCode)`；API mapping / 资源 / syncInterfaces 变更触发 `PermInvalidateEvent`（含 `serviceCodes`），Gateway 订阅后按 tenant+serviceCodes evict 本地快照（T-PERM-006）。
 
 ### 6.2.2 资源实体专用同步
 
@@ -1242,7 +1236,6 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "grantSources": ["MANUAL"]
     }
   ],
-  "permissionVersion": "u-10001:42",
   "cacheTtlSeconds": 60
 }
 ```
@@ -1333,7 +1326,6 @@ admin-service 查询示例：
       "dependOnPermissionIds": []
     }
   ],
-  "permissionVersion": "u-10001:42",
   "cacheTtlSeconds": 60
 }
 ```
@@ -1361,7 +1353,7 @@ admin-service 查询示例：
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
 - `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行按 `scopeMode` 决定是否发 SQL 及如何把 `items[].resourceCode` 映射为查询条件。
-- 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）。`permissionVersion` 字段保留至 T-PERM-001 收尾移除。
+- 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）。`permissionVersion` 字段已于 T-PERM-018（缓存下沉）移除。
 
 ### 6.8 权限排查视图与近期变更
 

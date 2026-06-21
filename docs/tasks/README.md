@@ -30,7 +30,7 @@
 | T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（含存量 DROP TABLE migration） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
 | T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-005 | 删除缓存目录 PermCacheCatalog.PERMISSION_VERSION + key 后缀 :{permissionVersion} | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
-| T-PERM-006 | Gateway 订阅 perm:invalidate topic，evict 本地 INTERFACE_SNAPSHOT（发布端由 T-PERM-002 完成） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-002 | ⚙️ | ⏳ |
+| T-PERM-006 | Gateway 订阅 perm:invalidate topic，按 tenant+serviceCodes evict 本地 INTERFACE_SNAPSHOT（发布端 serviceCodes 载荷由 T-PERM-018 就位） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-018 | ⚙️ | ⏳ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（待设计 S-006，规范明确后补） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.4 | T-GW-005（S-006 设计）| ⚙️ | ⏳ |
 | T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../plans/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | 👀 | ✓ |
@@ -41,7 +41,7 @@
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-010, T-PERM-011 | ⚙️ | ⏳ |
 | T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 三分支 | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ⚙️ | ⏳ |
 | [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ⚙️ | ⏳ |
-| [T-PERM-018](T-PERM-018.md) | 权限令牌统一 sha256(permissions) + 写路径精确失效接口快照 | perm-cache-invalidation | v3.5 §5.1/§7.2 | T-PERM-002 | ⚙️ | ⏳ |
+| [T-PERM-018](T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 
