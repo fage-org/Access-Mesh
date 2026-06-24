@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.permission.util;
+package cn.ac.fage.accessmesh.perm.common.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
@@ -11,11 +11,21 @@ import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 /**
- * 权限条件评估工具类
+ * 权限条件评估工具类（T-PERM-017 搬入 perm-common，供 Gateway 与 permission-center 共享）
  * <p>
- * 提供权限条件项评估的静态工具方法。
- * 从 PermissionConditionDomainServiceImpl 中提取，提供可复用的评估逻辑。
+ * 提供权限条件项评估的静态工具方法。纯静态、无 DB / Spring 依赖，可在任意 JVM 进程内复用。
  * 支持日期范围、时间范围、IP白名单/黑名单等条件类型的评估。
+ * </p>
+ * <p>
+ * 时钟语义说明（T-PERM-017）：
+ * <ul>
+ *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 使用调用方进程的系统时钟 {@code LocalDate.now()} /
+ *       {@code LocalTime.now()}。</li>
+ *   <li>Gateway 与 permission-center 通常运行在不同进程，两者时钟可能存在秒级偏差。{@code TIME_RANGE} 因秒级
+ *       敏感度高 + 跨午夜边界逻辑，初期不下发 Gateway 评估（{@code gateway_evaluable=false}），命中后回退
+ *       check-interface 由 permission-center 实时鉴权。</li>
+ *   <li>{@code DATE_RANGE} 按天颗粒度，时钟漂移影响小，可下发 Gateway。</li>
+ * </ul>
  * </p>
  */
 public final class ConditionEvalUtils {
@@ -36,7 +46,7 @@ public final class ConditionEvalUtils {
      * 评估日期范围条件
      * <p>
      * 判断当前日期是否在指定的日期范围内（包含边界）。
-     * 日期格式为 ISO 8601 格式（yyyy-MM-dd）。
+     * 日期格式为 ISO 8601 格式（yyyy-MM-dd）。使用调用方进程的系统时钟。
      * </p>
      *
      * @param startDate 开始日期字符串
@@ -60,7 +70,7 @@ public final class ConditionEvalUtils {
      * 评估时间范围条件
      * <p>
      * 判断当前时间是否在指定的时间范围内（包含边界）。
-     * 时间格式为 ISO 8601 格式（HH:mm:ss）。
+     * 时间格式为 ISO 8601 格式（HH:mm:ss）。使用调用方进程的系统时钟。
      * </p>
      *
      * @param startTime 开始时间字符串

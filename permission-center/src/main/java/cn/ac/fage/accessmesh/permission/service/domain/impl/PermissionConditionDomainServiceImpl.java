@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
-import cn.ac.fage.accessmesh.permission.util.ConditionEvalUtils;
+import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
