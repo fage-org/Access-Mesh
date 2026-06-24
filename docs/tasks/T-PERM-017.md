@@ -39,8 +39,8 @@ last_updated: 2026-06-24
 | C2 | `ConditionEvalUtils` 搬至 `perm-common`，permission-center 删除原位 | ✅ `51a104a14` |
 | C2.5 | `gatewayEvaluable=true` 规则类型白名单校验（create/update 写入门禁 + 单元测试） | ✅ `157d3982e` |
 | C2.6 | 文档口径统一：4 类全可下发；时钟一致性由 NTP 保证；删除未消费的 `context.timestamp` 死代码 | ✅ `b53288dbb` |
-| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ⏳ 待提交 |
-| C4 | `InterfaceSnapshotMatcher` 本地重评 + `PermissionFilter` 未下发条件 fallback 调 check-interface（仅带 clientIp） | ⏳ |
+| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ✅ `206f99baf` |
+| C4 | `SnapshotAssembler` 不折叠多条同 API 授权（去重 key 加 conditionId，修 P1-②）；`InterfaceSnapshotMatcher` 改 OR 匹配 + 本地重评含 conditionRules 条目；`PermissionFilter` 未下发条件命中 HTTP 同步调 `/perm/check-interface` fallback（仅 clientIp）；补 INTERFACE_SNAPSHOT 失效注释承诺。**注：C3 与 C4 绑定发布，C3 单独部署会让条件 API 在 Gateway 直接放行** | ⏳ |
 | C5 | 设计回写 `gateway.md` / `v3.5 §7.2`；任务收尾 → review → done | ⏳ |
 
 # T-PERM-017 条件权限 Gateway 侧重评（混合方案）
