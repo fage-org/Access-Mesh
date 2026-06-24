@@ -83,6 +83,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         JsonValidationUtils.validateJson(req.conditionRules());
         condition.setConditionRules(req.conditionRules());
         condition.setEnabled(req.enabled() != null ? req.enabled() : true);
+        condition.setGatewayEvaluable(req.gatewayEvaluable() != null ? req.gatewayEvaluable() : false);
         condition.setDescription(req.description());
         condition.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
@@ -144,11 +145,14 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             condition.setConditionRules(req.conditionRules());
         }
         if (req.enabled() != null) condition.setEnabled(req.enabled());
+        if (req.gatewayEvaluable() != null) condition.setGatewayEvaluable(req.gatewayEvaluable());
         if (req.description() != null) condition.setDescription(req.description());
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 
         // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        // T-PERM-017 注：updateCondition 切换 gatewayEvaluable 时，Gateway 已下发的接口快照需同步失效。
+        // 当前阶段 conditionRules 尚未内联快照（C3 引入），暂只登记 CONDITION_RULES 失效。
         PermissionChangeContext.markConditions(tenantId, Set.of(req.conditionId()));
         return toConditionResp(condition);
     }
@@ -262,7 +266,9 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     private ConditionResp toConditionResp(PermissionCondition c) {
         return new ConditionResp(
             c.getId(), c.getTenantId(), c.getCode(), c.getName(),
-            c.getConditionRules(), c.getEnabled(), c.getDescription(), c.getCreatedAt()
+            c.getConditionRules(), c.getEnabled(),
+            c.getGatewayEvaluable() != null ? c.getGatewayEvaluable() : false,
+            c.getDescription(), c.getCreatedAt()
         );
     }
 }
