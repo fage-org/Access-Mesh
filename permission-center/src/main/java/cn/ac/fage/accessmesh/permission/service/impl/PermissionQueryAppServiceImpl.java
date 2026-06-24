@@ -597,9 +597,13 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
 
         List<ApiPermissionEntry> dedupedEntries = entries.stream()
             .collect(Collectors.toMap(
-                item -> item.serviceCode() + "|" + item.httpMethod() + "|" + item.pathPattern(),
+                // T-PERM-017 C4 修 P1-②：去重 key 加 conditionId，避免同 API 多授权（无条件+含条件）
+                // 被折叠成单条。Gateway InterfaceSnapshotMatcher 用 OR 语义合并多条 entry。
+                // conditionId=null（无条件）参与 key，使无条件分支与任何条件分支独立保留。
+                item -> item.serviceCode() + "|" + item.httpMethod() + "|" + item.pathPattern()
+                    + "|" + item.conditionId(),
                 item -> item,
-                (left, right) -> left.hasCondition() ? left : right,
+                (left, right) -> left,
                 LinkedHashMap::new
             ))
             .values()

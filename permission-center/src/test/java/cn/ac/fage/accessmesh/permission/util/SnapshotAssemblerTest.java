@@ -103,6 +103,64 @@ class SnapshotAssemblerTest {
         assertThat(entries.get(0).conditionRules()).isNull();   // 防御过滤拒绝内联
     }
 
+    @Test
+    void shouldKeepBothEntries_whenSameApiHasUnconditionalAndConditionalGrants() {
+        // T-PERM-017 C4 修 P1-②：同一 API 资源同时持有"无条件"和"含条件"两条授权（不同角色）
+        // 必须保留为两条独立的 ApiPermissionEntry，Gateway InterfaceSnapshotMatcher 用 OR 语义合并：
+        // 任一分支放行即允许。原实现 anyMatch+findFirst 会折叠成单条带条件 entry，
+        // 条件评估失败时整体拒绝，丢失无条件分支授权。
+        String rules = "{\"logic\":\"AND\",\"items\":["
+            + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
+        PermissionCondition cond = newCondition(true, rules);
+        when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
+        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        // 角色A：无条件授权；角色B：含条件授权（IP 白名单）
+        RolePermEntry unconditional = new RolePermEntry(
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            "DIRECT", true, null, false, null, false);
+        RolePermEntry conditional = entryWithCondition(RESOURCE_ID, CONDITION_ID);
+        PermResult result = resultWith(unconditional, conditional);
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        assertThat(entries).hasSize(2);
+        ApiPermissionEntry unconditionalEntry = entries.stream()
+            .filter(e -> !e.hasCondition()).findFirst().orElseThrow();
+        ApiPermissionEntry conditionalEntry = entries.stream()
+            .filter(ApiPermissionEntry::hasCondition).findFirst().orElseThrow();
+        assertThat(unconditionalEntry.conditionId()).isNull();
+        assertThat(unconditionalEntry.conditionRules()).isNull();
+        assertThat(conditionalEntry.conditionId()).isEqualTo(CONDITION_ID);
+        assertThat(conditionalEntry.conditionRules()).isEqualTo(rules);
+    }
+
+    @Test
+    void shouldDedupSameConditionMultiRole_whenSameApiSameConditionMultipleGrants() {
+        // 同一资源、同一 conditionId、不同角色的多条授权对 Gateway 匹配没有区别，去重为一条 entry。
+        // 与上一个 case 形成对比：不同 conditionId 才保留多条。
+        String rules = "{\"logic\":\"AND\",\"items\":["
+            + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
+        PermissionCondition cond = newCondition(true, rules);
+        when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
+        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        RolePermEntry roleA = new RolePermEntry(
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            "DIRECT", true, CONDITION_ID, true, null, false);
+        RolePermEntry roleB = new RolePermEntry(
+            2L, 20L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            "DIRECT", true, CONDITION_ID, true, null, false);
+        PermResult result = resultWith(roleA, roleB);
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).conditionId()).isEqualTo(CONDITION_ID);
+    }
+
     // ===== helpers =====
 
     private PermissionCondition newCondition(boolean gatewayEvaluable, String rules) {

@@ -12,10 +12,24 @@ import java.util.concurrent.TimeUnit;
  * 网关Caffeine本地缓存配置类
  * <p>
  * T-PERM-001 快照模式：缓存 key 从 (user,service,method,path)→Boolean 改为
- * user→InterfaceSnapshotResp（用户在某服务下的全量接口权限快照）。鉴权降为本地内存匹配。
+ * (tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp（用户在某服务下的全量接口权限快照）。
+ * 鉴权降为本地内存匹配 ({@code InterfaceSnapshotMatcher})。
  * </p>
  * <p>
- * 缓存失效：TTL 兜底（30-60s）+ Redis pub/sub 主动广播（T-PERM-006 实现订阅器后 evict）。
+ * 缓存失效（T-PERM-006 / T-PERM-018）：
+ * <ul>
+ *   <li><strong>TTL 兜底</strong>：通过 {@link GatewayProperties.Cache.L1#getTtlSeconds()} 配置，
+ *       默认 30-60s，保证最终一致</li>
+ *   <li><strong>Redis 广播主动失效</strong>：permission-center 写路径事务提交后，通过
+ *       {@code PermissionChangeAspect} 发布 {@code PermInvalidateEvent} 到 topic {@code perm:invalidate}；
+ *       Gateway 订阅器（T-PERM-006 实现）接收后 {@code evict} 本缓存——
+ *       按 (tenantId, userIds, serviceCodes) 三维度精确失效</li>
+ * </ul>
+ * </p>
+ * <p>
+ * T-PERM-017 C4：含条件 entry 不再走单纯本地匹配——{@code InterfaceSnapshotMatcher.match} 返回三态
+ * （ALLOW / FALLBACK / DENY），FALLBACK 分支由 {@code PermissionFilter} 调
+ * {@code /perm/check-interface} 走实时鉴权。本缓存仍只缓存快照不缓存评估结果。
  * </p>
  */
 @Configuration
@@ -36,7 +50,13 @@ public class CacheConfig {
      * 创建接口权限快照缓存实例
      * <p>
      * 缓存维度：{@code (tenantId, subjectTypeCode, userId, serviceCode) → InterfaceSnapshotResp}。
-     * 鉴权时按本地匹配器查询快照内 allowedApis，命中即放行，未命中回源拉取。
+     * 鉴权时按 {@code InterfaceSnapshotMatcher.match} 查询快照内 allowedApis：
+     * <ul>
+     *   <li>ALLOW → 直接放行</li>
+     *   <li>FALLBACK → 调 check-interface 实时鉴权（含条件但 conditionRules 未下发）</li>
+     *   <li>DENY → 403</li>
+     * </ul>
+     * 未命中时回源拉取并填充本缓存。
      * </p>
      *
      * @return Caffeine缓存实例

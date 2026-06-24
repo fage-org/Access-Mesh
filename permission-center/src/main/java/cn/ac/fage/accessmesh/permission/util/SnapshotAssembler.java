@@ -95,7 +95,10 @@ public class SnapshotAssembler {
 
         List<InterfaceSnapshotResp.ApiPermissionEntry> snapshotEntries = new ArrayList<>();
 
-        // 1. scopeAll 条目：不展开，直接作为一个条目
+        // 1. scopeAll 条目：每条权限授权独立成一个 ApiPermissionEntry
+        // T-PERM-017 C4 修 P1-②：同一 serviceCode 下多条 scopeAll 授权不再折叠——
+        // 例如"角色A 无条件 scopeAll + 角色B 含条件 scopeAll"应保留两条，Gateway 用 OR 语义合并：
+        // 任一分支放行即允许，避免条件评估失败误拒绝持有无条件授权的请求。
         for (RolePermEntry e : apiEntries) {
             if (Boolean.TRUE.equals(e.scopeAll()) && e.resourceEntityId() == null) {
                 String rulesJson = e.hasCondition() && e.conditionId() != null
@@ -107,43 +110,55 @@ public class SnapshotAssembler {
             }
         }
 
-        // 2. 实例级条目：照常处理
-        Set<Long> instanceResourceIds = apiEntries.stream()
+        // 2. 实例级条目：按 (resourceEntityId, conditionId) 组合展开
+        // T-PERM-017 C4 修 P1-②：原实现每个资源用 anyMatch 标 hasCondition + findFirst 取 conditionId，
+        // 导致多授权场景被折叠为单条带条件 entry，Gateway 评条件失败就整体拒绝丢失无条件分支。
+        // 改为对每个 (resource, conditionId) 组合各产出一条 entry × 每个 API 映射，
+        // Gateway Matcher 用 OR 语义合并 → 任一分支放行即允许。
+        List<RolePermEntry> instanceEntries = apiEntries.stream()
             .filter(e -> e.resourceEntityId() != null && !Boolean.TRUE.equals(e.scopeAll()))
-            .map(RolePermEntry::resourceEntityId)
-            .collect(Collectors.toSet());
+            .toList();
 
-        if (!instanceResourceIds.isEmpty()) {
+        if (!instanceEntries.isEmpty()) {
+            Set<Long> instanceResourceIds = instanceEntries.stream()
+                .map(RolePermEntry::resourceEntityId)
+                .collect(Collectors.toSet());
+
             // 查询 API 映射
             List<ResourceApiMapping> apiMappings = apiMappingMapper.selectForSnapshot(
                 tenantId, serviceCode, instanceResourceIds);
 
-            // 构建 permsByResource 用于条件查询
-            Map<Long, List<RolePermEntry>> permsByResource = apiEntries.stream()
-                .filter(e -> e.resourceEntityId() != null && !Boolean.TRUE.equals(e.scopeAll()))
-                .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId));
+            // 按 resourceEntityId 分组 + 组内按 conditionId 去重
+            // 同一资源、同一条件配置下多角色合并为一条（对 Gateway 匹配来说重复无区别）；
+            // 无条件授权用 0L 占位 key 与含条件授权区分，避免同资源混合场景被折叠。
+            Map<Long, Map<Long, RolePermEntry>> permsByResource = new LinkedHashMap<>();
+            for (RolePermEntry e : instanceEntries) {
+                Long resourceId = e.resourceEntityId();
+                Long condKey = e.hasCondition() && e.conditionId() != null ? e.conditionId() : 0L;
+                permsByResource
+                    .computeIfAbsent(resourceId, k -> new LinkedHashMap<>())
+                    .putIfAbsent(condKey, e);
+            }
 
             for (ResourceApiMapping mapping : apiMappings) {
-                List<RolePermEntry> resourcePerms = permsByResource.getOrDefault(
-                    mapping.getResourceEntityId(), List.of());
-                boolean hasCondition = resourcePerms.stream().anyMatch(RolePermEntry::hasCondition);
-                Long conditionId = resourcePerms.stream()
-                    .filter(e -> e.conditionId() != null)
-                    .map(RolePermEntry::conditionId)
-                    .findFirst().orElse(null);
-                String rulesJson = hasCondition && conditionId != null
-                    ? pushableRulesById.get(conditionId)
-                    : null;
+                Map<Long, RolePermEntry> permsForResource = permsByResource.getOrDefault(
+                    mapping.getResourceEntityId(), Map.of());
+                if (permsForResource.isEmpty()) continue;
 
-                snapshotEntries.add(new InterfaceSnapshotResp.ApiPermissionEntry(
-                    mapping.getServiceCode(),
-                    mapping.getHttpMethod(),
-                    mapping.getPathPattern(),
-                    hasCondition,
-                    conditionId,
-                    rulesJson,
-                    false
-                ));
+                for (RolePermEntry perm : permsForResource.values()) {
+                    String rulesJson = perm.hasCondition() && perm.conditionId() != null
+                        ? pushableRulesById.get(perm.conditionId())
+                        : null;
+                    snapshotEntries.add(new InterfaceSnapshotResp.ApiPermissionEntry(
+                        mapping.getServiceCode(),
+                        mapping.getHttpMethod(),
+                        mapping.getPathPattern(),
+                        perm.hasCondition(),
+                        perm.hasCondition() ? perm.conditionId() : null,
+                        rulesJson,
+                        false
+                    ));
+                }
             }
         }
 

@@ -3,7 +3,9 @@ package cn.ac.fage.accessmesh.gateway.filter;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher;
+import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher.Decision;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,13 +25,27 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.net.InetSocketAddress;
+
 /**
- * 接口级权限过滤器（T-PERM-001 快照模式）
+ * 接口级权限过滤器（T-PERM-001 快照模式 / T-PERM-017 C4 条件 Gateway 重评）
  * <p>
- * 缓存维度从 (user,service,method,path)→Boolean 改为 (tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp。
- * 鉴权流程：本地查快照 → 命中则本地匹配放行/拒绝 → 未命中回源拉取快照后本地匹配。
- * permission-center 不可达时 fail-close（503）；stale-allow 由 T-GW-003 实现。
- * 执行顺序：-60
+ * 缓存维度：(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp。
+ * 鉴权流程：
+ * <ol>
+ *   <li>本地查快照 → 未命中回源拉取并缓存（permission-center 实时构建全量快照）</li>
+ *   <li>本地匹配 ({@link InterfaceSnapshotMatcher}) 返回三态：
+ *     <ul>
+ *       <li>{@link Decision#ALLOW} → 直接放行</li>
+ *       <li>{@link Decision#FALLBACK} → 同步调 {@code /perm/check-interface} 实时鉴权（仅传 clientIp）</li>
+ *       <li>{@link Decision#DENY} → 403 拒绝</li>
+ *     </ul>
+ *   </li>
+ * </ol>
+ * </p>
+ * <p>
+ * T-PERM-017 C4：含条件 entry 不再直接放行——能内联评估的本地评，不能下发的走 check-interface fallback。
+ * permission-center 不可达时 fail-close（503），stale-allow 由 T-GW-003 实现。执行顺序：-60
  * </p>
  */
 @Component
@@ -61,20 +77,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 过滤器执行逻辑
-     * <p>
-     * 1. 检查是否跳过认证
-     * 2. 从exchange attributes获取用户ID和租户ID
-     * 3. 提取路由元数据（服务编码、HTTP方法、路径）
-     * 4. 查本地快照缓存，命中则本地匹配放行/拒绝
-     * 5. 未命中回源拉取快照，缓存后本地匹配
-     * </p>
-     *
-     * @param exchange 服务器Web交换对象
-     * @param chain    过滤器链
-     * @return Mono<Void> 处理结果
-     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         Boolean skipAuth = exchange.getAttribute(SKIP_AUTH_ATTR);
@@ -105,16 +107,14 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         String serviceCode = String.valueOf(route.getMetadata().getOrDefault("serviceCode", route.getId()));
         String httpMethod = exchange.getRequest().getMethod().name();
         String path = exchange.getRequest().getURI().getPath();
+        String clientIp = resolveClientIp(exchange);
 
         String cacheKey = buildCacheKey(tenantId, subjectTypeCode, userId, serviceCode);
         InterfaceSnapshotResp cached = interfaceSnapshotCache.getIfPresent(cacheKey);
 
-        // 本地快照命中：直接本地匹配
         if (cached != null) {
-            if (InterfaceSnapshotMatcher.matches(cached, serviceCode, httpMethod, path)) {
-                return chain.filter(exchange);
-            }
-            return writeForbidden(exchange, "无接口访问权限");
+            return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
+                subjectTypeCode, userId, tenantId);
         }
 
         // 未命中：回源拉取快照（T-PERM-018：permission-center 实时构建全量快照）
@@ -126,16 +126,77 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 }
                 // 缓存拉取到的全量快照
                 interfaceSnapshotCache.put(cacheKey, snapshot);
-                if (InterfaceSnapshotMatcher.matches(snapshot, serviceCode, httpMethod, path)) {
-                    return chain.filter(exchange);
-                }
-                return writeForbidden(exchange, "无接口访问权限");
+                return decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
+                    subjectTypeCode, userId, tenantId);
             })
             .onErrorResume(e -> {
                 // permission-center不可达 — fail-close（stale-allow 由 T-GW-003 实现）
                 log.warn("Permission-center unreachable, denying request: {}", e.getMessage());
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
+    }
+
+    /**
+     * 根据快照本地匹配结果三态分发：ALLOW 放行 / FALLBACK 调 check-interface / DENY 拒绝。
+     * <p>
+     * T-PERM-017 C4：FALLBACK 分支处理 gateway_evaluable=false 或 conditionRules 未下发的含条件 entry。
+     * 同步 HTTP 调 permission-center 实时鉴权，context 仅承载 clientIp（跨进程时钟一致性由 NTP 保证）。
+     * </p>
+     */
+    private Mono<Void> decide(ServerWebExchange exchange, GatewayFilterChain chain,
+                              InterfaceSnapshotResp snapshot, String serviceCode, String httpMethod,
+                              String path, String clientIp,
+                              String subjectTypeCode, Long userId, Long tenantId) {
+        Decision decision = InterfaceSnapshotMatcher.match(snapshot, serviceCode, httpMethod, path, clientIp);
+        return switch (decision) {
+            case ALLOW -> chain.filter(exchange);
+            case DENY -> writeForbidden(exchange, "无接口访问权限");
+            case FALLBACK -> fallbackCheckInterface(exchange, chain, subjectTypeCode, userId,
+                serviceCode, httpMethod, path, clientIp, tenantId);
+        };
+    }
+
+    /**
+     * 回退实时鉴权：含条件 entry 命中但 conditionRules 未下发 Gateway 时同步调 check-interface。
+     * <p>
+     * 与本类未命中快照路径同样在 permission-center 不可达时 fail-close 503。
+     * </p>
+     */
+    private Mono<Void> fallbackCheckInterface(ServerWebExchange exchange, GatewayFilterChain chain,
+                                              String subjectTypeCode, Long userId, String serviceCode,
+                                              String httpMethod, String path, String clientIp, Long tenantId) {
+        return permissionClient.checkInterface(subjectTypeCode, userId, serviceCode, httpMethod, path, clientIp, tenantId)
+            .flatMap(result -> {
+                CheckInterfaceResp data = result != null ? result.getData() : null;
+                if (data != null && data.allowed()) {
+                    return chain.filter(exchange);
+                }
+                String reason = data != null && data.reason() != null ? data.reason() : "无接口访问权限";
+                return writeForbidden(exchange, reason);
+            })
+            .onErrorResume(e -> {
+                log.warn("含条件 entry fallback check-interface 失败 — fail-close: {}", e.getMessage());
+                return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
+            });
+    }
+
+    /**
+     * 提取请求 clientIp：优先 X-Forwarded-For 首段 → X-Real-IP → 远端地址。
+     * 用于条件评估 IP_WHITELIST / IP_BLACKLIST 与 fallback check-interface 上下文。
+     */
+    private String resolveClientIp(ServerWebExchange exchange) {
+        var headers = exchange.getRequest().getHeaders();
+        String xff = headers.getFirst("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            int comma = xff.indexOf(',');
+            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
+        }
+        String real = headers.getFirst("X-Real-IP");
+        if (real != null && !real.isBlank()) {
+            return real.trim();
+        }
+        InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
+        return remote != null && remote.getAddress() != null ? remote.getAddress().getHostAddress() : null;
     }
 
     /**
@@ -148,11 +209,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return result.getData();
     }
 
-    /**
-     * 获取过滤器执行顺序
-     *
-     * @return 顺序值
-     */
     @Override
     public int getOrder() {
         return -60;
@@ -168,12 +224,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return CACHE_KEY_PREFIX + tenantId + ":" + subjectTypeCode + ":" + userId + ":" + serviceCode;
     }
 
-    /**
-     * 将对象转换为Long类型
-     *
-     * @param obj 待转换对象
-     * @return Long值，转换失败返回null
-     */
     private Long toLong(Object obj) {
         if (obj instanceof Long) return (Long) obj;
         if (obj instanceof Number) return ((Number) obj).longValue();
@@ -184,30 +234,18 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         }
     }
 
-    /**
-     * 写入禁止访问响应
-     */
     private Mono<Void> writeForbidden(ServerWebExchange exchange, String message) {
         return writeError(exchange, HttpStatus.FORBIDDEN, 403, message);
     }
 
-    /**
-     * 写入未找到响应
-     */
     private Mono<Void> writeNotFound(ServerWebExchange exchange) {
         return writeError(exchange, HttpStatus.NOT_FOUND, 404, "服务不存在");
     }
 
-    /**
-     * 写入服务不可用响应
-     */
     private Mono<Void> writeServiceUnavailable(ServerWebExchange exchange, String message) {
         return writeError(exchange, HttpStatus.SERVICE_UNAVAILABLE, 503, message);
     }
 
-    /**
-     * 写入错误响应
-     */
     private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus httpStatus,
                                    int code, String message) {
         ServerHttpResponse response = exchange.getResponse();
