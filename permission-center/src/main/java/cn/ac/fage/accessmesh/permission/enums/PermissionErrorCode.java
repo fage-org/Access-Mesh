@@ -160,7 +160,16 @@ public enum PermissionErrorCode {
     /**
      * 同步元数据 targetStatus 非法
      */
-    SYNC_TARGET_STATUS_INVALID(20030, "同步 targetStatus 不在 entityKind 允许范围内");
+    SYNC_TARGET_STATUS_INVALID(20030, "同步 targetStatus 不在 entityKind 允许范围内"),
+
+    /**
+     * 条件规则不可下发 Gateway 评估
+     * <p>
+     * gatewayEvaluable=true 时，conditionRules.items[].type 必须全部在
+     * {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES} 白名单内。
+     * </p>
+     */
+    CONDITION_RULES_INVALID(20031, "条件规则不可下发 Gateway 评估");
 
     private final int code;
     private final String message;

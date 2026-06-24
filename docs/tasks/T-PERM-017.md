@@ -24,18 +24,22 @@ last_updated: 2026-06-24
 
 ## 实施决策（2026-06-24）
 
-- **初期可下发范围**：`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE`（按天颗粒度时钟偏差影响小）。`TIME_RANGE` 因时钟敏感度高（跨午夜 + 秒级偏差），初期不可下发，走 fallback。
+- **初期可下发范围**：`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE`（全部 4 个已知条件类型）。
+  - 时钟语义：`TIME_RANGE` 秒级敏感度由 `timestamp` context 字段统一传递解决（C4 落地），Gateway 用 context 时间评估而非本地时钟。
+  - 未来扩展类型（如 `ORG_SCOPE`）默认 fail-close 不下发，需显式审批加入白名单。
 - **ConditionEvalUtils 迁移策略**：硬切 — 从 `permission-center.util` 删除，统一为 `perm-common.util.ConditionEvalUtils`。
 - **未下发条件 fallback 方式**：Gateway 同步 HTTP 调 `/perm/check-interface`（带 clientIp/timestamp context）。
+- **白名单校验落点**（C2.5）：`ConditionAppServiceImpl.create/update` 写入校验 + `SnapshotAssembler` 内联前防御过滤共用 `ConditionEvalUtils.isGatewayPushable`。
 
 ## 实施 commit 拆分
 
 | # | 范围 | 状态 |
 |---|---|---|
-| C1 | schema + entity + mapper 新增 `gateway_evaluable` 字段，design/schema 回写 | ⏳ |
-| C2 | `ConditionEvalUtils` 搬至 `perm-common`，permission-center 删除原位 | ⏳ |
-| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON | ⏳ |
-| C4 | `InterfaceSnapshotMatcher` 本地重评 + `PermissionFilter` 未下发条件 fallback 调 check-interface | ⏳ |
+| C1 | schema + entity + mapper 新增 `gateway_evaluable` 字段，design/schema 回写 | ✅ `4916b4210` |
+| C2 | `ConditionEvalUtils` 搬至 `perm-common`，permission-center 删除原位 | ✅ `51a104a14` |
+| C2.5 | `gatewayEvaluable=true` 规则类型白名单校验（create/update 写入门禁 + 单元测试） | ⏳ 待提交 |
+| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ⏳ |
+| C4 | `InterfaceSnapshotMatcher` 本地重评 + `PermissionFilter` 未下发条件 fallback 调 check-interface + 传 timestamp context | ⏳ |
 | C5 | 设计回写 `gateway.md` / `v3.5 §7.2`；任务收尾 → review → done | ⏳ |
 
 # T-PERM-017 条件权限 Gateway 侧重评（混合方案）

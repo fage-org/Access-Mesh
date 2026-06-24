@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import cn.ac.fage.accessmesh.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
@@ -15,6 +16,8 @@ import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionAppService;
 import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
@@ -41,17 +44,21 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
     private final PermissionConditionMapper conditionMapper;
     private final PermQueryEngine engine;
+    private final ObjectMapper objectMapper;
 
     /**
      * 构造函数注入依赖
      *
-     * @param conditionMapper           权限条件数据访问层
-     * @param engine                    权限查询引擎
+     * @param conditionMapper 权限条件数据访问层
+     * @param engine          权限查询引擎
+     * @param objectMapper    JSON 解析器（用于 gatewayEvaluable 校验时解析 conditionRules）
      */
     public ConditionAppServiceImpl(PermissionConditionMapper conditionMapper,
-                                       PermQueryEngine engine) {
+                                       PermQueryEngine engine,
+                                       ObjectMapper objectMapper) {
         this.conditionMapper = conditionMapper;
         this.engine = engine;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -83,7 +90,12 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         JsonValidationUtils.validateJson(req.conditionRules());
         condition.setConditionRules(req.conditionRules());
         condition.setEnabled(req.enabled() != null ? req.enabled() : true);
-        condition.setGatewayEvaluable(req.gatewayEvaluable() != null ? req.gatewayEvaluable() : false);
+        boolean gatewayEvaluable = req.gatewayEvaluable() != null ? req.gatewayEvaluable() : false;
+        // T-PERM-017 C2.5：gatewayEvaluable=true 时校验 items[].type 全部在白名单
+        if (gatewayEvaluable) {
+            validateGatewayPushable(req.conditionRules());
+        }
+        condition.setGatewayEvaluable(gatewayEvaluable);
         condition.setDescription(req.description());
         condition.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
@@ -147,6 +159,13 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         if (req.enabled() != null) condition.setEnabled(req.enabled());
         if (req.gatewayEvaluable() != null) condition.setGatewayEvaluable(req.gatewayEvaluable());
         if (req.description() != null) condition.setDescription(req.description());
+        // T-PERM-017 C2.5：取"最终状态"联合校验——
+        // 1) 只切 flag 不改 rules 时需重读 DB 老 rules 做校验（否则可绕过）。
+        // 2) 同时改 rules + flag 时用新 rules。
+        // 3) 只改 rules 不改 flag 时若当前已是 true，也需重新校验新 rules。
+        if (Boolean.TRUE.equals(condition.getGatewayEvaluable())) {
+            validateGatewayPushable(condition.getConditionRules());
+        }
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 
@@ -270,5 +289,35 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             c.getGatewayEvaluable() != null ? c.getGatewayEvaluable() : false,
             c.getDescription(), c.getCreatedAt()
         );
+    }
+
+    /**
+     * 校验条件规则可下发 Gateway（T-PERM-017 C2.5）
+     * <p>
+     * 当 {@code gatewayEvaluable=true} 时调用，要求 {@code conditionRules.items[].type}
+     * 全部在 {@link ConditionEvalUtils#GATEWAY_PUSHABLE_TYPES} 白名单内（含未知类型默认 fail-close）。
+     * 不通过抛 {@link BizException}({@link PermissionErrorCode#CONDITION_RULES_INVALID})。
+     * </p>
+     *
+     * @param conditionRulesJson 条件规则 JSON 字符串（已通过 JsonValidationUtils 语法校验）
+     * @throws BizException 含集合外类型 / items 为空 / JSON 解析失败
+     */
+    private void validateGatewayPushable(String conditionRulesJson) {
+        if (conditionRulesJson == null || conditionRulesJson.isBlank()) {
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "gatewayEvaluable=true 但 conditionRules 为空");
+        }
+        JsonNode tree;
+        try {
+            tree = objectMapper.readTree(conditionRulesJson);
+        } catch (Exception e) {
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "conditionRules 解析失败: " + e.getMessage());
+        }
+        if (!ConditionEvalUtils.isGatewayPushable(tree)) {
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "gatewayEvaluable=true 仅允许 items[].type ∈ "
+                    + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES + " 的规则");
+        }
     }
 }

@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 权限条件评估工具类（T-PERM-017 搬入 perm-common，供 Gateway 与 permission-center 共享）
@@ -31,6 +32,25 @@ import java.util.Map;
 public final class ConditionEvalUtils {
 
     private static final Logger log = LoggerFactory.getLogger(ConditionEvalUtils.class);
+
+    /**
+     * Gateway 可下发评估的条件类型白名单（T-PERM-017）
+     * <p>
+     * 当 {@code permission_condition.gateway_evaluable=true} 时，{@code conditionRules.items[].type}
+     * 必须全部在本集合内才允许标记；含集合外类型（含未来未知类型）→ 拒绝下发，走 fallback 实时鉴权。
+     * </p>
+     * <p>
+     * 集合范围由 T-PERM-017 决策确定：4 个已知类型全部在内（IP_WHITELIST / IP_BLACKLIST /
+     * DATE_RANGE / TIME_RANGE）。TIME_RANGE 时钟敏感度由 {@code timestamp} context 字段传递解决。
+     * 未知类型默认 fail-close，便于后续新增类型时强制走显式审批流程。
+     * </p>
+     */
+    public static final Set<String> GATEWAY_PUSHABLE_TYPES = Set.of(
+        "IP_WHITELIST",
+        "IP_BLACKLIST",
+        "DATE_RANGE",
+        "TIME_RANGE"
+    );
 
     /**
      * 私有构造函数
@@ -164,6 +184,45 @@ public final class ConditionEvalUtils {
     }
 
     // ===== 条件项评估 =====
+
+    /**
+     * 判定一组条件规则是否可下发 Gateway 评估（T-PERM-017）
+     * <p>
+     * 用于 {@code ConditionAppService} 写入校验 + {@code SnapshotAssembler} 内联前防御过滤。
+     * 两处共用同一份判定，避免管理面接受却下发面拒绝的不一致。
+     * </p>
+     * <p>
+     * 判定规则（fail-close）：
+     * <ul>
+     *   <li>{@code conditionRules} 为 null / 非对象 → false</li>
+     *   <li>{@code items} 缺失 / 非数组 / 为空 → false（空规则视为无意义，不允许下发）</li>
+     *   <li>任一 item 缺 {@code type} 字段或 type 不在 {@link #GATEWAY_PUSHABLE_TYPES} → false</li>
+     *   <li>全部 item 的 type 都在白名单 → true</li>
+     * </ul>
+     * </p>
+     *
+     * @param conditionRules 条件规则根 JsonNode（含 logic + items）
+     * @return true 表示可下发 Gateway，false 表示必须走 fallback 实时鉴权
+     */
+    public static boolean isGatewayPushable(JsonNode conditionRules) {
+        if (conditionRules == null || !conditionRules.isObject()) {
+            return false;
+        }
+        JsonNode items = conditionRules.get("items");
+        if (items == null || !items.isArray() || items.isEmpty()) {
+            return false;
+        }
+        for (JsonNode item : items) {
+            if (item == null || !item.has("type")) {
+                return false;
+            }
+            String type = item.get("type").asText();
+            if (!GATEWAY_PUSHABLE_TYPES.contains(type)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * 评估单个条件项
