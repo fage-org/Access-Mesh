@@ -83,12 +83,12 @@ public class PermissionClient {
              String subjectTypeCode, Long userId, String serviceCode, String httpMethod, String path,
             String clientIp, Long tenantId) {
 
-        // 构建context Map，包含clientIp和timestamp
+        // 构建 context Map（T-PERM-017：仅承载 clientIp；
+        // 跨进程时钟一致性由 NTP 同步保证，不通过 context 传递 timestamp）
         Map<String, Object> context = new HashMap<>();
         if (clientIp != null) {
             context.put("clientIp", clientIp);
         }
-        context.put("timestamp", java.time.Instant.now().toString());
 
         CheckInterfaceReq req = new CheckInterfaceReq(
             subjectTypeCode,

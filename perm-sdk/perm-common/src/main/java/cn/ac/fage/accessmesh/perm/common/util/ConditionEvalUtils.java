@@ -20,12 +20,15 @@ import java.util.Set;
  * <p>
  * 时钟语义说明（T-PERM-017）：
  * <ul>
- *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 使用调用方进程的系统时钟 {@code LocalDate.now()} /
- *       {@code LocalTime.now()}。</li>
- *   <li>Gateway 与 permission-center 通常运行在不同进程，两者时钟可能存在秒级偏差。{@code TIME_RANGE} 因秒级
- *       敏感度高 + 跨午夜边界逻辑，初期不下发 Gateway 评估（{@code gateway_evaluable=false}），命中后回退
- *       check-interface 由 permission-center 实时鉴权。</li>
- *   <li>{@code DATE_RANGE} 按天颗粒度，时钟漂移影响小，可下发 Gateway。</li>
+ *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 使用调用方进程的系统时钟
+ *       {@code LocalDate.now()} / {@code LocalTime.now()}。</li>
+ *   <li>Gateway 与 permission-center 可能运行在不同进程。本项目面向中小型企业部署，
+ *       Gateway 与 permission-center 通常同机房 / 同云区域，跨进程时钟一致性由 NTP
+ *       同步保证（亚秒级）。条件规则的业务粒度（DATE_RANGE 按天，TIME_RANGE 通常按
+ *       小时级如 09:00-18:00）远大于 NTP 漂移，因此 4 类条件均可下发 Gateway。</li>
+ *   <li>评估上下文 {@link Map} 当前仅承载 {@code clientIp}，不传递 {@code timestamp}：
+ *       一是 NTP 已能解决；二是引入 context 时钟传递会显著增加复杂度（ISO 解析、时区
+ *       约定、fail-close 策略），收益与中小企业部署场景不匹配。</li>
  * </ul>
  * </p>
  */
@@ -41,8 +44,9 @@ public final class ConditionEvalUtils {
      * </p>
      * <p>
      * 集合范围由 T-PERM-017 决策确定：4 个已知类型全部在内（IP_WHITELIST / IP_BLACKLIST /
-     * DATE_RANGE / TIME_RANGE）。TIME_RANGE 时钟敏感度由 {@code timestamp} context 字段传递解决。
-     * 未知类型默认 fail-close，便于后续新增类型时强制走显式审批流程。
+     * DATE_RANGE / TIME_RANGE）。跨进程时钟一致性由 NTP 同步保证，业务粒度（小时级）
+     * 容忍亚秒漂移，故 TIME_RANGE 也可下发。未知类型默认 fail-close，便于后续新增类型
+     * 时强制走显式审批流程。
      * </p>
      */
     public static final Set<String> GATEWAY_PUSHABLE_TYPES = Set.of(

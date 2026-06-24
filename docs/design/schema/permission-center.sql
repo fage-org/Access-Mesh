@@ -330,7 +330,7 @@ COMMENT ON COLUMN permission_condition.code IS '条件编码';
 COMMENT ON COLUMN permission_condition.name IS '名称';
 COMMENT ON COLUMN permission_condition.condition_rules IS '条件规则(JSON)，如 {"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2025-01-01","end":"2025-12-31"}},{"type":"TIME_RANGE","params":{"start":"09:00","end":"18:00"}},{"type":"IP_WHITELIST","params":{"cidrs":["192.168.1.0/24"]}}]}。预置类型：DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST';
 COMMENT ON COLUMN permission_condition.enabled IS '是否启用';
-COMMENT ON COLUMN permission_condition.gateway_evaluable IS 'T-PERM-017 是否可下发 Gateway 评估。true 时条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp/服务端时钟）本地重评，避免 permission-center 用空 context 评估导致误放行/丢弃。可下发类型：IP_WHITELIST/IP_BLACKLIST/DATE_RANGE。TIME_RANGE 因跨进程时钟敏感度高保持 false，命中后走 check-interface 回退实时鉴权';
+COMMENT ON COLUMN permission_condition.gateway_evaluable IS 'T-PERM-017 是否可下发 Gateway 评估。true 时条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp）本地重评，避免 permission-center 用空 context 评估导致误放行/丢弃。可下发类型：IP_WHITELIST/IP_BLACKLIST/DATE_RANGE/TIME_RANGE（4 类全部）。跨进程时钟一致性由 NTP 同步保证；中小企业部署场景下 Gateway 与 permission-center 通常同机房，时钟亚秒漂移远小于规则的业务粒度（小时级），无需通过 context 传递 timestamp。未来扩展类型（如 ORG_SCOPE）默认不下发，需显式审批加入白名单';
 
 -- -----------------------------------------------------------------------------
 -- 10. 用户关联表（统一关联角色，target_type 标记角色类型）
