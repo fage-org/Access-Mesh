@@ -501,7 +501,9 @@ public class PermQueryEngine {
         if (entries.isEmpty()) return entries;
         Map<String, Object> ctx = q.context();
         if (ctx == null) ctx = Map.of();
-        if (q.evaluateConditions()) {
+        if (q.evaluateConditions() && !q.markConditionsOnly()) {
+            // T-PERM-017 C3：markConditionsOnly=true 时跳过条件过滤，
+            // 条件条目原样保留，由调用方（SnapshotAssembler/Gateway）决定下发与重评。
             entries = conditionDomainService.evaluate(q.tenantId(), entries, ctx);
         }
         if (q.evaluateConflicts() && !entries.isEmpty()) {

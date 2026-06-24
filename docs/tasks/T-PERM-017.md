@@ -38,8 +38,8 @@ last_updated: 2026-06-24
 | C1 | schema + entity + mapper 新增 `gateway_evaluable` 字段，design/schema 回写 | ✅ `4916b4210` |
 | C2 | `ConditionEvalUtils` 搬至 `perm-common`，permission-center 删除原位 | ✅ `51a104a14` |
 | C2.5 | `gatewayEvaluable=true` 规则类型白名单校验（create/update 写入门禁 + 单元测试） | ✅ `157d3982e` |
-| C2.6 | 文档口径统一：4 类全可下发；时钟一致性由 NTP 保证；删除未消费的 `context.timestamp` 死代码 | ⏳ 待提交 |
-| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ⏳ |
+| C2.6 | 文档口径统一：4 类全可下发；时钟一致性由 NTP 保证；删除未消费的 `context.timestamp` 死代码 | ✅ `b53288dbb` |
+| C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ⏳ 待提交 |
 | C4 | `InterfaceSnapshotMatcher` 本地重评 + `PermissionFilter` 未下发条件 fallback 调 check-interface（仅带 clientIp） | ⏳ |
 | C5 | 设计回写 `gateway.md` / `v3.5 §7.2`；任务收尾 → review → done | ⏳ |
 

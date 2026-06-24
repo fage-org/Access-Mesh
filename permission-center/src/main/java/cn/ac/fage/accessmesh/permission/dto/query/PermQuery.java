@@ -108,6 +108,21 @@ public class PermQuery {
     private boolean evaluateConditions = true;
 
     /**
+     * 是否仅标记条件不过滤（T-PERM-017 C3）
+     * <p>
+     * 当 {@code true} 时，引擎跳过 {@code conditionDomainService.evaluate} 的过滤逻辑，
+     * 条件条目原样保留进结果，由调用方（如 SnapshotAssembler）决定下发与否。
+     * 与 {@link #evaluateConditions} 的关系：本标志在 evaluateConditions=true 时生效，
+     * 表示"评估开关开启但选择不过滤"。
+     * </p>
+     * <p>
+     * 使用场景：interfaceSnapshot 构建快照时，条件评估应在 Gateway 用真实请求 context
+     * 完成（而非 permission-center 用空 context），故 permission-center 此处只标记不过滤。
+     * </p>
+     */
+    private boolean markConditionsOnly;
+
+    /**
      * 是否评估冲突规则
      */
     private boolean evaluateConflicts = true;
@@ -418,6 +433,7 @@ public class PermQuery {
     public boolean inheritParents() { return inheritParents; }
     public boolean inheritChildren() { return inheritChildren; }
     public boolean evaluateConditions() { return evaluateConditions; }
+    public boolean markConditionsOnly() { return markConditionsOnly; }
     public boolean evaluateConflicts() { return evaluateConflicts; }
     public boolean evaluateMatchesBit() { return evaluateMatchesBit; }
     public boolean forUserView() { return forUserView; }

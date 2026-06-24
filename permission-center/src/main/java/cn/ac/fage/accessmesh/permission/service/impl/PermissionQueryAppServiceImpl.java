@@ -586,8 +586,11 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
 
         // T-PERM-018：缓存下沉——permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2) 与 permissionVersion。
         // 每次实时调引擎构建全量快照（ROLE_PERM_SNAPSHOT 兜住角色权限记录读路径），交 Gateway 本地缓存匹配。
+        // T-PERM-017 C3：标记不过滤——条件评估应在 Gateway 用真实请求 context 完成（IP/clientIp），
+        // permission-center 此处空 context 评估会误丢弃 IP 类条件条目；故标记为 markConditionsOnly。
         PermQuery query = PermQuery.forUserView(tenantId, userId);
         query.setRoleIds(validRoleIds); // 使用已过滤互斥的角色
+        query.setMarkConditionsOnly(true);
         PermResult result = engine.query(query);
         Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", "API");
         List<ApiPermissionEntry> entries = snapshotAssembler.buildSnapshot(tenantId, result, req.serviceCode(), apiType);

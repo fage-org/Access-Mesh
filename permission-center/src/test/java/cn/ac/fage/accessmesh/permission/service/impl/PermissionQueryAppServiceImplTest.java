@@ -201,7 +201,7 @@ class PermissionQueryAppServiceImplTest {
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
             when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
                 .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/list", false, null, false)
+                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/list", false, null, null, false)
                 ));
 
             InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
