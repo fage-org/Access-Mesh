@@ -283,6 +283,13 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 > - **移除 INTERFACE_SNAPSHOT(L2) + permissionVersion/notModified**：permission-center 侧删 `PermCacheCatalog.INTERFACE_SNAPSHOT`、`permission.vo.InterfaceSnapshot`、`PermissionVersionDomainService(Impl)` 及令牌构造/304 死代码；`InterfaceSnapshotResp`/`Req` 去 `permissionVersion`/`notModified`，`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 去 `permissionVersion`；Gateway `PermissionClient.interfaceSnapshot` 去令牌参数、`PermissionFilter` 去 notModified 分支。Gateway 本地 Caffeine `interfaceSnapshotCache` 保留。
 > - **写路径全路径登记**：资源软删（`deleteResources`）加 `@PermissionChange`，软删 perm 前双重登记 `markRoles`（查受影响 roleIds，新增 `selectRoleIdsByResourceIds`）+ `markServiceCodes`（资源→API mapping→serviceCode）；API mapping 增删改（`addApiMapping`/`updateApiMapping`/`removeApiMappingsByIds`）+ `syncInterfaces` 加 `@PermissionChange` 仅 `markServiceCodes`（perm 未变不 markRoles）。
 > - **边界（C10）**：T-PERM-018 仅就位 serviceCodes 事件载荷并发布；Gateway 订阅侧按 tenant+serviceCodes 主动清本地 `interfaceSnapshotCache` 属 T-PERM-006 范围。T-PERM-018 单独完成后，API mapping/resource/sync 变更的 Gateway 本地陈旧仍靠 Gateway TTL 兜底，直至 T-PERM-006 落地。
+>
+> **实现进度（T-PERM-017，2026-06-24）：条件权限 Gateway 侧重评（混合方案）**。修复 T-PERM-001 评审 P1 — "快照模式下条件权限可能误放行"：
+> - **`permission_condition` 新增 `gateway_evaluable` 字段**（BOOLEAN，默认 false）：标记规则可下发 Gateway 评估。创建/更新写入门禁仅允许 `IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类置 true（`ConditionEvalUtils.isGatewayPushable` 共用白名单），未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 fail-close 不下发。
+> - **`ConditionEvalUtils` 迁入 `perm-common`**（硬切，无 DB 依赖，纯静态函数）：Gateway 与 permission-center 共享同一份评估逻辑。跨进程时钟一致性由 **NTP 同步保证**（中小企业 Gateway 与 permission-center 通常同机房，亚秒漂移 << 业务粒度小时级），不通过 context 传递 `timestamp`。
+> - **`ApiPermissionEntry` 内联 `conditionRules` JSON**：`SnapshotAssembler` 仅对 `gateway_evaluable=true` 条目内联（防御性二次过滤），引擎层 `PermQueryEngine.evaluateIfNeeded` 新增"只标记不过滤"模式（`PermQuery.markConditionsOnly`）让条件条目保留进快照。实例级条目按 `(resourceEntityId, conditionId)` 组合展开，同一资源含条件+无条件多条授权各产出独立 entry（修 P1-② 折叠误拒绝）。
+> - **`InterfaceSnapshotMatcher` 改三态语义（ALLOW / FALLBACK / DENY） + OR 合并**：含条件 entry 不再直接放行——`conditionRules` 内联则本地用请求 `clientIp` + 本进程时钟重评通过即 ALLOW；缺失（`gateway_evaluable=false`）则标记 FALLBACK 由 `PermissionFilter` 同步调 `/api/perm/auth/check-interface` 实时鉴权（context 仅承载 `clientIp`）。`PermissionFilter` `clientIp` 提取顺序：`X-Forwarded-For` 首段 → `X-Real-IP` → 远端地址。Fallback 失败 fail-close 503（与快照拉取一致）。
+> - **DTO 暴露面控制**：内联 `conditionRules` JSON 扩大敏感配置（IP CIDR 白名单）下发面，靠 `gateway_evaluable` 标志最小化下发；未标记的规则永不离开 permission-center。
 
 > **风险声明**：Redis 重启 / 网络分区 / 订阅断线时，权限主动撤销（HR 禁用员工 / 越权 token 紧急回收）退化为纯 TTL 失效，最长 stale 窗口 = `stale-grace-seconds` + TTL。与 PM「分钟级延迟可接受」决策一致。持久化 outbox 重投作为 v3.5.1+ 增量评估项。
 

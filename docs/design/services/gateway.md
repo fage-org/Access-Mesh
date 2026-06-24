@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-06-20
+last_reviewed: 2026-06-24
 ---
 
 # Gateway 服务设计
@@ -41,18 +41,25 @@ last_reviewed: 2026-06-20
 
 ### 本地匹配规则（`InterfaceSnapshotMatcher`）
 
-对快照 `allowedApis` 逐条判定，任一命中即放行：
+对快照 `allowedApis` 遍历做 **OR 合并 + 三态判定**（ALLOW / FALLBACK / DENY）：
 
-1. `scopeAll=true` 且 `serviceCode` 匹配 → 放行（覆盖该服务全部接口）。
-2. `httpMethod` 相等（条目为 null 视为通配）且 `pathPattern` 按 **Ant 风格**匹配请求路径 → 放行。
-3. 否则拒绝。
+1. `scopeAll=true` 且 `serviceCode` 匹配 → 该条目纳入候选（覆盖该服务全部接口）。
+2. `httpMethod` 相等（条目为 null 视为通配）且 `pathPattern` 按 **Ant 风格**匹配请求路径 → 该条目纳入候选。
+3. 候选条目按 `hasCondition` 分支处理：
+   - `hasCondition=false`（无条件授权）→ 立即 `ALLOW`（"任一无条件授权放行"原则）。
+   - `hasCondition=true` 且 `conditionRules` 内联（`gateway_evaluable=true`）→ 用请求 `clientIp` + 本进程时钟本地评估：通过则 `ALLOW`，不通过继续遍历。
+   - `hasCondition=true` 但 `conditionRules` 未下发（`gateway_evaluable=false` 或防御过滤拒绝）→ 标记需要 `FALLBACK`，继续遍历（后续仍可能有无条件条目兜底）。
+4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/perm/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
 
-> `hasCondition` 条目按放行处理——条件评估在权限中心快照构建时已完成，快照内仅含评估通过且互斥过滤后的条目。
+> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 permission-center 评估。`PermissionFilter` 提取 `clientIp` 顺序：`X-Forwarded-For` 首段 → `X-Real-IP` → 远端地址。
+
+> **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
 
 ### 失败模式
 
 - permission-center 不可达 → **fail-close**，返回 503。
 - stale-allow（用过期快照续命）由 **T-GW-003** 实现，本任务过渡期不做。
+- 条件 fallback 调 `check-interface` 失败（HTTP 非 2xx / 超时）→ fail-close 拒绝（与快照拉取一致语义）。
 
 ### 配置项
 
