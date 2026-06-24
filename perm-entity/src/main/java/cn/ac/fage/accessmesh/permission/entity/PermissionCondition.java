@@ -57,12 +57,14 @@ public class PermissionCondition {
     /**
      * 是否可下发 Gateway 评估（T-PERM-017）
      * <p>
-     * true 时本条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp / 服务端时钟）本地重评，
+     * true 时本条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp / 本进程时钟）本地重评，
      * 避免 permission-center 用空 context 评估快照导致 IP 条目被丢弃 / 日期条目时钟漂移误判。
      * </p>
      * <p>
-     * 可下发类型初期限定：{@code IP_WHITELIST} / {@code IP_BLACKLIST} / {@code DATE_RANGE}。
-     * {@code TIME_RANGE} 因跨进程时钟敏感度高保持 false，命中后回退 check-interface 实时鉴权。
+     * 可下发类型见 {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES}：
+     * {@code IP_WHITELIST} / {@code IP_BLACKLIST} / {@code DATE_RANGE} / {@code TIME_RANGE}（4 类全部）。
+     * 跨进程时钟一致性由 NTP 同步保证（亚秒漂移 << 业务粒度小时级），TIME_RANGE 同样可下发。
+     * 未来扩展类型（如 ORG_SCOPE / DATA_OWNER）默认 fail-close 不下发，由 fallback check-interface 兜底。
      * </p>
      */
     private Boolean gatewayEvaluable;

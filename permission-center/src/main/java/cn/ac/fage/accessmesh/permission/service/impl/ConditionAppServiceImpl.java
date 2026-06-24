@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.permission.mapper.PermissionConditionMapper;
+import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.ConditionAppService;
 import cn.ac.fage.accessmesh.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 public class ConditionAppServiceImpl implements ConditionAppService {
 
     private final PermissionConditionMapper conditionMapper;
+    private final RoleResourcePermissionMapper rolePermMapper;
     private final PermQueryEngine engine;
     private final ObjectMapper objectMapper;
 
@@ -50,13 +52,16 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * 构造函数注入依赖
      *
      * @param conditionMapper 权限条件数据访问层
+     * @param rolePermMapper  角色资源权限数据访问层（T-PERM-017 P2-A：反查受影响 serviceCodes）
      * @param engine          权限查询引擎
      * @param objectMapper    JSON 解析器（用于 gatewayEvaluable 校验时解析 conditionRules）
      */
     public ConditionAppServiceImpl(PermissionConditionMapper conditionMapper,
+                                       RoleResourcePermissionMapper rolePermMapper,
                                        PermQueryEngine engine,
                                        ObjectMapper objectMapper) {
         this.conditionMapper = conditionMapper;
+        this.rolePermMapper = rolePermMapper;
         this.engine = engine;
         this.objectMapper = objectMapper;
     }
@@ -170,9 +175,11 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         conditionMapper.update(condition);
 
         // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
-        // T-PERM-017 注：updateCondition 切换 gatewayEvaluable 时，Gateway 已下发的接口快照需同步失效。
-        // 当前阶段 conditionRules 尚未内联快照（C3 引入），暂只登记 CONDITION_RULES 失效。
+        // T-PERM-017 P2-A：条件规则变更需同步失效 Gateway 已下发的内联 conditionRules 接口快照。
+        // 反查 condition_id 引用的 resource_entity_id 对应 serviceCodes，调 markServiceCodes
+        // 进入广播事件载荷（Gateway 订阅侧按 tenant+serviceCodes 清本地 interfaceSnapshotCache，T-PERM-006 落地后生效）。
         PermissionChangeContext.markConditions(tenantId, Set.of(req.conditionId()));
+        markServiceCodesForConditions(tenantId, Set.of(req.conditionId()));
         return toConditionResp(condition);
     }
 
@@ -224,7 +231,11 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         conditionMapper.update(condition);
 
         // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        // T-PERM-017 P2-A：删除前反查 serviceCodes 触发 Gateway 本地快照失效。
+        // 注：必须在 markServiceCodes 之前查（因为是按 conditionId 反查 grants，
+        // 软删 condition 本身不会动 role_resource_permission；JOIN 仍能命中）。
         PermissionChangeContext.markConditions(tenantId, Set.of(conditionId));
+        markServiceCodesForConditions(tenantId, Set.of(conditionId));
     }
 
     /**
@@ -273,7 +284,32 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " permission_condition row(s)");
 
         // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        // T-PERM-017 P2-A：批量删除同步反查 serviceCodes 触发 Gateway 本地快照失效。
         PermissionChangeContext.markConditions(tenantId, validIds);
+        markServiceCodesForConditions(tenantId, validIds);
+    }
+
+    /**
+     * 反查受影响条件引用的 serviceCodes 并登记进 PermissionChangeContext（T-PERM-017 P2-A）。
+     * <p>
+     * 用于条件 update/delete 后通知 Gateway 失效已下发的内联 conditionRules 接口快照。
+     * 委托 {@link RoleResourcePermissionMapper#selectServiceCodesByConditionIds}（JOIN 一次 SQL），
+     * 空结果（条件未被任何 grant 引用）→ no-op，不无谓登记。
+     * </p>
+     * <p>
+     * 即使本租户的某些条件未与 grants 关联，也仍调用 markServiceCodes(空集合)：
+     * {@code markServiceCodes(空集合)} 由 PermissionChangeContext 内部 noop 处理。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param conditionIds 受影响条件ID集合（非空）
+     */
+    private void markServiceCodesForConditions(Long tenantId, Set<Long> conditionIds) {
+        if (conditionIds == null || conditionIds.isEmpty()) return;
+        Set<String> serviceCodes = rolePermMapper.selectServiceCodesByConditionIds(tenantId, conditionIds);
+        if (serviceCodes != null && !serviceCodes.isEmpty()) {
+            PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
+        }
     }
 
     /**
@@ -316,7 +352,9 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         }
         if (!ConditionEvalUtils.isGatewayPushable(tree)) {
             throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
-                "gatewayEvaluable=true 仅允许 items[].type ∈ "
+                "gatewayEvaluable=true 仅允许 logic ∈ "
+                    + ConditionEvalUtils.VALID_LOGIC
+                    + "（或缺省=AND）且 items[].type ∈ "
                     + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES + " 的规则");
         }
     }

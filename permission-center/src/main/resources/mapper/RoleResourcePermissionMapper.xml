@@ -64,6 +64,22 @@
           AND delete_flag = 0
     </select>
 
+    <!-- T-PERM-017 P2-A：按 conditionIds 反查受影响 serviceCodes，供 ConditionAppService update/delete 后 markServiceCodes -->
+    <select id="selectServiceCodesByConditionIds" resultType="java.lang.String">
+        SELECT DISTINCT m.service_code
+        FROM role_resource_permission rrp
+        INNER JOIN resource_api_mapping m
+                ON m.resource_entity_id = rrp.resource_entity_id
+               AND m.tenant_id = rrp.tenant_id
+               AND m.delete_flag = 0
+        WHERE rrp.tenant_id = #{tenantId}
+          AND rrp.delete_flag = 0
+          AND rrp.condition_id IN
+        <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+    </select>
+
     <select id="selectValidByRoleIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">
         SELECT * FROM role_resource_permission
         WHERE tenant_id = #{tenantId}

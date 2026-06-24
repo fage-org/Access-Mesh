@@ -148,6 +148,12 @@ public class InterfaceSnapshotMatcher {
         try {
             JsonNode rules = SHARED_MAPPER.readTree(rulesJson);
             String logic = rules.has("logic") ? rules.get("logic").asText() : LOGIC_AND;
+            // T-PERM-017 P2-B：logic 显式声明且非 AND/OR → fail-close 拒绝（防御已通过写入门禁的存量脏数据）
+            if (!logic.isEmpty() && !ConditionEvalUtils.VALID_LOGIC.contains(logic)) {
+                log.warn("Gateway conditionRules.logic 非法 '{}' (允许值: {})，fail-close 拒绝，conditionId={}",
+                    logic, ConditionEvalUtils.VALID_LOGIC, conditionId);
+                return false;
+            }
             JsonNode items = rules.get("items");
             if (items == null || !items.isArray()) return false;
 

@@ -67,6 +67,28 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                          @Param("resourceIds") List<Long> resourceIds);
 
     /**
+     * 根据条件ID集合反查受影响的服务编码集合（条件变更场景登记 serviceCodes 失效）。
+     * <p>
+     * T-PERM-017 P2-A 评审反馈：条件 update/delete 时，已下发到 Gateway 内联 conditionRules 的
+     * 接口快照需失效。本方法 JOIN role_resource_permission + resource_api_mapping，
+     * 一次 SQL 查出所有引用了这些条件的资源对应的 serviceCodes，供 ConditionAppService 调用
+     * {@code markServiceCodes} 进入广播事件载荷。
+     * </p>
+     * <p>
+     * SQL: SELECT DISTINCT m.service_code FROM role_resource_permission rrp
+     *      JOIN resource_api_mapping m ON m.resource_entity_id = rrp.resource_entity_id
+     *      WHERE rrp.tenant_id=? AND rrp.condition_id IN (...) AND rrp.delete_flag=0
+     *        AND m.tenant_id=? AND m.delete_flag=0
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param conditionIds 条件ID集合（不可为空）
+     * @return 受影响的服务编码集合（去重）；无引用返回空集合
+     */
+    Set<String> selectServiceCodesByConditionIds(@Param("tenantId") Long tenantId,
+                                                  @Param("conditionIds") Set<Long> conditionIds);
+
+    /**
      * 批量软删除角色资源权限
      *
      * @param tenantId  租户ID

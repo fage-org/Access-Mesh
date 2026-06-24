@@ -80,7 +80,7 @@ T-PERM-001 快照模式下，`interfaceSnapshot` 用空 context 评估条件，�
 
 ## 关键文件（调查结论）
 
-- 评估函数：`permission-center/.../util/ConditionEvalUtils.java`（纯静态，可移植）
+- 评估函数：`perm-sdk/perm-common/.../util/ConditionEvalUtils.java`（纯静态，C2 已硬切迁入 perm-common）
 - 规则存储：`perm-entity/.../PermissionCondition.java` + schema `permission-center.sql` permission_condition 表
 - 快照构建预过滤点：`PermissionQueryAppServiceImpl.interfaceSnapshot` L614（空 context）+ `PermQueryEngine.evaluateIfNeeded` L500
 - 快照 DTO：`perm-common/.../InterfaceSnapshotResp.java` ApiPermissionEntry（需增 conditionRules）

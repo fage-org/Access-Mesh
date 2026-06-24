@@ -122,6 +122,12 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
         try {
             String logic = rules.has("logic") ? rules.get("logic").asText() : PermConstants.ConditionLogic.AND;
+            // T-PERM-017 P2-B：logic 显式声明且非 AND/OR → fail-close 拒绝（防御已通过写入门禁的存量脏数据）
+            if (!logic.isEmpty() && !ConditionEvalUtils.VALID_LOGIC.contains(logic)) {
+                log.warn("conditionRules.logic 非法 '{}' (允许值: {})，fail-close 拒绝，conditionId: {}",
+                    logic, ConditionEvalUtils.VALID_LOGIC, conditionId);
+                return false;
+            }
             JsonNode items = rules.get("items");
             if (items == null || !items.isArray()) return false;
 

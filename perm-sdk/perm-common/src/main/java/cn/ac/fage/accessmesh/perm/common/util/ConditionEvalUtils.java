@@ -57,6 +57,23 @@ public final class ConditionEvalUtils {
     );
 
     /**
+     * 合法的条件规则顶层 {@code logic} 取值集合（T-PERM-017 评审反馈 P2-B）。
+     * <p>
+     * 历史行为：{@code logic.equals("AND")} 走 AND，**任何其他值（含拼写错 "ANDD" / 大小写 "and" /
+     * 未来扩展未知值）一律按 OR 处理**，可能放宽权限。
+     * </p>
+     * <p>
+     * 收口策略（fail-close）：
+     * <ul>
+     *   <li>{@code logic} 缺省 / 空串 → 默认 AND（与历史语义一致，向后兼容）</li>
+     *   <li>{@code logic} 显式声明且非 {@code AND} / {@code OR} → 写入门禁拒绝；
+     *       两端 evaluate 函数防御性 fail-close 返回 false</li>
+     * </ul>
+     * </p>
+     */
+    public static final Set<String> VALID_LOGIC = Set.of("AND", "OR");
+
+    /**
      * 私有构造函数
      * <p>
      * 工具类不允许实例化。
@@ -199,6 +216,7 @@ public final class ConditionEvalUtils {
      * 判定规则（fail-close）：
      * <ul>
      *   <li>{@code conditionRules} 为 null / 非对象 → false</li>
+     *   <li>{@code logic} 字段存在但不在 {@link #VALID_LOGIC}（AND/OR） → false（T-PERM-017 P2-B 收口）</li>
      *   <li>{@code items} 缺失 / 非数组 / 为空 → false（空规则视为无意义，不允许下发）</li>
      *   <li>任一 item 缺 {@code type} 字段或 type 不在 {@link #GATEWAY_PUSHABLE_TYPES} → false</li>
      *   <li>全部 item 的 type 都在白名单 → true</li>
@@ -211,6 +229,14 @@ public final class ConditionEvalUtils {
     public static boolean isGatewayPushable(JsonNode conditionRules) {
         if (conditionRules == null || !conditionRules.isObject()) {
             return false;
+        }
+        // T-PERM-017 P2-B：logic 显式声明时必须在 VALID_LOGIC；缺省/空串放行（兼容默认 AND 语义）。
+        JsonNode logicNode = conditionRules.get("logic");
+        if (logicNode != null && !logicNode.isNull()) {
+            String logic = logicNode.asText();
+            if (!logic.isEmpty() && !VALID_LOGIC.contains(logic)) {
+                return false;
+            }
         }
         JsonNode items = conditionRules.get("items");
         if (items == null || !items.isArray() || items.isEmpty()) {
