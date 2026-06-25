@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-017
 title: 条件权限 Gateway 侧重评（部分下发 + 未下发回退实时鉴权）
-status: review
+status: done
 plan: docs/plans/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
@@ -19,7 +19,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-06-24
+last_updated: 2026-06-25
 ---
 
 ## 实施决策（2026-06-24）
@@ -41,7 +41,7 @@ last_updated: 2026-06-24
 | C2.6 | 文档口径统一：4 类全可下发；时钟一致性由 NTP 保证；删除未消费的 `context.timestamp` 死代码 | ✅ `b53288dbb` |
 | C3 | `ApiPermissionEntry` 内联 `conditionRules`；`PermQuery.markConditionsOnly` 选项；`SnapshotAssembler` 仅对 gateway_evaluable=true 内联 rules JSON + 防御性 `isGatewayPushable` 过滤 | ✅ `206f99baf` |
 | C4 | `SnapshotAssembler` 不折叠多条同 API 授权（去重 key 加 conditionId，修 P1-②）；`InterfaceSnapshotMatcher` 改 OR 匹配 + 本地重评含 conditionRules 条目；`PermissionFilter` 未下发条件命中 HTTP 同步调 `/perm/check-interface` fallback（仅 clientIp）；补 INTERFACE_SNAPSHOT 失效注释承诺。**注：C3 与 C4 绑定发布，C3 单独部署会让条件 API 在 Gateway 直接放行** | ✅ `b976d7d6e` |
-| C5 | 设计回写 `gateway.md`（本地匹配规则改三态 + 条件混合评估段 + fallback 失败模式）；`v3.5 §7.2` 追加 T-PERM-017 进度段；任务收尾 status=review | ✅ |
+| C5 | 设计回写 `gateway.md`（本地匹配规则改三态 + 条件混合评估段 + fallback 失败模式）；`v3.5 §7.2` 追加 T-PERM-017 进度段；任务收尾 status=done | ✅ |
 
 # T-PERM-017 条件权限 Gateway 侧重评（混合方案）
 
