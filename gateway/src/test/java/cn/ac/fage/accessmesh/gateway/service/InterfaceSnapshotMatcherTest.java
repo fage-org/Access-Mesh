@@ -197,4 +197,19 @@ class InterfaceSnapshotMatcherTest {
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
             .isEqualTo(Decision.ALLOW);
     }
+
+    @Test
+    void shouldDeny_whenLogicIsBlankString() {
+        // T-PERM-017 P2-B：显式空串是非法 logic，运行时防御性 fail-close；不能静默按 OR 放行。
+        String blankLogicRules = "{\"logic\":\"\",\"items\":["
+            + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"172.16.0.0/12\"]}},"
+            + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}"
+            + "]}";
+        ApiPermissionEntry entry = new ApiPermissionEntry(
+            SERVICE, METHOD, PATH, true, 1L, blankLogicRules, false);
+        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
+
+        assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
+            .isEqualTo(Decision.DENY);
+    }
 }

@@ -66,18 +66,43 @@
 
     <!-- T-PERM-017 P2-A：按 conditionIds 反查受影响 serviceCodes，供 ConditionAppService update/delete 后 markServiceCodes -->
     <select id="selectServiceCodesByConditionIds" resultType="java.lang.String">
-        SELECT DISTINCT m.service_code
-        FROM role_resource_permission rrp
-        INNER JOIN resource_api_mapping m
-                ON m.resource_entity_id = rrp.resource_entity_id
-               AND m.tenant_id = rrp.tenant_id
-               AND m.delete_flag = 0
-        WHERE rrp.tenant_id = #{tenantId}
-          AND rrp.delete_flag = 0
-          AND rrp.condition_id IN
-        <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
-            #{cid}
-        </foreach>
+        SELECT DISTINCT service_code
+        FROM (
+            -- 实例级条件授权：rrp.resource_entity_id 直接映射到 resource_api_mapping
+            SELECT m.service_code
+            FROM role_resource_permission rrp
+            INNER JOIN resource_api_mapping m
+                    ON m.resource_entity_id = rrp.resource_entity_id
+                   AND m.tenant_id = rrp.tenant_id
+                   AND m.delete_flag = 0
+            WHERE rrp.tenant_id = #{tenantId}
+              AND rrp.delete_flag = 0
+              AND rrp.condition_id IN
+            <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
+                #{cid}
+            </foreach>
+
+            UNION
+
+            -- scopeAll 条件授权：rrp.resource_entity_id IS NULL，需按 rrp.resource_type 覆盖该类型全部 API 资源
+            SELECT m.service_code
+            FROM role_resource_permission rrp
+            INNER JOIN resource_entity re
+                    ON re.tenant_id = rrp.tenant_id
+                   AND re.resource_type = rrp.resource_type
+                   AND re.delete_flag = 0
+            INNER JOIN resource_api_mapping m
+                    ON m.resource_entity_id = re.id
+                   AND m.tenant_id = rrp.tenant_id
+                   AND m.delete_flag = 0
+            WHERE rrp.tenant_id = #{tenantId}
+              AND rrp.delete_flag = 0
+              AND rrp.scope_all = true
+              AND rrp.condition_id IN
+            <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
+                #{cid}
+            </foreach>
+        ) affected_service_codes
     </select>
 
     <select id="selectValidByRoleIds" resultType="cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission">

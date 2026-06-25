@@ -204,6 +204,23 @@ class ConditionAppServiceImplTest {
         }
 
         @Test
+        void shouldReject_whenLogicIsBlankString() {
+            // T-PERM-017 P2-B：显式空串旧实现写入放行但运行时走 OR，现改为写入门禁拒绝。
+            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+                .thenReturn(true);
+
+            String rules = "{\"logic\":\"\",\"items\":["
+                + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}"
+                + "]}";
+            ConditionCreateReq req = new ConditionCreateReq("c-blank", "n", rules, true, true, "d");
+
+            assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+        }
+
+        @Test
         void shouldReject_whenLogicIsLowerCase() {
             when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
                 .thenReturn(true);
