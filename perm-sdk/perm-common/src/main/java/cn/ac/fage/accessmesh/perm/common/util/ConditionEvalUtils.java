@@ -66,7 +66,7 @@ public final class ConditionEvalUtils {
      * 收口策略（fail-close）：
      * <ul>
      *   <li>{@code logic} 缺省 → 默认 AND（与历史语义一致，向后兼容）</li>
-     *   <li>{@code logic} 显式声明且非 {@code AND} / {@code OR}（含空串） → 写入门禁拒绝；
+     *   <li>{@code logic} 显式声明且非 {@code AND} / {@code OR}（含 null / 空串） → 写入门禁拒绝；
      *       两端 evaluate 函数防御性 fail-close 返回 false</li>
      * </ul>
      * </p>
@@ -230,9 +230,9 @@ public final class ConditionEvalUtils {
         if (conditionRules == null || !conditionRules.isObject()) {
             return false;
         }
-        // T-PERM-017 P2-B：logic 显式声明时必须在 VALID_LOGIC；缺省放行（兼容默认 AND 语义），空串拒绝。
+        // T-PERM-017 P2-B/P3：logic 显式声明时必须在 VALID_LOGIC；缺省放行（兼容默认 AND 语义），null/空串拒绝。
         JsonNode logicNode = conditionRules.get("logic");
-        if (logicNode != null && !logicNode.isNull() && !VALID_LOGIC.contains(logicNode.asText())) {
+        if (logicNode != null && !VALID_LOGIC.contains(logicNode.asText())) {
             return false;
         }
         JsonNode items = conditionRules.get("items");
