@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.permission.cache;
 
-import org.redisson.api.RTopic;
-import org.redisson.api.RedissonClient;
+import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -27,10 +29,12 @@ public class PermInvalidationPublisher {
     /** 广播 topic（IR-1.4：tenant_id 作为事件载荷分区，topic 全局共享） */
     public static final String TOPIC = "perm:invalidate";
 
-    private final RedissonClient redissonClient;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
-    public PermInvalidationPublisher(RedissonClient redissonClient) {
-        this.redissonClient = redissonClient;
+    public PermInvalidationPublisher(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -47,8 +51,11 @@ public class PermInvalidationPublisher {
             return;
         }
         try {
-            RTopic topic = redissonClient.getTopic(TOPIC);
-            topic.publish(new PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes));
+            String message = objectMapper.writeValueAsString(new PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes));
+            redisTemplate.convertAndSend(TOPIC, message);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}, serviceCodes={}): {}",
+                tenantId, roleIds, userIds, serviceCodes, e.getMessage());
         } catch (Exception e) {
             // 广播失败不抛异常，不影响已提交事务；订阅端靠 TTL 兜底
             log.warn("Failed to publish PermInvalidateEvent (tenantId={}, roleIds={}, userIds={}, serviceCodes={}): {}",

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher.Decision;
@@ -56,7 +57,6 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static final String USER_ID_ATTR = "userId";
     private static final String TENANT_ID_ATTR = "tenantId";
     private static final String SUBJECT_TYPE_CODE_ATTR = "subjectTypeCode";
-    private static final String CACHE_KEY_PREFIX = "perm:snapshot:";
 
     private final PermissionClient permissionClient;
     private final Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache;
@@ -221,7 +221,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * </p>
      */
     private String buildCacheKey(Long tenantId, String subjectTypeCode, Long userId, String serviceCode) {
-        return CACHE_KEY_PREFIX + tenantId + ":" + subjectTypeCode + ":" + userId + ":" + serviceCode;
+        return InterfaceSnapshotCacheKeys.build(tenantId, subjectTypeCode, userId, serviceCode);
     }
 
     private Long toLong(Object obj) {

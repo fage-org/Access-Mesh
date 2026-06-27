@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.cache;
 
+import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.permission.aop;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import cn.ac.fage.accessmesh.permission.cache.PermCacheCatalog;
-import cn.ac.fage.accessmesh.permission.cache.PermInvalidateEvent;
 import cn.ac.fage.accessmesh.permission.cache.PermInvalidationPublisher;
 import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;

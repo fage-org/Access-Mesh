@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-06-24
+last_reviewed: 2026-06-27
 ---
 
 # Gateway 服务设计
@@ -36,7 +36,7 @@ last_reviewed: 2026-06-24
 | 缓存 key | `(tenantId,subjectTypeCode,userId,serviceCode,httpMethod,path)` | `(tenantId,subjectTypeCode,userId,serviceCode)` |
 | 缓存值 | `Boolean`（仅 true 入缓存） | `InterfaceSnapshotResp`（含 `allowedApis[]`） |
 | 鉴权方式 | 每请求打 RPC（未命中时） | 本地内存匹配，O(1) |
-| TTL | 10s | 30s 兜底（主靠 Redis pub/sub 主动广播，T-PERM-006） |
+| TTL | 10s | 30s 兜底（主靠 Redis pub/sub 主动广播，T-PERM-006 已落地） |
 | 未命中处理 | 调 check-interface | 回源拉 interface-snapshot 快照后缓存再匹配 |
 
 ### 本地匹配规则（`InterfaceSnapshotMatcher`）
@@ -55,11 +55,15 @@ last_reviewed: 2026-06-24
 
 > **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
 
-### 失败模式
+### 主动失效（T-PERM-006）
 
-- permission-center 不可达 → **fail-close**，返回 503。
-- stale-allow（用过期快照续命）由 **T-GW-003** 实现，本任务过渡期不做。
-- 条件 fallback 调 `check-interface` 失败（HTTP 非 2xx / 超时）→ fail-close 拒绝（与快照拉取一致语义）。
+Gateway 启动后订阅 Redis topic `perm:invalidate`。permission-center 写路径在事务提交后发布 `PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)` JSON，Gateway 收到后清理本地 `interfaceSnapshotCache`：
+
+- `serviceCodes` 非空：按 `tenantId + serviceCode` 清理对应服务下所有用户快照，覆盖 API mapping / 资源 / syncInterfaces / 条件规则影响的快照构建结果。
+- `userIds` 非空且 `serviceCodes` 为空：按 `tenantId + userId` 清理该用户所有服务快照，覆盖用户角色关系变化。
+- 仅 `roleIds` 非空：Gateway 不读权限库，无法本地反查角色影响用户，按 `tenantId` 级安全清理；广播丢失或订阅断线时仍由 `gateway.cache.l1.ttl-seconds` 兜底。
+
+广播契约定义在 `perm-common` 的 `PermInvalidateEvent`，由 permission-center 发布端与 Gateway 订阅端共享，避免跨模块事件结构漂移。
 
 ### 配置项
 

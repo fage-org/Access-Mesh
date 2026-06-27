@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 v3.5 端到端设计（简化版）
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-20
+last_reviewed: 2026-06-27
 ---
 
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）
@@ -269,8 +269,8 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 权限缓存失效采用 **Redis pub/sub 主动广播 + TTL 兜底**，无持久化重投：
 
-- permission-center 写操作 afterCommit 阶段 `redissonClient.getTopic("perm:invalidate").publish(PermInvalidateEvent)`
-- Gateway / 前端订阅该 topic，收到事件后 evict 本地缓存
+- permission-center 写操作 afterCommit 阶段 `StringRedisTemplate.convertAndSend("perm:invalidate", <PermInvalidateEvent JSON>)`
+- Gateway 订阅该 topic，收到事件后 evict 本地 `interfaceSnapshotCache`；前端缓存仍按前端实施约定走 TTL / polling / BroadcastChannel / SSE 兜底
 - 失败兜底：广播丢失不影响事务；TTL（30-60s）自然过期最终一致
 
 > **实现进度（T-PERM-001，2026-06-20）**：Gateway 已落地快照模式——缓存 key 从 `(user,service,method,path)→Boolean` 改为 `(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp`，鉴权降为本地内存匹配（`InterfaceSnapshotMatcher`，支持 Ant 通配 + scopeAll 覆盖），未命中回源拉取 `interface-snapshot`。`InterfaceSnapshotResp`/`InterfaceSnapshotReq` 已迁入 perm-common 供 Gateway 共享。fail-close 过渡期保留（stale-allow 见 T-GW-003）。
@@ -282,8 +282,9 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 > - **engine 读路径激活 ROLE_PERM_SNAPSHOT**：`queryForUserView` 走 `getBatch(ROLE_PERM_SNAPSHOT, roleIds)` → miss 集合 1 SQL（`selectValidByRoleIds`）→ `putBatch` 回填；空权限角色缓存 `List.of()`（非 null）防穿透。缓存值为条件评估前、互斥过滤前的原始权限记录（`List<RolePermEntry>`），条件实时评估 → 条件变更洞消失。flush 对 `roleIds` 追加 `evictBatch(ROLE_PERM_SNAPSHOT)`（roleId 级精确，非 evictAll）。`scopeAll`/`instance` 位掩码查询路径第一阶段不缓存（调用方多带过滤参数，缓存 key 复杂，留后续）。
 > - **移除 INTERFACE_SNAPSHOT(L2) + permissionVersion/notModified**：permission-center 侧删 `PermCacheCatalog.INTERFACE_SNAPSHOT`、`permission.vo.InterfaceSnapshot`、`PermissionVersionDomainService(Impl)` 及令牌构造/304 死代码；`InterfaceSnapshotResp`/`Req` 去 `permissionVersion`/`notModified`，`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 去 `permissionVersion`；Gateway `PermissionClient.interfaceSnapshot` 去令牌参数、`PermissionFilter` 去 notModified 分支。Gateway 本地 Caffeine `interfaceSnapshotCache` 保留。
 > - **写路径全路径登记**：资源软删（`deleteResources`）加 `@PermissionChange`，软删 perm 前双重登记 `markRoles`（查受影响 roleIds，新增 `selectRoleIdsByResourceIds`）+ `markServiceCodes`（资源→API mapping→serviceCode）；API mapping 增删改（`addApiMapping`/`updateApiMapping`/`removeApiMappingsByIds`）+ `syncInterfaces` 加 `@PermissionChange` 仅 `markServiceCodes`（perm 未变不 markRoles）。
-> - **边界（C10）**：T-PERM-018 仅就位 serviceCodes 事件载荷并发布；Gateway 订阅侧按 tenant+serviceCodes 主动清本地 `interfaceSnapshotCache` 属 T-PERM-006 范围。T-PERM-018 单独完成后，API mapping/resource/sync 变更的 Gateway 本地陈旧仍靠 Gateway TTL 兜底，直至 T-PERM-006 落地。
+> **实现进度（T-PERM-006，2026-06-27）：Gateway Redis 广播订阅器已落地**。`PermInvalidateEvent` 契约迁入 `perm-common`，permission-center 发布端与 Gateway 订阅端共享同一事件结构；permission-center 通过 `StringRedisTemplate.convertAndSend("perm:invalidate", json)` 发布 JSON，避免 Redisson 对象 pub/sub 与 Gateway reactive Redis 订阅的编码不一致。Gateway `PermInvalidationSubscriber` 订阅 topic 后调用 `InterfaceSnapshotCacheInvalidator` 清本地 Caffeine：`serviceCodes` 非空按租户+服务清，`userIds` 非空按租户+用户清，仅 `roleIds` 非空时因 Gateway 无本地角色→用户反查能力，按租户级安全清理；广播丢失继续靠 TTL 兜底。
 >
+
 > **实现进度（T-PERM-017，2026-06-24）：条件权限 Gateway 侧重评（混合方案）**。修复 T-PERM-001 评审 P1 — "快照模式下条件权限可能误放行"：
 > - **`permission_condition` 新增 `gateway_evaluable` 字段**（BOOLEAN，默认 false）：标记规则可下发 Gateway 评估。创建/更新写入门禁仅允许 `IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类置 true（`ConditionEvalUtils.isGatewayPushable` 共用白名单），未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 fail-close 不下发。
 > - **`ConditionEvalUtils` 迁入 `perm-common`**（硬切，无 DB 依赖，纯静态函数）：Gateway 与 permission-center 共享同一份评估逻辑。跨进程时钟一致性由 **NTP 同步保证**（中小企业 Gateway 与 permission-center 通常同机房，亚秒漂移 << 业务粒度小时级），不通过 context 传递 `timestamp`。
