@@ -9,7 +9,7 @@ origin: project
 metadata:
   project: AccessMesh
   module: permission-center
-  version: "4.0.0"
+  version: "4.0.1"
 ---
 
 # Permission Center 编码规范
@@ -190,7 +190,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 // afterCommit 注册统一由 @PermissionChange AOP（PermissionChangeAspect，框架侧）完成；
 // 业务侧仅通过 PermissionChangeContext.mark* 登记影响范围。
 // 落地状态（T-PERM-002，2026-06-20）：业务侧 15 处手写同步已全部消除。
-// 注：permissionVersionDomainService.increment 已删除（审计 S-001 / design-review §A'-3），
+// T-PERM-007（2026-06-27）代码层一致性核对：业务侧注释与实现均不得再表达“版本递增”。
+// 业务侧禁止手写 TransactionSynchronizationManager；框架/基础设施侧（PermissionChangeAspect、
+// CacheService.evictAfterCommit 等）可封装使用。
+// 已删除 permissionVersionDomainService.increment（审计 S-001 / design-review §A'-3），
 // 缓存失效改由 Redis pub/sub 主动广播 PermInvalidateEvent + TTL 兜底。
 // T-PERM-018（2026-06-20）缓存下沉：INTERFACE_SNAPSHOT(L2)/permissionVersion/notModified 已移除，
 // engine forUserView 激活 ROLE_PERM_SNAPSHOT 读缓存（per-role 精确失效）；事件载荷扩展 serviceCodes。
@@ -207,7 +210,7 @@ public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) 
     return toItemRespList(...);
 }
 // AOP afterCommit 自动执行（框架侧 PermissionChangeAspect.flush）：
-//   subjectDomainService.invalidateRoleCacheByRole(tenantId, roleId);   // roleIds（反查受影响用户）
+//   subjectDomainService.invalidateRoleCacheByRoles(tenantId, roleIds);  // roleIds（批量反查受影响用户）
 //   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds);     // roleIds → per-role 精确失效
 //   subjectDomainService.invalidateRoleCacheBatch(tenantId, userIds);   // userIds
 //   cacheService.evictBatch(CONDITION_RULES, tenantId, conditionIds);   // conditionIds

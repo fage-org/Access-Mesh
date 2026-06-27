@@ -229,7 +229,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 批量撤销角色权限
      * <p>
      * 批量软删除权限，同时级联删除依赖该权限的子权限。
-     * 注意：版本递增和缓存失效由调用方在 afterCommit 中负责。
+     * 注意：缓存失效和广播由调用方通过 PermissionChangeContext + @PermissionChange afterCommit 统一处理。
      * </p>
      *
      * @param tenantId      租户ID
@@ -257,7 +257,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // 批量级联删除子权限（仅基于有效权限ID）
         roleResourcePermissionMapper.cascadeSoftDeleteChildren(tenantId, validIds, now);
 
-        // 注意：版本递增和缓存失效由调用方在 afterCommit 中统一处理（避免与 batchGrant 双重递增）
+        // 注意：缓存失效和广播由调用方在 @PermissionChange afterCommit 中统一处理（避免与 batchGrant 重复登记）
     }
 
     // ===== 私有辅助方法 =====

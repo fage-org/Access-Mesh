@@ -26,7 +26,7 @@ last_updated: 2026-06-27
 
 # 权限缓存失效改造计划（工作单 A）
 
-> 状态：进行中（T-PERM-001·002·003·004·005·006·017·018 done / 007·008 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
+> 状态：进行中（T-PERM-001·002·003·004·005·006·007·017·018 done / 008 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.1 工作单 A
 > 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，待设计）
@@ -58,7 +58,7 @@ last_updated: 2026-06-27
 | T-PERM-004 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 | ✅ |
 | T-PERM-005 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 | ✅ |
 | [T-PERM-006](../tasks/T-PERM-006.md) | Gateway 订阅 `perm:invalidate`，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | A'-4 | ✅ |
-| T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ⚙️ |
+| T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ✅ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（**待设计 S-006**，规范明确后补；依赖 T-GW-005）| S-006 | ⚙️ |
 | [T-PERM-017](../tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 `gateway_evaluable` + 未下发回退 check-interface）| 工作单 A 扩展 | ✅ |
 | [T-PERM-018](../tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | A'-5（T-PERM-018 派生）| ✅ |
@@ -82,7 +82,8 @@ last_updated: 2026-06-27
   - T-PERM-018 ✅ 缓存下沉已落地（2026-06-20，3 commit）——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion/notModified，激活 ROLE_PERM_SNAPSHOT engine 读缓存（getBatch/putBatch/空列表缓存），扩展失效事件 serviceCodes，资源软删双重登记 + API mapping/sync 全路径 markServiceCodes。RolePermEntry 提升顶层 record。C10 边界：仅发布 serviceCodes 载荷，Gateway 订阅侧已由 T-PERM-006 闭环。mvn test 143 passed
   - T-PERM-004 ✅ increment 残留核验完成（2026-06-27）——主源码已无 `permissionVersionDomainService.increment` / `PermissionVersionDomainService` / `buildInterfacePermissionVersion` 残留；同步删除 T-PERM-003 遗留的 `PermissionVersion` 实体源码，避免 `permission_version` 生产实体继续生成。
   - T-PERM-005 ✅ 缓存目录/key 后缀残留清理完成（2026-06-27）——主源码已无 `PermCacheCatalog.PERMISSION_VERSION`、`perm:permission-version` 与 `:{permissionVersion}` key 构建；缓存配置与 skill 示例改为现行 `effective-roles` / `role-perm-snapshot`。
-  - T-PERM-007/008 未启动
+  - T-PERM-007 ✅ 文档与代码层一致性核对完成（2026-06-27）——overview/core-flows/implementation/api-contract/coding-standards 已同步至当前缓存失效模型：@PermissionChange + PermissionChangeContext afterCommit 统一 evict/broadcast、permission_version/INTERFACE_SNAPSHOT(L2)/notModified 移除、ROLE_PERM_SNAPSHOT 读缓存与 serviceCodes 广播边界；同步清理代码注释中的“版本递增”残留。
+  - T-PERM-008 未启动
 
 
 ## 归档条件

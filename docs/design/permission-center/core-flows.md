@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-20
+last_reviewed: 2026-06-27
 ---
 
 # Permission Center 核心流程链路
@@ -295,7 +295,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 1    | `POST /api/perm/service-config/sync` | 新的 FULL 接口列表             | 权限中心计算 diff      |
 | 2    | 自动处理                             | 新接口创建 API 资源和映射      | 可被授权               |
 | 3    | 自动处理                             | 删除接口软删映射和自动创建资源 | Gateway 不再匹配旧接口 |
-| 4    | 自动处理                             | 影响已有角色权限时递增版本     | 缓存失效               |
+| 4    | 自动处理                             | 影响 API mapping / API 资源的 serviceCode | 广播 `PermInvalidateEvent.serviceCodes`，Gateway 清本地快照 |
 | 5    | `POST /api/perm/service-config/apis` | `serviceCode`                  | 验证最新接口资源树     |
 
 关键逻辑：
@@ -324,8 +324,8 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 同一源资源和依赖资源可以按不同 `source_operation_bits` 配置多条依赖规则。
 - `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
-- 自动补全同样需要记录变更日志和递增权限版本。
-- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 的版本递增由调用方在 `TransactionSynchronization.afterCommit` 中负责，而非方法内部自行递增。
+- 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
+- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 只做权限事实软删；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
 
 ## 13. 场景十：权限视图和审计排查
 
@@ -414,10 +414,10 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 场景                    | 接口                                                   | 级联或失效                              |
 | ----------------------- | ------------------------------------------------------ | --------------------------------------- |
 | 回收用户角色            | `POST /api/perm/user-role/revoke`                      | 失效用户有效角色缓存                    |
-| 回收角色权限            | `POST /api/perm/role-resource-permission/revoke`       | 级联软删子权限，递增角色版本            |
+| 回收角色权限            | `POST /api/perm/role-resource-permission/revoke`       | 级联软删子权限，失效角色权限快照与相关用户缓存 |
 | 删除子权限              | `POST /api/perm/role-resource-permission/remove-child` | 只允许删除 `depend_on IS NOT NULL` 记录 |
-| 删除资源                | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系  |
-| 删除角色                | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，递增版本    |
+| 删除资源                | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系；登记受影响角色和服务编码 |
+| 删除角色                | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，直清角色权限快照并失效用户缓存 |
 | 删除用户                | `POST /api/perm/abstract-user/remove`                  | 软删用户角色关系和个人角色权限          |
 | 停用用户/角色/资源/服务 | 对应 update/save 接口                                  | 运行时鉴权直接拒绝或不参与计算          |
 
@@ -440,7 +440,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
 | 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
 | 接口同步简单   | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                        |
-| 缓存一致性     | 权限变更、依赖变更、角色关系变更都能触发版本递增和缓存失效                                            |
+| 缓存一致性     | 权限变更、依赖变更、角色关系变更都能通过 `PermissionChangeContext` 登记影响范围，并在事务提交后触发精确缓存失效和 Redis 广播 |
 
 ## 16. 仍需实现时重点校验
 

@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-20
+last_reviewed: 2026-06-27
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -47,7 +47,9 @@ cn.ac.fage.accessmesh.permission
 ├── cache                             ← CacheService 缓存目录
 ├── config                            ← 配置类
 ├── constant                          ← 常量（OperationCodeConstants 等）
-├── controller (19)
+├── controller (22)
+│   ├── AbstractRoleSyncController
+│   ├── AbstractUserSyncController
 │   ├── AuthController
 │   ├── BizDomainController
 │   ├── ConditionController
@@ -56,19 +58,22 @@ cn.ac.fage.accessmesh.permission
 │   ├── LogQueryController
 │   ├── OperationController
 │   ├── PermissionGrantController
-│   ├── ~~PermissionVersionController~~ (OBSOLETED S-001)
 │   ├── PermissionViewController
 │   ├── ResourceApiMappingController
 │   ├── ResourceController
 │   ├── ResourceDependencyController
+│   ├── ResourceEntitySyncController
 │   ├── RoleController
 │   ├── ServiceConfigController
 │   ├── SystemConfigController
 │   ├── TypeDefinitionController
 │   ├── UserController
-│   └── UserRoleController
+│   ├── UserRoleController
+│   └── UserRoleSyncController
 ├── service
-│   ├── impl (20 AppService 实现)
+│   ├── impl (23 AppService 实现)
+│   │   ├── AbstractRoleSyncAppServiceImpl
+│   │   ├── AbstractUserSyncAppServiceImpl
 │   │   ├── BizDomainAppServiceImpl
 │   │   ├── ConditionAppServiceImpl
 │   │   ├── ConflictRuleAppServiceImpl
@@ -80,27 +85,28 @@ cn.ac.fage.accessmesh.permission
 │   │   ├── PermissionCheckAppServiceImpl
 │   │   ├── PermissionGrantAppServiceImpl
 │   │   ├── PermissionQueryAppServiceImpl
-│   │   ├── ~~PermissionVersionAppServiceImpl~~ (OBSOLETED S-001)
 │   │   ├── PermissionViewAppServiceImpl
+│   │   ├── ResourceEntitySyncAppServiceImpl
 │   │   ├── ResourceManageAppServiceImpl
 │   │   ├── RoleManageAppServiceImpl
 │   │   ├── ServiceConfigAppServiceImpl
 │   │   ├── ServiceSyncAppServiceImpl
 │   │   ├── SystemConfigAppServiceImpl
 │   │   ├── TypeDefinitionAppServiceImpl
-│   │   └── UserManageAppServiceImpl
-│   └── domain (11 个接口 + 11 个实现，另含 ResolveContext 与 PermQueryEngine)
+│   │   ├── UserManageAppServiceImpl
+│   │   └── UserRoleSyncAppServiceImpl
+│   └── domain (11 个接口 + 11 个实现，另含同步策略、ResolveContext 与 PermQueryEngine)
 │       ├── AuditDomainService / *Impl
 │       ├── DomainClassifyService / *Impl
 │       ├── MappingSyncHandler / *Impl
 │       ├── PermissionConditionDomainService / *Impl
 │       ├── PermissionConflictDomainService / *Impl
 │       ├── PermissionGrantDomainService / *Impl
-│       ├── ~~PermissionVersionDomainService / *Impl~~ (OBSOLETED S-001，已删除)
 │       ├── ResolveContext                            ← 类型预解析上下文
 │       ├── ResourceEntityDomainService / *Impl
 │       ├── ResourceSyncHandler / *Impl
 │       ├── SubjectDomainService / *Impl              ← 角色解析+用户查询合并
+│       ├── SyncMetadataDomainService / *Impl
 │       ├── TypeResolutionService / *Impl
 │       └── impl/PermQueryEngine                      ← 统一鉴权引擎
 ├── mapper (18)
@@ -113,12 +119,12 @@ cn.ac.fage.accessmesh.permission
 │   ├── PermissionChangeLogMapper
 │   ├── PermissionConditionMapper
 │   ├── PermissionConflictRuleMapper
-│   ├── ~~PermissionVersionMapper~~ (OBSOLETED S-001)
 │   ├── ResourceApiMappingMapper
 │   ├── ResourceDependencyMapper
 │   ├── ResourceEntityMapper
 │   ├── RoleResourcePermissionMapper
 │   ├── ServiceConfigMapper
+│   ├── SyncMetadataMapper
 │   ├── SystemConfigMapper
 │   ├── TypeDefinitionMapper
 │   └── UserRoleMapper
@@ -548,16 +554,18 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         rolePermMapper.update(updateItems);
         rolePermMapper.insertBatch(toInsert);
 
-        // ⑤ DomainService 登记影响范围；AppService AOP afterCommit 统一发布广播 + evict
-        // （2026-06-20 审计 S-001/P1-B 修订：禁止业务侧手写 TransactionSynchronizationManager）
-        permissionGrantDomainService.markAffected(tenantId, affectedRoleIds, affectedUserIds);
-        // AOP afterCommit 自动：redisPublisher.publish("perm:invalidate", PermInvalidateEvent)
-        //                    + subjectDomainService.invalidateRoleCacheByRole(...)
+        // ⑤ 业务侧登记影响范围；AppService AOP afterCommit 统一发布广播 + evict
+        // （2026-06-27 T-PERM-007 核对：禁止业务侧手写 TransactionSynchronizationManager）
+        PermissionChangeContext.markRoles(tenantId, roleId);
+        // AOP afterCommit 自动：
+        //   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds)
+        //   subjectDomainService.invalidateRoleCacheByRoles(...)
+        //   publisher.publish(tenantId, roleIds, userIds, serviceCodes)
         // 入口操作日志由 @OperationLog AOP 自动记录
     }
 ```
 
-> **TODO**: `auto-grant` 自动补全功能（`resource_dependency` 自动补全级联逻辑）尚未完整实现。缓存失效由 AppService AOP afterCommit 统一处理（基于 `PermissionChangeContext` 登记的影响范围），不在 DomainService 内部手写 `TransactionSynchronization`（2026-06-20 审计 S-001/P1-B 修订）。
+> **TODO**: `auto-grant` 自动补全功能（`resource_dependency` 自动补全级联逻辑）尚未完整实现。缓存失效由 AppService AOP afterCommit 统一处理（基于 `PermissionChangeContext` 登记的影响范围），不在 DomainService / AppService 业务方法体内手写 `TransactionSynchronizationManager`（2026-06-27 T-PERM-007 核对）。
 
 ## 5. 缓存设计
 
@@ -583,8 +591,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     → cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleIds)
     → SubjectDomainService.invalidateRoleCacheByRoles(tenantId, roleIds)
       （批量反查直接用户 + 祖先 GROUP_ROLE 用户，一次 evictBatch(EFFECTIVE_ROLES)）
-    → Redis pub/sub 广播 PermInvalidateEvent(tenantId, userIds, roleIds, serviceCodes)
-  → 订阅方（Gateway/前端）收到事件 evict 本地快照；TTL（30-60s）兜底
+    → Redis pub/sub 广播 PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)
+  → 订阅方（Gateway）收到事件 evict 本地快照；TTL（30-60s）兜底
 
 用户-角色关联变更（user_role）
   → PermissionChangeContext.markUsers 登记受影响用户
@@ -595,6 +603,15 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
   → 重新评估受影响角色的自动补全状态（清理旧补全 + 补全新权限）
   → 角色权限快照失效（evictBatch ROLE_PERM_SNAPSHOT）+ 用户缓存失效 + Redis 广播 PermInvalidateEvent
 
+API mapping / serviceCode-only 变更
+  → PermissionChangeContext.markServiceCodes 登记受影响 serviceCode
+  → afterCommit 仅广播 serviceCodes（不清 permission-center 缓存）
+  → Gateway 按 tenant+serviceCodes evict 本地接口快照
+
+API 资源删除 / 资源软删导致角色权限事实变化
+  → PermissionChangeContext.markRoles + markServiceCodes 双重登记
+  → afterCommit 失效 ROLE_PERM_SNAPSHOT / EFFECTIVE_ROLES，并广播 serviceCodes 清 Gateway 本地快照
+
 角色停用（abstract_role.status=0）
   → 递归失效关联所有用户的角色缓存
   → 相关接口快照失效
@@ -602,6 +619,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 GROUP_ROLE 变更（parent_id 或 extra.basicRoleIds 修改）
   → PermissionChangeContext.markRoles(groupRoleId)
   → afterCommit 批量失效 ROLE_PERM_SNAPSHOT + 关联用户 EFFECTIVE_ROLES + 广播
+
+条件规则变更（permission_condition）
+  → PermissionChangeContext.markConditions(conditionIds)
+  → afterCommit 批量失效 CONDITION_RULES；RolePermEntry 缓存只保存 conditionId，条件仍实时评估
 ```
 
 ### 5.3 Gateway 回调鉴权流程

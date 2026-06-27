@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-20
+last_reviewed: 2026-06-27
 ---
 
 # Permission Center 概念模型
@@ -40,9 +40,9 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
                                          └── AOP（@OperationLog 自动记录入口日志）
 ```
 
-- **Controller**（19 个）：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
-- **AppService**（20 个）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant/PermissionView 等）。
-- **DomainService**（12 个）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、权限版本等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
+- **Controller**（22 个）：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
+- **AppService**（23 个实现）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant/PermissionView 等）。
+- **DomainService**（11 个接口 + `ResolveContext` + `PermQueryEngine`）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
 - **Mapper**（18 个）：MyBatis-Flex 数据访问，使用 `Tables` 类引用 TableDef（禁止静态导入 APT 生成的 `*TableDef` 类）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
 - **AOP**：`@OperationLog` 注解 + `OperationLogAspect` 切面自动拦截 AppService 写方法并记录入口级操作日志。`OperationLogRuntimeContext` 允许方法体内通过 `markSkip()`/`setSummary()`/`setTargetType()`/`setTargetId()` 覆盖注解值。
 
@@ -162,9 +162,9 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 ## 缓存与一致性
 
 - 权限运行时计算应复用统一的 `PermQueryEngine` 角色解析、条件评估、冲突处理、租户过滤和缓存逻辑。
-- **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-20 审计 S-001/S-018 修订）：写操作 afterCommit 阶段 `redissonClient.getTopic("perm:invalidate").publish(PermInvalidateEvent)`；订阅方（Gateway / 前端）收到事件后 evict 本地缓存；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原"递增 version 驱动失效"的设计已废弃，Gateway 不读 version、内部 evict 已够用）。
-- Gateway 可做本地 L1 缓存（Caffeine, TTL 30s），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `PermCacheCatalog` 统一管理）。
-- 缓存失效在事务提交后（`TransactionSynchronization.afterCommit`）执行。
+- **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-27 T-PERM-007 核对）：写操作通过 `@PermissionChange` 绑定 `PermissionChangeContext`，业务侧只调用 `markRoles/markUsers/markConditions/markRoleSnapshots/markServiceCodes` 登记影响范围；事务提交后由 `PermissionChangeAspect` 统一 evict `EFFECTIVE_ROLES` / `ROLE_PERM_SNAPSHOT` / `CONDITION_RULES` 并通过 `StringRedisTemplate.convertAndSend("perm:invalidate", PermInvalidateEvent JSON)` 广播。Gateway 订阅后 evict 本地接口快照；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原“递增 version 驱动失效”的设计已废弃，Gateway 不读 version）。
+- Gateway 可做本地 L1 缓存（Caffeine, TTL 30s），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `PermCacheCatalog` 统一管理）。权限中心侧不再缓存 `INTERFACE_SNAPSHOT(L2)`，接口快照每次实时调 engine 构建，依赖 `ROLE_PERM_SNAPSHOT` 兜住角色权限记录读路径。
+- 缓存失效在事务提交后由 `PermissionChangeAspect.afterCommit` 执行；业务侧（AppService / DomainService 方法体）禁止手写 `TransactionSynchronizationManager`。
 - 接口级权限检查（`check-interface`）匹配 API 映射后直接走 `API.ACCESS` 引擎判定，无额外 VIEW 门禁。
 
 ## 关联文档

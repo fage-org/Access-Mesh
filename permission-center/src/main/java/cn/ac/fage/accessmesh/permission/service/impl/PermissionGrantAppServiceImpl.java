@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * 提供角色权限的批量授予、批量撤销、权限列表查询、子权限管理等核心功能。
  * 实现严格的授权传递安全校验：操作者必须拥有canGrant=true的权限才能授权给他人。
  * 使用批量解析优化性能，避免N+1查询问题。
- * 在事务提交后执行缓存失效和版本递增，确保数据一致性。
+ * 通过 @PermissionChange afterCommit 统一执行缓存失效和失效广播，确保数据一致性。
  * </p>
  * <p>
  * TODO: 构造函数依赖过多(14个)，违反单一职责原则
@@ -122,7 +122,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * 2. 授权新增权限时，操作者必须拥有该权限且canGrant=true
      * 3. 更新canGrant=true时，操作者必须已拥有canGrant=true的该权限
      * 使用批量解析（资源ID、操作ID、类型值）避免N+1查询。
-     * 在事务提交后执行缓存失效和版本递增。
+     * 通过 @PermissionChange afterCommit 统一执行缓存失效和失效广播。
      *
      * TODO: 自动授予依赖权限（autoGrantForInsert）——查询resource_dependency表自动补充依赖权限
      * </p>
@@ -453,7 +453,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * <p>
      * 执行操作者授权校验（对角色拥有MANAGE权限）。
      * 使用批量软删除方法优化性能。
-     * 版本递增和缓存失效由revokePermissions内部处理。
+     * 缓存失效和广播由 @PermissionChange afterCommit 统一处理。
      * </p>
      *
      * @param tenantId 租户ID
@@ -724,7 +724,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * <p>
      * 软删除指定的子权限（必须是依赖权限，即dependOn不为null）。
      * 执行操作者授权校验（对子权限所属角色拥有MANAGE权限）。
-     * 在事务提交后执行缓存失效和版本递增。
+     * 通过 @PermissionChange afterCommit 统一执行缓存失效和失效广播。
      * </p>
      *
      * @param tenantId 租户ID
