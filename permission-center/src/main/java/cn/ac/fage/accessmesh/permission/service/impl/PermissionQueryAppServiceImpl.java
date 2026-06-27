@@ -231,7 +231,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             List<Long> permIds = matchedPerms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
             List<String> sources = matchedPerms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
             entries.add(new QueryResourcesResp.ResourceEntry(
-                rtCode, null, null, null, false, true,
+                rtCode, null, null, null, false, ScopeMode.ALL,
                 new ArrayList<>(ops), roleIds, permIds, sources));
         }
 
@@ -264,7 +264,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             boolean canGrant = matchedPerms.stream().anyMatch(p -> Boolean.TRUE.equals(p.canGrant()));
             entries.add(new QueryResourcesResp.ResourceEntry(
                 rtCode, res.getCode(), res.getCodeType(), res.getName(),
-                canGrant, false,
+                canGrant, ScopeMode.INSTANCE,
                 new ArrayList<>(ops), roleIds, permIds, sources));
         }
 

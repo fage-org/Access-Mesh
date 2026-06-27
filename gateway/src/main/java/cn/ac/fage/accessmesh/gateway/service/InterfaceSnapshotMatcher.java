@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.gateway.service;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,7 +22,7 @@ import java.util.Map;
  * <p>
  * 匹配语义（OR 合并 + 三态结果）：
  * <ol>
- *   <li>遍历所有路由匹配（serviceCode + httpMethod + pathPattern + scopeAll）的条目：
+ *   <li>遍历所有路由匹配（serviceCode + httpMethod + pathPattern + scopeMode）的条目：
  *     <ul>
  *       <li><strong>无条件条目</strong>（{@code hasCondition=false}）→ 立即 {@link Decision#ALLOW}（"任一无条件授权放行"原则）</li>
  *       <li><strong>含条件且 conditionRules 内联</strong>（{@code gateway_evaluable=true}）→ 本地用请求 context 重评：
@@ -120,12 +121,12 @@ public class InterfaceSnapshotMatcher {
     }
 
     /**
-     * 路由维度匹配：scopeAll 覆盖 / 精确-通配匹配。
+     * 路由维度匹配：scopeMode=ALL 覆盖 / 精确-通配匹配。
      * 仅判断路由是否落在该 entry 范围内，不涉及条件。
      */
     private static boolean matchesRoute(ApiPermissionEntry entry, String serviceCode, String httpMethod, String path) {
         if (!serviceCode.equals(entry.serviceCode())) return false;
-        if (Boolean.TRUE.equals(entry.scopeAll())) return true;
+        if (entry.scopeMode() == ScopeMode.ALL) return true;
         if (entry.httpMethod() != null && !entry.httpMethod().equalsIgnoreCase(httpMethod)) return false;
         if (entry.pathPattern() == null) return false;
         return PATH_MATCHER.match(entry.pathPattern(), path);

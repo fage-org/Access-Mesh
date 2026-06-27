@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.util;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import cn.ac.fage.accessmesh.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.permission.entity.PermissionCondition;
@@ -106,7 +107,7 @@ public class SnapshotAssembler {
                     : null;
                 snapshotEntries.add(new InterfaceSnapshotResp.ApiPermissionEntry(
                     serviceCode, null, null, e.hasCondition(), e.conditionId(),
-                    rulesJson, true));
+                    rulesJson, ScopeMode.ALL));
             }
         }
 
@@ -156,7 +157,7 @@ public class SnapshotAssembler {
                         perm.hasCondition(),
                         perm.hasCondition() ? perm.conditionId() : null,
                         rulesJson,
-                        false
+                        ScopeMode.INSTANCE
                     ));
                 }
             }

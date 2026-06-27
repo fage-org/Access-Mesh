@@ -37,7 +37,7 @@
 | T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（scopeAll → scopeMode）— 范围已合并进 T-PERM-009 完成（§6.7 已回写 scopeMode 四态） | scope-mode-migration | design/permission-center/api-contract.md §6.7 | T-PERM-009 | ✅ | ✓ |
 | T-PERM-011 | api-contract.md §6.4-6.10 / §10 第 8 条等约 30+ 处 scopeAll 全量推广到 scopeMode | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ✅ | ✓ |
 | T-PERM-012 | 管理端授权配置/排查页响应改造（role-resource-permission save/grant、permission-view） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-009 | ✅ | ✓ |
-| T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/permission-center.sql | T-PERM-009 | ⚙️ | ⏳ |
+| T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/permission-center.sql | T-PERM-009 | ✅ | ✓ |
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-010, T-PERM-011 | ✅ | ✓ |
 | T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 响应四态分支 | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ⚙️ | ⏳ |
 | [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
@@ -91,7 +91,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 2. `T-PERM-010` §6.7 改造 — ✅ done（范围合并进 T-PERM-009）
 3. `T-PERM-011` 30+处全量推广 → ✅ done
 4. `T-PERM-012` 管理端/排查页 → ✅ done
-5. `T-PERM-013` schema 映射逻辑 ← 009
+5. `T-PERM-013` schema 映射逻辑 ← 009 → ✅ done
 6. `T-PERM-015` 前端适配响应四态 ← 009
 7. `T-PERM-014` 迁移注记→正式定义 → ✅ done
 
@@ -111,7 +111,7 @@ EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审�
 
 ### 已完成的三个枢纽
 
-`T-PERM-001`（A 链根）+ `T-PERM-002`（AOP afterCommit）+ `T-PERM-003`（A 链删version根）+ `T-PERM-004/005`（删 increment / 缓存目录残留）+ `T-PERM-006`（A 链广播订阅）+ `T-PERM-007`（文档一致性核对）+ `T-PERM-009`（B 链根）+ `T-PERM-011`（scopeMode 契约全量推广）+ `T-PERM-012`（管理端/排查页响应改造）+ `T-PERM-014`（scopeMode 正式定义收尾）均已完成。当前可优先推进 `T-PERM-013`、`T-PERM-015`，`T-PERM-008` 仍等待 T-GW-005 设计。
+`T-PERM-001`（A 链根）+ `T-PERM-002`（AOP afterCommit）+ `T-PERM-003`（A 链删version根）+ `T-PERM-004/005`（删 increment / 缓存目录残留）+ `T-PERM-006`（A 链广播订阅）+ `T-PERM-007`（文档一致性核对）+ `T-PERM-009`（B 链根）+ `T-PERM-011`（scopeMode 契约全量推广）+ `T-PERM-012`（管理端/排查页响应改造）+ `T-PERM-013`（协议层 scopeAll→scopeMode 映射）+ `T-PERM-014`（scopeMode 正式定义收尾）均已完成。当前可优先推进 `T-PERM-015`，`T-PERM-008` 仍等待 T-GW-005 设计。
 
 ## 依赖告警（dangling）
 

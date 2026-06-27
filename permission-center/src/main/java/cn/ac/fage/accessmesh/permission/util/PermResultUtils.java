@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 
 import java.util.*;
@@ -146,7 +147,7 @@ public final class PermResultUtils {
                 null,
                 res.getCode(), res.getCodeType(), res.getName(),
                 perms.stream().anyMatch(e -> Boolean.TRUE.equals(e.canGrant())),
-                false,
+                ScopeMode.INSTANCE,
                 ops, roleIds, permIds, sources));
         }
         return new QueryResourcesResp(entries, cacheTtlSeconds);

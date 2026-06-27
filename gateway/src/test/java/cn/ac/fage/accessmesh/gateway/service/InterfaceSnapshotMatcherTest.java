@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.gateway.service;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher.Decision;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -44,7 +45,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldAllow_whenUnconditionalEntryMatches() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, false, null, null, false);
+            SERVICE, METHOD, PATH, false, null, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -54,7 +55,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldAllow_whenScopeAllUnconditionalMatches() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, null, null, false, null, null, true);
+            SERVICE, null, null, false, null, null, ScopeMode.ALL);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -64,7 +65,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldDeny_whenNoRouteMatches() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, "GET", "/api/other", false, null, null, false);
+            SERVICE, "GET", "/api/other", false, null, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -74,7 +75,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldDeny_whenServiceCodeMismatch() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            "other-service", METHOD, PATH, false, null, null, false);
+            "other-service", METHOD, PATH, false, null, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -86,7 +87,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldAllow_whenConditionalEntryLocalEvalPasses() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, false);
+            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -96,7 +97,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldDeny_whenConditionalEntryLocalEvalFailsAndNoOtherMatch() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, false);
+            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         // clientIp 不在白名单 → 本地评失败，无其他 entry 兜底 → DENY
@@ -109,7 +110,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldFallback_whenConditionalEntryMissingRules() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, null, false);
+            SERVICE, METHOD, PATH, true, 1L, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -119,7 +120,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldFallback_whenConditionalEntryHasBlankRules() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, "   ", false);
+            SERVICE, METHOD, PATH, true, 1L, "   ", ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -132,9 +133,9 @@ class InterfaceSnapshotMatcherTest {
     void shouldAllow_whenUnconditionalEntryOverridesFailingConditional() {
         // 关键：同 API 两条授权——含条件评失败，但无条件兜底
         ApiPermissionEntry conditional = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, false);
+            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, ScopeMode.INSTANCE);
         ApiPermissionEntry unconditional = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, false, null, null, false);
+            SERVICE, METHOD, PATH, false, null, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(conditional, unconditional));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_OUT))
@@ -147,9 +148,9 @@ class InterfaceSnapshotMatcherTest {
         ApiPermissionEntry conditional1 = new ApiPermissionEntry(
             SERVICE, METHOD, PATH, true, 1L,
             "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"172.16.0.0/12\"]}}]}",
-            false);
+            ScopeMode.INSTANCE);
         ApiPermissionEntry conditional2 = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 2L, RULES_IP_WHITELIST_10, false);
+            SERVICE, METHOD, PATH, true, 2L, RULES_IP_WHITELIST_10, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(conditional1, conditional2));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
@@ -160,9 +161,9 @@ class InterfaceSnapshotMatcherTest {
     void shouldFallback_whenAllLocalEvalFailButOneEntryMissingRules() {
         // 一条内联评失败，一条未下发 rules → 没有 ALLOW 命中，需要 fallback 兜底
         ApiPermissionEntry localFail = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, false);
+            SERVICE, METHOD, PATH, true, 1L, RULES_IP_WHITELIST_10, ScopeMode.INSTANCE);
         ApiPermissionEntry needFallback = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 2L, null, false);
+            SERVICE, METHOD, PATH, true, 2L, null, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(localFail, needFallback));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_OUT))
@@ -174,7 +175,7 @@ class InterfaceSnapshotMatcherTest {
     @Test
     void shouldNotAllow_whenConditionalEntryHasMalformedJson() {
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, "{ not valid json", false);
+            SERVICE, METHOD, PATH, true, 1L, "{ not valid json", ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         // 解析失败 → 该 entry 不通过 ALLOW；无其他 entry → DENY
@@ -190,7 +191,7 @@ class InterfaceSnapshotMatcherTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}"
             + "]}";
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, orRules, false);
+            SERVICE, METHOD, PATH, true, 1L, orRules, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         // IP_IN=10.0.0.5 命中第二条 → ALLOW
@@ -206,7 +207,7 @@ class InterfaceSnapshotMatcherTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}"
             + "]}";
         ApiPermissionEntry entry = new ApiPermissionEntry(
-            SERVICE, METHOD, PATH, true, 1L, blankLogicRules, false);
+            SERVICE, METHOD, PATH, true, 1L, blankLogicRules, ScopeMode.INSTANCE);
         InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of(entry));
 
         assertThat(InterfaceSnapshotMatcher.match(snapshot, SERVICE, METHOD, PATH, IP_IN))
