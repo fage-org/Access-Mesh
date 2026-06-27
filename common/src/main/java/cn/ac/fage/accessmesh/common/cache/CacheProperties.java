@@ -25,7 +25,7 @@ import java.util.Map;
  *       l1-maximum-size: 1000
  *       l2-ttl-minutes: 30
  *     catalogs:
- *       perm:permission-version:
+ *       perm:effective-roles:
  *         l2-ttl-minutes: 60
  *       gw:perm-check:
  *         l1-expire-minutes: 1

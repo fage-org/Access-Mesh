@@ -48,7 +48,7 @@ metadata:
 | 模式      | 实现                      | 用途                                            |
 | --------- | ------------------------- | ----------------------------------------------- |
 | `L1_L2`   | `CombinedL1L2Store`       | Caffeine L1 + Redisson `RBucket` L2，条目级 TTL |
-| `L2_ONLY` | `RedissonBucketStore`     | 纯分布式缓存，例如权限版本号                    |
+| `L2_ONLY` | `RedissonBucketStore`     | 纯分布式缓存，例如跨节点共享状态或全局游标         |
 | `L1_ONLY` | `CaffeineLocalCacheStore` | 纯本地缓存，例如 gateway 短 TTL 场景            |
 
 ## 键格式
@@ -60,7 +60,7 @@ metadata:
 示例：
 
 - `1:perm:effective-roles:456`
-- `1:perm:permission-version:1001`
+- `1:perm:role-perm-snapshot:1001`
 - `1:admin:dict-types:all`
 
 要求：
@@ -107,12 +107,14 @@ public final class PermCacheCatalog {
             .valueType(new TypeRef<Set<Long>>() {})
             .build();
 
-    public static final CacheCatalogEntry<Long> PERMISSION_VERSION =
-        CacheCatalogEntry.<Long>builder()
-            .code("perm:permission-version")
-            .mode(CacheMode.L2_ONLY)
-            .l2TtlMinutes(60)
-            .valueType(new TypeRef<Long>() {})
+    public static final CacheCatalogEntry<List<RolePermEntry>> ROLE_PERM_SNAPSHOT =
+        CacheCatalogEntry.<List<RolePermEntry>>builder()
+            .code("perm:role-perm-snapshot")
+            .mode(CacheMode.L1_L2)
+            .l1TtlMinutes(5)
+            .l1MaxSize(2000)
+            .l2TtlMinutes(30)
+            .valueType(new TypeRef<List<RolePermEntry>>() {})
             .build();
 }
 ```

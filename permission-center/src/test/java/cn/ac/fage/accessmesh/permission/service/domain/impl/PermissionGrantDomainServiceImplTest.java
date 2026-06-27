@@ -96,7 +96,7 @@ class PermissionGrantDomainServiceImplTest {
 
         verify(roleResourcePermissionMapper).softDeleteBatch(eq(1L), eq(List.of(501L)), any());
         verify(roleResourcePermissionMapper).cascadeSoftDeleteChildren(eq(1L), eq(List.of(501L)), any());
-        // T-PERM-003：permissionVersionDomainService 已从本服务移除，无 version 增量可校验。
+        // T-PERM-003：旧权限版本服务已从本服务移除，无 version 增量可校验。
         // 此处仅验证软删 + 级联子项软删两条核心行为。
     }
 

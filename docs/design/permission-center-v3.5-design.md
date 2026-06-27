@@ -349,7 +349,7 @@ R5 SIGN_OFF（2026-06-18）是基于含 L3 字段级维度 + 6 个实施章节 +
 | §6 审计 / §8 运营调控 / §10 迁移 / §11 兼容 / §13 验收 / §14 监控 / §15 合规 | **整章删除** | 实施细节，与设计相关性不高；留待 v3.5.1+ |
 | `snapshotVersion` + `permFingerprint` body 字段 | **删除**(本轮 Q1=A)| §5.1 改用标准 HTTP ETag header；缓存协商与权限领域语义解耦 |
 | `CACHE_STALE` reasonCode | **删除**(本轮 Q2=是)| §7.3 删除该行；前端失效由 Redis pub/sub 主动广播触发，不依赖 reasonCode |
-| `permission_version` 表与机制 | **删除**(审计 S-001=B，落实 design-review §A'-3)| 删 schema 表 + Service/Mapper/Controller + 4 处 increment；ETag 改 sha256(permissions)；同步 overview/core-flows/implementation/api-contract interface-snapshot/coding-standards §5 |
+| `permission_version` 表与机制 | **删除**(审计 S-001=B，落实 design-review §A'-3)| 删 schema 表 + Entity/Service/Mapper/Controller/DTO + 4 处 increment + `PermCacheCatalog.PERMISSION_VERSION` + `:{permissionVersion}` key 后缀；T-PERM-018 后不再保留 permission-derived ETag/令牌，interface-snapshot 每次实时构建，正确性由 engine `ROLE_PERM_SNAPSHOT` 读缓存 + Redis pub/sub 广播 + TTL 兜底保证；同步 overview/core-flows/implementation/api-contract/coding-standards §5 |
 | `perm_outbox` 表表述 | **删除**(审计 S-003=A)| §7.2 改为 Redis pub/sub + TTL 兜底现状声明 + 风险声明 |
 | v3.5 §7.3 reasonCode 表 | **删除**(审计 S-013)| 改为指针归 api-contract.md §7 单源；HTTP 码不作业务状态码 |
 | 业务键解析失败语义 | **待设计**(审计 S-016)| 纳入「项目响应码规范」统一设计，见 §9.4 |

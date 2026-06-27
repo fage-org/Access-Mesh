@@ -27,9 +27,9 @@
 |---|---|---|---|---|---|---|
 | [T-PERM-001](T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../plans/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | ✅ | ✓ |
 | T-PERM-002 | PermissionChangeContext ThreadLocal + AppService AOP afterCommit | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ✅ | ✓ |
-| T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（含存量 DROP TABLE migration） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
-| T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
-| T-PERM-005 | 删除缓存目录 PermCacheCatalog.PERMISSION_VERSION + key 后缀 :{permissionVersion} | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ⚙️ | ⏳ |
+| T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（存量环境 DROP TABLE 为外部 DBA/运维动作，仓库无 migration 框架） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
+| T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ✅ | ✓ |
+| T-PERM-005 | 删除缓存目录 PermCacheCatalog.PERMISSION_VERSION + key 后缀 :{permissionVersion} | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ✅ | ✓ |
 | [T-PERM-006](T-PERM-006.md) | Gateway 订阅 perm:invalidate topic，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | T-PERM-018 | ✅ | ✓ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ⚙️ | ⏳ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（待设计 S-006，规范明确后补） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.4 | T-GW-005（S-006 设计）| ⚙️ | ⏳ |
@@ -80,8 +80,8 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 2. `T-PERM-003` 删 permission_version — ✅ done（解锁 004/005/007）
 3. `T-PERM-002` AOP afterCommit — ✅ done
 4. `T-PERM-006` Redis 广播+订阅器 — ✅ done（消费 T-PERM-018 serviceCodes 载荷；解锁 T-GW-005 设计）
-5. `T-PERM-004` 删 increment ← 003
-6. `T-PERM-005` 删缓存目录条目 ← 003
+5. `T-PERM-004` 删 increment — ✅ done
+6. `T-PERM-005` 删缓存目录条目 — ✅ done
 7. `T-PERM-007` 文档一致性核对 ← 003
 8. `T-PERM-008` 失效标记代码 ← T-GW-005（最后，待 S-006 设计）
 
@@ -111,7 +111,7 @@ EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审�
 
 ### 已完成的三个枢纽
 
-`T-PERM-001`（A 链根）+ `T-PERM-003`（A 链删version根）+ `T-PERM-006`（A 链广播订阅）+ `T-PERM-009`（B 链根）均已完成。当前可优先并行推进 `T-PERM-004`、`T-PERM-005`、`T-PERM-007` 与 `T-PERM-011`。
+`T-PERM-001`（A 链根）+ `T-PERM-002`（AOP afterCommit）+ `T-PERM-003`（A 链删version根）+ `T-PERM-004/005`（删 increment / 缓存目录残留）+ `T-PERM-006`（A 链广播订阅）+ `T-PERM-009`（B 链根）均已完成。当前可优先并行推进 `T-PERM-007` 与 `T-PERM-011`。
 
 ## 依赖告警（dangling）
 
