@@ -29,7 +29,7 @@ last_updated: 2026-06-27
 > 状态：进行中（T-PERM-001·002·003·004·005·006·007·017·018 done / 008 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.1 工作单 A
-> 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，待设计）
+> 关联审计：S-001（删除 permission_version，B 决策）/ S-006（Gateway 失效标记，已设计 T-GW-005）
 
 ## 目标
 
@@ -43,7 +43,7 @@ last_updated: 2026-06-27
 ## 非目标
 
 - 不做持久化 outbox 重投（S-003 决策 A：Redis pub/sub + TTL 兜底，无持久化重投）
-- 不做 Gateway 失效标记与订阅恢复策略的完整规范（S-006 待设计，本计划仅占位）
+- 不做 Gateway 失效标记与订阅恢复策略的完整规范（S-006 已设计 T-GW-005，代码落地由 T-PERM-008 执行）
 - 不改 L1/L2 权限模型语义（仅改缓存失效驱动机制）
 
 ## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）

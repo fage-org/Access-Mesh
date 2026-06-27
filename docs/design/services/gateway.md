@@ -94,11 +94,13 @@ invalidatedKeys:      Set<String>                              // 显式失效�
 
 | 触发场景 | 主缓存 | stale store | invalidatedKeys |
 |---|---|---|---|
-| 回源拉取新快照成功 | `put(key, snapshot)` | `invalidate(key)` | `remove(key)` |
-| 主缓存条目过期（RemovalListener cause=EXPIRED） | 自动淘汰 | `put(key, StaleEntry(snapshot, staleUntil))` | — |
+| 回源拉取新快照成功 | `put(key, snapshot)` | `put(key, StaleEntry(snapshot, staleUntil))` | `remove(key)` |
+| 主缓存条目过期（Caffeine 自然淘汰） | 自动淘汰 | 已有数据，无需操作 | — |
 | `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `add(key)` |
 | stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 staleUntil + 检查 !invalidatedKeys | `contains(key)` |
 | 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clear()` |
+
+回源成功时同步写 stale store（`staleUntil = now + ttl + grace`），不依赖 RemovalListener——避免 TTL 过期后 RemovalListener 未触发时 stale store 空缺导致 stale-allow 错误 fail-close。
 
 标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。标记生命周期：回源成功时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除。
 
