@@ -81,7 +81,7 @@ Gateway 本地快照有两种失效方式，在 stale-allow 模式下行为不�
 ```
 interfaceSnapshotCache: Cache<String, InterfaceSnapshotResp>   // L1 主缓存（expireAfterWrite = ttlSeconds，默认 30s）
 staleSnapshotCache:   Cache<String, StaleEntry>               // L2 陈旧快照缓存（expireAfterWrite = ttlSeconds + staleGraceSeconds，默认 60s）
-invalidatedKeys:      Set<String>                              // 显式失效标记集合
+invalidationMarker:   InvalidationMarker                       // invalidatedKeys + keyGeneration + globalEpoch
 ```
 
 `StaleEntry` 包装 `(InterfaceSnapshotResp snapshot, Instant staleUntil)`，`staleUntil` = 快照首次写入主缓存的时刻 + `ttlSeconds` + `staleGraceSeconds`（默认 30+30=60s），续命时检查 `Instant.now().isBefore(entry.staleUntil())`。**不基于 RemovalListener 触发时刻**——Caffeine 过期清理可能延迟触发，基于触发时刻计算会错误延后 stale 窗口。
@@ -90,19 +90,20 @@ invalidatedKeys:      Set<String>                              // 显式失效�
 
 #### 失效标记
 
-显式失效通过独立标记集合 `Set<String> invalidatedKeys` 追踪：
+显式失效通过 `InvalidationMarker` 追踪：`invalidatedKeys` 用于 stale-allow 门禁，`keyGeneration` / `globalEpoch` 用于回源提交代际校验。
 
-| 触发场景 | 主缓存 | stale store | invalidatedKeys |
+| 触发场景 | 主缓存 | stale store | InvalidationMarker |
 |---|---|---|---|
-| 回源拉取新快照成功 | `put(key, snapshot)` | `put(key, StaleEntry(snapshot, staleUntil))` | `remove(key)` |
+| 回源拉取新快照成功且 `LoadToken` 仍有效 | `put(key, snapshot)` | `put(key, StaleEntry(snapshot, staleUntil))` | `unmarkIfCurrent(token)` |
+| 回源完成但 `LoadToken` 已失效 | 不写入 | 不写入 | 不清标记；丢弃结果并重试一次或转 fail-close |
 | 主缓存条目过期（Caffeine 自然淘汰） | 自动淘汰 | 已有数据，无需操作 | — |
-| `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `add(key)` |
+| `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `mark(key)`：`invalidatedKeys.add(key)` + `keyGeneration++` |
 | stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 staleUntil + 检查 !invalidatedKeys | `contains(key)` |
-| 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clear()` |
+| 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clearAndBumpGlobalEpoch()` |
 
 回源成功时同步写 stale store（`staleUntil = now + ttl + grace`），不依赖 RemovalListener——避免 TTL 过期后 RemovalListener 未触发时 stale store 空缺导致 stale-allow 错误 fail-close。
 
-标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。标记生命周期：回源成功时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除。
+标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。失效匹配 key 集合必须覆盖主缓存 key、stale store key 与 in-flight 回源 key。回源开始前记录 `LoadToken(keyGeneration, globalEpoch)`；完成时只有 token 仍有效才能写主缓存/stale store 并清除 marker，否则丢弃结果，禁止旧回源结果复活已撤销权限。标记生命周期：回源成功且 token 有效时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除并递增 `globalEpoch`。
 
 #### Per-key 回源去重
 

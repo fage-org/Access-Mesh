@@ -20,8 +20,8 @@ tasks:
   - T-PERM-008
   - T-PERM-017
   - T-PERM-018
-acceptance: "A-1~A-7 全完成；代码无 permission_version 残留；Gateway 快照模式 + Redis 广播端到端验证通过（A-8 待 S-006 设计明确后单独跟踪）"
-last_updated: 2026-06-27
+acceptance: "A-1~A-7 全完成；代码无 permission_version 残留；Gateway 快照模式 + Redis 广播端到端验证通过；A-8/T-PERM-008 代码落地待做（S-006/T-GW-005 已设计）"
+last_updated: 2026-06-28
 ---
 
 # 权限缓存失效改造计划（工作单 A）
@@ -88,6 +88,6 @@ last_updated: 2026-06-27
 
 ## 归档条件
 
-- A-1 ~ A-7 全部完成（A-8 待 S-006 设计明确后单独跟踪）
+- A-1 ~ A-7 全部完成；A-8/T-PERM-008 代码落地待做（S-006/T-GW-005 已设计）
 - 代码层无 `permission_version` / `PermissionVersionDomainService.increment` 残留
 - Gateway 快照模式 + Redis 广播端到端验证通过
