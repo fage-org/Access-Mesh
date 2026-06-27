@@ -24,7 +24,7 @@ last_reviewed: 2026-06-20
 | 服务注册与接口同步 | 展示业务服务如何向权限中心全量同步接口资源                     |
 | 接口权限           | 展示 Gateway + permission-center 接口级鉴权                    |
 | 菜单/按钮权限      | 展示前端资源和操作权限控制                                     |
-| 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeAll=true`     |
+| 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`     |
 | 条件权限           | 展示时间、IP 等条件评估                                        |
 | 权限查询           | 展示 `auth/check`、`auth/query-resources`、`auth/query-scopes` |
 
@@ -35,7 +35,7 @@ last_reviewed: 2026-06-20
 - 推荐使用主资源业务数据动作：`DATA_READ`、`DATA_EDIT`。
 - 直接范围权限表示通用范围能力，例如 A 部门主管拥有 `data:dept:A + DATA_READ`。
 - 子权限表示当前报表下额外范围，例如仅在销售报表下允许查看 B 部门数据。
-- 全量范围通过 `scopeAll=true` 表达，不使用 `data:all` 这类特殊资源编码。
+- 全量范围通过对外 `scopeMode=ALL` 表达，不使用 `data:all` 这类特殊资源编码。
 
 ## SDK 参考
 

@@ -12,7 +12,7 @@ last_reviewed: 2026-06-27
 
 > **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。本文档历史段落保留的字段描述仅作演进记录，**以代码为准**（`InterfaceSnapshotResp`/`InterfaceSnapshotReq`/`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 均不再含 `permissionVersion`）。
 
-> **scopeAll → scopeMode 迁移注记（2026-06-20 审计 S-005=A）**：本文档中约 30+ 处 `scopeAll` (boolean) 字段计划全量迁移到 `scopeMode` 三值枚举（INSTANCE/ALL/NONE），覆盖运行时鉴权口 + 管理端授权配置 + 排查页（design-review §B-1 决策 + 审计 S-005=A）。**当前文档暂未逐处改造**，与工作单 B（落地暂缓，见 design-review §11）绑定，待工作单 B 派生 plan 时随代码一并落地。落地前 `scopeAll` 字段维持现状语义。
+> **scopeMode 协议定义（2026-06-27 T-PERM-011）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项、`query-resources` 和 `effective-permissions` 等权限事实列表项只使用 `INSTANCE / ALL`。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射。本文档描述目标契约；现有 DTO/映射中的旧 boolean 字段由 T-PERM-012/T-PERM-013 继续落地迁移。
 
 ## 1. 设计目标
 
@@ -423,7 +423,7 @@ last_reviewed: 2026-06-27
       "pathPattern": "/api/user/list",
       "hasCondition": false,
       "conditionId": null,
-      "scopeAll": false
+      "scopeMode": "INSTANCE"
     },
     {
       "serviceCode": "admin-service",
@@ -431,7 +431,7 @@ last_reviewed: 2026-06-27
       "pathPattern": null,
       "hasCondition": true,
       "conditionId": 5,
-      "scopeAll": true
+      "scopeMode": "ALL"
     }
   ]
 }
@@ -440,7 +440,7 @@ last_reviewed: 2026-06-27
 规则：
 
 - permission-center 每次实时构建全量快照返回，不再有令牌比较 / 304 短路路径；无有效角色时返回 `allowedApis=[]`。
-- `scopeAll=true` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开 scopeAll 为逐条 API。实例级条目（`scopeAll=false`）仍按 `httpMethod + pathPattern` 精确匹配。
+- `scopeMode=ALL` 的条目表示角色对该服务全部 API 拥有权限，`httpMethod` 和 `pathPattern` 为 null。调用方自行根据 `hasCondition`/`conditionId` 决定是否放行——服务端不展开全量权限为逐条 API。实例级条目（`scopeMode=INSTANCE`）仍按 `httpMethod + pathPattern` 精确匹配。
 - Gateway 本地缓存 key 为 `(tenantId,subjectTypeCode,userId,serviceCode)`；API mapping / 资源 / syncInterfaces 变更触发 `PermInvalidateEvent`（含 `serviceCodes`），Gateway 订阅后按 tenant+serviceCodes evict 本地快照（T-PERM-006）。
 
 ### 6.2.2 资源实体专用同步
@@ -947,15 +947,12 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceCode": "sys:user",
       "codeType": "default",
       "operationCode": "VIEW",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "resourceTypeCode": "MENU",
+      "operationCode": "VIEW",
+      "scopeMode": "ALL",
       "canGrant": false,
       "conditionCode": null
     }
@@ -975,12 +972,12 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - `add/update/remove` 在同一事务中完成。
 - 角色使用 `domainCode + roleTypeCode + roleExternalId` 定位；`domainCode` 为空时只定位全局角色。
-- 授权项使用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源与操作。
-- 当授权项 `scopeAll=true` 时，使用 `resourceTypeCode + operationCode` 表达该资源类型的全量范围权限，不传 `resourceCode/codeType`。
+- 授权项使用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源与操作；`scopeMode=ALL` 时 `resourceCode/codeType` 为空，稳定键中仍显式包含 `scopeMode`，避免与实例级授权混淆。
+- 授权请求侧 `scopeMode` 只允许 `INSTANCE` / `ALL`：`INSTANCE` 表示具体实例范围，必须传 `resourceCode/codeType`；`ALL` 表示 `resourceTypeCode + operationCode` 下全量范围权限，不传 `resourceCode/codeType`。
 - 操作必须与资源类型兼容。
 - `canGrant=true` 表示授权者可把同一条权限授权给他人，但不得扩大资源、操作或范围；可授权对象列表由业务服务控制。
 - 授权者必须已经拥有目标权限且该权限 `canGrant=true`，才能把同一权限授权给他人。
-- 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围。
+- 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeMode=ALL` 才能授权全量范围。
 - permission-center 只校验授权者是否具备同一权限的委托能力，不负责生成候选被授权人列表。
 - 写入 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效缓存（afterCommit）。~~递增 `permission_version`~~（已废弃，审计 S-001）。
 - 资源依赖自动补全产生的授权必须标记 `grantSource=AUTO_DEP`。
@@ -1004,15 +1001,12 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceCode": "report:sales",
       "codeType": "default",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "resourceTypeCode": "REPORT",
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
       "canGrant": false,
       "conditionCode": null
     }
@@ -1032,15 +1026,13 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceTypeCode": "REPORT",
       "resourceCode": "report:sales",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "id": 260,
+      "resourceTypeCode": "REPORT",
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
       "dependOn": null
     }
   ]
@@ -1060,31 +1052,19 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceCode": "data:city:shanghai",
       "codeType": "default",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
-      "conditionCode": null
+      "scopeMode": "INSTANCE"
     },
     {
       "resourceTypeCode": "DATA",
       "resourceCode": "data:city:hangzhou",
       "codeType": "default",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "resourceTypeCode": "DATA",
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
       "conditionCode": null
     }
   ]
@@ -1101,31 +1081,20 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceTypeCode": "DATA",
       "resourceCode": "data:city:shanghai",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
-      "dependOn": 200
+      "scopeMode": "INSTANCE"
     },
     {
       "id": 202,
       "resourceTypeCode": "DATA",
       "resourceCode": "data:city:hangzhou",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "id": 203,
+      "resourceTypeCode": "DATA",
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
       "dependOn": 200
     }
   ]
@@ -1153,15 +1122,21 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceCode": "data:city:shanghai",
       "resourceName": "上海数据",
       "operationCode": "DATA_READ",
-      "scopeAll": false,
+      "scopeMode": "INSTANCE"
     },
     {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+      "id": 202,
+      "resourceTypeCode": "DATA",
+      "resourceCode": "data:city:hangzhou",
+      "resourceName": "杭州数据",
+      "operationCode": "DATA_READ",
+      "scopeMode": "INSTANCE"
+    },
+    {
+      "id": 203,
+      "resourceTypeCode": "DATA",
+      "operationCode": "DATA_READ",
+      "scopeMode": "ALL",
       "dependOn": 200
     }
   ]
@@ -1176,7 +1151,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 {
   "resourceTypeCode": "DATA",
   "operationCode": "DATA_EDIT",
-  "scopeAll": true,
+  "scopeMode": "ALL",
   "canGrant": false,
   "conditionCode": null
 }
@@ -1188,7 +1163,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 子权限继承父权限的 `abstract_role_id`，调用方不需要再次传角色。
 - 子权限的 `depend_on = parentPermissionId`，只支持一层，不允许子权限继续挂子权限。
 - 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。
-- `scopeAll=true` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应通过 `scopeAll=true` 明确表达全量范围。
+- `scopeMode=ALL` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应也通过 `scopeMode=ALL` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 删除子权限只能通过 `remove-child` 或主权限级联删除完成。
 - 子权限写入、删除都必须记录 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效父角色缓存（afterCommit）。~~递增父角色的 `permission_version`~~（已废弃，审计 S-001）。
@@ -1230,9 +1205,22 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "resourceName": "研发中心",
       "codeType": "default",
       "operations": ["UPDATE"],
+      "scopeMode": "INSTANCE",
       "canGrant": true,
       "matchedRoleIds": [10, 11],
       "matchedPermissionIds": [301, 315],
+      "grantSources": ["MANUAL"]
+    },
+    {
+      "resourceTypeCode": "ADMIN_ORG",
+      "resourceCode": null,
+      "resourceName": null,
+      "codeType": null,
+      "operations": ["UPDATE"],
+      "scopeMode": "ALL",
+      "canGrant": false,
+      "matchedRoleIds": [12],
+      "matchedPermissionIds": [401],
       "grantSources": ["MANUAL"]
     }
   ],
@@ -1255,7 +1243,8 @@ admin-service 查询示例：
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
 - AccessMesh 管理端中，`ADMIN_USER`/`ADMIN_ORG` 的 `resourceCode` 固定使用 admin-service 本地主键字符串，避免与组织编码、用户名等可变业务字段混用。
 - AccessMesh 管理端中，ADMIN_USER/ADMIN_ORG 的 resourceCode 固定使用 admin-service 本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
-- 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
+- `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量资源权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null；不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
+- 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。
 - 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
@@ -1336,7 +1325,7 @@ admin-service 查询示例：
 |---|---|---|
 | `DENIED` | 无操作权限（合并原 `allowed=false`） | 拒绝/403，不发 SQL |
 | `INSTANCE` | 有权限 + 具体实例授权 | `items[]` 非空，按 `resourceCode` 加 IN 过滤 |
-| `ALL` | 有权限 + 全量授权（`scopeAll`） | `items[]` 为空，不加范围过滤 |
+| `ALL` | 有权限 + 全量授权 | `items[]` 为空，不加范围过滤 |
 | `EMPTY` | 有权限但条件/互斥过滤后无数据 | 返回空结果，不发 SQL |
 
 规则：
@@ -1348,7 +1337,7 @@ admin-service 查询示例：
 - `DEPENDENT` 范围权限来自 `depend_on IN parentPermissionIds` 的子权限授权，只在当前主资源上下文内生效。
 - 有效范围权限计算公式为 `effectiveScopes = DIRECT ∪ DEPENDENT`。
 - **分类键为 `(resourceTypeCode, operationCode)`**：每个请求的 `scopeResourceTypeCodes × scopeOperationCodes` 笛卡尔积对应一个 `scopeGroup`，各格独立判定 `scopeMode`。
-- 单格判定优先级：无覆盖该操作的权限 → `DENIED`；有权限但条件/互斥过滤后为空 → `EMPTY`；过滤后含 `scopeAll` 条目 → `ALL`（`items` 为空，ALL 优先于 INSTANCE）；仅具体实例 → `INSTANCE`（`items` 去重列出有效实例）。
+- 单格判定优先级：无覆盖该操作的权限 → `DENIED`；有权限但条件/互斥过滤后为空 → `EMPTY`；过滤后含全量范围条目 → `ALL`（`items` 为空，ALL 优先于 INSTANCE）；仅具体实例 → `INSTANCE`（`items` 去重列出有效实例）。
 - 范围操作必须被至少一个已通过的主操作激活。推荐在 example-service 中使用同名业务数据动作，例如 `report:sales + DATA_READ -> dept + DATA_READ`、`report:sales + DATA_EDIT -> dept + DATA_EDIT`；这只是推荐范例，不作为所有接入系统的强制标准。
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
 - `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
@@ -1413,7 +1402,18 @@ admin-service 查询示例：
       "resourceName": "销售报表",
       "codeType": "default",
       "operationCodes": ["DATA_READ"],
-      "scopeAll": false,
+      "scopeMode": "INSTANCE",
+      "sourceRoles": [
+        {
+          "roleTypeCode": "BASIC_ROLE",
+          "roleExternalId": "role_report_viewer",
+          "roleName": "报表查看员",
+          "via": []
+        }
+      ],
+      "sourceRoleCount": 1,
+      "sourceRolesTruncated": false,
+      "matchedPermissionIds": [200]
     },
     {
       "resourceTypeCode": "REPORT",
@@ -1421,7 +1421,7 @@ admin-service 查询示例：
       "resourceName": null,
       "codeType": null,
       "operationCodes": ["DATA_READ"],
-      "scopeAll": true,
+      "scopeMode": "ALL",
       "sourceRoles": [
         {
           "roleTypeCode": "BASIC_ROLE",
@@ -1433,10 +1433,6 @@ admin-service 查询示例：
       "sourceRoleCount": 1,
       "sourceRolesTruncated": false,
       "matchedPermissionIds": [201]
-      ],
-      "sourceRoleCount": 1,
-      "sourceRolesTruncated": false,
-      "matchedPermissionIds": [200]
     }
   ],
   "total": 2,
@@ -1455,7 +1451,7 @@ admin-service 查询示例：
 - 默认 `includeApiResources=false`，不返回 API 类型资源；排查接口权限时由调用方显式传 `resourceTypeCodes=["API"]` 或开启该字段。
 - 用户视角默认只返回来源角色摘要；`sourceRoles` 最多返回 `sourceRoleLimit` 条，同时返回 `sourceRoleCount` 和 `sourceRolesTruncated`。
 - 需要查看某条权限的完整来源角色时，应使用 `permission-view/explain` 或按权限键二次查询，不要求列表接口展开全部来源。
-- `scopeAll=true` 的条目表示该 `resourceTypeCode` 下全量范围权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null。不展开 scopeAll 为逐条资源实例。实例级条目（`scopeAll=false`）按 `resourceCode + codeType` 精确表示。
+- `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量范围权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null。不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
 
 #### 解释单个权限
 
@@ -1475,6 +1471,7 @@ admin-service 查询示例：
   "resourceCode": "report:sales",
   "codeType": "default",
   "operationCode": "DATA_EDIT",
+  "scopeMode": "INSTANCE",
   "includeSourceRoles": true,
   "includeRecentChanges": true,
   "recentDays": 30
@@ -1494,15 +1491,7 @@ admin-service 查询示例：
     "resourceCode": "report:sales",
     "codeType": "default",
     "operationCode": "DATA_EDIT",
-    "scopeAll": false
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+    "scopeMode": "INSTANCE"
   },
   "sourceRoles": [],
   "matchedPermissionIds": [],
@@ -1522,6 +1511,7 @@ admin-service 查询示例：
 规则：
 
 - `explain` 只解释一个资源和一个操作，不返回权限列表。
+- 请求侧 `scopeMode` 只允许 `INSTANCE` / `ALL`：`INSTANCE` 表示解释具体实例权限，必须传 `resourceCode/codeType`；`ALL` 表示解释 `resourceTypeCode + operationCode` 下的全量范围权限，不传 `resourceCode/codeType`。
 - `allowed/reason` 应复用 `auth/check` 的主体、角色、资源、操作、条件、冲突计算逻辑。
 - 用户视角需要返回命中的来源角色；未命中时返回拒绝原因和相关近期影响事件。
 - `includeRecentChanges=true` 时，只返回与目标权限键相关的近期事件；默认窗口为 30 天，服务端可限制最大窗口。
@@ -1568,15 +1558,7 @@ admin-service 查询示例：
         "resourceCode": "report:sales",
         "codeType": "default",
         "operationCode": "DATA_EDIT",
-        "scopeAll": false
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+        "scopeMode": "INSTANCE"
       },
       "sourceRole": {
         "roleTypeCode": "BASIC_ROLE",
@@ -1623,15 +1605,7 @@ admin-service 查询示例：
         "resourceCode": "report:sales",
         "codeType": "default",
         "operationCode": "DATA_EDIT",
-        "scopeAll": false
-    },
-    {
-      "serviceCode": "admin-service",
-      "httpMethod": null,
-      "pathPattern": null,
-      "hasCondition": true,
-      "conditionId": 5,
-      "scopeAll": true
+        "scopeMode": "INSTANCE"
       },
       "role": {
         "roleTypeCode": "BASIC_ROLE",
@@ -1692,7 +1666,7 @@ admin-service 查询示例：
 - `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`GROUP_ROLE_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`。
 - `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
 - `recent-changes` 响应中的 `impactLevel` 固定枚举：`DIRECT` 表示直接命中查询对象，`POSSIBLE` 表示通过角色、资源、条件、分组等间接关系可能影响查询对象。
-- 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeAll`。
+- 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`。
 - 用户或角色来源使用稳定业务键，不要求在 `diff_snapshot` 中暴露内部 ID；内部 ID 可保留在 `old_snapshot/new_snapshot/entity_id` 中用于审计追溯。
 - `old_snapshot/new_snapshot` 继续保存原始变更前后快照；`diff_snapshot` 只保存排查展示需要的摘要。
 
@@ -1811,7 +1785,8 @@ admin-service 查询示例：
 #### 6.10.5 `permission-view/explain` 在 `targetType=ROLE` 时的语义
 
 - `targetType=USER`：复用运行时鉴权等价逻辑（与 `auth/check` 一致的主体、角色解析、条件、冲突等）。
-- `targetType=ROLE`：**仅**判定该角色在 `role_resource_permission` 上是否**直接**拥有指定 `resourceTypeCode + resourceCode + codeType + operationCode`（含 `scopeAll`、条件启用、记录停用等角色侧字段）；**不**走用户维度的 `auth/check` 链路，不模拟用户继承的多角色并集。
+- `targetType=ROLE`：**仅**判定该角色在 `role_resource_permission` 上是否**直接**拥有指定 `resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`（含内部 `scope_all`、条件启用、记录停用等角色侧字段）；**不**走用户维度的 `auth/check` 链路，不模拟用户继承的多角色并集。
+- 请求体必须显式传 `scopeMode`。`scopeMode=INSTANCE` 时按 `resourceCode + codeType` 精确匹配；`scopeMode=ALL` 时不传 `resourceCode/codeType`，只匹配类型级全量授权。
 
 #### 6.10.6 批量删除与审计日志
 
@@ -1865,7 +1840,7 @@ admin-service 查询示例：
 5. **兼容策略**：项目未上线，不考虑旧接口兼容，直接按新契约实现。
 6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。
 7. **范围权限**：`query-scopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限`，并支持 `parentOperationCodes[]` 与 `scopeOperationCodes[]` 多操作查询。
-8. **全量范围**：`role_resource_permission` 增加 `scope_all` 字段，`scopeAll=true` 显式表示某资源类型下的全量范围权限；空 `items=[]` 不表示全量。
+8. **全量范围**：`role_resource_permission` 保留内部 `scope_all` 字段；对外协议使用 `scopeMode=ALL` 显式表示某资源类型下的全量范围权限；空 `items=[]` 不表示全量。
 9. **类型模型**：对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`，内部存储继续使用 `type_value INT`，通过 `type_definition` 缓存解析；`type_value` 在同一 `tenant_id + type_key` 内全局唯一。
 10. **业务域模型**：`domainCode` 是管理分区和命名空间；传入时查该域 + 全局，不传时只查全局，不跨域模糊匹配。
 11. **接口映射**：同一路径允许映射多个接口资源，Gateway 接口鉴权采用 OR 语义，任一映射资源权限通过即允许。

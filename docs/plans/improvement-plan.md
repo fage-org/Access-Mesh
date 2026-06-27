@@ -367,7 +367,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 1. 梳理当前数据权限链路：用户属性 → 条件表达式 → 数据过滤
 2. 构造测试场景：普通员工（本人）、团队管理者（本团队）、部门总监（本部门）
-3. 端到端测试：确认 `ConditionEvalUtils` → `PermQueryEngine`（返回范围权限事实）→ 业务服务将 `resourceCode`/`scopeAll` 映射为 SQL 查询条件 链路通畅
+3. 端到端测试：确认 `ConditionEvalUtils` → `PermQueryEngine`（返回范围权限事实）→ 业务服务按 `scopeMode` 映射 SQL 查询条件链路通畅：`INSTANCE` 使用 `items[].resourceCode` 加范围过滤，`ALL` 不加范围过滤，`DENIED` / `EMPTY` 不发 SQL 或直接返回空结果
 4. 记录发现的缺口或问题
 
 #### 2.4 外部系统权限查询

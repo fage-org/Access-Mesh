@@ -12,7 +12,7 @@ depends_on: []
 blocks: [T-PERM-002, T-PERM-006, T-GW-003]
 acceptance:
   - "[x] Gateway 缓存 key 从 (user,service,method,path)→bool 改为 (tenant,subjectType,userId,serviceCode)→InterfaceSnapshotResp"
-  - "[x] 鉴权时本地内存匹配(InterfaceSnapshotMatcher，Ant通配+scopeAll)，不再每条路径打 RPC"
+  - "[x] 鉴权时本地内存匹配(InterfaceSnapshotMatcher，Ant通配+scopeMode=ALL 全服务覆盖)，不再每条路径打 RPC"
   - "[x] 接入现成接口 POST /api/perm/auth/interface-snapshot（PermissionClient.interfaceSnapshot）"
   - "[x] 缓存失效采用短 TTL（30s）兜底；Redis pub/sub 主动广播为 T-PERM-006 协同范围"
   - "[x] InterfaceSnapshotResp/Req 迁入 perm-common 供 Gateway 共享"
@@ -44,7 +44,7 @@ last_updated: 2026-06-21
 
 | # | 议题 | 决策 |
 |---|---|---|
-| 1 | 本地快照路径匹配 | **支持 Ant 通配匹配**——pathPattern 含通配(如 `/api/user/**`)按 Ant 风格匹配；精确路径 equals。scopeAll=true 覆盖该 serviceCode 全部接口 |
+| 1 | 本地快照路径匹配 | **支持 Ant 通配匹配**——pathPattern 含通配(如 `/api/user/**`)按 Ant 风格匹配；精确路径 equals。对外协议现为 `scopeMode=ALL` 覆盖该 serviceCode 全部接口（旧实现字段名为 `scopeAll=true`） |
 | 2 | 令牌统一 sha256(permissions) | **本任务不做**，保留 `buildInterfacePermissionVersion`（私有 roleIds 指纹）与 `buildPermissionVersionKey`（domain service 占位）现状。⏳ **待办**：v3.5 §5.1 要求令牌改 sha256(permissions)，统一两套生成逻辑——单独跟踪，勿遗漏 |
 | 3 | Fail-mode 过渡期 | **保持 fail-close 硬编码**——permission-center 不可达返回 503。stale-allow 是 T-GW-003 独立任务范围 |
 | 4 | 缓存未命中处理 | **回源拉取快照后本地匹配**——本地快照缺失/过期时同步调 interface-snapshot 拉取并缓存，再本地匹配 |

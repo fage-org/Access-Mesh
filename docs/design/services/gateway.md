@@ -43,8 +43,8 @@ last_reviewed: 2026-06-27
 
 对快照 `allowedApis` 遍历做 **OR 合并 + 三态判定**（ALLOW / FALLBACK / DENY）：
 
-1. `scopeAll=true` 且 `serviceCode` 匹配 → 该条目纳入候选（覆盖该服务全部接口）。
-2. `httpMethod` 相等（条目为 null 视为通配）且 `pathPattern` 按 **Ant 风格**匹配请求路径 → 该条目纳入候选。
+1. `scopeMode=ALL` 且 `serviceCode` 匹配 → 该条目纳入候选（覆盖该服务全部接口）。
+2. `scopeMode=INSTANCE` 且 `httpMethod` 相等（条目为 null 视为通配）且 `pathPattern` 按 **Ant 风格**匹配请求路径 → 该条目纳入候选。
 3. 候选条目按 `hasCondition` 分支处理：
    - `hasCondition=false`（无条件授权）→ 立即 `ALLOW`（"任一无条件授权放行"原则）。
    - `hasCondition=true` 且 `conditionRules` 内联（`gateway_evaluable=true`）→ 用请求 `clientIp` + 本进程时钟本地评估：通过则 `ALLOW`，不通过继续遍历。

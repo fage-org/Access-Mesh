@@ -379,14 +379,14 @@ PermQueryEngine.query(PermQuery q)
 - `PermResultUtils.toAuthCheckResp(result)` — `check` / `batch-check` 响应
 - `PermResultUtils.validateOrThrow(result)` — `validate` 模式，拒绝时抛异常
 
-### 3.4 scopeAll 处理
+### 3.4 内部 scopeAll 与对外 scopeMode 映射
 
-scopeAll 是 `RolePermEntry` 的一等维度，引擎查询管线中作为类型级权限单独查询。两个关键的装配器以不同方式处理 scopeAll：
+`scopeAll` 是 `RolePermEntry` / `role_resource_permission.scope_all` 的内部一等维度，引擎查询管线中作为类型级权限单独查询；对外协议统一由装配器映射为 `scopeMode`。
 
-| 装配器              | scopeAll 处理方式                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `SnapshotAssembler` | 不展开，直接作为 `ApiPermissionEntry(scopeAll=true, httpMethod=null, pathPattern=null)` 返回               |
-| `PermViewAssembler` | 按 `resourceType` 分组输出 scopeAll 视图项（如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围） |
+| 装配器              | 映射方式 |
+| ------------------- | -------- |
+| `SnapshotAssembler` | 内部 `scopeAll=true` 条目不展开，直接返回 `ApiPermissionEntry(scopeMode=ALL, httpMethod=null, pathPattern=null)`；实例级条目返回 `scopeMode=INSTANCE` |
+| `PermViewAssembler` | 按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`（如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围） |
 
 ### 3.5 资源继承展开（引擎层）
 
@@ -807,13 +807,13 @@ if (!deniedRoleIds.isEmpty()) {
 ```java
 // operator 需拥有目标权限且 canGrant=true 才能授予他人
 // 在 PermissionGrantAppServiceImpl 中通过 PermQueryEngine 查询 operator 的 role_resource_permission 记录，
-// 检查 operator 是否拥有相同的 (resourceType, resourceCode/scopeAll, operationCode) 授权且 canGrant=true
+// 检查 operator 是否拥有相同的 (resourceType, resourceCode 或内部 scopeAll, operationCode) 授权且 canGrant=true
 ```
 
-**scopeAll 授权规则**：
+**内部 scopeAll / 对外 scopeMode 授权规则**：
 
-- 授权 `scopeAll=false`（特定资源）：operator 可用 `scopeAll=true` 或特定资源权限
-- 授权 `scopeAll=true`（全量范围）：operator 必须有 `scopeAll=true`
+- 授权对外 `scopeMode=INSTANCE`（内部 `scopeAll=false`，特定资源）：operator 可用内部 `scopeAll=true` 或同一特定资源权限
+- 授权对外 `scopeMode=ALL`（内部 `scopeAll=true`，全量范围）：operator 必须已有内部 `scopeAll=true` 权限
 
 **适用边界**：
 | 场景 | 入口 |
@@ -900,7 +900,7 @@ public record PermissionTreeResp(
 
 - 用户可授予自己不拥有的权限
 - 用户可授予自己拥有但 `canGrant=false` 的权限
-- 用户可授予 `scopeAll=true` 但自己只有特定资源权限的权限
+- 用户可授予对外 `scopeMode=ALL`（内部 `scopeAll=true`）但自己只有特定资源权限的权限
 
 **修复方案**：在 `PermissionGrantAppServiceImpl.batchGrant` 中增加授权校验逻辑。
 
@@ -908,9 +908,9 @@ public record PermissionTreeResp(
 
 ```java
 // 对每个 add 项校验：
-// 1. operator 必须有相同的权限（resourceType + resource/scopeAll + operation）
+// 1. operator 必须有相同的权限（resourceType + resource 或内部 scopeAll + operation）
 // 2. operator 的该权限必须有 canGrant=true
-// 3. 如果授予 scopeAll=true，operator 必须有 scopeAll=true（不能从特定资源权限授权全量）
+// 3. 如果授予对外 scopeMode=ALL（内部 scopeAll=true），operator 必须有内部 scopeAll=true（不能从特定资源权限授权全量）
 
 Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = addItems.stream()
     .map(item -> new PermissionGrantDomainService.GrantCheckKey(
@@ -935,16 +935,16 @@ for (GrantAddItem item : addItems) {
 
 #### 实现要点
 
-1. **scopeAll 校验规则**：
-   - 授权 `scopeAll=false`（特定资源）：operator 可用 `scopeAll=true` 或特定资源权限
-   - 授权 `scopeAll=true`（全量范围）：operator 必须有 `scopeAll=true`
+1. **内部 scopeAll / 对外 scopeMode 校验规则**：
+   - 授权对外 `scopeMode=INSTANCE`（内部 `scopeAll=false`，特定资源）：operator 可用内部 `scopeAll=true` 或同一特定资源权限
+   - 授权对外 `scopeMode=ALL`（内部 `scopeAll=true`，全量范围）：operator 必须已有内部 `scopeAll=true` 权限
 
 2. **update 项校验**：
    - 如果 update 设置 `canGrant=true`，operator 必须有该权限且 `canGrant=true`
 
 3. **符合 api-contract.md 约定**：
    - 授权者必须已经拥有目标权限且该权限 `canGrant=true`
-   - 对范围权限，授权者只能授权自己已有的范围；拥有 `scopeAll=true` 才能授权全量范围
+   - 对范围权限，授权者只能授权自己已有的范围；拥有对外 `scopeMode=ALL`（内部 `scopeAll=true`）才可授权全量范围
 
 4. **`canGrant` 校验通过 `PermissionGrantDomainService.checkCanGrant()` 完成**：查询 operator 的有效角色权限（`role_resource_permission`），匹配目标 (resourceType, resourceCode/scopeAll, operationCode)，检查是否存在 `canGrant=true` 的记录。
 

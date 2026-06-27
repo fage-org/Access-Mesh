@@ -149,10 +149,10 @@ PermQueryEngine.query(PermQuery)
     └─ forScopeQuery ──► 不提前返回，不评估，返回全部辅助信息
 ```
 
-**scopeAll 作为一等权限维度**：
+**内部 `scopeAll` 作为一等权限维度，对外统一映射为 `scopeMode`**：
 
-- `SnapshotAssembler`：scopeAll 条目不展开为 N 个 API 资源，直接作为 `ApiPermissionEntry(scopeAll=true, httpMethod=null, pathPattern=null)` 返回。
-- `PermViewAssembler`：按 `resourceType` 分组输出 scopeAll 视图项，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围。
+- `SnapshotAssembler`：内部 `scopeAll` 条目不展开为 N 个 API 资源，对外快照项返回 `scopeMode=ALL` 且 `httpMethod=null, pathPattern=null`；实例级条目返回 `scopeMode=INSTANCE`。
+- `PermViewAssembler`：按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`，例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围。
 
 **资源继承展开**（引擎层实现）：
 
@@ -185,7 +185,7 @@ PermQueryEngine.query(PermQuery)
 - 删除主权限时级联软删子权限。
 - 权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段。
 - `auth/check` 适合只判断主权限是否允许；业务需要拿范围权限集合时，使用 `auth/query-scopes`。
-- `scopeAll=true` 表示该授权覆盖某个资源类型下全部范围资源，不需要创建 `data:all` 这类特殊资源。
+- 内部 `scope_all=true` / 对外 `scopeMode=ALL` 表示该授权覆盖某个资源类型下全部范围资源，不需要创建 `data:all` 这类特殊资源。
 
 ## 9. 场景六：Gateway 接口级鉴权
 
@@ -265,18 +265,18 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 4    | 配置报表主权限   | 推荐示例为 `report:sales + DATA_READ`、`report:sales + DATA_EDIT`                   |
 | 5    | 配置子权限       | 在销售报表主权限下额外挂 `data:dept:B + DATA_READ`                                  |
 | 6    | 运行时查询       | 调用 `POST /api/perm/auth/query-scopes`，可同时传 `DATA_READ` 和 `DATA_EDIT`        |
-| 7    | 业务过滤         | example-service 把返回的 `resourceCode` 或 `scopeAll=true` 转换为本服务报表查询条件 |
+| 7    | 业务过滤         | example-service 按 `scopeGroups[]` 分支处理：`scopeMode=INSTANCE` 时把返回的 `items[].resourceCode` 转换为查询条件，`scopeMode=ALL` 时不加范围过滤 |
 
 运行时规则：
 
 - permission-center 先判断用户是否拥有主资源操作，例如 `report:sales + DATA_READ` 或 `report:sales + DATA_EDIT`。
-- 主权限不通过时，`allowed=false` 且 `items=[]`。
+- 主权限全部不通过时，顶层 `reason="NO_PERMISSION"`，请求笛卡尔积对应的 `scopeGroups[]` 均返回 `scopeMode=DENIED`；响应不再包含旧 `allowed` 字段。
 - 直接范围权限 `DIRECT` 与当前主权限下的子权限 `DEPENDENT` 按并集返回。
 - 多个主操作和多个范围操作可以一次查询；范围操作必须被一个已通过的主操作激活。
 - 主资源上的 `DATA_READ/DATA_EDIT` 是推荐范例，用于 example-service 表达报表承载数据的读写；其他业务系统可以定义自己的主操作和范围操作映射。
 - 子权限也要参与条件计算和冲突处理，未满足条件的子权限不进入结果。
-- `items=[]` 默认表示无显式范围权限，不表示全量范围。
-- 全量范围必须通过 `scopeAll=true` 显式表达，例如 `DATA_EDIT + DEPT + scopeAll=true` 表示可编辑全部部门范围。
+- 调用方必须按 `scopeGroups[].scopeMode` 分支处理，不得用 `items=[]` 推断语义：`ALL` / `DENIED` / `EMPTY` 都可能为空，只有 `INSTANCE` 使用 `items[]` 承载具体范围实例。
+- 全量范围必须通过对外 `scopeMode=ALL` 显式表达，例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围；内部存储仍对应 `role_resource_permission.scope_all=true`。
 - 权限中心不生成 SQL；example-service 自行把 `data:city:shanghai`、`data:dept:finance` 等资源键映射为查询条件。
 
 ### 10.3 运行时查询边界

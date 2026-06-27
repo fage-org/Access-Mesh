@@ -134,7 +134,7 @@ private Long grantDepId;
 ├─────────────────────────────────────────────────────────────┤
 │ L2 数据权限                                                  │
 │   决定：调 OP 时能看到哪些数据？                            │
-│   表达：role_resource_permission.scopeAll +                  │
+│   表达：内部 role_resource_permission.scopeAll +             │
 │         scopes（资源 ID 集合）+ conditionId                  │
 │   粒度：实例集合 / 范围 / 自定义条件                        │
 │                                                              │
@@ -150,7 +150,7 @@ private Long grantDepId;
 
 ### 3.3 IR-3.2 L2 数据权限契约（调用方自决）
 
-> perm-center 提供数据范围**事实**（`scopeAll` / `scopes` / `condition`），**不感知调用方使用方式**：
+> perm-center 提供数据范围**事实**（对外 `scopeMode` / `items` / `condition`，内部存储对应 `scopeAll` / 资源 ID 集合 / `conditionId`），**不感知调用方使用方式**：
 > - 调用方可用于行级 SQL WHERE 注入
 > - 调用方可用于字段级 DTO 裁切
 > - 调用方可用于其他维度（如导出脱敏 / 报表聚合等）
@@ -243,7 +243,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
    ① 选 ResourceType (EXAMPLE_REPORT)
    ② 选 ResourceCode (sales-001 或 *)
    ③ 选 Operations (VIEW / EXPORT / EDIT)              ← L1
-   ④ 选 Scope（scopeAll / 资源 ID 集合 / 自定义条件）  ← L2
+   ④ 选 Scope（全量范围 / 资源 ID 集合 / 自定义条件；对外协议为 scopeMode）  ← L2
    ⑤ 限时（可选）
    ⑥ dry-run 影响预览
    ⑦ 保存 → POST /api/perm/role/grant（roleId 放 JSON Body，禁止路径参数，见 project-rules.md §API 规范）
@@ -273,7 +273,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 - Gateway 订阅该 topic，收到事件后 evict 本地 `interfaceSnapshotCache`；前端缓存仍按前端实施约定走 TTL / polling / BroadcastChannel / SSE 兜底
 - 失败兜底：广播丢失不影响事务；TTL（30-60s）自然过期最终一致
 
-> **实现进度（T-PERM-001，2026-06-20）**：Gateway 已落地快照模式——缓存 key 从 `(user,service,method,path)→Boolean` 改为 `(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp`，鉴权降为本地内存匹配（`InterfaceSnapshotMatcher`，支持 Ant 通配 + scopeAll 覆盖），未命中回源拉取 `interface-snapshot`。`InterfaceSnapshotResp`/`InterfaceSnapshotReq` 已迁入 perm-common 供 Gateway 共享。fail-close 过渡期保留（stale-allow 见 T-GW-003）。
+> **实现进度（T-PERM-001，2026-06-20）**：Gateway 已落地快照模式——缓存 key 从 `(user,service,method,path)→Boolean` 改为 `(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp`，鉴权降为本地内存匹配（`InterfaceSnapshotMatcher`，支持 Ant 通配 + `scopeMode=ALL` 覆盖全服务 API），未命中回源拉取 `interface-snapshot`。`InterfaceSnapshotResp`/`InterfaceSnapshotReq` 已迁入 perm-common 供 Gateway 共享。fail-close 过渡期保留（stale-allow 见 T-GW-003）。
 >
 > **实现进度（T-PERM-002，2026-06-20）**：写路径缓存失效与广播已统一到 AOP 框架——`PermissionChangeContext`（ThreadLocal 累积器）+ `@PermissionChange` 注解 + `PermissionChangeAspect`（@Around，proceed 后注册单一 afterCommit sync 统一 flush：`invalidateRoleCacheByRole/Batch` + `evictBatch(CONDITION_RULES/ROLE_PERM_SNAPSHOT)` + 发布 `PermInvalidateEvent`）。业务方法体内通过 `markRoles/markUsers/markConditions/markRoleSnapshots` 登记影响范围，afterCommit 注册由框架侧统一完成（铁律 P1-B 达标，业务侧 15 处手写 `TransactionSynchronizationManager` 全部消除）。`PermInvalidationPublisher` 通过 Redis topic `perm:invalidate` 发布，失败仅 warn 靠 TTL 兜底。Gateway 订阅器为 T-PERM-006 范围（发布端已就位）。
 >
@@ -319,7 +319,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 业务服务**不向 perm-center 推送任何配置**。运行期通过 `PermQueryEngine.hasPermission()` 调用即可。
 
-> v3.5 不约束业务侧实施方式 — 调用方拿到 perm-center 的数据权限**事实**（scopeAll / scopes / condition）后，如何应用（行裁切 / 字段裁切 / 其他维度）由调用方自决。
+> v3.5 不约束业务侧实施方式 — 调用方拿到 perm-center 的数据权限**事实**（对外 `scopeMode` / `items` / `condition`）后，如何应用（行裁切 / 字段裁切 / 其他维度）由调用方自决。
 
 ---
 
