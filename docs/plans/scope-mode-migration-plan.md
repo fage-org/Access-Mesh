@@ -20,7 +20,7 @@ last_updated: 2026-06-27
 
 # scopeMode 协议迁移计划（工作单 B）
 
-> 状态：进行中（T-PERM-009·010·011·012·013·014 done / 015 proposed）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
+> 状态：进行中（T-PERM-009·010·011·012·013·014·015 done）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §3 数据权限契约
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.2 工作单 B
 > 关联审计：S-005（scopeMode 全量推广，A 决策）
@@ -52,7 +52,7 @@ last_updated: 2026-06-27
 | T-PERM-012 | 管理端授权配置 / 排查页响应改造 | S-005=A | ✅ |
 | T-PERM-013 | schema `scope_all` 字段保留（内部存储），协议层映射逻辑实现 | B2 | ✅ |
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义）| S-005 | ✅ |
-| T-PERM-015 | 前端 hasPerms / Perms 组件适配 scopeMode 响应四态分支 | B2 | ⚙️ |
+| T-PERM-015 | 前端 ScopeMode 类型定义 + composable（hasPerms/Perms 不涉及 L2 数据权限） | B2 | ✅ |
 
 ## 准入条件
 
@@ -64,7 +64,7 @@ last_updated: 2026-06-27
 - 文档层：api-contract.md 顶部已改为 scopeMode 正式协议定义（2026-06-27 T-PERM-011/T-PERM-014），对外目标契约统一 `scopeMode`；内部存储仍保留 `scope_all`
 - 代码层：T-PERM-009 ✅ done—— `ScopeMode` 4 态枚举（DENIED/INSTANCE/ALL/EMPTY）已定义、`QueryScopesResp` 重构为按 `(resourceTypeCode, operationCode)` 分桶的分类模型，135 tests 0 failures，api-contract §6.7 回写 done；T-PERM-012 ✅ 已完成管理端授权配置/排查页 DTO 与映射改造，内部仍使用 `scope_all`；T-PERM-013 ✅ 已完成协议层映射——`InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry` 的 `boolean scopeAll` 字段已替换为 `ScopeMode scopeMode`（INSTANCE/ALL 两态），内部存储 `scope_all` 保留不变
 - 协议层：T-PERM-010 ✅（范围合并进 T-PERM-009，§6.7 已回写 query-scopes 四态）；T-PERM-011 ✅ 已完成全量推广：api-contract.md 中旧 boolean 范围字段不再作为对外协议字段出现，请求侧只允许 `INSTANCE/ALL`，权限事实列表项只使用 `INSTANCE/ALL`，`query-scopes.scopeGroups[]` 使用四态；T-PERM-014 ✅ 已完成顶部正式定义收尾；T-PERM-012 ✅ 已按该契约落地管理端/排查页实现；T-PERM-013 ✅ 已完成最后两个外部协议 DTO 的 scopeAll→scopeMode 迁移
-- 前端适配：**未启动**（T-PERM-015 proposed）
+- 前端适配：**已完成**（T-PERM-015 done——`ScopeMode` 四态枚举 + `useScopeMode` composable + `QueryScopesResp`/`QueryResourcesResp` 类型定义；hasPerms/Perms 为 L1 操作权限组件，不涉及 L2 scopeMode 改造）
 
 ## 归档条件
 
