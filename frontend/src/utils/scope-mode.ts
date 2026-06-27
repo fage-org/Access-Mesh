@@ -28,8 +28,26 @@ export enum ScopeMode {
   EMPTY = "EMPTY"
 }
 
+/** 合法 scopeMode 值集合，用于运行时校验 */
+const VALID_SCOPE_MODES: ReadonlySet<string> = new Set<string>(
+  Object.values(ScopeMode)
+);
+
 /**
- * scopeMode 分支判断工具集。
+ * 规范化 scopeMode：非四态合法值一律降级为 DENIED（fail-close）。
+ *
+ * 防御场景：后端新增枚举值、序列化错误、网络篡改等导致未知值传入时，
+ * `??` 只处理 null/undefined，无法拦截 "UNKNOWN" 等非法字符串——
+ * 此时 canAccess 会误判为 true（四个状态判断全 false 但 m !== DENIED）。
+ * 降级为 DENIED 后调用方走拒绝分支，安全优先。
+ */
+function normalizeScopeMode(mode: ScopeMode | null | undefined): ScopeMode {
+  if (mode != null && VALID_SCOPE_MODES.has(mode)) return mode;
+  return ScopeMode.DENIED;
+}
+
+/**
+ * scopeMode 分支判断工具集（fail-close）。
  *
  * 典型用法：
  * ```ts
@@ -39,9 +57,12 @@ export enum ScopeMode {
  * if (isInstance) { /* 按 items[] 做 IN 过滤 *\/ }
  * if (isEmpty)   { /* 显示空结果提示 *\/ }
  * ```
+ *
+ * 防御语义：null / undefined / 未知值一律降级为 DENIED，
+ * 宁可误拒不可误放。
  */
 export function useScopeMode(mode: ScopeMode | null | undefined) {
-  const m = mode ?? ScopeMode.DENIED;
+  const m = normalizeScopeMode(mode);
   return {
     /** 当前 scopeMode 值 */
     scopeMode: m,

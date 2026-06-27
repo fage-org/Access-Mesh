@@ -14,6 +14,19 @@
  */
 import type { ScopeMode } from "@/utils/scope-mode";
 
+// ========== 公共窄类型 ==========
+
+/**
+ * 权限事实范围模式（对齐 api-contract §6.6/§6.8/§6.9）。
+ *
+ * 授权请求侧、权限事实列表项（query-resources / permission-view / interface-snapshot）
+ * 只允许 INSTANCE | ALL 两态；完整四态 DENIED/INSTANCE/ALL/EMPTY 仅用于
+ * query-scopes.scopeGroups[]（见 ScopeGroup.scopeMode）。
+ *
+ * @see docs/design/permission-center/api-contract.md §6.6
+ */
+export type ScopeFactMode = typeof ScopeMode.INSTANCE | typeof ScopeMode.ALL;
+
 // ========== query-resources 响应 ==========
 
 /** query-resources 资源条目（对齐 api-contract §6.6） */
@@ -28,8 +41,8 @@ export type ResourceEntry = {
   resourceName: string | null;
   /** 是否可授予他人 */
   canGrant: boolean;
-  /** 范围模式：INSTANCE=具体实例，ALL=全量范围 */
-  scopeMode: ScopeMode;
+  /** 范围模式：INSTANCE=具体实例，ALL=全量范围（§6.6 仅允许此两态） */
+  scopeMode: ScopeFactMode;
   /** 操作权限列表 */
   operations: Array<string>;
   /** 匹配的角色ID列表 */
