@@ -123,6 +123,11 @@ public class InterfaceSnapshotMatcher {
     /**
      * 路由维度匹配：scopeMode=ALL 覆盖 / 精确-通配匹配。
      * 仅判断路由是否落在该 entry 范围内，不涉及条件。
+     * <p>
+     * 防御性约定：scopeMode=null 时按 INSTANCE 处理（走精确匹配），
+     * 宁可误拒不误放行。正常情况下 permission-center 总是设置 INSTANCE 或 ALL，
+     * null 仅在异常场景出现（反序列化失败等）。
+     * </p>
      */
     private static boolean matchesRoute(ApiPermissionEntry entry, String serviceCode, String httpMethod, String path) {
         if (!serviceCode.equals(entry.serviceCode())) return false;

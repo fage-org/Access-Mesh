@@ -12,7 +12,7 @@ last_reviewed: 2026-06-27
 
 > **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。本文档历史段落保留的字段描述仅作演进记录，**以代码为准**（`InterfaceSnapshotResp`/`InterfaceSnapshotReq`/`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 均不再含 `permissionVersion`）。
 
-> **scopeMode 协议定义（2026-06-27 T-PERM-011）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项、`query-resources` 和 `effective-permissions` 等权限事实列表项只使用 `INSTANCE / ALL`。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射。本文档描述目标契约；现有 DTO/映射中的旧 boolean 字段由 T-PERM-012/T-PERM-013 继续落地迁移。
+> **scopeMode 协议定义（2026-06-27 T-PERM-011，T-PERM-013 落地完成）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项、`query-resources` 和 `effective-permissions` 等权限事实列表项只使用 `INSTANCE / ALL`。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射（`ScopeModeSupport`）。所有对外协议 DTO（含 `InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry`）已完成迁移，旧 `scopeAll` boolean 字段不再出现在任何外部响应中。
 
 ## 1. 设计目标
 
