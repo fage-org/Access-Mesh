@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
@@ -60,9 +61,9 @@ public record RoleGrantReq(
          */
         @NotBlank String operationCode,
         /**
-         * 是否授予全部范围
+         * 范围模式
          */
-        Boolean scopeAll,
+        ScopeMode scopeMode,
         /**
          * 是否可授权给他人
          */

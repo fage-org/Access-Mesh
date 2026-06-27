@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -76,9 +77,36 @@ class PermissionGrantDomainServiceImplTest {
 
         when(roleResourcePermissionMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of(perm));
 
-        boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", "VIEW", false, null);
+        boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false, null);
 
         assertTrue(allowed);
+    }
+
+    @Test
+    void canGrantPermissionShouldDenyWhenCodeTypeDiffers() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
+            .thenReturn(List.of(viewOp));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(viewOp));
+        when(typeResolutionService.batchResolveResourceIds(any(), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", "ID", null), 200L));
+
+        RoleResourcePermission perm = new RoleResourcePermission();
+        perm.setAbstractRoleId(20L);
+        perm.setResourceEntityId(100L);
+        perm.setResourceType(1);
+        perm.setGrantedBits(1L);
+        perm.setCanGrant(true);
+        perm.setScopeAll(false);
+        when(roleResourcePermissionMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of(perm));
+
+        boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", "ID", "VIEW", false, null);
+
+        assertFalse(allowed);
     }
 
     @Test

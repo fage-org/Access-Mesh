@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.util.List;
 
 /**
@@ -36,7 +37,7 @@ public record PermissionEffectivePermissionsResp(
      * @param resourceName         资源名称
      * @param codeType             编码类型
      * @param operationCodes       操作权限编码列表
-     * @param scopeAll             是否范围全部
+     * @param scopeMode            范围模式
      * @param sourceRoles          来源角色列表
      * @param sourceRoleCount      来源角色总数
      * @param sourceRolesTruncated 来源角色是否截断（超出显示限制）
@@ -48,7 +49,7 @@ public record PermissionEffectivePermissionsResp(
         String resourceName,
         String codeType,
         List<String> operationCodes,
-        boolean scopeAll,
+        ScopeMode scopeMode,
         List<SourceRole> sourceRoles,
         int sourceRoleCount,
         boolean sourceRolesTruncated,

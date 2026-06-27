@@ -25,6 +25,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -40,11 +42,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -119,7 +123,7 @@ class PermissionViewAppServiceImplTest {
 
         PermissionExplainReq req = new PermissionExplainReq(
             PermConstants.TargetType.USER, "USER", "u-999", null, null, null,
-            "API", "api-1", null, "VIEW", null, null, null
+            "API", "api-1", "default", "VIEW", ScopeMode.INSTANCE, null, null, null
         );
         PermissionExplainResp resp = service.explain(1L, req);
 
@@ -127,6 +131,53 @@ class PermissionViewAppServiceImplTest {
         assertFalse(resp.allowed());
         assertEquals("USER_NOT_FOUND", resp.reason());
     }
+
+    @Test
+    void shouldExplainRoleScopeAllWithTypeLevelQuery() {
+        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((Long) null), eq(OperationCodeConstants.VIEW)))
+            .thenReturn(true);
+        when(typeResolutionService.resolveRoleId(1L, "ADMIN_ROLE", "role-1", "admin")).thenReturn(20L);
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null).build());
+
+        PermissionExplainReq req = new PermissionExplainReq(
+            PermConstants.TargetType.ROLE, null, null, "ADMIN_ROLE", "role-1", "admin",
+            "MENU", null, null, "VIEW", ScopeMode.ALL, false, false, null
+        );
+        PermissionExplainResp resp = service.explain(1L, req);
+
+        assertTrue(resp.allowed());
+        assertEquals(ScopeMode.ALL, resp.permission().scopeMode());
+        assertNull(resp.permission().resourceCode());
+        ArgumentCaptor<PermQuery> captor = ArgumentCaptor.forClass(PermQuery.class);
+        verify(engine).query(captor.capture());
+        assertNull(captor.getValue().resourceCodes());
+        assertTrue(captor.getValue().queryScopeAll());
+        assertFalse(captor.getValue().queryInstance());
+    }
+
+    @Test
+    void shouldExplainRoleInstanceWithoutScopeAllFallback() {
+        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((Long) null), eq(OperationCodeConstants.VIEW)))
+            .thenReturn(true);
+        when(typeResolutionService.resolveRoleId(1L, "ADMIN_ROLE", "role-1", "admin")).thenReturn(20L);
+        when(engine.query(any(PermQuery.class))).thenReturn(PermResult.deny("NO_PERMISSION"));
+
+        PermissionExplainReq req = new PermissionExplainReq(
+            PermConstants.TargetType.ROLE, null, null, "ADMIN_ROLE", "role-1", "admin",
+            "MENU", "sys:user", "default", "VIEW", ScopeMode.INSTANCE, false, false, null
+        );
+        PermissionExplainResp resp = service.explain(1L, req);
+
+        assertFalse(resp.allowed());
+        assertEquals("NO_PERMISSION", resp.reason());
+        ArgumentCaptor<PermQuery> captor = ArgumentCaptor.forClass(PermQuery.class);
+        verify(engine).query(captor.capture());
+        assertFalse(captor.getValue().queryScopeAll());
+        assertTrue(captor.getValue().queryInstance());
+        assertEquals(Set.of("sys:user"), captor.getValue().resourceCodes());
+        assertEquals("default", captor.getValue().codeType());
+    }
+
 
     @Test
     void shouldReturnEmptyTreeWhenUserNotFound() {

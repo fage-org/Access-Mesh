@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.time.LocalDateTime;
 
 /**
@@ -45,7 +46,7 @@ public record RecentChangeResp(
      * @param resourceCode      资源编码
      * @param codeType          编码类型
      * @param operationCode     操作编码
-     * @param scopeAll          是否范围全部
+     * @param scopeMode         范围模式
      */
     public record PermissionKey(
         String domainCode,
@@ -53,7 +54,7 @@ public record RecentChangeResp(
         String resourceCode,
         String codeType,
         String operationCode,
-        Boolean scopeAll
+        ScopeMode scopeMode
     ) {}
 
     /**

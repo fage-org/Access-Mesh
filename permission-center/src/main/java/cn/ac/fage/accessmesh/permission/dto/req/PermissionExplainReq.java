@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.dto.req;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -16,9 +17,10 @@ import jakarta.validation.constraints.NotBlank;
  * @param roleExternalId     角色外部标识，目标类型为ROLE时必填
  * @param domainCode         业务域编码，可选
  * @param resourceTypeCode   资源类型编码，必填
- * @param resourceCode       资源编码，必填
- * @param codeType           编码类型，可选
+ * @param resourceCode       资源编码，scopeMode=INSTANCE 时必填
+ * @param codeType           编码类型，scopeMode=INSTANCE 时必填
  * @param operationCode      操作编码，必填
+ * @param scopeMode          范围模式，INSTANCE/ALL
  * @param includeSourceRoles 是否包含来源角色，可选
  * @param includeRecentChanges 是否包含最近变更，可选
  * @param recentDays         最近变更天数，可选
@@ -31,9 +33,10 @@ public record PermissionExplainReq(
     String roleExternalId,
     String domainCode,
     @NotBlank String resourceTypeCode,
-    @NotBlank String resourceCode,
+    String resourceCode,
     String codeType,
     @NotBlank String operationCode,
+    ScopeMode scopeMode,
     Boolean includeSourceRoles,
     Boolean includeRecentChanges,
     Integer recentDays

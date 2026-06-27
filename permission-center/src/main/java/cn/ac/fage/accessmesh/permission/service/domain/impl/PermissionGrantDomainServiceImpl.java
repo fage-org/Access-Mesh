@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
@@ -74,6 +73,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * @param operatorId       操作者ID
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码
+     * @param codeType         编码类型
      * @param operationCode    操作码
      * @param scopeAll         是否全局作用域
      * @param domainCode       业务域编码，可选
@@ -81,10 +81,11 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      */
     @Override
     public boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
-                                       String resourceCode, String operationCode, boolean scopeAll, String domainCode) {
-        Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, operationCode, scopeAll));
+                                       String resourceCode, String codeType, String operationCode,
+                                       boolean scopeAll, String domainCode) {
+        Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
         Map<String, GrantCheckResult> results = checkCanGrant(tenantId, operatorId, keys, domainCode);
-        String key = buildPermissionKey(new GrantCheckKey(resourceTypeCode, resourceCode, operationCode, scopeAll));
+        String key = buildPermissionKey(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
         GrantCheckResult result = results.get(key);
         return result != null && result.canGrant();
     }
@@ -168,15 +169,15 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // 4. 批量解析资源实体ID
         List<ResourceResolveRequest> resourceRequests = permissions.stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
-            .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), PermConstants.CodeType.DEFAULT, domainCode))
+            .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode))
             .distinct()
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resolvedResourceIds = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
 
-        Map<String, Long> resourceEntityIdByCode = new HashMap<>();
+        Map<String, Long> resourceEntityIdByKey = new HashMap<>();
         for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
             ResourceResolveKey key = entry.getKey();
-            resourceEntityIdByCode.put(key.resourceTypeCode().toUpperCase() + ":" + key.resourceCode(), entry.getValue());
+            resourceEntityIdByKey.put(buildResourceKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
         }
 
         // 5. 批量查询角色资源权限（按角色和资源类型过滤）
@@ -217,7 +218,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Map<String, GrantCheckResult> results = new HashMap<>();
         for (GrantCheckKey key : permissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, opPermByKey,
-                resourceEntityIdByCode, permsBySpecificResource, permsByScopeAll);
+                resourceEntityIdByKey, permsBySpecificResource, permsByScopeAll);
             results.put(buildPermissionKey(key), result);
         }
         return results;
@@ -277,7 +278,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private GrantCheckResult evaluateGrantPermission(GrantCheckKey key,
                                                       Map<String, Integer> resourceTypeByCode,
                                                       Map<String, OperationPermission> opPermByKey,
-                                                      Map<String, Long> resourceEntityIdByCode,
+                                                      Map<String, Long> resourceEntityIdByKey,
                                                       Map<String, List<RoleResourcePermission>> permsBySpecificResource,
                                                       Map<String, List<RoleResourcePermission>> permsByScopeAll) {
         String resTypeCodeUpper = key.resourceTypeCode().toUpperCase();
@@ -296,8 +297,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         Long resourceEntityId = null;
         if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-            String resKey = resTypeCodeUpper + ":" + key.resourceCode();
-            resourceEntityId = resourceEntityIdByCode.get(resKey);
+            String resKey = buildResourceKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
+            resourceEntityId = resourceEntityIdByKey.get(resKey);
             if (resourceEntityId == null) {
                 return new GrantCheckResult(false, "RESOURCE_NOT_FOUND");
             }
@@ -333,16 +334,24 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         return new GrantCheckResult(false, "NO_GRANT_RIGHT");
     }
 
+    private String buildResourceKey(String resourceTypeCode, String resourceCode, String codeType) {
+        return String.format("%s:%s:%s",
+            resourceTypeCode == null ? "" : resourceTypeCode.toUpperCase(),
+            resourceCode == null ? "" : resourceCode,
+            codeType == null ? "" : codeType);
+    }
+
     /**
      * 构建权限键字符串
      * <p>
-     * 格式：resourceTypeCode:resourceCode:operationCode:scopeType
+     * 格式：resourceTypeCode:resourceCode:codeType:operationCode:scopeType
      * </p>
      */
     private String buildPermissionKey(GrantCheckKey key) {
-        return String.format("%s:%s:%s:%s",
+        return String.format("%s:%s:%s:%s:%s",
             key.resourceTypeCode(),
             key.resourceCode() == null ? "*" : key.resourceCode(),
+            key.codeType() == null ? "*" : key.codeType(),
             key.operationCode(),
             key.scopeAll() ? "ALL" : "SPECIFIC");
     }

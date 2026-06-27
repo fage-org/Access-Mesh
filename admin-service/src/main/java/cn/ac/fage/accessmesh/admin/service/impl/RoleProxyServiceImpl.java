@@ -38,6 +38,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissions
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -265,7 +266,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
             String.valueOf(menuId), // resourceCode
             "ID",             // codeType
             opCode,           // operationCode
-            Boolean.FALSE,    // scopeAll
+            ScopeMode.INSTANCE, // scopeMode
             Boolean.FALSE,    // canGrant
             null              // conditionCode
         );

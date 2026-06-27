@@ -10,7 +10,7 @@ import java.util.List;
  * <p>
  * 与 {@link UserPermissionViewReq} 的区别：
  * <ul>
- *   <li>UserPermissionViewReq 是分页视图查询，返回 {@code PermissionEffectivePermissionsResp}（含来源角色、scopeAll、resource 实例等）。</li>
+ *   <li>UserPermissionViewReq 是分页视图查询，返回 {@code PermissionEffectivePermissionsResp}（含来源角色、scopeMode、resource 实例等）。</li>
  *   <li>本接口返回扁平 {@code Set<resourceTypeCode:operationCode>} 字符串集，
  *       供前端 hasPerms、功能开关、客户端能力下发等场景使用。<b>不分页、不可截断</b>，
  *       确保任何用户的所有有效权限码均被返回，消除 page=1, size=500 模式下大权限用户被截断的风险。</li>

@@ -19,7 +19,7 @@ public interface PermissionGrantDomainService {
      * 检查操作者是否可以授予指定权限给他人
      * <p>
      * 操作者必须满足以下条件：
-     * 1. 拥有相同权限（资源类型+资源/范围全部+操作）
+     * 1. 拥有相同权限（资源类型+资源编码+编码类型/范围全部+操作）
      * 2. 该权限配置的canGrant=true
      * 用于权限授予流程中的委托验证。
      * </p>
@@ -28,13 +28,15 @@ public interface PermissionGrantDomainService {
      * @param operatorId       操作者用户ID
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码（scopeAll=true时为null）
+     * @param codeType         编码类型（scopeAll=true时为null）
      * @param operationCode    操作编码
      * @param scopeAll         是否范围全部
      * @param domainCode       业务域编码，可选
      * @return 是否有权限且canGrant=true
      */
     boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
-                               String resourceCode, String operationCode, boolean scopeAll, String domainCode);
+                               String resourceCode, String codeType, String operationCode,
+                               boolean scopeAll, String domainCode);
 
     /**
      * 批量检查操作者是否可以授予多个权限（canGrant验证）
@@ -79,12 +81,14 @@ public interface PermissionGrantDomainService {
      *
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码
+     * @param codeType         编码类型
      * @param operationCode    操作编码
      * @param scopeAll         是否范围全部
      */
     record GrantCheckKey(
         String resourceTypeCode,
         String resourceCode,
+        String codeType,
         String operationCode,
         boolean scopeAll
     ) {}

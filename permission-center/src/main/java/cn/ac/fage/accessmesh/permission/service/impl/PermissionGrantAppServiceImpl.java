@@ -38,6 +38,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
+import cn.ac.fage.accessmesh.permission.util.ScopeModeSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -178,8 +179,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 .map(item -> new PermissionGrantDomainService.GrantCheckKey(
                     item.resourceTypeCode(),
                     item.resourceCode(),
+                    item.codeType(),
                     item.operationCode(),
-                    Boolean.TRUE.equals(item.scopeAll())
+                    ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType())
                 ))
                 .collect(Collectors.toSet());
 
@@ -194,11 +196,11 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 if (result == null || !result.canGrant()) {
                     String reason = result != null ? result.reason() : "UNKNOWN";
                     throw new SecurityException(String.format(
-                        "Operator %s cannot grant permission %s:%s:%s (scopeAll=%s). Reason: %s. " +
+                        "Operator %s cannot grant permission %s:%s:%s (scopeMode=%s). Reason: %s. " +
                         "Operator must have the permission with canGrant=true.",
                         operatorId, item.resourceTypeCode(),
                         item.resourceCode() == null ? "*" : item.resourceCode(),
-                        item.operationCode(), item.scopeAll(), reason
+                        item.operationCode(), item.scopeMode(), reason
                     ));
                 }
             }
@@ -265,6 +267,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 boolean canGrant = permissionGrantDomainService.canGrantPermission(
                     tenantId, operatorId, resourceTypeCode,
                     resource == null ? null : resource.getCode(),
+                    resource == null ? null : resource.getCodeType(),
                     operation == null ? null : operation.getCode(),
                     Boolean.TRUE.equals(existing.getScopeAll()),
                     req.domainCode()
@@ -284,7 +287,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // ===== 批量解析避免N+1查询 =====
         // 1. 批量解析资源ID
         List<ResourceResolveRequest> resourceRequests = addItems.stream()
-            .filter(item -> !Boolean.TRUE.equals(item.scopeAll()))
+            .filter(item -> !ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType()))
             .map(item -> new ResourceResolveRequest(
                 item.resourceTypeCode(),
                 item.resourceCode(),
@@ -331,7 +334,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         LocalDateTime now = LocalDateTime.now();
         List<RoleResourcePermission> toInsert = new ArrayList<>();
         for (RoleGrantReq.GrantAddItem item : addItems) {
-            boolean scopeAll = Boolean.TRUE.equals(item.scopeAll());
+            boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType());
             Long resourceEntityId = null;
             if (!scopeAll) {
                 ResourceResolveKey resKey = new ResourceResolveKey(
@@ -629,7 +632,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 3. 批量解析资源ID（非scopeAll项）
         List<ResourceResolveRequest> resourceRequests = children.stream()
-            .filter(c -> !Boolean.TRUE.equals(c.scopeAll()) && c.resourceCode() != null && !c.resourceCode().isBlank())
+            .filter(c -> !ScopeModeSupport.toScopeAllForGrant(c.scopeMode(), c.resourceCode(), c.codeType()))
             .map(c -> new ResourceResolveRequest(c.resourceTypeCode(), c.resourceCode(), c.codeType(), null))
             .distinct()
             .collect(Collectors.toList());
@@ -667,10 +670,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             if (operation == null) {
                 throw biz(PermissionErrorCode.OPERATION_NOT_FOUND, "operationCode not found: " + child.operationCode());
             }
-            boolean scopeAll = Boolean.TRUE.equals(child.scopeAll());
-            if (!scopeAll && (child.resourceCode() == null || child.resourceCode().isBlank())) {
-                throw biz(PermissionErrorCode.RESOURCE_CODE_REQUIRED, "resourceCode is required when scopeAll=false");
-            }
+            boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(child.scopeMode(), child.resourceCode(), child.codeType());
             Long resourceId = null;
             if (!scopeAll) {
                 ResourceResolveKey resKey = new ResourceResolveKey(child.resourceTypeCode(), child.resourceCode(), child.codeType(), null);
@@ -832,7 +832,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 operation == null ? null : operation.getCode(),
                 perm.getCanGrant(),
                 condition == null ? null : condition.getCode(),
-                Boolean.TRUE.equals(perm.getScopeAll()),
+                ScopeModeSupport.fromScopeAll(perm.getScopeAll()),
                 perm.getDependOn()
             );
         }).toList();
@@ -863,7 +863,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     /**
      * 构建授权校验的权限键
      * <p>
-     * 格式：resourceTypeCode:resourceCode:operationCode:scopeAll
+     * 格式：resourceTypeCode:resourceCode:codeType:operationCode:scopeMode
      * 与AuthorizationServiceImpl的格式一致。
      * </p>
      *
@@ -871,11 +871,12 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * @return 权限键字符串
      */
     private String buildGrantKey(RoleGrantReq.GrantAddItem item) {
-        return String.format("%s:%s:%s:%s",
+        return String.format("%s:%s:%s:%s:%s",
             item.resourceTypeCode(),
             item.resourceCode() == null ? "*" : item.resourceCode(),
+            item.codeType() == null ? "*" : item.codeType(),
             item.operationCode(),
-            Boolean.TRUE.equals(item.scopeAll()) ? "ALL" : "SPECIFIC");
+            ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType()) ? "ALL" : "SPECIFIC");
     }
 
     private BizException biz(PermissionErrorCode errorCode) {

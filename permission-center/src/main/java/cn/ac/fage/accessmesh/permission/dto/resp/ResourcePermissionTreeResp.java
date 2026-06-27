@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.util.List;
 
 /**
@@ -15,7 +16,7 @@ import java.util.List;
  * @param resourceName     资源名称
  * @param resourceTypeCode 资源类型编码
  * @param codeType         编码类型
- * @param scopeAll         是否范围全部
+ * @param scopeMode        范围模式
  * @param operationCodes   操作权限编码列表
  * @param children         子节点列表
  */
@@ -26,7 +27,7 @@ public record ResourcePermissionTreeResp(
     String resourceName,
     String resourceTypeCode,
     String codeType,
-    boolean scopeAll,
+    ScopeMode scopeMode,
     List<String> operationCodes,
     List<ResourcePermissionTreeResp> children
 ) {}

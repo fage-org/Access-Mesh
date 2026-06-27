@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.util.List;
 
 /**
@@ -32,7 +33,7 @@ public record UserPermissionViewResp(
      * @param resourceName         资源名称
      * @param resourceTypeCode     资源类型编码
      * @param codeType             编码类型
-     * @param scopeAll             是否范围全部
+     * @param scopeMode            范围模式
      * @param operationCodes       操作权限编码列表
      * @param sourceRoles          来源角色列表
      * @param sourceRoleCount      来源角色总数
@@ -46,7 +47,7 @@ public record UserPermissionViewResp(
         String resourceName,
         String resourceTypeCode,
         String codeType,
-        boolean scopeAll,
+        ScopeMode scopeMode,
         List<String> operationCodes,
         List<SourceRoleView> sourceRoles,
         int sourceRoleCount,

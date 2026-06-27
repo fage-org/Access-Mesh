@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.permission.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import java.util.List;
 
 /**
@@ -34,6 +35,7 @@ public record RolePermissionViewResp(
      * @param grantedBits      授予的操作位值
      * @param operationCode    操作编码
      * @param operationName    操作名称
+     * @param scopeMode        范围模式
      * @param dependOn         依赖的权限ID，无依赖时为null
      * @param conditionId      条件ID，无条件时为null
      * @param canGrant         是否可授予他人
@@ -48,6 +50,7 @@ public record RolePermissionViewResp(
         Long grantedBits,
         String operationCode,
         String operationName,
+        ScopeMode scopeMode,
         Long dependOn,
         Long conditionId,
         Boolean canGrant,

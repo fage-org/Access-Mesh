@@ -68,9 +68,9 @@ public enum PermissionErrorCode {
     SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED(20011, "子权限资源类型不在允许范围内"),
 
     /**
-     * scopeAll=false 时缺少 resourceCode
+     * scopeMode=INSTANCE 时缺少 resourceCode
      */
-    RESOURCE_CODE_REQUIRED(20012, "scopeAll=false 时 resourceCode 不能为空"),
+    RESOURCE_CODE_REQUIRED(20012, "scopeMode=INSTANCE 时 resourceCode 不能为空"),
 
     /**
      * 子权限不存在

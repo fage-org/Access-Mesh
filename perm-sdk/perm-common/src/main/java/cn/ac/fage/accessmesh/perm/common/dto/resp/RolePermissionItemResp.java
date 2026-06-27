@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
+
 /**
  * 角色权限条目响应体
  * <p>
@@ -15,7 +17,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.resp;
  * @param operationCode    操作编码
  * @param canGrant         是否可授予他人
  * @param conditionCode    条件编码，无条件时为null
- * @param scopeAll         是否范围全部
+ * @param scopeMode        范围模式
  * @param dependOn         依赖的权限ID，无依赖时为null
  */
 public record RolePermissionItemResp(
@@ -27,6 +29,6 @@ public record RolePermissionItemResp(
     String operationCode,
     Boolean canGrant,
     String conditionCode,
-    boolean scopeAll,
+    ScopeMode scopeMode,
     Long dependOn
 ) {}

@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PageUtil;
+import cn.ac.fage.accessmesh.permission.util.ScopeModeSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -322,7 +323,10 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                 parseText(log.diffSnapshot(), "items[0].permission.resourceCode"),
                 parseText(log.diffSnapshot(), "items[0].permission.codeType"),
                 parseText(log.diffSnapshot(), "items[0].permission.operationCode"),
-                parseBoolean(log.diffSnapshot(), "items[0].permission.scopeAll")
+                ScopeModeSupport.fromSnapshot(
+                    parseText(log.diffSnapshot(), "items[0].permission.scopeMode"),
+                    parseBoolean(log.diffSnapshot(), "items[0].permission.scopeAll")
+                )
             ),
             new RecentChangeResp.SourceRole(
                 parseText(log.diffSnapshot(), "items[0].role.roleTypeCode"),

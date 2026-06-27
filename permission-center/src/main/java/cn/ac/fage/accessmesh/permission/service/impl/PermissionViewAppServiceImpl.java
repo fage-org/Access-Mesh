@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
@@ -33,6 +34,7 @@ import cn.ac.fage.accessmesh.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.permission.util.ScopeModeSupport;
 import cn.ac.fage.accessmesh.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -136,7 +138,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(v ->
                 new PermissionEffectivePermissionsResp.EffectivePermissionItem(
                     v.resourceTypeCode(), v.resourceCode(), v.resourceName(), v.codeType(),
-                    v.operationCodes(), v.scopeAll(),
+                    v.operationCodes(), v.scopeMode(),
                     v.sourceRoles() == null ? List.of() : v.sourceRoles().stream().map(sr ->
                         new PermissionEffectivePermissionsResp.SourceRole(sr.roleTypeCode(), sr.roleExternalId(), sr.roleName(), sr.via())
                     ).toList(),
@@ -160,7 +162,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             new PermissionEffectivePermissionsResp.EffectivePermissionItem(
                 p.resourceTypeCode(), p.resourceCode(), p.resourceName(), null,
                 p.operationCode() == null ? List.of() : List.of(p.operationCode()),
-                false, List.of(), 0, false,
+                p.scopeMode(), List.of(), 0, false,
                 p.id() == null ? List.of() : List.of(p.id())
             )
         ).toList();
@@ -324,7 +326,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
         return new ResourcePermissionView(
             null, null, null, null, resourceTypeCode, null,
-            true,
+            ScopeMode.ALL,
             new ArrayList<>(operationCodes),
             sourceRoles,
             sourceRoleCount,
@@ -381,9 +383,6 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             ? (sourceRoleLimit > 0 ? allSourceRoles.stream().limit(sourceRoleLimit).toList() : allSourceRoles)
             : List.of();
 
-        // scopeAll
-        boolean scopeAll = entries.stream().anyMatch(e -> Boolean.TRUE.equals(e.scopeAll()));
-
         return new ResourcePermissionView(
             resourceId,
             viewResult.getDomainCodeMap().get(resourceId),
@@ -392,7 +391,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             viewResult.getResourceMap().get(resourceId) != null && viewResult.getResourceTypeCodeMap() != null
                 ? viewResult.getResourceTypeCodeMap().get(resourceId) : null,
             resource.getCodeType(),
-            scopeAll,
+            ScopeMode.INSTANCE,
             new ArrayList<>(operationCodes),
             returnedSourceRoles,
             sourceRoleCount,
@@ -576,6 +575,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                     p.getGrantedBits(),
                     op != null ? op.getCode() : null,
                     op != null ? op.getName() : null,
+                    ScopeModeSupport.fromScopeAll(p.getScopeAll()),
                     p.getDependOn(),
                     p.getConditionId(),
                     p.getCanGrant(),
@@ -636,6 +636,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 p.getGrantedBits(),
                 op != null ? op.getCode() : null,
                 op != null ? op.getName() : null,
+                ScopeModeSupport.fromScopeAll(p.getScopeAll()),
                 p.getDependOn(),
                 p.getConditionId(),
                 p.getCanGrant(),
@@ -664,6 +665,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
+        boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(req.scopeMode(), req.resourceCode(), req.codeType());
+        String queryResourceCode = scopeAll ? null : req.resourceCode();
+        String queryCodeType = scopeAll ? null : req.codeType();
 
         // 预先解析 roleId（ROLE 目标），避免在权限检查和 includeSourceRoles 中重复解析
         Long targetRoleId = PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())
@@ -675,10 +679,17 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             if (targetRoleId == null) {
                 checkResp = AuthCheckResp.deny("ROLE_NOT_FOUND");
             } else {
-                PermQuery q = PermQuery.forAuthCheck(tenantId, null,
-                    req.resourceTypeCode(), req.resourceCode(), req.operationCode());
+                PermQuery q = PermQuery.forScopeQuery(tenantId, null,
+                    Set.of(req.resourceTypeCode()), Set.of(req.operationCode()));
                 q.setRoleIds(Set.of(targetRoleId));
-                q.setCodeType(req.codeType());
+                q.setResourceCodes(scopeAll ? null : Set.of(queryResourceCode));
+                q.setCodeType(queryCodeType);
+                q.setDomainCode(req.domainCode());
+                q.setQueryScopeAll(scopeAll);
+                q.setQueryInstance(!scopeAll);
+                q.setEvaluateConditions(true);
+                q.setEvaluateConflicts(true);
+                q.setEvaluateMatchesBit(true);
                 q.setContext(Map.of());
                 checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
             }
@@ -689,8 +700,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 checkResp = AuthCheckResp.deny("USER_NOT_FOUND");
             } else {
                 PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-                    req.resourceTypeCode(), req.resourceCode(), req.operationCode());
-                q.setCodeType(req.codeType());
+                    req.resourceTypeCode(), queryResourceCode, req.operationCode());
+                q.setCodeType(queryCodeType);
                 q.setContext(Map.of());
                 checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
             }
@@ -748,7 +759,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             checkResp.allowed(),
             checkResp.reason(),
             new PermissionExplainResp.PermissionKey(
-                req.domainCode(), req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.operationCode(), false
+                req.domainCode(), req.resourceTypeCode(), queryResourceCode, queryCodeType, req.operationCode(), req.scopeMode()
             ),
             sourceRoles,
             checkResp.matchedPermissionIds(),
@@ -817,7 +828,10 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 parseText(log.getDiffSnapshot(), "items[0].permission.resourceCode"),
                 parseText(log.getDiffSnapshot(), "items[0].permission.codeType"),
                 parseText(log.getDiffSnapshot(), "items[0].permission.operationCode"),
-                parseBoolean(log.getDiffSnapshot(), "items[0].permission.scopeAll")
+                ScopeModeSupport.fromSnapshot(
+                    parseText(log.getDiffSnapshot(), "items[0].permission.scopeMode"),
+                    parseBoolean(log.getDiffSnapshot(), "items[0].permission.scopeAll")
+                )
             ),
             new RecentChangeResp.SourceRole(
                 parseText(log.getDiffSnapshot(), "items[0].role.roleTypeCode"),
@@ -956,7 +970,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             Set<Long> visited) {
         if (visited.contains(entityId)) {
             return new ResourcePermissionTreeResp(
-                entityId, null, null, null, null, PermConstants.CodeType.DEFAULT, false, List.of(), List.of()
+                entityId, null, null, null, null, PermConstants.CodeType.DEFAULT, ScopeMode.INSTANCE, List.of(), List.of()
             );
         }
         visited.add(entityId);
@@ -967,7 +981,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         String resourceTypeCode = null;
         String codeType = PermConstants.CodeType.DEFAULT;
         List<String> operationCodes = List.of();
-        boolean scopeAll = false;
+        ScopeMode scopeMode = ScopeMode.INSTANCE;
         String resourceCode = null;
         String resourceName = null;
 
@@ -976,7 +990,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             resourceTypeCode = view.resourceTypeCode();
             codeType = view.codeType();
             operationCodes = view.operationCodes();
-            scopeAll = view.scopeAll();
+            scopeMode = view.scopeMode();
             resourceCode = view.resourceCode();
             resourceName = view.resourceName();
         } else if (entity != null) {
@@ -992,7 +1006,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
         return new ResourcePermissionTreeResp(
             entityId, domainCode, resourceCode, resourceName,
-            resourceTypeCode, codeType, scopeAll, operationCodes, children
+            resourceTypeCode, codeType, scopeMode, operationCodes, children
         );
     }
 

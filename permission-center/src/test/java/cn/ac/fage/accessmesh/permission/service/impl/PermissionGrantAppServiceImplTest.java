@@ -17,6 +17,7 @@ import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -108,7 +109,7 @@ class PermissionGrantAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SER")).thenReturn(3);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(
-            10L, List.of(new RolePermissionAddChildReq.ChildItem("SER", "x", "default", "VIEW", false, null, null))
+            10L, List.of(new RolePermissionAddChildReq.ChildItem("SER", "x", "default", "VIEW", ScopeMode.INSTANCE, null, null))
         );
 
         assertThrows(BizException.class, () -> service.addChildren(1L, req));
@@ -127,7 +128,7 @@ class PermissionGrantAppServiceImplTest {
         when(typeResolutionService.resolveOperationId(1L, "DATA_READ", "DATA")).thenReturn(11L);
 
         RolePermissionAddChildReq req = new RolePermissionAddChildReq(
-            10L, List.of(new RolePermissionAddChildReq.ChildItem("DATA", null, "default", "DATA_READ", false, null, null))
+            10L, List.of(new RolePermissionAddChildReq.ChildItem("DATA", null, "default", "DATA_READ", ScopeMode.INSTANCE, null, null))
         );
 
         assertThrows(BizException.class, () -> service.addChildren(1L, req));
