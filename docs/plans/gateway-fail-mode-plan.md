@@ -47,18 +47,18 @@ last_updated: 2026-06-20
 | T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ⚙️ |
 | [T-GW-003](../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ⚙️ |
 | T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ⚙️ |
-| T-GW-005 | 失效标记与订阅恢复策略设计（S-006 待设计项，规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ⚙️ |
+| T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ✅ |
 | T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503" | C1 | ⚙️ |
 
 ## 准入条件
 
 - [ ] design-review §11 暂缓解除（A/B/C 已重启）
 - [ ] 工作单 A 快照模式（A-1）完成（stale-allow 依赖 InterfaceSnapshot 缓存对象）
-- [ ] S-006 Gateway 失效标记待设计方案明确（或接受 C-5 后补）
+- [ ] ~~S-006 Gateway 失效标记待设计方案明确~~（2026-06-28 T-GW-005 已完成设计，详见 gateway.md §快照失效标记与订阅恢复）
 
 ## 当前进度
 
-- 文档层：design-review §4.3 决策已记录 + §C 协作段加 S-006 待设计注记（2026-06-20 审计）
+- 文档层：design-review §4.3 决策已记录 + §C 协作段加 S-006 待设计注记（2026-06-20 审计）；T-GW-005（S-006）设计规范已产出（2026-06-28），详见 gateway.md §快照失效标记与订阅恢复
 - 代码层：**未启动**（Gateway fail-mode 配置、stale-allow 实现、监控指标均未做）
 
 ## 归档条件

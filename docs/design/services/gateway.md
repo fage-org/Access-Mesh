@@ -65,6 +65,35 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。permission-center 写路
 
 广播契约定义在 `perm-common` 的 `PermInvalidateEvent`，由 permission-center 发布端与 Gateway 订阅端共享，避免跨模块事件结构漂移。
 
+### 快照失效标记与订阅恢复（T-GW-005 / S-006）
+
+Gateway 本地快照有两种失效方式，在 stale-allow 模式下行为不同：
+
+| 方式 | 触发 | stale-allow 可续命？ | 语义 |
+|---|---|---|---|
+| 自然过期 | Caffeine `expireAfterWrite` TTL 到期 | ✅ 可以 | 快照陈旧但未被主动撤销 |
+| 显式失效 | 收到 `perm:invalidate` Redis 广播 | ❌ 不可以 | 权限中心明确告知权限已变更 |
+
+**核心原则：权限主动撤销 > 服务不可达兜底。**
+
+#### 失效标记
+
+显式失效通过独立标记集合 `Set<String> invalidatedKeys` 追踪，与主缓存并列维护：
+
+| 触发场景 | 操作 |
+|---|---|
+| `perm:invalidate` 事件 | `invalidatedKeys.add(key)` + 主缓存驱逐 |
+| 回源拉取新快照成功 | `invalidatedKeys.remove(key)` |
+| stale-allow 续命检查 | `invalidatedKeys.contains(key)` → 命中则不续命 |
+
+标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。标记生命周期：回源成功时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除。
+
+#### 订阅恢复：重连即全量清空
+
+Gateway 与 Redis 断线重连后执行全量清空（主缓存 + 失效标记），后续请求按需回源。设计理由：pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 Caffeine 单条回源 + 请求并发控制自然缓解。
+
+`PermInvalidationSubscriber` 需增加重连检测：Reactive Redis 订阅的 `onError`/`onComplete` 标记断开，重连成功后触发全量清空。
+
 ### 配置项
 
 | 配置键 | 默认值 | 说明 |

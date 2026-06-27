@@ -59,14 +59,14 @@ last_updated: 2026-06-27
 | T-PERM-005 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 | ✅ |
 | [T-PERM-006](../tasks/T-PERM-006.md) | Gateway 订阅 `perm:invalidate`，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | A'-4 | ✅ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ✅ |
-| T-PERM-008 | Gateway 失效标记与订阅恢复策略（**待设计 S-006**，规范明确后补；依赖 T-GW-005）| S-006 | ⚙️ |
+| T-PERM-008 | Gateway 失效标记与订阅恢复策略（S-006 已设计，规范见 gateway.md §快照失效标记与订阅恢复；依赖 T-GW-005 ✅）| S-006 | ⚙️ |
 | [T-PERM-017](../tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 `gateway_evaluable` + 未下发回退 check-interface）| 工作单 A 扩展 | ✅ |
 | [T-PERM-018](../tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | A'-5（T-PERM-018 派生）| ✅ |
 
 ## 准入条件
 
 - [ ] design-review §11 暂缓解除（A/B/C 已重启）
-- [ ] S-006 Gateway 失效标记待设计方案明确（或接受 A-8 后补）
+- [ ] ~~S-006 Gateway 失效标记待设计方案明确~~（2026-06-28 T-GW-005 已完成设计）
 - [ ] schema-actual-state 盘点报告（检测预发/灰度是否已 ALTER v3.4 残留字段）
 
 ## 当前进度

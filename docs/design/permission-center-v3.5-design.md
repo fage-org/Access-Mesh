@@ -353,7 +353,7 @@ R5 SIGN_OFF（2026-06-18）是基于含 L3 字段级维度 + 6 个实施章节 +
 | `perm_outbox` 表表述 | **删除**(审计 S-003=A)| §7.2 改为 Redis pub/sub + TTL 兜底现状声明 + 风险声明 |
 | v3.5 §7.3 reasonCode 表 | **删除**(审计 S-013)| 改为指针归 api-contract.md §7 单源；HTTP 码不作业务状态码 |
 | 业务键解析失败语义 | **待设计**(审计 S-016)| 纳入「项目响应码规范」统一设计，见 §9.4 |
-| Gateway 失效标记与订阅恢复策略 | **待设计**(审计 S-006=D)| design-review §C 加待设计注记 |
+| Gateway 失效标记与订阅恢复策略 | **已设计**(审计 S-006=D→T-GW-005 完成)| design/services/gateway.md §快照失效标记与订阅恢复 |
 | sync_task / sync_metadata 清理策略 | **拒绝**(审计 S-010=D)| 后续改进，目前不重要 |
 | 平台超管跨租户操作 | **不支持**(审计 S-017=A)| 超管分别登录每个租户实例；gateway.md / api-contract §3.1 声明 |
 
@@ -370,4 +370,4 @@ R5 SIGN_OFF（2026-06-18）是基于含 L3 字段级维度 + 6 个实施章节 +
 | 待设计项 | 来源 | 范围 |
 |---|---|---|
 | **项目响应码规范** | S-013 + S-016 | reasonCode 分层（HTTP 响应头 vs body.reason）/ HTTP 状态码与业务状态码分离 / 业务键解析失败语义（类型未注册 / 格式错误 / 实例不存在）/ api-contract.md §7 单源化 |
-| **Gateway 失效标记与订阅恢复策略** | S-006 | 失效标记数据结构（userId vs tenant+roleId 维度）/ 标记生命周期 / 订阅恢复期事件补偿（last-known-eventId 或强制清空）|
+| **Gateway 失效标记与订阅恢复策略** | S-006 | ~~待设计~~ **已设计**(2026-06-28 T-GW-005)：失效标记采用独立 `Set<String> invalidatedKeys` 追踪显式失效条目，维度与 evict 一致；订阅恢复采用重连即全量清空策略；详见 `docs/design/services/gateway.md` §快照失效标记与订阅恢复 |
