@@ -13,8 +13,8 @@ tasks:
   - T-GW-004
   - T-GW-005
   - T-GW-006
-acceptance: "C-1~C-4 + C-6 全完成（C-5/T-GW-005 待 S-006 设计明确后单独跟踪）；Gateway fail-mode 三模行为符合配置；监控指标接入 Prometheus"
-last_updated: 2026-06-20
+acceptance: "C-1~C-4 + C-6 全完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码落地待做）；Gateway fail-mode 三模行为符合配置；监控指标接入 Prometheus"
+last_updated: 2026-06-28
 ---
 
 # Gateway 失联兜底计划（工作单 C）
@@ -22,7 +22,7 @@ last_updated: 2026-06-20
 > 状态：待启动
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.3 工作单 C
-> 关联审计：S-006（Gateway 失效标记与订阅恢复，待设计）
+> 关联审计：S-006（Gateway 失效标记与订阅恢复，已设计 T-GW-005）
 
 ## 目标
 
@@ -63,6 +63,6 @@ last_updated: 2026-06-20
 
 ## 归档条件
 
-- C-1 ~ C-4 + C-6 全部完成（C-5 待 S-006 设计明确后单独跟踪）
+- C-1 ~ C-4 + C-6 全部完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码落地待做）
 - Gateway fail-mode 三模行为符合配置
 - 监控指标接入 Prometheus + 告警规则验证

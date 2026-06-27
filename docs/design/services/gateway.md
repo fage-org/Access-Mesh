@@ -71,26 +71,44 @@ Gateway 本地快照有两种失效方式，在 stale-allow 模式下行为不�
 
 | 方式 | 触发 | stale-allow 可续命？ | 语义 |
 |---|---|---|---|
-| 自然过期 | Caffeine `expireAfterWrite` TTL 到期 | ✅ 可以 | 快照陈旧但未被主动撤销 |
+| 自然过期 | 主缓存 `expireAfterWrite` TTL 到期，条目转入 stale store | ✅ 可以 | 快照陈旧但未被主动撤销 |
 | 显式失效 | 收到 `perm:invalidate` Redis 广播 | ❌ 不可以 | 权限中心明确告知权限已变更 |
 
 **核心原则：权限主动撤销 > 服务不可达兜底。**
 
+#### 三层缓存结构
+
+```
+interfaceSnapshotCache: Cache<String, InterfaceSnapshotResp>   // L1 主缓存（expireAfterWrite = ttlSeconds，默认 30s）
+staleSnapshotCache:   Cache<String, StaleEntry>               // L2 陈旧快照缓存（expireAfterWrite = ttlSeconds + staleGraceSeconds，默认 60s）
+invalidatedKeys:      Set<String>                              // 显式失效标记集合
+```
+
+`StaleEntry` 包装 `(InterfaceSnapshotResp snapshot, Instant expireAt)`，`expireAt` = 写入 stale store 的时刻 + `stale-grace-seconds`（默认 30s），续命时检查 `Instant.now().isBefore(entry.expireAt())`。
+
+**关键安全约束**：`perm:invalidate` 事件必须**同时驱逐主缓存和 stale store**，并**标记 invalidatedKeys**。仅驱逐主缓存而遗漏 stale store 会导致 stale-allow 续命使用已撤销权限。
+
 #### 失效标记
 
-显式失效通过独立标记集合 `Set<String> invalidatedKeys` 追踪，与主缓存并列维护：
+显式失效通过独立标记集合 `Set<String> invalidatedKeys` 追踪：
 
-| 触发场景 | 操作 |
-|---|---|
-| `perm:invalidate` 事件 | `invalidatedKeys.add(key)` + 主缓存驱逐 |
-| 回源拉取新快照成功 | `invalidatedKeys.remove(key)` |
-| stale-allow 续命检查 | `invalidatedKeys.contains(key)` → 命中则不续命 |
+| 触发场景 | 主缓存 | stale store | invalidatedKeys |
+|---|---|---|---|
+| 回源拉取新快照成功 | `put(key, snapshot)` | `invalidate(key)` | `remove(key)` |
+| 主缓存条目过期（RemovalListener cause=EXPIRED） | 自动淘汰 | `put(key, StaleEntry)` | — |
+| `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `add(key)` |
+| stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 expireAt + 检查 !invalidatedKeys | `contains(key)` |
+| 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clear()` |
 
 标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。标记生命周期：回源成功时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除。
 
+#### Per-key 回源去重
+
+当前 `PermissionFilter` 使用手动 `getIfPresent` + 手动回源，**不存在** per-key 并发去重。重连全量清空后同 key 并发请求会打出多次远端回源。落地时需采用 `ConcurrentHashMap<String, Mono<InterfaceSnapshotResp>>` 作为 in-flight 去重表，同 key 并发请求共享同一 `Mono`。
+
 #### 订阅恢复：重连即全量清空
 
-Gateway 与 Redis 断线重连后执行全量清空（主缓存 + 失效标记），后续请求按需回源。设计理由：pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 Caffeine 单条回源 + 请求并发控制自然缓解。
+Gateway 与 Redis 断线重连后执行全量清空（主缓存 + stale store + 失效标记），后续请求按需回源。设计理由：pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
 
 `PermInvalidationSubscriber` 需增加重连检测：Reactive Redis 订阅的 `onError`/`onComplete` 标记断开，重连成功后触发全量清空。
 
