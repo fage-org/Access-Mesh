@@ -84,7 +84,7 @@ staleSnapshotCache:   Cache<String, StaleEntry>               // L2 陈旧快照
 invalidatedKeys:      Set<String>                              // 显式失效标记集合
 ```
 
-`StaleEntry` 包装 `(InterfaceSnapshotResp snapshot, Instant expireAt)`，`expireAt` = 写入 stale store 的时刻 + `stale-grace-seconds`（默认 30s），续命时检查 `Instant.now().isBefore(entry.expireAt())`。
+`StaleEntry` 包装 `(InterfaceSnapshotResp snapshot, Instant staleUntil)`，`staleUntil` = 快照首次写入主缓存的时刻 + `ttlSeconds` + `staleGraceSeconds`（默认 30+30=60s），续命时检查 `Instant.now().isBefore(entry.staleUntil())`。**不基于 RemovalListener 触发时刻**——Caffeine 过期清理可能延迟触发，基于触发时刻计算会错误延后 stale 窗口。
 
 **关键安全约束**：`perm:invalidate` 事件必须**同时驱逐主缓存和 stale store**，并**标记 invalidatedKeys**。仅驱逐主缓存而遗漏 stale store 会导致 stale-allow 续命使用已撤销权限。
 
@@ -95,9 +95,9 @@ invalidatedKeys:      Set<String>                              // 显式失效�
 | 触发场景 | 主缓存 | stale store | invalidatedKeys |
 |---|---|---|---|
 | 回源拉取新快照成功 | `put(key, snapshot)` | `invalidate(key)` | `remove(key)` |
-| 主缓存条目过期（RemovalListener cause=EXPIRED） | 自动淘汰 | `put(key, StaleEntry)` | — |
+| 主缓存条目过期（RemovalListener cause=EXPIRED） | 自动淘汰 | `put(key, StaleEntry(snapshot, staleUntil))` | — |
 | `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `add(key)` |
-| stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 expireAt + 检查 !invalidatedKeys | `contains(key)` |
+| stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 staleUntil + 检查 !invalidatedKeys | `contains(key)` |
 | 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clear()` |
 
 标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。标记生命周期：回源成功时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除。

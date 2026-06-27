@@ -29,7 +29,7 @@ last_updated: 2026-06-28
 落实 design-review §4.3 工作单 C 决策（方案 C1+C2）：
 
 1. **三模 fail-mode 配置**：`closed`（默认，fail-closed）/ `open`（仅 demo）/ `stale-allow`（折中）
-2. **stale-allow 语义**：优先用 Caffeine 中"已过期但未驱逐"的快照续命 `stale-grace-seconds`（30s），超时转 closed
+2. **stale-allow 语义**：主缓存过期条目转入 stale store（L2），续命前检查 `staleUntil`（= 原始写入时间 + ttl + staleGraceSeconds）+ `!invalidatedKeys`，超时转 closed
 3. **监控指标**：`gateway.perm.unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警
 4. **与工作单 A 协作**：A'-1 快照模式后缓存对象为 `InterfaceSnapshot`，支持 stale-allow；A'-4 Redis 广播失效时标记快照"已显式失效"（不允许 stale-allow 继续使用）
 
