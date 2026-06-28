@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -87,7 +88,7 @@ class PermissionFilterTest {
 
         objectMapper = new ObjectMapper();
         filter = new PermissionFilter(permissionClient, mainCache, staleCache, marker, loadRegistry,
-            gatewayProperties, objectMapper);
+            gatewayProperties, objectMapper, new SimpleMeterRegistry());
 
         chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());

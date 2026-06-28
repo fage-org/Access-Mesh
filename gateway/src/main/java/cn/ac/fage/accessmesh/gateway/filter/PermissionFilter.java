@@ -17,6 +17,8 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -60,6 +62,7 @@ import java.time.Instant;
  * {@code StaleLoadDiscardedException}（回源并发失效）不受 fail-mode 影响，始终 503（显式撤销 > 不可达兜底）。
  * P1：显式失效({@code invalidationMarker}命中)后回源失败也不走 fail-mode，始终 503。
  * P2：仅 {@link PermCenterUnreachableException}（远端不可达）走 fail-mode 三模分支；其他异常始终 fail-closed。
+ * T-GW-004 监控指标：{@code gateway.perm.unreachable}（不可达计数）+ {@code gateway.perm.fallback}（兜底模式计数）。
  * 执行顺序：-60
  * </p>
  */
@@ -84,12 +87,29 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private final int staleGraceSeconds;
     private final FailMode failMode;
 
+    // T-GW-004 监控指标
+    private final Counter unreachableSnapshotCounter;
+    private final Counter unreachableCheckInterfaceCounter;
+    private final Counter fallbackClosedCounter;
+    private final Counter fallbackOpenCounter;
+    private final Counter fallbackStaleCounter;
+    private final Counter fallbackStaleNoEntryCounter;
+    private final Counter fallbackStaleExpiredCounter;
+    private final Counter fallbackStaleInvalidatedCounter;
+    private final Counter fallbackStaleAllowedCounter;
+    private final Counter fallbackStaleDeniedCounter;
+
     /**
      * 构造函数注入依赖
      *
      * @param permissionClient       权限校验客户端
      * @param interfaceSnapshotCache 接口快照缓存
+     * @param staleSnapshotCache     陈旧快照缓存
+     * @param invalidationMarker     失效标记
+     * @param loadRegistry           回源去重注册表
+     * @param gatewayProperties      网关配置属性
      * @param objectMapper           JSON序列化工具
+     * @param meterRegistry          Micrometer 指标注册表（T-GW-004）
      */
     public PermissionFilter(PermissionClient permissionClient,
                             Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache,
@@ -97,7 +117,8 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                             InvalidationMarker invalidationMarker,
                             InterfaceSnapshotLoadRegistry loadRegistry,
                             GatewayProperties gatewayProperties,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            MeterRegistry meterRegistry) {
         this.permissionClient = permissionClient;
         this.interfaceSnapshotCache = interfaceSnapshotCache;
         this.staleSnapshotCache = staleSnapshotCache;
@@ -108,6 +129,48 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         this.ttlSeconds = l1.getTtlSeconds();
         this.staleGraceSeconds = l1.getStaleGraceSeconds();
         this.failMode = gatewayProperties.getPermission().getFailMode();
+
+        // T-GW-004：初始化监控指标
+        this.unreachableSnapshotCounter = Counter.builder("gateway.perm.unreachable")
+            .tag("source", "snapshot")
+            .description("Permission-center unreachable during snapshot fetch")
+            .register(meterRegistry);
+        this.unreachableCheckInterfaceCounter = Counter.builder("gateway.perm.unreachable")
+            .tag("source", "check_interface")
+            .description("Permission-center unreachable during check-interface fallback")
+            .register(meterRegistry);
+        this.fallbackClosedCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "closed")
+            .description("Fail-closed: request denied when permission-center unreachable")
+            .register(meterRegistry);
+        this.fallbackOpenCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "open")
+            .description("Fail-open: request allowed when permission-center unreachable")
+            .register(meterRegistry);
+        this.fallbackStaleCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale")
+            .description("Stale-allow: stale snapshot used when permission-center unreachable")
+            .register(meterRegistry);
+        this.fallbackStaleNoEntryCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale").tag("reason", "no_entry")
+            .description("Stale-allow: no stale entry available")
+            .register(meterRegistry);
+        this.fallbackStaleExpiredCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale").tag("reason", "expired")
+            .description("Stale-allow: stale entry expired past staleUntil")
+            .register(meterRegistry);
+        this.fallbackStaleInvalidatedCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale").tag("reason", "invalidated")
+            .description("Stale-allow: stale entry explicitly invalidated")
+            .register(meterRegistry);
+        this.fallbackStaleAllowedCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale").tag("reason", "allowed")
+            .description("Stale-allow: stale snapshot matched ALLOW, request allowed")
+            .register(meterRegistry);
+        this.fallbackStaleDeniedCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "stale").tag("reason", "denied")
+            .description("Stale-allow: stale snapshot matched DENY/FALLBACK, request denied")
+            .register(meterRegistry);
     }
 
     @Override
@@ -172,8 +235,10 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
             // P2：仅 PermCenterUnreachableException 走 fail-mode 三模分支
-            .onErrorResume(PermCenterUnreachableException.class, e ->
-                handleUnreachable(exchange, chain, cacheKey, e.getCause()))
+            .onErrorResume(PermCenterUnreachableException.class, e -> {
+                unreachableSnapshotCounter.increment();
+                return handleUnreachable(exchange, chain, cacheKey, e.getCause());
+            })
             // P2：非远端不可达异常（代码 bug / DTO 兼容等）始终 fail-closed
             .onErrorResume(e -> {
                 log.error("Unexpected error during permission check (key={}), failing closed", cacheKey, e);
@@ -222,8 +287,10 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 return writeForbidden(exchange, reason);
             })
             // 远端不可达走 fail-mode 三模分支（T-GW-003：stale-allow 需 cacheKey 查 stale store）
-            .onErrorResume(PermCenterUnreachableException.class, e ->
-                handleUnreachable(exchange, chain, cacheKey, e.getCause()))
+            .onErrorResume(PermCenterUnreachableException.class, e -> {
+                unreachableCheckInterfaceCounter.increment();
+                return handleUnreachable(exchange, chain, cacheKey, e.getCause());
+            })
             // 非远端异常始终 fail-closed
             .onErrorResume(e -> {
                 log.error("Unexpected error in fallback check-interface (serviceCode={}), failing closed", serviceCode, e);
@@ -252,11 +319,13 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return switch (failMode) {
             case OPEN -> {
                 log.warn("Permission-center unreachable ({}), fail-open allowing request: {}", cacheKey, error.getMessage());
+                fallbackOpenCounter.increment();
                 yield chain.filter(exchange);
             }
             case STALE_ALLOW -> tryStaleAllow(exchange, chain, cacheKey, error);
             case CLOSED -> {
                 log.warn("Permission-center unreachable ({}), fail-closed denying request: {}", cacheKey, error.getMessage());
+                fallbackClosedCounter.increment();
                 yield writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             }
         };
@@ -276,17 +345,23 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         if (staleEntry == null) {
             log.warn("Permission-center unreachable ({}), stale-allow: no stale entry, failing closed: {}",
                 cacheKey, error.getMessage());
+            fallbackStaleCounter.increment();
+            fallbackStaleNoEntryCounter.increment();
             return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
         }
         // 双重检查：staleUntil 未过期（now < staleUntil，含边界拒绝）+ 未被显式失效标记
         if (!Instant.now().isBefore(staleEntry.staleUntil())) {
             log.warn("Permission-center unreachable ({}), stale-allow: stale entry expired (staleUntil={}), failing closed: {}",
                 cacheKey, staleEntry.staleUntil(), error.getMessage());
+            fallbackStaleCounter.increment();
+            fallbackStaleExpiredCounter.increment();
             return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
         }
         if (invalidationMarker.contains(cacheKey)) {
             log.warn("Permission-center unreachable ({}), stale-allow: key explicitly invalidated, failing closed: {}",
                 cacheKey, error.getMessage());
+            fallbackStaleCounter.increment();
+            fallbackStaleInvalidatedCounter.increment();
             return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
         }
 
@@ -300,11 +375,15 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         if (decision == Decision.ALLOW) {
             log.info("Permission-center unreachable ({}), stale-allow: matched ALLOW from stale snapshot", cacheKey);
+            fallbackStaleCounter.increment();
+            fallbackStaleAllowedCounter.increment();
             return chain.filter(exchange);
         }
         // DENY 或 FALLBACK：条件不可评估时视为 DENY——陈旧快照显示无明确授权，安全拒绝
         log.warn("Permission-center unreachable ({}), stale-allow: stale snapshot result={}, failing closed: {}",
             cacheKey, decision, error.getMessage());
+        fallbackStaleCounter.increment();
+        fallbackStaleDeniedCounter.increment();
         if (decision == Decision.FALLBACK) {
             return writeForbidden(exchange, "无接口访问权限（条件权限不可评估）");
         }

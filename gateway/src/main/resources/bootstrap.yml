@@ -88,6 +88,8 @@ gateway:
     paths:
       - /auth/**
       - /actuator/health
+      - /actuator/prometheus
+      - /actuator/metrics
       - /public/**
       - /captcha/**
 
@@ -135,6 +137,19 @@ gateway:
     secret: ${ACCESSMESH_SIGNATURE_SECRET:}
     header-name: X-User-Signature
     timestamp-header-name: X-Signature-Timestamp
+
+# T-GW-004：Actuator + Prometheus 端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
 
 logging:
   config: classpath:log4j2-spring.xml

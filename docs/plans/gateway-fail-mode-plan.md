@@ -46,7 +46,7 @@ last_updated: 2026-06-28
 | T-GW-001 | Gateway `gateway.permission.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ✅ |
 | T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ✅ |
 | [T-GW-003](../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ✅ |
-| T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ⚙️ |
+| T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ✅ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ✅ |
 | T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503" | C1 | ⚙️ |
 
@@ -64,7 +64,8 @@ last_updated: 2026-06-28
   - T-GW-001 ✅ `FailMode` 枚举（CLOSED/OPEN/STALE_ALLOW）+ `gateway.permission.fail-mode` 配置项已落地（默认 CLOSED）
   - T-GW-002 ✅ fail-closed 实现已落地——`PermissionFilter` 新增 `handleUnreachable()` 方法按 fail-mode 三模分发：CLOSED→503 / OPEN→放行 / STALE_ALLOW→stale-allow 续命（T-GW-003 已实现）；`StaleLoadDiscardedException` 始终 503（显式撤销 > 不可达兜底）。`fallbackCheckInterface` 不可达路径同样按 fail-mode 分发。P1 修复：显式失效（perm:invalidate 已到达）后回源失败也始终 503，OPEN 不放行。P2 修复：仅 `PermCenterUnreachableException`（远端不可达）走 fail-mode 三模分支；非远端异常（代码 bug / DTO 兼容等）始终 fail-closed。
   - T-GW-003 ✅ stale-allow 续命已落地——`PermissionFilter.tryStaleAllow()` 方法实现：从 stale store 取 StaleEntry，双重检查 staleUntil + !invalidatedKeys，通过后本地匹配快照（ALLOW→放行 / DENY→403 / FALLBACK→403 条件不可评估）；不通过降级 closed（503）。`decide()` / `fallbackCheckInterface()` 传播 cacheKey 供 stale store 查找。验证：57 gateway tests（含 8 个 stale-allow 测试），0 failures
-  - 监控指标（T-GW-004）、集成测试（T-GW-006）仍未启动
+  - T-GW-004 ✅ 监控指标已落地——Micrometer Counter 注入 PermissionFilter：`gateway.perm.unreachable`（tag: source=snapshot|check_interface）+ `gateway.perm.fallback`（tag: mode=closed|open|stale + reason 细分）。actuator + micrometer-registry-prometheus 依赖已加入 pom.xml，bootstrap.yml 配置 prometheus 端点暴露。11 个指标测试覆盖各分支 Counter 递增。验证：68 gateway tests，0 failures
+  - 集成测试（T-GW-006）仍未启动
 
 ## 归档条件
 

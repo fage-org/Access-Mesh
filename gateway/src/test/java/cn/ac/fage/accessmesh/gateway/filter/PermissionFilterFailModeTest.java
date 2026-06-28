@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,7 @@ class PermissionFilterFailModeTest {
     private InterfaceSnapshotLoadRegistry loadRegistry;
     private ObjectMapper objectMapper;
     private GatewayFilterChain chain;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
@@ -87,6 +89,7 @@ class PermissionFilterFailModeTest {
         objectMapper = new ObjectMapper();
         chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
+        meterRegistry = new SimpleMeterRegistry();
     }
 
     private PermissionFilter createFilter(FailMode failMode) {
@@ -95,7 +98,7 @@ class PermissionFilterFailModeTest {
         props.getCache().getL1().setStaleGraceSeconds(30);
         props.getPermission().setFailMode(failMode);
         return new PermissionFilter(permissionClient, mainCache, staleCache, marker, loadRegistry,
-            props, objectMapper);
+            props, objectMapper, meterRegistry);
     }
 
     private ServerWebExchange buildExchange() {
@@ -382,7 +385,7 @@ class PermissionFilterFailModeTest {
             props.getCache().getL1().setStaleGraceSeconds(30);
             props.getPermission().setFailMode(FailMode.OPEN);
             PermissionFilter filterWithFaultyRegistry = new PermissionFilter(
-                permissionClient, mainCache, staleCache, marker, faultyRegistry, props, objectMapper);
+                permissionClient, mainCache, staleCache, marker, faultyRegistry, props, objectMapper, meterRegistry);
 
             ServerWebExchange exchange = buildExchange();
             AtomicReference<HttpStatus> capturedStatus = new AtomicReference<>();

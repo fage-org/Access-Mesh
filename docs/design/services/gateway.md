@@ -148,6 +148,56 @@ T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Red
   4. 不通过 → 降级 closed（503）
 - 显式失效（`perm:invalidate` 已到达 + 主缓存有此 key）后回源不可达，`stale-allow` 也不续命——P1 门禁由 `EXPLICITLY_INVALIDATED_ATTR` exchange 属性保证。
 
+### 监控指标（T-GW-004）
+
+Gateway 通过 Micrometer 暴露 Prometheus 指标，监控权限校验失联与兜底行为。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，端点 `/actuator/prometheus`。
+
+#### 计数器
+
+| 指标名 | Tag | 含义 |
+|---|---|---|
+| `gateway.perm.unreachable` | `source=snapshot` | 快照回源不可达计数 |
+| `gateway.perm.unreachable` | `source=check_interface` | fallback check-interface 不可达计数 |
+| `gateway.perm.fallback` | `mode=closed` | fail-closed 拒绝次数 |
+| `gateway.perm.fallback` | `mode=open` | fail-open 放行次数 |
+| `gateway.perm.fallback` | `mode=stale` | stale-allow 总进入次数 |
+| `gateway.perm.fallback` | `mode=stale, reason=no_entry` | stale-allow 无陈旧条目 |
+| `gateway.perm.fallback` | `mode=stale, reason=expired` | stale-allow 条目已过期 |
+| `gateway.perm.fallback` | `mode=stale, reason=invalidated` | stale-allow 条目被显式失效标记 |
+| `gateway.perm.fallback` | `mode=stale, reason=allowed` | stale-allow 续命成功（快照匹配 ALLOW） |
+| `gateway.perm.fallback` | `mode=stale, reason=denied` | stale-allow 快照拒绝（DENY/FALLBACK） |
+
+> `mode=stale` 为总计数器，`reason` tag 细分各子原因。Prometheus 可按 reason 聚合或分别告警。
+
+#### Caffeine 缓存指标
+
+`CacheConfig` 已配置 `.recordStats()`，Actuator 自动导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load` 等，tag `cache=interfaceSnapshotCache|staleSnapshotCache`。
+
+#### Prometheus 告警规则示例
+
+```yaml
+- alert: GatewayPermCenterUnreachable
+  expr: increase(gateway_perm_unreachable_total[5m]) > 0
+  for: 1m
+  labels: { severity: warning }
+  annotations:
+    summary: "Gateway 检测到权限中心不可达"
+
+- alert: GatewayPermFallbackClosed
+  expr: increase(gateway_perm_fallback_total{mode="closed"}[5m]) > 10
+  for: 2m
+  labels: { severity: critical }
+  annotations:
+    summary: "Gateway fail-closed 拒绝过多"
+
+- alert: GatewayPermStaleAllowDenied
+  expr: increase(gateway_perm_fallback_total{mode="stale",reason="denied"}[5m]) > 0
+  for: 2m
+  labels: { severity: warning }
+  annotations:
+    summary: "Gateway stale-allow 续命但快照拒绝"
+```
+
 ## 与权限中心的约定
 
 - 接口级鉴权契约以 `../permission-center/api-contract.md` 为准（§6.5 check-interface、§6.6 interface-snapshot）。
