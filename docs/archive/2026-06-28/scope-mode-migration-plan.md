@@ -20,7 +20,7 @@ last_updated: 2026-06-27
 
 # scopeMode 协议迁移计划（工作单 B）
 
-> 状态：进行中（T-PERM-009·010·011·012·013·014·015 done）。任务状态快照见下表，**权威清单以 [../../tasks/README.md](../../tasks/README.md) 看板为准**。
+> 状态：已完成并归档（T-PERM-009·010·011·012·013·014·015 done）。任务状态快照见下表，**权威清单以 [../../tasks/README.md](../../tasks/README.md) 看板为准**。
 > 关联设计：[../../design/permission-center-v3.5-design.md](../../design/permission-center-v3.5-design.md) §3 数据权限契约
 > 关联评审（已归档）：[../../archive/2026-06-17/design-review.md](../../archive/2026-06-17/design-review.md) §4.2 工作单 B
 > 关联审计：S-005（scopeMode 全量推广，A 决策）

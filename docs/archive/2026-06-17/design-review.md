@@ -630,9 +630,9 @@ public interface SyncHandler {
 > 6 个工作单 A~F 的方案均已 ✅ 采纳并记录于下表。
 >
 > **P0 三件已重启派生**（重启条件 1「v3.5 简化版设计契约稳定」已达成）：
-> - 工作单 A → [perm-cache-invalidation-plan.md](perm-cache-invalidation-plan.md)（待启动）
-> - 工作单 B → [scope-mode-migration-plan.md](scope-mode-migration-plan.md)（待启动）
-> - 工作单 C → [gateway-fail-mode-plan.md](gateway-fail-mode-plan.md)（待启动，依赖工作单 A 快照模式）
+> - 工作单 A → [perm-cache-invalidation-plan.md](../2026-06-28/perm-cache-invalidation-plan.md)（已完成并归档）
+> - 工作单 B → [scope-mode-migration-plan.md](../2026-06-28/scope-mode-migration-plan.md)（已完成并归档）
+> - 工作单 C → [gateway-fail-mode-plan.md](../2026-06-28/gateway-fail-mode-plan.md)（已完成并归档，依赖工作单 A 快照模式）
 >
 > **D/E/F 暂缓**：D（防呆机制）/ E（清理预设）/ F（文档+简化）作为 P1/P2 跟进，暂不派生。重启条件：
 > 1. A/B/C 落地完成
