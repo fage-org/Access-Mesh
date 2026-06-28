@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -37,14 +39,17 @@ import java.util.concurrent.TimeUnit;
 public class CacheConfig {
 
     private final GatewayProperties gatewayProperties;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 构造缓存配置
      *
      * @param gatewayProperties 网关配置属性
+     * @param meterRegistry     Micrometer 指标注册表（T-GW-004：Caffeine 缓存指标绑定）
      */
-    public CacheConfig(GatewayProperties gatewayProperties) {
+    public CacheConfig(GatewayProperties gatewayProperties, MeterRegistry meterRegistry) {
         this.gatewayProperties = gatewayProperties;
+        this.meterRegistry = meterRegistry;
     }
 
     /**
@@ -65,11 +70,14 @@ public class CacheConfig {
     @Bean
     public Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache() {
         GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
-        return Caffeine.newBuilder()
+        Cache<String, InterfaceSnapshotResp> cache = Caffeine.newBuilder()
             .maximumSize(l1.getMaxSize())
             .expireAfterWrite(l1.getTtlSeconds(), TimeUnit.SECONDS)
             .recordStats()
             .build();
+        // T-GW-004：绑定 Caffeine 缓存指标到 Prometheus（cache_gets / cache_evictions / cache_load 等）
+        CaffeineCacheMetrics.monitor(meterRegistry, cache, "interfaceSnapshotCache");
+        return cache;
     }
 
     /**
@@ -82,10 +90,13 @@ public class CacheConfig {
     @Bean
     public Cache<String, StaleEntry> staleSnapshotCache() {
         GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
-        return Caffeine.newBuilder()
+        Cache<String, StaleEntry> cache = Caffeine.newBuilder()
             .maximumSize(l1.getMaxSize())
             .expireAfterWrite(l1.getTtlSeconds() + l1.getStaleGraceSeconds(), TimeUnit.SECONDS)
             .recordStats()
             .build();
+        // T-GW-004：绑定 Caffeine 缓存指标到 Prometheus
+        CaffeineCacheMetrics.monitor(meterRegistry, cache, "staleSnapshotCache");
+        return cache;
     }
 }

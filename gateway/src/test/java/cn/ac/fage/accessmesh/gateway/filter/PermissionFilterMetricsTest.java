@@ -207,28 +207,27 @@ class PermissionFilterMetricsTest {
     class FallbackModeMetrics {
 
         @Test
-        void shouldIncrementFallbackClosed_whenFailClosed() throws InterruptedException {
+        void shouldIncrementFallbackClosedDenied_whenFailClosed() throws InterruptedException {
             PermissionFilter filter = createFilter(FailMode.CLOSED);
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "closed")).isEqualTo(1.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open")).isEqualTo(0.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(1.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(0.0);
         }
 
         @Test
-        void shouldIncrementFallbackOpen_whenFailOpen() throws InterruptedException {
+        void shouldIncrementFallbackOpenAllowed_whenFailOpen() throws InterruptedException {
             PermissionFilter filter = createFilter(FailMode.OPEN);
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open")).isEqualTo(1.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "closed")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(1.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(0.0);
         }
     }
 
@@ -248,7 +247,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "allowed")).isEqualTo(1.0);
         }
 
@@ -260,7 +258,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "no_entry")).isEqualTo(1.0);
         }
 
@@ -275,7 +272,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "expired")).isEqualTo(1.0);
         }
 
@@ -291,7 +287,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "invalidated")).isEqualTo(1.0);
         }
 
@@ -308,7 +303,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "denied")).isEqualTo(1.0);
         }
 
@@ -326,7 +320,6 @@ class PermissionFilterMetricsTest {
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale")).isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "denied")).isEqualTo(1.0);
         }
     }
@@ -350,8 +343,8 @@ class PermissionFilterMetricsTest {
             awaitCompletion(filter, buildExchange());
 
             // 显式失效后走 P1 分支（始终 503），不经过 handleUnreachable → 不递增 fallback
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open")).isEqualTo(0.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "closed")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(0.0);
         }
     }
 }

@@ -158,20 +158,21 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标，监控权限校验失联与
 |---|---|---|
 | `gateway.perm.unreachable` | `source=snapshot` | 快照回源不可达计数 |
 | `gateway.perm.unreachable` | `source=check_interface` | fallback check-interface 不可达计数 |
-| `gateway.perm.fallback` | `mode=closed` | fail-closed 拒绝次数 |
-| `gateway.perm.fallback` | `mode=open` | fail-open 放行次数 |
-| `gateway.perm.fallback` | `mode=stale` | stale-allow 总进入次数 |
+| `gateway.perm.fallback` | `mode=closed, reason=denied` | fail-closed 拒绝次数 |
+| `gateway.perm.fallback` | `mode=open, reason=allowed` | fail-open 放行次数 |
 | `gateway.perm.fallback` | `mode=stale, reason=no_entry` | stale-allow 无陈旧条目 |
 | `gateway.perm.fallback` | `mode=stale, reason=expired` | stale-allow 条目已过期 |
 | `gateway.perm.fallback` | `mode=stale, reason=invalidated` | stale-allow 条目被显式失效标记 |
 | `gateway.perm.fallback` | `mode=stale, reason=allowed` | stale-allow 续命成功（快照匹配 ALLOW） |
 | `gateway.perm.fallback` | `mode=stale, reason=denied` | stale-allow 快照拒绝（DENY/FALLBACK） |
 
-> `mode=stale` 为总计数器，`reason` tag 细分各子原因。Prometheus 可按 reason 聚合或分别告警。
+> 所有 `gateway.perm.fallback` counter 统一使用 `{mode, reason}` 标签集，保证 Prometheus 同名指标 label set 一致。
+> stale 总数可由 `sum(gateway_perm_fallback_total{mode="stale"})` 聚合。
 
 #### Caffeine 缓存指标
 
-`CacheConfig` 已配置 `.recordStats()`，Actuator 自动导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load` 等，tag `cache=interfaceSnapshotCache|staleSnapshotCache`。
+`CacheConfig` 通过 `CaffeineCacheMetrics.monitor()` 将两个 Caffeine Cache 绑定到 MeterRegistry，
+Actuator 导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load` 等，tag `cache=interfaceSnapshotCache|staleSnapshotCache`。
 
 #### Prometheus 告警规则示例
 
@@ -184,7 +185,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标，监控权限校验失联与
     summary: "Gateway 检测到权限中心不可达"
 
 - alert: GatewayPermFallbackClosed
-  expr: increase(gateway_perm_fallback_total{mode="closed"}[5m]) > 10
+  expr: increase(gateway_perm_fallback_total{mode="closed",reason="denied"}[5m]) > 10
   for: 2m
   labels: { severity: critical }
   annotations:
