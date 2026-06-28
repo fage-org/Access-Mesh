@@ -83,7 +83,9 @@ last_updated: 2026-06-28
   - T-PERM-004 ✅ increment 残留核验完成（2026-06-27）——主源码已无 `permissionVersionDomainService.increment` / `PermissionVersionDomainService` / `buildInterfacePermissionVersion` 残留；同步删除 T-PERM-003 遗留的 `PermissionVersion` 实体源码，避免 `permission_version` 生产实体继续生成。
   - T-PERM-005 ✅ 缓存目录/key 后缀残留清理完成（2026-06-27）——主源码已无 `PermCacheCatalog.PERMISSION_VERSION`、`perm:permission-version` 与 `:{permissionVersion}` key 构建；缓存配置与 skill 示例改为现行 `effective-roles` / `role-perm-snapshot`。
   - T-PERM-007 ✅ 文档与代码层一致性核对完成（2026-06-27）——overview/core-flows/implementation/api-contract/coding-standards 已同步至当前缓存失效模型：@PermissionChange + PermissionChangeContext afterCommit 统一 evict/broadcast、permission_version/INTERFACE_SNAPSHOT(L2)/notModified 移除、ROLE_PERM_SNAPSHOT 读缓存与 serviceCodes 广播边界；同步清理代码注释中的“版本递增”残留。
-  - T-PERM-008 ✅ Gateway 失效标记与订阅恢复代码已落地（2026-06-28）——新增 stale store、`InvalidationMarker` 代际校验、per-key in-flight 去重；`perm:invalidate` 同步驱逐主缓存 + stale store 并标记命中 key，订阅重建后全量清空主缓存/stale store/marker。验证：`mvn -pl gateway -am test` 通过（40 个 gateway 测试，reactor 总计 60 个测试）。
+  - T-PERM-008 ✅ Gateway 失效标记与订阅恢复代码已落地（2026-06-28）——新增 stale store、`InvalidationMarker` 代际校验、per-key in-flight 去重；`perm:invalidate` 同步驱逐主缓存 + stale store 并标记命中 key，订阅重建后全量清空主缓存/stale store/marker。
+  - T-GW-001 ✅ `FailMode` 枚举 + `gateway.permission.fail-mode` 配置项已落地（2026-06-28）
+  - T-GW-002 ✅ fail-closed 实现已落地（2026-06-28）——`handleUnreachable()` 按 fail-mode 三模分发；`StaleLoadDiscardedException` 始终 503。P1/P2 修复：显式失效后回源失败始终 503；仅远端不可达走 fail-mode；非远端异常始终 fail-closed。验证：`mvn -pl gateway -am test` 通过（50 个 gateway 测试，reactor 总计 70 个测试）。
 
 
 ## 归档条件

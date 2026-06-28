@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: Gateway 失联兜底（工作单 C）
-status: proposed
+status: active
 domain: gateway
 design_refs:
   - docs/design/permission-center-v3.5-design.md
@@ -19,7 +19,7 @@ last_updated: 2026-06-28
 
 # Gateway 失联兜底计划（工作单 C）
 
-> 状态：待启动
+> 状态：进行中
 > 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
 > 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.3 工作单 C
 > 关联审计：S-006（Gateway 失效标记与订阅恢复，已设计 T-GW-005）
@@ -43,8 +43,8 @@ last_updated: 2026-06-28
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| T-GW-001 | Gateway `gateway.perm.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ⚙️ |
-| T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ⚙️ |
+| T-GW-001 | Gateway `gateway.permission.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ✅ |
+| T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ✅ |
 | [T-GW-003](../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ⚙️ |
 | T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ⚙️ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ✅ |
@@ -58,8 +58,12 @@ last_updated: 2026-06-28
 
 ## 当前进度
 
-- 文档层：design-review §4.3 决策已记录 + §C 协作段加 S-006 待设计注记（2026-06-20 审计）；T-GW-005（S-006）设计规范已产出（2026-06-28），详见 gateway.md §快照失效标记与订阅恢复
-- 代码层：S-006 代码基础设施已由 T-PERM-008 落地（stale store / InvalidationMarker / in-flight 去重 / 订阅恢复全清）。Gateway fail-mode 配置、stale-allow 运行时分支、监控指标仍未启动，继续由 T-GW-001~004/006 跟踪。
+- 文档层：design-review §4.3 决策已记录 + §C 协作段加 S-006 待设计注记（2026-06-20 审计）；T-GW-005（S-006）设计规范已产出（2026-06-28），详见 gateway.md §快照失效标记与订阅恢复；T-GW-001/002 失联兜底模式设计已回写 gateway.md §失联兜底模式
+- 代码层：
+  - S-006 代码基础设施已由 T-PERM-008 落地（stale store / InvalidationMarker / in-flight 去重 / 订阅恢复全清）
+  - T-GW-001 ✅ `FailMode` 枚举（CLOSED/OPEN/STALE_ALLOW）+ `gateway.permission.fail-mode` 配置项已落地（默认 CLOSED）
+  - T-GW-002 ✅ fail-closed 实现已落地——`PermissionFilter` 新增 `handleUnreachable()` 方法按 fail-mode 三模分发：CLOSED→503 / OPEN→放行 / STALE_ALLOW→暂同 CLOSED（T-GW-003 补）；`StaleLoadDiscardedException` 始终 503（显式撤销 > 不可达兜底）。`fallbackCheckInterface` 不可达路径同样按 fail-mode 分发。P1 修复：显式失效（perm:invalidate 已到达）后回源失败也始终 503，OPEN 不放行。P2 修复：仅 `PermCenterUnreachableException`（远端不可达）走 fail-mode 三模分支；非远端异常（代码 bug / DTO 兼容等）始终 fail-closed。验证：50 gateway tests / 70 reactor total
+  - stale-allow 运行时分支（T-GW-003）、监控指标（T-GW-004）、集成测试（T-GW-006）仍未启动
 
 ## 归档条件
 

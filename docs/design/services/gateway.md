@@ -122,9 +122,26 @@ T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Red
 | `gateway.cache.l1.ttl-seconds` | 30 | 快照 TTL 兜底 |
 | `gateway.cache.l1.max-size` | 50000 | 本地快照最大条目 |
 | `gateway.cache.l1.stale-grace-seconds` | 30 | stale store 续命窗口；T-GW-003 接入 stale-allow 时使用 |
+| `gateway.permission.fail-mode` | `closed` | 权限校验失联兜底模式：`closed`（拒绝，生产安全）/ `open`（放行，仅 demo）/ `stale-allow`（陈旧快照续命，T-GW-003） |
 | `gateway.permission.service-url` | `lb://permission-center` | 权限中心地址 |
 | `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
 | `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |
+
+### 失联兜底模式（T-GW-001 / T-GW-002）
+
+当 permission-center 不可达（网络错误、超时、5xx）时，`PermissionFilter` 按 `gateway.permission.fail-mode` 配置决定行为：
+
+| 模式 | 行为 | 适用场景 |
+|---|---|---|
+| `closed`（默认） | 返回 503 `SERVICE_UNAVAILABLE` | 生产环境——安全优先，宁可拒绝不可放行 |
+| `open` | 放行请求（`chain.filter`） | 仅限演示环境——可用性优先，安全风险高 |
+| `stale-allow` | 从 stale store 取陈旧快照续命（T-GW-003 实现） | 折中——陈旧快照在 grace window 内可用，超过转 closed |
+
+**核心原则：权限主动撤销 > 服务不可达兜底。**
+
+- `StaleLoadDiscardedException`（回源并发失效）不受 fail-mode 影响，始终 503——这是显式撤销（`perm:invalidate` 事件已到达），不是不可达场景。
+- `fail-open` 模式下，主快照加载失败和 fallback `check-interface` 失败均放行。
+- `stale-allow` 的续命逻辑（从 stale store 取快照 + 双重检查 `staleUntil` / `!invalidatedKeys`）由 T-GW-003 实现，当前同 `closed` 行为。
 
 ## 与权限中心的约定
 

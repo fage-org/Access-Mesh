@@ -129,6 +129,8 @@ public class GatewayProperties {
         // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
         private String interfaceSnapshotPath = "/api/perm/auth/interface-snapshot";
         private String unregisteredPolicy = "DENY";
+        // T-GW-001：权限校验失联兜底模式。closed=拒绝（默认，生产安全）/ open=放行（仅demo）/ stale-allow=陈旧快照续命（T-GW-003）
+        private FailMode failMode = FailMode.CLOSED;
     }
 
     /**
