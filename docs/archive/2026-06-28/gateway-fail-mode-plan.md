@@ -52,9 +52,11 @@ last_updated: 2026-06-28
 
 ## 准入条件
 
-- [ ] design-review §11 暂缓解除（A/B/C 已重启）
-- [ ] 工作单 A 快照模式（A-1）完成（stale-allow 依赖 InterfaceSnapshot 缓存对象）
-- [ ] ~~S-006 Gateway 失效标记待设计方案明确~~（2026-06-28 T-GW-005 已完成设计，详见 gateway.md §快照失效标记与订阅恢复）
+> 以下为归档时历史快照，A/B/C 已完成并归档，准入条件已事实满足。
+
+- [x] design-review §11 暂缓解除（A/B/C 已完成并归档，暂缓事实已解除）
+- [x] 工作单 A 快照模式（A-1）完成（T-PERM-001 ✅，stale-allow 依赖 InterfaceSnapshot 缓存对象）
+- [x] ~~S-006 Gateway 失效标记待设计方案明确~~（2026-06-28 T-GW-005 已完成设计，详见 gateway.md §快照失效标记与订阅恢复）
 
 ## 当前进度
 

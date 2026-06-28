@@ -56,7 +56,9 @@ last_updated: 2026-06-27
 
 ## 准入条件
 
-- [ ] design-review §11 暂缓解除（A/B/C 已重启）
+> 以下为归档时历史快照，A/B/C 已完成并归档，准入条件已事实满足。
+
+- [x] design-review §11 暂缓解除（A/B/C 已完成并归档，暂缓事实已解除）
 - [x] api-contract.md scopeMode 正式协议定义已回写（2026-06-27 T-PERM-011/T-PERM-014）
 
 ## 当前进度
