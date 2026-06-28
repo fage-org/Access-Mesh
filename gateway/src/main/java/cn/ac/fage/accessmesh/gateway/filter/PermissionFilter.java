@@ -1,7 +1,12 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
+import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker.LoadToken;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
+import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
+import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
+import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher.Decision;
@@ -27,6 +32,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
+import java.time.Instant;
 
 /**
  * 接口级权限过滤器（T-PERM-001 快照模式 / T-PERM-017 C4 条件 Gateway 重评）
@@ -60,7 +66,12 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
     private final PermissionClient permissionClient;
     private final Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache;
+    private final Cache<String, StaleEntry> staleSnapshotCache;
+    private final InvalidationMarker invalidationMarker;
+    private final InterfaceSnapshotLoadRegistry loadRegistry;
     private final ObjectMapper objectMapper;
+    private final int ttlSeconds;
+    private final int staleGraceSeconds;
 
     /**
      * 构造函数注入依赖
@@ -71,10 +82,20 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      */
     public PermissionFilter(PermissionClient permissionClient,
                             Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache,
+                            Cache<String, StaleEntry> staleSnapshotCache,
+                            InvalidationMarker invalidationMarker,
+                            InterfaceSnapshotLoadRegistry loadRegistry,
+                            GatewayProperties gatewayProperties,
                             ObjectMapper objectMapper) {
         this.permissionClient = permissionClient;
         this.interfaceSnapshotCache = interfaceSnapshotCache;
+        this.staleSnapshotCache = staleSnapshotCache;
+        this.invalidationMarker = invalidationMarker;
+        this.loadRegistry = loadRegistry;
         this.objectMapper = objectMapper;
+        GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
+        this.ttlSeconds = l1.getTtlSeconds();
+        this.staleGraceSeconds = l1.getStaleGraceSeconds();
     }
 
     @Override
@@ -113,21 +134,22 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         InterfaceSnapshotResp cached = interfaceSnapshotCache.getIfPresent(cacheKey);
 
         if (cached != null) {
-            return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
-                subjectTypeCode, userId, tenantId);
+            if (!invalidationMarker.contains(cacheKey)) {
+                return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
+                    subjectTypeCode, userId, tenantId);
+            }
+            interfaceSnapshotCache.invalidate(cacheKey);
+            staleSnapshotCache.invalidate(cacheKey);
         }
 
         // 未命中：回源拉取快照（T-PERM-018：permission-center 实时构建全量快照）
-        return permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId)
-            .flatMap(result -> {
-                InterfaceSnapshotResp snapshot = extractSnapshot(result);
-                if (snapshot == null) {
-                    return writeForbidden(exchange, "无接口访问权限");
-                }
-                // 缓存拉取到的全量快照
-                interfaceSnapshotCache.put(cacheKey, snapshot);
-                return decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
-                    subjectTypeCode, userId, tenantId);
+        return loadSnapshot(cacheKey, subjectTypeCode, userId, serviceCode, tenantId, true)
+            .flatMap(snapshot -> decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
+                subjectTypeCode, userId, tenantId))
+            .switchIfEmpty(Mono.defer(() -> writeForbidden(exchange, "无接口访问权限")))
+            .onErrorResume(StaleLoadDiscardedException.class, e -> {
+                log.warn("Discarded stale interface snapshot load after invalidation (key={})", cacheKey);
+                return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
             .onErrorResume(e -> {
                 // permission-center不可达 — fail-close（stale-allow 由 T-GW-003 实现）
@@ -209,6 +231,39 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return result.getData();
     }
 
+    private Mono<InterfaceSnapshotResp> loadSnapshot(String cacheKey, String subjectTypeCode,
+                                                     Long userId, String serviceCode, Long tenantId,
+                                                     boolean retryWhenTokenInvalid) {
+        return loadRegistry.load(cacheKey, () -> {
+                LoadToken token = invalidationMarker.beginLoad(cacheKey);
+                return permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId)
+                    .flatMap(result -> {
+                        InterfaceSnapshotResp snapshot = extractSnapshot(result);
+                        if (snapshot == null) {
+                            return Mono.empty();
+                        }
+                        if (!putSnapshotIfCurrent(cacheKey, snapshot, token)) {
+                            return Mono.<InterfaceSnapshotResp>error(new StaleLoadDiscardedException());
+                        }
+                        return Mono.just(snapshot);
+                    });
+            })
+            .onErrorResume(StaleLoadDiscardedException.class, e -> {
+                if (retryWhenTokenInvalid) {
+                    return loadSnapshot(cacheKey, subjectTypeCode, userId, serviceCode, tenantId, false);
+                }
+                return Mono.error(e);
+            });
+    }
+
+    private boolean putSnapshotIfCurrent(String cacheKey, InterfaceSnapshotResp snapshot, LoadToken token) {
+        Instant staleUntil = Instant.now().plusSeconds((long) ttlSeconds + staleGraceSeconds);
+        return invalidationMarker.commitIfCurrent(token, () -> {
+            interfaceSnapshotCache.put(cacheKey, snapshot);
+            staleSnapshotCache.put(cacheKey, new StaleEntry(snapshot, staleUntil));
+        });
+    }
+
     @Override
     public int getOrder() {
         return -60;
@@ -265,5 +320,8 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         } catch (JsonProcessingException e) {
             return response.setComplete();
         }
+    }
+
+    private static class StaleLoadDiscardedException extends RuntimeException {
     }
 }

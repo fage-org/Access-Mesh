@@ -13,7 +13,7 @@ tasks:
   - T-GW-004
   - T-GW-005
   - T-GW-006
-acceptance: "C-1~C-4 + C-6 全完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码落地待做）；Gateway fail-mode 三模行为符合配置；监控指标接入 Prometheus"
+acceptance: "C-1~C-4 + C-6 全完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码基础设施已落地）；Gateway fail-mode 三模行为符合配置；监控指标接入 Prometheus"
 last_updated: 2026-06-28
 ---
 
@@ -59,10 +59,10 @@ last_updated: 2026-06-28
 ## 当前进度
 
 - 文档层：design-review §4.3 决策已记录 + §C 协作段加 S-006 待设计注记（2026-06-20 审计）；T-GW-005（S-006）设计规范已产出（2026-06-28），详见 gateway.md §快照失效标记与订阅恢复
-- 代码层：**未启动**（Gateway fail-mode 配置、stale-allow 实现、监控指标均未做）
+- 代码层：S-006 代码基础设施已由 T-PERM-008 落地（stale store / InvalidationMarker / in-flight 去重 / 订阅恢复全清）。Gateway fail-mode 配置、stale-allow 运行时分支、监控指标仍未启动，继续由 T-GW-001~004/006 跟踪。
 
 ## 归档条件
 
-- C-1 ~ C-4 + C-6 全部完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码落地待做）
+- C-1 ~ C-4 + C-6 全部完成（C-5/T-GW-005 设计已完成，T-PERM-008 代码基础设施已落地）
 - Gateway fail-mode 三模行为符合配置
 - 监控指标接入 Prometheus + 告警规则验证

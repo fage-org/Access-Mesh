@@ -96,6 +96,8 @@ gateway:
       max-size: 50000
       # T-PERM-001 快照模式：TTL 兜底 30s，快照失效主要靠 Redis pub/sub 主动广播（T-PERM-006）
       ttl-seconds: 30
+      # T-PERM-008：stale store 续命窗口；T-GW-003 接入 stale-allow 时使用
+      stale-grace-seconds: 30
 
   header:
     clean:

@@ -11,6 +11,9 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
 
 /**
  * 权限失效广播订阅器（T-PERM-006）
@@ -32,6 +35,7 @@ public class PermInvalidationSubscriber implements SmartLifecycle {
 
     private volatile boolean running;
     private Disposable subscription;
+    private Disposable reconnectTask;
 
     public PermInvalidationSubscriber(ReactiveStringRedisTemplate redisTemplate,
                                       ObjectMapper objectMapper,
@@ -42,24 +46,42 @@ public class PermInvalidationSubscriber implements SmartLifecycle {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
         if (running) {
             return;
+        }
+        running = true;
+        subscribe(false);
+    }
+
+    private synchronized void subscribe(boolean recovered) {
+        if (!running) {
+            return;
+        }
+        if (subscription != null) {
+            subscription.dispose();
         }
         subscription = redisTemplate.listenTo(ChannelTopic.of(TOPIC))
             .map(ReactiveSubscription.Message::getMessage)
             .subscribe(this::handleMessage,
-                e -> log.warn("Gateway perm invalidation subscription stopped: {}", e.getMessage()));
-        running = true;
+                this::handleSubscriptionStopped,
+                () -> handleSubscriptionStopped(null));
+        if (recovered) {
+            invalidator.clearAll();
+            log.warn("Gateway perm invalidation subscription rebuilt, cleared local interface snapshots");
+        }
         log.info("Gateway subscribed to Redis topic {} for interface snapshot invalidation", TOPIC);
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
+        running = false;
         if (subscription != null) {
             subscription.dispose();
         }
-        running = false;
+        if (reconnectTask != null) {
+            reconnectTask.dispose();
+        }
     }
 
     @Override
@@ -82,5 +104,33 @@ public class PermInvalidationSubscriber implements SmartLifecycle {
         } catch (Exception e) {
             log.warn("Failed to handle perm invalidation message: {}", e.getMessage(), e);
         }
+    }
+
+    private void handleSubscriptionStopped(Throwable e) {
+        if (!running) {
+            return;
+        }
+        if (e == null) {
+            log.warn("Gateway perm invalidation subscription completed, scheduling rebuild");
+        } else {
+            log.warn("Gateway perm invalidation subscription stopped, scheduling rebuild: {}", e.getMessage());
+        }
+        scheduleReconnect();
+    }
+
+    private synchronized void scheduleReconnect() {
+        if (!running) {
+            return;
+        }
+        if (reconnectTask != null && !reconnectTask.isDisposed()) {
+            return;
+        }
+        reconnectTask = Mono.delay(Duration.ofSeconds(5))
+            .subscribe(ignored -> {
+                synchronized (PermInvalidationSubscriber.this) {
+                    reconnectTask = null;
+                }
+                subscribe(true);
+            });
     }
 }

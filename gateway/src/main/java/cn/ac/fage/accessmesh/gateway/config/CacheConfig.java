@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.gateway.config;
 
+import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -67,6 +68,23 @@ public class CacheConfig {
         return Caffeine.newBuilder()
             .maximumSize(l1.getMaxSize())
             .expireAfterWrite(l1.getTtlSeconds(), TimeUnit.SECONDS)
+            .recordStats()
+            .build();
+    }
+
+    /**
+     * 创建陈旧接口权限快照缓存实例。
+     * <p>
+     * 回源成功时同步写入本缓存，后续 T-GW-003 的 stale-allow 分支可在主缓存自然过期、
+     * permission-center 不可达时从这里取快照续命。显式失效事件会同步驱逐本缓存。
+     * </p>
+     */
+    @Bean
+    public Cache<String, StaleEntry> staleSnapshotCache() {
+        GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
+        return Caffeine.newBuilder()
+            .maximumSize(l1.getMaxSize())
+            .expireAfterWrite(l1.getTtlSeconds() + l1.getStaleGraceSeconds(), TimeUnit.SECONDS)
             .recordStats()
             .build();
     }

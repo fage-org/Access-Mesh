@@ -5,9 +5,11 @@ import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import com.github.benmanes.caffeine.cache.Cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,9 +26,18 @@ public class InterfaceSnapshotCacheInvalidator {
     private static final Logger log = LoggerFactory.getLogger(InterfaceSnapshotCacheInvalidator.class);
 
     private final Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache;
+    private final Cache<String, StaleEntry> staleSnapshotCache;
+    private final InvalidationMarker invalidationMarker;
+    private final InterfaceSnapshotLoadRegistry loadRegistry;
 
-    public InterfaceSnapshotCacheInvalidator(Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache) {
+    public InterfaceSnapshotCacheInvalidator(Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache,
+                                             Cache<String, StaleEntry> staleSnapshotCache,
+                                             InvalidationMarker invalidationMarker,
+                                             InterfaceSnapshotLoadRegistry loadRegistry) {
         this.interfaceSnapshotCache = interfaceSnapshotCache;
+        this.staleSnapshotCache = staleSnapshotCache;
+        this.invalidationMarker = invalidationMarker;
+        this.loadRegistry = loadRegistry;
     }
 
     /**
@@ -37,7 +48,7 @@ public class InterfaceSnapshotCacheInvalidator {
      *   <li>仅 roleIds 非空：Gateway 无法本地反查角色影响用户，按租户级安全清理</li>
      * </ul>
      *
-     * @return 实际失效的本地缓存条目数
+     * @return 实际命中的本地快照 key 数
      */
     public long evict(PermInvalidateEvent event) {
         if (event == null || event.tenantId() == null) {
@@ -50,20 +61,57 @@ public class InterfaceSnapshotCacheInvalidator {
             return 0L;
         }
 
-        long evicted = 0L;
-        for (String key : new ArrayList<>(interfaceSnapshotCache.asMap().keySet())) {
+        long affected = 0L;
+        Set<String> affectedKeys = new HashSet<>();
+        for (String key : new ArrayList<>(candidateKeys())) {
             InterfaceSnapshotCacheKeys.ParsedKey parsed = InterfaceSnapshotCacheKeys.parse(key);
             if (parsed == null || !event.tenantId().equals(parsed.tenantId())) {
                 continue;
             }
             if (shouldEvict(parsed, serviceCodes, userIds)) {
-                interfaceSnapshotCache.invalidate(key);
-                evicted++;
+                affectedKeys.add(key);
+                affected++;
             }
         }
+        invalidationMarker.markAll(affectedKeys);
+        for (String key : affectedKeys) {
+            interfaceSnapshotCache.invalidate(key);
+            staleSnapshotCache.invalidate(key);
+        }
+        invalidationMarker.cleanupIfOversized(liveKeys());
         log.debug("Evicted gateway interface snapshots (tenantId={}, roleIds={}, userIds={}, serviceCodes={}, evicted={})",
-            event.tenantId(), roleIds, userIds, serviceCodes, evicted);
-        return evicted;
+            event.tenantId(), roleIds, userIds, serviceCodes, affected);
+        return affected;
+    }
+
+    /**
+     * 订阅断线恢复时执行全量清空，防止 pub/sub 断线期间遗漏显式失效事件。
+     */
+    public void clearAll() {
+        interfaceSnapshotCache.invalidateAll();
+        staleSnapshotCache.invalidateAll();
+        invalidationMarker.clearAndBumpGlobalEpoch();
+    }
+
+    public Set<String> liveKeys() {
+        Set<String> keys = new HashSet<>();
+        keys.addAll(interfaceSnapshotCache.asMap().keySet());
+        keys.addAll(staleSnapshotCache.asMap().keySet());
+        keys.addAll(loadRegistry.keys());
+        return keys;
+    }
+
+    @Scheduled(fixedDelayString = "#{@gatewayProperties.cache.l1.staleGraceSeconds * 2000L}")
+    void cleanupOrphanedMarkers() {
+        invalidationMarker.retainLiveKeys(liveKeys());
+    }
+
+    private Set<String> candidateKeys() {
+        Set<String> keys = new HashSet<>();
+        keys.addAll(interfaceSnapshotCache.asMap().keySet());
+        keys.addAll(staleSnapshotCache.asMap().keySet());
+        keys.addAll(loadRegistry.keys());
+        return keys;
     }
 
     private boolean shouldEvict(InterfaceSnapshotCacheKeys.ParsedKey parsed, Set<String> serviceCodes, Set<Long> userIds) {

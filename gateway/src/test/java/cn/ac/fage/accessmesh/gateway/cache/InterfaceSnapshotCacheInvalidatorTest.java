@@ -5,7 +5,9 @@ import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
@@ -21,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InterfaceSnapshotCacheInvalidatorTest {
 
     private final Cache<String, InterfaceSnapshotResp> cache = Caffeine.newBuilder().build();
-    private final InterfaceSnapshotCacheInvalidator invalidator = new InterfaceSnapshotCacheInvalidator(cache);
+    private final Cache<String, StaleEntry> staleCache = Caffeine.newBuilder().build();
+    private final InvalidationMarker marker = new InvalidationMarker();
+    private final InterfaceSnapshotLoadRegistry loadRegistry = new InterfaceSnapshotLoadRegistry();
+    private final InterfaceSnapshotCacheInvalidator invalidator =
+        new InterfaceSnapshotCacheInvalidator(cache, staleCache, marker, loadRegistry);
 
     @Test
     void shouldEvictOnlyMatchingTenantAndService_whenServiceCodesPresent() {
@@ -92,8 +98,51 @@ class InterfaceSnapshotCacheInvalidatorTest {
         assertThat(cache.getIfPresent("malformed")).isNotNull();
     }
 
+    @Test
+    void shouldEvictStaleSnapshotAndMarkMatchedKey() {
+        String key = key(1L, 10L, "admin-service");
+        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
+        cache.put(key, snapshot);
+        staleCache.put(key, new StaleEntry(snapshot, Instant.now().plusSeconds(60)));
+
+        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(10L), Set.of()));
+
+        assertThat(evicted).isEqualTo(1);
+        assertThat(cache.getIfPresent(key)).isNull();
+        assertThat(staleCache.getIfPresent(key)).isNull();
+        assertThat(marker.contains(key)).isTrue();
+    }
+
+    @Test
+    void shouldMarkInFlightKeyEvenWhenNoSnapshotCacheEntryExists() {
+        String key = key(1L, 10L, "admin-service");
+        loadRegistry.load(key, () -> Mono.never());
+
+        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(), Set.of("admin-service")));
+
+        assertThat(evicted).isEqualTo(1);
+        assertThat(marker.contains(key)).isTrue();
+    }
+
+    @Test
+    void shouldClearAllCachesAndBumpGlobalEpoch() {
+        String key = key(1L, 10L, "admin-service");
+        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
+        InvalidationMarker.LoadToken token = marker.beginLoad(key);
+        cache.put(key, snapshot);
+        staleCache.put(key, new StaleEntry(snapshot, Instant.now().plusSeconds(60)));
+
+        invalidator.clearAll();
+
+        assertThat(cache.getIfPresent(key)).isNull();
+        assertThat(staleCache.getIfPresent(key)).isNull();
+        assertThat(marker.isCurrent(token)).isFalse();
+    }
+
     private void put(Long tenantId, Long userId, String serviceCode) {
-        cache.put(key(tenantId, userId, serviceCode), new InterfaceSnapshotResp(List.of()));
+        String key = key(tenantId, userId, serviceCode);
+        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
+        cache.put(key, snapshot);
     }
 
     private String key(Long tenantId, Long userId, String serviceCode) {

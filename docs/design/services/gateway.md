@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-06-27
+last_reviewed: 2026-06-28
 ---
 
 # Gateway 服务设计
@@ -107,13 +107,13 @@ invalidationMarker:   InvalidationMarker                       // invalidatedKey
 
 #### Per-key 回源去重
 
-当前 `PermissionFilter` 使用手动 `getIfPresent` + 手动回源，**不存在** per-key 并发去重。重连全量清空后同 key 并发请求会打出多次远端回源。落地时需采用 `ConcurrentHashMap<String, Mono<InterfaceSnapshotResp>>` 作为 in-flight 去重表，同 key 并发请求共享同一 `Mono`。
+T-PERM-008 已通过 `InterfaceSnapshotLoadRegistry` 落地 per-key in-flight 去重。`PermissionFilter` 未命中回源时，同一快照 key 的并发请求共享同一个 `Mono<InterfaceSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。`perm:invalidate` 匹配范围同时包含主缓存 key、stale store key 和 in-flight key，避免旧回源结果在显式失效后写回。
 
 #### 订阅恢复：重连即全量清空
 
 Gateway 与 Redis 断线重连后执行全量清空（主缓存 + stale store + 失效标记），后续请求按需回源。设计理由：pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
 
-`PermInvalidationSubscriber` 需增加重连检测：Reactive Redis 订阅的 `onError`/`onComplete` 标记断开，重连成功后触发全量清空。
+T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Redis 订阅的 `onError`/`onComplete` 会安排重建订阅，重建后触发全量清空。
 
 ### 配置项
 
@@ -121,6 +121,7 @@ Gateway 与 Redis 断线重连后执行全量清空（主缓存 + stale store + 
 |---|---|---|
 | `gateway.cache.l1.ttl-seconds` | 30 | 快照 TTL 兜底 |
 | `gateway.cache.l1.max-size` | 50000 | 本地快照最大条目 |
+| `gateway.cache.l1.stale-grace-seconds` | 30 | stale store 续命窗口；T-GW-003 接入 stale-allow 时使用 |
 | `gateway.permission.service-url` | `lb://permission-center` | 权限中心地址 |
 | `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
 | `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |

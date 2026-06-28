@@ -70,6 +70,8 @@ public class GatewayProperties {
             // T-PERM-001：快照模式下 TTL 兜底 30-60s（快照失效主要靠 Redis pub/sub 主动广播 T-PERM-006，
             // TTL 仅作兜底）。原 check-interface 单值模式为 10s。
             private int ttlSeconds = 30;
+            // T-PERM-008：stale store 续命窗口，T-GW-003 接入 stale-allow 时使用。
+            private int staleGraceSeconds = 30;
         }
     }
 
