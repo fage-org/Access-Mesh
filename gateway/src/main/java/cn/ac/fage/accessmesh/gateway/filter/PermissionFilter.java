@@ -56,7 +56,7 @@ import java.time.Instant;
  * <p>
  * T-PERM-017 C4：含条件 entry 不再直接放行——能内联评估的本地评，不能下发的走 check-interface fallback。
  * T-GW-002 fail-mode：permission-center 不可达时按 {@link FailMode} 兜底——
- * {@code CLOSED}(默认)→503 拒绝 / {@code OPEN}(demo)→放行 / {@code STALE_ALLOW}→陈旧快照续命(T-GW-003)。
+ * {@code CLOSED}(默认)→503 拒绝 / {@code OPEN}(demo)→放行 / {@code STALE_ALLOW}→陈旧快照续命(T-GW-003 已实现)。
  * {@code StaleLoadDiscardedException}（回源并发失效）不受 fail-mode 影响，始终 503（显式撤销 > 不可达兜底）。
  * P1：显式失效({@code invalidationMarker}命中)后回源失败也不走 fail-mode，始终 503。
  * P2：仅 {@link PermCenterUnreachableException}（远端不可达）走 fail-mode 三模分支；其他异常始终 fail-closed。
@@ -148,7 +148,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         if (cached != null) {
             if (!invalidationMarker.contains(cacheKey)) {
                 return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
-                    subjectTypeCode, userId, tenantId);
+                    subjectTypeCode, userId, tenantId, cacheKey);
             }
             // P1：显式失效（perm:invalidate 已到达），驱逐双缓存后标记 exchange，
             // 后续回源失败时 handleUnreachable 据此始终 503，不走 fail-mode
@@ -163,7 +163,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return loadSnapshot(cacheKey, subjectTypeCode, userId, serviceCode, tenantId, true)
             .switchIfEmpty(Mono.error(new EmptySnapshotException()))
             .flatMap(snapshot -> decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
-                subjectTypeCode, userId, tenantId))
+                subjectTypeCode, userId, tenantId, cacheKey))
             .onErrorResume(EmptySnapshotException.class, e ->
                 writeForbidden(exchange, "无接口访问权限"))
             .onErrorResume(StaleLoadDiscardedException.class, e -> {
@@ -191,25 +191,27 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private Mono<Void> decide(ServerWebExchange exchange, GatewayFilterChain chain,
                               InterfaceSnapshotResp snapshot, String serviceCode, String httpMethod,
                               String path, String clientIp,
-                              String subjectTypeCode, Long userId, Long tenantId) {
+                              String subjectTypeCode, Long userId, Long tenantId,
+                              String cacheKey) {
         Decision decision = InterfaceSnapshotMatcher.match(snapshot, serviceCode, httpMethod, path, clientIp);
         return switch (decision) {
             case ALLOW -> chain.filter(exchange);
             case DENY -> writeForbidden(exchange, "无接口访问权限");
             case FALLBACK -> fallbackCheckInterface(exchange, chain, subjectTypeCode, userId,
-                serviceCode, httpMethod, path, clientIp, tenantId);
+                serviceCode, httpMethod, path, clientIp, tenantId, cacheKey);
         };
     }
 
     /**
      * 回退实时鉴权：含条件 entry 命中但 conditionRules 未下发 Gateway 时同步调 check-interface。
      * <p>
-     * permission-center 不可达时按 fail-mode 兜底处理（T-GW-002）。
+     * permission-center 不可达时按 fail-mode 兜底处理（T-GW-002 / T-GW-003）。
      * </p>
      */
     private Mono<Void> fallbackCheckInterface(ServerWebExchange exchange, GatewayFilterChain chain,
                                               String subjectTypeCode, Long userId, String serviceCode,
-                                              String httpMethod, String path, String clientIp, Long tenantId) {
+                                              String httpMethod, String path, String clientIp, Long tenantId,
+                                              String cacheKey) {
         return wrapRemoteErrors(permissionClient.checkInterface(subjectTypeCode, userId, serviceCode, httpMethod, path, clientIp, tenantId))
             .flatMap(result -> {
                 CheckInterfaceResp data = result != null ? result.getData() : null;
@@ -219,9 +221,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 String reason = data != null && data.reason() != null ? data.reason() : "无接口访问权限";
                 return writeForbidden(exchange, reason);
             })
-            // 远端不可达走 fail-mode 三模分支
+            // 远端不可达走 fail-mode 三模分支（T-GW-003：stale-allow 需 cacheKey 查 stale store）
             .onErrorResume(PermCenterUnreachableException.class, e ->
-                handleUnreachable(exchange, chain, "fallback-check-interface:" + serviceCode, e.getCause()))
+                handleUnreachable(exchange, chain, cacheKey, e.getCause()))
             // 非远端异常始终 fail-closed
             .onErrorResume(e -> {
                 log.error("Unexpected error in fallback check-interface (serviceCode={}), failing closed", serviceCode, e);
@@ -230,38 +232,94 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * permission-center 不可达兜底处理（T-GW-002 fail-mode 三模）。
+     * permission-center 不可达兜底处理（T-GW-002 fail-mode 三模 / T-GW-003 stale-allow 续命）。
      * <ul>
      *   <li>P1：若 exchange 已标记 {@code explicitlyInvalidated}，始终 503（显式撤销 > 兜底）</li>
      *   <li>{@link FailMode#CLOSED}：fail-closed，返回 503</li>
      *   <li>{@link FailMode#OPEN}：fail-open，放行请求（仅限演示环境）</li>
-     *   <li>{@link FailMode#STALE_ALLOW}：当前同 CLOSED（stale-allow 续命逻辑由 T-GW-003 实现）</li>
+     *   <li>{@link FailMode#STALE_ALLOW}：从 stale store 取陈旧快照续命（双重检查 staleUntil + !invalidatedKeys）；
+     *       FALLBACK 条件不可评估时视为 DENY（403）；无可用 stale 条目转 closed（503）</li>
      * </ul>
      */
     private Mono<Void> handleUnreachable(ServerWebExchange exchange, GatewayFilterChain chain,
-                                         String contextKey, Throwable error) {
+                                         String cacheKey, Throwable error) {
         // P1：显式失效后回源失败——始终 fail-closed，不受 fail-mode 影响
         if (Boolean.TRUE.equals(exchange.getAttribute(EXPLICITLY_INVALIDATED_ATTR))) {
             log.warn("Permission-center unreachable after explicit invalidation ({}), fail-closed: {}",
-                contextKey, error.getMessage());
+                cacheKey, error.getMessage());
             return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
         }
         return switch (failMode) {
             case OPEN -> {
-                log.warn("Permission-center unreachable ({}), fail-open allowing request: {}", contextKey, error.getMessage());
+                log.warn("Permission-center unreachable ({}), fail-open allowing request: {}", cacheKey, error.getMessage());
                 yield chain.filter(exchange);
             }
-            case STALE_ALLOW -> {
-                // T-GW-003：stale-allow 将在此处尝试从 stale store 取续命快照，当前同 CLOSED
-                log.warn("Permission-center unreachable ({}), stale-allow not yet implemented, failing closed: {}",
-                    contextKey, error.getMessage());
-                yield writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-            }
+            case STALE_ALLOW -> tryStaleAllow(exchange, chain, cacheKey, error);
             case CLOSED -> {
-                log.warn("Permission-center unreachable ({}), fail-closed denying request: {}", contextKey, error.getMessage());
+                log.warn("Permission-center unreachable ({}), fail-closed denying request: {}", cacheKey, error.getMessage());
                 yield writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             }
         };
+    }
+
+    /**
+     * T-GW-003 stale-allow 续命逻辑：从 stale store 取陈旧快照，双重检查后本地匹配。
+     * <ul>
+     *   <li>stale store 有有效条目（未超 staleUntil + 未被显式失效标记）→ 本地匹配快照</li>
+     *   <li>匹配结果 ALLOW → 放行 / DENY 或 FALLBACK → 拒绝（条件不可评估视为 DENY）</li>
+     *   <li>无可用 stale 条目 → 降级 closed（503）</li>
+     * </ul>
+     */
+    private Mono<Void> tryStaleAllow(ServerWebExchange exchange, GatewayFilterChain chain,
+                                     String cacheKey, Throwable error) {
+        StaleEntry staleEntry = staleSnapshotCache.getIfPresent(cacheKey);
+        if (staleEntry == null) {
+            log.warn("Permission-center unreachable ({}), stale-allow: no stale entry, failing closed: {}",
+                cacheKey, error.getMessage());
+            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
+        }
+        // 双重检查：staleUntil 未过期（now < staleUntil，含边界拒绝）+ 未被显式失效标记
+        if (!Instant.now().isBefore(staleEntry.staleUntil())) {
+            log.warn("Permission-center unreachable ({}), stale-allow: stale entry expired (staleUntil={}), failing closed: {}",
+                cacheKey, staleEntry.staleUntil(), error.getMessage());
+            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
+        }
+        if (invalidationMarker.contains(cacheKey)) {
+            log.warn("Permission-center unreachable ({}), stale-allow: key explicitly invalidated, failing closed: {}",
+                cacheKey, error.getMessage());
+            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
+        }
+
+        // stale 条目有效，本地匹配陈旧快照
+        InterfaceSnapshotResp staleSnapshot = staleEntry.snapshot();
+        String serviceCode = extractServiceCodeFromExchange(exchange);
+        String httpMethod = exchange.getRequest().getMethod().name();
+        String path = exchange.getRequest().getURI().getPath();
+        String clientIp = resolveClientIp(exchange);
+        Decision decision = InterfaceSnapshotMatcher.match(staleSnapshot, serviceCode, httpMethod, path, clientIp);
+
+        if (decision == Decision.ALLOW) {
+            log.info("Permission-center unreachable ({}), stale-allow: matched ALLOW from stale snapshot", cacheKey);
+            return chain.filter(exchange);
+        }
+        // DENY 或 FALLBACK：条件不可评估时视为 DENY——陈旧快照显示无明确授权，安全拒绝
+        log.warn("Permission-center unreachable ({}), stale-allow: stale snapshot result={}, failing closed: {}",
+            cacheKey, decision, error.getMessage());
+        if (decision == Decision.FALLBACK) {
+            return writeForbidden(exchange, "无接口访问权限（条件权限不可评估）");
+        }
+        return writeForbidden(exchange, "无接口访问权限");
+    }
+
+    /**
+     * 从 exchange 的路由元数据提取 serviceCode。
+     */
+    private String extractServiceCodeFromExchange(ServerWebExchange exchange) {
+        Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        if (route == null) {
+            return "";
+        }
+        return String.valueOf(route.getMetadata().getOrDefault("serviceCode", route.getId()));
     }
 
     /**

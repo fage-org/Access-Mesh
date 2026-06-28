@@ -127,7 +127,7 @@ T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Red
 | `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
 | `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |
 
-### 失联兜底模式（T-GW-001 / T-GW-002）
+### 失联兜底模式（T-GW-001 / T-GW-002 / T-GW-003）
 
 当 permission-center 不可达（网络错误、超时、5xx）时，`PermissionFilter` 按 `gateway.permission.fail-mode` 配置决定行为：
 
@@ -135,13 +135,18 @@ T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Red
 |---|---|---|
 | `closed`（默认） | 返回 503 `SERVICE_UNAVAILABLE` | 生产环境——安全优先，宁可拒绝不可放行 |
 | `open` | 放行请求（`chain.filter`） | 仅限演示环境——可用性优先，安全风险高 |
-| `stale-allow` | 从 stale store 取陈旧快照续命（T-GW-003 实现） | 折中——陈旧快照在 grace window 内可用，超过转 closed |
+| `stale-allow` | 从 stale store 取陈旧快照续命 | 折中——陈旧快照在 grace window 内可用，超过转 closed |
 
 **核心原则：权限主动撤销 > 服务不可达兜底。**
 
 - `StaleLoadDiscardedException`（回源并发失效）不受 fail-mode 影响，始终 503——这是显式撤销（`perm:invalidate` 事件已到达），不是不可达场景。
 - `fail-open` 模式下，主快照加载失败和 fallback `check-interface` 失败均放行。
-- `stale-allow` 的续命逻辑（从 stale store 取快照 + 双重检查 `staleUntil` / `!invalidatedKeys`）由 T-GW-003 实现，当前同 `closed` 行为。
+- `stale-allow` 续命逻辑（T-GW-003 已实现）：
+  1. 从 `staleSnapshotCache` 取 `StaleEntry`
+  2. 双重检查：`Instant.now().isBefore(staleUntil)` + `!invalidationMarker.contains(key)`
+  3. 通过 → 对陈旧快照运行 `InterfaceSnapshotMatcher.match()`：ALLOW 放行 / DENY 403 / FALLBACK → 403（条件不可评估视为 DENY）
+  4. 不通过 → 降级 closed（503）
+- 显式失效（`perm:invalidate` 已到达 + 主缓存有此 key）后回源不可达，`stale-allow` 也不续命——P1 门禁由 `EXPLICITLY_INVALIDATED_ATTR` exchange 属性保证。
 
 ## 与权限中心的约定
 
