@@ -65,6 +65,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../archive/2026-06-28/` | 工作单 A/B/C 执行计划归档：权限缓存失效改造、scopeMode 协议迁移、Gateway 失联兜底全部完成。稳定结论已沉淀至本目录 v3.5-design §7.2 / api-contract scopeMode / gateway.md |
 | `../archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口已由 admin-service 实现；org-user-page P0/P1/P2 全 100%。契约权威以 `org-user-permission-contract.md` v1.2 + `services/admin-service-api-contract.md` v1.0 为准 |
 | `../archive/2026-06-14/` | 同步模块重构执行计划归档；长期有效设计已沉淀到 `cross-service/admin-permission-sync.md` |
 | `../archive/2026-06-05/` | 编码与创作风格分析报告，可操作知识已合并到项目规范；报告保留作历史追溯 |

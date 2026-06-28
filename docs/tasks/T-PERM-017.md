@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-017
 title: 条件权限 Gateway 侧重评（部分下发 + 未下发回退实时鉴权）
 status: done
-plan: docs/plans/perm-cache-invalidation-plan.md
+plan: docs/archive/2026-06-28/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md#§7.2-缓存一致性总线

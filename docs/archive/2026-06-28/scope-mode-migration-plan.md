@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: scopeMode 协议迁移（工作单 B）
-status: active
+status: archived
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md
@@ -20,9 +20,9 @@ last_updated: 2026-06-27
 
 # scopeMode 协议迁移计划（工作单 B）
 
-> 状态：进行中（T-PERM-009·010·011·012·013·014·015 done）。任务状态快照见下表，**权威清单以 [../tasks/README.md](../tasks/README.md) 看板为准**。
-> 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §3 数据权限契约
-> 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.2 工作单 B
+> 状态：进行中（T-PERM-009·010·011·012·013·014·015 done）。任务状态快照见下表，**权威清单以 [../../tasks/README.md](../../tasks/README.md) 看板为准**。
+> 关联设计：[../../design/permission-center-v3.5-design.md](../../design/permission-center-v3.5-design.md) §3 数据权限契约
+> 关联评审（已归档）：[../../archive/2026-06-17/design-review.md](../../archive/2026-06-17/design-review.md) §4.2 工作单 B
 > 关联审计：S-005（scopeMode 全量推广，A 决策）
 
 ## 目标
@@ -40,13 +40,13 @@ last_updated: 2026-06-27
 - 不做端到端黄金路径测试（B4 决策：延后到 example-service，后者暂不实现）
 - 不改 schema `scope_all` 字段（仅内部存储，协议层映射为 scopeMode）
 
-## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
+## 任务清单（引用 [../../tasks/README.md](../../tasks/README.md) 看板）
 
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done。本表为快照，权威状态以看板为准。
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-009](../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ✅ |
+| [T-PERM-009](../../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ✅ |
 | T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（范围已合并进 T-PERM-009 完成，§6.7 已回写） | B2 / S-005 | ✅ |
 | T-PERM-011 | api-contract.md 约 30+ 处 `scopeAll` 全量推广到 `scopeMode` | S-005=A | ✅ |
 | T-PERM-012 | 管理端授权配置 / 排查页响应改造 | S-005=A | ✅ |

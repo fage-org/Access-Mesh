@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-018
 title: 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes
 status: done
-plan: docs/plans/perm-cache-invalidation-plan.md
+plan: docs/archive/2026-06-28/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md#§5.1-ETag

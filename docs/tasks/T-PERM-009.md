@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-009
 title: scopeMode 枚举 + 响应结构重构（宽义）
 status: done
-plan: docs/plans/scope-mode-migration-plan.md
+plan: docs/archive/2026-06-28/scope-mode-migration-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md#§3-数据权限契约
@@ -25,7 +25,7 @@ last_updated: 2026-06-21
 
 # T-PERM-009 scopeMode 枚举 + 响应结构重构（宽义）
 
-> 来源：[scope-mode-migration-plan](../plans/scope-mode-migration-plan.md) 任务 B-1（工作单 B2）
+> 来源：[scope-mode-migration-plan](../archive/2026-06-28/scope-mode-migration-plan.md) 任务 B-1（工作单 B2）
 > 范围：宽义 = 定义枚举 + 重构 QueryScopesResp 结构（与 T-PERM-010 合并）
 
 ## 方案定稿（用户确认 2026-06-20）

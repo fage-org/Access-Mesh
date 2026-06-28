@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-001
 title: Gateway 缓存改快照模式（user → InterfaceSnapshot）
 status: done
-plan: docs/plans/perm-cache-invalidation-plan.md
+plan: docs/archive/2026-06-28/perm-cache-invalidation-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center-v3.5-design.md#§7.2-缓存一致性总线
@@ -27,7 +27,7 @@ last_updated: 2026-06-21
 
 # T-PERM-001 Gateway 缓存改快照模式
 
-> 来源：[perm-cache-invalidation-plan](../plans/perm-cache-invalidation-plan.md) 任务 A-1（工作单 A，方案 A'-1）
+> 来源：[perm-cache-invalidation-plan](../archive/2026-06-28/perm-cache-invalidation-plan.md) 任务 A-1（工作单 A，方案 A'-1）
 
 ## 背景
 

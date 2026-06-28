@@ -20,9 +20,9 @@
 
 | 工作单 | 状态 | 派生计划 | 任务（Step 3 抽取）|
 |---|---|---|---|
-| A 权限延迟生效 | P0 已重启 | [../../plans/perm-cache-invalidation-plan.md](../../plans/perm-cache-invalidation-plan.md) | `T-PERM-*` |
-| B 数据权限空集 | P0 已重启 | [../../plans/scope-mode-migration-plan.md](../../plans/scope-mode-migration-plan.md) | `T-PERM-*` |
-| C Gateway 失联兜底 | P0 已重启 | [../../plans/gateway-fail-mode-plan.md](../../plans/gateway-fail-mode-plan.md) | `T-GW-*`（依赖工作单 A）|
+| A 权限延迟生效 | P0 已重启 | [../../archive/2026-06-28/perm-cache-invalidation-plan.md](../../archive/2026-06-28/perm-cache-invalidation-plan.md) | `T-PERM-*` |
+| B 数据权限空集 | P0 已重启 | [../../archive/2026-06-28/scope-mode-migration-plan.md](../../archive/2026-06-28/scope-mode-migration-plan.md) | `T-PERM-*` |
+| C Gateway 失联兜底 | P0 已重启 | [../../archive/2026-06-28/gateway-fail-mode-plan.md](../../archive/2026-06-28/gateway-fail-mode-plan.md) | `T-GW-*`（依赖工作单 A）|
 | D 防呆机制 | P1 暂缓 | （未派生，重启条件见原文 §11）| — |
 | E 清理预设 | P1 暂缓 | （未派生）| — |
 | F 文档+简化 | P2 暂缓 | （未派生）| — |

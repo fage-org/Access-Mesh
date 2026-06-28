@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: Gateway 失联兜底（工作单 C）
-status: active
+status: archived
 domain: gateway
 design_refs:
   - docs/design/permission-center-v3.5-design.md
@@ -20,8 +20,8 @@ last_updated: 2026-06-28
 # Gateway 失联兜底计划（工作单 C）
 
 > 状态：进行中
-> 关联设计：[../design/permission-center-v3.5-design.md](../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
-> 关联评审（已归档）：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md) §4.3 工作单 C
+> 关联设计：[../../design/permission-center-v3.5-design.md](../../design/permission-center-v3.5-design.md) §7.2 缓存一致性总线
+> 关联评审（已归档）：[../../archive/2026-06-17/design-review.md](../../archive/2026-06-17/design-review.md) §4.3 工作单 C
 > 关联审计：S-006（Gateway 失效标记与订阅恢复，已设计 T-GW-005）
 
 ## 目标
@@ -39,13 +39,13 @@ last_updated: 2026-06-28
 - 不改 Gateway 鉴权主链路（仅加 fail-mode 兜底分支）
 - 不做 fail-mode 的动态切换 UI（配置项由运维通过配置中心管理）
 
-## 任务清单（引用 [../tasks/README.md](../tasks/README.md) 看板）
+## 任务清单（引用 [../../tasks/README.md](../../tasks/README.md) 看板）
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
 | T-GW-001 | Gateway `gateway.permission.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ✅ |
 | T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ✅ |
-| [T-GW-003](../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ✅ |
+| [T-GW-003](../../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ✅ |
 | T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ✅ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ✅ |
 | T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | C1 | ✅ |
