@@ -6,9 +6,10 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 派生为下列 P0 落地计划，工作单 D/E/F 暂缓。详见归档批次 README |
+| ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 [design-review-def-followup-plan.md](design-review-def-followup-plan.md)。详见归档批次 README |
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
+| [design-review-def-followup-plan.md](design-review-def-followup-plan.md) | 设计评审 D/E/F 后续任务拆分 | proposed | D/E/F 暂缓项拆分为 `T-PERM-019~021`；冲突项已标记，执行前必须确认 |
 | ~~org-user-page-impl-plan~~ | （已归档）| — | 「组织与用户」融合页 P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成，2026-06-21 归档至 [../archive/2026-06-21/](../archive/2026-06-21/)。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准 |
 | ~~user-role-proxy-fix-plan~~ | （已归档）| — | 用户角色代理修复第一轮（M1-M13+S1-S3）+ 第二轮（P1-1/P1-2/P2-1/P2-2）均已完成验收 + 设计回写，2026-06-20 归档至 [../archive/2026-06-20/](../archive/2026-06-20/)。任务 `T-ADMIN-001~019` + `T-PERM-016` 见 [../tasks/README.md](../tasks/README.md) 已完成区。EXT-7/EXT-8 DEFERRED 无主（审计 S-024）|
 | ~~perm-cache-invalidation-plan~~ | （已归档）| — | 工作单 A 权限缓存失效改造已完成并归档至 [../archive/2026-06-28/](../archive/2026-06-28/)。权威契约以 `docs/design/permission-center-v3.5-design.md` §7.2 + `docs/design/services/gateway.md` 为准 |
