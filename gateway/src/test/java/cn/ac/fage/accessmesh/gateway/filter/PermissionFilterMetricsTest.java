@@ -55,7 +55,8 @@ import static org.mockito.Mockito.when;
  * 指标命名：
  * <ul>
  *   <li>{@code gateway.perm.unreachable}（tag: source=snapshot|check_interface）</li>
- *   <li>{@code gateway.perm.fallback}（tag: mode=closed|open|stale）</li>
+ *   <li>{@code gateway.perm.fallback}（tag: mode=closed, reason=denied）</li>
+ *   <li>{@code gateway.perm.fallback}（tag: mode=open, reason=allowed）</li>
  *   <li>{@code gateway.perm.fallback}（tag: mode=stale, reason=no_entry|expired|invalidated|allowed|denied）</li>
  * </ul>
  */
