@@ -8,7 +8,11 @@
 |------|------|------|------|
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 [design-review-def-followup-plan.md](design-review-def-followup-plan.md)。详见归档批次 README |
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
-| [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划 |
+| [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划。4 阶段已拆为独立 plan（见下 frontend-phase1~4），本文件保留为 roadmap（tasks:[] 保持空） |
+| [frontend-phase1-plan.md](frontend-phase1-plan.md) | 前端 Phase 1 执行编排 | active | 13 页前端实现（mock 驱动）+ API 核对。任务 T-FE-001~014；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034（不在本 plan 闭环）。D/E/F 重启的关键路径 |
+| [frontend-phase2-plan.md](frontend-phase2-plan.md) | 前端 Phase 2 执行编排 | proposed | 自动授权 + API 改造 + 动态数据权限。任务 T-PERM-022~037（022~034 逐页后端改造 + 035/036 暂缓 + 037 共性收尾）。⚠️ 自动授权/动态数据权限受 design-review §11 暂缓门禁 |
+| [frontend-phase3-plan.md](frontend-phase3-plan.md) | 前端 Phase 3 执行编排 | proposed | 前后端联调。任务 T-FE-015~022。待 Phase 1/2 收尾 |
+| [frontend-phase4-plan.md](frontend-phase4-plan.md) | 前端 Phase 4 执行编排 | proposed | 扩展验证 + 代码清理 + 测试 + 文档。任务 T-FE-023/T-ADMIN-020/T-PERM-038/039 |
 | [design-review-def-followup-plan.md](design-review-def-followup-plan.md) | 设计评审 D/E/F 后续任务拆分 | proposed | D/E/F 暂缓项拆分为 `T-PERM-019~021`；冲突项已标记，执行前必须确认 |
 | ~~org-user-page-impl-plan~~ | （已归档）| — | 「组织与用户」融合页 P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成，2026-06-21 归档至 [../archive/2026-06-21/](../archive/2026-06-21/)。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准 |
 | ~~user-role-proxy-fix-plan~~ | （已归档）| — | 用户角色代理修复第一轮（M1-M13+S1-S3）+ 第二轮（P1-1/P1-2/P2-1/P2-2）均已完成验收 + 设计回写，2026-06-20 归档至 [../archive/2026-06-20/](../archive/2026-06-20/)。任务 `T-ADMIN-001~019` + `T-PERM-016` 见 [../tasks/README.md](../tasks/README.md) 已完成区。EXT-7/EXT-8 DEFERRED 无主（审计 S-024）|

@@ -22,6 +22,8 @@ docs/
 │   │   ├── admin-service.md
 │   │   ├── gateway.md
 │   │   └── example-service.md
+│   ├── frontend/                      # 前端页面级设计（随 T-FE 任务产出回写）
+│   │   └── README.md
 │   └── schema/                        # 数据库表结构
 │       ├── admin-service.sql
 │       ├── example-service.sql

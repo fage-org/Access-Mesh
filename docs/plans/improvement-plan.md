@@ -8,12 +8,16 @@ design_refs:
   - docs/design/project-rules.md
 tasks: []
 acceptance: "Phase 1-4 各阶段 DoD 达成（见 §5.1）；痛点 #3/#4 与 design-review E4/B 决策对齐"
-last_updated: 2026-06-20
+last_updated: 2026-06-29
 note: |
   本计划是项目级路线图，含痛点诊断（§3）+ 4 阶段任务（§4）。
-  痛点诊断结论待后续触达时沉淀至 design/；4 阶段任务按实际领域拆为
-  T-FE/T-ADMIN/T-PERM 待渐进迁移。Phase 2 自动授权/动态数据权限已与
-  design-review E4/B 决策对齐（延后），见 §3.1 痛点 #3/#4 注记。
+  痛点诊断结论待后续触达时沉淀至 design/；4 阶段任务已拆为独立执行 plan：
+  - Phase 1 → docs/plans/frontend-phase1-plan.md（active，任务 T-FE-001~014；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034，不在本 plan 闭环）
+  - Phase 2 → docs/plans/frontend-phase2-plan.md（proposed，任务 T-PERM-022~037，其中 035/036 暂缓）
+  - Phase 3 → docs/plans/frontend-phase3-plan.md（proposed，任务 T-FE-015~022）
+  - Phase 4 → docs/plans/frontend-phase4-plan.md（proposed，任务 T-FE-023/T-ADMIN-020/T-PERM-038/039）
+  本文件 tasks:[] 保持空（roadmap 不持任务），任务清单见各 phase plan + tasks/README 看板。
+  Phase 2 自动授权/动态数据权限已与 design-review E4/B 决策对齐（延后），见 §3.1 痛点 #3/#4 注记。
 ---
 
 # AccessMesh 项目诊断与完善计划
@@ -159,6 +163,13 @@ Phase 3: 前后端联调（mock 替换为真实接口）
 Phase 4: 扩展性验证 + 代码清理 + 文档完善
 ```
 
+> **4 阶段执行编排已拆为独立 plan**（本文件保留为 roadmap，tasks:[] 保持空）：
+> - Phase 1 → [frontend-phase1-plan.md](frontend-phase1-plan.md)（active）
+> - Phase 2 → [frontend-phase2-plan.md](frontend-phase2-plan.md)（proposed）
+> - Phase 3 → [frontend-phase3-plan.md](frontend-phase3-plan.md)（proposed）
+> - Phase 4 → [frontend-phase4-plan.md](frontend-phase4-plan.md)（proposed）
+> 任务清单见各 phase plan 与 [tasks/README.md](../tasks/README.md) 看板。
+
 ### 4.1 Phase 1 工作流（两阶段推进）
 
 **第一阶段：页面盘点**。先逐项讨论确定所有页面及其承担的功能，形成完整的页面地图。
@@ -287,7 +298,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 | 3.1 | 资源+操作 | 资源树 CRUD、操作定义、资源-操作关联、移动 | 左右分栏（资源树+操作列表） |
 | 3.2 | 权限条件 | 通用条件模板 CRUD（时间/IP/表达式），供权限授予时引用 | 表格 + 表单弹窗 |
 | 3.3 | 冲突规则 | 角色互斥/权限互斥规则 CRUD，冲突检测 | 表格 + 表单弹窗 + 检测结果 |
-| 3.4 | 资源依赖 | 资源依赖关系 CRUD、依赖图、环比检测、批量同步 | 表格 + 表单 + 依赖图可视化 |
+| 3.4 | 资源依赖 | 资源依赖关系 CRUD、依赖图、环检测、批量同步 | 表格 + 表单 + 依赖图可视化 |
 | 4.1 | **权限授予** | 选角色→勾资源树→配操作矩阵→绑条件（可内联新建）、批量保存、子权限/范围权限、自动授权预览 | 三步向导 or 分栏配置 |
 | 4.2 | **权限查询** | 按用户/角色/资源维度查询权限事实、权限解释（为什么有/没有）、展示关联条件和拒绝原因 | 查询表单 + 结果表格/面板 |
 | 5.1 | 业务域 | 域 CRUD、类型归属分类（CLASSIFY 配置） | 表格 + 表单 + 类型分配 |
@@ -332,7 +343,9 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 ### Phase 2: 核心功能补齐 + 后端接口改造
 
-**目标**：实现自动授权，完成 API 改造，验证动态数据权限。
+> **执行口径以 [frontend-phase2-plan.md](frontend-phase2-plan.md) 为准**。本节仅作阶段背景，不重定义目标/DoD。其中自动授权（T-PERM-035）/ 动态数据权限（T-PERM-036）受 design-review §11 暂缓门禁约束，近期不推进，见 phase2 plan decision_refs。
+
+**阶段背景**：自动授权、API 改造、动态数据权限验证（完整 DoD 见 §5.1，但 035/036 暂缓项近期不推进）。
 
 #### 2.1 自动授权（Auto-Grant）
 
@@ -453,7 +466,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 | 阶段 | 完成标准 |
 |------|----------|
 | Phase 1 | 14 个页面前端实现完成（mock 数据可交互）；API 核对清单完成（每个接口标记 ✅/🔧/❌） |
-| Phase 2 | 自动授权实现 + 测试通过；🔧❌ 接口改造完成；动态数据权限链路验证通过 |
+| Phase 2 | 自动授权实现 + 测试通过；🔧❌ 接口改造完成；动态数据权限链路验证通过（**注**：自动授权/动态数据权限受 design-review §11 暂缓，近期不推进，执行口径以 frontend-phase2-plan 为准） |
 | Phase 3 | 8 个页面 mock → 真实接口替换完成，所有页面核心流程联调通过 |
 | Phase 4 | 扩展点验证通过；扩展指南文档完成 |
 

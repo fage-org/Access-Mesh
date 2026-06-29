@@ -19,6 +19,7 @@
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
 | admin-service 与 permission-center 同步 | [cross-service/admin-permission-sync.md](cross-service/admin-permission-sync.md)       |
 | admin-service 对前端 API 契约 | [services/admin-service-api-contract.md](services/admin-service-api-contract.md) |
+| 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
 | PostgreSQL 表结构     | [schema/](schema/)                                                                     |
 
 ## 推荐阅读顺序
@@ -40,6 +41,7 @@
 | 根目录 `*-design.md` / `*-evolution.md` | 端到端设计契约（`status: adopted`）与演进方向（`status: evolution`，非约束）|
 | `cross-service/`     | 跨越多个服务边界、描述服务之间职责/契约/数据流/一致性约束的当前有效设计 |
 | `services/`          | Gateway、admin-service、example-service 设计     |
+| `frontend/`          | 前端页面级设计（布局/字段/交互/权限接线），随 T-FE 任务产出回写 |
 | `schema/`            | 当前有效 PostgreSQL schema                       |
 | `../plans/`          | 编排层计划：目标/非目标/准入 + 任务清单引用，不作为契约来源 |
 | `../tasks/`          | 原子任务看板（唯一权威任务清单）                 |
