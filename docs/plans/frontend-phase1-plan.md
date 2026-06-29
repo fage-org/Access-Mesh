@@ -135,4 +135,4 @@ last_updated: 2026-06-29
 ## 当前进度
 
 - 2026-06-29：建立本 plan + 拆分 13 页 T-FE 任务 + 组件池任务。T-PERM-022~034 后端任务归 Phase 2（本 plan 只产 API 核对清单，不持有后端任务）。所有任务 proposed，待按批次推进。
-- 2026-06-29：**T-FE-002（2.2 角色管理）完成** ✅。左右分栏（角色树+详情/表单）+ 分组角色额外基本角色管理 + 拖拽移动 + hasPerms 门控（ROLE:VIEW/CREATE/UPDATE/DELETE/MANAGE）；mock 角色矩阵补 sec 全权/hr+auditor 只读。UI 设计回写 `docs/design/frontend/role-manage.md`（draft→adopted 待评审）。API 核对：tree/list/create/update/move/remove/extra-roles/* ✅；🔧 `/detail` 用 IdReq 内部主键、应切业务键 RoleDetailReq，登记 T-PERM-022。组件识别：角色选择器候选登记 T-FE-001 池（待 T-FE-014 推进确认）。
+- 2026-06-29：**T-FE-002（2.2 角色管理）完成** ✅。左右分栏（角色树+详情/表单）+ 分组角色额外基本角色管理 + 拖拽移动 + hasPerms 门控（ROLE:VIEW/CREATE/UPDATE/DELETE/MANAGE）；mock 角色矩阵补 sec 全权/hr+auditor 只读。UI 设计回写 `docs/design/frontend/role-manage.md`（draft→adopted 待评审）。API 核对：tree/list/create/update/move/remove/extra-roles/* ✅；🔧 `/detail` 用 IdReq 内部主键、应切业务键二元组 `roleTypeCode+externalId`（核实：schema 唯一索引 `uk_abstract_role_external(tenant_id,role_type,external_id)` 已保证租户内唯一、表无 domain 字段、旧 `RoleDetailReq` 带 domainCode 是 bizDomainId 旧时代遗留需废弃；前端树已返回 roleTypeCode+externalId 前提满足），登记 T-PERM-022。组件识别：角色选择器候选登记 T-FE-001 池（待 T-FE-014 推进确认）。
