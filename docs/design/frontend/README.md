@@ -18,7 +18,7 @@
 | 页面 | 文档 | 任务 | 状态 |
 |---|---|---|---|
 | 2.1 组织与用户 | （已归档至 `docs/archive/2026-06-21/org-user-page-impl-plan.md`，权威契约见 org-user-permission-contract.md） | — | ✅ |
-| 2.2 角色管理 | `role-manage.md` | T-FE-002 | 待产出 |
+| 2.2 角色管理 | `role-manage.md` | T-FE-002 | ✅ |
 | 3.1 资源+操作定义 | `resource-operation.md` | T-FE-008 | 待产出 |
 | 3.2 权限条件 | `permission-condition.md` | T-FE-009 | 待产出 |
 | 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | 待产出 |

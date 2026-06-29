@@ -111,7 +111,7 @@ last_updated: 2026-06-29
 | ReOrgTreePanel | 组织与用户（左树） | ✅ 已确认（2.1 已实现） | — |
 | 权限条件选择器 | 权限授予（内联新建）+ 条件管理（独立 CRUD） | ⏳ 待确认（T-FE-009 / T-FE-014 推进时） | 待建 |
 | 资源树选择器 | 权限授予 + 资源管理 + 权限查询 | ⏳ 待确认（T-FE-008 / T-FE-013 / T-FE-014） | 待建 |
-| 角色选择器 | 权限授予 + 功能角色分配 | ⏳ 待确认（T-FE-002 / T-FE-014） | 待建 |
+| 角色选择器 | 权限授予 + 功能角色分配 + 角色管理（父角色选择） | ⏳ 待确认（T-FE-002 已识别父角色选择器内联实现，T-FE-014 推进时确认抽取） | 待建 |
 | Diff 对比面板 | 权限变更日志 + 操作日志详情 | ⏳ 待确认（T-FE-005 / T-FE-012） | 待建 |
 
 ## 页面任务统一 acceptance 范式
@@ -135,3 +135,4 @@ last_updated: 2026-06-29
 ## 当前进度
 
 - 2026-06-29：建立本 plan + 拆分 13 页 T-FE 任务 + 组件池任务。T-PERM-022~034 后端任务归 Phase 2（本 plan 只产 API 核对清单，不持有后端任务）。所有任务 proposed，待按批次推进。
+- 2026-06-29：**T-FE-002（2.2 角色管理）完成** ✅。左右分栏（角色树+详情/表单）+ 分组角色额外基本角色管理 + 拖拽移动 + hasPerms 门控（ROLE:VIEW/CREATE/UPDATE/DELETE/MANAGE）；mock 角色矩阵补 sec 全权/hr+auditor 只读。UI 设计回写 `docs/design/frontend/role-manage.md`（draft→adopted 待评审）。API 核对：tree/list/create/update/move/remove/extra-roles/* ✅；🔧 `/detail` 用 IdReq 内部主键、应切业务键 RoleDetailReq，登记 T-PERM-022。组件识别：角色选择器候选登记 T-FE-001 池（待 T-FE-014 推进确认）。

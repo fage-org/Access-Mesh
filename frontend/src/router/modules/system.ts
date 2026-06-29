@@ -1,4 +1,5 @@
 import { ORG_USER_PERM_LIST } from "@/views/system/user/utils/perms";
+import { ROLE_MANAGE_PERM_LIST } from "@/views/system/role/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -22,6 +23,17 @@ export default {
         title: "组织与用户",
         // 单一事实源派生：见 views/system/user/utils/perms.ts
         auths: [...ORG_USER_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/role",
+      name: "SystemRole",
+      component: () => import("@/views/system/role/index.vue"),
+      meta: {
+        icon: "ep/user-filled",
+        title: "角色管理",
+        // 单一事实源派生：见 views/system/role/utils/perms.ts
+        auths: [...ROLE_MANAGE_PERM_LIST]
       }
     }
   ]

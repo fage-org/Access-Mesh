@@ -1,5 +1,5 @@
 import { http } from "@/utils/http";
-import { type PermResult } from "./_envelope";
+import type { PermResult } from "./_envelope";
 
 /**
  * `/auth/user-menu` 响应数据（v1.4 双轨并行）。

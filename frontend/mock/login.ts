@@ -10,28 +10,36 @@ import {
   ORG_USER_PERM_LIST,
   ORG_USER_VIEW_PERMS
 } from "../src/views/system/user/utils/perms";
+import {
+  ROLE_MANAGE_PERMS as RP,
+  ROLE_MANAGE_PERM_LIST,
+  ROLE_MANAGE_VIEW_PERMS
+} from "../src/views/system/role/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
  * 体现「身份管理 ⊥ 权限委派」职责分离：
  *
- * | 用户名  | 现实对应          | A 组织 | B 用户身份 | C 功能角色 | D 岗位 |
- * |---------|-------------------|--------|------------|------------|--------|
- * | admin   | 超管              | RW     | RW         | RW         | RW     |
- * | hr      | HR/组织人事管理员 | RW     | RW         | RO         | RW     |
- * | sec     | IT/安全管理员     | RO     | RO         | RW         | RO     |
- * | auditor | 审计员            | RO     | RO         | RO         | RO     |
+ * | 用户名  | 现实对应          | A 组织 | B 用户身份 | C 功能角色 | D 岗位 | 2.2 角色管理 |
+ * |---------|-------------------|--------|------------|------------|--------|--------------|
+ * | admin   | 超管              | RW     | RW         | RW         | RW     | RW           |
+ * | hr      | HR/组织人事管理员 | RW     | RW         | RO         | RW     | RO           |
+ * | sec     | IT/安全管理员     | RO     | RO         | RW         | RO     | RW           |
+ * | auditor | 审计员            | RO     | RO         | RO         | RO     | RO           |
  *
  * 「hr 不能发权 / sec 不能动身份」即契约 §6 红线之外的延伸：发权与身份目录由不同岗位掌握。
+ * 角色管理（2.2）职责与 C 功能角色分配同源，故 sec（安全管理员）拥有角色 CRUD + 配权，
+ * hr 仅只读角色（身份目录维护者不动角色定义）。
  *
  * admin 用全清单（而非 `*:*:*` 通配），便于联调时验证 perm 串拼写与矩阵覆盖度；
  * 通配测试可用其他独立账号承载。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
-  admin: ORG_USER_PERM_LIST,
-  /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色） */
+  admin: [...ORG_USER_PERM_LIST, ...ROLE_MANAGE_PERM_LIST],
+  /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 */
   hr: [
     ...ORG_USER_VIEW_PERMS,
+    ...ROLE_MANAGE_VIEW_PERMS,
     P.ORG_ADD,
     P.ORG_EDIT,
     P.ORG_DELETE,
@@ -46,10 +54,19 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_DELETE,
     P.POSITION_ASSIGN
   ],
-  /** IT/安全管理员：仅 C 区写权（功能角色分配/回收），其余只读 */
-  sec: [...ORG_USER_VIEW_PERMS, P.USER_ROLE_ASSIGN, P.USER_ROLE_REVOKE],
+  /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权，其余只读 */
+  sec: [
+    ...ORG_USER_VIEW_PERMS,
+    ...ROLE_MANAGE_VIEW_PERMS,
+    P.USER_ROLE_ASSIGN,
+    P.USER_ROLE_REVOKE,
+    RP.ROLE_ADD,
+    RP.ROLE_EDIT,
+    RP.ROLE_DELETE,
+    RP.ROLE_GRANT
+  ],
   /** 审计员：全只读 */
-  auditor: [...ORG_USER_VIEW_PERMS]
+  auditor: [...ORG_USER_VIEW_PERMS, ...ROLE_MANAGE_VIEW_PERMS]
 };
 
 /** 已知账号 profile（avatar/nickname），其他字段统一拼装 */
