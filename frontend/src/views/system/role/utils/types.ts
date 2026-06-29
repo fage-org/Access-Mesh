@@ -4,6 +4,7 @@ import type {
   RoleStatus,
   RoleTypeCode
 } from "@/api/role-manage";
+import { MANAGEABLE_ROLE_TYPES } from "@/api/role-manage";
 
 /** 角色表单数据（新建/编辑共用） */
 export interface RoleFormData {
@@ -45,9 +46,22 @@ export function isTypeRootNode(
   return !node || node.externalId === null || node.externalId === undefined;
 }
 
-/** 节点是否为只读类型（ORG/POSITION，由组织同步生成） */
+/**
+ * 角色管理页是否展示该类型节点。
+ * 仅 BASIC_ROLE / GROUP_ROLE 进角色管理页（MANAGEABLE_ROLE_TYPES）；
+ * ORG/POSITION/PERSONAL 由外部同步生成，不归角色管理（归权限授予/用户详情）。
+ */
+export function isPageVisibleRoleType(roleTypeCode: string): boolean {
+  return (MANAGEABLE_ROLE_TYPES as string[]).includes(roleTypeCode);
+}
+
+/** 节点是否为只读类型（ORG/POSITION/PERSONAL，由外部同步生成） */
 export function isReadonlyRoleType(roleTypeCode: string): boolean {
-  return roleTypeCode === "ORG" || roleTypeCode === "POSITION";
+  return (
+    roleTypeCode === "ORG" ||
+    roleTypeCode === "POSITION" ||
+    roleTypeCode === "PERSONAL"
+  );
 }
 
 export type { RoleResp, RoleTreeNode, RoleStatus, RoleTypeCode };

@@ -12,12 +12,14 @@ const ok = data => ({ code: 200, message: "success", data });
 /**
  * 角色树 mock（对齐 RoleTreeResp，data.items[0].root 为根节点）。
  *
- * 类型说明（overview §角色模型）：
- * - ORG / POSITION：由组织同步自动生成，本页只读展示
- * - BASIC_ROLE / GROUP_ROLE / PERSONAL：功能角色，本页可 CRUD
+ * 类型说明（overview §角色模型 + schema permission-center.sql:103）：
+ * - ORG / POSITION：由组织同步自动生成
+ * - PERSONAL：由用户同步连带创建（PERSONAL_{external_id}）
+ * - BASIC_ROLE / GROUP_ROLE：功能角色，角色管理页可 CRUD
  *
+ * mock 返回全部 5 种类型（模拟后端全量返回），前端 hook 按本页范围
+ * 过滤为仅 BASIC_ROLE / GROUP_ROLE 展示（ORG/POSITION/PERSONAL 归权限授予/用户详情）。
  * 结构：按 roleTypeCode 分组的虚拟根 → 真实角色节点。
- * 真后端 tree 返回业务域内角色层级；mock 用「类型虚拟根」简化展示。
  */
 const mockRoleTree = {
   id: 0,

@@ -10,7 +10,7 @@ import {
 } from "@/api/role-manage";
 import { ArrowDown } from "@element-plus/icons-vue";
 import type { RoleFormData } from "../utils/types";
-import { isTypeRootNode, isReadonlyRoleType } from "../utils/types";
+import { isTypeRootNode } from "../utils/types";
 
 defineOptions({
   name: "RoleForm"
@@ -28,7 +28,7 @@ const props = defineProps<{
   roleTree?: RoleTreeNode[];
 }>();
 
-/** 表单默认值 */
+/** 表单默认值（新建时父角色默认挂到当前类型虚拟根） */
 const defaultFormData = (): RoleFormData => ({
   roleTypeCode: props.defaultRoleTypeCode ?? ROLE_TYPE_CODE.BASIC_ROLE,
   name: "",
@@ -97,30 +97,40 @@ const dialogTitle = computed(() => {
 const parentDisplay = computed(() => {
   if (selectedParentName.value) return selectedParentName.value;
   if (props.parentNode?.name) return props.parentNode.name;
+  // 新建时默认挂到当前类型虚拟根
+  const typeRoot = currentTypeRoot.value;
+  if (typeRoot) return typeRoot.name;
   return ROLE_TYPE_LABEL[formData.roleTypeCode as RoleTypeCode] || "类型根";
 });
 
-/** 过滤父角色树：仅同类型 + 可管理类型（排除只读类型与异类节点） */
+/** 过滤父角色树：仅同类型节点（含类型虚拟根作为「挂到类型根」选项） */
 function filterParentTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
   const result: RoleTreeNode[] = [];
   for (const node of nodes) {
-    if (isReadonlyRoleType(node.roleTypeCode)) continue;
     const sameType = node.roleTypeCode === formData.roleTypeCode;
+    if (!sameType) continue;
     const filteredChildren = node.children
       ? filterParentTree(node.children)
       : [];
-    // 保留同类型节点（含类型虚拟根）
-    if (sameType) {
-      result.push({ ...node, children: filteredChildren });
-    }
+    result.push({ ...node, children: filteredChildren });
   }
   return result;
 }
 
-/** 父角色树数据（按当前类型过滤） */
+/** 父角色树数据（按当前类型过滤；含类型虚拟根） */
 const parentTreeData = computed(() => {
   if (!props.roleTree?.length) return [];
   return filterParentTree(props.roleTree);
+});
+
+/** 当前类型虚拟根（新建第一个角色时的默认父级） */
+const currentTypeRoot = computed<RoleTreeNode | null>(() => {
+  for (const node of parentTreeData.value) {
+    if (isTypeRootNode(node) && node.roleTypeCode === formData.roleTypeCode) {
+      return node;
+    }
+  }
+  return null;
 });
 
 /** 过滤节点 */
@@ -187,13 +197,17 @@ watch(
   { immediate: true }
 );
 
-// 类型变化时重置父角色（不同类型树不同）
+// 类型变化时重置父角色为新类型虚拟根（不同类型树不同）
 watch(
   () => formData.roleTypeCode,
   () => {
     if (props.mode === "create") {
       selectedParentName.value = "";
-      formData.parentId = null;
+      // nextTick 后 currentTypeRoot 才会随 parentTreeData 更新
+      const typeRoot = parentTreeData.value.find(
+        n => isTypeRootNode(n) && n.roleTypeCode === formData.roleTypeCode
+      );
+      formData.parentId = typeRoot?.id ?? null;
     }
   }
 );

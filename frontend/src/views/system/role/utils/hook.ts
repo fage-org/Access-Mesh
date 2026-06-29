@@ -18,6 +18,7 @@ import {
   createEmptyRoleForm,
   isTypeRootNode,
   isReadonlyRoleType,
+  isPageVisibleRoleType,
   type RoleFormData
 } from "./types";
 
@@ -40,11 +41,56 @@ export function useRoleManage() {
 
   // ========== 树加载 ==========
 
+  /**
+   * 过滤树：仅保留角色管理页可管理的类型（BASIC_ROLE / GROUP_ROLE）。
+   * ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/用户详情）。
+   * 递归裁剪：类型虚拟根按 roleTypeCode 判定，真实节点继承父类型。
+   */
+  function filterVisibleTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
+    const result: RoleTreeNode[] = [];
+    for (const node of nodes) {
+      // 类型虚拟根按 roleTypeCode 判定是否本页可见
+      if (isTypeRootNode(node)) {
+        if (isPageVisibleRoleType(node.roleTypeCode)) {
+          const children = node.children
+            ? filterSameTypeChildren(node.children, node.roleTypeCode)
+            : [];
+          result.push({ ...node, children });
+        }
+        continue;
+      }
+      // 非根节点（理论不会出现在顶层，兜底按类型判定）
+      if (isPageVisibleRoleType(node.roleTypeCode)) {
+        const children = node.children
+          ? filterSameTypeChildren(node.children, node.roleTypeCode)
+          : [];
+        result.push({ ...node, children });
+      }
+    }
+    return result;
+  }
+
+  /** 递归保留同类型子节点（树内同类型层级） */
+  function filterSameTypeChildren(
+    nodes: RoleTreeNode[],
+    typeCode: string
+  ): RoleTreeNode[] {
+    const result: RoleTreeNode[] = [];
+    for (const node of nodes) {
+      if (node.roleTypeCode !== typeCode) continue;
+      const children = node.children
+        ? filterSameTypeChildren(node.children, typeCode)
+        : [];
+      result.push({ ...node, children });
+    }
+    return result;
+  }
+
   async function loadTree() {
     loading.value = true;
     try {
       const roots = await getRoleTree({ domainCode: null });
-      roleTree.value = roots;
+      roleTree.value = filterVisibleTree(roots);
     } catch (error: any) {
       message(error.message || "加载角色树失败", { type: "error" });
     } finally {

@@ -10,6 +10,7 @@ import { ROLE_MANAGE_PERMS } from "./utils/perms";
 import {
   ROLE_TYPE_LABEL,
   ROLE_TYPE_CODE,
+  MANAGEABLE_ROLE_TYPES,
   type RoleTreeNode,
   type RoleTypeCode,
   type RoleSummaryResp
@@ -105,20 +106,12 @@ function openRoleForm(mode: "create" | "edit", node?: RoleTreeNode | null) {
 
 // ========== 新增按钮：按类型下拉 ==========
 
-const addTypeMenu = computed(() => [
-  {
-    label: ROLE_TYPE_LABEL[ROLE_TYPE_CODE.BASIC_ROLE],
-    type: ROLE_TYPE_CODE.BASIC_ROLE
-  },
-  {
-    label: ROLE_TYPE_LABEL[ROLE_TYPE_CODE.GROUP_ROLE],
-    type: ROLE_TYPE_CODE.GROUP_ROLE
-  },
-  {
-    label: ROLE_TYPE_LABEL[ROLE_TYPE_CODE.PERSONAL],
-    type: ROLE_TYPE_CODE.PERSONAL
-  }
-]);
+const addTypeMenu = computed(() =>
+  MANAGEABLE_ROLE_TYPES.map(type => ({
+    label: ROLE_TYPE_LABEL[type],
+    type
+  }))
+);
 
 function onAddByType(type: RoleTypeCode) {
   // 找到对应类型虚拟根作为 parentNode

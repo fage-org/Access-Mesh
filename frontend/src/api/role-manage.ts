@@ -15,8 +15,10 @@ import { type PermResult, unwrap } from "./_envelope";
 
 /**
  * 5 种抽象角色类型编码（对齐 permission-center overview §角色模型）。
- * - ORG / POSITION：由组织同步自动生成，本页只读展示
- * - BASIC_ROLE / GROUP_ROLE / PERSONAL：功能角色，本页可 CRUD
+ * - ORG / POSITION / PERSONAL：外部同步自动生成（ORG/POSITION 由组织同步、
+ *   PERSONAL 由用户同步连带创建 PERSONAL_{external_id}），不在角色管理页展示，
+ *   其权限分配归「权限授予」(T-FE-014) 与「用户详情」(2.1)。
+ * - BASIC_ROLE / GROUP_ROLE：功能角色，本页可 CRUD。
  */
 export const ROLE_TYPE_CODE = {
   ORG: "ORG",
@@ -37,11 +39,14 @@ export const ROLE_TYPE_LABEL: Record<string, string> = {
   PERSONAL: "个人角色"
 };
 
-/** 本页可手工 CRUD 的功能角色类型（ORG/POSITION 只读） */
+/**
+ * 角色管理页可手工 CRUD 的功能角色类型。
+ * 仅 BASIC_ROLE / GROUP_ROLE——其余三类（ORG/POSITION/PERSONAL）由外部同步生成，
+ * 不在本页管理（schema permission-center.sql:103，abstract_user 创建时自动生成 PERSONAL）。
+ */
 export const MANAGEABLE_ROLE_TYPES: RoleTypeCode[] = [
   ROLE_TYPE_CODE.BASIC_ROLE,
-  ROLE_TYPE_CODE.GROUP_ROLE,
-  ROLE_TYPE_CODE.PERSONAL
+  ROLE_TYPE_CODE.GROUP_ROLE
 ];
 
 // ========== 类型定义 ==========
