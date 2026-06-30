@@ -46,7 +46,7 @@
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（domain_config 旧配置、PermQuery 工厂、RocketMQ 脚注、auto-grant TODO；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ⚙️ | ⏳ |
 | [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
 | T-PERM-022 | 2.2 角色管理后端（abstract-role/* CRUD/树/移动；🔧detail 切业务键二元组 roleTypeCode+externalId，废弃旧 RoleDetailReq[带 domainCode 遗留]；🔧move 加父子类型兼容校验 roleTypeCode 一致；🔧tree 返回 delete_flag=0 全部有效角色[status 只作展示，新增 selectValidRoleTree 替换 selectEnabledRoleTree]，禁用角色不再从树消失；功能角色聚合可选 admin-service） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ⚙️ | ⏳ |
-| T-PERM-023 | 6.1 类型定义后端（type-definition/*） | frontend-phase2 | api-contract §5.1；implementation §2.6 | T-FE-003 | ⚙️ | ⏳ |
+| T-PERM-023 | 6.1 类型定义后端（type-definition/*；🔧typeValue 自动分配[T-PERM-019 D1 漂移收敛：TypeCreateReq 移除 @NotNull typeValue，服务端 tenant+typeKey 内 max+1 分配、软删不复用]；🔧list 加 typeKey 过滤参数[TypeListReq 现 仅 domainCode 未生效]，前端已 typeKey 下拉本地过滤；🔧create 补 typeCode 入参或服务端生成[TypeCreateReq 现无 typeCode 字段，createType 未 setTypeCode 潜在 bug]；🔧resource_type 创建联动预置 operation_permission[结合 T-PERM-028 确认范围]） | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ⚙️ | ⏳ |
 | T-PERM-024 | 6.2 系统配置后端（system-config/*） | frontend-phase2 | api-contract §5.8 | T-FE-004 | ⚙️ | ⏳ |
 | T-PERM-025 | 7.1 操作日志后端（operation-log/list） | frontend-phase2 | api-contract §5.8/§6.10.6；implementation §2.3 | T-FE-005 | ⚙️ | ⏳ |
 | T-PERM-026 | 5.1 业务域后端（biz-domain/* + domain-config/*） | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7 | T-FE-006 | ⚙️ | ⏳ |
@@ -95,7 +95,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 |---|---|---|---|---|---|---|
 | [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../plans/frontend-phase1-plan.md) | design/frontend/README.md | — | ⚙️ | ⏳ |
 | T-FE-002 | 2.2 角色管理页（5 种角色类型 CRUD，本页仅消费功能角色） | frontend-phase1 | api-contract §5.2/§6.10.3；design/frontend/role-manage.md | T-FE-001 | ✅ | ✓ |
-| T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ⚙️ | ⏳ |
+| T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ✅ | ✓ |
 | T-FE-004 | 6.2 系统配置页（租户级配置分组表单） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ⚙️ | ⏳ |
 | T-FE-005 | 7.1 操作日志页（筛选 + 详情面板） | frontend-phase1 | api-contract §5.8；design/frontend/operation-log.md | — | ⚙️ | ⏳ |
 | T-FE-006 | 5.1 业务域页（域 CRUD + CLASSIFY 类型归属） | frontend-phase1 | api-contract §5.1/§5.6；design/frontend/biz-domain.md | — | ⚙️ | ⏳ |

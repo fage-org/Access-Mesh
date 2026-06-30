@@ -1,5 +1,6 @@
 import { ORG_USER_PERM_LIST } from "@/views/system/user/utils/perms";
 import { ROLE_MANAGE_PERM_LIST } from "@/views/system/role/utils/perms";
+import { TYPE_DEF_PERM_LIST } from "@/views/system/type-def/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -34,6 +35,17 @@ export default {
         title: "角色管理",
         // 单一事实源派生：见 views/system/role/utils/perms.ts
         auths: [...ROLE_MANAGE_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/type-def",
+      name: "SystemTypeDef",
+      component: () => import("@/views/system/type-def/index.vue"),
+      meta: {
+        icon: "ep/files",
+        title: "类型定义",
+        // 单一事实源派生：见 views/system/type-def/utils/perms.ts
+        auths: [...TYPE_DEF_PERM_LIST]
       }
     }
   ]
