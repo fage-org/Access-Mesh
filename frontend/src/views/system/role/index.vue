@@ -51,6 +51,9 @@ const canAdd = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ADD));
 const canEdit = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_EDIT));
 const canDelete = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_DELETE));
 const canGrant = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_GRANT));
+/** 分组角色额外角色：添加对齐后端 ASSIGN，移除对齐 REVOKE（评审 P1-额外角色） */
+const canAssign = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ASSIGN));
+const canRevoke = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_REVOKE));
 
 // 监听过滤文本
 function onFilterInput(val: string) {
@@ -154,6 +157,10 @@ const candidateBasicRoles = computed(() => {
   const addedIds = new Set(extraRoles.value.map(r => r.id));
   return availableBasicRoles.value.filter(r => !addedIds.has(r.id));
 });
+
+/** 额外角色功能是否可用：分组角色须有非空 externalId（后端 DTO @NotBlank，评审 P2-externalId）。
+ *  表单已强制可管理类型 externalId 必填，此为脏数据/历史数据兜底提示。 */
+const extraRolesAvailable = computed(() => !!selectedRole.value?.externalId);
 
 const showAddExtraPopover = ref(false);
 
@@ -374,12 +381,14 @@ function statusTagType(status: number) {
             >
               <template #reference>
                 <el-button
-                  v-if="canEdit"
+                  v-if="canAssign"
                   type="primary"
                   size="small"
                   plain
                   :icon="Plus"
-                  :disabled="candidateBasicRoles.length === 0"
+                  :disabled="
+                    candidateBasicRoles.length === 0 || !extraRolesAvailable
+                  "
                 >
                   添加
                 </el-button>
@@ -400,6 +409,9 @@ function statusTagType(status: number) {
               </div>
             </el-popover>
           </div>
+          <div v-if="!extraRolesAvailable" class="extra-unavailable-tip">
+            该分组角色缺少外部标识，额外角色功能不可用（后端依赖业务键定位）
+          </div>
           <el-table
             v-loading="extraRolesLoading"
             :data="extraRoles"
@@ -415,7 +427,7 @@ function statusTagType(status: number) {
             <el-table-column label="操作" width="80" fixed="right">
               <template #default="{ row }">
                 <el-button
-                  v-if="canEdit"
+                  v-if="canRevoke"
                   link
                   type="danger"
                   size="small"
@@ -579,6 +591,15 @@ function statusTagType(status: number) {
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.extra-unavailable-tip {
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  color: var(--el-color-warning);
+  background: var(--el-fill-color-light);
+  border-radius: var(--radius-sm);
 }
 
 .extra-candidate-list {

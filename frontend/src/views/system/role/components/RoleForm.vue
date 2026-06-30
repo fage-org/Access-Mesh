@@ -67,8 +67,10 @@ const statusOptions = [
   { label: "禁用", value: 0 }
 ];
 
-/** 表单校验规则 */
-const rules: FormRules = {
+/** 表单校验规则。
+ *  externalId 对可管理类型（BASIC_ROLE/GROUP_ROLE）必填——额外角色功能强依赖非空业务键
+ *  （后端 GroupRoleExtraRoleReq/ListReq 的 group/basic externalId 均 @NotBlank，评审 P2-externalId）。 */
+const rules = computed<FormRules>(() => ({
   roleTypeCode: [
     { required: true, message: "请选择角色类型", trigger: "change" }
   ],
@@ -82,11 +84,21 @@ const rules: FormRules = {
       message: "仅支持字母、数字、下划线、中划线",
       trigger: "blur"
     },
-    { max: 128, message: "最长 128 字符", trigger: "blur" }
+    { max: 128, message: "最长 128 字符", trigger: "blur" },
+    // 可管理类型必填（额外角色业务键依赖）；只读类型由同步生成不在本页创建，跳过
+    ...(MANAGEABLE_ROLE_TYPES.includes(formData.roleTypeCode as RoleTypeCode)
+      ? [
+          {
+            required: true,
+            message: "本类型角色需填写外部标识（额外角色功能依赖）",
+            trigger: "blur"
+          }
+        ]
+      : [])
   ],
   sortOrder: [{ required: true, message: "请输入排序号", trigger: "blur" }],
   status: [{ required: true, message: "请选择状态", trigger: "change" }]
-};
+}));
 
 const formRef = ref<FormInstance>();
 
@@ -280,7 +292,7 @@ defineExpose({
     <el-form-item label="外部标识" prop="externalId">
       <el-input
         v-model="formData.externalId"
-        placeholder="可空，用于与外部系统关联"
+        placeholder="必填，用于与外部系统关联（额外角色功能依赖）"
         clearable
         maxlength="128"
       />

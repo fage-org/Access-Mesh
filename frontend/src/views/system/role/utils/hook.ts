@@ -276,6 +276,9 @@ export function useRoleManage() {
     try {
       await moveRole({ roleId: dragging.id, parentId });
       message("移动成功", { type: "success" });
+      // 重新拉树同步 parentId（el-tree 仅移动 DOM，不更新 data.parentId，
+      // 不重拉会导致后续编辑父角色展示/连续拖拽按旧 parentId 判断）
+      await loadTree();
     } catch (error: any) {
       message(error.message || "移动失败", { type: "error" });
       await loadTree();

@@ -72,7 +72,7 @@ last_reviewed: 2026-06-30
 |---|---|---|
 | roleTypeCode | 必填 | 新建可选 BASIC_ROLE/GROUP_ROLE；编辑只读 |
 | name | 必填，2-64 字符 | 角色名称 |
-| externalId | 可空，字母数字下划线中划线，≤128 | 外部标识 |
+| externalId | 必填（可管理类型） | 外部标识；BASIC_ROLE/GROUP_ROLE 在本页强制必填（额外角色功能依赖业务键，评审 P2） |
 | parentId | 可空 | 父角色（空=顶层森林根） |
 | status | 必填 | 启用/禁用 |
 | sortOrder | 必填，0-9999 | 排序号 |
@@ -88,7 +88,7 @@ last_reviewed: 2026-06-30
 - **拖拽移动**：`draggable` + `:allow-drop` + `node-drop`。
   - `allowDrop` 拦截：只读类型不可拖动；**跨类型禁止**（目标节点 roleTypeCode 须与拖拽节点一致——inner 是父须同类型，before/after 是兄弟须同类型）；inner 到只读类型目标禁止。
   - `handleNodeDrop` 兜底：跨类型 `message` 提示 + `await loadTree()` 回滚（不调 moveRole）；只读类型同理回滚。
-  - 合法则 `moveRole({roleId, parentId})`。
+  - 合法则 `moveRole({roleId, parentId})`，**成功后 `await loadTree()` 同步 parentId**（el-tree 仅移动 DOM 不更新 data.parentId，不重拉会导致后续编辑父角色展示/连续拖拽按旧 parentId 判断，评审 P2-拖拽）。
 - **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE / GROUP_ROLE）打开表单，默认顶层（parentId=null）。
 - **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。
 
@@ -106,9 +106,10 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 仅 GROUP_ROLE 节点选中时显示：
 
 - `listExtraRoles` 加载已关联基本角色列表。
-- 「添加」弹出候选（未关联的 BASIC_ROLE）→ `addExtraRole`。
-- 「移除」→ `removeExtraRole`。
-- 业务键定位：`groupRoleTypeCode + groupRoleExternalId` + `basicRoleTypeCode + basicRoleExternalId`。
+- 「添加」弹出候选（未关联的 BASIC_ROLE）→ `addExtraRole`（门禁 `ROLE:ASSIGN`，对齐后端 addExtraRole:104）。
+- 「移除」→ `removeExtraRole`（门禁 `ROLE:REVOKE`，对齐后端 removeExtraRole:166）。
+- 业务键定位：`groupRoleTypeCode + groupRoleExternalId` + `basicRoleTypeCode + basicRoleExternalId`（后端 DTO 均 `@NotBlank`）。
+- **externalId 依赖（评审 P2）**：额外角色功能强依赖非空业务键。本页表单已强制 BASIC_ROLE/GROUP_ROLE 的 externalId 必填；若选中 GROUP_ROLE 缺 externalId（脏数据兜底），额外角色区显示「不可用」提示并禁用添加按钮。
 
 ### 4.3 配权
 
@@ -160,22 +161,28 @@ views/system/role/
 | `ROLE:VIEW` | VIEW | ROLE | 路由可达 + 树可见 |
 | `ROLE:CREATE` | CREATE | ROLE | 新增角色下拉 |
 | `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 / 配权（跳 4.1） |
+| `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色 |
+| `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色 |
 
 > **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole(:150)/moveRole(:176)/deleteRoles(:196) 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
+>
+> **额外角色独立门禁（评审 P1-额外角色）**：后端 `GroupRoleAppServiceImpl` 的 addExtraRole(:104)/removeExtraRole(:166) 分别校验 `ASSIGN`/`REVOKE`（授予/回收分离，比 MANAGE 更敏感，与组织页 USER_ROLE_ASSIGN/REVOKE 同口径）。前端添加按钮用 `canAssign`、移除按钮用 `canRevoke` 分别门控，原两按钮都用 `canEdit`(MANAGE) 会导致 403 或看不到按钮。
 
 ### 降级策略
 
 - 无 `ROLE:VIEW` → 路由不可达（`meta.auths` 派生自 `ROLE_MANAGE_PERM_LIST`）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
-- 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除/配权/额外角色增删按钮。
+- 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除/配权按钮。
+- 无 `ROLE:ASSIGN` → 隐藏「添加」额外角色按钮。
+- 无 `ROLE:REVOKE` → 隐藏「移除」额外角色按钮。
 - ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除/配权按钮（业务约束，非权限）。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
 | 账号 | 角色管理权限 |
 |---|---|
-| admin | 全权（ROLE:VIEW/CREATE/MANAGE） |
-| sec（安全管理员） | 全权（与 C 功能角色分配同源；B1 后 `ROLE_ADD + ROLE_GRANT(MANAGE)` 去重） |
+| admin | 全权（ROLE:VIEW/CREATE/MANAGE/ASSIGN/REVOKE） |
+| sec（安全管理员） | 全权（与 C 功能角色分配同源；含 ROLE_ADD/GRANT(MANAGE)/ASSIGN/REVOKE） |
 | hr（组织人事管理员） | 只读（ROLE:VIEW） |
 | auditor（审计员） | 只读（ROLE:VIEW） |
 
@@ -198,6 +205,13 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
    - 现状：`RoleManageAppServiceImpl.moveRole`（:176）仅校验父存在 + 调用方 `ROLE:MANAGE`，**不校验**父子角色类型是否一致（同类型内嵌套合法，跨类型嵌套如 BASIC_ROLE 挂到 GROUP_ROLE 下应拒绝）。
    - 期望：move 时校验 `target.parentId` 对应父角色的 `roleTypeCode === node.roleTypeCode`，不一致则 `BizException` 拒绝。
    - 前端兜底：本页已用 `allowDrop` + `handleNodeDrop` 回滚拦截跨类型拖拽（P1-拖拽修复）；后端兜底校验为 Phase 2 缺口。
+   - 归属：T-PERM-022 🔧。
+
+3. **`/tree` 只返回启用角色，禁用后从树消失无法再启用**
+   - 现状：`getRoleTree`（:321）走 `selectEnabledRoleTree`，SQL `AND status = 1`（mapper xml:126），禁用角色不在树中。
+   - 期望：树接口返回 `delete_flag=0` 全部有效角色，`status` 只作展示字段（禁用角色仍可见、可重新启用）——新增 `selectValidRoleTree`（只过滤 `delete_flag=0`），`getRoleTree` 改用它。
+   - 前端可行性：✅ 本页已有启停按钮（`handleToggleStatus`），mock 树含禁用节点（id=103 访客 status=0），前端按 status 渲染禁用标签、支持从树中重新启用。后端切换后前端无需改动。
+   - 影响：Phase 1 mock 含禁用节点体验正常；Phase 3 联调（T-FE-016）真后端下禁用角色会消失，需后端先切换。
    - 归属：T-PERM-022 🔧。
 
 ### ✅ 满足

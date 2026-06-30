@@ -11,12 +11,19 @@
  * - `ROLE:VIEW` —— 查看（路由可达 + 树可见）。
  * - `ROLE:CREATE` —— 创建。
  * - `ROLE:MANAGE` —— **编辑 / 启停 / 删除 / 移动 / 配权** 统一口径。
+ * - `ROLE:ASSIGN` —— 分组角色**添加**额外基本角色（对齐后端 addGroupRoleExtraRole:104）。
+ * - `ROLE:REVOKE` —— 分组角色**移除**额外基本角色（对齐后端 removeGroupRoleExtraRole:166）。
  *
  * 后端 `RoleManageAppServiceImpl` 的 updateRole(:150)/moveRole(:176)/deleteRoles(:196)
  * 均以 `ROLE:MANAGE` 做门禁，无独立的 UPDATE/DELETE/MOVE 操作码。前端原用 `ROLE:UPDATE`/
  * `ROLE:DELETE` 与后端不一致（评审 P2），现统一为 `ROLE:MANAGE`（B1）。
  * 配权亦用 `ROLE:MANAGE`，与「组织与用户」页功能角色分配（USER_ROLE_ASSIGN）同锚点同操作码，
  * 形成门禁一致性（org-user-permission-contract.md §5 备注³）。
+ *
+ * **额外角色 add/remove 独立门禁（评审 P1-额外角色）**：后端 `GroupRoleAppServiceImpl` 的
+ * add/removeExtraRole 分别校验 `ASSIGN`/`REVOKE`（授予/回收分离，比 MANAGE 更敏感，与组织页
+ * USER_ROLE_ASSIGN/REVOKE 同口径）。前端原两按钮都用 `canEdit`(MANAGE) 会 403 或看不到按钮，
+ * 现补 `ROLE:ASSIGN`/`ROLE:REVOKE` 分别门控。
  *
  * ## 范围限定
  * 本页仅消费功能角色（BASIC_ROLE / GROUP_ROLE）；
@@ -34,7 +41,11 @@ export const ROLE_MANAGE_PERMS = {
   /** 删除角色 —— 对齐后端 ROLE:MANAGE（B1） */
   ROLE_DELETE: "ROLE:MANAGE",
   /** 配权/授予（跳转 4.1 权限授予页）—— ROLE:MANAGE */
-  ROLE_GRANT: "ROLE:MANAGE"
+  ROLE_GRANT: "ROLE:MANAGE",
+  /** 分组角色添加额外基本角色 —— 对齐后端 ROLE:ASSIGN */
+  ROLE_ASSIGN: "ROLE:ASSIGN",
+  /** 分组角色移除额外基本角色 —— 对齐后端 ROLE:REVOKE */
+  ROLE_REVOKE: "ROLE:REVOKE"
 } as const;
 
 export type RoleManagePermKey = keyof typeof ROLE_MANAGE_PERMS;
