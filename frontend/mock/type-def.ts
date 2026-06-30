@@ -4,7 +4,35 @@
 // 契约依据：docs/design/permission-center/api-contract.md §5.1
 // 表结构：docs/design/schema/permission-center.sql:15-50
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
-import { TYPE_KEY, type TypeDefResp, type TypeKey } from "../src/api/type-def";
+
+/**
+ * 本地声明 type_key 常量与类型（不 import src/api/type-def，避免 fake-server 经
+ * bundle-import 打包 src/api 链——该链 import 了 @/utils/http 等浏览器侧依赖，
+ * 在 node platform 下打包会失败，导致整个 mock 文件加载被静默吞掉 → 路由不注册 → 404）。
+ * 与 role-manage.ts mock 零 src 依赖范式一致；字段定义同步注释于下方，保持与 api 层对齐。
+ */
+const TYPE_KEY = {
+  USER_TYPE: "user_type",
+  ROLE_TYPE: "role_type",
+  RESOURCE_TYPE: "resource_type",
+  GROUP_TYPE: "group_type"
+} as const;
+type TypeKey = (typeof TYPE_KEY)[keyof typeof TYPE_KEY];
+
+/** 类型定义响应（对齐 src/api/type-def.ts 的 TypeDefResp / 后端 TypeDefinitionResp） */
+type TypeDefResp = {
+  id: number;
+  tenantId?: number;
+  typeKey: string;
+  typeCode: string;
+  typeValue: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  sortOrder: number;
+  extra: string | null;
+  createdAt?: string;
+};
 
 /** 统一成功信封（对齐 common.model.PermResult.success） */
 const ok = data => ({ code: 200, message: "success", data });
