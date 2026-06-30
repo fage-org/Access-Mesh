@@ -19,7 +19,9 @@ const TYPE_KEY = {
 } as const;
 type TypeKey = (typeof TYPE_KEY)[keyof typeof TYPE_KEY];
 
-/** 类型定义响应（对齐 src/api/type-def.ts 的 TypeDefResp / 后端 TypeDefinitionResp） */
+/** 类型定义响应（对齐 src/api/type-def.ts 的 TypeDefResp / 后端 TypeDefinitionResp）。
+ *  deleted 为 mock 内部软删标记（对齐 schema delete_flag），不出现在真实响应中——
+ *  clone 后列表/detail 路由已过滤 deleted 行。 */
 type TypeDefResp = {
   id: number;
   tenantId?: number;
@@ -32,6 +34,7 @@ type TypeDefResp = {
   sortOrder: number;
   extra: string | null;
   createdAt?: string;
+  deleted?: boolean;
 };
 
 /** 统一成功信封（对齐 common.model.PermResult.success） */
@@ -247,7 +250,8 @@ let _nextId = mockTypeDefs.reduce((max, t) => Math.max(max, t.id), 0) + 1;
 
 /**
  * 自动分配 typeValue（mock 层模拟 T-PERM-019 D1：服务端在 tenant+typeKey 内 max+1 分配）。
- * 不随软删行复用——已删除行不参与计算（mock 用 delete_flag 标记，过滤后取 max）。
+ * 软删不复用——已软删行的 typeValue 仍占位，新分配取全部行（含 deleted）的 max+1，
+ * 保证不会复用已删除的最高 typeValue。
  */
 function nextTypeValue(typeKey: string): number {
   const used = mockTypeDefs
@@ -256,13 +260,18 @@ function nextTypeValue(typeKey: string): number {
   return used.length === 0 ? 1 : Math.max(...used) + 1;
 }
 
-/** typeCode 自动生成（mock 层兜底，对齐 D3：typeCode 应为对外稳定编码） */
+/** typeCode 自动生成（mock 层兜底，对齐 D3：typeCode 应为对外稳定编码）。
+ *  唯一性按 schema uk_type_definition_code WHERE delete_flag=0：已软删行的 code 可复用。 */
 function genTypeCode(typeKey: string, name: string): string {
   // 按名称生成大写下划线编码，同名追加数字后缀避免冲突
   const base = `${typeKey}_${name.toUpperCase().replace(/[\s-]+/g, "_")}`;
   let code = base;
   let suffix = 1;
-  while (mockTypeDefs.some(t => t.typeKey === typeKey && t.typeCode === code)) {
+  while (
+    mockTypeDefs.some(
+      t => !t.deleted && t.typeKey === typeKey && t.typeCode === code
+    )
+  ) {
     code = `${base}_${suffix++}`;
   }
   return code;
@@ -274,33 +283,14 @@ function clone(t: TypeDefResp): TypeDefResp {
 }
 
 export default defineFakeRoute([
-  // 列表：按 typeKey/keyword 过滤 + 分页
+  // 列表：对齐后端 ItemsResp（全量，无分页/无 typeKey/keyword 过滤，登记 T-PERM-023 🔧）。
+  // 过滤/分页由前端 hook 本地完成；此处仅排除已软删行。
   {
     url: "/api/perm/type-definition/list",
     method: "post",
-    response: ({ body }) => {
-      const { typeKey, keyword, pageNum = 1, pageSize = 15 } = body || {};
-      let list = mockTypeDefs.slice();
-      if (typeKey) list = list.filter(t => t.typeKey === typeKey);
-      if (keyword) {
-        const kw = String(keyword).toLowerCase();
-        list = list.filter(
-          t =>
-            t.name.toLowerCase().includes(kw) ||
-            t.typeCode.toLowerCase().includes(kw)
-        );
-      }
-      list.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-      const total = list.length;
-      const start = (pageNum - 1) * pageSize;
-      const items = list.slice(start, start + pageSize).map(clone);
-      return ok({
-        items,
-        total,
-        pageNum,
-        pageSize,
-        hasNext: start + items.length < total
-      });
+    response: () => {
+      const items = mockTypeDefs.filter(t => !t.deleted).map(clone);
+      return ok({ items });
     }
   },
   // 详情
@@ -309,31 +299,26 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const { id } = body || {};
-      const found = mockTypeDefs.find(t => t.id === id);
+      const found = mockTypeDefs.find(t => t.id === id && !t.deleted);
       if (!found) return err(404, "类型定义不存在");
       return ok(clone(found));
     }
   },
-  // 创建：自动分配 typeValue/typeCode，校验 typeKey+typeCode 唯一
+  // 创建：自动分配 typeValue/typeCode，校验 typeKey+typeCode 唯一（排除已软删行）。
+  // isSystem 固定 false（schema 语义：系统预置走初始化种子，不由前端创建）。
   {
     url: "/api/perm/type-definition/create",
     method: "post",
     response: ({ body }) => {
-      const {
-        typeKey,
-        typeCode,
-        name,
-        description,
-        isSystem,
-        sortOrder,
-        extra
-      } = body || {};
+      const { typeKey, typeCode, name, description, sortOrder, extra } =
+        body || {};
       if (!typeKey) return err(400, "typeKey 不能为空");
       if (!name) return err(400, "name 不能为空");
       const resolvedCode = typeCode || genTypeCode(typeKey, name);
       if (
         mockTypeDefs.some(
-          t => t.typeKey === typeKey && t.typeCode === resolvedCode
+          t =>
+            !t.deleted && t.typeKey === typeKey && t.typeCode === resolvedCode
         )
       ) {
         return err(409, `类型编码「${resolvedCode}」在 ${typeKey} 下已存在`);
@@ -346,7 +331,7 @@ export default defineFakeRoute([
         typeValue: nextTypeValue(typeKey),
         name,
         description: description ?? null,
-        isSystem: isSystem ?? false,
+        isSystem: false,
         sortOrder: sortOrder ?? 0,
         extra: extra ?? null,
         createdAt: "2026-06-30 00:00:00"
@@ -361,7 +346,7 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const { typeId, name, description, sortOrder, extra } = body || {};
-      const found = mockTypeDefs.find(t => t.id === typeId);
+      const found = mockTypeDefs.find(t => t.id === typeId && !t.deleted);
       if (!found) return err(404, "类型定义不存在");
       if (found.isSystem && name && name !== found.name) {
         return err(403, "系统预置类型不可改名");
@@ -373,7 +358,8 @@ export default defineFakeRoute([
       return ok(clone(found));
     }
   },
-  // 删除：批量软删，isSystem=true 跳过
+  // 删除：批量软删（置 deleted=true，对齐 schema delete_flag），isSystem=true 跳过。
+  // 软删不复用 typeValue——已删行保留在 mockTypeDefs，nextTypeValue 仍计入其 typeValue。
   {
     url: "/api/perm/type-definition/remove",
     method: "post",
@@ -381,13 +367,13 @@ export default defineFakeRoute([
       const { ids = [] } = body || {};
       const skipped: number[] = [];
       for (const id of ids as number[]) {
-        const idx = mockTypeDefs.findIndex(t => t.id === id);
-        if (idx < 0) continue;
-        if (mockTypeDefs[idx].isSystem) {
+        const found = mockTypeDefs.find(t => t.id === id);
+        if (!found || found.deleted) continue;
+        if (found.isSystem) {
           skipped.push(id);
           continue;
         }
-        mockTypeDefs.splice(idx, 1);
+        found.deleted = true;
       }
       if (skipped.length > 0) {
         return err(403, `系统预置类型不可删除（跳过 ${skipped.length} 项）`);

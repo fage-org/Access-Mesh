@@ -28,14 +28,25 @@ export function useTypeDef() {
   async function loadTable() {
     loading.value = true;
     try {
-      const res = await getTypeDefList({
-        pageNum: pagination.page,
-        pageSize: pagination.size,
-        typeKey: searchForm.typeKey ?? undefined,
-        keyword: searchForm.keyword || undefined
-      });
-      tableData.value = res.items;
-      pagination.total = res.total;
+      // 后端 /list 返回 ItemsResp（全量，无分页/无 typeKey 过滤，登记 T-PERM-023 🔧）。
+      // 前端本地做 typeKey/keyword 过滤 + sortOrder 排序 + 切片分页。字典表量小，每次翻页重拉全量可接受。
+      const res = await getTypeDefList({});
+      let all = res.items.slice();
+      if (searchForm.typeKey) {
+        all = all.filter(t => t.typeKey === searchForm.typeKey);
+      }
+      if (searchForm.keyword) {
+        const kw = searchForm.keyword.toLowerCase();
+        all = all.filter(
+          t =>
+            t.name.toLowerCase().includes(kw) ||
+            t.typeCode.toLowerCase().includes(kw)
+        );
+      }
+      all.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+      pagination.total = all.length;
+      const start = (pagination.page - 1) * pagination.size;
+      tableData.value = all.slice(start, start + pagination.size);
     } catch (e: any) {
       message(e.message || "加载类型定义失败", { type: "error" });
     } finally {
@@ -79,7 +90,6 @@ export function useTypeDef() {
           typeCode: form.typeCode || undefined,
           name: form.name,
           description: form.description || null,
-          isSystem: form.isSystem,
           sortOrder: form.sortOrder,
           extra: form.extra || null
         });

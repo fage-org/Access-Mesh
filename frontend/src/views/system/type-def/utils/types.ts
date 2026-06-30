@@ -11,7 +11,7 @@ export interface TypeDefFormData {
   name: string;
   /** 描述（可空） */
   description: string;
-  /** 系统预置（新建默认 false=租户自定义，编辑只读） */
+  /** 系统预置标记（仅编辑态只读展示；新建不暴露，前端创建固定 false=租户自定义，系统预置走初始化种子） */
   isSystem: boolean;
   /** 排序顺序 */
   sortOrder: number;

@@ -73,14 +73,11 @@ export type TypeDefResp = {
 };
 
 /** 类型定义列表查询参数。
- *  🔧 API 核对项（登记 T-PERM-023）：后端 TypeListReq 仅 domainCode（未用），缺 typeKey 过滤参数。
- *  前端签名预留 typeKey，Phase 1 mock 按其本地过滤；Phase 2 后端补参数后联调。 */
+ *  🔧 API 核对项（登记 T-PERM-023）：后端 TypeListReq 仅 domainCode（未用），返回租户全量
+ *  ItemsResp（无分页、无 typeKey/keyword 过滤）。前端按 typeKey/keyword 本地过滤 + 切片分页。
+ *  Phase 2 后端补 typeKey/keyword/pageNum/pageSize 参数并返回 PaginatedResp 后，前端可切回服务端分页。 */
 export type TypeDefListQuery = {
-  typeKey?: string | null;
-  keyword?: string | null;
-  pageNum?: number;
-  pageSize?: number;
-  sort?: string | null;
+  domainCode?: string | null;
 };
 
 /** 类型定义创建请求。
@@ -88,13 +85,14 @@ export type TypeDefListQuery = {
  *  - 不含 typeValue（设计意图：服务端在 tenant+typeKey 内自动分配、软删不复用）。
  *    后端 TypeCreateReq.typeValue 当前 @NotNull（DESIGN_DRIFT），Phase 2 收敛。
  *  - 含 typeCode（对外稳定编码）。后端 TypeCreateReq 当前无 typeCode 字段（createType 未 setTypeCode，
- *    潜在 bug），Phase 2 后端补字段或服务端生成。 */
+ *    潜在 bug），Phase 2 后端补字段或服务端生成。
+ *  - 不含 isSystem（schema 语义：系统预置走初始化种子，不由前端创建；后端 TypeCreateReq 现有
+ *    isSystem 字段为 DESIGN_DRIFT，Phase 2 收敛——前端固定创建租户自定义项 isSystem=false）。 */
 export type TypeDefCreateReq = {
   typeKey: string;
   typeCode?: string | null;
   name: string;
   description?: string | null;
-  isSystem?: boolean;
   sortOrder?: number;
   extra?: string | null;
 };
@@ -111,12 +109,14 @@ export type TypeDefUpdateReq = {
 
 // ========== API 函数 ==========
 
-/** 分页查询类型定义列表（POST /api/perm/type-definition/list）。
- *  后端 TypeListReq 现仅 domainCode（未生效），返回租户全量；前端按 typeKey 本地过滤。 */
+/** 查询类型定义列表（POST /api/perm/type-definition/list）。
+ *  后端 TypeListReq 现仅 domainCode（未生效），返回 ItemsResp<TypeDefinitionResp>（租户全量，
+ *  无分页/无 typeKey 过滤）。前端 hook 拿全量 items 后本地做 typeKey/keyword 过滤 + 切片分页。
+ *  🔧 后端补 typeKey/keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 登记于 T-PERM-023。 */
 export const getTypeDefList = async (
   params: TypeDefListQuery
-): Promise<PaginatedResp<TypeDefResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<TypeDefResp>>>(
+): Promise<ItemsResp<TypeDefResp>> => {
+  const res = await http.request<PermResult<ItemsResp<TypeDefResp>>>(
     "post",
     "/api/perm/type-definition/list",
     { data: params }

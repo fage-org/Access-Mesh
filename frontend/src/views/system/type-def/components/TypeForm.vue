@@ -192,17 +192,11 @@ defineExpose({
       />
     </el-form-item>
 
-    <el-form-item label="系统预置" prop="isSystem">
-      <!-- 编辑态只读展示；新建态默认 false（租户自定义） -->
-      <el-tag v-if="isEdit" :type="formData.isSystem ? 'info' : 'success'">
+    <el-form-item v-if="isEdit" label="系统预置" prop="isSystem">
+      <!-- 仅编辑态只读展示。新建不暴露——系统预置走初始化种子，前端创建固定为租户自定义（isSystem=false） -->
+      <el-tag :type="formData.isSystem ? 'info' : 'success'">
         {{ formData.isSystem ? "系统预置" : "租户自定义" }}
       </el-tag>
-      <el-switch
-        v-else
-        v-model="formData.isSystem"
-        active-text="系统预置"
-        inactive-text="租户自定义"
-      />
     </el-form-item>
 
     <el-form-item label="排序号" prop="sortOrder">
