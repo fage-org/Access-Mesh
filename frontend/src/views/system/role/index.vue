@@ -137,12 +137,14 @@ function goGrant() {
 const availableBasicRoles = computed<RoleSummaryResp[]>(() => {
   const result: RoleSummaryResp[] = [];
   function collect(node: RoleTreeNode) {
-    // C2 后树根即真实角色，全部收集（含顶层 BASIC_ROLE）
-    if (node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE) {
+    // C2 后树根即真实角色，全部收集（含顶层 BASIC_ROLE）；
+    // 但排除无 externalId 的 BASIC_ROLE——额外角色 add 接口 DTO @NotBlank basicRoleExternalId，
+    // 空串发给后端会 400（评审 P2-基础候选）。
+    if (node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE && node.externalId) {
       result.push({
         id: node.id,
         roleTypeCode: node.roleTypeCode,
-        externalId: node.externalId || "",
+        externalId: node.externalId,
         name: node.name
       });
     }

@@ -86,11 +86,45 @@ export function useRoleManage() {
     try {
       const roots = await getRoleTree({ domainCode: null });
       roleTree.value = filterVisibleTree(roots);
+      // 同步 selectedRole：在新树中按 id 重定位替换，避免拖拽/CRUD 后右侧详情拿旧节点
+      // （评审 P2-loadTree：el-tree/CRUD 后 selectedRole 仍是旧对象，parentId 等字段滞后）。
+      const currentId = selectedRole.value?.id;
+      if (currentId != null) {
+        const refreshed = findNodeInTree(roleTree.value, currentId);
+        if (refreshed) {
+          selectedRole.value = refreshed;
+          // 分组角色额外角色列表也需按新节点刷新
+          if (refreshed.roleTypeCode === "GROUP_ROLE" && refreshed.externalId) {
+            loadExtraRoles(refreshed);
+          } else {
+            extraRoles.value = [];
+          }
+        } else {
+          // 节点已不在树中（被删/被过滤）→ 清空选中
+          selectedRole.value = null;
+          extraRoles.value = [];
+        }
+      }
     } catch (error: any) {
       message(error.message || "加载角色树失败", { type: "error" });
     } finally {
       loading.value = false;
     }
+  }
+
+  /** 在树中按 id 递归查找节点 */
+  function findNodeInTree(
+    nodes: RoleTreeNode[],
+    id: number
+  ): RoleTreeNode | null {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findNodeInTree(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
   }
 
   /** 树节点过滤方法 */

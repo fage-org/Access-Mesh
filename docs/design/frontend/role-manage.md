@@ -72,7 +72,7 @@ last_reviewed: 2026-06-30
 |---|---|---|
 | roleTypeCode | 必填 | 新建可选 BASIC_ROLE/GROUP_ROLE；编辑只读 |
 | name | 必填，2-64 字符 | 角色名称 |
-| externalId | 必填（可管理类型） | 外部标识；BASIC_ROLE/GROUP_ROLE 在本页强制必填（额外角色功能依赖业务键，评审 P2） |
+| externalId | 新建必填（可管理类型）；编辑只读 | 外部标识；BASIC_ROLE/GROUP_ROLE 新建强制必填（额外角色功能依赖业务键，评审 P2）。**编辑态只读**——externalId 是业务键/定位锚点（schema 唯一索引 `uk_abstract_role_external`、额外角色 DTO 用它定位角色），改它会破坏既有引用，与 parentId 只读同口径；update 请求不含 externalId 字段 |
 | parentId | 可空 | 父角色（空=顶层森林根） |
 | status | 必填 | 启用/禁用 |
 | sortOrder | 必填，0-9999 | 排序号 |
@@ -119,7 +119,7 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 角色树 | `POST /api/perm/abstract-role/tree` | `{domainCode?}` | `ItemsResp<{root:RoleTreeNode}>` | ✅ |
+| 角色树 | `POST /api/perm/abstract-role/tree` | `{domainCode?}` | `ItemsResp<{root:RoleTreeNode}>` | 🔧 见 §8 |
 | 角色列表 | `POST /api/perm/abstract-role/list` | `{domainCode?,roleTypeCode?,roleTypeCodes?,keyword?,pageNum,pageSize,sort?}` | `PaginatedResp<RoleResp>` | ✅ |
 | 创建 | `POST /api/perm/abstract-role/create` | `{parentId?,roleTypeCode,externalId?,name,sortOrder?,extra?}` | `RoleResp` | ✅ |
 | 更新 | `POST /api/perm/abstract-role/update` | `{roleId,name?,status?,sortOrder?,extra?}` | `RoleResp` | ✅ |
@@ -216,7 +216,8 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
 
 ### ✅ 满足
 
-- tree/list/create/update/move/remove/extra-roles/* 全部满足前端需求，请求/响应结构与 mock 对齐。
+- list/create/update/move/remove/extra-roles/* 全部满足前端需求，请求/响应结构与 mock 对齐。
+  - **tree 不在此列**：`/tree` 只返回启用角色（`AND status=1`），禁用后从树消失无法再启用，见 §8 第 3 条 🔧（T-PERM-022）。
 
 ### 备注
 

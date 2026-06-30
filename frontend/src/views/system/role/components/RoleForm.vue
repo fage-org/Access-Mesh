@@ -85,8 +85,9 @@ const rules = computed<FormRules>(() => ({
       trigger: "blur"
     },
     { max: 128, message: "最长 128 字符", trigger: "blur" },
-    // 可管理类型必填（额外角色业务键依赖）；只读类型由同步生成不在本页创建，跳过
-    ...(MANAGEABLE_ROLE_TYPES.includes(formData.roleTypeCode as RoleTypeCode)
+    // 可管理类型 + 新建态必填（额外角色业务键依赖）；编辑态 externalId 只读不校验
+    ...(props.mode === "create" &&
+    MANAGEABLE_ROLE_TYPES.includes(formData.roleTypeCode as RoleTypeCode)
       ? [
           {
             required: true,
@@ -290,7 +291,18 @@ defineExpose({
     </el-form-item>
 
     <el-form-item label="外部标识" prop="externalId">
+      <!-- 编辑态只读：externalId 是业务键/定位锚点（schema 唯一索引 uk_abstract_role_external，
+           额外角色 DTO 用它定位角色），改它会破坏既有引用，与父角色只读同口径（评审 P2-externalId）。
+           历史空 externalId 角色的修复应在后端切业务键后用专门手段处理，非本页编辑职责。 -->
       <el-input
+        v-if="isEdit"
+        :model-value="formData.externalId || '（无）'"
+        readonly
+        placeholder="（无）"
+        class="w-full!"
+      />
+      <el-input
+        v-else
         v-model="formData.externalId"
         placeholder="必填，用于与外部系统关联（额外角色功能依赖）"
         clearable
