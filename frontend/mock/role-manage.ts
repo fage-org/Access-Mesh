@@ -10,146 +10,82 @@ const ok = data => ({ code: 200, message: "success", data });
 // ========== Mock 数据：5 种角色类型树 ==========
 
 /**
- * 角色树 mock（对齐 RoleTreeResp，data.items[0].root 为根节点）。
+ * 角色树 mock（对齐 RoleTreeResp，data.items[0].root 为根节点森林）。
+ *
+ * 结构对齐后端 `selectEnabledRoleTree`（mapper xml:122-127，查 tenant_id +
+ * delete_flag=0 + status=1 全部角色）+ `TreeBuilder` 按 parentId 组装：
+ * 根 = parentId=null 的真实角色，**无类型虚拟根**。
  *
  * 类型说明（overview §角色模型 + schema permission-center.sql:103）：
  * - ORG / POSITION：由组织同步自动生成
  * - PERSONAL：由用户同步连带创建（PERSONAL_{external_id}）
  * - BASIC_ROLE / GROUP_ROLE：功能角色，角色管理页可 CRUD
  *
- * mock 返回全部 5 种类型（模拟后端全量返回），前端 hook 按本页范围
+ * mock 返回全部 5 种类型的扁平森林（模拟后端全量返回），前端 hook 按本页范围
  * 过滤为仅 BASIC_ROLE / GROUP_ROLE 展示（ORG/POSITION/PERSONAL 归权限授予/用户详情）。
- * 结构：按 roleTypeCode 分组的虚拟根 → 真实角色节点。
  */
 const mockRoleTree = {
   id: 0,
   tenantId: 1,
   parentId: null,
   roleTypeCode: "ROOT",
-  name: "角色类型",
+  name: "角色树",
   externalId: null,
   status: 1,
   sortOrder: 0,
   children: [
+    // BASIC_ROLE：基础角色（森林根，parentId=null）
     {
-      id: 100,
+      id: 101,
       tenantId: 1,
-      parentId: 0,
+      parentId: null,
       roleTypeCode: "BASIC_ROLE",
-      name: "基础角色",
-      externalId: null,
+      name: "基础用户",
+      externalId: "BASIC_201",
       status: 1,
       sortOrder: 1,
-      children: [
-        {
-          id: 101,
-          tenantId: 1,
-          parentId: 100,
-          roleTypeCode: "BASIC_ROLE",
-          name: "基础用户",
-          externalId: "BASIC_201",
-          status: 1,
-          sortOrder: 1,
-          children: []
-        },
-        {
-          id: 102,
-          tenantId: 1,
-          parentId: 100,
-          roleTypeCode: "BASIC_ROLE",
-          name: "高级用户",
-          externalId: "BASIC_202",
-          status: 1,
-          sortOrder: 2,
-          children: []
-        },
-        {
-          id: 103,
-          tenantId: 1,
-          parentId: 100,
-          roleTypeCode: "BASIC_ROLE",
-          name: "访客",
-          externalId: "BASIC_203",
-          status: 0,
-          sortOrder: 3,
-          children: []
-        }
-      ]
+      children: []
     },
     {
-      id: 200,
+      id: 102,
       tenantId: 1,
-      parentId: 0,
-      roleTypeCode: "GROUP_ROLE",
-      name: "分组角色",
-      externalId: null,
+      parentId: null,
+      roleTypeCode: "BASIC_ROLE",
+      name: "高级用户",
+      externalId: "BASIC_202",
       status: 1,
       sortOrder: 2,
-      children: [
-        {
-          id: 201,
-          tenantId: 1,
-          parentId: 200,
-          roleTypeCode: "GROUP_ROLE",
-          name: "核心开发组",
-          externalId: "GROUP_401",
-          status: 1,
-          sortOrder: 1,
-          children: []
-        },
-        {
-          id: 202,
-          tenantId: 1,
-          parentId: 200,
-          roleTypeCode: "GROUP_ROLE",
-          name: "运维保障组",
-          externalId: "GROUP_402",
-          status: 1,
-          sortOrder: 2,
-          children: []
-        }
-      ]
+      children: []
     },
     {
-      id: 300,
+      id: 103,
       tenantId: 1,
-      parentId: 0,
-      roleTypeCode: "PERSONAL",
-      name: "个人角色",
-      externalId: null,
-      status: 1,
+      parentId: null,
+      roleTypeCode: "BASIC_ROLE",
+      name: "访客",
+      externalId: "BASIC_203",
+      status: 0,
       sortOrder: 3,
-      children: [
-        {
-          id: 301,
-          tenantId: 1,
-          parentId: 300,
-          roleTypeCode: "PERSONAL",
-          name: "张三-专属",
-          externalId: "PERSONAL_501",
-          status: 1,
-          sortOrder: 1,
-          children: []
-        }
-      ]
+      children: []
     },
+    // GROUP_ROLE：分组角色（含一组父子嵌套示例验证树层级）
     {
-      id: 400,
+      id: 201,
       tenantId: 1,
-      parentId: 0,
-      roleTypeCode: "ORG",
-      name: "组织角色（只读）",
-      externalId: null,
+      parentId: null,
+      roleTypeCode: "GROUP_ROLE",
+      name: "核心开发组",
+      externalId: "GROUP_401",
       status: 1,
       sortOrder: 4,
       children: [
         {
-          id: 401,
+          id: 203,
           tenantId: 1,
-          parentId: 400,
-          roleTypeCode: "ORG",
-          name: "研发中心",
-          externalId: "ORG_1",
+          parentId: 201,
+          roleTypeCode: "GROUP_ROLE",
+          name: "核心开发-后端",
+          externalId: "GROUP_403",
           status: 1,
           sortOrder: 1,
           children: []
@@ -157,27 +93,51 @@ const mockRoleTree = {
       ]
     },
     {
-      id: 500,
+      id: 202,
       tenantId: 1,
-      parentId: 0,
-      roleTypeCode: "POSITION",
-      name: "岗位角色（只读）",
-      externalId: null,
+      parentId: null,
+      roleTypeCode: "GROUP_ROLE",
+      name: "运维保障组",
+      externalId: "GROUP_402",
       status: 1,
       sortOrder: 5,
-      children: [
-        {
-          id: 501,
-          tenantId: 1,
-          parentId: 500,
-          roleTypeCode: "POSITION",
-          name: "后端开发",
-          externalId: "POSITION_30",
-          status: 1,
-          sortOrder: 1,
-          children: []
-        }
-      ]
+      children: []
+    },
+    // PERSONAL：个人角色（由用户同步生成，前端过滤不展示）
+    {
+      id: 301,
+      tenantId: 1,
+      parentId: null,
+      roleTypeCode: "PERSONAL",
+      name: "张三-专属",
+      externalId: "PERSONAL_501",
+      status: 1,
+      sortOrder: 6,
+      children: []
+    },
+    // ORG：组织角色（由组织同步生成，前端过滤不展示）
+    {
+      id: 401,
+      tenantId: 1,
+      parentId: null,
+      roleTypeCode: "ORG",
+      name: "研发中心",
+      externalId: "ORG_1",
+      status: 1,
+      sortOrder: 7,
+      children: []
+    },
+    // POSITION：岗位角色（由组织同步生成，前端过滤不展示）
+    {
+      id: 501,
+      tenantId: 1,
+      parentId: null,
+      roleTypeCode: "POSITION",
+      name: "后端开发",
+      externalId: "POSITION_30",
+      status: 1,
+      sortOrder: 8,
+      children: []
     }
   ]
 };
@@ -255,30 +215,32 @@ function removeNode(node, id) {
   return false;
 }
 
-/** 拍平树为 RoleResp 列表（用于 list 接口，排除虚拟类型根） */
+/**
+ * 拍平树为 RoleResp 列表（用于 list 接口）。
+ * 跳过 ROOT 容器节点，收集全部真实角色（含 externalId 为空的真实角色）。
+ */
 function flattenToRoleList(node, acc = []) {
   for (const child of node.children || []) {
-    if (child.roleTypeCode !== "ROOT") {
-      // 虚拟类型根（如「基础角色」分组）不入列表，仅真实角色节点入
-      if (child.externalId !== null) {
-        acc.push({
-          id: child.id,
-          tenantId: child.tenantId,
-          parentId: child.parentId,
-          roleTypeCode: child.roleTypeCode,
-          roleTypeName:
-            ROLE_TYPE_NAME[child.roleTypeCode] || child.roleTypeCode,
-          externalId: child.externalId,
-          name: child.name,
-          status: child.status,
-          sortOrder: child.sortOrder,
-          extra: child.extra ?? null,
-          createdAt: "2026-06-01T08:00:00",
-          updatedAt: "2026-06-20T08:00:00"
-        });
-      }
+    if (child.roleTypeCode === "ROOT") {
+      // ROOT 是 mock 容器（对齐 data.items[0].root），不入列表
       flattenToRoleList(child, acc);
+      continue;
     }
+    acc.push({
+      id: child.id,
+      tenantId: child.tenantId,
+      parentId: child.parentId,
+      roleTypeCode: child.roleTypeCode,
+      roleTypeName: ROLE_TYPE_NAME[child.roleTypeCode] || child.roleTypeCode,
+      externalId: child.externalId,
+      name: child.name,
+      status: child.status,
+      sortOrder: child.sortOrder,
+      extra: child.extra ?? null,
+      createdAt: "2026-06-01T08:00:00",
+      updatedAt: "2026-06-20T08:00:00"
+    });
+    flattenToRoleList(child, acc);
   }
   return acc;
 }
@@ -369,6 +331,7 @@ export default defineFakeRoute([
       const newNode = {
         id: newId,
         tenantId: 1,
+        // parentId 为空 = 顶层角色（对齐后端 parentId=null 语义）
         parentId: parentId ?? null,
         roleTypeCode,
         name,
@@ -378,13 +341,13 @@ export default defineFakeRoute([
         extra: extra ?? null,
         children: []
       };
-      // parentId 为空时挂到对应类型虚拟根下
-      const targetParentId = parentId ?? TYPE_ROOT_ID[roleTypeCode] ?? 0;
+      // mock 树外层是 ROOT 容器（对齐 data.items[0].root）；parentId 为空挂到 ROOT 下作顶层
+      const targetParentId = parentId ?? mockRoleTree.id;
       insertChild(mockRoleTree, targetParentId, newNode);
       return ok({
         id: newId,
         tenantId: 1,
-        parentId: targetParentId,
+        parentId: newNode.parentId,
         roleTypeCode,
         roleTypeName: ROLE_TYPE_NAME[roleTypeCode] || roleTypeCode,
         externalId: newNode.externalId,
@@ -392,8 +355,8 @@ export default defineFakeRoute([
         status: 1,
         sortOrder,
         extra: newNode.extra,
-        createdAt: "2026-06-29T08:00:00",
-        updatedAt: "2026-06-29T08:00:00"
+        createdAt: "2026-06-30T08:00:00",
+        updatedAt: "2026-06-30T08:00:00"
       });
     }
   },
@@ -434,8 +397,9 @@ export default defineFakeRoute([
       const node = findNode(mockRoleTree, roleId);
       if (!node) return { code: 404, message: "角色不存在", data: null };
       removeNode(mockRoleTree, roleId);
+      // parentId 为空 = 移到顶层（对齐后端 parentId=null 语义）
       node.parentId = parentId ?? null;
-      const targetParentId = parentId ?? TYPE_ROOT_ID[node.roleTypeCode] ?? 0;
+      const targetParentId = parentId ?? mockRoleTree.id;
       insertChild(mockRoleTree, targetParentId, node);
       return ok(null);
     }
@@ -460,7 +424,8 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const { id } = body || {};
       const node = findNode(mockRoleTree, id);
-      if (!node || node.externalId === null) {
+      // ROOT 是 mock 容器，非真实角色，视为不存在；真实角色（含空 externalId）正常返回
+      if (!node || node.roleTypeCode === "ROOT") {
         return { code: 404, message: "角色不存在", data: null };
       }
       return ok({
@@ -549,15 +514,6 @@ export default defineFakeRoute([
     }
   }
 ]);
-
-/** 类型 → 虚拟根 id 映射（parentId 为空时挂载点） */
-const TYPE_ROOT_ID = {
-  BASIC_ROLE: 100,
-  GROUP_ROLE: 200,
-  PERSONAL: 300,
-  ORG: 400,
-  POSITION: 500
-};
 
 /** 按 externalId + roleTypeCode 查找节点 */
 function findNodeByExternalId(node, externalId, roleTypeCode) {

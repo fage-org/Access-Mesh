@@ -14,7 +14,7 @@ export interface RoleFormData {
   name: string;
   /** 外部标识（可空，用于与外部系统关联） */
   externalId: string;
-  /** 父角色 ID（可空=挂到类型虚拟根） */
+  /** 父角色 ID（可空=顶层森林根，C2 后无类型虚拟根） */
   parentId: number | null;
   /** 状态：0=禁用，1=启用 */
   status: RoleStatus;
@@ -37,13 +37,6 @@ export function createEmptyRoleForm(
     sortOrder: 0,
     extra: ""
   };
-}
-
-/** 节点是否为类型虚拟根（不可 CRUD，仅作分组） */
-export function isTypeRootNode(
-  node: RoleTreeNode | RoleResp | null | undefined
-): boolean {
-  return !node || node.externalId === null || node.externalId === undefined;
 }
 
 /**

@@ -54,15 +54,14 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_DELETE,
     P.POSITION_ASSIGN
   ],
-  /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权，其余只读 */
+  /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权，其余只读。
+   *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。 */
   sec: [
     ...ORG_USER_VIEW_PERMS,
     ...ROLE_MANAGE_VIEW_PERMS,
     P.USER_ROLE_ASSIGN,
     P.USER_ROLE_REVOKE,
     RP.ROLE_ADD,
-    RP.ROLE_EDIT,
-    RP.ROLE_DELETE,
     RP.ROLE_GRANT
   ],
   /** 审计员：全只读 */

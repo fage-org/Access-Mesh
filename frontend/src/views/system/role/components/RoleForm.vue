@@ -10,7 +10,6 @@ import {
 } from "@/api/role-manage";
 import { ArrowDown } from "@element-plus/icons-vue";
 import type { RoleFormData } from "../utils/types";
-import { isTypeRootNode } from "../utils/types";
 
 defineOptions({
   name: "RoleForm"
@@ -20,7 +19,7 @@ const props = defineProps<{
   mode: "create" | "edit";
   /** 编辑时的初始数据（来自树节点） */
   initialData?: RoleTreeNode | null;
-  /** 默认角色类型（新建时，从右键菜单的类型虚拟根派生） */
+  /** 默认角色类型（新建时，从新增下拉传入） */
   defaultRoleTypeCode?: RoleTypeCode;
   /** 父节点（新建子角色时的父） */
   parentNode?: RoleTreeNode | null;
@@ -28,7 +27,13 @@ const props = defineProps<{
   roleTree?: RoleTreeNode[];
 }>();
 
-/** 表单默认值（新建时父角色默认挂到当前类型虚拟根） */
+/**
+ * 表单默认值。
+ *
+ * C2 后树为扁平森林（无类型虚拟根）：新建顶层角色 parentId=null。
+ * - 新建顶层（onAddByType 传 node=null）：parentId=null。
+ * - 新建子角色（右键节点）：parentId=node.id。
+ */
 const defaultFormData = (): RoleFormData => ({
   roleTypeCode: props.defaultRoleTypeCode ?? ROLE_TYPE_CODE.BASIC_ROLE,
   name: "",
@@ -47,7 +52,7 @@ const showParentTree = ref(false);
 /** 树组件引用 */
 const treeRef = ref();
 
-/** 选中的父角色名称 */
+/** 选中的父角色名称（点选 popover 后填充） */
 const selectedParentName = ref("");
 
 /** 角色类型选项（仅可管理类型） */
@@ -93,17 +98,25 @@ const dialogTitle = computed(() => {
   return "编辑角色";
 });
 
-/** 父角色展示文本 */
+/**
+ * 父角色展示文本。
+ * - parentId=null → "（顶层）"（C2 后顶层即森林根，合法可选项）。
+ * - 点选过 popover → 显示所选父角色名。
+ * - 新建子角色 → 显示 parentNode 名。
+ * - 编辑态 → 反查父节点名，找不到（已删/顶层）→ "（顶层）"。
+ */
 const parentDisplay = computed(() => {
+  if (formData.parentId === null) return "（顶层）";
   if (selectedParentName.value) return selectedParentName.value;
   if (props.parentNode?.name) return props.parentNode.name;
-  // 新建时默认挂到当前类型虚拟根
-  const typeRoot = currentTypeRoot.value;
-  if (typeRoot) return typeRoot.name;
-  return ROLE_TYPE_LABEL[formData.roleTypeCode as RoleTypeCode] || "类型根";
+  // 编辑态：从 roleTree 反查父节点名
+  const parent = props.roleTree
+    ? findNodeById(props.roleTree, formData.parentId)
+    : null;
+  return parent?.name ?? "（顶层）";
 });
 
-/** 过滤父角色树：仅同类型节点（含类型虚拟根作为「挂到类型根」选项） */
+/** 过滤父角色树：仅同类型节点（C2 后无类型虚拟根，森林里同类型真实角色） */
 function filterParentTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
   const result: RoleTreeNode[] = [];
   for (const node of nodes) {
@@ -112,26 +125,31 @@ function filterParentTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
     const filteredChildren = node.children
       ? filterParentTree(node.children)
       : [];
+    // 过滤掉自己作为父（编辑态防选自身），保留其余同类型子树
+    const isSelf = props.mode === "edit" && props.initialData?.id === node.id;
+    if (isSelf) continue;
     result.push({ ...node, children: filteredChildren });
   }
   return result;
 }
 
-/** 父角色树数据（按当前类型过滤；含类型虚拟根） */
+/** 父角色树数据（按当前类型过滤；C2 后即同类型真实角色森林） */
 const parentTreeData = computed(() => {
   if (!props.roleTree?.length) return [];
   return filterParentTree(props.roleTree);
 });
 
-/** 当前类型虚拟根（新建第一个角色时的默认父级） */
-const currentTypeRoot = computed<RoleTreeNode | null>(() => {
-  for (const node of parentTreeData.value) {
-    if (isTypeRootNode(node) && node.roleTypeCode === formData.roleTypeCode) {
-      return node;
+/** 在树中按 id 查找节点 */
+function findNodeById(nodes: RoleTreeNode[], id: number): RoleTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if (node.children) {
+      const found = findNodeById(node.children, id);
+      if (found) return found;
     }
   }
   return null;
-});
+}
 
 /** 过滤节点 */
 function filterTreeNode(value: string, data: any) {
@@ -141,10 +159,15 @@ function filterTreeNode(value: string, data: any) {
 
 /** 父角色树节点点击 */
 function onParentTreeNodeClick(node: RoleTreeNode) {
-  selectedParentName.value = isTypeRootNode(node)
-    ? ROLE_TYPE_LABEL[node.roleTypeCode] || node.name
-    : node.name;
+  selectedParentName.value = node.name;
   formData.parentId = node.id;
+  showParentTree.value = false;
+}
+
+/** 设为顶层（parentId=null） */
+function setParentToTop() {
+  selectedParentName.value = "";
+  formData.parentId = null;
   showParentTree.value = false;
 }
 
@@ -190,6 +213,9 @@ function resetForm() {
   formRef.value?.resetFields();
 }
 
+/** 是否编辑态（父角色只读，P3） */
+const isEdit = computed(() => props.mode === "edit");
+
 // 监听 initialData 变化（编辑时）
 watch(
   () => props.initialData,
@@ -197,17 +223,13 @@ watch(
   { immediate: true }
 );
 
-// 类型变化时重置父角色为新类型虚拟根（不同类型树不同）
+// 类型变化时重置父角色为顶层（C2 后无类型根，跨类型父子不合法 → 回退顶层）
 watch(
   () => formData.roleTypeCode,
   () => {
     if (props.mode === "create") {
       selectedParentName.value = "";
-      // nextTick 后 currentTypeRoot 才会随 parentTreeData 更新
-      const typeRoot = parentTreeData.value.find(
-        n => isTypeRootNode(n) && n.roleTypeCode === formData.roleTypeCode
-      );
-      formData.parentId = typeRoot?.id ?? null;
+      formData.parentId = null;
     }
   }
 );
@@ -265,7 +287,17 @@ defineExpose({
     </el-form-item>
 
     <el-form-item label="父角色">
+      <!-- 编辑态：父角色只读（P3，层级只走拖拽/move，编辑不改 parentId） -->
+      <el-input
+        v-if="isEdit"
+        :model-value="parentDisplay"
+        readonly
+        placeholder="（顶层）"
+        class="w-full!"
+      />
+      <!-- 新建态：popover 树选同类型真实角色，或设为顶层 -->
       <el-popover
+        v-else
         v-model:visible="showParentTree"
         trigger="click"
         placement="bottom-start"
@@ -277,7 +309,7 @@ defineExpose({
           <el-input
             :model-value="parentDisplay"
             readonly
-            placeholder="点击选择父角色（可空=类型根）"
+            placeholder="点击选择父角色（可空=顶层）"
             class="w-full! cursor-pointer"
           >
             <template #suffix>
@@ -286,6 +318,11 @@ defineExpose({
           </el-input>
         </template>
         <div class="parent-tree-popover">
+          <div class="parent-tree-actions">
+            <el-button link type="primary" size="small" @click="setParentToTop">
+              设为顶层
+            </el-button>
+          </div>
           <el-scrollbar max-height="var(--popover-max-height)">
             <el-tree
               ref="treeRef"
@@ -303,6 +340,9 @@ defineExpose({
                 <span class="truncate" :title="data.name">{{ data.name }}</span>
               </template>
             </el-tree>
+            <div v-if="parentTreeData.length === 0" class="empty-tip">
+              暂无可选父角色（当前类型无其他角色）
+            </div>
           </el-scrollbar>
         </div>
       </el-popover>
@@ -355,5 +395,18 @@ defineExpose({
 .parent-tree-popover {
   max-height: 300px;
   overflow-y: auto;
+
+  .parent-tree-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-1);
+  }
+
+  .empty-tip {
+    padding: var(--space-3);
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+    text-align: center;
+  }
 }
 </style>

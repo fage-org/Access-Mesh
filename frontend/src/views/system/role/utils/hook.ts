@@ -16,7 +16,6 @@ import {
 } from "@/api/role-manage";
 import {
   createEmptyRoleForm,
-  isTypeRootNode,
   isReadonlyRoleType,
   isPageVisibleRoleType,
   type RoleFormData
@@ -44,28 +43,24 @@ export function useRoleManage() {
   /**
    * 过滤树：仅保留角色管理页可管理的类型（BASIC_ROLE / GROUP_ROLE）。
    * ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/用户详情）。
-   * 递归裁剪：类型虚拟根按 roleTypeCode 判定，真实节点继承父类型。
+   *
+   * C2 后树为扁平森林（parentId=null 真实角色为根，无类型虚拟根）：
+   * 递归裁剪——节点类型不在可见集合则整棵裁掉，同类型子树保留。
    */
   function filterVisibleTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
     const result: RoleTreeNode[] = [];
     for (const node of nodes) {
-      // 类型虚拟根按 roleTypeCode 判定是否本页可见
-      if (isTypeRootNode(node)) {
-        if (isPageVisibleRoleType(node.roleTypeCode)) {
-          const children = node.children
-            ? filterSameTypeChildren(node.children, node.roleTypeCode)
-            : [];
-          result.push({ ...node, children });
-        }
+      // 跳过 mock ROOT 容器（仅 mock 层存在，对齐 data.items[0].root）
+      if (node.roleTypeCode === "ROOT") {
+        const children = node.children ? filterVisibleTree(node.children) : [];
+        result.push(...children);
         continue;
       }
-      // 非根节点（理论不会出现在顶层，兜底按类型判定）
-      if (isPageVisibleRoleType(node.roleTypeCode)) {
-        const children = node.children
-          ? filterSameTypeChildren(node.children, node.roleTypeCode)
-          : [];
-        result.push({ ...node, children });
-      }
+      if (!isPageVisibleRoleType(node.roleTypeCode)) continue;
+      const children = node.children
+        ? filterSameTypeChildren(node.children, node.roleTypeCode)
+        : [];
+      result.push({ ...node, children });
     }
     return result;
   }
@@ -107,8 +102,8 @@ export function useRoleManage() {
   /** 选中节点 */
   function handleNodeClick(node: RoleTreeNode) {
     selectedRole.value = node;
-    // 分组角色选中时加载额外角色
-    if (node.roleTypeCode === "GROUP_ROLE" && !isTypeRootNode(node)) {
+    // 分组角色选中且为真实角色（有 externalId 业务键）时加载额外角色
+    if (node.roleTypeCode === "GROUP_ROLE" && node.externalId) {
       loadExtraRoles(node);
     } else {
       extraRoles.value = [];
@@ -256,12 +251,18 @@ export function useRoleManage() {
   async function handleNodeDrop(
     draggingNode: { data: RoleTreeNode },
     targetNode: { data: RoleTreeNode },
-    dropType: "before" | "after" | "inner"
+    dropType: "prev" | "inner" | "next"
   ) {
     const dragging = draggingNode.data;
     // 只读类型不可移动
     if (isReadonlyRoleType(dragging.roleTypeCode)) {
-      message("组织/岗位角色由同步生成，不可移动", { type: "warning" });
+      message("组织/岗位/个人角色由同步生成，不可移动", { type: "warning" });
+      await loadTree();
+      return;
+    }
+    // 跨类型移动非法：inner 时目标是父（须同类型），before/after 时是兄弟（须同类型）
+    if (targetNode.data.roleTypeCode !== dragging.roleTypeCode) {
+      message("不允许跨角色类型移动", { type: "warning" });
       await loadTree();
       return;
     }
@@ -271,14 +272,6 @@ export function useRoleManage() {
       parentId = targetNode.data.id;
     } else {
       parentId = targetNode.data.parentId;
-    }
-    // 不允许跨类型移动到异类虚拟根
-    if (
-      parentId !== null &&
-      targetNode.data.roleTypeCode !== dragging.roleTypeCode &&
-      !isTypeRootNode(targetNode.data)
-    ) {
-      // 同类型虚拟根的兄弟节点判定：目标父必须是同类型
     }
     try {
       await moveRole({ roleId: dragging.id, parentId });

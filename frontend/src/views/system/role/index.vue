@@ -15,7 +15,7 @@ import {
   type RoleTypeCode,
   type RoleSummaryResp
 } from "@/api/role-manage";
-import { isTypeRootNode, isReadonlyRoleType } from "./utils/types";
+import { isReadonlyRoleType } from "./utils/types";
 import { Plus, Edit, Delete, Setting } from "@element-plus/icons-vue";
 
 defineOptions({
@@ -59,16 +59,17 @@ function onFilterInput(val: string) {
 
 // ========== 新建/编辑弹窗 ==========
 
-function openRoleForm(mode: "create" | "edit", node?: RoleTreeNode | null) {
+function openRoleForm(
+  mode: "create" | "edit",
+  node?: RoleTreeNode | null,
+  defaultRoleType?: RoleTypeCode
+) {
   const isEdit = mode === "edit";
-  // 新建时若点了类型虚拟根，沿用其类型
-  const defaultType = (
-    !isEdit && node && !isTypeRootNode(node)
-      ? node.roleTypeCode
-      : !isEdit && node && isTypeRootNode(node)
-        ? (node.roleTypeCode as RoleTypeCode)
-        : ROLE_TYPE_CODE.BASIC_ROLE
-  ) as RoleTypeCode;
+  // 新建：优先外部传入类型（下拉），其次节点类型；编辑：沿用节点类型。
+  // RoleTreeNode.roleTypeCode 为 string，显式断言为 RoleTypeCode。
+  const resolvedType: RoleTypeCode = (defaultRoleType ??
+    (node?.roleTypeCode as RoleTypeCode) ??
+    ROLE_TYPE_CODE.BASIC_ROLE) as RoleTypeCode;
 
   let formRef: any = null;
 
@@ -82,7 +83,7 @@ function openRoleForm(mode: "create" | "edit", node?: RoleTreeNode | null) {
         },
         mode,
         initialData: isEdit ? node : null,
-        defaultRoleTypeCode: defaultType,
+        defaultRoleTypeCode: resolvedType,
         parentNode: !isEdit ? node : null,
         roleTree: roleTree.value
       }),
@@ -114,29 +115,8 @@ const addTypeMenu = computed(() =>
 );
 
 function onAddByType(type: RoleTypeCode) {
-  // 找到对应类型虚拟根作为 parentNode
-  const typeRoot = findTypeRoot(type);
-  openRoleForm("create", typeRoot);
-}
-
-function findTypeRoot(type: RoleTypeCode): RoleTreeNode | null {
-  for (const root of roleTree.value) {
-    const found = findTypeRootInNode(root, type);
-    if (found) return found;
-  }
-  return null;
-}
-
-function findTypeRootInNode(
-  node: RoleTreeNode,
-  type: RoleTypeCode
-): RoleTreeNode | null {
-  if (isTypeRootNode(node) && node.roleTypeCode === type) return node;
-  for (const child of node.children || []) {
-    const found = findTypeRootInNode(child, type);
-    if (found) return found;
-  }
-  return null;
+  // C2 后无类型虚拟根：新建顶层角色，parentId=null（顶层森林），类型由下拉决定。
+  openRoleForm("create", null, type);
 }
 
 // ========== 跳转权限授予 ==========
@@ -154,10 +134,8 @@ function goGrant() {
 const availableBasicRoles = computed<RoleSummaryResp[]>(() => {
   const result: RoleSummaryResp[] = [];
   function collect(node: RoleTreeNode) {
-    if (
-      node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE &&
-      !isTypeRootNode(node)
-    ) {
+    // C2 后树根即真实角色，全部收集（含顶层 BASIC_ROLE）
+    if (node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE) {
       result.push({
         id: node.id,
         roleTypeCode: node.roleTypeCode,
@@ -186,9 +164,26 @@ function onAddExtra(basic: RoleSummaryResp) {
 
 // ========== 树节点操作权限 ==========
 
-/** 节点是否可编辑（非类型根 + 非只读类型） */
+/** 节点是否可编辑（C2 后树根是真实角色，仅排除只读类型） */
 function isNodeEditable(node: RoleTreeNode) {
-  return !isTypeRootNode(node) && !isReadonlyRoleType(node.roleTypeCode);
+  return !isReadonlyRoleType(node.roleTypeCode);
+}
+
+/** 拖拽落点校验：跨类型禁止（前端拦截），handleNodeDrop 兜底回滚。
+ *  type 取 el-tree AllowDropType（'prev'|'inner'|'next'），宽松类型避免与模板绑定冲突。 */
+function allowDrop(draggingNode: any, targetNode: any, type: string): boolean {
+  const dragging: RoleTreeNode = draggingNode?.data;
+  const target: RoleTreeNode = targetNode?.data;
+  if (!dragging || !target) return true;
+  // 只读类型不可拖动
+  if (isReadonlyRoleType(dragging.roleTypeCode)) return false;
+  // 跨类型移动非法：inner 时目标是父须同类型，prev/next 时是兄弟须同类型
+  if (target.roleTypeCode !== dragging.roleTypeCode) return false;
+  // inner 到只读类型目标禁止
+  if (type === "inner" && isReadonlyRoleType(target.roleTypeCode)) {
+    return false;
+  }
+  return true;
 }
 
 /** 节点状态标签类型 */
@@ -246,6 +241,7 @@ function statusTagType(status: number) {
           :expand-on-click-node="false"
           highlight-current
           draggable
+          :allow-drop="allowDrop"
           @node-click="handleNodeClick"
           @node-drop="handleNodeDrop"
         >
@@ -253,7 +249,6 @@ function statusTagType(status: number) {
             <div class="tree-node">
               <span class="node-name" :title="data.name">{{ data.name }}</span>
               <el-tag
-                v-if="!isTypeRootNode(data)"
                 :type="
                   isReadonlyRoleType(data.roleTypeCode) ? 'info' : 'primary'
                 "
@@ -263,7 +258,6 @@ function statusTagType(status: number) {
                 {{ ROLE_TYPE_LABEL[data.roleTypeCode] || data.roleTypeCode }}
               </el-tag>
               <el-tag
-                v-if="!isTypeRootNode(data)"
                 :type="statusTagType(data.status)"
                 size="small"
                 effect="light"
@@ -278,7 +272,7 @@ function statusTagType(status: number) {
 
     <!-- 右侧详情区 -->
     <div class="right-area">
-      <template v-if="selectedRole && !isTypeRootNode(selectedRole)">
+      <template v-if="selectedRole">
         <!-- 角色信息卡片 -->
         <div class="role-info-card">
           <div class="role-info-header">

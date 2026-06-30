@@ -27,7 +27,7 @@ last_reviewed: 2026-06-30
 
 - **本页可 CRUD**：BASIC_ROLE / GROUP_ROLE（`MANAGEABLE_ROLE_TYPES`）。
 - **配权（ROLE:MANAGE）跳转 4.1 权限授予页**（T-FE-014，待实现）；本页不内嵌配权矩阵。
-- **树数据过滤**：后端 tree 返回全量 5 类，前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示。
+- **树结构（C2）**：后端 `getRoleTree` 返回**扁平森林**——根 = `parentId=null` 的真实角色，`TreeBuilder` 按 parentId 组装，**无任何"类型虚拟根"节点**。前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示（跳过 mock ROOT 容器、按类型过滤）。
 
 ## 2. 布局结构
 
@@ -60,7 +60,7 @@ last_reviewed: 2026-06-30
 | parentId | number \| null | 父角色 ID |
 | roleTypeCode | string | 角色类型编码（5 种之一） |
 | name | string | 角色名称 |
-| externalId | string \| null | 外部标识（类型虚拟根为 null） |
+| externalId | string \| null | 外部标识（可空，真实角色也可能为空，**不**作为"虚拟根"判定） |
 | status | 0 \| 1 | 禁用 / 启用 |
 | sortOrder | number | 排序 |
 | children | RoleTreeNode[] | 子节点 |
@@ -73,7 +73,7 @@ last_reviewed: 2026-06-30
 | roleTypeCode | 必填 | 新建可选 BASIC_ROLE/GROUP_ROLE；编辑只读 |
 | name | 必填，2-64 字符 | 角色名称 |
 | externalId | 可空，字母数字下划线中划线，≤128 | 外部标识 |
-| parentId | 可空 | 父角色（空=类型根） |
+| parentId | 可空 | 父角色（空=顶层森林根） |
 | status | 必填 | 启用/禁用 |
 | sortOrder | 必填，0-9999 | 排序号 |
 | extra | 可空 | 扩展属性 JSON |
@@ -82,19 +82,24 @@ last_reviewed: 2026-06-30
 
 ### 4.1 树操作
 
-- **加载**：进入页面 `getRoleTree({domainCode: null})` → 返回全量 5 类角色树 → hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示。
+- **加载**：进入页面 `getRoleTree({domainCode: null})` → 后端返回扁平森林（parentId=null 真实角色为根，无类型虚拟根）→ hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示（跳过 mock ROOT 容器 + 按类型过滤同类型子树）。
 - **搜索**：输入框 `filter` → el-tree `filter-node-method` 按名称过滤。
-- **选中**：点击节点 → 右侧展示详情卡片；分组角色同时加载额外基本角色。
-- **拖拽移动**：`draggable` + `node-drop` → `moveRole({roleId, parentId})`；只读类型拒绝移动并回滚。
-- **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE / GROUP_ROLE）打开表单。
-- **编辑/删除/启停**：详情卡片按钮。
+- **选中**：点击节点 → 右侧展示详情卡片（选中即渲染，根节点也是真实角色）；分组角色同时加载额外基本角色。
+- **拖拽移动**：`draggable` + `:allow-drop` + `node-drop`。
+  - `allowDrop` 拦截：只读类型不可拖动；**跨类型禁止**（目标节点 roleTypeCode 须与拖拽节点一致——inner 是父须同类型，before/after 是兄弟须同类型）；inner 到只读类型目标禁止。
+  - `handleNodeDrop` 兜底：跨类型 `message` 提示 + `await loadTree()` 回滚（不调 moveRole）；只读类型同理回滚。
+  - 合法则 `moveRole({roleId, parentId})`。
+- **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE / GROUP_ROLE）打开表单，默认顶层（parentId=null）。
+- **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。
 
 ### 4.1.1 父角色选择器（RoleForm 内 popover 树）
 
-- **默认父级**：新建时父角色默认挂到当前类型虚拟根（`parentId` = 类型根 id），`parentDisplay` 明确显示类型根名称，避免用户误以为"无法选择"。
-- **可选父级**：popover 树展示同类型全部节点（含类型虚拟根 + 已有同类型角色），点选切换 `parentId`。
-- **类型切换**：新建时切换角色类型，父角色自动重置为新类型虚拟根（不同类型树不同，不允许跨类型父子）。
-- **编辑时**：父角色只读展示当前父节点名称（编辑不修改 parentId，仅 move 接口可改层级）。
+C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选取，或设为顶层（parentId=null）。
+
+- **新建默认父级**：`parentId=null`（顶层森林根），`parentDisplay` 显示"（顶层）"。
+- **可选父级**：popover 树展示同类型全部真实角色（`filterParentTree` 按 roleTypeCode 过滤，编辑态排除自身防环），点选切换 `parentId`；提供「设为顶层」按钮重置 null。
+- **类型切换**：新建时切换角色类型，父角色自动重置为顶层（跨类型父子不合法）。
+- **编辑态只读（P3）**：父角色渲染为纯只读 input，无 popover、不可点选。**编辑不修改 parentId**，层级调整只走拖拽/move 接口（`updateRole` 不含 parentId 字段）。
 
 ### 4.2 分组角色额外基本角色
 
@@ -154,25 +159,23 @@ views/system/role/
 |---|---|---|---|
 | `ROLE:VIEW` | VIEW | ROLE | 路由可达 + 树可见 |
 | `ROLE:CREATE` | CREATE | ROLE | 新增角色下拉 |
-| `ROLE:UPDATE` | UPDATE | ROLE | 编辑 / 启停 / 额外角色增删 |
-| `ROLE:DELETE` | DELETE | ROLE | 删除 |
-| `ROLE:MANAGE` | MANAGE | ROLE | 配权（跳 4.1） |
+| `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 / 配权（跳 4.1） |
+
+> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole(:150)/moveRole(:176)/deleteRoles(:196) 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
 
 ### 降级策略
 
 - 无 `ROLE:VIEW` → 路由不可达（`meta.auths` 派生自 `ROLE_MANAGE_PERM_LIST`）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
-- 无 `ROLE:UPDATE` → 隐藏编辑/启停/额外角色增删按钮。
-- 无 `ROLE:DELETE` → 隐藏删除按钮。
-- 无 `ROLE:MANAGE` → 隐藏「配权」按钮。
-- ORG/POSITION 只读类型 → 无论权限如何，均不展示编辑/删除/配权按钮（业务约束，非权限）。
+- 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除/配权/额外角色增删按钮。
+- ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除/配权按钮（业务约束，非权限）。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
 | 账号 | 角色管理权限 |
 |---|---|
-| admin | 全权（ROLE:VIEW/CREATE/UPDATE/DELETE/MANAGE） |
-| sec（安全管理员） | 全权（与 C 功能角色分配同源） |
+| admin | 全权（ROLE:VIEW/CREATE/MANAGE） |
+| sec（安全管理员） | 全权（与 C 功能角色分配同源；B1 后 `ROLE_ADD + ROLE_GRANT(MANAGE)` 去重） |
 | hr（组织人事管理员） | 只读（ROLE:VIEW） |
 | auditor（审计员） | 只读（ROLE:VIEW） |
 
@@ -191,6 +194,12 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
    - 影响：Phase 1 mock 用树节点 id 工作正常；Phase 3 联调（T-FE-016）需后端切换。
    - 归属：T-PERM-022 🔧。
 
+2. **`/move` 缺父子类型兼容校验**
+   - 现状：`RoleManageAppServiceImpl.moveRole`（:176）仅校验父存在 + 调用方 `ROLE:MANAGE`，**不校验**父子角色类型是否一致（同类型内嵌套合法，跨类型嵌套如 BASIC_ROLE 挂到 GROUP_ROLE 下应拒绝）。
+   - 期望：move 时校验 `target.parentId` 对应父角色的 `roleTypeCode === node.roleTypeCode`，不一致则 `BizException` 拒绝。
+   - 前端兜底：本页已用 `allowDrop` + `handleNodeDrop` 回滚拦截跨类型拖拽（P1-拖拽修复）；后端兜底校验为 Phase 2 缺口。
+   - 归属：T-PERM-022 🔧。
+
 ### ✅ 满足
 
 - tree/list/create/update/move/remove/extra-roles/* 全部满足前端需求，请求/响应结构与 mock 对齐。
@@ -205,4 +214,4 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
 
 - 配权按钮仅提示，待 T-FE-014（4.1 权限授予页）实现后接入跳转。
 - 角色选择器组件未抽取，待 T-FE-014 推进时按 §6 确认。
-- mock 角色树用「类型虚拟根」简化展示；真后端 tree 返回业务域内角色层级，联调时需适配虚拟根逻辑。
+- mock 角色树对齐后端扁平森林结构（C2 已移除"类型虚拟根"展示构造）；联调时直接对接后端 `getRoleTree`，无虚拟根适配成本。
