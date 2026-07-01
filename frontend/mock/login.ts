@@ -25,6 +25,11 @@ import {
   SYSTEM_CONFIG_PERM_LIST,
   SYSTEM_CONFIG_VIEW_PERMS
 } from "../src/views/system/config/utils/perms";
+import {
+  BIZ_DOMAIN_PERMS as BDP,
+  BIZ_DOMAIN_PERM_LIST,
+  BIZ_DOMAIN_VIEW_PERMS
+} from "../src/views/system/biz-domain/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -47,13 +52,22 @@ import {
  * 7.1 操作日志页复用 `SYSTEM_CONFIG:VIEW` 门禁（后端 LogQueryAppServiceImpl 无独立 OPERATION_LOG 权限码），
  * 故本矩阵不新增权限串——admin/sec/hr/auditor 均已通过前页 SYSTEM_CONFIG 矩阵获得 VIEW，
  * 均可查看操作日志（审计员 auditor 必须能查日志，符合审计场景）。🔧 VIEW 复用审计语义登记 T-PERM-025。
+ *
+ * 5.1 业务域页涉及**两个资源类型**门禁：
+ * - biz-domain list/detail 门禁 `DOMAIN:VIEW`（独立资源类型 DOMAIN，后端 listBizDomains/getBizDomain 校验）。
+ *   🔧 DOMAIN 权限种子缺失（schema 无 INSERT 为 DOMAIN 预置 VIEW 操作位），登记 T-PERM-026。
+ *   本矩阵为所有账号预置 DOMAIN:VIEW（业务域是基础设施，各角色均可见列表）。
+ * - biz-domain create/update/remove + domain-config save/remove 门禁 `SYSTEM_CONFIG:MANAGE`（复用，与 6.2 同源）。
+ * - domain-config list/detail 门禁 `SYSTEM_CONFIG:VIEW`（复用）。
+ * admin 全权（含 CONFIG_SAVE=MANAGE）；sec 配置管理同源全权（CONFIG_SAVE）；hr/auditor 只读（DOMAIN:VIEW + CONFIG_VIEW）。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
   admin: [
     ...ORG_USER_PERM_LIST,
     ...ROLE_MANAGE_PERM_LIST,
     ...TYPE_DEF_PERM_LIST,
-    ...SYSTEM_CONFIG_PERM_LIST
+    ...SYSTEM_CONFIG_PERM_LIST,
+    ...BIZ_DOMAIN_PERM_LIST
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -73,7 +87,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_ADD,
     P.POSITION_EDIT,
     P.POSITION_DELETE,
-    P.POSITION_ASSIGN
+    P.POSITION_ASSIGN,
+    ...BIZ_DOMAIN_VIEW_PERMS
   ],
   /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权 + 额外角色 add/remove + 6.1 类型定义 CRUD，其余只读。
    *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。
@@ -94,14 +109,17 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     TP.TYPE_ADD,
     TP.TYPE_EDIT,
     TP.TYPE_DELETE,
-    SCP.CONFIG_SAVE
+    SCP.CONFIG_SAVE,
+    BDP.DOMAIN_VIEW,
+    BDP.CONFIG_SAVE
   ],
   /** 审计员：全只读 */
   auditor: [
     ...ORG_USER_VIEW_PERMS,
     ...ROLE_MANAGE_VIEW_PERMS,
     ...TYPE_DEF_VIEW_PERMS,
-    ...SYSTEM_CONFIG_VIEW_PERMS
+    ...SYSTEM_CONFIG_VIEW_PERMS,
+    ...BIZ_DOMAIN_VIEW_PERMS
   ]
 };
 

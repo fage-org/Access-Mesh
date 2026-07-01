@@ -3,6 +3,7 @@ import { ROLE_MANAGE_PERM_LIST } from "@/views/system/role/utils/perms";
 import { TYPE_DEF_PERM_LIST } from "@/views/system/type-def/utils/perms";
 import { SYSTEM_CONFIG_PERM_LIST } from "@/views/system/config/utils/perms";
 import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perms";
+import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -71,6 +72,18 @@ export default {
         // 单一事实源派生：见 views/system/operation-log/utils/perms.ts
         // 操作日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 OPERATION_LOG 权限码）
         auths: [...OPERATION_LOG_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/biz-domain",
+      name: "SystemBizDomain",
+      component: () => import("@/views/system/biz-domain/index.vue"),
+      meta: {
+        icon: "ep/office-building",
+        title: "业务域",
+        // 单一事实源派生：见 views/system/biz-domain/utils/perms.ts
+        // biz-domain list/detail 门禁 DOMAIN:VIEW（独立资源类型）；domain-config 子区 + biz-domain 写操作门禁 SYSTEM_CONFIG:VIEW/MANAGE
+        auths: [...BIZ_DOMAIN_PERM_LIST]
       }
     }
   ]
