@@ -130,15 +130,19 @@ views/system/config/
 
 | perm 串 | 操作码 | 锚点 | 控制按钮 |
 |---|---|---|---|
-| `SYSTEM_CONFIG:VIEW` | VIEW | SYSTEM_CONFIG | 路由可达 + 列表可见 |
+| `SYSTEM_CONFIG:VIEW` | VIEW | SYSTEM_CONFIG | 列表数据可见（后端 list/detail 校验 VIEW；前端按钮级由 auths 控制，见降级策略） |
 | `SYSTEM_CONFIG:MANAGE` | MANAGE | SYSTEM_CONFIG | 新增 / 编辑（save 统一口径） |
 
 > **B1 口径**：后端 `SystemConfigAppServiceImpl` 的 `upsertSystemConfig` 以 `SYSTEM_CONFIG:MANAGE` 做门禁，`listSystemConfigs`/`getSystemConfig` 以 `VIEW`，无独立 CREATE/UPDATE/DELETE 操作码。前端新增/编辑统一映射到 `SYSTEM_CONFIG:MANAGE`（与类型定义页 EDIT/DELETE→MANAGE 同口径，但更简——系统配置只有一个写操作 save）。`SYSTEM_CONFIG_PERM_LIST` 用 `Set` 去重确保路由 `meta.auths` 无冗余。
 
 ### 降级策略
 
-- 无 `SYSTEM_CONFIG:VIEW` → 路由不可达（`meta.auths` 派生自 `SYSTEM_CONFIG_PERM_LIST`）。
-- 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增配置」和「编辑」按钮，操作列显示「—」。
+> **路由可达性现状（项目共性，非本页独有）**：pure-admin-thin 的 `filterNoPermissionTree`（`router/utils.ts:85`）路由过滤**只基于 `meta.roles`，不使用 `meta.auths`**。本页及 user/role/type-def 等所有页 meta 均只有 `auths` 无 `roles`，故菜单对所有登录用户可见，**页面级拦截靠后端 403 兜底**，`meta.auths` 仅用于按钮级 `hasAuth`/`hasPerms` 控制。这与 role-manage.md / type-definition.md 同口径。
+
+- 无 `SYSTEM_CONFIG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。按钮级 `meta.auths` 派生自 `SYSTEM_CONFIG_PERM_LIST`，仅用于按钮显隐，不拦截路由。
+- 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增配置」和「编辑」按钮（`v-if="canSave"`），操作列显示「—」。
+
+> 🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user 同），若需「无 VIEW 真正路由不可达」需改 `filterNoPermissionTree` 按 `meta.auths` 过滤——影响所有页，超出 T-FE-004 范围，登记待统一立项处理。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
