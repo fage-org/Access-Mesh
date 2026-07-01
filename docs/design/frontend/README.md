@@ -28,7 +28,7 @@
 | 5.1 业务域 | `biz-domain.md` | T-FE-006 | 待产出 |
 | 5.2 服务+接口映射 | `service-interface-mapping.md` | T-FE-007 | 待产出 |
 | 6.1 类型定义 | `type-definition.md` | T-FE-003 | ✅ |
-| 6.2 系统配置 | `system-config.md` | T-FE-004 | 待产出 |
+| 6.2 系统配置 | `system-config.md` | T-FE-004 | ✅ |
 | 7.1 操作日志 | `operation-log.md` | T-FE-005 | 待产出 |
 | 7.2 权限变更日志 | `permission-change-log.md` | T-FE-012 | 待产出 |
 | 扩展指南 | `extension-guide.md` | T-FE-023（Phase 4） | 待产出 |
