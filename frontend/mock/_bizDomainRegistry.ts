@@ -150,13 +150,19 @@ export function updateDomain(
   return found;
 }
 
-/** 软删业务域（biz-domain mock remove 调用）。返回被删记录数组（含全局域拦截信息）。 */
+/** 软删业务域（biz-domain mock remove 调用）。返回被删记录数组（含全局域拦截信息）。
+ *  失败不变更语义：若 ids 同时包含全局域与普通域，先判 blockedGlobals，有全局域
+ *  直接返回不执行任何删除，保持「整批失败则整批不变更」（后端 @Transactional 等价）。 */
 export function softDeleteDomains(ids: number[]): {
   deleted: BizDomainRecord[];
   blockedGlobals: BizDomainRecord[];
 } {
   const targets = registry.filter(d => ids.includes(d.id) && !d.deleted);
   const blockedGlobals = targets.filter(d => d.global);
+  // 失败不变更：存在全局域则整批拒绝，不标记任何删除
+  if (blockedGlobals.length > 0) {
+    return { deleted: [], blockedGlobals };
+  }
   const deletable = targets.filter(d => !d.global);
   deletable.forEach(d => {
     d.deleted = true;
