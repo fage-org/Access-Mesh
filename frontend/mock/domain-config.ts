@@ -4,6 +4,7 @@
 // 契约依据：docs/design/permission-center/api-contract.md §5.6（高级能力）
 // 表结构：docs/design/schema/permission-center.sql:465-483
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
+import { resolveDomainId } from "./_bizDomainRegistry";
 
 /**
  * 本地声明类型（不 import src/api/domain-config，避免 fake-server 经 bundle-import 打包 src/api 链——
@@ -35,16 +36,10 @@ const ok = data => ({ code: 200, message: "success", data });
 /** 错误信封 */
 const err = (code: number, message: string) => ({ code, message, data: null });
 
-// ========== 业务域编码 → ID 反查表（对齐 mock/biz-domain.ts 的 id 分配） ==========
+// ========== 业务域编码 → ID 解析（共享 registry） ==========
 // 后端 save 时由 typeResolutionService.resolveDomainId(tenantId, domainCode) 解析 bizDomainId；
-// mock 内部用静态反查表模拟（id 与 mock/biz-domain.ts 一致：GLOBAL=1/HR=2/ORDER=3/CRM=4/ASSET=5）。
-const DOMAIN_CODE_TO_ID: Record<string, number> = {
-  GLOBAL: 1,
-  HR: 2,
-  ORDER: 3,
-  CRM: 4,
-  ASSET: 5
-};
+// mock 调用共享注册表 mock/_bizDomainRegistry.ts 的 resolveDomainId，实时感知运行时新建/删除的业务域
+//（修复：原静态 DOMAIN_CODE_TO_ID 反查表不含新建域 code，导致新建域保存配置返回「未知域编码」）。
 
 // ========== Mock 数据：域配置（覆盖 5 种 configType + 多域） ==========
 
@@ -182,7 +177,7 @@ export default defineFakeRoute([
       } catch {
         return err(400, "配置值必须是合法 JSON");
       }
-      const bizDomainId = DOMAIN_CODE_TO_ID[domainCode];
+      const bizDomainId = resolveDomainId(domainCode);
       if (bizDomainId == null) {
         return err(404, `未知域编码: ${domainCode}`);
       }

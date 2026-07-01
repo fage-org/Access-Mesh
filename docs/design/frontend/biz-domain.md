@@ -131,13 +131,14 @@ last_reviewed: 2026-07-01
 
 ### 4.4 主表：删除业务域
 
-- 操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ `removeBizDomain([id])` 批量软删。
+- 操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ `handleDeleteBizDomain([id])` 内前置 `ElMessageBox.confirm` 二次确认（对齐 role/type-def 范式，业务域为持久配置类资源）→ 确认后 `removeBizDomain([id])` 批量软删。
 - **全局域不可删**：mock 校验 `global=true` 拒绝返回 400（🔧 Resp 不返回 global，前端无法预判，后端需有此校验，登记 T-PERM-026）。
 - 若删除了当前选中域，清空子表。
 
 ### 4.5 主从联动：选中域 → 加载子表
 
-- 操作列「配置」按钮（点击 `selectDomain(row)` + 滚动到子表区）→ `currentDomain` 设为该域 → `loadConfigs()` 调 `getDomainConfigList(currentDomain.code)` → 子表展示该域 DomainConfig 列表。
+- 操作列「配置」按钮（`v-if="canViewConfig"`，门禁 `SYSTEM_CONFIG:VIEW`）→ 点击 `onConfigLink(row)` → `selectDomain(row, canViewConfig.value)` + 滚动到子表区 → `currentDomain` 设为该域 → `loadConfigs()` 调 `getDomainConfigList(currentDomain.code)` → 子表展示该域 DomainConfig 列表。
+- **权限守卫（避免可避免的 403）**：`selectDomain` 接 `canViewConfig` 形参，无 `SYSTEM_CONFIG:VIEW` 时只选中域、**不发 /list 请求**，子表由 `el-empty` 提示无权。按钮 `v-if="canViewConfig"` 隐藏入口 + selectDomain 守卫为双保险。
 - 未选中域时：下区 `el-empty` 引导「点击配置按钮」。
 
 ### 4.6 子表：新增域配置
@@ -154,7 +155,7 @@ last_reviewed: 2026-07-01
 
 ### 4.8 子表：删除域配置
 
-- 子表操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ `removeDomainConfig([id])` 批量软删 → 成功 `loadConfigs`。
+- 子表操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ `handleDeleteConfig([id])` 内前置 `ElMessageBox.confirm` 二次确认（对齐 role/type-def 范式，域配置为持久配置类资源）→ 确认后 `removeDomainConfig([id])` 批量软删 → 成功 `loadConfigs`。
 
 ## 5. API 依赖（链接后端契约章节）
 
@@ -181,10 +182,12 @@ views/system/biz-domain/
 │   ├── BizDomainForm.vue      # 业务域表单弹窗（create/edit，独立 create/update 接口）
 │   └── DomainConfigForm.vue   # 域配置表单弹窗（save upsert，extra JSON 校验）
 └── utils/
-    ├── hook.ts                # useBizDomain（主表 CRUD + 选中域 + 子表加载）
+    ├── hook.ts                # useBizDomain（主表 CRUD + 选中域 + 子表加载 + 删除确认）
     ├── perms.ts               # BIZ_DOMAIN_PERMS（SSOT，DOMAIN:VIEW + SYSTEM_CONFIG:VIEW/MANAGE）
     └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 5 项 + parseExtra
 ```
+
+> **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据（唯一权威源），`mock/biz-domain.ts`（CRUD）与 `mock/domain-config.ts`（save 解析 domainCode→bizDomainId）共用同一份。使运行时新建/删除的业务域能被 domain-config save 实时感知（后端等价 `typeResolutionService.resolveDomainId`）。零 src 依赖（仅 mock 间共享，不 import @/api/*）。
 
 ### Step 1.5 组件识别（登记 T-FE-001 组件池）
 
@@ -292,5 +295,8 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026。
 
 - biz-domain list 为前端本地过滤+分页（后端返回全量 ItemsResp）；Phase 2 后端补 keyword/pageNum/pageSize + 返回 PaginatedResp 后切换服务端分页。
 - extra JSON 校验为前端 `JSON.parse` 预拦截（对齐后端 `JsonValidationUtils`）；联调时后端二次校验。
-- mock 保留 `global`/`deleted`/`domainCode` 内部字段（对齐 schema delete_flag 范式 + 全局域不可删校验 + 按域过滤），但响应 clone 时剔除以对齐后端 Resp 现状。
+- mock 保留 `global`/`deleted` 内部字段（对齐 schema delete_flag 范式 + 全局域不可删校验），但响应 clone 时剔除以对齐后端 Resp 现状。`domainCode` 为 domain-config mock 内部冗余字段（便于按域过滤），响应 clone 时剔除。
+- **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据，biz-domain 与 domain-config mock 共用同一份——运行时新建/删除的域对 domain-config save 的 `resolveDomainId(code)` 实时可见（修复「新建业务域后无法新增域配置」）。
 - 全局域不可删靠 mock 校验（后端 Resp 不返回 global，前端无法预判）；联调（T-FE-021）需后端先补 §8 第 1/2 项（DOMAIN 权限种子 + Resp global 字段），否则联调无权访问或误删全局域。
+- **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
+- **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。

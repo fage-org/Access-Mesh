@@ -124,8 +124,9 @@ function onDeleteBizDomain(row: BizDomainResp) {
 }
 
 // ========== 主表：选中域 → 滚动到子表 ==========
+// canViewConfig=false（无 SYSTEM_CONFIG:VIEW）时只选中域、不发 /list 请求，避免可避免的 403。
 function onConfigLink(row: BizDomainResp) {
-  selectDomain(row);
+  selectDomain(row, canViewConfig.value);
   // 滚动到子表区
   configSectionRef.value?.scrollIntoView({
     behavior: "smooth",
@@ -270,6 +271,7 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
                 删除
               </el-button>
               <el-button
+                v-if="canViewConfig"
                 class="reset-margin"
                 link
                 type="primary"
@@ -279,7 +281,12 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
               >
                 配置
               </el-button>
-              <span v-if="!canManage" class="text-sm text-gray-400"> — </span>
+              <span
+                v-if="!canManage && !canViewConfig"
+                class="text-sm text-gray-400"
+              >
+                —
+              </span>
             </template>
           </pure-table>
         </template>

@@ -1,4 +1,5 @@
 import { ref, reactive, onMounted } from "vue";
+import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
 import {
   getBizDomainList,
@@ -97,10 +98,17 @@ export function useBizDomain() {
     loadTable();
   }
 
-  /** 选中业务域 → 加载该域的 DomainConfig 子表 */
-  function selectDomain(row: BizDomainResp) {
+  /** 选中业务域 → 加载该域的 DomainConfig 子表。
+   *  canViewConfig=false（无 SYSTEM_CONFIG:VIEW 权限）时只选中域、不发 /list 请求，
+   *  避免真实后端产生可避免的 403（index.vue 的「配置」按钮已按 canViewConfig 隐藏入口，
+   *  此处为双保险守卫）。 */
+  function selectDomain(row: BizDomainResp, canViewConfig = true) {
     currentDomain.value = row;
-    loadConfigs();
+    if (canViewConfig) {
+      loadConfigs();
+    } else {
+      configData.value = [];
+    }
   }
 
   /** 加载当前选中域的配置列表 */
@@ -164,8 +172,22 @@ export function useBizDomain() {
   }
 
   /** 删除业务域（批量软删）。全局域不可删（后端校验 global，前端无 global 字段无法预判，
-   *  🔧 Resp 缺 global 登记 T-PERM-026；mock 已校验全局域不可删）。 */
+   *  🔧 Resp 缺 global 登记 T-PERM-026；mock 已校验全局域不可删）。
+   *  删除前 ElMessageBox.confirm 二次确认（对齐 role/type-def 范式，业务域为持久配置类资源）。 */
   async function handleDeleteBizDomain(ids: number[]): Promise<boolean> {
+    try {
+      await ElMessageBox.confirm(
+        `确认删除选中的 ${ids.length} 个业务域？删除后其下域配置将一并处理。`,
+        "删除确认",
+        {
+          confirmButtonText: "确定删除",
+          cancelButtonText: "取消",
+          type: "warning"
+        }
+      );
+    } catch {
+      return false; // 取消
+    }
     try {
       await removeBizDomain(ids);
       message("删除成功", { type: "success" });
@@ -211,8 +233,22 @@ export function useBizDomain() {
     }
   }
 
-  /** 删除域配置（批量软删） */
+  /** 删除域配置（批量软删）。删除前 ElMessageBox.confirm 二次确认
+   *  （对齐 role/type-def 范式，域配置为持久配置类资源）。 */
   async function handleDeleteConfig(ids: number[]): Promise<boolean> {
+    try {
+      await ElMessageBox.confirm(
+        `确认删除选中的 ${ids.length} 条域配置？`,
+        "删除确认",
+        {
+          confirmButtonText: "确定删除",
+          cancelButtonText: "取消",
+          type: "warning"
+        }
+      );
+    } catch {
+      return false; // 取消
+    }
     try {
       await removeDomainConfig(ids);
       message("删除成功", { type: "success" });
