@@ -2,6 +2,7 @@ import { ORG_USER_PERM_LIST } from "@/views/system/user/utils/perms";
 import { ROLE_MANAGE_PERM_LIST } from "@/views/system/role/utils/perms";
 import { TYPE_DEF_PERM_LIST } from "@/views/system/type-def/utils/perms";
 import { SYSTEM_CONFIG_PERM_LIST } from "@/views/system/config/utils/perms";
+import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -58,6 +59,18 @@ export default {
         title: "系统配置",
         // 单一事实源派生：见 views/system/config/utils/perms.ts
         auths: [...SYSTEM_CONFIG_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/operation-log",
+      name: "SystemOperationLog",
+      component: () => import("@/views/system/operation-log/index.vue"),
+      meta: {
+        icon: "ep/document",
+        title: "操作日志",
+        // 单一事实源派生：见 views/system/operation-log/utils/perms.ts
+        // 操作日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 OPERATION_LOG 权限码）
+        auths: [...OPERATION_LOG_PERM_LIST]
       }
     }
   ]

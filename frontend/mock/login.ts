@@ -43,6 +43,10 @@ import {
  *
  * admin 用全清单（而非 `*:*:*` 通配），便于联调时验证 perm 串拼写与矩阵覆盖度；
  * 通配测试可用其他独立账号承载。
+ *
+ * 7.1 操作日志页复用 `SYSTEM_CONFIG:VIEW` 门禁（后端 LogQueryAppServiceImpl 无独立 OPERATION_LOG 权限码），
+ * 故本矩阵不新增权限串——admin/sec/hr/auditor 均已通过前页 SYSTEM_CONFIG 矩阵获得 VIEW，
+ * 均可查看操作日志（审计员 auditor 必须能查日志，符合审计场景）。🔧 VIEW 复用审计语义登记 T-PERM-025。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
   admin: [
