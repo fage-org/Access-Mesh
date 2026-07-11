@@ -589,54 +589,90 @@ function checkParentPermissions(
   return { matchedOps, parentPermissionIds: [...permIdSet] };
 }
 
-/** 四态固定格（DATA 类型 4 操作）；请求的其他类型/操作默认 DENIED */
-const fixedScopeGroups: ScopeGroup[] = [
+/**
+ * 范围授权事实（单条 role_resource_permission，用于派生 ScopeGroup）。
+ * 对齐后端 buildScopeGroup：先按 parentPermissionIds 过滤整条事实，再聚合 matched* / 重新判定四态。
+ */
+interface ScopeGrant {
+  resourceTypeCode: string;
+  operationCode: string;
+  permissionId: number;
+  roleId: number;
+  /** 依赖的父权限 ID；null=直接范围权限(DIRECT)，非 null=依赖主权限的子权限(DEPENDENT) */
+  dependOn: number | null;
+  /** 授权范围：INSTANCE=具体实例，ALL=全量 */
+  scopeMode: "INSTANCE" | "ALL";
+  /** INSTANCE 时的实例编码；ALL 时 null */
+  resourceCode: string | null;
+  codeType: string | null;
+  resourceName: string | null;
+  /** 条件/互斥过滤后为空（模拟 EMPTY 四态：有权限但过滤后无数据） */
+  conditionFilteredEmpty?: boolean;
+}
+
+/**
+ * 范围授权事实表（DATA 类型 4 操作）。
+ * - DATA_READ：301(DEPENDENT on 200, ALL) + 302(DIRECT, ALL) -- ALL 短路 [201] 时 301 被整体移除
+ * - DATA_EDIT：302+501(DIRECT, INSTANCE, data:dept:A/B)
+ * - DATA_DELETE：303(DIRECT, INSTANCE, conditionFilteredEmpty -> EMPTY)
+ * - DATA_EXPORT：无事实 -> DENIED
+ */
+const scopeGrants: ScopeGrant[] = [
   {
     resourceTypeCode: "DATA",
     operationCode: "DATA_READ",
+    permissionId: 301,
+    roleId: 10,
+    dependOn: 200,
     scopeMode: "ALL",
-    items: [],
-    matchedRoleIds: [10, 12],
-    matchedPermissionIds: [301, 302],
-    dependOnPermissionIds: [200]
+    resourceCode: null,
+    codeType: null,
+    resourceName: null
+  },
+  {
+    resourceTypeCode: "DATA",
+    operationCode: "DATA_READ",
+    permissionId: 302,
+    roleId: 12,
+    dependOn: null,
+    scopeMode: "ALL",
+    resourceCode: null,
+    codeType: null,
+    resourceName: null
   },
   {
     resourceTypeCode: "DATA",
     operationCode: "DATA_EDIT",
+    permissionId: 302,
+    roleId: 10,
+    dependOn: null,
     scopeMode: "INSTANCE",
-    items: [
-      {
-        resourceCode: "data:dept:A",
-        codeType: "default",
-        resourceName: "A部门数据"
-      },
-      {
-        resourceCode: "data:dept:B",
-        codeType: "default",
-        resourceName: "B部门数据"
-      }
-    ],
-    matchedRoleIds: [10, 15],
-    matchedPermissionIds: [302, 501],
-    dependOnPermissionIds: []
+    resourceCode: "data:dept:A",
+    codeType: "default",
+    resourceName: "A部门数据"
   },
   {
     resourceTypeCode: "DATA",
-    operationCode: "DATA_EXPORT",
-    scopeMode: "DENIED",
-    items: [],
-    matchedRoleIds: [],
-    matchedPermissionIds: [],
-    dependOnPermissionIds: []
+    operationCode: "DATA_EDIT",
+    permissionId: 501,
+    roleId: 15,
+    dependOn: null,
+    scopeMode: "INSTANCE",
+    resourceCode: "data:dept:B",
+    codeType: "default",
+    resourceName: "B部门数据"
   },
   {
     resourceTypeCode: "DATA",
     operationCode: "DATA_DELETE",
-    scopeMode: "EMPTY",
-    items: [],
-    matchedRoleIds: [10],
-    matchedPermissionIds: [303],
-    dependOnPermissionIds: []
+    permissionId: 303,
+    roleId: 10,
+    dependOn: null,
+    scopeMode: "INSTANCE",
+    resourceCode: "data:dept:D",
+    codeType: "default",
+    resourceName: "D部门数据",
+    conditionFilteredEmpty: true
   }
 ];
 
@@ -663,10 +699,110 @@ function buildDeniedScopeGroups(
 }
 
 /**
- * 按请求笛卡尔积生成 scopeGroups（四态固定格优先，其余 DENIED）。
- * dependOnPermissionIds 必须是 parentPermissionIds 的子集（对齐 buildScopeGroup L501：
- * dependOn 不在 parentPermissionIds 中的条目被过滤，L519 只从过滤后条目收集 dependOn）。
+ * 单格 ScopeGroup 聚合（对齐后端 buildScopeGroup L496-557）。
+ * 1. 按 parentPermissionIds 过滤整条事实（dependOn==null || parentPermissionIds.includes(dependOn)）
+ * 2. rawEntries 为空 -> DENIED
+ * 3. 条件/互斥过滤（mock：conditionFilteredEmpty 模拟）
+ * 4. filtered 为空 -> EMPTY
+ * 5. 聚合 matchedRoleIds/matchedPermissionIds/dependOnPermissionIds（从 filtered）
+ * 6. hasScopeAll -> ALL（items=[]）
+ * 7. INSTANCE（items 去重，items 为空 -> EMPTY）
  */
+function buildScopeGroup(
+  resourceTypeCode: string,
+  operationCode: string,
+  parentPermissionIds: number[]
+): ScopeGroup {
+  // 1. 按 parentPermissionIds 过滤整条事实
+  const rawEntries = scopeGrants.filter(
+    g =>
+      g.resourceTypeCode === resourceTypeCode &&
+      g.operationCode === operationCode &&
+      (g.dependOn === null || parentPermissionIds.includes(g.dependOn))
+  );
+  // 2. rawEntries 为空 -> DENIED
+  if (rawEntries.length === 0) {
+    return {
+      resourceTypeCode,
+      operationCode,
+      scopeMode: "DENIED",
+      items: [],
+      matchedRoleIds: [],
+      matchedPermissionIds: [],
+      dependOnPermissionIds: []
+    };
+  }
+  // 3. 条件/互斥过滤（mock：conditionFilteredEmpty 模拟）
+  const filtered = rawEntries.filter(g => !g.conditionFilteredEmpty);
+  // 4. filtered 为空 -> EMPTY
+  if (filtered.length === 0) {
+    return {
+      resourceTypeCode,
+      operationCode,
+      scopeMode: "EMPTY",
+      items: [],
+      matchedRoleIds: [],
+      matchedPermissionIds: [],
+      dependOnPermissionIds: []
+    };
+  }
+  // 5. 聚合（从 filtered，dependOn 不在 parentPermissionIds 中的条目已整体移除）
+  const matchedRoleIds = [...new Set(filtered.map(g => g.roleId))];
+  const matchedPermissionIds = [...new Set(filtered.map(g => g.permissionId))];
+  const dependOnPermissionIds = [
+    ...new Set(
+      filtered.map(g => g.dependOn).filter((d): d is number => d !== null)
+    )
+  ];
+  // 6. ALL 优先：任一 scopeMode=ALL -> ALL（items=[]）
+  if (filtered.some(g => g.scopeMode === "ALL")) {
+    return {
+      resourceTypeCode,
+      operationCode,
+      scopeMode: "ALL",
+      items: [],
+      matchedRoleIds,
+      matchedPermissionIds,
+      dependOnPermissionIds
+    };
+  }
+  // 7. INSTANCE：收集去重实例
+  const itemMap = new Map<string, ScopeItem>();
+  for (const g of filtered) {
+    if (g.scopeMode === "INSTANCE" && g.resourceCode) {
+      const key = `${g.codeType ?? ""}|${g.resourceCode}`;
+      if (!itemMap.has(key)) {
+        itemMap.set(key, {
+          resourceCode: g.resourceCode,
+          codeType: g.codeType ?? "default",
+          resourceName: g.resourceName
+        });
+      }
+    }
+  }
+  if (itemMap.size === 0) {
+    return {
+      resourceTypeCode,
+      operationCode,
+      scopeMode: "EMPTY",
+      items: [],
+      matchedRoleIds: [],
+      matchedPermissionIds: [],
+      dependOnPermissionIds: []
+    };
+  }
+  return {
+    resourceTypeCode,
+    operationCode,
+    scopeMode: "INSTANCE",
+    items: [...itemMap.values()],
+    matchedRoleIds,
+    matchedPermissionIds,
+    dependOnPermissionIds
+  };
+}
+
+/** 按请求笛卡尔积生成 scopeGroups（每格调用 buildScopeGroup 聚合） */
 function buildScopeGroups(
   scopeTypes: string[],
   scopeOps: string[],
@@ -675,27 +811,7 @@ function buildScopeGroups(
   const groups: ScopeGroup[] = [];
   for (const rt of scopeTypes) {
     for (const op of scopeOps) {
-      const fixed = fixedScopeGroups.find(
-        g => g.resourceTypeCode === rt && g.operationCode === op
-      );
-      groups.push(
-        fixed
-          ? {
-              ...fixed,
-              dependOnPermissionIds: fixed.dependOnPermissionIds.filter(id =>
-                parentPermissionIds.includes(id)
-              )
-            }
-          : {
-              resourceTypeCode: rt,
-              operationCode: op,
-              scopeMode: "DENIED" as ScopeMode,
-              items: [],
-              matchedRoleIds: [],
-              matchedPermissionIds: [],
-              dependOnPermissionIds: []
-            }
-      );
+      groups.push(buildScopeGroup(rt, op, parentPermissionIds));
     }
   }
   return groups;
