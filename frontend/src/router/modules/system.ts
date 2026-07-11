@@ -8,6 +8,7 @@ import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/ut
 import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/utils/perms";
 import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/perms";
 import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
+import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -135,6 +136,19 @@ export default {
         // 单一事实源派生：见 views/system/conflict-rule/utils/perms.ts
         // 冲突规则 CRUD 门禁 CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
         auths: [...CONFLICT_RULE_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/resource-dependency",
+      name: "SystemResourceDependency",
+      component: () => import("@/views/system/resource-dependency/index.vue"),
+      meta: {
+        icon: "ep/share",
+        title: "资源依赖",
+        // 单一事实源派生：见 views/system/resource-dependency/utils/perms.ts
+        // 资源依赖 CRUD 门禁 DEPENDENCY:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
+        // SYNC 权限码已定义但 batch-sync P0 标 TODO，不暴露按钮
+        auths: [...RESOURCE_DEPENDENCY_PERM_LIST]
       }
     }
   ]
