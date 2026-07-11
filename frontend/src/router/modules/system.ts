@@ -10,6 +10,7 @@ import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/p
 import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
 import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
 import { PERMISSION_CHANGE_LOG_PERM_LIST } from "@/views/system/permission-change-log/utils/perms";
+import { PERMISSION_QUERY_PERM_LIST } from "@/views/system/permission-query/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -162,6 +163,18 @@ export default {
         // 单一事实源派生：见 views/system/permission-change-log/utils/perms.ts
         // 变更日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 PERMISSION_CHANGE_LOG 权限码）
         auths: [...PERMISSION_CHANGE_LOG_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/permission-query",
+      name: "SystemPermissionQuery",
+      component: () => import("@/views/system/permission-query/index.vue"),
+      meta: {
+        icon: "ep/key",
+        title: "权限排查",
+        // 单一事实源派生：见 views/system/permission-query/utils/perms.ts
+        // 临时复用 SYSTEM_CONFIG:VIEW（T-PERM-033 后切换 PERMISSION_QUERY:VIEW 全链路）
+        auths: [...PERMISSION_QUERY_PERM_LIST]
       }
     }
   ]
