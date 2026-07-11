@@ -197,9 +197,7 @@ export function useServiceInterface() {
     }
   }
 
-  async function deleteCurrentService(): Promise<boolean> {
-    const service = currentService.value;
-    if (!service) return false;
+  async function deleteService(service: ServiceSummary): Promise<boolean> {
     try {
       await ElMessageBox.confirm(
         `确认删除服务「${service.name}」吗？该服务关联的接口映射也将不再可用。`,
@@ -216,7 +214,9 @@ export function useServiceInterface() {
     try {
       await removeServiceConfigs([service.id]);
       message("服务已删除", { type: "success" });
-      selectedServiceCode.value = null;
+      if (selectedServiceCode.value === service.serviceCode) {
+        selectedServiceCode.value = null;
+      }
       await loadDirectory();
       return true;
     } catch (error: unknown) {
@@ -340,9 +340,10 @@ export function useServiceInterface() {
     selectService,
     resetMappingFilters,
     submitService,
-    deleteCurrentService,
+    deleteService,
     submitMapping,
     deleteMapping,
-    runFullSync
+    runFullSync,
+    refreshMappings: loadMappings
   };
 }
