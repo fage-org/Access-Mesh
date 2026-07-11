@@ -21,7 +21,7 @@
 | 2.2 角色管理 | `role-manage.md` | T-FE-002 | ✅ |
 | 3.1 资源+操作定义 | `resource-operation.md` | T-FE-008 | 待产出 |
 | 3.2 权限条件 | `permission-condition.md` | T-FE-009 | ✅ |
-| 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | 待产出 |
+| 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | ✅ |
 | 3.4 资源依赖 | `resource-dependency.md` | T-FE-011 | 待产出 |
 | 4.1 权限授予 | `permission-grant.md` | T-FE-014 | 待产出 |
 | 4.2 权限查询/校验 | `permission-query.md` | T-FE-013 | 待产出 |

@@ -7,6 +7,7 @@ import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
 import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/utils/perms";
 import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/utils/perms";
 import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/perms";
+import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -122,6 +123,18 @@ export default {
         // 单一事实源派生：见 views/system/permission-condition/utils/perms.ts
         // 条件 CRUD 门禁 CONDITION:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
         auths: [...CONDITION_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/conflict-rule",
+      name: "SystemConflictRule",
+      component: () => import("@/views/system/conflict-rule/index.vue"),
+      meta: {
+        icon: "ep/warn-triangle-filled",
+        title: "冲突规则",
+        // 单一事实源派生：见 views/system/conflict-rule/utils/perms.ts
+        // 冲突规则 CRUD 门禁 CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
+        auths: [...CONFLICT_RULE_PERM_LIST]
       }
     }
   ]

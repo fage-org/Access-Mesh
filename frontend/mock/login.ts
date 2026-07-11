@@ -45,6 +45,11 @@ import {
   CONDITION_PERM_LIST,
   CONDITION_VIEW_PERMS
 } from "../src/views/system/permission-condition/utils/perms";
+import {
+  CONFLICT_RULE_PERMS as CRP,
+  CONFLICT_RULE_PERM_LIST,
+  CONFLICT_RULE_VIEW_PERMS
+} from "../src/views/system/conflict-rule/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -90,7 +95,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...BIZ_DOMAIN_PERM_LIST,
     ...SERVICE_INTERFACE_PERM_LIST,
     ...RESOURCE_OPERATION_PERM_LIST,
-    ...CONDITION_PERM_LIST
+    ...CONDITION_PERM_LIST,
+    ...CONFLICT_RULE_PERM_LIST
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -114,7 +120,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...BIZ_DOMAIN_VIEW_PERMS,
     ...SERVICE_INTERFACE_VIEW_PERMS,
     ...RESOURCE_OPERATION_VIEW_PERMS,
-    ...CONDITION_VIEW_PERMS
+    ...CONDITION_VIEW_PERMS,
+    ...CONFLICT_RULE_VIEW_PERMS
   ],
   /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权 + 额外角色 add/remove + 6.1 类型定义 CRUD，其余只读。
    *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。
@@ -154,7 +161,11 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     CP.CONDITION_VIEW,
     CP.CONDITION_ADD,
     CP.CONDITION_EDIT,
-    CP.CONDITION_DELETE
+    CP.CONDITION_DELETE,
+    CRP.CONFLICT_RULE_VIEW,
+    CRP.CONFLICT_RULE_ADD,
+    CRP.CONFLICT_RULE_EDIT,
+    CRP.CONFLICT_RULE_DELETE
   ],
   /** 审计员：全只读 */
   auditor: [
@@ -165,7 +176,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...BIZ_DOMAIN_VIEW_PERMS,
     ...SERVICE_INTERFACE_VIEW_PERMS,
     ...RESOURCE_OPERATION_VIEW_PERMS,
-    ...CONDITION_VIEW_PERMS
+    ...CONDITION_VIEW_PERMS,
+    ...CONFLICT_RULE_VIEW_PERMS
   ]
 };
 
