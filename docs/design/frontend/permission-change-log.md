@@ -140,6 +140,7 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 | 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PaginatedResp |
 | 8 | diff_snapshot 规范 | ✅ | §6.8 L1590-1671 完整规范，7 种 eventType + 3 种 changeType 固定枚举 |
 | 9 | detail 端点 | ✅ | 无需独立 detail（Resp 含全字段 + diffSnapshot），设计合理 |
+| 10 | eventType 枚举一致性 | 🔧 | 后端批量删除角色 `diffSnapshot.eventType` 写 `"ROLE_BATCH_DELETE"`（`RoleManageAppServiceImpl:286`），超出 §6.8 定义的 7 枚举。前端 `EVENT_TYPE_META` fallback 显示原值不崩溃，但枚举不一致需后端收敛或契约补枚举 |
 
 ## 6. 组件识别（Step 1.5 -> T-FE-001 组件池）
 
@@ -153,9 +154,10 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 
 `mock/permission-change-log.ts`（零 src 依赖，本地声明类型，对齐 operation-log.ts 范式）：
 
-- 12 条变更日志，覆盖全部 7 种 eventType
+- 14 条变更日志，覆盖全部 7 种 eventType + 1 种超枚举（ROLE_BATCH_DELETE，验证 fallback）
 - 覆盖 entityType：role_resource_permission / user_role / resource_entity / abstract_role / permission_condition / resource_dependency
-- 覆盖 operation：INSERT / UPDATE / DELETE
+- 覆盖 operation：INSERT / UPDATE / DELETE / BATCH_DELETE / BATCH_REMOVE（后两者为 entityId=0 批量聚合日志，对齐后端 `RoleManageAppServiceImpl:300` / `UserManageAppServiceImpl:672`）
+- 覆盖 entityId=0 批量聚合场景：抽象角色批量删除 + 用户角色批量撤销
 - 覆盖 changeSource：MANUAL / SERVICE_SYNC
 - diff_snapshot 含 permission/role/resource/before-after 组合，验证 diff 面板结构化渲染
 - createdAt 固定字符串（脚本禁用 Date.now），按 DESC 排序验证分页
