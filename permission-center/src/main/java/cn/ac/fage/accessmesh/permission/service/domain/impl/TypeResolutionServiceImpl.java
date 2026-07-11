@@ -206,7 +206,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
      */
     @Override
     public Long resolveOperationId(Long tenantId, String operationCode, String resourceTypeCode) {
-        // resourceTypeCode 非空：必须解析出 resourceType，否则返回 null（不降级 selectByCode 跨类型任取）
+        // resourceTypeCode 非空：必须解析出 resourceType，否则返回 null（不降级跨类型任取）
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
             if (resourceType == null) return null;
@@ -217,7 +217,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             OperationPermission global = operationPermissionMapper.selectGlobalByCode(tenantId, operationCode);
             return global != null ? global.getId() : null;
         }
-        // resourceTypeCode 为空：仅查全局操作（不降级 selectByCode 跨类型任取）
+        // resourceTypeCode 为空：仅查全局操作（不降级跨类型任取）
         OperationPermission global = operationPermissionMapper.selectGlobalByCode(tenantId, operationCode);
         return global != null ? global.getId() : null;
     }
@@ -292,7 +292,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (validCodes.isEmpty()) {
             return Collections.emptyMap();
         }
-        // resourceTypeCode 非空：必须解析出 resourceType，否则返回空（不降级 selectByCodes 跨类型任取）
+        // resourceTypeCode 非空：必须解析出 resourceType，否则返回空（不降级跨类型任取）
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
             if (resourceType == null) return Collections.emptyMap();

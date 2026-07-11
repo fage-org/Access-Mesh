@@ -108,16 +108,6 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
                                                      @Param("code") String code);
 
     /**
-     * 根据租户ID和操作码查询操作权限（不限资源类型）
-     *
-     * @param tenantId 租户ID
-     * @param code     操作码
-     * @return 操作权限实体，不存在返回null
-     */
-    OperationPermission selectByCode(@Param("tenantId") Long tenantId,
-                                      @Param("code") String code);
-
-    /**
      * 根据租户ID、资源类型和操作码集合批量查询操作权限
      *
      * @param tenantId     租户ID
@@ -128,16 +118,6 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
     List<OperationPermission> selectByResourceTypeAndCodes(@Param("tenantId") Long tenantId,
                                                             @Param("resourceType") Integer resourceType,
                                                             @Param("codes") Set<String> codes);
-
-    /**
-     * 根据租户ID和操作码集合批量查询操作权限（不限资源类型）
-     *
-     * @param tenantId 租户ID
-     * @param codes    操作码集合
-     * @return 操作权限列表
-     */
-    List<OperationPermission> selectByCodes(@Param("tenantId") Long tenantId,
-                                             @Param("codes") Set<String> codes);
 
     /**
      * 根据租户ID和操作码查询全局操作权限（resource_type IS NULL，适用所有资源类型）
