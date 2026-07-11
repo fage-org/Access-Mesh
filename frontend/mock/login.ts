@@ -78,6 +78,10 @@ import {
  * 故本矩阵不新增权限串——admin/sec/hr/auditor 均已通过前页 SYSTEM_CONFIG 矩阵获得 VIEW，
  * 均可查看操作日志（审计员 auditor 必须能查日志，符合审计场景）。🔧 VIEW 复用审计语义登记 T-PERM-025。
  *
+ * 7.2 权限变更日志页同样复用 SYSTEM_CONFIG:VIEW 门禁（后端 LogQueryAppServiceImpl.listChangeLogs
+ *  无独立 PERMISSION_CHANGE_LOG 权限码），矩阵不新增权限串，所有账号均可查看变更日志。
+ *  🔧 VIEW 复用审计语义登记 T-PERM-032。
+ *
  * 5.1 业务域页涉及**两个资源类型**门禁：
  * - biz-domain list/detail 门禁 `DOMAIN:VIEW`（独立资源类型 DOMAIN，后端 listBizDomains/getBizDomain 校验）。
  *   🔧 DOMAIN 权限种子缺失（schema 无 INSERT 为 DOMAIN 预置 VIEW 操作位），登记 T-PERM-026。

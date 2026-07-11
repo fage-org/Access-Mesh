@@ -9,6 +9,7 @@ import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/
 import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/perms";
 import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
 import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
+import { PERMISSION_CHANGE_LOG_PERM_LIST } from "@/views/system/permission-change-log/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -149,6 +150,18 @@ export default {
         // 资源依赖 CRUD 门禁 DEPENDENCY:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
         // SYNC 权限码已定义但 batch-sync P0 标 TODO，不暴露按钮
         auths: [...RESOURCE_DEPENDENCY_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/permission-change-log",
+      name: "SystemPermissionChangeLog",
+      component: () => import("@/views/system/permission-change-log/index.vue"),
+      meta: {
+        icon: "ep/history",
+        title: "权限变更日志",
+        // 单一事实源派生：见 views/system/permission-change-log/utils/perms.ts
+        // 变更日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 PERMISSION_CHANGE_LOG 权限码）
+        auths: [...PERMISSION_CHANGE_LOG_PERM_LIST]
       }
     }
   ]

@@ -1,0 +1,166 @@
+/**
+ * 权限变更日志 API
+ * 经 @/utils/http 调用 permission-center 端点（`/api/perm/log/change/list`）；
+ * Phase 1 由 mock/permission-change-log.ts（vite-plugin-fake-server）提供假数据。
+ * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
+ *
+ * 契约依据：docs/design/permission-center/api-contract.md §5.8（变更日志仅 1 行表格条目，
+ *   路径写为 /api/perm/permission-change-log/list --与后端实现不符，无独立字段契约章节。
+ *   🔧 登记 T-PERM-032：Phase 2 修正契约路径 + 补字段契约）
+ * 后端实现：permission-center LogQueryController（@RequestMapping("/api/perm/log")）
+ *   + LogQueryAppServiceImpl.listChangeLogs
+ *
+ * 后端仅 1 个端点（list），无 detail--ChangeLogResp 已含全部字段（含 diffSnapshot/oldSnapshot/newSnapshot），
+ * 详情由前端抽屉展示（无需单独 detail 接口）。
+ *
+ * 路径说明：后端 LogQueryController 实际路径为 /api/perm/log/change/list
+ *   （@RequestMapping("/api/perm/log") + @PostMapping("/change/list")），
+ *   非 api-contract §5.8 表格写的 /api/perm/permission-change-log/list。前端按后端实现对接，
+ *   联调时直接对真后端无需改路径；契约路径错误登记 T-PERM-032 🔧。
+ */
+import { http } from "@/utils/http";
+import { type PermResult, unwrap } from "./_envelope";
+import type { PaginatedResp } from "./role-manage";
+
+// ========== diff_snapshot 结构化类型（对齐 api-contract §6.8 L1590-1671） ==========
+
+/** 事件类型固定枚举（§6.8 L1666） */
+export type DiffEventType =
+  | "USER_ROLE_CHANGE"
+  | "ROLE_PERMISSION_CHANGE"
+  | "ROLE_STATUS_CHANGE"
+  | "RESOURCE_STATUS_CHANGE"
+  | "CONDITION_CHANGE"
+  | "GROUP_ROLE_CHANGE"
+  | "RESOURCE_DEPENDENCY_CHANGE";
+
+/** 变更类型固定枚举（§6.8 L1667） */
+export type DiffChangeType = "ADD" | "REMOVE" | "UPDATE";
+
+/** 权限项业务键（§6.8 L1669：domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode） */
+export interface DiffPermissionKey {
+  domainCode?: string | null;
+  resourceTypeCode?: string | null;
+  resourceCode?: string | null;
+  codeType?: string | null;
+  operationCode?: string | null;
+  scopeMode?: string | null;
+}
+
+/** 角色来源业务键（§6.8 L1670） */
+export interface DiffRoleRef {
+  roleTypeCode?: string | null;
+  roleExternalId?: string | null;
+  roleName?: string | null;
+}
+
+/** 资源业务键（§6.8 RESOURCE_STATUS_CHANGE 示例 L1646） */
+export interface DiffResourceRef {
+  domainCode?: string | null;
+  resourceTypeCode?: string | null;
+  resourceCode?: string | null;
+  codeType?: string | null;
+}
+
+/** diff_snapshot.items[] 单项（§6.8 L1599-1660） */
+export interface DiffItem {
+  changeType: DiffChangeType;
+  permission?: DiffPermissionKey | null;
+  role?: DiffRoleRef | null;
+  resource?: DiffResourceRef | null;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  message?: string | null;
+}
+
+/** diff_snapshot 顶层结构（§6.8 L1665：eventType + items[]） */
+export interface DiffSnapshot {
+  eventType: DiffEventType;
+  items: DiffItem[];
+}
+
+// ========== 变更日志响应类型（对齐后端 ChangeLogResp） ==========
+
+/** 权限变更日志响应（对齐后端 ChangeLogResp）。
+ *  permission_change_log 表记录权限变更的 before/after/diff 详情（与 operation_log 区分：后者记所有写操作轻量日志）。
+ *  oldSnapshot/newSnapshot/diffSnapshot 均为 JSON 字符串（后端 String），前端按需 JSON.parse。 */
+export type ChangeLogResp = {
+  id: number;
+  tenantId?: number;
+  /** 变更实体类型：user_role/role_resource_permission/abstract_user/abstract_role 等（schema L626） */
+  entityType: string;
+  /** 变更实体 ID（可空） */
+  entityId?: number | null;
+  /** 实体层操作：INSERT/UPDATE/DELETE（schema L627，区别于 diff items[].changeType ADD/REMOVE/UPDATE） */
+  operation: string;
+  /** 变更前快照 JSON 字符串（可空） */
+  oldSnapshot?: string | null;
+  /** 变更后快照 JSON 字符串（可空） */
+  newSnapshot?: string | null;
+  /** 结构化变更摘要 JSON 字符串（§6.8 规范，可空）。前端 JSON.parse 后取 eventType + items[] */
+  diffSnapshot?: string | null;
+  /** 受影响的用户 ID 数组（可空） */
+  affectedAbstractUserIds?: number[] | null;
+  /** 受影响的角色 ID 数组（可空） */
+  affectedAbstractRoleIds?: number[] | null;
+  /** 变更原因（可空） */
+  changeReason?: string | null;
+  /** 变更来源：MANUAL/SERVICE_SYNC（后端复用 PermConstants.MaintainSource 常量；schema 注释 ADMIN/SYNC/API/SYSTEM 不符 🔧 T-PERM-032） */
+  changeSource?: string | null;
+  /** 请求/追踪 ID（可空） */
+  requestId?: string | null;
+  /** 创建时间（对齐后端 LocalDateTime createdAt） */
+  createdAt?: string;
+};
+
+/** 变更日志列表查询请求（对齐后端 ChangeLogListReq）。
+ *  entityType/entityId 可选过滤；pageNum/pageSize 必填（后端 @NotNull），服务端分页。
+ *  🔧 API 核对项（登记 T-PERM-032）：后端 Req 只支持 entityType/entityId 两个筛选维度，
+ *  schema 有 affected_*_ids/created_at/diff_snapshot.eventType 等可用筛选字段未暴露。
+ *  Phase 2 后端补 eventType/changeSource/时间范围/affected user·role 等筛选维度。 */
+export type ChangeLogListReq = {
+  entityType?: string;
+  entityId?: number;
+  pageNum: number;
+  pageSize: number;
+};
+
+// ========== API 函数 ==========
+
+/** 查询权限变更日志列表（POST /api/perm/log/change/list）。
+ *  后端按 entityType/entityId 过滤 + 服务端分页，返回 PaginatedResp<ChangeLogResp>。
+ *  权限门禁：后端 LogQueryAppServiceImpl 以 SYSTEM_CONFIG:VIEW 校验（复用系统配置 VIEW，无独立权限码）。
+ *  🔧 筛选维度不足 + 契约路径错误 + Resp 缺操作人 + changeSource 枚举 schema 不符，登记于 T-PERM-032。 */
+export const getChangeLogList = async (
+  params: ChangeLogListReq
+): Promise<PaginatedResp<ChangeLogResp>> => {
+  const res = await http.request<PermResult<PaginatedResp<ChangeLogResp>>>(
+    "post",
+    "/api/perm/log/change/list",
+    { data: params }
+  );
+  return unwrap(res);
+};
+
+/** 安全解析 diffSnapshot JSON 字符串为结构化对象（解析失败返回 null）。 */
+export function parseDiffSnapshot(
+  raw: string | null | undefined
+): DiffSnapshot | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as DiffSnapshot;
+    if (
+      !parsed ||
+      typeof parsed.eventType !== "string" ||
+      !Array.isArray(parsed.items)
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export { type PaginatedResp };
