@@ -342,6 +342,15 @@ function collectDescendantIds(id: number): number[] {
   return ids;
 }
 
+/** 判断 n 是否为 2 的幂次（BigInt 实现，兼容 63 位 bigint 列）。
+ *  JS `&` 强转 32 位，>2^31 误判（如 4294967297 截断为 1）。
+ *  mock 禁 import src，故本地实现（与 utils/types.ts 同源）。 */
+function isPowerOfTwo(n: number): boolean {
+  if (!Number.isInteger(n) || n <= 0) return false;
+  const bn = BigInt(n);
+  return (bn & (bn - 1n)) === 0n;
+}
+
 /** 校验资源业务键唯一（tenant+resourceType+code+codeType） */
 function isDuplicateResource(
   typeCode: string,
@@ -599,6 +608,9 @@ export default defineFakeRoute([
       if (!Number.isInteger(binaryBit) || binaryBit <= 0) {
         return error(400, "二进制位必须为正整数（2 的幂次）");
       }
+      if (!isPowerOfTwo(binaryBit)) {
+        return error(400, "二进制位必须为 2 的幂次（1/2/4/8/16…）");
+      }
       if (isDuplicateOperation(resourceTypeCode, code)) {
         return error(409, "同资源类型下该操作编码已存在");
       }
@@ -636,6 +648,9 @@ export default defineFakeRoute([
       if (binaryBit != null) {
         if (!Number.isInteger(binaryBit) || binaryBit <= 0) {
           return error(400, "二进制位必须为正整数（2 的幂次）");
+        }
+        if (!isPowerOfTwo(binaryBit)) {
+          return error(400, "二进制位必须为 2 的幂次（1/2/4/8/16…）");
         }
         if (isDuplicateBit(op.resourceTypeCode, binaryBit, op.id)) {
           return error(409, "同资源类型下该二进制位已被占用");

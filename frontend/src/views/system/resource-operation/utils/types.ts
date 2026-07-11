@@ -79,3 +79,26 @@ export function createEmptyOperationForm(
     inheritMask: 0
   };
 }
+
+/**
+ * 判断 n 是否为 2 的幂次（BigInt 实现，兼容 63 位 bigint 列）。
+ *
+ * JS `&`/`|` 强转 32 位有符号整数，>2^31 会误判
+ * （如 4294967297 = 2^32+1 截断为 1，`1 & 0 === 0` 被误判为幂次）。
+ * 故用 BigInt 做位与。Number 精确整数上限 2^53，覆盖全部实际业务场景。
+ */
+export function isPowerOfTwo(n: number): boolean {
+  if (!Number.isInteger(n) || n <= 0) return false;
+  const bn = BigInt(n);
+  return (bn & (bn - 1n)) === 0n;
+}
+
+/**
+ * 位或（BigInt 实现，兼容 63 位）。
+ *
+ * JS `|` 强转 32 位，>2^31 截断（如 4294967296 | 0 === 0）。
+ * 返回 Number（≤2^53 精确）。
+ */
+export function bitOr(a: number, b: number): number {
+  return Number(BigInt(a) | BigInt(b));
+}

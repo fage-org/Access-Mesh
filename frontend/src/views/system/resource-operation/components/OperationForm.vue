@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from "element-plus";
 import { type OperationPermissionResp } from "@/api/resource-operation";
 import {
   PRESET_OPERATION_EXAMPLES,
+  isPowerOfTwo,
   type OperationFormData
 } from "../utils/types";
 
@@ -52,7 +53,7 @@ const rules = computed<FormRules>(() => ({
       validator: (_rule: any, value: number, cb: (e?: Error) => void) => {
         if (!Number.isInteger(value) || value <= 0) {
           cb(new Error("必须为正整数"));
-        } else if ((value & (value - 1)) !== 0) {
+        } else if (!isPowerOfTwo(value)) {
           cb(new Error("必须为 2 的幂次（1/2/4/8/16…）"));
         } else {
           cb();

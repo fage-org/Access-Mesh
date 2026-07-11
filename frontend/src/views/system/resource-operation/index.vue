@@ -10,6 +10,7 @@ import OperationForm from "./components/OperationForm.vue";
 import ResourceMoveForm from "./components/ResourceMoveForm.vue";
 import { useResourceOperation } from "./utils/hook";
 import { RESOURCE_OPERATION_PERMS } from "./utils/perms";
+import { bitOr } from "./utils/types";
 import {
   type ResourceFormData,
   type OperationFormData,
@@ -34,6 +35,8 @@ const {
   resourceTypes,
   selectedResourceTypeCode,
   onResourceTypeChange,
+  canViewResource,
+  canViewOperation,
   treeData,
   resourceLoading,
   resourceSearch,
@@ -58,12 +61,9 @@ const treeRef = ref();
 
 // ========== 权限门控 ==========
 // 与 docs/design/frontend/resource-operation.md §权限接线 对齐。
+// RESOURCE:VIEW / OPERATION:VIEW 分别隔离：资源树与操作权限表独立可见性。
 // computed 包装而非顶层 const，是为了响应 store.permissions 变化（角色切换时刷新）。
-const canView = computed(
-  () =>
-    hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_VIEW) ||
-    hasPerms(RESOURCE_OPERATION_PERMS.OPERATION_VIEW)
-);
+const canView = computed(() => canViewResource.value || canViewOperation.value);
 const canCreateResource = computed(() =>
   hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_ADD)
 );
@@ -273,9 +273,10 @@ function filterTreeNode(value: string, data: ResourceTreeNode) {
   return data.name.includes(value) || data.code.includes(value);
 }
 
-/** 有效位 = 独占位 | 继承掩码（位运算，模板里 `|` 会被误判为废弃过滤器，故提取函数） */
+/** 有效位 = 独占位 | 继承掩码。
+ *  BigInt 位或（兼容 63 位 schema）；JS `|` 强转 32 位，>2^31 截断。 */
 function effectiveBits(row: OperationPermissionResp): number {
-  return row.binaryBit | row.inheritMask;
+  return bitOr(row.binaryBit, row.inheritMask);
 }
 
 watch(resourceSearch, val => {
@@ -296,7 +297,9 @@ watch(resourceSearch, val => {
         <div class="panel-header">
           <div class="panel-title">
             资源
-            <span class="panel-count">{{ treeData.length }}</span>
+            <span v-if="canViewResource" class="panel-count">{{
+              treeData.length
+            }}</span>
           </div>
           <div class="panel-header-actions">
             <el-button
@@ -336,6 +339,7 @@ watch(resourceSearch, val => {
             />
           </el-select>
           <el-input
+            v-if="canViewResource"
             v-model="resourceSearch"
             placeholder="名称 / 编码"
             clearable
@@ -344,7 +348,11 @@ watch(resourceSearch, val => {
           />
         </div>
 
-        <div v-loading="resourceLoading" class="tree-wrap">
+        <div
+          v-if="canViewResource"
+          v-loading="resourceLoading"
+          class="tree-wrap"
+        >
           <el-tree
             v-if="treeData.length > 0"
             ref="treeRef"
@@ -376,185 +384,199 @@ watch(resourceSearch, val => {
             "
           />
         </div>
+        <div v-else class="tree-wrap tree-wrap--placeholder">
+          <el-empty :image-size="48" description="无资源查看权限" />
+        </div>
       </aside>
 
       <!-- ========== 右侧：资源详情 + 操作权限表 ========== -->
       <section class="detail-area">
-        <template v-if="selectedNode">
-          <!-- 选中资源信息条 -->
-          <div class="resource-info-bar">
-            <div class="resource-info">
-              <span class="font-mono text-sm">{{
-                selectedNode.resourceTypeCode
-              }}</span>
-              <span class="resource-name">{{ selectedNode.name }}</span>
-              <el-tag
-                :type="selectedNode.status === 1 ? 'success' : 'info'"
-                size="small"
-                effect="light"
-              >
-                {{ selectedNode.status === 1 ? "启用" : "停用" }}
-              </el-tag>
-              <span class="resource-meta">
-                编码
-                <span class="font-mono">{{ selectedNode.code }}</span>
-              </span>
-              <span v-if="selectedNode.path" class="resource-meta">
-                路径
-                <span class="font-mono">{{ selectedNode.path }}</span>
-              </span>
-            </div>
-            <div class="resource-actions">
-              <el-button
-                v-if="canCreateResource"
-                size="small"
-                :icon="useRenderIcon(AddFill)"
-                @click="openCreateResource(selectedNode)"
-              >
-                新增子资源
-              </el-button>
-              <el-button
-                v-if="canEditResource"
-                size="small"
-                :icon="useRenderIcon(EditPen)"
-                @click="openEditResource"
-              >
-                编辑
-              </el-button>
-              <el-button
-                v-if="canMoveResource"
-                size="small"
-                :icon="useRenderIcon(Switch)"
-                @click="openMoveForm"
-              >
-                移动
-              </el-button>
-              <el-button
-                v-if="canDeleteResource"
-                size="small"
-                type="danger"
-                plain
-                :icon="useRenderIcon(Delete)"
-                @click="onDeleteResource"
-              >
-                删除
-              </el-button>
-            </div>
-          </div>
-
-          <!-- 操作权限表 -->
-          <div class="operation-section">
-            <PureTableBar
-              title="操作权限"
-              :columns="operationColumns"
-              @refresh="loadOperations"
+        <!-- 选中资源信息条 -->
+        <div v-if="selectedNode" class="resource-info-bar">
+          <div class="resource-info">
+            <span class="font-mono text-sm">{{
+              selectedNode.resourceTypeCode
+            }}</span>
+            <span class="resource-name">{{ selectedNode.name }}</span>
+            <el-tag
+              :type="selectedNode.status === 1 ? 'success' : 'info'"
+              size="small"
+              effect="light"
             >
-              <template #title>
-                <el-form :inline="true" class="search-form-inline">
-                  <el-form-item label="编码/名称" class="mb-0!">
-                    <el-input
-                      v-model="operationSearch.keyword"
-                      placeholder="操作编码或名称"
-                      clearable
-                      class="w-52!"
-                      :prefix-icon="useRenderIcon(Search)"
-                    />
-                  </el-form-item>
-                  <el-form-item class="mb-0!">
-                    <el-button
-                      link
-                      type="primary"
-                      @click="resetOperationFilters"
-                    >
-                      重置
-                    </el-button>
-                  </el-form-item>
-                </el-form>
-              </template>
-              <template #buttons>
-                <el-button
-                  v-if="canCreateOperation"
-                  type="primary"
-                  :icon="useRenderIcon(AddFill)"
-                  @click="openOperationForm('create')"
-                >
-                  新增操作
-                </el-button>
-              </template>
-              <template v-slot="{ size, dynamicColumns }">
-                <pure-table
-                  row-key="id"
-                  align-whole="center"
-                  table-layout="auto"
-                  :loading="operationLoading"
-                  :size="size"
-                  :data="filteredOperations"
-                  :columns="dynamicColumns"
-                  :header-cell-style="{
-                    background: 'var(--el-fill-color-light)',
-                    color: 'var(--el-text-color-primary)'
-                  }"
-                >
-                  <template #code="{ row }">
-                    <span class="font-mono font-600">{{ row.code }}</span>
-                  </template>
-                  <template #binaryBit="{ row }">
-                    <span class="bit-cell">{{ row.binaryBit }}</span>
-                  </template>
-                  <template #inheritMask="{ row }">
-                    <span class="bit-cell">{{ row.inheritMask }}</span>
-                  </template>
-                  <template #effective="{ row }">
-                    <span class="bit-cell effective">{{
-                      effectiveBits(row)
-                    }}</span>
-                  </template>
-                  <template #updatedAt="{ row }">
-                    <span class="time-cell">{{ row.updatedAt }}</span>
-                  </template>
-                  <template #operation="{ row }">
-                    <el-button
-                      v-if="canEditOperation"
-                      class="reset-margin"
-                      link
-                      type="primary"
-                      :size="size"
-                      @click="openOperationForm('edit', row)"
-                    >
-                      编辑
-                    </el-button>
-                    <el-button
-                      v-if="canDeleteOperation"
-                      class="reset-margin"
-                      link
-                      type="danger"
-                      :size="size"
-                      @click="onDeleteOperation(row)"
-                    >
-                      删除
-                    </el-button>
-                    <span
-                      v-if="!canEditOperation && !canDeleteOperation"
-                      class="text-sm text-gray-400"
-                    >
-                      -
-                    </span>
-                  </template>
-                  <template #empty>
-                    <el-empty
-                      :image-size="60"
-                      description="该资源类型暂无操作权限，可手工新增"
-                    />
-                  </template>
-                </pure-table>
-              </template>
-            </PureTableBar>
+              {{ selectedNode.status === 1 ? "启用" : "停用" }}
+            </el-tag>
+            <span class="resource-meta">
+              编码
+              <span class="font-mono">{{ selectedNode.code }}</span>
+            </span>
+            <span v-if="selectedNode.path" class="resource-meta">
+              路径
+              <span class="font-mono">{{ selectedNode.path }}</span>
+            </span>
           </div>
-        </template>
+          <div class="resource-actions">
+            <el-button
+              v-if="canCreateResource"
+              size="small"
+              :icon="useRenderIcon(AddFill)"
+              @click="openCreateResource(selectedNode)"
+            >
+              新增子资源
+            </el-button>
+            <el-button
+              v-if="canEditResource"
+              size="small"
+              :icon="useRenderIcon(EditPen)"
+              @click="openEditResource"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-if="canMoveResource"
+              size="small"
+              :icon="useRenderIcon(Switch)"
+              @click="openMoveForm"
+            >
+              移动
+            </el-button>
+            <el-button
+              v-if="canDeleteResource"
+              size="small"
+              type="danger"
+              plain
+              :icon="useRenderIcon(Delete)"
+              @click="onDeleteResource"
+            >
+              删除
+            </el-button>
+          </div>
+        </div>
+        <!-- 未选中节点占位（操作权限按资源类型展示，不依赖选中节点） -->
+        <div
+          v-else-if="selectedResourceTypeCode && canViewResource"
+          class="resource-info-bar"
+        >
+          <span class="text-sm text-gray-400">
+            未选中资源节点（操作权限按资源类型展示，无需选中）
+          </span>
+        </div>
+
+        <!-- 操作权限表（选了资源类型即展示，不依赖 selectedNode） -->
+        <div
+          v-if="selectedResourceTypeCode && canViewOperation"
+          class="operation-section"
+        >
+          <PureTableBar
+            title="操作权限"
+            :columns="operationColumns"
+            @refresh="loadOperations"
+          >
+            <template #title>
+              <el-form :inline="true" class="search-form-inline">
+                <el-form-item label="编码/名称" class="mb-0!">
+                  <el-input
+                    v-model="operationSearch.keyword"
+                    placeholder="操作编码或名称"
+                    clearable
+                    class="w-52!"
+                    :prefix-icon="useRenderIcon(Search)"
+                  />
+                </el-form-item>
+                <el-form-item class="mb-0!">
+                  <el-button link type="primary" @click="resetOperationFilters">
+                    重置
+                  </el-button>
+                </el-form-item>
+              </el-form>
+            </template>
+            <template #buttons>
+              <el-button
+                v-if="canCreateOperation"
+                type="primary"
+                :icon="useRenderIcon(AddFill)"
+                @click="openOperationForm('create')"
+              >
+                新增操作
+              </el-button>
+            </template>
+            <template v-slot="{ size, dynamicColumns }">
+              <pure-table
+                row-key="id"
+                align-whole="center"
+                table-layout="auto"
+                :loading="operationLoading"
+                :size="size"
+                :data="filteredOperations"
+                :columns="dynamicColumns"
+                :header-cell-style="{
+                  background: 'var(--el-fill-color-light)',
+                  color: 'var(--el-text-color-primary)'
+                }"
+              >
+                <template #code="{ row }">
+                  <span class="font-mono font-600">{{ row.code }}</span>
+                </template>
+                <template #binaryBit="{ row }">
+                  <span class="bit-cell">{{ row.binaryBit }}</span>
+                </template>
+                <template #inheritMask="{ row }">
+                  <span class="bit-cell">{{ row.inheritMask }}</span>
+                </template>
+                <template #effective="{ row }">
+                  <span class="bit-cell effective">{{
+                    effectiveBits(row)
+                  }}</span>
+                </template>
+                <template #updatedAt="{ row }">
+                  <span class="time-cell">{{ row.updatedAt }}</span>
+                </template>
+                <template #operation="{ row }">
+                  <el-button
+                    v-if="canEditOperation"
+                    class="reset-margin"
+                    link
+                    type="primary"
+                    :size="size"
+                    @click="openOperationForm('edit', row)"
+                  >
+                    编辑
+                  </el-button>
+                  <el-button
+                    v-if="canDeleteOperation"
+                    class="reset-margin"
+                    link
+                    type="danger"
+                    :size="size"
+                    @click="onDeleteOperation(row)"
+                  >
+                    删除
+                  </el-button>
+                  <span
+                    v-if="!canEditOperation && !canDeleteOperation"
+                    class="text-sm text-gray-400"
+                  >
+                    -
+                  </span>
+                </template>
+                <template #empty>
+                  <el-empty
+                    :image-size="60"
+                    description="该资源类型暂无操作权限，可手工新增"
+                  />
+                </template>
+              </pure-table>
+            </template>
+          </PureTableBar>
+        </div>
 
         <el-empty
+          v-else-if="!selectedResourceTypeCode"
+          description="请先选择资源类型"
+          class="detail-empty"
+        />
+        <el-empty
           v-else
-          description="请先在左侧选择资源节点"
+          description="你没有查看操作权限的权限"
           class="detail-empty"
         />
       </section>
@@ -656,6 +678,11 @@ watch(resourceSearch, val => {
       height: 32px;
     }
   }
+}
+
+.tree-wrap--placeholder {
+  align-items: center;
+  justify-content: center;
 }
 
 .tree-node {

@@ -1,6 +1,7 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
+import { hasPerms } from "@/utils/auth";
 import {
   getResourceTree,
   createResource,
@@ -15,6 +16,7 @@ import {
   type OperationPermissionResp
 } from "@/api/resource-operation";
 import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
+import { RESOURCE_OPERATION_PERMS } from "./perms";
 import type {
   ResourceFormData,
   OperationFormData,
@@ -30,9 +32,22 @@ import type {
  * - `selectedResourceTypeCode` 是全局筛选维度，切换时同时刷新资源树与操作权限表，并清空选中节点。
  * - 选中树节点只更新 `selectedNode`（右侧信息条），不重载操作权限表（操作权限按 resourceType 维度，不跟单实例）。
  *
+ * 权限隔离（设计 §7）：
+ * - `canViewResource`（RESOURCE:VIEW）门控资源树加载与可见性。
+ * - `canViewOperation`（OPERATION:VIEW）门控操作权限表加载与可见性。
+ * - `loadTree`/`loadOperations` 内置权限短路，无权限直接清空返回，避免越权加载。
+ *
  * 范式对齐 role/utils/hook.ts（左树右详情）+ type-def/utils/hook.ts（表格 CRUD）。
  */
 export function useResourceOperation() {
+  // ========== 权限门控 ==========
+  const canViewResource = computed(() =>
+    hasPerms(RESOURCE_OPERATION_PERMS.RESOURCE_VIEW)
+  );
+  const canViewOperation = computed(() =>
+    hasPerms(RESOURCE_OPERATION_PERMS.OPERATION_VIEW)
+  );
+
   // ========== 资源类型下拉（数据源 type_definition typeKey=resource_type） ==========
   const resourceTypes = ref<TypeDefResp[]>([]);
   const selectedResourceTypeCode = ref<string | null>(null);
@@ -54,8 +69,23 @@ export function useResourceOperation() {
   const resourceSearch = ref("");
   const selectedNode = ref<ResourceTreeNode | null>(null);
 
+  /** 在森林中递归查找指定 id 的节点（loadTree 后重定位 selectedNode 用） */
+  function findNodeById(
+    nodes: ResourceTreeNode[],
+    id: number
+  ): ResourceTreeNode | null {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      if (node.children) {
+        const found = findNodeById(node.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
   async function loadTree() {
-    if (!selectedResourceTypeCode.value) {
+    if (!canViewResource.value || !selectedResourceTypeCode.value) {
       treeData.value = [];
       return;
     }
@@ -67,6 +97,13 @@ export function useResourceOperation() {
       treeData.value = res.items
         .map(i => i.root)
         .filter((n): n is ResourceTreeNode => n != null);
+      // 刷新后重新定位选中节点（名称/状态/路径可能已变；节点被删/移出本类型则置 null）
+      if (selectedNode.value) {
+        selectedNode.value = findNodeById(
+          treeData.value,
+          selectedNode.value.id
+        );
+      }
     } catch (e: any) {
       message(e.message || "加载资源树失败", { type: "error" });
     } finally {
@@ -74,8 +111,9 @@ export function useResourceOperation() {
     }
   }
 
-  /** 切换资源类型：清空选中节点，同时刷新树与操作权限表 */
-  async function onResourceTypeChange() {
+  /** 切换资源类型：回写 typeCode，清空选中节点，按权限刷新树与操作表 */
+  async function onResourceTypeChange(typeCode: string) {
+    selectedResourceTypeCode.value = typeCode;
     selectedNode.value = null;
     await Promise.all([loadTree(), loadOperations()]);
   }
@@ -90,7 +128,7 @@ export function useResourceOperation() {
   const operationSearch = reactive({ keyword: "" });
 
   async function loadOperations() {
-    if (!selectedResourceTypeCode.value) {
+    if (!canViewOperation.value || !selectedResourceTypeCode.value) {
       operations.value = [];
       return;
     }
@@ -261,7 +299,7 @@ export function useResourceOperation() {
   }
 
   // ========== 刷新入口 ==========
-  /** 刷新全部（左侧目录 + 右侧操作表） */
+  /** 刷新全部（左侧目录 + 右侧操作表，按权限） */
   async function refreshAll() {
     await Promise.all([loadTree(), loadOperations()]);
   }
@@ -275,6 +313,9 @@ export function useResourceOperation() {
   });
 
   return {
+    // 权限
+    canViewResource,
+    canViewOperation,
     // 资源类型
     resourceTypes,
     selectedResourceTypeCode,
