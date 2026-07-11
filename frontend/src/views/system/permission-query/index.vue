@@ -69,9 +69,10 @@ function sourceRoleNames(row: any): string {
 // ========== Tab3 scopeMode 切换：ALL 时禁用 resourceCode/codeType ==========
 const tab3IsAll = computed(() => isAllMode(tab3.form.scopeMode));
 
-/** Tab1 行复合 key：resourceTypeCode + codeType + resourceCode/ALL + scopeMode
- *  scopeMode=ALL 时 resourceCode 按契约为 null，多行 ALL 会共享 row-key 导致行复用错误（评审 P2 修复） */
+/** Tab1 行复合 key：resourceTypeCode + codeType + resourceCode/ALL + scopeMode + 排序后 operationCodes
+ *  同一四元组可能存在多个操作授权（评审 P2 修复：追加 operationCodes 保证唯一） */
 function rowKey(row: any) {
+  const ops = (row.operationCodes ?? []).slice().sort().join(",");
   return (
     row.resourceTypeCode +
     ":" +
@@ -79,7 +80,9 @@ function rowKey(row: any) {
     ":" +
     (row.resourceCode ?? "ALL") +
     ":" +
-    row.scopeMode
+    row.scopeMode +
+    ":" +
+    ops
   );
 }
 </script>

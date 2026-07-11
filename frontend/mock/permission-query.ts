@@ -6,13 +6,16 @@
 // 契约依据：docs/design/permission-center/api-contract.md §6.6-6.8
 // 主体模型：effective-permissions/explain 支持 USER/ROLE；query-scopes 仅 USER
 //
-// Mock 场景覆盖（评审 P1 修复：实现查询条件语义）：
+// Mock 场景覆盖（评审 P1 修复：按完整主体键+资源键+操作键判定）：
 // - Tab1 effective-permissions：按 domainCode/resourceTypeCodes/operationCodes/resourceKeyword 过滤
-//   + includeSourceRoles/sourceRoleLimit 控制 sourceRoles + USER/ROLE 成功/未知空结果/分页翻页/sourceRolesTruncated
-// - Tab2 query-scopes：按请求 scopeResourceTypeCodes × scopeOperationCodes 笛卡尔积返回 scopeGroups
-//   + USER_NOT_FOUND/OBJECT_KEY_NOT_FOUND + 四态(ALL/INSTANCE/DENIED/EMPTY)
-// - Tab3 explain：按完整权限键判定 allowed（USER: DATA_READ=true 其余=false；ROLE: REPORT+report:sales+DATA_READ=true 其余=false）
-//   + allowed=true(INSTANCE)/allowed=true(ALL,不发resourceCode)/allowed=false(NO_PERMISSION+recentChanges)/USER_NOT_FOUND/ROLE_NOT_FOUND
+//   + operationCodes 裁剪为交集（非仅过滤行）+ includeSourceRoles/sourceRoleLimit 控制 sourceRoles
+//   + USER/ROLE 成功/未知空结果/分页翻页/sourceRolesTruncated
+// - Tab2 query-scopes：主权限判定（只返回通过的主操作，全不通过 -> NO_PERMISSION）
+//   + 按请求 scopeResourceTypeCodes × scopeOperationCodes 笛卡尔积返回 + 四态(ALL/INSTANCE/DENIED/EMPTY)
+//   + USER_NOT_FOUND/OBJECT_KEY_NOT_FOUND
+// - Tab3 explain：按完整权限键判定 allowed（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
+//   + ROLE 校验 roleTypeCode(BASIC_ROLE)+roleExternalId+domainCode
+//   + includeSourceRoles=false -> sourceRoles=[] + allowed=true/false/USER_NOT_FOUND/ROLE_NOT_FOUND/NO_PERMISSION
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 type TargetType = "USER" | "ROLE";
@@ -72,16 +75,143 @@ interface RecentChange {
   changeReason: string | null;
   createdAt: string;
 }
+/** 完整权限键事实（explain 判定依据） */
+interface PermissionFact {
+  domainCode: string;
+  resourceTypeCode: string;
+  resourceCode: string | null;
+  codeType: string | null;
+  operationCode: string;
+  scopeMode: ScopeMode;
+}
 
 const ok = (data: unknown) => ({ code: 200, message: "success", data });
 
 // 已知主体：
 // - 用户 u-10001（ADMIN_USER）
-// - 角色 role_report_viewer（BASIC_ROLE）
+// - 角色 role_report_viewer（BASIC_ROLE，域 example）
 // 域：example（report:sales/data:*）/ finance（report:finance）/ hr（report:hr）
 // 资源类型：REPORT / DATA
 // 资源：report:sales / report:finance / report:hr / data:dept:A / data:dept:B / data:dept:C
 // 操作：DATA_READ / DATA_EDIT / DATA_EXPORT / DATA_DELETE
+
+// ========== 权限事实表（按完整权限键，explain 判定依据） ==========
+
+/** USER u-10001 权限事实（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode） */
+const userPermissionFacts: PermissionFact[] = [
+  {
+    domainCode: "example",
+    resourceTypeCode: "REPORT",
+    resourceCode: "report:sales",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "REPORT",
+    resourceCode: null,
+    codeType: null,
+    operationCode: "DATA_READ",
+    scopeMode: "ALL"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:A",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:A",
+    codeType: "default",
+    operationCode: "DATA_EDIT",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:B",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: null,
+    codeType: null,
+    operationCode: "DATA_EXPORT",
+    scopeMode: "ALL"
+  }
+];
+
+/** ROLE role_report_viewer (BASIC_ROLE) 权限事实 */
+const rolePermissionFacts: PermissionFact[] = [
+  {
+    domainCode: "example",
+    resourceTypeCode: "REPORT",
+    resourceCode: "report:sales",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "REPORT",
+    resourceCode: null,
+    codeType: null,
+    operationCode: "DATA_READ",
+    scopeMode: "ALL"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:A",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:A",
+    codeType: "default",
+    operationCode: "DATA_EDIT",
+    scopeMode: "INSTANCE"
+  },
+  {
+    domainCode: "example",
+    resourceTypeCode: "DATA",
+    resourceCode: "data:dept:B",
+    codeType: "default",
+    operationCode: "DATA_READ",
+    scopeMode: "INSTANCE"
+  }
+];
+
+/** 主资源 report:sales 通过的主操作（query-scopes 主权限判定依据） */
+const matchedParentOps: string[] = ["DATA_READ", "DATA_EDIT"];
+
+/** 按完整权限键匹配事实（scopeMode=ALL 时 resourceCode/codeType 置 null） */
+function matchFact(facts: PermissionFact[], body: any): boolean {
+  const all = body.scopeMode === "ALL";
+  const resourceCode = all ? null : body.resourceCode || null;
+  const codeType = all ? null : body.codeType || null;
+  const domainCode = body.domainCode || "example";
+  return facts.some(
+    p =>
+      p.domainCode === domainCode &&
+      p.resourceTypeCode === body.resourceTypeCode &&
+      p.resourceCode === resourceCode &&
+      p.codeType === codeType &&
+      p.operationCode === body.operationCode &&
+      p.scopeMode === body.scopeMode
+  );
+}
 
 // ========== Tab1 effective-permissions mock 数据 ==========
 
@@ -420,7 +550,7 @@ function buildPermission(body: any): ExplainPermission {
 }
 
 export default defineFakeRoute([
-  // ========== Tab1: effective-permissions（按请求条件过滤） ==========
+  // ========== Tab1: effective-permissions（按请求条件过滤 + operationCodes 裁剪为交集） ==========
   {
     url: "/permission-query/effective-permissions",
     method: "POST",
@@ -452,11 +582,16 @@ export default defineFakeRoute([
           body.resourceTypeCodes.includes(i.resourceTypeCode)
         );
       }
-      // 4. 按 operationCodes 过滤（交集：item.operationCodes 与请求有交集）
+      // 4. 按 operationCodes 过滤行 + 裁剪 operationCodes 为交集（评审 P1 修复：非仅过滤行）
       if (Array.isArray(body.operationCodes) && body.operationCodes.length) {
-        items = items.filter(i =>
-          i.operationCodes.some(op => body.operationCodes.includes(op))
-        );
+        items = items
+          .map(i => ({
+            ...i,
+            operationCodes: i.operationCodes.filter((op: string) =>
+              body.operationCodes.includes(op)
+            )
+          }))
+          .filter(i => i.operationCodes.length > 0);
       }
       // 5. 按 resourceKeyword 过滤（resourceName 模糊匹配）
       if (body.resourceKeyword) {
@@ -501,7 +636,7 @@ export default defineFakeRoute([
       });
     }
   },
-  // ========== Tab2: query-scopes（按请求笛卡尔积返回） ==========
+  // ========== Tab2: query-scopes（主权限判定 + 按请求笛卡尔积返回） ==========
   {
     url: "/permission-query/query-scopes",
     method: "POST",
@@ -521,6 +656,25 @@ export default defineFakeRoute([
       if (body.parentResourceCode !== "report:sales") {
         return ok({
           reason: "OBJECT_KEY_NOT_FOUND",
+          matchedParentOperations: [],
+          parentPermissionIds: [],
+          scopeGroups: [],
+          cacheTtlSeconds: 60
+        });
+      }
+      // 主权限判定：只返回通过的主操作（评审 P1 修复：模拟 NO_PERMISSION）
+      const requestedParentOps: string[] = Array.isArray(
+        body.parentOperationCodes
+      )
+        ? body.parentOperationCodes
+        : [];
+      const matchedOps = requestedParentOps.filter(op =>
+        matchedParentOps.includes(op)
+      );
+      if (matchedOps.length === 0) {
+        // 主权限全部不通过 -> NO_PERMISSION（§6.7 L1334）
+        return ok({
+          reason: "NO_PERMISSION",
           matchedParentOperations: [],
           parentPermissionIds: [],
           scopeGroups: [],
@@ -555,26 +709,28 @@ export default defineFakeRoute([
       }
       return ok({
         reason: null,
-        matchedParentOperations: Array.isArray(body.parentOperationCodes)
-          ? body.parentOperationCodes
-          : [],
+        matchedParentOperations: matchedOps,
         parentPermissionIds: [200, 260],
         scopeGroups,
         cacheTtlSeconds: 60
       });
     }
   },
-  // ========== Tab3: explain（按完整权限键判定 allowed） ==========
+  // ========== Tab3: explain（按完整权限键判定 + roleTypeCode/domainCode/includeSourceRoles 校验） ==========
   {
     url: "/permission-query/explain",
     method: "POST",
     response: (req: { body: any }) => {
       const body = req.body || {};
       const permission = buildPermission(body);
+      const includeSourceRoles = body.includeSourceRoles !== false;
 
-      // ROLE 分支：按完整权限键判定
+      // ROLE 分支：校验 roleTypeCode + roleExternalId（评审 P1 修复）
       if (body.targetType === "ROLE") {
-        if (body.roleExternalId !== "role_report_viewer") {
+        if (
+          body.roleTypeCode !== "BASIC_ROLE" ||
+          body.roleExternalId !== "role_report_viewer"
+        ) {
           return ok({
             targetType: "ROLE",
             allowed: false,
@@ -585,33 +741,31 @@ export default defineFakeRoute([
             recentChanges: []
           });
         }
-        // role_report_viewer 只对 REPORT + (ALL 或 report:sales) + DATA_READ allowed=true
-        const allowed =
-          body.resourceTypeCode === "REPORT" &&
-          (body.scopeMode === "ALL" || body.resourceCode === "report:sales") &&
-          body.operationCode === "DATA_READ";
+        // 按完整权限键判定（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
+        const allowed = matchFact(rolePermissionFacts, body);
         return ok({
           targetType: "ROLE",
           allowed,
           reason: allowed ? null : "NO_PERMISSION",
           permission,
-          sourceRoles: allowed
-            ? [
-                {
-                  roleTypeCode: "BASIC_ROLE",
-                  roleExternalId: "role_report_viewer",
-                  roleName: "报表查看员",
-                  via: []
-                }
-              ]
-            : [],
+          sourceRoles:
+            allowed && includeSourceRoles
+              ? [
+                  {
+                    roleTypeCode: "BASIC_ROLE",
+                    roleExternalId: "role_report_viewer",
+                    roleName: "报表查看员",
+                    via: []
+                  }
+                ]
+              : [],
           matchedPermissionIds: allowed ? [200] : [],
           recentChanges:
             body.includeRecentChanges && !allowed ? mockRecentChanges : []
         });
       }
 
-      // USER 分支：按完整权限键判定
+      // USER 分支：校验 subjectExternalId + 按完整权限键判定
       if (body.subjectExternalId !== "u-10001") {
         return ok({
           targetType: "USER",
@@ -623,23 +777,23 @@ export default defineFakeRoute([
           recentChanges: []
         });
       }
-      // u-10001 对 DATA_READ allowed=true（INSTANCE + ALL 均允许，验证 ALL 不发 resourceCode/codeType）
-      const allowed = body.operationCode === "DATA_READ";
+      const allowed = matchFact(userPermissionFacts, body);
       return ok({
         targetType: "USER",
         allowed,
         reason: allowed ? null : "NO_PERMISSION",
         permission,
-        sourceRoles: allowed
-          ? [
-              {
-                roleTypeCode: "BASIC_ROLE",
-                roleExternalId: "role_report_viewer",
-                roleName: "报表查看员",
-                via: []
-              }
-            ]
-          : [],
+        sourceRoles:
+          allowed && includeSourceRoles
+            ? [
+                {
+                  roleTypeCode: "BASIC_ROLE",
+                  roleExternalId: "role_report_viewer",
+                  roleName: "报表查看员",
+                  via: []
+                }
+              ]
+            : [],
         matchedPermissionIds: allowed ? [200] : [],
         recentChanges:
           body.includeRecentChanges && !allowed ? mockRecentChanges : []
