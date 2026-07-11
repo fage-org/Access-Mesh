@@ -393,6 +393,13 @@ const KNOWN_ROLE = {
   roleTypeCode: "BASIC_ROLE",
   roleExternalId: "role_report_viewer"
 };
+/** 已知主资源复合键（query-scopes 按 domainCode+type+code+codeType 解析，§6.7 L1335） */
+const KNOWN_PARENT_RESOURCE = {
+  domainCode: "example",
+  resourceTypeCode: "REPORT",
+  resourceCode: "report:sales",
+  codeType: "default"
+};
 
 /** 匹配用户主体键（subjectTypeCode + subjectExternalId） */
 function matchUser(body: any): boolean {
@@ -408,6 +415,17 @@ function matchRole(body: any): boolean {
     body.domainCode === KNOWN_ROLE.domainCode &&
     body.roleTypeCode === KNOWN_ROLE.roleTypeCode &&
     body.roleExternalId === KNOWN_ROLE.roleExternalId
+  );
+}
+
+/** 匹配主资源完整复合键（domainCode + parentResourceTypeCode + parentResourceCode + parentCodeType） */
+function matchParentResource(body: any): boolean {
+  const domainCode = body.domainCode || "example";
+  return (
+    domainCode === KNOWN_PARENT_RESOURCE.domainCode &&
+    body.parentResourceTypeCode === KNOWN_PARENT_RESOURCE.resourceTypeCode &&
+    body.parentResourceCode === KNOWN_PARENT_RESOURCE.resourceCode &&
+    body.parentCodeType === KNOWN_PARENT_RESOURCE.codeType
   );
 }
 
@@ -449,7 +467,14 @@ function deriveEffectiveItems(
   // 5. 分组合并
   const groupMap = new Map<string, PermissionGrant[]>();
   for (const g of filtered) {
-    const key = `${g.domainCode} ${g.resourceTypeCode} ${g.resourceCode ?? ""} ${g.codeType ?? ""} ${g.scopeMode}`;
+    // 分组键用 JSON.stringify 生成（无控制字节、无歧义，避免 rg 误判 binary）
+    const key = JSON.stringify([
+      g.domainCode,
+      g.resourceTypeCode,
+      g.resourceCode,
+      g.codeType,
+      g.scopeMode
+    ]);
     if (!groupMap.has(key)) groupMap.set(key, []);
     groupMap.get(key)!.push(g);
   }
@@ -501,33 +526,60 @@ function deriveEffectiveItems(
   return items;
 }
 
+// ========== auth/check 语义匹配（ALL 优先短路，共用） ==========
+
+/**
+ * auth/check 语义匹配（对齐 PermQueryEngine L149-160 earlyReturnOnScopeAll=true）。
+ * 命中 ALL 授权时只返回 ALL grant，不收集 INSTANCE grant（避免污染来源角色/matchedPermissionIds
+ * 及错误激活 dependOn 实例权限）。调用方保证 grants 已按 ownerType 过滤。
+ */
+function authCheckMatch(
+  grants: PermissionGrant[],
+  domainCode: string,
+  resourceTypeCode: string,
+  operationCode: string,
+  resourceCode: string | null,
+  codeType: string | null
+): PermissionGrant[] {
+  const candidates = grants.filter(
+    g =>
+      g.domainCode === domainCode &&
+      g.resourceTypeCode === resourceTypeCode &&
+      g.operationCode === operationCode
+  );
+  const allGrants = candidates.filter(g => g.scopeMode === "ALL");
+  if (allGrants.length > 0) {
+    return allGrants;
+  }
+  return candidates.filter(
+    g =>
+      g.scopeMode === "INSTANCE" &&
+      g.resourceCode === resourceCode &&
+      g.codeType === codeType
+  );
+}
+
 // ========== Tab2 query-scopes 派生 ==========
 
-/** query-scopes 主权限判定（auth/check 语义：INSTANCE 精确 OR ALL 覆盖） */
+/** query-scopes 主权限判定（auth/check 语义：ALL 优先短路） */
 function checkParentPermissions(
   grants: PermissionGrant[],
   body: any
 ): { matchedOps: string[]; parentPermissionIds: number[] } {
   const domainCode = body.domainCode || "example";
-  const candidates = grants.filter(
-    g =>
-      g.ownerType === "USER" &&
-      g.domainCode === domainCode &&
-      g.resourceTypeCode === body.parentResourceTypeCode
-  );
   const requestedParentOps: string[] = Array.isArray(body.parentOperationCodes)
     ? body.parentOperationCodes
     : [];
   const matchedOps: string[] = [];
   const permIdSet = new Set<number>();
   for (const op of requestedParentOps) {
-    const matched = candidates.filter(
-      g =>
-        g.operationCode === op &&
-        (g.scopeMode === "ALL" ||
-          (g.scopeMode === "INSTANCE" &&
-            g.resourceCode === body.parentResourceCode &&
-            g.codeType === body.parentCodeType))
+    const matched = authCheckMatch(
+      grants,
+      domainCode,
+      body.parentResourceTypeCode,
+      op,
+      body.parentResourceCode,
+      body.parentCodeType
     );
     if (matched.length > 0) {
       matchedOps.push(op);
@@ -681,31 +733,32 @@ function buildPermission(body: any): ExplainPermission {
 }
 
 /**
- * USER explain 判定（复用 auth/check 语义：ALL 覆盖 INSTANCE，§6.8 L1515）。
+ * USER explain 判定（复用 auth/check 语义：ALL 优先短路，§6.8 L1515 + PermQueryEngine L149-160）。
  * - scopeMode=ALL：只匹配类型级 ALL 授权
- * - scopeMode=INSTANCE：匹配 (resourceCode+codeType 精确) OR (ALL 授权覆盖)
+ * - scopeMode=INSTANCE：authCheckMatch（命中 ALL 只返回 ALL grant，否则 INSTANCE 精确匹配）
  */
 function explainUserMatch(
   grants: PermissionGrant[],
   body: any
 ): PermissionGrant[] {
   const domainCode = body.domainCode || "example";
-  const candidates = grants.filter(
-    g =>
-      g.ownerType === "USER" &&
-      g.domainCode === domainCode &&
-      g.resourceTypeCode === body.resourceTypeCode &&
-      g.operationCode === body.operationCode
-  );
   if (body.scopeMode === "ALL") {
-    return candidates.filter(g => g.scopeMode === "ALL");
+    return grants.filter(
+      g =>
+        g.ownerType === "USER" &&
+        g.domainCode === domainCode &&
+        g.resourceTypeCode === body.resourceTypeCode &&
+        g.operationCode === body.operationCode &&
+        g.scopeMode === "ALL"
+    );
   }
-  return candidates.filter(
-    g =>
-      g.scopeMode === "ALL" ||
-      (g.scopeMode === "INSTANCE" &&
-        g.resourceCode === body.resourceCode &&
-        g.codeType === body.codeType)
+  return authCheckMatch(
+    grants,
+    domainCode,
+    body.resourceTypeCode,
+    body.operationCode,
+    body.resourceCode,
+    body.codeType
   );
 }
 
@@ -797,8 +850,8 @@ export default defineFakeRoute([
           cacheTtlSeconds: 60
         });
       }
-      // 主资源不存在
-      if (body.parentResourceCode !== "report:sales") {
+      // 主资源不存在（按完整复合键解析：domainCode+type+code+codeType，§6.7 L1335）
+      if (!matchParentResource(body)) {
         return ok({
           reason: "OBJECT_KEY_NOT_FOUND",
           matchedParentOperations: [],
