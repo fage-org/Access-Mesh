@@ -6,6 +6,7 @@ import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perm
 import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
 import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/utils/perms";
 import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/utils/perms";
+import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -109,6 +110,18 @@ export default {
         // 单一事实源派生：见 views/system/resource-operation/utils/perms.ts
         // 资源树 CRUD 门禁 RESOURCE:VIEW/CREATE/MANAGE；操作权限 CRUD 门禁 OPERATION:VIEW/CREATE/MANAGE
         auths: [...RESOURCE_OPERATION_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/permission-condition",
+      name: "SystemPermissionCondition",
+      component: () => import("@/views/system/permission-condition/index.vue"),
+      meta: {
+        icon: "ep/key",
+        title: "权限条件",
+        // 单一事实源派生：见 views/system/permission-condition/utils/perms.ts
+        // 条件 CRUD 门禁 CONDITION:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
+        auths: [...CONDITION_PERM_LIST]
       }
     }
   ]

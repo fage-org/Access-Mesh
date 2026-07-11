@@ -101,7 +101,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | T-FE-006 | 5.1 业务域页（主从：BizDomain CRUD 主表 + DomainConfig 域配置子表含 CLASSIFY；biz-domain list/detail 门禁 DOMAIN:VIEW 独立资源类型新增矩阵；domain-config 子区门禁 SYSTEM_CONFIG:VIEW/MANAGE；configType 列全 5 种 SCOPE/RELATION/BINDING/SUB_PERM/CLASSIFY） | frontend-phase1 | api-contract §5.1/§5.6；design/frontend/biz-domain.md | — | ✅ | ✓ |
 | T-FE-007 | 5.2 服务+接口映射页（服务注册 + 接口同步 + API 映射；FULL 同步边界 + SERVICE 四类 perm 门控 + mock 交互；API 🔧 清单已登记 T-PERM-027） | frontend-phase1 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md | — | ✅ | ✓ |
 | T-FE-008 | 3.1 资源+操作定义页（资源树 CRUD + 操作定义 + 关联） | frontend-phase1 | api-contract §5.3；design/frontend/resource-operation.md | — | ✅ | ✓ |
-| T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | — | ⚙️ | ⏳ |
+| T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD；conditionRules 可视化编辑器 {logic,items[]} 4 类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST + gatewayEvaluable 开关 T-PERM-017；CONDITION:VIEW/CREATE/UPDATE/DELETE 三档独立非 MANAGE 对齐后端；后端 list 无分页前端本地过滤；🔧 清单 6 项登记 T-PERM-029） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | - | ✅ | ✓ |
 | [T-FE-010](T-FE-010.md) | 3.3 冲突规则页（互斥规则 CRUD + 冲突检测） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ⚙️ | ⏳ |
 | [T-FE-011](T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 + 环检测 + 批量同步） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ⚙️ | ⏳ |
 | [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ⚙️ | ⏳ |
