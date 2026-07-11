@@ -97,17 +97,22 @@ export function useResourceDependency() {
     return codes;
   }
 
-  /** 操作位 -> 操作名称展示（null=任意，空=—） */
+  /** 操作位 -> 操作名称展示（null=任意，空=-）。
+   *  P2 修复：直接从经类型过滤的操作对象取 name，避免 find(o => o.code === c)
+   *  跨类型同名 code 误匹配（同一 code 在不同资源类型下名称可能不同）。 */
   function bitsToOpNames(
     bits: number | string | null,
     typeCode: string | null
   ): string {
     if (bits == null) return "任意";
-    const codes = bitsToOpCodes(bits, typeCode);
-    if (codes.length === 0) return "-";
-    return codes
-      .map(c => operationList.value.find(o => o.code === c)?.name ?? c)
-      .join("、");
+    const names: string[] = [];
+    for (const op of operationList.value) {
+      if (op.binaryBit == null) continue;
+      if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
+        continue;
+      if (hasBit(bits, op.binaryBit)) names.push(op.name);
+    }
+    return names.length === 0 ? "-" : names.join("、");
   }
 
   /** 按资源类型过滤的资源选项（表单下拉用） */
