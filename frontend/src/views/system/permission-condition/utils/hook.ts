@@ -92,7 +92,7 @@ export function usePermissionCondition() {
           conditionRules,
           enabled: form.enabled,
           gatewayEvaluable: form.gatewayEvaluable,
-          description: form.description || undefined
+          description: form.description
         });
         message("条件创建成功", { type: "success" });
       } else if (editingId) {
@@ -102,7 +102,7 @@ export function usePermissionCondition() {
           conditionRules,
           enabled: form.enabled,
           gatewayEvaluable: form.gatewayEvaluable,
-          description: form.description || undefined
+          description: form.description
         });
         message("条件更新成功", { type: "success" });
       }
