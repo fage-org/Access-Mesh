@@ -65,28 +65,36 @@ export type ConflictRuleResp = {
   createdAt: string;
 };
 
-/** 冲突规则创建请求（对齐 ConflictRuleReq） */
-export type ConflictRuleCreateReq = {
-  conflictType: string;
-  firstOperationPermissionId?: number | null;
-  secondOperationPermissionId?: number | null;
-  resourceTypeValue?: number | null;
-  firstAbstractRoleId?: number | null;
-  secondAbstractRoleId?: number | null;
-  description?: string;
-};
+/** 冲突规则字段集（按 conflictType 区分，create/update 共用）。
+ *  对齐后端全量替换契约（PUT）：conflictType 必填，按类型字段必填。
+ *  - ROLE_MUTEX：firstAbstractRoleId + secondAbstractRoleId 必填，操作权限字段 null
+ *  - PERM_MUTEX：firstOperationPermissionId + secondOperationPermissionId 必填，
+ *    resourceTypeValue 显式传（null=清空"全部"），角色字段 null */
+export type ConflictRulePayload =
+  | {
+      conflictType: "ROLE_MUTEX";
+      firstAbstractRoleId: number;
+      secondAbstractRoleId: number;
+      firstOperationPermissionId?: null;
+      secondOperationPermissionId?: null;
+      resourceTypeValue?: null;
+      description?: string;
+    }
+  | {
+      conflictType: "PERM_MUTEX";
+      firstOperationPermissionId: number;
+      secondOperationPermissionId: number;
+      resourceTypeValue: number | null;
+      firstAbstractRoleId?: null;
+      secondAbstractRoleId?: null;
+      description?: string;
+    };
 
-/** 冲突规则更新请求（对齐 ConflictRuleUpdateReq，id 必填） */
-export type ConflictRuleUpdateReq = {
-  id: number;
-  conflictType?: string;
-  firstOperationPermissionId?: number | null;
-  secondOperationPermissionId?: number | null;
-  resourceTypeValue?: number | null;
-  firstAbstractRoleId?: number | null;
-  secondAbstractRoleId?: number | null;
-  description?: string;
-};
+/** 冲突规则创建请求（对齐 ConflictRuleReq） */
+export type ConflictRuleCreateReq = ConflictRulePayload;
+
+/** 冲突规则更新请求（对齐 ConflictRuleUpdateReq，id 必填，全量替换语义） */
+export type ConflictRuleUpdateReq = { id: number } & ConflictRulePayload;
 
 /** 冲突检测结果响应（对齐 ConflictDetectResp） */
 export type ConflictDetectResp = {

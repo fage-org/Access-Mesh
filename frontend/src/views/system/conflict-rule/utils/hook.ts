@@ -179,9 +179,9 @@ export function useConflictRule() {
   function buildPayload(form: ConflictFormData): ConflictRuleCreateReq {
     if (form.conflictType === "ROLE_MUTEX") {
       return {
-        conflictType: form.conflictType,
-        firstAbstractRoleId: form.firstAbstractRoleId,
-        secondAbstractRoleId: form.secondAbstractRoleId,
+        conflictType: "ROLE_MUTEX",
+        firstAbstractRoleId: form.firstAbstractRoleId!,
+        secondAbstractRoleId: form.secondAbstractRoleId!,
         firstOperationPermissionId: null,
         secondOperationPermissionId: null,
         resourceTypeValue: null,
@@ -189,12 +189,12 @@ export function useConflictRule() {
       };
     }
     return {
-      conflictType: form.conflictType,
+      conflictType: "PERM_MUTEX",
+      firstOperationPermissionId: form.firstOperationPermissionId!,
+      secondOperationPermissionId: form.secondOperationPermissionId!,
+      resourceTypeValue: form.resourceTypeValue,
       firstAbstractRoleId: null,
       secondAbstractRoleId: null,
-      firstOperationPermissionId: form.firstOperationPermissionId,
-      secondOperationPermissionId: form.secondOperationPermissionId,
-      resourceTypeValue: form.resourceTypeValue,
       description: form.description
     };
   }

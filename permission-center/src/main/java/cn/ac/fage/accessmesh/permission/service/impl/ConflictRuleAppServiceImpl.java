@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.permission.service.ConflictRuleAppService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.util.OperatorUtil;
 import com.mybatisflex.core.update.UpdateChain;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -152,6 +153,25 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     }
 
     /**
+     * 判定 DataIntegrityViolationException 是否由冲突规则唯一约束违反引起。
+     * <p>
+     * PG 唯一约束违反消息含约束名（uk_conflict_rule_perm / uk_conflict_rule_role），
+     * 用于并发场景下 isDuplicate 失效时的兜底（NULLS NOT DISTINCT 使 NULL 全局规则也受约束）。
+     * </p>
+     */
+    private boolean isConflictRuleUniqueViolation(DataIntegrityViolationException e) {
+        Throwable cause = e;
+        while (cause != null) {
+            String msg = cause.getMessage();
+            if (msg != null && (msg.contains("uk_conflict_rule_perm") || msg.contains("uk_conflict_rule_role"))) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    /**
      * 创建权限冲突规则
      * <p>
      * 创建新的权限冲突规则定义。
@@ -204,7 +224,14 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             rule.setSecondOperationPermissionId(pair[1]);
             rule.setResourceTypeValue(req.resourceTypeValue());
         }
-        conflictRuleMapper.insert(rule);
+        try {
+            conflictRuleMapper.insert(rule);
+        } catch (DataIntegrityViolationException e) {
+            if (isConflictRuleUniqueViolation(e)) {
+                throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+            }
+            throw e;
+        }
         return toConflictRuleResp(rule);
     }
 
@@ -311,9 +338,16 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             chain.set(t.DESCRIPTION, req.description(), true);
         }
 
-        chain.where(t.ID.eq(req.id()))
-            .and(t.TENANT_ID.eq(tenantId))
-            .update();
+        try {
+            chain.where(t.ID.eq(req.id()))
+                .and(t.TENANT_ID.eq(tenantId))
+                .update();
+        } catch (DataIntegrityViolationException e) {
+            if (isConflictRuleUniqueViolation(e)) {
+                throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+            }
+            throw e;
+        }
 
         return toConflictRuleResp(conflictRuleMapper.selectValidById(req.id(), tenantId));
     }
