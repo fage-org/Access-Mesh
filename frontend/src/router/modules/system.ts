@@ -5,6 +5,7 @@ import { SYSTEM_CONFIG_PERM_LIST } from "@/views/system/config/utils/perms";
 import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perms";
 import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
 import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/utils/perms";
+import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -96,6 +97,18 @@ export default {
         title: "服务与接口",
         // 单一事实源派生：见 views/system/service-interface/utils/perms.ts
         auths: [...SERVICE_INTERFACE_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/resource-operation",
+      name: "SystemResourceOperation",
+      component: () => import("@/views/system/resource-operation/index.vue"),
+      meta: {
+        icon: "ep/coins",
+        title: "资源与操作",
+        // 单一事实源派生：见 views/system/resource-operation/utils/perms.ts
+        // 资源树 CRUD 门禁 RESOURCE:VIEW/CREATE/MANAGE；操作权限 CRUD 门禁 OPERATION:VIEW/CREATE/MANAGE
+        auths: [...RESOURCE_OPERATION_PERM_LIST]
       }
     }
   ]

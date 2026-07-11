@@ -35,6 +35,11 @@ import {
   SERVICE_INTERFACE_PERM_LIST,
   SERVICE_INTERFACE_VIEW_PERMS
 } from "../src/views/system/service-interface/utils/perms";
+import {
+  RESOURCE_OPERATION_PERMS as ROP,
+  RESOURCE_OPERATION_PERM_LIST,
+  RESOURCE_OPERATION_VIEW_PERMS
+} from "../src/views/system/resource-operation/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -78,7 +83,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...TYPE_DEF_PERM_LIST,
     ...SYSTEM_CONFIG_PERM_LIST,
     ...BIZ_DOMAIN_PERM_LIST,
-    ...SERVICE_INTERFACE_PERM_LIST
+    ...SERVICE_INTERFACE_PERM_LIST,
+    ...RESOURCE_OPERATION_PERM_LIST
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -100,7 +106,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_DELETE,
     P.POSITION_ASSIGN,
     ...BIZ_DOMAIN_VIEW_PERMS,
-    ...SERVICE_INTERFACE_VIEW_PERMS
+    ...SERVICE_INTERFACE_VIEW_PERMS,
+    ...RESOURCE_OPERATION_VIEW_PERMS
   ],
   /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权 + 额外角色 add/remove + 6.1 类型定义 CRUD，其余只读。
    *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。
@@ -127,7 +134,16 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     SIP.SERVICE_VIEW,
     SIP.SERVICE_MANAGE,
     SIP.SERVICE_SYNC,
-    SIP.MAPPING_MANAGE
+    SIP.MAPPING_MANAGE,
+    ROP.RESOURCE_VIEW,
+    ROP.RESOURCE_ADD,
+    ROP.RESOURCE_EDIT,
+    ROP.RESOURCE_DELETE,
+    ROP.RESOURCE_MOVE,
+    ROP.OPERATION_VIEW,
+    ROP.OPERATION_ADD,
+    ROP.OPERATION_EDIT,
+    ROP.OPERATION_DELETE
   ],
   /** 审计员：全只读 */
   auditor: [
@@ -136,7 +152,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
     ...BIZ_DOMAIN_VIEW_PERMS,
-    ...SERVICE_INTERFACE_VIEW_PERMS
+    ...SERVICE_INTERFACE_VIEW_PERMS,
+    ...RESOURCE_OPERATION_VIEW_PERMS
   ]
 };
 
