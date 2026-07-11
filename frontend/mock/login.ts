@@ -30,6 +30,11 @@ import {
   BIZ_DOMAIN_PERM_LIST,
   BIZ_DOMAIN_VIEW_PERMS
 } from "../src/views/system/biz-domain/utils/perms";
+import {
+  SERVICE_INTERFACE_PERMS as SIP,
+  SERVICE_INTERFACE_PERM_LIST,
+  SERVICE_INTERFACE_VIEW_PERMS
+} from "../src/views/system/service-interface/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -60,6 +65,11 @@ import {
  * - biz-domain create/update/remove + domain-config save/remove 门禁 `SYSTEM_CONFIG:MANAGE`（复用，与 6.2 同源）。
  * - domain-config list/detail 门禁 `SYSTEM_CONFIG:VIEW`（复用）。
  * admin 全权（含 CONFIG_SAVE=MANAGE）；sec 配置管理同源全权（CONFIG_SAVE）；hr/auditor 只读（DOMAIN:VIEW + CONFIG_VIEW）。
+ *
+ * 5.2 服务与接口映射页：
+ * - `SERVICE:VIEW` 可查看服务和接口；`SERVICE:MANAGE` 可维护服务；
+ *   `SERVICE:SYNC_INTERFACE` 和 `SERVICE:MANAGE_API_MAPPING` 分别控制 FULL 同步和手工映射。
+ * - sec 负责安全边界，拥有服务接口的完整维护权；hr/auditor 保持只读。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
   admin: [
@@ -67,7 +77,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...ROLE_MANAGE_PERM_LIST,
     ...TYPE_DEF_PERM_LIST,
     ...SYSTEM_CONFIG_PERM_LIST,
-    ...BIZ_DOMAIN_PERM_LIST
+    ...BIZ_DOMAIN_PERM_LIST,
+    ...SERVICE_INTERFACE_PERM_LIST
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -88,7 +99,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.POSITION_EDIT,
     P.POSITION_DELETE,
     P.POSITION_ASSIGN,
-    ...BIZ_DOMAIN_VIEW_PERMS
+    ...BIZ_DOMAIN_VIEW_PERMS,
+    ...SERVICE_INTERFACE_VIEW_PERMS
   ],
   /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权 + 额外角色 add/remove + 6.1 类型定义 CRUD，其余只读。
    *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。
@@ -111,7 +123,11 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     TP.TYPE_DELETE,
     SCP.CONFIG_SAVE,
     BDP.DOMAIN_VIEW,
-    BDP.CONFIG_SAVE
+    BDP.CONFIG_SAVE,
+    SIP.SERVICE_VIEW,
+    SIP.SERVICE_MANAGE,
+    SIP.SERVICE_SYNC,
+    SIP.MAPPING_MANAGE
   ],
   /** 审计员：全只读 */
   auditor: [
@@ -119,7 +135,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...ROLE_MANAGE_VIEW_PERMS,
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
-    ...BIZ_DOMAIN_VIEW_PERMS
+    ...BIZ_DOMAIN_VIEW_PERMS,
+    ...SERVICE_INTERFACE_VIEW_PERMS
   ]
 };
 

@@ -4,6 +4,7 @@ import { TYPE_DEF_PERM_LIST } from "@/views/system/type-def/utils/perms";
 import { SYSTEM_CONFIG_PERM_LIST } from "@/views/system/config/utils/perms";
 import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perms";
 import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
+import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -84,6 +85,17 @@ export default {
         // 单一事实源派生：见 views/system/biz-domain/utils/perms.ts
         // biz-domain list/detail 门禁 DOMAIN:VIEW（独立资源类型）；domain-config 子区 + biz-domain 写操作门禁 SYSTEM_CONFIG:VIEW/MANAGE
         auths: [...BIZ_DOMAIN_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/service-interface",
+      name: "SystemServiceInterface",
+      component: () => import("@/views/system/service-interface/index.vue"),
+      meta: {
+        icon: "ep/connection",
+        title: "服务与接口",
+        // 单一事实源派生：见 views/system/service-interface/utils/perms.ts
+        auths: [...SERVICE_INTERFACE_PERM_LIST]
       }
     }
   ]
