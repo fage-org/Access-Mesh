@@ -662,10 +662,15 @@ function buildDeniedScopeGroups(
   return groups;
 }
 
-/** 按请求笛卡尔积生成 scopeGroups（四态固定格优先，其余 DENIED） */
+/**
+ * 按请求笛卡尔积生成 scopeGroups（四态固定格优先，其余 DENIED）。
+ * dependOnPermissionIds 必须是 parentPermissionIds 的子集（对齐 buildScopeGroup L501：
+ * dependOn 不在 parentPermissionIds 中的条目被过滤，L519 只从过滤后条目收集 dependOn）。
+ */
 function buildScopeGroups(
   scopeTypes: string[],
-  scopeOps: string[]
+  scopeOps: string[],
+  parentPermissionIds: number[]
 ): ScopeGroup[] {
   const groups: ScopeGroup[] = [];
   for (const rt of scopeTypes) {
@@ -674,15 +679,22 @@ function buildScopeGroups(
         g => g.resourceTypeCode === rt && g.operationCode === op
       );
       groups.push(
-        fixed ?? {
-          resourceTypeCode: rt,
-          operationCode: op,
-          scopeMode: "DENIED" as ScopeMode,
-          items: [],
-          matchedRoleIds: [],
-          matchedPermissionIds: [],
-          dependOnPermissionIds: []
-        }
+        fixed
+          ? {
+              ...fixed,
+              dependOnPermissionIds: fixed.dependOnPermissionIds.filter(id =>
+                parentPermissionIds.includes(id)
+              )
+            }
+          : {
+              resourceTypeCode: rt,
+              operationCode: op,
+              scopeMode: "DENIED" as ScopeMode,
+              items: [],
+              matchedRoleIds: [],
+              matchedPermissionIds: [],
+              dependOnPermissionIds: []
+            }
       );
     }
   }
@@ -840,6 +852,12 @@ export default defineFakeRoute([
     method: "POST",
     response: (req: { body: any }) => {
       const body = req.body || {};
+      // 归一化 parentCodeType（null/空串/空白 -> "default"，对齐 TypeResolutionService L190）
+      const rawCodeType =
+        typeof body.parentCodeType === "string"
+          ? body.parentCodeType.trim()
+          : "";
+      body.parentCodeType = rawCodeType || "default";
       // 未知用户（主体复合键校验）
       if (!matchUser(body)) {
         return ok({
@@ -886,7 +904,11 @@ export default defineFakeRoute([
         reason: null,
         matchedParentOperations: matchedOps,
         parentPermissionIds,
-        scopeGroups: buildScopeGroups(scopeTypes, scopeOps),
+        scopeGroups: buildScopeGroups(
+          scopeTypes,
+          scopeOps,
+          parentPermissionIds
+        ),
         cacheTtlSeconds: 60
       });
     }
