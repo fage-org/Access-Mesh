@@ -142,6 +142,7 @@ export const createConflictRule = async (
 };
 
 /** 更新冲突规则（POST /api/perm/conflict-rule/update）。
+ *  全量替换语义（PUT）：须传完整字段集（按 conflictType），rtv 显式传（null=清空"全部"）。
  *  🔧 用内部 id（登记 T-PERM-030）。 */
 export const updateConflictRule = async (
   data: ConflictRuleUpdateReq

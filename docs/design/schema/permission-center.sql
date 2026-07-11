@@ -549,8 +549,8 @@ CREATE TABLE permission_conflict_rule (
     delete_flag                    BIGINT NOT NULL DEFAULT 0
 );
 
--- 权限互斥唯一约束
-CREATE UNIQUE INDEX uk_conflict_rule_perm ON permission_conflict_rule (tenant_id, first_operation_permission_id, second_operation_permission_id) WHERE conflict_type = 'PERM_MUTEX' AND delete_flag = 0;
+-- 权限互斥唯一约束（含 resource_type_value，允许同操作对不同资源类型；NULL 全局规则由 AppService isDuplicate 业务层去重）
+CREATE UNIQUE INDEX uk_conflict_rule_perm ON permission_conflict_rule (tenant_id, first_operation_permission_id, second_operation_permission_id, resource_type_value) WHERE conflict_type = 'PERM_MUTEX' AND delete_flag = 0;
 -- 角色互斥唯一约束
 CREATE UNIQUE INDEX uk_conflict_rule_role ON permission_conflict_rule (tenant_id, first_abstract_role_id, second_abstract_role_id) WHERE conflict_type = 'ROLE_MUTEX' AND delete_flag = 0;
 

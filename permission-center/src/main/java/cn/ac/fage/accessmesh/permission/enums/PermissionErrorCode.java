@@ -169,7 +169,12 @@ public enum PermissionErrorCode {
      * {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES} 白名单内。
      * </p>
      */
-    CONDITION_RULES_INVALID(20031, "条件规则不可下发 Gateway 评估");
+    CONDITION_RULES_INVALID(20031, "条件规则不可下发 Gateway 评估"),
+
+    /**
+     * 等价冲突规则已存在
+     */
+    CONFLICT_RULE_DUPLICATE(20032, "等价冲突规则已存在");
 
     private final int code;
     private final String message;

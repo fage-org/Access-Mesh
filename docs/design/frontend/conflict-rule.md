@@ -85,6 +85,16 @@
 - conflictType 实体注释（MUTEX_OP/MUTEX_ROLE）与 enum（ROLE_MUTEX/PERM_MUTEX）不一致，🔧 后端修正注释
 - detect 无权限校验（public 方法），🔧 后端评估是否补 VIEW 校验
 
+### ✅ 本次修复（T-PERM-030 P1，2026-07-11）
+
+后端 `ConflictRuleAppServiceImpl` + `PermissionConflictRuleMapper.xml` + schema 联动修复 4 项 P1：
+
+- **update 清空字段失效**：`updateConflictRule` 改用 `UpdateChain` 全量覆盖（按 conflictType 写入对应字段集，对侧强制 null）；PERM_MUTEX 下 `resourceTypeValue` 直接用 req 值（null=清空"全部"）。解决原 `if(field!=null)` 语义无法清空字段的问题（类型切换脏数据 / 资源类型清空无效）。
+- **update 全量替换语义**：`ConflictRuleUpdateReq.conflictType` 加 `@NotBlank`，javadoc 明确 PUT 语义（须传完整字段集），rtv 显式传（null=清空）。解决"仅更新描述致 rtv 意外清空"的契约风险。
+- **detect 漏报 NULL 全局规则**：Mapper.xml `selectByTenantAndResourceType` SQL 改为 `AND (resource_type_value = X OR resource_type_value IS NULL)`，对齐 schema「NULL=所有」语义。
+- **去重不一致**：schema `uk_conflict_rule_perm` 加 `resource_type_value` 列（允许同操作对不同资源类型）；后端新增 `isDuplicate` 业务去重（create/update 调用，双向匹配 + rtv 区分，`Objects.equals(null,null)` 弥补 PG 唯一索引 `NULL!=NULL` 缺口）；create/update 规范化 `first<second` 顺序（对齐 schema 注释）。
+- 新增错误码 `CONFLICT_RULE_DUPLICATE(20032)`。
+
 ## 5. 权限接线
 
 资源类型 `CONFLICT_RULE`，写权限 CREATE/UPDATE/DELETE **三档独立**（非 CREATE+MANAGE，对齐后端 ConflictRuleAppServiceImpl）：

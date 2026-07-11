@@ -8,6 +8,13 @@
 // - 角色：101 基础用户 / 102 高级用户 / 201 核心开发组 / 202 运维保障组（BASIC_ROLE + GROUP_ROLE）
 // - 操作权限：501 MENU:CREATE / 502 MENU:VIEW / 504 MENU:DELETE / 509 API:CREATE / 512 API:DELETE
 // - 资源类型 typeValue：1 MENU / 3 API
+//
+// 对齐后端 ConflictRuleAppServiceImpl（T-PERM-030 修复）：
+// - create/update 写库前规范化 first<second（对齐 schema 注释「存库时 first_id < second_id」）
+// - update 全量覆盖（对齐后端 UpdateChain）：按 conflictType 写入对应字段集，对侧强制 null；
+//   PERM_MUTEX 下 resourceTypeValue 直接用 body 值（null=清空"全部"，可清空）
+// - detect 全局规则（resourceTypeValue=null）匹配任意资源类型（对齐 schema「NULL=所有」语义）
+// - isDuplicate 双向匹配 + resourceTypeValue 区分（对齐后端 isDuplicate 业务去重；schema uk_conflict_rule_perm 含 rtv 列）
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 // ========== 本地类型（对齐后端 DTO，api-contract.md §5.6） ==========
@@ -104,7 +111,14 @@ function clone(r: InternalRule): ConflictRuleResp {
   return { ...resp };
 }
 
-/** 校验规则字段与冲突类型一致性（对齐后端 ConflictRuleAppServiceImpl 隐式约束）。
+/** 规范化对象对顺序：first = min(a,b), second = max(a,b)。
+ *  对齐后端 createConflictRule/updateConflictRule 的 first<second 规范化，
+ *  使唯一索引 uk_conflict_rule_perm/role 正确去重。 */
+function normalizePair(a: number, b: number): [number, number] {
+  return a <= b ? [a, b] : [b, a];
+}
+
+/** 校验规则字段与冲突类型一致性（对齐后端 ConflictRuleAppServiceImpl.validateFields）。
  *  - ROLE_MUTEX：firstAbstractRoleId + secondAbstractRoleId 必填，操作权限字段须为 null
  *  - PERM_MUTEX：firstOperationPermissionId + secondOperationPermissionId 必填，
  *    resourceTypeValue 可空（null=全部资源类型），角色字段须为 null
@@ -134,8 +148,9 @@ function validateRule(body: any): string | null {
   return null;
 }
 
-/** 判定两条规则是否语义等价（同类型 + 同对象对，双向匹配）。
- *  用于 create/update 去重，避免重复定义同一冲突关系。 */
+/** 判定两条规则是否语义等价（同类型 + 同对象对双向匹配 + 同 resourceTypeValue）。
+ *  用于 create/update 去重，避免重复定义同一冲突关系。
+ *  规范化后对象对双向等价，双向匹配为兼容未规范化历史数据保留。 */
 function isDuplicate(body: any, excludeId?: number): boolean {
   const type = body.conflictType;
   const a =
@@ -194,30 +209,36 @@ export default defineFakeRoute([
       if (isDuplicate(body)) {
         return error(409, "等价冲突规则已存在（双向匹配）");
       }
+      // 按类型填字段 + 规范化 first<second（对齐后端 createConflictRule）
       const created: InternalRule = {
         id: nextId++,
         tenantId: 1,
         conflictType: body.conflictType,
-        firstOperationPermissionId:
-          body.conflictType === "PERM_MUTEX"
-            ? body.firstOperationPermissionId
-            : null,
-        secondOperationPermissionId:
-          body.conflictType === "PERM_MUTEX"
-            ? body.secondOperationPermissionId
-            : null,
-        resourceTypeValue:
-          body.conflictType === "PERM_MUTEX"
-            ? (body.resourceTypeValue ?? null)
-            : null,
-        firstAbstractRoleId:
-          body.conflictType === "ROLE_MUTEX" ? body.firstAbstractRoleId : null,
-        secondAbstractRoleId:
-          body.conflictType === "ROLE_MUTEX" ? body.secondAbstractRoleId : null,
+        firstOperationPermissionId: null,
+        secondOperationPermissionId: null,
+        resourceTypeValue: null,
+        firstAbstractRoleId: null,
+        secondAbstractRoleId: null,
         description: body.description ?? null,
         createdAt: now(),
         deleted: false
       };
+      if (body.conflictType === "ROLE_MUTEX") {
+        const [r1, r2] = normalizePair(
+          body.firstAbstractRoleId,
+          body.secondAbstractRoleId
+        );
+        created.firstAbstractRoleId = r1;
+        created.secondAbstractRoleId = r2;
+      } else {
+        const [op1, op2] = normalizePair(
+          body.firstOperationPermissionId,
+          body.secondOperationPermissionId
+        );
+        created.firstOperationPermissionId = op1;
+        created.secondOperationPermissionId = op2;
+        created.resourceTypeValue = body.resourceTypeValue ?? null;
+      }
       rules.push(created);
       return ok(clone(created));
     }
@@ -229,7 +250,8 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const r = rules.find(item => item.id === body?.id && !item.deleted);
       if (!r) return error(404, "冲突规则不存在");
-      // 取最终状态校验（对齐后端 if(field!=null) 语义）
+      // 合并最终状态（op/role 未传保留原值；rtv 直接用 body，null=清空"全部"，
+      // 对齐后端 updateConflictRule 的 PERM_MUTEX rtv 全量覆盖契约）
       const merged = {
         conflictType: body.conflictType ?? r.conflictType,
         firstAbstractRoleId:
@@ -248,33 +270,34 @@ export default defineFakeRoute([
           body.secondOperationPermissionId != null
             ? body.secondOperationPermissionId
             : r.secondOperationPermissionId,
-        resourceTypeValue:
-          body.resourceTypeValue != null
-            ? body.resourceTypeValue
-            : r.resourceTypeValue
+        resourceTypeValue: body.resourceTypeValue ?? null
       };
       const err = validateRule(merged);
       if (err) return error(400, err);
       if (isDuplicate(merged, r.id)) {
         return error(409, "等价冲突规则已存在（双向匹配）");
       }
-      if (body.conflictType != null) r.conflictType = body.conflictType;
-      // 类型切换时清空对侧字段（对齐后端 if(field!=null) 语义，前端表单切换已清空）
-      if (r.conflictType === "ROLE_MUTEX") {
-        if (body.firstAbstractRoleId != null)
-          r.firstAbstractRoleId = body.firstAbstractRoleId;
-        if (body.secondAbstractRoleId != null)
-          r.secondAbstractRoleId = body.secondAbstractRoleId;
+      // 全量覆盖（对齐后端 UpdateChain）：按 conflictType 写入对应字段集（规范化顺序），
+      // 对侧强制 null；PERM_MUTEX 下 resourceTypeValue 直接覆盖（null=全部，可清空）。
+      r.conflictType = merged.conflictType;
+      if (merged.conflictType === "ROLE_MUTEX") {
+        const [r1, r2] = normalizePair(
+          merged.firstAbstractRoleId,
+          merged.secondAbstractRoleId
+        );
+        r.firstAbstractRoleId = r1;
+        r.secondAbstractRoleId = r2;
         r.firstOperationPermissionId = null;
         r.secondOperationPermissionId = null;
         r.resourceTypeValue = null;
       } else {
-        if (body.firstOperationPermissionId != null)
-          r.firstOperationPermissionId = body.firstOperationPermissionId;
-        if (body.secondOperationPermissionId != null)
-          r.secondOperationPermissionId = body.secondOperationPermissionId;
-        if (body.resourceTypeValue != null)
-          r.resourceTypeValue = body.resourceTypeValue;
+        const [op1, op2] = normalizePair(
+          merged.firstOperationPermissionId,
+          merged.secondOperationPermissionId
+        );
+        r.firstOperationPermissionId = op1;
+        r.secondOperationPermissionId = op2;
+        r.resourceTypeValue = merged.resourceTypeValue;
         r.firstAbstractRoleId = null;
         r.secondAbstractRoleId = null;
       }
@@ -316,7 +339,8 @@ export default defineFakeRoute([
         );
       }
       // 双向匹配（对齐后端 detectConflictRule）：
-      // 规则 (A,B) 视为冲突当请求 (A,B) 或 (B,A)；resourceTypeValue null=全部
+      // 规则 (A,B) 视为冲突当请求 (A,B) 或 (B,A)；
+      // resourceTypeValue null=全部（全局规则匹配任意资源类型，对齐 schema「NULL=所有」语义）
       const matched = rules
         .filter(r => !r.deleted && r.conflictType === "PERM_MUTEX")
         .filter(r => {
