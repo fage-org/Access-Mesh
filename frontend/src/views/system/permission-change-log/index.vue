@@ -123,7 +123,7 @@ const columns = [
               <el-input-number
                 v-model="searchForm.entityId"
                 :controls="false"
-                :min="1"
+                :min="0"
                 placeholder="精确匹配"
                 class="w-36!"
                 @keyup.enter="onSearch"

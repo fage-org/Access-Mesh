@@ -143,7 +143,18 @@ export const getChangeLogList = async (
   return unwrap(res);
 };
 
-/** 安全解析 diffSnapshot JSON 字符串为结构化对象（解析失败返回 null）。 */
+/** diff items[].changeType 合法枚举（§6.8 L1667），超出此集合的元素视为非法并过滤 */
+const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
+  "ADD",
+  "REMOVE",
+  "UPDATE"
+]);
+
+/** 安全解析 diffSnapshot JSON 字符串为结构化对象（解析失败返回 null）。
+ *  逐项校验 items：仅保留非空对象且 changeType 属于 ADD/REMOVE/UPDATE 的元素，
+ *  避免历史/异常数据（如 items:[null]）在 DiffSnapshotPanel 渲染时访问 item.changeType 抛错。
+ *  eventType 仅校验为 string（不限制枚举值）--后端批量删除角色实际写 "ROLE_BATCH_DELETE"
+ *  超出 §6.8 7 枚举，前端 EVENT_TYPE_META fallback 显示原值不崩溃。 */
 export function parseDiffSnapshot(
   raw: string | null | undefined
 ): DiffSnapshot | null {
@@ -157,7 +168,14 @@ export function parseDiffSnapshot(
     ) {
       return null;
     }
-    return parsed;
+    const items = parsed.items.filter(
+      (it): it is DiffItem =>
+        it != null &&
+        typeof it === "object" &&
+        typeof (it as DiffItem).changeType === "string" &&
+        VALID_CHANGE_TYPES.has((it as DiffItem).changeType)
+    );
+    return { ...parsed, items };
   } catch {
     return null;
   }

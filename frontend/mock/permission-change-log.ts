@@ -439,6 +439,74 @@ const mockLogs: ChangeLogResp[] = [
     changeSource: "MANUAL",
     requestId: "req-cl-012",
     createdAt: "2026-07-06 16:50:00"
+  },
+  {
+    // 批量删除角色聚合日志：entityId=0 对齐后端 RoleManageAppServiceImpl:300
+    //（批量操作无单一实体 ID，用 0 作聚合标记；前端筛选 entityId=0 可命中）
+    id: 13,
+    tenantId: 1,
+    entityType: "abstract_role",
+    entityId: 0,
+    operation: "BATCH_DELETE",
+    oldSnapshot: null,
+    newSnapshot: null,
+    diffSnapshot: JSON.stringify({
+      // 后端实际写 "ROLE_BATCH_DELETE"（超出 §6.8 7 枚举），前端 EVENT_TYPE_META fallback 显示原值不崩溃
+      eventType: "ROLE_BATCH_DELETE",
+      items: [
+        {
+          changeType: "REMOVE",
+          role: {
+            roleTypeCode: "BASIC_ROLE",
+            roleExternalId: "role_temp_a",
+            roleName: "临时角色A"
+          }
+        },
+        {
+          changeType: "REMOVE",
+          role: {
+            roleTypeCode: "BASIC_ROLE",
+            roleExternalId: "role_temp_b",
+            roleName: "临时角色B"
+          }
+        }
+      ]
+    }),
+    affectedAbstractUserIds: [2004, 2005],
+    affectedAbstractRoleIds: [106, 107],
+    changeReason: "批量删除临时角色（聚合日志，entityId=0）",
+    changeSource: "MANUAL",
+    requestId: "req-cl-013",
+    createdAt: "2026-07-06 09:00:00"
+  },
+  {
+    // 批量撤销用户角色聚合日志：entityId=0 对齐后端 UserManageAppServiceImpl:672
+    id: 14,
+    tenantId: 1,
+    entityType: "user_role",
+    entityId: 0,
+    operation: "BATCH_REMOVE",
+    oldSnapshot: null,
+    newSnapshot: null,
+    diffSnapshot: JSON.stringify({
+      eventType: "USER_ROLE_CHANGE",
+      items: [
+        {
+          changeType: "REMOVE",
+          role: {
+            roleTypeCode: "BASIC_ROLE",
+            roleExternalId: "role_position_engineer",
+            roleName: "岗位工程师"
+          }
+        }
+      ]
+    }),
+    affectedAbstractUserIds: [2006, 2007],
+    affectedAbstractRoleIds: [104],
+    changeReason: "批量撤销用户岗位工程师角色（聚合日志，entityId=0）",
+    changeSource: "MANUAL",
+    requestId: "req-cl-014",
+    createdAt: "2026-07-05 15:30:00"
   }
 ];
 

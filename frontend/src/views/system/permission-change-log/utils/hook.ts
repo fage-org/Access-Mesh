@@ -21,7 +21,12 @@ export function usePermissionChangeLog() {
   const searchForm = reactive(createEmptySearchForm());
   const pagination = reactive({ page: 1, size: 15, total: 0 });
 
+  // 请求序号：仅采纳最新一次请求的结果，避免并发请求时较早请求后返回覆盖精确查询结果
+  // （审计页优先保证不展示与当前筛选条件不符的数据）。
+  let reqSeq = 0;
+
   async function loadTable() {
+    const seq = ++reqSeq;
     loading.value = true;
     try {
       // 后端 /api/perm/log/change/list 返回 PaginatedResp（服务端分页 + entityType/entityId 过滤）。
@@ -32,12 +37,20 @@ export function usePermissionChangeLog() {
         pageNum: pagination.page,
         pageSize: pagination.size
       });
+      // 过期请求静默丢弃（用户已发起更新的查询）
+      if (seq !== reqSeq) return;
       tableData.value = res.items;
       pagination.total = res.total;
     } catch (e: any) {
+      // 过期请求静默丢弃
+      if (seq !== reqSeq) return;
+      // 最新请求失败：清空旧数据，避免展示与当前筛选条件不符的数据
+      tableData.value = [];
+      pagination.total = 0;
       message(e.message || "加载变更日志失败", { type: "error" });
     } finally {
-      loading.value = false;
+      // 仅最新请求复位 loading，过期请求不干扰
+      if (seq === reqSeq) loading.value = false;
     }
   }
 
