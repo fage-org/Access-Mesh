@@ -2,15 +2,17 @@
 // 经 vite-plugin-fake-server 拦截，统一返回 PermResult 信封：{ code, message, data }
 // 模拟未来 admin-service 聚合路径 /permission-query/*（T-PERM-033 实现后对接真聚合层，前端无需改路径）
 // 零 src 依赖：类型本地声明，避免 fake-server 经 bundle-import 打包 src/api 链
-// （该链 import @/utils/http 等浏览器侧依赖，node platform 下打包失败 -> mock 加载被静默吞掉 -> 404）
 //
 // 契约依据：docs/design/permission-center/api-contract.md §6.6-6.8
 // 主体模型：effective-permissions/explain 支持 USER/ROLE；query-scopes 仅 USER
 //
-// Mock 场景覆盖：
-// - Tab1 effective-permissions：USER 成功(INSTANCE+ALL+sourceRoles)/ROLE 成功/未知主体空结果/分页翻页/sourceRolesTruncated
-// - Tab2 query-scopes：四态 scopeGroups(ALL/INSTANCE/DENIED/EMPTY)/USER_NOT_FOUND/OBJECT_KEY_NOT_FOUND
-// - Tab3 explain：allowed=true(INSTANCE)/allowed=true(ALL,不发resourceCode)/allowed=false(NO_PERMISSION+recentChanges)/USER_NOT_FOUND/ROLE_NOT_FOUND
+// Mock 场景覆盖（评审 P1 修复：实现查询条件语义）：
+// - Tab1 effective-permissions：按 domainCode/resourceTypeCodes/operationCodes/resourceKeyword 过滤
+//   + includeSourceRoles/sourceRoleLimit 控制 sourceRoles + USER/ROLE 成功/未知空结果/分页翻页/sourceRolesTruncated
+// - Tab2 query-scopes：按请求 scopeResourceTypeCodes × scopeOperationCodes 笛卡尔积返回 scopeGroups
+//   + USER_NOT_FOUND/OBJECT_KEY_NOT_FOUND + 四态(ALL/INSTANCE/DENIED/EMPTY)
+// - Tab3 explain：按完整权限键判定 allowed（USER: DATA_READ=true 其余=false；ROLE: REPORT+report:sales+DATA_READ=true 其余=false）
+//   + allowed=true(INSTANCE)/allowed=true(ALL,不发resourceCode)/allowed=false(NO_PERMISSION+recentChanges)/USER_NOT_FOUND/ROLE_NOT_FOUND
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 type TargetType = "USER" | "ROLE";
@@ -23,6 +25,7 @@ interface SourceRole {
   via: string[];
 }
 interface EffectivePermissionItem {
+  domainCode: string;
   resourceTypeCode: string;
   resourceCode: string | null;
   resourceName: string | null;
@@ -75,9 +78,9 @@ const ok = (data: unknown) => ({ code: 200, message: "success", data });
 // 已知主体：
 // - 用户 u-10001（ADMIN_USER）
 // - 角色 role_report_viewer（BASIC_ROLE）
-// 域：example
+// 域：example（report:sales/data:*）/ finance（report:finance）/ hr（report:hr）
 // 资源类型：REPORT / DATA
-// 资源：report:sales / data:dept:A / data:dept:B / data:dept:C
+// 资源：report:sales / report:finance / report:hr / data:dept:A / data:dept:B / data:dept:C
 // 操作：DATA_READ / DATA_EDIT / DATA_EXPORT / DATA_DELETE
 
 // ========== Tab1 effective-permissions mock 数据 ==========
@@ -85,6 +88,7 @@ const ok = (data: unknown) => ({ code: 200, message: "success", data });
 /** USER 视角权限条目（8 条，用于分页翻页测试 pageSize=5） */
 const userPermItems: EffectivePermissionItem[] = [
   {
+    domainCode: "example",
     resourceTypeCode: "REPORT",
     resourceCode: "report:sales",
     resourceName: "销售报表",
@@ -104,6 +108,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [200]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "REPORT",
     resourceCode: null,
     resourceName: null,
@@ -123,6 +128,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [201]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: "data:dept:A",
     resourceName: "A部门数据",
@@ -142,6 +148,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [302]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: "data:dept:B",
     resourceName: "B部门数据",
@@ -161,6 +168,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [303]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: "data:dept:C",
     resourceName: "C部门数据",
@@ -198,6 +206,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [304, 305, 306, 307]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: null,
     resourceName: null,
@@ -217,6 +226,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [401]
   },
   {
+    domainCode: "finance",
     resourceTypeCode: "REPORT",
     resourceCode: "report:finance",
     resourceName: "财务报表",
@@ -236,6 +246,7 @@ const userPermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [208]
   },
   {
+    domainCode: "hr",
     resourceTypeCode: "REPORT",
     resourceCode: "report:hr",
     resourceName: "人事报表",
@@ -259,6 +270,7 @@ const userPermItems: EffectivePermissionItem[] = [
 /** ROLE 视角权限条目（role_report_viewer 直接权限，4 条） */
 const rolePermItems: EffectivePermissionItem[] = [
   {
+    domainCode: "example",
     resourceTypeCode: "REPORT",
     resourceCode: "report:sales",
     resourceName: "销售报表",
@@ -271,6 +283,7 @@ const rolePermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [200]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: "data:dept:A",
     resourceName: "A部门数据",
@@ -283,6 +296,7 @@ const rolePermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [302]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "DATA",
     resourceCode: "data:dept:B",
     resourceName: "B部门数据",
@@ -295,6 +309,7 @@ const rolePermItems: EffectivePermissionItem[] = [
     matchedPermissionIds: [303]
   },
   {
+    domainCode: "example",
     resourceTypeCode: "REPORT",
     resourceCode: null,
     resourceName: null,
@@ -308,9 +323,10 @@ const rolePermItems: EffectivePermissionItem[] = [
   }
 ];
 
-// ========== Tab2 query-scopes mock 数据（四态） ==========
+// ========== Tab2 query-scopes mock 数据（四态，按请求笛卡尔积查） ==========
 
-const mockScopeGroups: ScopeGroup[] = [
+/** 四态固定格（DATA 类型，4 操作）；请求的其他类型/操作默认 DENIED */
+const fixedScopeGroups: ScopeGroup[] = [
   {
     resourceTypeCode: "DATA",
     operationCode: "DATA_READ",
@@ -404,7 +420,7 @@ function buildPermission(body: any): ExplainPermission {
 }
 
 export default defineFakeRoute([
-  // ========== Tab1: effective-permissions ==========
+  // ========== Tab1: effective-permissions（按请求条件过滤） ==========
   {
     url: "/permission-query/effective-permissions",
     method: "POST",
@@ -412,20 +428,68 @@ export default defineFakeRoute([
       const body = req.body || {};
       const pageNum = body.pageNum || 1;
       const pageSize = body.pageSize || 10;
-      const start = (pageNum - 1) * pageSize;
 
+      // 1. 按 targetType + 主体获取基础 items
       let items: EffectivePermissionItem[] = [];
       const targetType: TargetType = body.targetType || "USER";
-
       if (body.targetType === "USER") {
-        // 未知用户 -> 空结果（非 reason，effective-permissions 无 reason 字段）
         items = body.subjectExternalId === "u-10001" ? userPermItems : [];
       } else if (body.targetType === "ROLE") {
-        // 未知角色 -> 空结果
         items =
           body.roleExternalId === "role_report_viewer" ? rolePermItems : [];
       }
 
+      // 2. 按 domainCode 过滤
+      if (body.domainCode) {
+        items = items.filter(i => i.domainCode === body.domainCode);
+      }
+      // 3. 按 resourceTypeCodes 过滤
+      if (
+        Array.isArray(body.resourceTypeCodes) &&
+        body.resourceTypeCodes.length
+      ) {
+        items = items.filter(i =>
+          body.resourceTypeCodes.includes(i.resourceTypeCode)
+        );
+      }
+      // 4. 按 operationCodes 过滤（交集：item.operationCodes 与请求有交集）
+      if (Array.isArray(body.operationCodes) && body.operationCodes.length) {
+        items = items.filter(i =>
+          i.operationCodes.some(op => body.operationCodes.includes(op))
+        );
+      }
+      // 5. 按 resourceKeyword 过滤（resourceName 模糊匹配）
+      if (body.resourceKeyword) {
+        items = items.filter(
+          i => i.resourceName && i.resourceName.includes(body.resourceKeyword)
+        );
+      }
+
+      // 6. 按请求投影 sourceRoles（复制避免污染源数据）
+      items = items.map(i => {
+        const copy: EffectivePermissionItem = {
+          ...i,
+          sourceRoles: [...i.sourceRoles]
+        };
+        // includeSourceRoles=false -> sourceRoles=[]（sourceRoleCount 保留）
+        if (body.includeSourceRoles === false) {
+          copy.sourceRoles = [];
+        }
+        // sourceRoleLimit 截断 sourceRoles
+        const limit = body.sourceRoleLimit;
+        if (
+          typeof limit === "number" &&
+          limit > 0 &&
+          copy.sourceRoles.length > limit
+        ) {
+          copy.sourceRoles = copy.sourceRoles.slice(0, limit);
+          copy.sourceRolesTruncated = true;
+        }
+        return copy;
+      });
+
+      // 7. 分页
+      const start = (pageNum - 1) * pageSize;
       const paged = items.slice(start, start + pageSize);
       return ok({
         targetType,
@@ -437,7 +501,7 @@ export default defineFakeRoute([
       });
     }
   },
-  // ========== Tab2: query-scopes ==========
+  // ========== Tab2: query-scopes（按请求笛卡尔积返回） ==========
   {
     url: "/permission-query/query-scopes",
     method: "POST",
@@ -463,16 +527,44 @@ export default defineFakeRoute([
           cacheTtlSeconds: 60
         });
       }
+      // 按请求 scopeResourceTypeCodes × scopeOperationCodes 笛卡尔积生成 scopeGroups
+      const scopeTypes: string[] = Array.isArray(body.scopeResourceTypeCodes)
+        ? body.scopeResourceTypeCodes
+        : [];
+      const scopeOps: string[] = Array.isArray(body.scopeOperationCodes)
+        ? body.scopeOperationCodes
+        : [];
+      const scopeGroups: ScopeGroup[] = [];
+      for (const rt of scopeTypes) {
+        for (const op of scopeOps) {
+          const fixed = fixedScopeGroups.find(
+            g => g.resourceTypeCode === rt && g.operationCode === op
+          );
+          scopeGroups.push(
+            fixed ?? {
+              resourceTypeCode: rt,
+              operationCode: op,
+              scopeMode: "DENIED" as ScopeMode,
+              items: [],
+              matchedRoleIds: [],
+              matchedPermissionIds: [],
+              dependOnPermissionIds: []
+            }
+          );
+        }
+      }
       return ok({
         reason: null,
-        matchedParentOperations: body.parentOperationCodes || [],
+        matchedParentOperations: Array.isArray(body.parentOperationCodes)
+          ? body.parentOperationCodes
+          : [],
         parentPermissionIds: [200, 260],
-        scopeGroups: mockScopeGroups,
+        scopeGroups,
         cacheTtlSeconds: 60
       });
     }
   },
-  // ========== Tab3: explain ==========
+  // ========== Tab3: explain（按完整权限键判定 allowed） ==========
   {
     url: "/permission-query/explain",
     method: "POST",
@@ -480,7 +572,7 @@ export default defineFakeRoute([
       const body = req.body || {};
       const permission = buildPermission(body);
 
-      // USER 分支
+      // ROLE 分支：按完整权限键判定
       if (body.targetType === "ROLE") {
         if (body.roleExternalId !== "role_report_viewer") {
           return ok({
@@ -493,26 +585,33 @@ export default defineFakeRoute([
             recentChanges: []
           });
         }
-        // ROLE 视角：DATA_READ 允许
+        // role_report_viewer 只对 REPORT + (ALL 或 report:sales) + DATA_READ allowed=true
+        const allowed =
+          body.resourceTypeCode === "REPORT" &&
+          (body.scopeMode === "ALL" || body.resourceCode === "report:sales") &&
+          body.operationCode === "DATA_READ";
         return ok({
           targetType: "ROLE",
-          allowed: true,
-          reason: null,
+          allowed,
+          reason: allowed ? null : "NO_PERMISSION",
           permission,
-          sourceRoles: [
-            {
-              roleTypeCode: "BASIC_ROLE",
-              roleExternalId: "role_report_viewer",
-              roleName: "报表查看员",
-              via: []
-            }
-          ],
-          matchedPermissionIds: [200],
-          recentChanges: body.includeRecentChanges ? mockRecentChanges : []
+          sourceRoles: allowed
+            ? [
+                {
+                  roleTypeCode: "BASIC_ROLE",
+                  roleExternalId: "role_report_viewer",
+                  roleName: "报表查看员",
+                  via: []
+                }
+              ]
+            : [],
+          matchedPermissionIds: allowed ? [200] : [],
+          recentChanges:
+            body.includeRecentChanges && !allowed ? mockRecentChanges : []
         });
       }
 
-      // USER 分支
+      // USER 分支：按完整权限键判定
       if (body.subjectExternalId !== "u-10001") {
         return ok({
           targetType: "USER",
@@ -524,34 +623,26 @@ export default defineFakeRoute([
           recentChanges: []
         });
       }
-      // DATA_READ 允许（INSTANCE + ALL 均允许，验证 ALL 不发 resourceCode/codeType）
-      if (body.operationCode === "DATA_READ") {
-        return ok({
-          targetType: "USER",
-          allowed: true,
-          reason: null,
-          permission,
-          sourceRoles: [
-            {
-              roleTypeCode: "BASIC_ROLE",
-              roleExternalId: "role_report_viewer",
-              roleName: "报表查看员",
-              via: []
-            }
-          ],
-          matchedPermissionIds: [200],
-          recentChanges: []
-        });
-      }
-      // 其余操作拒绝 + recentChanges（验证 NO_PERMISSION）
+      // u-10001 对 DATA_READ allowed=true（INSTANCE + ALL 均允许，验证 ALL 不发 resourceCode/codeType）
+      const allowed = body.operationCode === "DATA_READ";
       return ok({
         targetType: "USER",
-        allowed: false,
-        reason: "NO_PERMISSION",
+        allowed,
+        reason: allowed ? null : "NO_PERMISSION",
         permission,
-        sourceRoles: [],
-        matchedPermissionIds: [],
-        recentChanges: body.includeRecentChanges ? mockRecentChanges : []
+        sourceRoles: allowed
+          ? [
+              {
+                roleTypeCode: "BASIC_ROLE",
+                roleExternalId: "role_report_viewer",
+                roleName: "报表查看员",
+                via: []
+              }
+            ]
+          : [],
+        matchedPermissionIds: allowed ? [200] : [],
+        recentChanges:
+          body.includeRecentChanges && !allowed ? mockRecentChanges : []
       });
     }
   }

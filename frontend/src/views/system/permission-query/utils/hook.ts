@@ -1,7 +1,8 @@
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { PERMISSION_QUERY_PERMS } from "./perms";
+import { ROLE_TYPE_OPTIONS } from "./types";
 import {
   getEffectivePermissions,
   getQueryScopes,
@@ -16,18 +17,18 @@ import {
 } from "@/api/permission-query";
 
 /**
- * 权限排查页 hook（三 Tab 独立查询 + 权限门控短路）。
+ * 权限排查页 hook（三 Tab 独立查询 + 权限门控短路 + 主体变化失效）。
  *
  * 设计要点：
- * 1. 权限门控短路：canQuery=false 时所有 load 直接 return，不发请求（路由框架不消费
- *    meta.auths 隐藏菜单，故 hook 层必须短路，配合 index.vue 整页无权状态）。
- * 2. 请求序号 reqSeq：每 Tab 独立，过期请求静默丢弃（旧请求后返回不覆盖新主体结果）。
- * 3. 主体变化清空旧结果：onReset/切换 targetType 时清空 result，避免旧权限事实误认为当前结果。
- * 4. 主体模型：Tab1/3 支持 targetType=USER/ROLE；Tab2 仅 USER（query-scopes 只解析用户）。
- * 5. 数组筛选字段（resourceTypeCodes/operationCodes 等）表单层用逗号分隔 string，
- *    load 时 split 为数组传 API，避免 el-input 绑定数组的类型冲突。
- *
- * 范式对齐 T-FE-012 reqSeq 机制（审计页优先保证不展示与当前筛选条件不符的数据）。
+ * 1. 权限门控短路：canQuery=false 时所有 load 直接 return，不发请求。
+ * 2. 请求序号 reqSeq：每 Tab 独立，过期请求静默丢弃。
+ * 3. invalidate()：递增 reqSeq + 清空 result + 复位 loading。主体业务键变化、重置、
+ *    切换 targetType 时调用，确保在途请求回写时不覆盖新主体结果（评审 P1 修复）。
+ * 4. watch 主体字段：用户编辑主体输入时自动 invalidate（无需点重置）。
+ * 5. load 前 validate：必填字段校验（ORG/POSITION domainCode、externalId、INSTANCE
+ *    resourceCode/codeType 等），校验失败 message 提示 + return（评审 P2 修复）。
+ * 6. 主体模型：Tab1/3 支持 targetType=USER/ROLE；Tab2 仅 USER。
+ * 7. 数组筛选字段表单层用逗号分隔 string，load 时 split 为数组。
  */
 
 /** 逗号分隔字符串拆为数组（trim + 过滤空） */
@@ -39,12 +40,16 @@ function splitCodes(input: string): string[] {
     .filter(Boolean);
 }
 
+/** 角色类型是否要求 domainCode 必填（ORG/POSITION） */
+function isDomainRequired(roleTypeCode: string): boolean {
+  const rt = ROLE_TYPE_OPTIONS.find(r => r.value === roleTypeCode);
+  return rt?.domainRequired ?? false;
+}
+
 // ========== 公共：权限门控 + 三 Tab 汇总 ==========
 
 export function usePermissionQuery() {
-  /** 权限门控：临时复用 SYSTEM_CONFIG:VIEW（T-PERM-033 后切换 PERMISSION_QUERY:VIEW） */
   const canQuery = computed(() => hasPerms(PERMISSION_QUERY_PERMS.QUERY_VIEW));
-  // 传 () => canQuery.value 避免 ComputedRef 与 () => boolean 类型冲突
   const tab1 = useEffectivePermissionsTab(() => canQuery.value);
   const tab2 = useQueryScopesTab(() => canQuery.value);
   const tab3 = useExplainTab(() => canQuery.value);
@@ -56,20 +61,16 @@ export function usePermissionQuery() {
 function useEffectivePermissionsTab(canQuery: () => boolean) {
   const form = reactive({
     targetType: "USER" as TargetType,
-    // USER 分支
     subjectTypeCode: "ADMIN_USER",
     subjectExternalId: "",
-    // ROLE 分支
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "",
     domainCode: "example",
-    // 筛选（逗号分隔 string，load 时 split）
     resourceTypeCodes: "",
     operationCodes: "",
     resourceKeyword: "",
     includeSourceRoles: true,
     sourceRoleLimit: 3,
-    // 分页
     pageNum: 1,
     pageSize: 10
   });
@@ -77,9 +78,46 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
   const loading = ref(false);
   let reqSeq = 0;
 
+  /** 失效：递增 reqSeq 丢弃在途请求 + 清空旧结果 + 复位 loading */
+  function invalidate() {
+    reqSeq++;
+    result.value = null;
+    loading.value = false;
+  }
+
+  /** 主体业务键变化时失效（避免在途请求回写不一致的权限事实） */
+  watch(
+    () => [
+      form.targetType,
+      form.subjectTypeCode,
+      form.subjectExternalId,
+      form.roleTypeCode,
+      form.roleExternalId,
+      form.domainCode
+    ],
+    () => invalidate()
+  );
+
+  /** 提交前校验：返回错误消息（null=通过） */
+  function validate(): string | null {
+    if (form.targetType === "USER") {
+      if (!form.subjectExternalId.trim()) return "请输入用户标识";
+    } else {
+      if (!form.roleExternalId.trim()) return "请输入角色标识";
+      if (isDomainRequired(form.roleTypeCode) && !form.domainCode.trim()) {
+        return `角色类型 ${form.roleTypeCode} 要求填写业务域`;
+      }
+    }
+    return null;
+  }
+
   async function load() {
-    // 权限短路：无权不发请求
     if (!canQuery()) return;
+    const err = validate();
+    if (err) {
+      message(err, { type: "warning" });
+      return;
+    }
     const seq = ++reqSeq;
     loading.value = true;
     try {
@@ -107,7 +145,6 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
         pageSize: form.pageSize
       };
       const res = await getEffectivePermissions(req);
-      // 过期请求静默丢弃
       if (seq !== reqSeq) return;
       result.value = res;
     } catch (e: any) {
@@ -135,8 +172,7 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
     form.operationCodes = "";
     form.resourceKeyword = "";
     form.pageNum = 1;
-    // 主体变化清空旧结果
-    result.value = null;
+    invalidate();
   }
 
   function onPageChange(p: number) {
@@ -150,9 +186,8 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
     load();
   }
 
-  /** 切换 targetType 时清空旧结果 */
   function onTargetTypeChange() {
-    result.value = null;
+    invalidate();
     form.pageNum = 1;
   }
 
@@ -165,7 +200,8 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
     onReset,
     onPageChange,
     onPageSizeChange,
-    onTargetTypeChange
+    onTargetTypeChange,
+    invalidate
   };
 }
 
@@ -176,11 +212,9 @@ function useQueryScopesTab(canQuery: () => boolean) {
     subjectTypeCode: "ADMIN_USER",
     subjectExternalId: "",
     domainCode: "example",
-    // 主资源
     parentResourceTypeCode: "REPORT",
     parentResourceCode: "report:sales",
     parentCodeType: "default",
-    // 逗号分隔 string
     parentOperationCodes: "DATA_READ,DATA_EDIT",
     scopeResourceTypeCodes: "DATA",
     scopeOperationCodes: "DATA_READ,DATA_EDIT,DATA_EXPORT,DATA_DELETE",
@@ -190,8 +224,38 @@ function useQueryScopesTab(canQuery: () => boolean) {
   const loading = ref(false);
   let reqSeq = 0;
 
+  function invalidate() {
+    reqSeq++;
+    result.value = null;
+    loading.value = false;
+  }
+
+  /** 主体业务键变化时失效 */
+  watch(
+    () => [form.subjectTypeCode, form.subjectExternalId, form.domainCode],
+    () => invalidate()
+  );
+
+  function validate(): string | null {
+    if (!form.subjectExternalId.trim()) return "请输入用户标识";
+    if (!form.parentResourceTypeCode.trim()) return "请输入主资源类型";
+    if (!form.parentResourceCode.trim()) return "请输入主资源编码";
+    if (!splitCodes(form.parentOperationCodes).length)
+      return "请输入至少一个主操作";
+    if (!splitCodes(form.scopeResourceTypeCodes).length)
+      return "请输入至少一个范围资源类型";
+    if (!splitCodes(form.scopeOperationCodes).length)
+      return "请输入至少一个范围操作";
+    return null;
+  }
+
   async function load() {
     if (!canQuery()) return;
+    const err = validate();
+    if (err) {
+      message(err, { type: "warning" });
+      return;
+    }
     const seq = ++reqSeq;
     loading.value = true;
     try {
@@ -237,10 +301,10 @@ function useQueryScopesTab(canQuery: () => boolean) {
     form.scopeResourceTypeCodes = "DATA";
     form.scopeOperationCodes = "DATA_READ,DATA_EDIT,DATA_EXPORT,DATA_DELETE";
     form.scopeCodeType = "default";
-    result.value = null;
+    invalidate();
   }
 
-  return { form, result, loading, load, onSearch, onReset };
+  return { form, result, loading, load, onSearch, onReset, invalidate };
 }
 
 // ========== Tab3: explain（单权限解释，USER/ROLE） ==========
@@ -248,14 +312,11 @@ function useQueryScopesTab(canQuery: () => boolean) {
 function useExplainTab(canQuery: () => boolean) {
   const form = reactive({
     targetType: "USER" as TargetType,
-    // USER 分支
     subjectTypeCode: "ADMIN_USER",
     subjectExternalId: "",
-    // ROLE 分支
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "",
     domainCode: "example",
-    // 目标权限
     resourceTypeCode: "REPORT",
     resourceCode: "report:sales",
     codeType: "default",
@@ -269,8 +330,50 @@ function useExplainTab(canQuery: () => boolean) {
   const loading = ref(false);
   let reqSeq = 0;
 
+  function invalidate() {
+    reqSeq++;
+    result.value = null;
+    loading.value = false;
+  }
+
+  watch(
+    () => [
+      form.targetType,
+      form.subjectTypeCode,
+      form.subjectExternalId,
+      form.roleTypeCode,
+      form.roleExternalId,
+      form.domainCode
+    ],
+    () => invalidate()
+  );
+
+  function validate(): string | null {
+    if (form.targetType === "USER") {
+      if (!form.subjectExternalId.trim()) return "请输入用户标识";
+    } else {
+      if (!form.roleExternalId.trim()) return "请输入角色标识";
+      if (isDomainRequired(form.roleTypeCode) && !form.domainCode.trim()) {
+        return `角色类型 ${form.roleTypeCode} 要求填写业务域`;
+      }
+    }
+    if (!form.resourceTypeCode.trim()) return "请输入资源类型";
+    if (!form.operationCode.trim()) return "请输入操作码";
+    // INSTANCE 模式要求 resourceCode + codeType（ALL 模式不传）
+    if (form.scopeMode === "INSTANCE") {
+      if (!form.resourceCode.trim()) return "INSTANCE 模式要求资源编码";
+      if (!form.codeType.trim()) return "INSTANCE 模式要求编码类型";
+    }
+    return null;
+  }
+
   async function load() {
     if (!canQuery()) return;
+    const err = validate();
+    if (err) {
+      message(err, { type: "warning" });
+      return;
+    }
     const seq = ++reqSeq;
     loading.value = true;
     try {
@@ -287,7 +390,6 @@ function useExplainTab(canQuery: () => boolean) {
           form.targetType === "ROLE" ? form.roleExternalId : undefined,
         domainCode: form.domainCode || undefined,
         resourceTypeCode: form.resourceTypeCode,
-        // scopeMode=ALL 时不传 resourceCode/codeType
         resourceCode: isAll ? undefined : form.resourceCode,
         codeType: isAll ? undefined : form.codeType,
         operationCode: form.operationCode,
@@ -327,13 +429,21 @@ function useExplainTab(canQuery: () => boolean) {
     form.includeSourceRoles = true;
     form.includeRecentChanges = true;
     form.recentDays = 30;
-    result.value = null;
+    invalidate();
   }
 
-  /** 切换 targetType 清空旧结果 */
   function onTargetTypeChange() {
-    result.value = null;
+    invalidate();
   }
 
-  return { form, result, loading, load, onSearch, onReset, onTargetTypeChange };
+  return {
+    form,
+    result,
+    loading,
+    load,
+    onSearch,
+    onReset,
+    onTargetTypeChange,
+    invalidate
+  };
 }

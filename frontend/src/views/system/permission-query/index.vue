@@ -68,6 +68,20 @@ function sourceRoleNames(row: any): string {
 
 // ========== Tab3 scopeMode 切换：ALL 时禁用 resourceCode/codeType ==========
 const tab3IsAll = computed(() => isAllMode(tab3.form.scopeMode));
+
+/** Tab1 行复合 key：resourceTypeCode + codeType + resourceCode/ALL + scopeMode
+ *  scopeMode=ALL 时 resourceCode 按契约为 null，多行 ALL 会共享 row-key 导致行复用错误（评审 P2 修复） */
+function rowKey(row: any) {
+  return (
+    row.resourceTypeCode +
+    ":" +
+    (row.codeType ?? "null") +
+    ":" +
+    (row.resourceCode ?? "ALL") +
+    ":" +
+    row.scopeMode
+  );
+}
 </script>
 
 <template>
@@ -150,7 +164,7 @@ const tab3IsAll = computed(() => isAllMode(tab3.form.scopeMode));
             <PureTableBar title="" :columns="tab1Columns">
               <template v-slot="{ size, dynamicColumns }">
                 <pure-table
-                  row-key="resourceCode"
+                  :row-key="rowKey"
                   align-whole="center"
                   table-layout="auto"
                   :loading="tab1.loading.value"
