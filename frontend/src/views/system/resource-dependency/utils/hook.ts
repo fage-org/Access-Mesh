@@ -21,14 +21,16 @@ import {
 } from "@/api/resource-operation";
 import { RESOURCE_DEPENDENCY_PERMS } from "./perms";
 import type { DependencyFormData } from "./types";
+import { hasBit } from "@/utils/bit-ops";
 
 /**
  * 资源依赖页组合式逻辑。
  *
  * 引用数据映射（应对后端 Resp 字段不全，🔧 T-PERM-031）：
  * - resourceMap：getResourceTree 扁平化 -> id->{name, resourceTypeCode, code, codeType}
- * - bitToOp：getOperationList -> binaryBit->{code, name}（bits->操作码反向拆解）
- * - opNameByCode：getOperationList -> code->name（操作码展示中文名）
+ * - operationList：getOperationList 全量操作；bitsToOpCodes(bits, typeCode) 按资源类型
+ *   + 全局操作过滤，hasBit（BigInt）位与拆解（P1 修复：typeCode 隔离跨类型同 bit 误匹配，
+ *   BigInt 避免 32 位截断）
  *
  * 资源用业务键标识（create/update/check 请求），前端表单以 resourceEntityId 选择，
  * 提交时由 resourceMap 反查业务键构造请求。
@@ -52,8 +54,6 @@ export function useResourceDependency() {
   const resourceList = ref<ResourceTreeNode[]>([]);
   const operationList = ref<OperationPermissionResp[]>([]);
   const resourceTypeOptions = ref<Array<{ value: string; label: string }>>([]);
-  const bitToOp = ref<Map<number, { code: string; name: string }>>(new Map());
-  const opNameByCode = ref<Map<string, string>>(new Map());
 
   // ========== 映射辅助 ==========
 
@@ -79,22 +79,35 @@ export function useResourceDependency() {
     return `${node.name}（${node.code}）`;
   }
 
-  /** 操作位 -> 操作码列表（位运算拆解） */
-  function bitsToOpCodes(bits: number | null): string[] {
+  /** 操作位 -> 操作码列表（按资源类型拆解，含全局操作；BigInt 位与兼容 63 位）。
+   *  P1 修复：typeCode 隔离避免跨类型同 bit 误匹配；hasBit 避免 32 位截断。 */
+  function bitsToOpCodes(
+    bits: number | string | null,
+    typeCode: string | null
+  ): string[] {
     if (bits == null || bits === 0) return [];
     const codes: string[] = [];
-    for (const [bit, op] of bitToOp.value) {
-      if ((bits & bit) === bit) codes.push(op.code);
+    for (const op of operationList.value) {
+      if (op.binaryBit == null) continue;
+      // 只匹配该资源类型 + 全局操作（resourceTypeCode=null），避免跨类型同 bit 误匹配
+      if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
+        continue;
+      if (hasBit(bits, op.binaryBit)) codes.push(op.code);
     }
     return codes;
   }
 
   /** 操作位 -> 操作名称展示（null=任意，空=—） */
-  function bitsToOpNames(bits: number | null): string {
+  function bitsToOpNames(
+    bits: number | string | null,
+    typeCode: string | null
+  ): string {
     if (bits == null) return "任意";
-    const codes = bitsToOpCodes(bits);
-    if (codes.length === 0) return "—";
-    return codes.map(c => opNameByCode.value.get(c) ?? c).join("、");
+    const codes = bitsToOpCodes(bits, typeCode);
+    if (codes.length === 0) return "-";
+    return codes
+      .map(c => operationList.value.find(o => o.code === c)?.name ?? c)
+      .join("、");
   }
 
   /** 按资源类型过滤的资源选项（表单下拉用） */
@@ -210,20 +223,12 @@ export function useResourceDependency() {
       resourceList.value = Array.from(map.values()).sort((a, b) => a.id - b.id);
       // 操作映射
       operationList.value = opRes.items;
-      const bitMap = new Map<number, { code: string; name: string }>();
-      const nameMap = new Map<string, string>();
       const typeNameMap = new Map<string, string>();
       for (const op of opRes.items) {
-        if (op.binaryBit != null) {
-          bitMap.set(op.binaryBit, { code: op.code, name: op.name });
-        }
-        nameMap.set(op.code, op.name);
         if (op.resourceTypeCode != null && op.resourceTypeName) {
           typeNameMap.set(op.resourceTypeCode, op.resourceTypeName);
         }
       }
-      bitToOp.value = bitMap;
-      opNameByCode.value = nameMap;
       // 资源类型选项：从 resourceMap distinct，中文名从 operationList 补
       const typeSet = new Set<string>();
       for (const node of map.values()) {

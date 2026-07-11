@@ -11,6 +11,7 @@ import {
   createEmptyDependencyForm,
   type DependencyFormData
 } from "../utils/types";
+import { hasBit } from "@/utils/bit-ops";
 
 defineOptions({ name: "DependencyForm" });
 
@@ -43,21 +44,19 @@ const resourceTypeById = computed(() => {
   return map;
 });
 
-const bitToOp = computed(() => {
-  const map = new Map<number, { code: string; name: string }>();
-  for (const op of props.operationList) {
-    if (op.binaryBit != null)
-      map.set(op.binaryBit, { code: op.code, name: op.name });
-  }
-  return map;
-});
-
-/** 操作位 -> 操作码列表（位运算拆解，编辑初始化用） */
-function bitsToOpCodes(bits: number | null): string[] {
+/** 操作位 -> 操作码列表（按资源类型拆解，含全局操作；BigInt 位与兼容 63 位）。
+ *  P1 修复：typeCode 隔离避免跨类型同 bit 误匹配；hasBit 避免 32 位截断。 */
+function bitsToOpCodes(
+  bits: number | string | null,
+  typeCode: string | null
+): string[] {
   if (bits == null || bits === 0) return [];
   const codes: string[] = [];
-  for (const [bit, op] of bitToOp.value) {
-    if ((bits & bit) === bit) codes.push(op.code);
+  for (const op of props.operationList) {
+    if (op.binaryBit == null) continue;
+    if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
+      continue;
+    if (hasBit(bits, op.binaryBit)) codes.push(op.code);
   }
   return codes;
 }
@@ -141,8 +140,14 @@ function initFormData() {
       targetResourceEntityId: d.dependsOnResourceEntityId,
       targetResourceTypeCode:
         resourceTypeById.value.get(d.dependsOnResourceEntityId) ?? null,
-      sourceOperationCodes: bitsToOpCodes(d.sourceOperationBits),
-      requiredOperationCodes: bitsToOpCodes(d.requiredOperationBits),
+      sourceOperationCodes: bitsToOpCodes(
+        d.sourceOperationBits,
+        resourceTypeById.value.get(d.resourceEntityId) ?? null
+      ),
+      requiredOperationCodes: bitsToOpCodes(
+        d.requiredOperationBits,
+        resourceTypeById.value.get(d.dependsOnResourceEntityId) ?? null
+      ),
       autoGrant: d.autoGrant,
       description: d.description ?? ""
     });

@@ -272,12 +272,18 @@ function onDelete(row: ResourceDependencyResp) {
             </template>
             <template #sourceOps="{ row }">
               <span class="text-sm">{{
-                bitsToOpNames(row.sourceOperationBits)
+                bitsToOpNames(
+                  row.sourceOperationBits,
+                  resolveResourceTypeCode(row.resourceEntityId)
+                )
               }}</span>
             </template>
             <template #requiredOps="{ row }">
               <span class="text-sm">{{
-                bitsToOpNames(row.requiredOperationBits)
+                bitsToOpNames(
+                  row.requiredOperationBits,
+                  resolveResourceTypeCode(row.dependsOnResourceEntityId)
+                )
               }}</span>
             </template>
             <template #autoGrant="{ row }">

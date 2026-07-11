@@ -37,7 +37,7 @@ type ResourceTreeNode = {
   children: ResourceTreeNode[];
 };
 
-type OperationPermissionResp = {
+export type OperationPermissionResp = {
   id: number;
   tenantId: number;
   resourceTypeCode: string | null;
@@ -50,7 +50,7 @@ type OperationPermissionResp = {
   updatedAt: string;
 };
 
-type InternalResource = ResourceResp & { deleted: boolean };
+export type InternalResource = ResourceResp & { deleted: boolean };
 
 // ========== 常量与种子 ==========
 
@@ -73,7 +73,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
 let nextResourceId = 301;
 let nextOperationId = 501;
 
-const resources: InternalResource[] = [
+export const resources: InternalResource[] = [
   // MENU
   {
     id: 201,
@@ -258,7 +258,7 @@ const CRUD_OPS = [
   { code: "DELETE", name: "删除", binaryBit: 8, inheritMask: 2 }
 ] as const;
 
-const operations: OperationPermissionResp[] = [];
+export const operations: OperationPermissionResp[] = [];
 for (const [typeCode, typeName] of Object.entries(RESOURCE_TYPE_LABEL)) {
   for (const op of CRUD_OPS) {
     operations.push({

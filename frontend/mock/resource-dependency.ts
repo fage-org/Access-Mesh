@@ -16,6 +16,11 @@
 // - list 仅按 resourceEntityId 过滤（对齐后端 DependencyListReq）
 // - batch-sync 端点 P0 标 TODO（Q5=B），不实现
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
+import {
+  resources,
+  operations,
+  type InternalResource
+} from "./resource-operation";
 
 // ========== 本地类型（对齐后端 DTO，api-contract.md §5.6） ==========
 
@@ -35,97 +40,9 @@ type ResourceDependencyResp = {
 
 type InternalDep = ResourceDependencyResp & { deleted: boolean };
 
-// ========== 资源注册表（对齐 mock/resource-operation.ts 种子） ==========
-
-type ResourceRef = {
-  id: number;
-  resourceTypeCode: string;
-  code: string;
-  codeType: string;
-  name: string;
-};
-
-const RESOURCE_REGISTRY: ResourceRef[] = [
-  {
-    id: 201,
-    resourceTypeCode: "MENU",
-    code: "sys-mgmt",
-    codeType: "default",
-    name: "系统管理"
-  },
-  {
-    id: 202,
-    resourceTypeCode: "MENU",
-    code: "user",
-    codeType: "default",
-    name: "组织与用户"
-  },
-  {
-    id: 203,
-    resourceTypeCode: "MENU",
-    code: "role",
-    codeType: "default",
-    name: "角色管理"
-  },
-  {
-    id: 204,
-    resourceTypeCode: "MENU",
-    code: "res-op",
-    codeType: "default",
-    name: "资源与操作"
-  },
-  {
-    id: 211,
-    resourceTypeCode: "BUTTON",
-    code: "btn-add",
-    codeType: "default",
-    name: "新增按钮"
-  },
-  {
-    id: 212,
-    resourceTypeCode: "BUTTON",
-    code: "btn-edit",
-    codeType: "default",
-    name: "编辑按钮"
-  },
-  {
-    id: 221,
-    resourceTypeCode: "API",
-    code: "auth-check",
-    codeType: "default",
-    name: "鉴权校验"
-  },
-  {
-    id: 222,
-    resourceTypeCode: "API",
-    code: "res-tree",
-    codeType: "default",
-    name: "资源树查询"
-  },
-  {
-    id: 231,
-    resourceTypeCode: "DATA",
-    code: "dept-data",
-    codeType: "default",
-    name: "部门数据"
-  },
-  {
-    id: 232,
-    resourceTypeCode: "DATA",
-    code: "role-data",
-    codeType: "default",
-    name: "角色数据"
-  }
-];
-
-/** 操作码 -> binaryBit 映射（对齐 mock/resource-operation.ts CRUD_OPS + 全局 MANAGE） */
-const OP_BIT: Record<string, number> = {
-  CREATE: 1,
-  VIEW: 2,
-  UPDATE: 4,
-  DELETE: 8,
-  MANAGE: 16
-};
+// 资源/操作状态共享自 mock/resource-operation.ts（P2 修复：跨页 CRUD 一致）。
+// resources 为动态数组（软删 deleted 标记），operations 为动态数组（splice 物理移除）。
+// resolveResourceId/codesToBits 遍历动态状态，跨页新增资源/操作即时可见。
 
 // ========== 常量与种子 ==========
 
@@ -206,14 +123,16 @@ function clone(d: InternalDep): ResourceDependencyResp {
   return { ...resp };
 }
 
-/** 按业务键解析资源 ID（对齐后端 typeResolutionService.resolveResourceId） */
+/** 按业务键解析资源 ID（对齐后端 typeResolutionService.resolveResourceId）。
+ *  遍历动态 resources 数组（过滤 deleted），跨页新增资源即时可见。 */
 function resolveResourceId(
   resourceTypeCode: string,
   resourceCode: string,
   codeType?: string | null
 ): number | null {
-  const ref = RESOURCE_REGISTRY.find(
+  const ref = resources.find(
     r =>
+      !r.deleted &&
       r.resourceTypeCode === resourceTypeCode &&
       r.code === resourceCode &&
       (codeType == null || r.codeType === codeType)
@@ -221,21 +140,30 @@ function resolveResourceId(
   return ref ? ref.id : null;
 }
 
-/** 按资源 ID 反查资源引用 */
-function getResourceRef(id: number): ResourceRef | undefined {
-  return RESOURCE_REGISTRY.find(r => r.id === id);
+/** 按资源 ID 反查资源引用（遍历动态 resources 数组） */
+function getResourceRef(id: number): InternalResource | undefined {
+  return resources.find(r => !r.deleted && r.id === id);
 }
 
 /** 操作码列表 -> 操作位掩码（对齐后端 resolveOperationBits）。
- *  空列表返回 null（=任意操作触发）。 */
-function codesToBits(codes?: string[] | null): number | null {
+ *  按资源类型解析（当前类型 + 全局操作 resourceTypeCode=null），空列表返回 null（=任意操作触发）。
+ *  BigInt 位或，兼容 63 位 bigint 列（JS |= 截断 32 位，P1 修复）。 */
+function codesToBits(
+  codes: string[] | null | undefined,
+  resourceTypeCode: string
+): number | null {
   if (!codes || codes.length === 0) return null;
-  let bits = 0;
+  let bits = 0n;
   for (const c of codes) {
-    const bit = OP_BIT[c];
-    if (bit != null) bits |= bit;
+    const op = operations.find(
+      o =>
+        (o.resourceTypeCode === resourceTypeCode ||
+          o.resourceTypeCode == null) &&
+        o.code === c
+    );
+    if (op) bits |= BigInt(op.binaryBit);
   }
-  return bits;
+  return Number(bits);
 }
 
 /** 校验创建/更新请求字段（对齐后端 ResourceDependencyCreateReq 必填约束） */
@@ -263,7 +191,10 @@ function isDuplicate(
   targetId: number,
   excludeId?: number
 ): boolean {
-  const bits = codesToBits(body.sourceOperationCodes);
+  const bits = codesToBits(
+    body.sourceOperationCodes,
+    body.sourceResourceTypeCode
+  );
   return deps.some(d => {
     if (d.deleted || d.id === excludeId) return false;
     if (
@@ -375,8 +306,15 @@ export default defineFakeRoute([
         sourceResourceCode: sourceRef.code,
         dependsOnResourceEntityId: targetId,
         depResourceCode: targetRef.code,
-        sourceOperationBits: codesToBits(body.sourceOperationCodes),
-        requiredOperationBits: codesToBits(body.requiredOperationCodes) ?? 0,
+        sourceOperationBits: codesToBits(
+          body.sourceOperationCodes,
+          body.sourceResourceTypeCode
+        ),
+        requiredOperationBits:
+          codesToBits(
+            body.requiredOperationCodes,
+            body.targetResourceTypeCode
+          ) ?? 0,
         autoGrant: body.autoGrant != null ? body.autoGrant : true,
         description: body.description ?? null,
         createdAt: now(),
@@ -430,8 +368,13 @@ export default defineFakeRoute([
       d.sourceResourceCode = sourceRef.code;
       d.dependsOnResourceEntityId = targetId;
       d.depResourceCode = targetRef.code;
-      d.sourceOperationBits = codesToBits(body.sourceOperationCodes);
-      d.requiredOperationBits = codesToBits(body.requiredOperationCodes) ?? 0;
+      d.sourceOperationBits = codesToBits(
+        body.sourceOperationCodes,
+        body.sourceResourceTypeCode
+      );
+      d.requiredOperationBits =
+        codesToBits(body.requiredOperationCodes, body.targetResourceTypeCode) ??
+        0;
       d.autoGrant = body.autoGrant != null ? body.autoGrant : true;
       d.description = body.description ?? null;
       return ok(clone(d));
