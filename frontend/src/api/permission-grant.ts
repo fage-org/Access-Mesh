@@ -216,6 +216,8 @@ export interface RolePermissionSaveResp {
 
 export interface ChildPermissionQueryReq {
   permissionId: number;
+  /** P2-3：父权限域（adapt 补齐 domainCode 用，未来懒加载调用方提供） */
+  domainCode?: string;
 }
 
 export interface ChildPermissionQueryResp {
@@ -279,6 +281,25 @@ function adaptRoleNode(r: RawRoleNode): RoleTreeNode {
   };
 }
 
+/** P2：递归过滤角色树，保留命中节点及其祖先链（GROUP_403 嵌套在 GROUP_401 下可搜到） */
+function filterRoleTree(nodes: RoleTreeNode[], kw: string): RoleTreeNode[] {
+  const result: RoleTreeNode[] = [];
+  for (const node of nodes) {
+    const matchedChildren = filterRoleTree(node.children, kw);
+    const selfMatched =
+      node.roleName.toLowerCase().includes(kw) ||
+      node.roleExternalId.toLowerCase().includes(kw);
+    if (selfMatched || matchedChildren.length > 0) {
+      // 自身匹配：保留全部 children；仅子孙匹配：只保留匹配的 children
+      result.push({
+        ...node,
+        children: selfMatched ? node.children : matchedChildren
+      });
+    }
+  }
+  return result;
+}
+
 function adaptRoleTree(
   rawItems: Array<{ root: RawRoleNode }>,
   keyword?: string
@@ -310,21 +331,11 @@ function adaptRoleTree(
       } as RoleTreeNode;
     })
     .filter((n): n is RoleTreeNode => n !== null);
-  // P2：共享 tree 端点不消费 keyword，适配后本地过滤 roleName/roleExternalId，
-  // 保留命中角色所在的类型虚拟根
+  // P2：共享 tree 端点不消费 keyword，适配后本地递归过滤 roleName/roleExternalId，
+  // 保留命中节点及其祖先链
   if (!keyword) return typeRoots;
   const kw = keyword.toLowerCase();
-  return typeRoots
-    .map(typeRoot => {
-      const matched = typeRoot.children.filter(
-        c =>
-          c.roleName.toLowerCase().includes(kw) ||
-          c.roleExternalId.toLowerCase().includes(kw)
-      );
-      if (matched.length === 0) return null;
-      return { ...typeRoot, children: matched };
-    })
-    .filter((n): n is RoleTreeNode => n !== null);
+  return filterRoleTree(typeRoots, kw);
 }
 
 /** 现有 mock 资源类型定义 */
@@ -583,16 +594,19 @@ export const saveRolePermission = async (
   };
 };
 
-/** 查询主权限下的子权限（§6.5） */
+/** 查询主权限下的子权限（§6.5；P2-3：复用 adaptRolePermissionItem 适配真实响应） */
 export const getChildPermissions = async (
   data: ChildPermissionQueryReq
 ): Promise<ChildPermissionQueryResp> => {
-  const res = await http.request<PermResult<ChildPermissionQueryResp>>(
-    "post",
-    "/api/perm/role-resource-permission/children",
-    { data }
-  );
-  return unwrap(res);
+  const res = await http.request<
+    PermResult<{ items: RawRolePermissionItem[] }>
+  >("post", "/api/perm/role-resource-permission/children", { data });
+  const raw = unwrap(res);
+  return {
+    items: (raw.items ?? []).map(i =>
+      adaptRolePermissionItem(i, data.domainCode ?? "")
+    )
+  };
 };
 
 /** 为已保存主权限添加子权限（§6.5，parentPermissionId 必须 depend_on IS NULL；P1-1：适配真实响应） */

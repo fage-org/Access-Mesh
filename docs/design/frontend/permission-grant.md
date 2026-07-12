@@ -621,3 +621,14 @@ interface GrantCapabilities {
 | P1-7 | 主权限附加设置未接入资源能力（API/BUTTON supportsDelegation=false 仍可开 canGrant） | PermissionMatrixPanel.onOpenSetting 从 currentResourceType 传入 supportsCondition/supportsDelegation |
 | P1-8 | 子权限新增绕过 grantableByOperator（buildChildContext 只查只读，onToggle 无能力检查） | buildChildContext 调 store.isGrantableByOperator(selectedChildType, operationCode)；onToggle 新增路径（!inDraft && !inBase）检查，撤销/恢复不检查 |
 | P2 | 角色搜索没有实际过滤（共享 tree 端点不消费 keyword，adaptRoleTree 不过滤） | adaptRoleTree 接收 keyword，适配后本地过滤 roleName/roleExternalId，保留命中角色所在的类型虚拟根 |
+
+### 15.7 第四轮评审修复（2026-07-11，3 P1 + 3 P2）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P1-1 | 保守 capability 默认值没让页面只读（readonly/isGrantableByOperator 不检查 oc.canManage，连真实后端可撤销/修改既有权限） | readonly 追加 `!operatorCapability.value.canManage`；isGrantableByOperator 显式检查 `oc.canManage`（fail-closed） |
+| P1-2 | 新主权限失败子权限无法重试（retry 时 tempKeyToServerId 为空，parentId=null 永久失败） | parentId 解析追加 `mainBaseline.value.get(parentKey)?.id` 回退（retry 时主权限已保存到 baseline） |
+| P1-3 | baseline 重载失败被吞（reloadBaseline 不返回状态，saveAll 仍提示成功，可能重复操作） | reloadBaseline 返回 `Promise<boolean>`；新增 `baselineStale` ref，失败时置 true；saveAll 开头检查 baselineStale 阻止继续保存，reload 失败时提示"保存已提交但刷新失败" |
+| P2-1 | 子权限示例无法从矩阵进入（BASIC_202 用 REPORT，共享无 REPORT）+ 扩展发现 BASIC_201 菜单 code 也不匹配共享树 | permissionFacts + resourceFacts 全部对齐共享资源树：BASIC_201 `sys:role`->`role`、`sys:user`->`user`；BASIC_202 REPORT/report:sales/DATA_READ -> MENU/res-op/VIEW，子权限 DATA/data:city:*/DATA_READ -> DATA/dept-data|role-data/VIEW；操作 DATA_READ->VIEW |
+| P2-2 | 搜索不递归匹配嵌套角色（GROUP_403 在 GROUP_401 下，只过滤直接 children 搜不到） | 新增 filterRoleTree 递归过滤，保留命中节点及其祖先链（自身匹配保留全部 children，仅子孙匹配只保留匹配子树） |
+| P2-3 | children 接口绕过真实响应适配（直接 unwrap 未 adapt） | ChildPermissionQueryReq 加 `domainCode?`；getChildPermissions 复用 adaptRolePermissionItem 适配（scopeAll/scopeMode 容错 + domainCode 补齐 + grantSource 默认） |

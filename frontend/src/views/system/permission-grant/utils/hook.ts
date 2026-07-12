@@ -261,6 +261,8 @@ export function usePermissionGrant() {
   // ---- 部分失败（决策点 5） ----
   const saveError = ref<string | null>(null);
   const failedChildren = ref<FailedChildOp[]>([]);
+  // P1-3：baseline 过期标志（reloadBaseline 失败时置 true，阻止继续保存直至重新加载成功）
+  const baselineStale = ref(false);
 
   // ========== 计算 ==========
 
@@ -273,6 +275,8 @@ export function usePermissionGrant() {
     if (!r.enabled) return true;
     if (!canManage.value) return true;
     if (!r.canManage) return true;
+    // P1-1：fail-closed，操作者能力 canManage=false（含真实后端 default）时整页只读
+    if (!operatorCapability.value.canManage) return true;
     return false;
   });
 
@@ -310,6 +314,8 @@ export function usePermissionGrant() {
     if (!canManage.value)
       return { grantable: false, reason: "无 ROLE:MANAGE 权限" };
     const oc = operatorCapability.value;
+    // P1-1：fail-closed，显式检查操作者 canManage（真实后端 default=false 时拒绝）
+    if (!oc.canManage) return { grantable: false, reason: "操作者无管理能力" };
     if (!oc.grantableResourceTypeCodes.includes(resourceTypeCode)) {
       return { grantable: false, reason: "资源类型不可授予" };
     }
@@ -699,6 +705,7 @@ export function usePermissionGrant() {
       operatorCapability.value = snapshot.operatorCapability;
       failedChildren.value = [];
       saveError.value = null;
+      baselineStale.value = false;
     } catch (e) {
       message(e instanceof Error ? e.message : "加载权限事实失败", {
         type: "error"
@@ -813,9 +820,9 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 重载 baseline（保存后 / 重试，P1-3：成功后更新，失败提示不清空） */
-  async function reloadBaseline() {
-    if (!currentRole.value) return;
+  /** 重载 baseline（保存后 / 重试，P1-3：返回成功状态，失败时标记 stale 阻止继续保存） */
+  async function reloadBaseline(): Promise<boolean> {
+    if (!currentRole.value) return false;
     const role = currentRole.value;
     loadingContext.value = true;
     try {
@@ -831,10 +838,14 @@ export function usePermissionGrant() {
       operatorCapability.value = snapshot.operatorCapability;
       failedChildren.value = [];
       saveError.value = null;
+      baselineStale.value = false;
+      return true;
     } catch (e) {
       message(e instanceof Error ? e.message : "重载权限事实失败", {
         type: "error"
       });
+      baselineStale.value = true;
+      return false;
     } finally {
       loadingContext.value = false;
     }
@@ -844,6 +855,13 @@ export function usePermissionGrant() {
 
   async function saveAll() {
     if (!currentRole.value || readonly.value || saving.value) return;
+    // P1-3：baseline 过期时阻止继续保存（避免基于旧数据重复操作）
+    if (baselineStale.value) {
+      message("权限事实已过期，请重新选择角色刷新后再保存", {
+        type: "warning"
+      });
+      return;
+    }
     const role = currentRole.value;
     saving.value = true;
     saveError.value = null;
@@ -959,8 +977,12 @@ export function usePermissionGrant() {
       >();
       for (const { parentKey, childKey, child } of childAddGrouped) {
         // P1-3：优先用 child.dependOn（已保存主权限），否则用 tempKeyToServerId（新主权限）
+        // P1-2：retry 时主权限已保存但 tempKeyToServerId 为空，回退到 mainBaseline
         const parentId =
-          child.dependOn ?? tempKeyToServerId.get(parentKey) ?? null;
+          child.dependOn ??
+          tempKeyToServerId.get(parentKey) ??
+          mainBaseline.value.get(parentKey)?.id ??
+          null;
         if (!parentId) {
           // P1-4：父权限未保存成功，标记部分失败并保留可重试的 childKey
           failedChildAdd.push({ op: "add", child, childKey });
@@ -1007,13 +1029,17 @@ export function usePermissionGrant() {
         }
       }
 
-      // Step 5: 重载 baseline
-      await reloadBaseline();
+      // Step 5: 重载 baseline（P1-3：返回成功状态）
+      const reloadOk = await reloadBaseline();
 
       // Step 6: 部分失败处理（决策点 5，P1-4：remove-child 失败也纳入）
       if (childFailureOccurred) {
         failedChildren.value = [...failedChildAdd, ...failedChildRemove];
         message(saveError.value ?? "部分子权限操作失败", { type: "warning" });
+      } else if (!reloadOk) {
+        // P1-3：保存已提交但刷新失败，阻止继续保存直至重新加载成功
+        saveError.value = "保存已提交，但刷新权限事实失败，请重新选择角色刷新";
+        message(saveError.value, { type: "warning" });
       } else {
         message("保存成功", { type: "success" });
       }

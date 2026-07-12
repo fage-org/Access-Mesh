@@ -149,89 +149,43 @@ const roleFacts: RoleFact[] = [
 // ========== 资源事实（resolveResourceName 用） ==========
 
 const resourceFacts: ResourceFact[] = [
+  // MENU（对齐共享 resource-operation.ts 资源树 code）
   {
     resourceTypeCode: "MENU",
-    resourceCode: "sys",
+    resourceCode: "sys-mgmt",
     codeType: "default",
     resourceName: "系统管理"
   },
   {
     resourceTypeCode: "MENU",
-    resourceCode: "sys:user",
+    resourceCode: "user",
     codeType: "default",
     resourceName: "组织与用户"
   },
   {
     resourceTypeCode: "MENU",
-    resourceCode: "sys:role",
+    resourceCode: "role",
     codeType: "default",
     resourceName: "角色管理"
   },
   {
     resourceTypeCode: "MENU",
-    resourceCode: "sys:resource",
+    resourceCode: "res-op",
     codeType: "default",
     resourceName: "资源与操作"
   },
+  // DATA（对齐共享 resource-operation.ts 资源树 code）
   {
-    resourceTypeCode: "MENU",
-    resourceCode: "sys:config",
+    resourceTypeCode: "DATA",
+    resourceCode: "dept-data",
     codeType: "default",
-    resourceName: "系统配置"
+    resourceName: "部门数据"
   },
   {
     resourceTypeCode: "DATA",
-    resourceCode: "data",
+    resourceCode: "role-data",
     codeType: "default",
-    resourceName: "数据根"
-  },
-  {
-    resourceTypeCode: "DATA",
-    resourceCode: "data:dept:A",
-    codeType: "default",
-    resourceName: "A 部门数据"
-  },
-  {
-    resourceTypeCode: "DATA",
-    resourceCode: "data:dept:B",
-    codeType: "default",
-    resourceName: "B 部门数据"
-  },
-  {
-    resourceTypeCode: "DATA",
-    resourceCode: "data:city:shanghai",
-    codeType: "default",
-    resourceName: "上海数据"
-  },
-  {
-    resourceTypeCode: "DATA",
-    resourceCode: "data:city:hangzhou",
-    codeType: "default",
-    resourceName: "杭州数据"
-  },
-  {
-    resourceTypeCode: "REPORT",
-    resourceCode: "report",
-    codeType: "default",
-    resourceName: "报表根"
-  },
-  {
-    resourceTypeCode: "REPORT",
-    resourceCode: "report:sales",
-    codeType: "default",
-    resourceName: "销售报表"
-  },
-  {
-    resourceTypeCode: "REPORT",
-    resourceCode: "report:finance",
-    codeType: "default",
-    resourceName: "财务报表"
-  },
-  {
-    resourceTypeCode: "REPORT",
-    resourceCode: "report:hr",
-    codeType: "default",
-    resourceName: "人力报表"
+    resourceName: "角色数据"
   }
 ];
 
@@ -263,14 +217,14 @@ const operatorCapability = {
 // ========== 权限事实表（可变，save/add-child/remove-child 写入） ==========
 
 let permissionFacts: PermissionFact[] = [
-  // BASIC_201: MENU/sys:role/UPDATE 绑 office-hours 条件
+  // BASIC_201: MENU/role/UPDATE 绑 office-hours 条件
   {
     id: 100,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_201",
     resourceTypeCode: "MENU",
-    resourceCode: "sys:role",
+    resourceCode: "role",
     codeType: "default",
     resourceName: "角色管理",
     operationCode: "UPDATE",
@@ -286,7 +240,7 @@ let permissionFacts: PermissionFact[] = [
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_201",
     resourceTypeCode: "MENU",
-    resourceCode: "sys:user",
+    resourceCode: "user",
     codeType: "default",
     resourceName: "组织与用户",
     operationCode: "VIEW",
@@ -297,16 +251,17 @@ let permissionFacts: PermissionFact[] = [
     grantSource: "MANUAL"
   },
   // BASIC_202: §6.5 示例（主权限 200 + 子权限 201/202/203 + ALL 260）
+  // P2-1：迁移到共享资源类型 MENU/DATA（共享无 REPORT），操作用 VIEW
   {
     id: 200,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_202",
-    resourceTypeCode: "REPORT",
-    resourceCode: "report:sales",
+    resourceTypeCode: "MENU",
+    resourceCode: "res-op",
     codeType: "default",
-    resourceName: "销售报表",
-    operationCode: "DATA_READ",
+    resourceName: "资源与操作",
+    operationCode: "VIEW",
     scopeMode: "INSTANCE",
     conditionCode: null,
     canGrant: false,
@@ -318,11 +273,11 @@ let permissionFacts: PermissionFact[] = [
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_202",
-    resourceTypeCode: "REPORT",
+    resourceTypeCode: "MENU",
     resourceCode: null,
     codeType: null,
     resourceName: null,
-    operationCode: "DATA_READ",
+    operationCode: "VIEW",
     scopeMode: "ALL",
     conditionCode: null,
     canGrant: false,
@@ -336,10 +291,10 @@ let permissionFacts: PermissionFact[] = [
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_202",
     resourceTypeCode: "DATA",
-    resourceCode: "data:city:shanghai",
+    resourceCode: "dept-data",
     codeType: "default",
-    resourceName: "上海数据",
-    operationCode: "DATA_READ",
+    resourceName: "部门数据",
+    operationCode: "VIEW",
     scopeMode: "INSTANCE",
     conditionCode: null,
     canGrant: false,
@@ -352,10 +307,10 @@ let permissionFacts: PermissionFact[] = [
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "BASIC_202",
     resourceTypeCode: "DATA",
-    resourceCode: "data:city:hangzhou",
+    resourceCode: "role-data",
     codeType: "default",
-    resourceName: "杭州数据",
-    operationCode: "DATA_READ",
+    resourceName: "角色数据",
+    operationCode: "VIEW",
     scopeMode: "INSTANCE",
     conditionCode: null,
     canGrant: false,
@@ -371,7 +326,7 @@ let permissionFacts: PermissionFact[] = [
     resourceCode: null,
     codeType: null,
     resourceName: null,
-    operationCode: "DATA_READ",
+    operationCode: "VIEW",
     scopeMode: "ALL",
     conditionCode: null,
     canGrant: false,
