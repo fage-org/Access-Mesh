@@ -12,7 +12,7 @@ last_updated: 2026-06-29
 note: |
   本计划是项目级路线图，含痛点诊断（§3）+ 4 阶段任务（§4）。
   痛点诊断结论待后续触达时沉淀至 design/；4 阶段任务已拆为独立执行 plan：
-  - Phase 1 → docs/plans/frontend-phase1-plan.md（active，任务 T-FE-001~014；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034，不在本 plan 闭环）
+  - Phase 1 -> docs/archive/2026-07-12/frontend-phase1-plan.md（archived，任务 T-FE-001~014 全 done；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034）
   - Phase 2 → docs/plans/frontend-phase2-plan.md（proposed，任务 T-PERM-022~037，其中 035/036 暂缓）
   - Phase 3 → docs/plans/frontend-phase3-plan.md（proposed，任务 T-FE-015~022）
   - Phase 4 → docs/plans/frontend-phase4-plan.md（proposed，任务 T-FE-023/T-ADMIN-020/T-PERM-038/039）
@@ -164,7 +164,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 ```
 
 > **4 阶段执行编排已拆为独立 plan**（本文件保留为 roadmap，tasks:[] 保持空）：
-> - Phase 1 → [frontend-phase1-plan.md](frontend-phase1-plan.md)（active）
+> - Phase 1 -> [frontend-phase1-plan.md](archive/2026-07-12/frontend-phase1-plan.md)（archived）
 > - Phase 2 → [frontend-phase2-plan.md](frontend-phase2-plan.md)（proposed）
 > - Phase 3 → [frontend-phase3-plan.md](frontend-phase3-plan.md)（proposed）
 > - Phase 4 → [frontend-phase4-plan.md](frontend-phase4-plan.md)（proposed）
@@ -493,7 +493,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 ## 6. 当前状态
 
-**Phase 1 第一阶段（页面盘点）已完成**。页面地图经融合后共 14 页 + 1 占位，分 3 批执行。
+**Phase 1 全部完成并归档（2026-07-12）**。13 页 T-FE 任务（T-FE-001~014）全 done；API 核对清单产出（🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022~034）；组件池确认（派生 T-FE-024 归 Phase 4）；执行计划已归档至 `docs/archive/2026-07-12/`，设计回写至 `docs/design/frontend/`（13 份全 adopted）。
 
 **当前进度**：第 1 批 2.1「组织与用户」P0 前端骨架 + P1 后端契约（16 个 🔧 接口已实现）+ P2 权限接线降级三阶段均 100% 完成（原 `docs/plans/org-user-page-impl-plan.md` 已于 2026-06-21 归档至 `docs/archive/2026-06-21/`，详见该批次 README）。
 

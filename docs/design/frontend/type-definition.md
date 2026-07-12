@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 6.1 类型定义页 前端设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-06-30
 ---

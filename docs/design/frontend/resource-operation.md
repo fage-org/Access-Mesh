@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 资源与操作定义 前端设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-07-11
 ---

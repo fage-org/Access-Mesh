@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 前端 Phase 1 — 页面实现 + API 核对（mock 驱动）
-status: active
+status: archived
 domain: frontend
 design_refs:
   - docs/design/permission-center/api-contract.md
@@ -27,12 +27,12 @@ tasks:
   - T-FE-013
   - T-FE-014
 acceptance: "13 个页面前端实现完成（mock 数据可交互）；每页 API 核对清单产出（接口标记 ✅/🔧/❌，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022~034）；页面级 UI 设计回写至 docs/design/frontend/<page>.md；hasPerms 门控 + 无权降级就绪。"
-last_updated: 2026-06-29
+last_updated: 2026-07-12
 ---
 
 # 前端 Phase 1 — 页面实现 + API 核对（mock 驱动）
 
-> 状态：active
+> 状态：archived（2026-07-12 归档）
 > 来源：`docs/plans/improvement-plan.md` §4.1 Phase 1 拆分
 > 路线图本体：improvement-plan.md（roadmap，tasks:[] 保持空），本 plan 是 Phase 1 的执行编排
 
@@ -147,3 +147,6 @@ last_updated: 2026-06-29
 - 2026-07-11：**T-FE-012（7.2 权限变更日志）完成** ✅。分页表格（服务端分页 + entityType/entityId 筛选）+ 详情抽屉（基本信息 el-descriptions + DiffSnapshotPanel 结构化 diff：eventType tag + items[] changeType tag + permission/role/resource 业务键卡片 + before/after 状态对比 + old/new 原始快照折叠 + 影响范围受影响用户/角色 tags）；hasPerms 接线复用 SYSTEM_CONFIG:VIEW（无独立 PERMISSION_CHANGE_LOG 权限码，与 7.1 操作日志同源），admin/sec/hr/auditor 均可查（审计员必须能查）。UI 设计回写 docs/design/frontend/permission-change-log.md。API 核对：list 端点 ✅、diff_snapshot §6.8 规范 ✅、无 detail 设计合理 ✅；契约路径错误 🔧（§5.8 写 /api/perm/permission-change-log/list，后端实际 /api/perm/log/change/list）、缺字段契约章节 🔧、筛选维度不足 🔧（仅 entityType/entityId）、Resp 缺操作人 🔧、changeSource 枚举 schema 不符 🔧（schema ADMIN/SYNC/API/SYSTEM vs 代码 MANUAL/SERVICE_SYNC）、独立权限码审计语义 🔧，已登记 T-PERM-032。组件识别：DiffSnapshotPanel 登记 T-FE-001 池待确认（T-FE-005 当前无 diffSnapshot 字段，共用性待后续扩展确认），本页内联不抽取。**第 3 批第 3 项完成，下一项 T-FE-013 4.2 权限查询/校验。**
 - 2026-07-11：**T-FE-012 评审修复**（commit d327af4b7）。1 P1 + 3 P2 全部属实并修复：P1 `loadTable` 并发请求覆盖（`reqSeq` 请求序号 + 过期丢弃 + 最新失败清空旧数据）；P2 `entityId` `:min=0` + mock 补 2 条 `entityId=0` 批量聚合日志（对齐后端 BATCH_DELETE/BATCH_REMOVE）；P2 `parseDiffSnapshot` 逐项校验 items（非空对象 + `changeType`∈ADD/REMOVE/UPDATE，防 `[null]` 崩溃）；P2 acceptance 措辞调整（Diff 面板「待 T-FE-005 扩展后确认」，与组件池一致）。附带发现后端 `ROLE_BATCH_DELETE` eventType 超 §6.8 7 枚举，追加登记 T-PERM-032。
 - 2026-07-11：**T-FE-013（4.2 权限排查）完成** ✅。三 Tab 布局（当前有效权限 effective-permissions §6.8 / 范围权限四态 query-scopes §6.7 / 单权限解释 explain §6.8）；主体模型 Tab1/3 支持 targetType=USER/ROLE、Tab2 仅 USER（核实 PermissionQueryAppServiceImpl:126 / PermissionViewAppServiceImpl:698/674）；角色类型码对齐 RoleType.java（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE，ORG/POSITION domainCode 必填，不存在 ORG_ROLE/POSITION_ROLE）；scopeMode 四态矩阵展示（资源类型×操作笛卡尔积 + tooltip 实例 + 图例）；权限门控临时复用 SYSTEM_CONFIG:VIEW + 整页无权状态 + hook 短路（路由框架不消费 meta.auths）；reqSeq 过期请求静默丢弃（对齐 T-FE-012）；前瞻性采用 admin-service 聚合路径 /permission-query/*（Phase 1 mock 模拟，T-PERM-033 后对接真聚合层，前端无需改路径）。**接口定位纠正**：原验收点名 query-resources（§6.6 运行时 SDK，不分页仅用户）与管理排查冲突，Tab1 改用 effective-permissions（§6.8 分页排查视图 USER/ROLE+来源角色），query-resources 降为 API 核对。UI 设计回写 docs/design/frontend/permission-query.md（draft->adopted）。API 核对 🔧 7 项登记 T-PERM-033（admin-service 聚合入口/统一门禁 PERMISSION_QUERY:VIEW 全链路方案 A-B/explain DTO 扩展条件评估冲突详情/recentChanges 按权限键 6 字段过滤/ADMIN_USER 主体语义/query-resources+treeMode/permission-view/* 契约差异）。组件识别：资源键输入（resourceTypeCode+resourceCode+codeType）+ SubjectInputBar 候选登记 T-FE-001 池待 T-FE-014 确认抽取；treeMode 结果树不做 UI。**第 3 批第 4 项完成，下一项 T-FE-014 4.1 权限授予（第 3 批最后一项）。**
+- 2026-07-12：**T-FE-014（4.1 权限授予）完成** ✅。三栏布局（角色树 + 资源权限矩阵 + 附加条件设置）；baseline/draft 草稿模型 + 稳定键 diff + grantableByOperator 能力门控 + 失败重试 + 离开保护；hasPerms 接线 `ROLE:MANAGE`。UI 设计回写 `docs/design/frontend/permission-grant.md`（draft->adopted）。API 核对 🔧 项登记 T-PERM-034。六轮评审收敛（9->9->6->3->1，P1 清零，仅剩 1 P2 已修）。**第 3 批全部完成，13 页 T-FE 全 done。**
+- 2026-07-12：**T-FE-001 跨页组件抽象池汇总确认** ✅。13 页组件识别完成：确认抽取 ReConditionPicker/ReConditionEditor（派生 T-FE-024 归 Phase 4）；角色树/资源树登记数据适配层不抽整块 UI；ReTableHook（4 页）/ReJsonEditor（3 页）待 Phase 4 评估；DiffSnapshotPanel 等 6 项不抽取。组件池权威转交 `docs/tasks/T-FE-001.md` + `docs/design/frontend/permission-grant.md` §15.4。
+- 2026-07-12：**Phase 1 归档条件全部达成** ✅。13 页 T-FE done + API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2）+ 组件池确认 + 设计回写完成（9 份 draft->adopted，4 份已 adopted）。`pnpm build`/`pnpm lint`/`pnpm typecheck` + 全量 `mvn test`（12 模块）均通过，工作区干净。本 plan 移入 `docs/archive/2026-07-12/`，状态转 archived。Phase 2 后端改造（T-PERM-022~034）解锁，待启动；D/E/F 重启前提②（Phase 1 收尾）已满足，前提③（生产事故）不触发需 PM 授权。

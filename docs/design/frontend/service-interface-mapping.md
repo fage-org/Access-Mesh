@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 5.2 服务与接口映射页 前端设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-07-11
 ---

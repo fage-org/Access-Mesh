@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 2.2 角色管理页 前端设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-06-30
 ---

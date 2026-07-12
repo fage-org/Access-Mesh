@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 权限授予 前端 UX 设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-07-12
 ---

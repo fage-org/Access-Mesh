@@ -89,7 +89,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
-> 来源：`docs/plans/improvement-plan.md` §4 各 Phase 拆分。Phase 1 active，Phase 3/4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
+> 来源：`docs/plans/improvement-plan.md` §4 各 Phase 拆分。Phase 1 archived（2026-07-12 归档），Phase 3/4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -167,7 +167,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 2. `T-PERM-020` 工作单 E 清理预设：`forValidate` / `forResourceCheck` 与当前管理校验和 `auth/query-resources` 设计冲突；RocketMQ 与 auto-grant 已被后续设计收敛；执行前必须确认 E2 替代设计。
 3. `T-PERM-021` 工作单 F 文档准确性与代码简化：ownership 字段删除、`request_id NOT NULL` 均存在当前设计约束，且 `requestId`/`traceId` 语义需先收敛；执行前必须确认 F1.c/F1.d。
 
-### P5 — 前端 Phase 1（active，主线）
+### P5 — 前端 Phase 1（archived，2026-07-12 归档）
 
 > D/E/F 重启前提「前端 Phase 1 收尾」的关键路径。按 improvement-plan §4.1 三批次（简单→复杂）推进。Phase 1 **不改后端**，各页前端任务在 API 核对中产出 🔧❌ 清单，登记为 Phase 2 后端任务 T-PERM-022~034。
 
@@ -177,7 +177,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 配套：`T-FE-001` 跨页组件抽象池（贯穿，2+ 页确认后派生组件子任务）。后端任务 T-PERM-022~034 归 Phase 2（depends_on 对应前端，等清单产出）。
 
-### P6 — 前端 Phase 2/3/4（proposed，待 Phase 1 收尾）
+### P6 — 前端 Phase 2/3/4（proposed，待 Phase 2 启动）
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）

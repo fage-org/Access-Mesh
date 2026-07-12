@@ -120,6 +120,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |
 | `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |
 | `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。稳定结论已沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |

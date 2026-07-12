@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 6.2 系统配置页 前端设计
-status: draft
+status: adopted
 domain: frontend
 last_reviewed: 2026-07-01
 ---
