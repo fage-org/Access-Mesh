@@ -13,7 +13,7 @@
 | gateway | `T-GW` | 007 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
 | 跨服务 API 契约 | `T-API` | 001 |
-| 前端 | `T-FE` | 024 |
+| 前端 | `T-FE` | 025 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -93,7 +93,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../plans/frontend-phase1-plan.md) | design/frontend/README.md | — | ⚙️ | ⏳ |
+| [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../plans/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
 | T-FE-002 | 2.2 角色管理页（5 种角色类型 CRUD，本页仅消费功能角色） | frontend-phase1 | api-contract §5.2/§6.10.3；design/frontend/role-manage.md | T-FE-001 | ✅ | ✓ |
 | T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ✅ | ✓ |
 | T-FE-004 | 6.2 系统配置页（租户级 key-value 配置字典；任务原标题「分组表单」校正——后端/schema 无 config_group 字段，为扁平键值表，仅 list/detail/save 3 端点，save upsert 幂等无删除） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ✅ | ✓ |
@@ -116,6 +116,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | T-FE-021 | Phase 3 联调：业务域配置（5.1） | frontend-phase3 | api-contract | T-FE-006, T-PERM-026 | ⚙️ | ⏳ |
 | T-FE-022 | Phase 3 联调：系统/服务配置（6.x/5.2） | frontend-phase3 | api-contract | T-FE-003, T-FE-004, T-FE-007, T-PERM-023, T-PERM-024, T-PERM-027 | ⚙️ | ⏳ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
+| T-FE-024 | ReConditionPicker + ReConditionEditor 条件选择/编辑组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ⚙️ | ⏳ |
 
 ---
 
