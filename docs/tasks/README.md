@@ -104,9 +104,9 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD；conditionRules 可视化编辑器 {logic,items[]} 4 类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST + gatewayEvaluable 开关 T-PERM-017；CONDITION:VIEW/CREATE/UPDATE/DELETE 三档独立非 MANAGE 对齐后端；后端 list 无分页前端本地过滤；🔧 清单 6 项登记 T-PERM-029） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | - | ✅ | ✓ |
 | [T-FE-010](T-FE-010.md) | 3.3 冲突规则页（ROLE_MUTEX 角色互斥/PERM_MUTEX 权限互斥 CRUD + 冲突检测对话框仅操作权限对双向匹配；表格名称映射加载 role/operation/type-def；CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE 三档独立非 MANAGE 对齐后端；🔧 清单 6 项登记 T-PERM-030） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ✅ | ✓ |
 | [T-FE-011](T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 echarts graph + 环检测；资源类型下拉+资源下拉联动；bits->操作码位运算拆解+id->资源映射应对 Resp 字段不全；编辑资源对可改全量替换 Q3=B；DEPENDENCY:VIEW/CREATE/UPDATE/DELETE 三档独立非 MANAGE 对齐后端+SYNC(batch-sync P0 标 TODO Q5=B)；🔧 清单 8 项登记 T-PERM-031） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ✅ | ✓ |
-| [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ⚙️ | ✅ |
-| [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ⚙️ | ⏳ |
-| [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ⚙️ | ⏳ |
+| [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
+| [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
+| [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
 | T-FE-015 | Phase 3 联调：组织与用户（2.1 mock→真实接口） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ⚙️ | ⏳ |
 | T-FE-016 | Phase 3 联调：角色管理（2.2） | frontend-phase3 | api-contract | T-FE-002, T-PERM-022 | ⚙️ | ⏳ |
 | T-FE-017 | Phase 3 联调：资源/操作定义（3.1） | frontend-phase3 | api-contract | T-FE-008, T-PERM-028 | ⚙️ | ⏳ |
