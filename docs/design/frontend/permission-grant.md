@@ -607,3 +607,17 @@ interface GrantCapabilities {
 | P1-7 | domainCode 强制 "example" | selectRole 保持空（契约空域=全局）；mock permissionFacts domainCode="" |
 | P1-8 | 离开保护不拦截路由 + 不移除监听器 | onBeforeRouteLeave + onUnmounted cleanup |
 | 补充 | supportsCondition/Delegation 未消费 | AdditionalSettingDialog 按能力禁用条件/canGrant + 子权限支持（setChildCellAttr） |
+
+### 15.6 第三轮评审修复（2026-07-11，8 P1 + 1 P2）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P1-1 | 响应类型与真实后端契约不兼容（RolePermissionItemsResp 只有 items；ItemResp 无 domainCode/grantSource，scopeAll 是 boolean） | API 层新增 RawRolePermissionItem/RawRolePermissionListResp + adaptRolePermissionItem/adaptRolePermissionList：scopeMode/scopeAll 双字段容错、domainCode 从请求补齐、grantSource 默认 MANUAL（待 T-PERM-034）、domainCapability/operatorCapability 防御 default（保守空，禁止默认全可用）；getRolePermissionList/saveRolePermission/addChildPermission 均经 adapt |
+| P1-2 | 角色树与授权 mock 角色事实不一致（共享树 GROUP_402/403/PERSONAL_501/ORG_1/POSITION_30，授权 mock 不认识；role_admin/role_report_viewer 不在共享树） | roleFacts 对齐共享树 9 标识（删 role_admin/role_report_viewer，新增 GROUP_402/403，ORG_501->ORG_1，POS_601->POSITION_30，PERSONAL_u10001->PERSONAL_501）；permissionFacts 迁移 role_admin->BASIC_201、role_report_viewer->BASIC_202；不修改 role-manage.ts |
+| P1-3 | 加载失败保留上一角色权限状态（selectRole 先设 currentRole 再加载，失败不清空/回滚） | 重构 loadRolePermissionSnapshot(role, domainCode) 返回完整 snapshot 不修改 refs；selectRole 先加载快照成功后一次性提交 currentRole/domain/baseline/draft/capabilities，失败旧上下文完全不变；reloadBaseline 同步重构 |
+| P1-4 | 父权限 ID 无法解析时仍报告保存成功（failedChildAdd.push 后未设 childFailureOccurred） | parentId null 时追加 childFailureOccurred = true + 保留 FailedChildOp { op:"add", child, childKey } |
+| P1-5 | 删除主权限后又重复删除其子权限（后端级联删除，remove-child 返回 CHILD_PERMISSION_NOT_FOUND 误判部分失败） | 子 remove diff 过滤 d.permission.dependOn && mainRemove.includes(dependOn) 的项，跳过 remove-child |
+| P1-6 | 失败的子权限删除无法重试（统一 set 不产生 diff；硬编码 INSTANCE/default） | failedChildren 改为 FailedChildOp[] { op, child, childKey }，childKey 直接取 childDiff 的 d.key；retry 时 add->draft.set(childKey, child)、remove->draft.delete(childKey)；删除 findParentTypeCode/ResourceCode/OperationCode 反查函数 |
+| P1-7 | 主权限附加设置未接入资源能力（API/BUTTON supportsDelegation=false 仍可开 canGrant） | PermissionMatrixPanel.onOpenSetting 从 currentResourceType 传入 supportsCondition/supportsDelegation |
+| P1-8 | 子权限新增绕过 grantableByOperator（buildChildContext 只查只读，onToggle 无能力检查） | buildChildContext 调 store.isGrantableByOperator(selectedChildType, operationCode)；onToggle 新增路径（!inDraft && !inBase）检查，撤销/恢复不检查 |
+| P2 | 角色搜索没有实际过滤（共享 tree 端点不消费 keyword，adaptRoleTree 不过滤） | adaptRoleTree 接收 keyword，适配后本地过滤 roleName/roleExternalId，保留命中角色所在的类型虚拟根 |

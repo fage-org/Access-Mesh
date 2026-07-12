@@ -49,6 +49,13 @@ import {
  * 9. 能力驱动（§11.3）：directGrantable=false 只读；grantableByOperator disabled 单元格
  */
 
+/** 失败子权限操作（P1-6：保留 op + childKey，重试时 add->set/remove->delete） */
+interface FailedChildOp {
+  op: "add" | "remove";
+  child: DraftPermission;
+  childKey: string;
+}
+
 // ========== 模块级辅助函数 ==========
 
 /** RolePermissionItem -> DraftPermission（baseline 转换） */
@@ -253,7 +260,7 @@ export function usePermissionGrant() {
 
   // ---- 部分失败（决策点 5） ----
   const saveError = ref<string | null>(null);
-  const failedChildren = ref<DraftPermission[]>([]);
+  const failedChildren = ref<FailedChildOp[]>([]);
 
   // ========== 计算 ==========
 
@@ -661,7 +668,7 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 选择角色 -> 加载 baseline + 能力 + 资源树/操作 */
+  /** 选择角色 -> 加载快照 + 成功后一次性提交（P1-3：失败时旧上下文不变） */
   async function selectRole(role: RoleTreeNode) {
     if (role.roleExternalId.startsWith("__virtual_root_")) return;
     // 离开保护
@@ -676,81 +683,102 @@ export function usePermissionGrant() {
         return;
       }
     }
-    currentRole.value = role;
-    // P1-7：全局角色 domainCode 保持空（契约空域=全局对象），不强制 "example"
-    currentDomainCode.value = role.domainCode ?? "";
-    await Promise.all([loadRolePermission(), reloadResourceContext()]);
-  }
-
-  /** 加载角色权限事实 + 能力 */
-  async function loadRolePermission() {
-    if (!currentRole.value) return;
-    const role = currentRole.value;
+    const domainCode = role.domainCode ?? "";
     loadingContext.value = true;
     try {
-      const resp = await getRolePermissionList({
-        domainCode: currentDomainCode.value,
-        roleTypeCode: role.roleTypeCode,
-        roleExternalId: role.roleExternalId
-      });
-      domainCapability.value = resp.domainCapability;
-      operatorCapability.value = resp.operatorCapability;
-      // 拆分主权限 / 子权限
-      const main = new Map<string, DraftPermission>();
-      const child = new Map<string, DraftPermission>();
-      for (const item of resp.items) {
-        const d = toDraft(item);
-        if (item.dependOn === null) {
-          const key = mainKeyOf(
-            item.domainCode,
-            item.resourceTypeCode,
-            item.scopeMode,
-            item.resourceCode,
-            item.codeType,
-            item.operationCode
-          );
-          main.set(key, d);
-        } else {
-          // 子权限：需找父权限 key
-          const parent = resp.items.find(p => p.id === item.dependOn);
-          if (parent) {
-            const parentKey = mainKeyOf(
-              parent.domainCode,
-              parent.resourceTypeCode,
-              parent.scopeMode,
-              parent.resourceCode,
-              parent.codeType,
-              parent.operationCode
-            );
-            const childK =
-              parentKey +
-              "|" +
-              permCellKey({
-                domainCode: item.domainCode,
-                resourceTypeCode: item.resourceTypeCode,
-                scopeMode: item.scopeMode,
-                resourceCode: item.resourceCode,
-                codeType: item.codeType,
-                operationCode: item.operationCode
-              });
-            d.dependOnTempKey = null;
-            child.set(childK, d);
-          }
-        }
-      }
-      mainBaseline.value = main;
-      mainDraft.value = new Map(main);
-      childBaseline.value = child;
-      childDraft.value = new Map(child);
+      // P1-3：先加载快照，成功后一次性提交；失败时旧上下文完全不变
+      const snapshot = await loadRolePermissionSnapshot(role, domainCode);
+      currentRole.value = role;
+      // P1-7：全局角色 domainCode 保持空（契约空域=全局对象）
+      currentDomainCode.value = domainCode;
+      mainBaseline.value = snapshot.mainBaseline;
+      mainDraft.value = new Map(snapshot.mainBaseline);
+      childBaseline.value = snapshot.childBaseline;
+      childDraft.value = new Map(snapshot.childBaseline);
+      domainCapability.value = snapshot.domainCapability;
+      operatorCapability.value = snapshot.operatorCapability;
       failedChildren.value = [];
       saveError.value = null;
     } catch (e) {
       message(e instanceof Error ? e.message : "加载权限事实失败", {
         type: "error"
       });
+      // 旧上下文不变
     } finally {
       loadingContext.value = false;
     }
+    // 资源上下文单独加载（失败不影响角色权限数据）
+    if (currentRole.value === role) {
+      await reloadResourceContext();
+    }
+  }
+
+  /**
+   * 加载角色权限快照（P1-3：不直接修改 refs，返回完整 snapshot 供调用方提交）。
+   * 失败时抛错，调用方决定回滚/清空策略。
+   */
+  async function loadRolePermissionSnapshot(
+    role: RoleTreeNode,
+    domainCode: string
+  ): Promise<{
+    mainBaseline: Map<string, DraftPermission>;
+    childBaseline: Map<string, DraftPermission>;
+    domainCapability: DomainCapability;
+    operatorCapability: OperatorCapability;
+  }> {
+    const resp = await getRolePermissionList({
+      domainCode,
+      roleTypeCode: role.roleTypeCode,
+      roleExternalId: role.roleExternalId
+    });
+    const main = new Map<string, DraftPermission>();
+    const child = new Map<string, DraftPermission>();
+    for (const item of resp.items) {
+      const d = toDraft(item);
+      if (item.dependOn === null) {
+        const key = mainKeyOf(
+          item.domainCode,
+          item.resourceTypeCode,
+          item.scopeMode,
+          item.resourceCode,
+          item.codeType,
+          item.operationCode
+        );
+        main.set(key, d);
+      } else {
+        // 子权限：需找父权限 key
+        const parent = resp.items.find(p => p.id === item.dependOn);
+        if (parent) {
+          const parentKey = mainKeyOf(
+            parent.domainCode,
+            parent.resourceTypeCode,
+            parent.scopeMode,
+            parent.resourceCode,
+            parent.codeType,
+            parent.operationCode
+          );
+          const childK =
+            parentKey +
+            "|" +
+            permCellKey({
+              domainCode: item.domainCode,
+              resourceTypeCode: item.resourceTypeCode,
+              scopeMode: item.scopeMode,
+              resourceCode: item.resourceCode,
+              codeType: item.codeType,
+              operationCode: item.operationCode
+            });
+          d.dependOnTempKey = null;
+          child.set(childK, d);
+        }
+      }
+    }
+    return {
+      mainBaseline: main,
+      childBaseline: child,
+      domainCapability: resp.domainCapability,
+      operatorCapability: resp.operatorCapability
+    };
   }
 
   /** 切换资源类型 -> 加载资源树 + 操作 */
@@ -785,9 +813,31 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 重载 baseline（保存后 / 重试） */
+  /** 重载 baseline（保存后 / 重试，P1-3：成功后更新，失败提示不清空） */
   async function reloadBaseline() {
-    await loadRolePermission();
+    if (!currentRole.value) return;
+    const role = currentRole.value;
+    loadingContext.value = true;
+    try {
+      const snapshot = await loadRolePermissionSnapshot(
+        role,
+        currentDomainCode.value
+      );
+      mainBaseline.value = snapshot.mainBaseline;
+      mainDraft.value = new Map(snapshot.mainBaseline);
+      childBaseline.value = snapshot.childBaseline;
+      childDraft.value = new Map(snapshot.childBaseline);
+      domainCapability.value = snapshot.domainCapability;
+      operatorCapability.value = snapshot.operatorCapability;
+      failedChildren.value = [];
+      saveError.value = null;
+    } catch (e) {
+      message(e instanceof Error ? e.message : "重载权限事实失败", {
+        type: "error"
+      });
+    } finally {
+      loadingContext.value = false;
+    }
   }
 
   // ========== 保存（两步 + 部分失败，决策点 5） ==========
@@ -807,9 +857,12 @@ export function usePermissionGrant() {
       const updateItems: RolePermissionUpdateItem[] = [];
       const mainRemove: number[] = [];
       const childRemoveIds: number[] = [];
-      const childRemoveItems: DraftPermission[] = [];
-      const childAddGrouped: { parentKey: string; child: DraftPermission }[] =
-        [];
+      const childRemoveItems: FailedChildOp[] = [];
+      const childAddGrouped: {
+        parentKey: string;
+        childKey: string;
+        child: DraftPermission;
+      }[] = [];
 
       // 主权限 diff
       for (const d of mDiff) {
@@ -827,6 +880,7 @@ export function usePermissionGrant() {
         if (d.type === "add") {
           childAddGrouped.push({
             parentKey: d.permission.dependOnTempKey ?? "",
+            childKey: d.key,
             child: d.permission
           });
         } else if (d.type === "update") {
@@ -837,8 +891,19 @@ export function usePermissionGrant() {
             canGrant: d.permission.canGrant
           });
         } else if (d.type === "remove") {
+          // P1-5：父权限已在 mainRemove 中时，后端级联删除子权限，跳过 remove-child
+          if (
+            d.permission.dependOn &&
+            mainRemove.includes(d.permission.dependOn)
+          ) {
+            continue;
+          }
           childRemoveIds.push(d.permission.id!);
-          childRemoveItems.push(d.permission);
+          childRemoveItems.push({
+            op: "remove",
+            child: d.permission,
+            childKey: d.key
+          });
         }
       }
 
@@ -882,44 +947,49 @@ export function usePermissionGrant() {
       }
 
       // Step 3: add-child（新子权限，按 parentPermissionId 分组）
-      const failedChildAdd: DraftPermission[] = [];
-      const addChildByParent = new Map<number, RolePermissionAddItem[]>();
-      for (const { parentKey, child } of childAddGrouped) {
+      let childFailureOccurred = false;
+      const failedChildAdd: FailedChildOp[] = [];
+      const addChildByParent = new Map<
+        number,
+        {
+          item: RolePermissionAddItem;
+          childKey: string;
+          child: DraftPermission;
+        }[]
+      >();
+      for (const { parentKey, childKey, child } of childAddGrouped) {
         // P1-3：优先用 child.dependOn（已保存主权限），否则用 tempKeyToServerId（新主权限）
         const parentId =
           child.dependOn ?? tempKeyToServerId.get(parentKey) ?? null;
         if (!parentId) {
-          // 父权限未保存成功
-          failedChildAdd.push(child);
+          // P1-4：父权限未保存成功，标记部分失败并保留可重试的 childKey
+          failedChildAdd.push({ op: "add", child, childKey });
+          childFailureOccurred = true;
           continue;
         }
         if (!addChildByParent.has(parentId)) addChildByParent.set(parentId, []);
-        addChildByParent.get(parentId)!.push(toAddItem(child));
+        addChildByParent.get(parentId)!.push({
+          item: toAddItem(child),
+          childKey,
+          child
+        });
       }
 
-      let childFailureOccurred = false;
-      for (const [parentId, children] of addChildByParent) {
+      for (const [parentId, entries] of addChildByParent) {
         try {
-          await addChildPermission({ parentPermissionId: parentId, children });
+          await addChildPermission({
+            parentPermissionId: parentId,
+            children: entries.map(e => e.item)
+          });
         } catch (e) {
           childFailureOccurred = true;
           const errMsg = e instanceof Error ? e.message : "子权限保存失败";
-          // 该组子权限全部标记失败
-          for (const c of children) {
+          // 该组子权限全部标记失败（P1-6：保留 childKey 供重试）
+          for (const entry of entries) {
             failedChildAdd.push({
-              id: null,
-              domainCode: currentDomainCode.value,
-              resourceTypeCode: c.resourceTypeCode,
-              scopeMode: c.scopeMode,
-              resourceCode: c.resourceCode ?? null,
-              codeType: c.codeType ?? null,
-              operationCode: c.operationCode,
-              conditionCode: c.conditionCode ?? null,
-              canGrant: c.canGrant ?? false,
-              dependOn: parentId,
-              dependOnTempKey: null,
-              grantSource: "MANUAL",
-              resourceName: null
+              op: "add",
+              child: entry.child,
+              childKey: entry.childKey
             });
           }
           saveError.value = `主权限已保存，部分子权限保存失败：${errMsg}`;
@@ -927,7 +997,7 @@ export function usePermissionGrant() {
       }
 
       // Step 4: remove-child（删除的子权限，P1-4：失败保留重试信息）
-      const failedChildRemove: DraftPermission[] = [];
+      const failedChildRemove: FailedChildOp[] = [];
       for (let i = 0; i < childRemoveIds.length; i++) {
         try {
           await removeChildPermission({ permissionId: childRemoveIds[i] });
@@ -955,58 +1025,21 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 重试失败的子权限 */
+  /** 重试失败的子权限（P1-6：按 op 直接 set/delete childKey，不重建父键） */
   async function retryFailedChildren() {
     if (failedChildren.value.length === 0) return;
-    // 将失败子权限重新加入 draft，然后 saveAll
     const newMap = new Map(childDraft.value);
-    for (const fc of failedChildren.value) {
-      const parentKey = mainKeyOf(
-        fc.domainCode,
-        // 找父权限 resourceTypeCode（从 dependOn 反查 baseline）
-        findParentTypeCode(fc.dependOn),
-        "INSTANCE",
-        findParentResourceCode(fc.dependOn),
-        "default",
-        findParentOperationCode(fc.dependOn)
-      );
-      const ck = childKeyOf(parentKey, {
-        domainCode: fc.domainCode,
-        resourceTypeCode: fc.resourceTypeCode,
-        scopeMode: fc.scopeMode,
-        resourceCode: fc.resourceCode,
-        codeType: fc.codeType,
-        operationCode: fc.operationCode
-      });
-      newMap.set(ck, fc);
+    for (const fop of failedChildren.value) {
+      if (fop.op === "add") {
+        newMap.set(fop.childKey, fop.child);
+      } else {
+        newMap.delete(fop.childKey);
+      }
     }
     childDraft.value = newMap;
     failedChildren.value = [];
     saveError.value = null;
     await saveAll();
-  }
-
-  /** 从 baseline 反查父权限信息（重试用） */
-  function findParentTypeCode(parentId: number | null): string {
-    if (!parentId) return "";
-    for (const [, d] of mainBaseline.value) {
-      if (d.id === parentId) return d.resourceTypeCode;
-    }
-    return "";
-  }
-  function findParentResourceCode(parentId: number | null): string | null {
-    if (!parentId) return null;
-    for (const [, d] of mainBaseline.value) {
-      if (d.id === parentId) return d.resourceCode;
-    }
-    return null;
-  }
-  function findParentOperationCode(parentId: number | null): string {
-    if (!parentId) return "";
-    for (const [, d] of mainBaseline.value) {
-      if (d.id === parentId) return d.operationCode;
-    }
-    return "";
   }
 
   /** 放弃全部更改 */

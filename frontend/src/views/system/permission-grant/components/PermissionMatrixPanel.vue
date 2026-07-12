@@ -89,11 +89,14 @@ function onToggle(row: TableRow, operationCode: string) {
 function onOpenSetting(row: TableRow, operationCode: string) {
   const ctx = buildContext(row, operationCode);
   if (!ctx.draft) return;
+  const rt = store.currentResourceType.value;
   emit("open-setting", {
     key: makeKey(row, operationCode),
     draft: ctx.draft,
     isNew: ctx.state === "PENDING_ADD",
-    readonly: store.readonly.value
+    readonly: store.readonly.value,
+    supportsCondition: rt?.supportsCondition,
+    supportsDelegation: rt?.supportsDelegation
   });
 }
 

@@ -173,13 +173,19 @@ function buildChildContext(
   const condSummary = condCode
     ? (store.conditions.value.find(c => c.code === condCode)?.name ?? condCode)
     : null;
+  // P1-8：子权限新增也需经过 grantableByOperator（操作者能力）
+  const { grantable, reason } = store.isGrantableByOperator(
+    selectedChildType.value,
+    operationCode
+  );
+  const isReadOnly = props.context?.readonly ?? true;
   return {
     state,
     draft,
     allCovered,
-    grantableByOperator: !props.context?.readonly,
-    denyReason: props.context?.readonly ? "只读" : null,
-    readonly: props.context?.readonly ?? true,
+    grantableByOperator: grantable,
+    denyReason: reason,
+    readonly: isReadOnly,
     childCount: 0,
     conditionSummary: condSummary
   };
@@ -193,6 +199,20 @@ function onToggle(
   if (!props.context || props.context.readonly) return;
   const resourceCode = scopeMode === "ALL" ? null : (row?.resourceCode ?? null);
   const codeType = scopeMode === "ALL" ? null : (row?.codeType ?? null);
+  const ck = childKey(resourceCode, codeType, operationCode, scopeMode);
+  const inDraft = store.childDraft.value.has(ck);
+  const inBase = store.childBaseline.value.has(ck);
+  // P1-8：新增子权限时检查 grantableByOperator（撤销/恢复不检查，同主权限口径）
+  if (!inDraft && !inBase) {
+    const { grantable, reason } = store.isGrantableByOperator(
+      selectedChildType.value,
+      operationCode
+    );
+    if (!grantable) {
+      message(`不可授予：${reason}`, { type: "warning" });
+      return;
+    }
+  }
   store.toggleChildCell(
     parentKey.value,
     props.context.parent,

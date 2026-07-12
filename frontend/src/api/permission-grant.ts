@@ -279,7 +279,10 @@ function adaptRoleNode(r: RawRoleNode): RoleTreeNode {
   };
 }
 
-function adaptRoleTree(rawItems: Array<{ root: RawRoleNode }>): RoleTreeNode[] {
+function adaptRoleTree(
+  rawItems: Array<{ root: RawRoleNode }>,
+  keyword?: string
+): RoleTreeNode[] {
   const forest = rawItems[0]?.root?.children ?? [];
   const typeOrder = ["BASIC_ROLE", "GROUP_ROLE", "ORG", "POSITION", "PERSONAL"];
   const typeLabels: Record<string, string> = {
@@ -289,7 +292,7 @@ function adaptRoleTree(rawItems: Array<{ root: RawRoleNode }>): RoleTreeNode[] {
     POSITION: "岗位角色",
     PERSONAL: "个人角色"
   };
-  return typeOrder
+  const typeRoots = typeOrder
     .map(typeCode => {
       const roles = forest.filter(r => r.roleTypeCode === typeCode);
       if (roles.length === 0) return null;
@@ -305,6 +308,21 @@ function adaptRoleTree(rawItems: Array<{ root: RawRoleNode }>): RoleTreeNode[] {
         canManage: false,
         children: roles.map(adaptRoleNode)
       } as RoleTreeNode;
+    })
+    .filter((n): n is RoleTreeNode => n !== null);
+  // P2：共享 tree 端点不消费 keyword，适配后本地过滤 roleName/roleExternalId，
+  // 保留命中角色所在的类型虚拟根
+  if (!keyword) return typeRoots;
+  const kw = keyword.toLowerCase();
+  return typeRoots
+    .map(typeRoot => {
+      const matched = typeRoot.children.filter(
+        c =>
+          c.roleName.toLowerCase().includes(kw) ||
+          c.roleExternalId.toLowerCase().includes(kw)
+      );
+      if (matched.length === 0) return null;
+      return { ...typeRoot, children: matched };
     })
     .filter((n): n is RoleTreeNode => n !== null);
 }
@@ -395,6 +413,93 @@ function adaptConditions(rawItems: RawCondition[]): ConditionOption[] {
   }));
 }
 
+// ========== role-resource-permission 真实响应适配（P1-1） ==========
+// 真实后端 RolePermissionItemsResp 只返回 items；RolePermissionItemResp 缺
+// domainCode/grantSource，scopeMode 可能以 scopeAll(boolean) 旧字段返回。
+// domainCapability/operatorCapability 后端尚未返回（T-PERM-034 待补齐）。
+// 本层做双字段容错 + 请求域补齐 + 保守 default capability，避免连真实后端时
+// 能力对象 undefined 崩溃或 stable key 因 domainCode 缺失无法命中。
+
+/** 真实后端 RolePermissionItemResp（字段可能缺失） */
+interface RawRolePermissionItem {
+  id: number;
+  resourceTypeCode: string;
+  resourceCode: string | null;
+  codeType: string | null;
+  resourceName: string | null;
+  operationCode: string;
+  canGrant: boolean;
+  conditionCode: string | null;
+  /** 新契约：scopeMode "INSTANCE"|"ALL" */
+  scopeMode?: GrantScopeMode;
+  /** 旧契约：scopeAll boolean（true=ALL） */
+  scopeAll?: boolean;
+  dependOn: number | null;
+  /** 后端可能不返回 */
+  domainCode?: string;
+  grantSource?: string;
+}
+
+/** 真实后端 list 响应（domainCapability/operatorCapability 可能缺失） */
+interface RawRolePermissionListResp {
+  items: RawRolePermissionItem[];
+  domainCapability?: DomainCapability;
+  operatorCapability?: OperatorCapability;
+}
+
+/** 保守 default capability（T-PERM-034 后端补齐前，禁止默认全可用） */
+const DEFAULT_DOMAIN_CAPABILITY: DomainCapability = {
+  supportsChildren: false,
+  childResourceTypeCodes: []
+};
+const DEFAULT_OPERATOR_CAPABILITY: OperatorCapability = {
+  canManage: false,
+  grantableResourceTypeCodes: [],
+  grantableOperationCodes: []
+};
+
+/** 单项适配：scopeAll->scopeMode 双字段容错，domainCode 从请求补齐，grantSource 默认 MANUAL */
+function adaptRolePermissionItem(
+  raw: RawRolePermissionItem,
+  reqDomainCode: string
+): RolePermissionItem {
+  let scopeMode: GrantScopeMode;
+  if (raw.scopeMode === "INSTANCE" || raw.scopeMode === "ALL") {
+    scopeMode = raw.scopeMode;
+  } else if (raw.scopeAll) {
+    scopeMode = "ALL";
+  } else {
+    scopeMode = "INSTANCE";
+  }
+  return {
+    id: raw.id,
+    domainCode: raw.domainCode ?? reqDomainCode,
+    resourceTypeCode: raw.resourceTypeCode,
+    resourceCode: raw.resourceCode,
+    codeType: raw.codeType,
+    resourceName: raw.resourceName,
+    operationCode: raw.operationCode,
+    scopeMode,
+    conditionCode: raw.conditionCode,
+    canGrant: raw.canGrant,
+    dependOn: raw.dependOn,
+    // P0 默认 MANUAL，待 T-PERM-034 后端补齐 grantSource
+    grantSource: raw.grantSource ?? "MANUAL"
+  };
+}
+
+/** list 响应适配：items 逐项映射 + capability 防御 default */
+function adaptRolePermissionList(
+  raw: RawRolePermissionListResp,
+  reqDomainCode: string
+): RolePermissionListResp {
+  return {
+    items: raw.items.map(i => adaptRolePermissionItem(i, reqDomainCode)),
+    domainCapability: raw.domainCapability ?? DEFAULT_DOMAIN_CAPABILITY,
+    operatorCapability: raw.operatorCapability ?? DEFAULT_OPERATOR_CAPABILITY
+  };
+}
+
 // ========== API 函数 ==========
 
 /** 角色树（复用 abstract-role/tree，适配为五类型虚拟根 + 能力字段） */
@@ -402,7 +507,7 @@ export const getRoleTree = async (data: RoleTreeReq): Promise<RoleTreeResp> => {
   const res = await http.request<
     PermResult<{ items: Array<{ root: RawRoleNode }> }>
   >("post", "/api/perm/abstract-role/tree", { data });
-  return { items: adaptRoleTree(unwrap(res).items) };
+  return { items: adaptRoleTree(unwrap(res).items, data.keyword) };
 };
 
 /** 资源类型列表（复用 type-definition/list，过滤 resource_type + 能力推断） */
@@ -451,28 +556,31 @@ export const getConditionList = async (
   return { items: adaptConditions(unwrap(res).items) };
 };
 
-/** 查询角色已有权限事实 + 业务域能力 + 操作者能力 */
+/** 查询角色已有权限事实 + 业务域能力 + 操作者能力（P1-1：适配真实响应） */
 export const getRolePermissionList = async (
   data: RolePermissionListReq
 ): Promise<RolePermissionListResp> => {
-  const res = await http.request<PermResult<RolePermissionListResp>>(
+  const res = await http.request<PermResult<RawRolePermissionListResp>>(
     "post",
     "/api/perm/role-resource-permission/list",
     { data }
   );
-  return unwrap(res);
+  return adaptRolePermissionList(unwrap(res), data.domainCode);
 };
 
-/** 三段式批量保存授权（add/update/remove 同事务，§6.4） */
+/** 三段式批量保存授权（add/update/remove 同事务，§6.4；P1-1：适配真实响应） */
 export const saveRolePermission = async (
   data: RolePermissionSaveReq
 ): Promise<RolePermissionSaveResp> => {
-  const res = await http.request<PermResult<RolePermissionSaveResp>>(
-    "post",
-    "/api/perm/role-resource-permission/save",
-    { data }
-  );
-  return unwrap(res);
+  const res = await http.request<
+    PermResult<{ items: RawRolePermissionItem[] }>
+  >("post", "/api/perm/role-resource-permission/save", { data });
+  const raw = unwrap(res);
+  return {
+    items: (raw.items ?? []).map(i =>
+      adaptRolePermissionItem(i, data.domainCode)
+    )
+  };
 };
 
 /** 查询主权限下的子权限（§6.5） */
@@ -487,16 +595,16 @@ export const getChildPermissions = async (
   return unwrap(res);
 };
 
-/** 为已保存主权限添加子权限（§6.5，parentPermissionId 必须 depend_on IS NULL） */
+/** 为已保存主权限添加子权限（§6.5，parentPermissionId 必须 depend_on IS NULL；P1-1：适配真实响应） */
 export const addChildPermission = async (
   data: AddChildReq
 ): Promise<AddChildResp> => {
-  const res = await http.request<PermResult<AddChildResp>>(
-    "post",
-    "/api/perm/role-resource-permission/add-child",
-    { data }
-  );
-  return unwrap(res);
+  const res = await http.request<
+    PermResult<{ items: RawRolePermissionItem[] }>
+  >("post", "/api/perm/role-resource-permission/add-child", { data });
+  const raw = unwrap(res);
+  // add-child 不传 domainCode；子权限 domainCode 从父权限继承，响应仅用于确认成功
+  return { items: (raw.items ?? []).map(i => adaptRolePermissionItem(i, "")) };
 };
 
 /** 删除子权限（§6.5） */

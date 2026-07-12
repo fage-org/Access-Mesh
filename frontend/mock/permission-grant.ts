@@ -95,50 +95,51 @@ const roleFacts: RoleFact[] = [
     enabled: false,
     directGrantable: true
   },
-  {
-    roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
-    roleName: "报表查看员",
-    domainCode: "",
-    enabled: true,
-    directGrantable: true
-  },
-  {
-    roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_admin",
-    roleName: "系统管理员",
-    domainCode: "",
-    enabled: true,
-    directGrantable: true
-  },
+  // GROUP_ROLE：组合角色，directGrantable=false（§3.4）
   {
     roleTypeCode: "GROUP_ROLE",
     roleExternalId: "GROUP_401",
-    roleName: "审计组合角色",
+    roleName: "核心开发组",
+    domainCode: "",
+    enabled: true,
+    directGrantable: false
+  },
+  {
+    roleTypeCode: "GROUP_ROLE",
+    roleExternalId: "GROUP_402",
+    roleName: "运维保障组",
+    domainCode: "",
+    enabled: true,
+    directGrantable: false
+  },
+  {
+    roleTypeCode: "GROUP_ROLE",
+    roleExternalId: "GROUP_403",
+    roleName: "核心开发-后端",
     domainCode: "",
     enabled: true,
     directGrantable: false
   },
   {
     roleTypeCode: "ORG",
-    roleExternalId: "ORG_501",
-    roleName: "研发部",
+    roleExternalId: "ORG_1",
+    roleName: "研发中心",
     domainCode: "",
     enabled: true,
     directGrantable: true
   },
   {
     roleTypeCode: "POSITION",
-    roleExternalId: "POS_601",
-    roleName: "工程师岗位",
+    roleExternalId: "POSITION_30",
+    roleName: "后端开发",
     domainCode: "",
     enabled: true,
     directGrantable: true
   },
   {
     roleTypeCode: "PERSONAL",
-    roleExternalId: "PERSONAL_u10001",
-    roleName: "用户10001个人角色",
+    roleExternalId: "PERSONAL_501",
+    roleName: "张三-专属",
     domainCode: "",
     enabled: true,
     directGrantable: true
@@ -262,12 +263,12 @@ const operatorCapability = {
 // ========== 权限事实表（可变，save/add-child/remove-child 写入） ==========
 
 let permissionFacts: PermissionFact[] = [
-  // role_admin: MENU/sys:role/UPDATE 绑 office-hours 条件
+  // BASIC_201: MENU/sys:role/UPDATE 绑 office-hours 条件
   {
     id: 100,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_admin",
+    roleExternalId: "BASIC_201",
     resourceTypeCode: "MENU",
     resourceCode: "sys:role",
     codeType: "default",
@@ -283,7 +284,7 @@ let permissionFacts: PermissionFact[] = [
     id: 101,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_admin",
+    roleExternalId: "BASIC_201",
     resourceTypeCode: "MENU",
     resourceCode: "sys:user",
     codeType: "default",
@@ -295,12 +296,12 @@ let permissionFacts: PermissionFact[] = [
     dependOn: null,
     grantSource: "MANUAL"
   },
-  // role_report_viewer: §6.5 示例（主权限 200 + 子权限 201/202/203 + ALL 260）
+  // BASIC_202: §6.5 示例（主权限 200 + 子权限 201/202/203 + ALL 260）
   {
     id: 200,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
+    roleExternalId: "BASIC_202",
     resourceTypeCode: "REPORT",
     resourceCode: "report:sales",
     codeType: "default",
@@ -316,7 +317,7 @@ let permissionFacts: PermissionFact[] = [
     id: 260,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
+    roleExternalId: "BASIC_202",
     resourceTypeCode: "REPORT",
     resourceCode: null,
     codeType: null,
@@ -333,7 +334,7 @@ let permissionFacts: PermissionFact[] = [
     id: 201,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
+    roleExternalId: "BASIC_202",
     resourceTypeCode: "DATA",
     resourceCode: "data:city:shanghai",
     codeType: "default",
@@ -349,7 +350,7 @@ let permissionFacts: PermissionFact[] = [
     id: 202,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
+    roleExternalId: "BASIC_202",
     resourceTypeCode: "DATA",
     resourceCode: "data:city:hangzhou",
     codeType: "default",
@@ -365,7 +366,7 @@ let permissionFacts: PermissionFact[] = [
     id: 203,
     domainCode: "",
     roleTypeCode: "BASIC_ROLE",
-    roleExternalId: "role_report_viewer",
+    roleExternalId: "BASIC_202",
     resourceTypeCode: "DATA",
     resourceCode: null,
     codeType: null,
