@@ -23,7 +23,7 @@
 | 3.2 权限条件 | `permission-condition.md` | T-FE-009 | ✅ |
 | 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | ✅ |
 | 3.4 资源依赖 | `resource-dependency.md` | T-FE-011 | ✅ |
-| 4.1 权限授予 | `permission-grant.md` | T-FE-014 | ✅ |
+| 4.1 权限授予 | `permission-grant.md` | T-FE-014；T-FE-025~028 | ✅ 当前基线；§16 第二轮 UX 重构（授权弹窗）待实现 |
 | 4.2 权限查询/校验 | `permission-query.md` | T-FE-013 | ✅ |
 | 5.1 业务域 | `biz-domain.md` | T-FE-006 | ✅ |
 | 5.2 服务+接口映射 | `service-interface-mapping.md` | T-FE-007 | ✅ |

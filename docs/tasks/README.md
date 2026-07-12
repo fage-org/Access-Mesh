@@ -13,7 +13,7 @@
 | gateway | `T-GW` | 007 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
 | 跨服务 API 契约 | `T-API` | 001 |
-| 前端 | `T-FE` | 025 |
+| 前端 | `T-FE` | 029 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -110,13 +110,17 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | T-FE-015 | Phase 3 联调：组织与用户（2.1 mock→真实接口） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ⚙️ | ⏳ |
 | T-FE-016 | Phase 3 联调：角色管理（2.2） | frontend-phase3 | api-contract | T-FE-002, T-PERM-022 | ⚙️ | ⏳ |
 | T-FE-017 | Phase 3 联调：资源/操作定义（3.1） | frontend-phase3 | api-contract | T-FE-008, T-PERM-028 | ⚙️ | ⏳ |
-| T-FE-018 | Phase 3 联调：权限授予（4.1） | frontend-phase3 | api-contract | T-FE-014, T-PERM-034 | ⚙️ | ⏳ |
+| T-FE-018 | Phase 3 联调：权限授予（4.1） | frontend-phase3 | api-contract；design/frontend/permission-grant.md §16 | T-FE-014, T-FE-027, T-PERM-034 | ⚙️ | ⏳ |
 | T-FE-019 | Phase 3 联调：权限查询/校验（4.2） | frontend-phase3 | api-contract | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | T-FE-020 | Phase 3 联调：条件/冲突规则（3.2/3.3） | frontend-phase3 | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ⚙️ | ⏳ |
 | T-FE-021 | Phase 3 联调：业务域配置（5.1） | frontend-phase3 | api-contract | T-FE-006, T-PERM-026 | ⚙️ | ⏳ |
 | T-FE-022 | Phase 3 联调：系统/服务配置（6.x/5.2） | frontend-phase3 | api-contract | T-FE-003, T-FE-004, T-FE-007, T-PERM-023, T-PERM-024, T-PERM-027 | ⚙️ | ⏳ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
-| T-FE-024 | ReConditionPicker + ReConditionEditor 条件选择/编辑组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ⚙️ | ⏳ |
+| T-FE-024 | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ⚙️ | ⏳ |
+| [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ⚙️ | ⏳ |
+| [T-FE-026](T-FE-026.md) | 权限授予授权弹窗（批量授权任务） | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.4/§16.8 | T-FE-024, T-FE-025 | ⚙️ | ⏳ |
+| [T-FE-028](T-FE-028.md) | 权限授予右栏本次变更记录 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.5/§16.8 | T-FE-026 | ⚙️ | ⏳ |
+| [T-FE-027](T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.6~§16.9 | T-FE-025, T-FE-026, T-FE-028 | ⚙️ | ⏳ |
 
 ---
 
@@ -185,6 +189,17 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 - `T-FE-015~022` Phase 3 联调 ← Phase 1 + Phase 2
 - `T-FE-023` 扩展验证 / `T-ADMIN-020` 代码清理 / `T-PERM-038` TODO 收口 / `T-PERM-039` 测试补充 — Phase 4
 
+### P7 — 权限授予授权弹窗与右栏变更重构（active）
+
+1. `T-FE-024` 条件/子权限组件抽取（含 ChildPermissionDrawer 内联化）← T-FE-014（外部前置，可与 T-FE-025 并行）
+2. `T-FE-025` 中栏资源权限概览 + 授权入口 ← T-FE-014
+3. `T-FE-026` 授权弹窗（批量授权任务）← T-FE-024, T-FE-025
+4. `T-FE-028` 右栏本次变更记录 ← T-FE-026
+5. `T-FE-027` 三栏状态整合、回归与设计回写 ← T-FE-025, T-FE-026, T-FE-028
+6. `T-FE-018` 真接口联调 ← T-FE-027, T-PERM-034
+
+准入门禁：`design/frontend/permission-grant.md` §16.8 R1~R11 全部已确认（R5 澄清弹窗多选不属批量限制，R4 改写为弹窗设计，R8 标题"本次变更" + 审计日志入口）。plan 已 active；T-FE-024/025 可启动。
+
 ### 不排期（待立项）
 
 EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审计 S-024 无主，性能项，待单独立项。
@@ -203,7 +218,12 @@ _（暂无）_
 
 > 当设计文件 `status` 变为 `superseded` 或章节实质变更时，`design_refs` 指向它的任务在此登记，等待核对验收与回写目标是否仍成立。
 
-_（暂无）_
+| 设计变更 | 受影响任务 | 核对状态 | 处理要求 |
+|---|---|---|---|
+| `design/frontend/permission-grant.md` §16 取代中栏矩阵直接编辑和右栏双 Tab（2026-07-12） | T-FE-014 | 历史基线已核对 | T-FE-014 保持 done，§15 保留其验收与实现记录，不重新打开任务 |
+| 同上 | T-FE-018 | 已重连，执行前待确认 | `depends_on` 已增加 T-FE-027；联调验收必须以 §16 新交互为准，不得回退旧矩阵 |
+| 同上 | T-FE-024 | 已确认 | T-FE-024 先于 T-FE-026；`AdditionalSettingDialog` 组件抽取 + `ChildPermissionDrawer` 内联化归 T-FE-024，授权弹窗编排归 T-FE-026 |
+| 同上 | T-FE-025~028 | 已确认 | §16.8 R1~R11 全部已确认；R10 子权限逐项配置、R11 重叠语义已回写；plan 已 active |
 
 ## 已完成（done，待计划归档时清理）
 

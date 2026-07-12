@@ -34,7 +34,7 @@ last_updated: 2026-06-29
 | ID | 内容 | 领域 | 优先级 |
 |---|---|---|---|
 | T-FE-023 | SPI 策略扩展验证 + 扩展指南（`docs/design/frontend/extension-guide.md`） | frontend | 🔴 |
-| T-FE-024 | ReConditionPicker + ReConditionEditor 条件选择/编辑组件抽取 | frontend | 🟡 |
+| T-FE-024 | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | frontend | 🟡 |
 | T-ADMIN-020 | admin-service CRUD 代码清理（痛点 #6） | admin-service | 🟢 低 |
 | T-PERM-038 | 全局 TODO 收口（improvement-plan 附录 A） | permission-center | 🟡 |
 | T-PERM-039 | 测试补充（permission-center 新增改造接口测试） | permission-center | 🟡 |
