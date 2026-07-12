@@ -853,14 +853,14 @@ export function usePermissionGrant() {
 
   // ========== 保存（两步 + 部分失败，决策点 5） ==========
 
-  async function saveAll() {
-    if (!currentRole.value || readonly.value || saving.value) return;
+  async function saveAll(): Promise<boolean> {
+    if (!currentRole.value || readonly.value || saving.value) return false;
     // P1-3：baseline 过期时阻止继续保存（避免基于旧数据重复操作）
     if (baselineStale.value) {
       message("权限事实已过期，请重新选择角色刷新后再保存", {
         type: "warning"
       });
-      return;
+      return false;
     }
     const role = currentRole.value;
     saving.value = true;
@@ -1043,9 +1043,11 @@ export function usePermissionGrant() {
       } else {
         message("保存成功", { type: "success" });
       }
+      return true;
     } catch (e) {
       saveError.value = e instanceof Error ? e.message : "保存失败";
       message(saveError.value, { type: "error" });
+      return true; // 已开始保存（通过门禁），失败状态已记录在 saveError/failedChildren
     } finally {
       saving.value = false;
     }
@@ -1072,14 +1074,30 @@ export function usePermissionGrant() {
       }
       applyChildOpsToDraft(pendingOps);
       saveError.value = null;
-      await saveAll();
+      // P2：reload 后能力可能变更（canManage=false 只读）或 saving 占用，saveAll 前置门禁会拦截；
+      // 未真正开始保存时恢复 failedChildren 与提示，避免重试入口和失败元数据丢失
+      const started = await saveAll();
+      if (!started) {
+        failedChildren.value = pendingOps;
+        saveError.value = readonly.value
+          ? "权限能力已变更，当前为只读，无法继续保存"
+          : "保存正在进行中，请稍后重试";
+        message(saveError.value, { type: "warning" });
+      }
       return;
     }
 
     // 非 stale：直接应用失败操作（failedChildren 由 saveAll 开头清空）
     applyChildOpsToDraft(failedChildren.value);
     saveError.value = null;
-    await saveAll();
+    // P2：非 stale 下若被前置门禁拦截（readonly/saving），failedChildren 已保留，仅需恢复提示
+    const started = await saveAll();
+    if (!started) {
+      saveError.value = readonly.value
+        ? "权限能力已变更，当前为只读，无法继续保存"
+        : "保存正在进行中，请稍后重试";
+      message(saveError.value, { type: "warning" });
+    }
   }
 
   /** 将失败操作应用到 childDraft（add->set childKey，remove->delete childKey） */

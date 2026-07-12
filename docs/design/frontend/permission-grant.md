@@ -640,3 +640,9 @@ interface GrantCapabilities {
 | P1 | stale 状态下重试丢失失败操作信息（retryFailedChildren 先清 failedChildren/saveError 再调 saveAll，被 stale guard 拦截后信息丢失；非 stale 分支提前清空被 readonly/saving guard 拦截同样丢失） | retryFailedChildren 不再提前清 failedChildren（统一由 saveAll 开头清空，保存实际开始才清）；stale 分支先备份 `pendingOps` -> reloadBaseline -> 成功后重新应用到新 childDraft -> saveAll，刷新失败则保留 failedChildren 提示"权限事实仍刷新失败，无法重试"；抽取 `applyChildOpsToDraft` helper 复用 add->set/remove->delete 循环 |
 | P2-1 | 本地适配字段 domainCode 被发给真实后端（getChildPermissions 把整个 ChildPermissionQueryReq 作为 wire body，真实契约只要 permissionId） | getChildPermissions 拆分 wire body `{ permissionId }` 与本地 `data.domainCode`（仅 adapt 补齐用，不发送） |
 | P2-2 | 设计回写误述后端 scope 字段（§15.6 P1-1 写 "scopeAll 是 boolean"，实际后端已返回 ScopeMode scopeMode 枚举） | §15.6 P1-1 问题列改为 "scopeMode 是 ScopeMode 枚举，兼容旧 scopeAll boolean"；修复列同步改为 "scopeMode 优先、兼容旧 scopeAll 双字段容错" |
+
+### 15.9 第六轮评审修复（2026-07-11，1 P2）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P2 | stale 重试 reloadBaseline 成功后若能力变只读（canManage=false）或 saving 占用，saveAll 前置门禁拦截，failedChildren 已被 reloadBaseline 清空、saveError 已置 null，重试入口与失败元数据丢失（且只读时保存按钮不可用） | saveAll 改为返回 `Promise<boolean>`（前置门禁/ stale guard 拦截 return false，通过门禁后 try 正常完成与 catch 均 return true，表示已开始保存）；retryFailedChildren stale 分支 `started = await saveAll()`，未开始时恢复 `failedChildren = pendingOps` + saveError 提示（只读="权限能力已变更，当前为只读，无法继续保存" / 进行中="保存正在进行中，请稍后重试"）；非 stale 分支未开始时仅恢复 saveError 提示（failedChildren 已保留，未被 saveAll 清空） |
