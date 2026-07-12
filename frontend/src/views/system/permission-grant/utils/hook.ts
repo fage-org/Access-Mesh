@@ -1051,11 +1051,41 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 重试失败的子权限（P1-6：按 op 直接 set/delete childKey，不重建父键） */
+  /**
+   * 重试失败的子权限（P1-6：按 op 直接 set/delete childKey，不重建父键）
+   * P1-重试：stale 状态下先刷新 baseline，避免被 saveAll 的 stale guard 拦截后丢失失败操作信息；
+   * failedChildren 不在此处清空，统一由 saveAll 开头清空（保存实际开始），避免被前置 guard 拦截后丢失。
+   */
   async function retryFailedChildren() {
     if (failedChildren.value.length === 0) return;
+
+    // stale 状态：reloadBaseline 成功会清空 failedChildren 并重置 childDraft，需先备份再重新应用
+    if (baselineStale.value) {
+      const pendingOps = [...failedChildren.value];
+      const reloadOk = await reloadBaseline();
+      if (!reloadOk) {
+        // 刷新仍失败，reloadBaseline 失败路径保留 failedChildren，用户可重新选择角色或再次重试
+        message("权限事实仍刷新失败，无法重试，请重新选择角色刷新", {
+          type: "warning"
+        });
+        return;
+      }
+      applyChildOpsToDraft(pendingOps);
+      saveError.value = null;
+      await saveAll();
+      return;
+    }
+
+    // 非 stale：直接应用失败操作（failedChildren 由 saveAll 开头清空）
+    applyChildOpsToDraft(failedChildren.value);
+    saveError.value = null;
+    await saveAll();
+  }
+
+  /** 将失败操作应用到 childDraft（add->set childKey，remove->delete childKey） */
+  function applyChildOpsToDraft(ops: FailedChildOp[]) {
     const newMap = new Map(childDraft.value);
-    for (const fop of failedChildren.value) {
+    for (const fop of ops) {
       if (fop.op === "add") {
         newMap.set(fop.childKey, fop.child);
       } else {
@@ -1063,9 +1093,6 @@ export function usePermissionGrant() {
       }
     }
     childDraft.value = newMap;
-    failedChildren.value = [];
-    saveError.value = null;
-    await saveAll();
   }
 
   /** 放弃全部更改 */

@@ -594,13 +594,15 @@ export const saveRolePermission = async (
   };
 };
 
-/** 查询主权限下的子权限（§6.5；P2-3：复用 adaptRolePermissionItem 适配真实响应） */
+/** 查询主权限下的子权限（§6.5；P2-3：复用 adaptRolePermissionItem 适配真实响应；P2：wire body 只发 permissionId，domainCode 仅本地适配） */
 export const getChildPermissions = async (
   data: ChildPermissionQueryReq
 ): Promise<ChildPermissionQueryResp> => {
   const res = await http.request<
     PermResult<{ items: RawRolePermissionItem[] }>
-  >("post", "/api/perm/role-resource-permission/children", { data });
+  >("post", "/api/perm/role-resource-permission/children", {
+    data: { permissionId: data.permissionId }
+  });
   const raw = unwrap(res);
   return {
     items: (raw.items ?? []).map(i =>

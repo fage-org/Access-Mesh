@@ -612,7 +612,7 @@ interface GrantCapabilities {
 
 | # | 问题 | 修复 |
 |---|---|---|
-| P1-1 | 响应类型与真实后端契约不兼容（RolePermissionItemsResp 只有 items；ItemResp 无 domainCode/grantSource，scopeAll 是 boolean） | API 层新增 RawRolePermissionItem/RawRolePermissionListResp + adaptRolePermissionItem/adaptRolePermissionList：scopeMode/scopeAll 双字段容错、domainCode 从请求补齐、grantSource 默认 MANUAL（待 T-PERM-034）、domainCapability/operatorCapability 防御 default（保守空，禁止默认全可用）；getRolePermissionList/saveRolePermission/addChildPermission 均经 adapt |
+| P1-1 | 响应类型与真实后端契约不兼容（RolePermissionItemsResp 只有 items；ItemResp 无 domainCode/grantSource，scopeMode 是 ScopeMode 枚举，兼容旧 scopeAll boolean） | API 层新增 RawRolePermissionItem/RawRolePermissionListResp + adaptRolePermissionItem/adaptRolePermissionList：scopeMode 优先、兼容旧 scopeAll 双字段容错、domainCode 从请求补齐、grantSource 默认 MANUAL（待 T-PERM-034）、domainCapability/operatorCapability 防御 default（保守空，禁止默认全可用）；getRolePermissionList/saveRolePermission/addChildPermission 均经 adapt |
 | P1-2 | 角色树与授权 mock 角色事实不一致（共享树 GROUP_402/403/PERSONAL_501/ORG_1/POSITION_30，授权 mock 不认识；role_admin/role_report_viewer 不在共享树） | roleFacts 对齐共享树 9 标识（删 role_admin/role_report_viewer，新增 GROUP_402/403，ORG_501->ORG_1，POS_601->POSITION_30，PERSONAL_u10001->PERSONAL_501）；permissionFacts 迁移 role_admin->BASIC_201、role_report_viewer->BASIC_202；不修改 role-manage.ts |
 | P1-3 | 加载失败保留上一角色权限状态（selectRole 先设 currentRole 再加载，失败不清空/回滚） | 重构 loadRolePermissionSnapshot(role, domainCode) 返回完整 snapshot 不修改 refs；selectRole 先加载快照成功后一次性提交 currentRole/domain/baseline/draft/capabilities，失败旧上下文完全不变；reloadBaseline 同步重构 |
 | P1-4 | 父权限 ID 无法解析时仍报告保存成功（failedChildAdd.push 后未设 childFailureOccurred） | parentId null 时追加 childFailureOccurred = true + 保留 FailedChildOp { op:"add", child, childKey } |
@@ -632,3 +632,11 @@ interface GrantCapabilities {
 | P2-1 | 子权限示例无法从矩阵进入（BASIC_202 用 REPORT，共享无 REPORT）+ 扩展发现 BASIC_201 菜单 code 也不匹配共享树 | permissionFacts + resourceFacts 全部对齐共享资源树：BASIC_201 `sys:role`->`role`、`sys:user`->`user`；BASIC_202 REPORT/report:sales/DATA_READ -> MENU/res-op/VIEW，子权限 DATA/data:city:*/DATA_READ -> DATA/dept-data|role-data/VIEW；操作 DATA_READ->VIEW |
 | P2-2 | 搜索不递归匹配嵌套角色（GROUP_403 在 GROUP_401 下，只过滤直接 children 搜不到） | 新增 filterRoleTree 递归过滤，保留命中节点及其祖先链（自身匹配保留全部 children，仅子孙匹配只保留匹配子树） |
 | P2-3 | children 接口绕过真实响应适配（直接 unwrap 未 adapt） | ChildPermissionQueryReq 加 `domainCode?`；getChildPermissions 复用 adaptRolePermissionItem 适配（scopeAll/scopeMode 容错 + domainCode 补齐 + grantSource 默认） |
+
+### 15.8 第五轮评审修复（2026-07-11，1 P1 + 2 P2）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P1 | stale 状态下重试丢失失败操作信息（retryFailedChildren 先清 failedChildren/saveError 再调 saveAll，被 stale guard 拦截后信息丢失；非 stale 分支提前清空被 readonly/saving guard 拦截同样丢失） | retryFailedChildren 不再提前清 failedChildren（统一由 saveAll 开头清空，保存实际开始才清）；stale 分支先备份 `pendingOps` -> reloadBaseline -> 成功后重新应用到新 childDraft -> saveAll，刷新失败则保留 failedChildren 提示"权限事实仍刷新失败，无法重试"；抽取 `applyChildOpsToDraft` helper 复用 add->set/remove->delete 循环 |
+| P2-1 | 本地适配字段 domainCode 被发给真实后端（getChildPermissions 把整个 ChildPermissionQueryReq 作为 wire body，真实契约只要 permissionId） | getChildPermissions 拆分 wire body `{ permissionId }` 与本地 `data.domainCode`（仅 adapt 补齐用，不发送） |
+| P2-2 | 设计回写误述后端 scope 字段（§15.6 P1-1 写 "scopeAll 是 boolean"，实际后端已返回 ScopeMode scopeMode 枚举） | §15.6 P1-1 问题列改为 "scopeMode 是 ScopeMode 枚举，兼容旧 scopeAll boolean"；修复列同步改为 "scopeMode 优先、兼容旧 scopeAll 双字段容错" |
