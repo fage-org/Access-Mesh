@@ -11,6 +11,7 @@ import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perm
 import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
 import { PERMISSION_CHANGE_LOG_PERM_LIST } from "@/views/system/permission-change-log/utils/perms";
 import { PERMISSION_QUERY_PERM_LIST } from "@/views/system/permission-query/utils/perms";
+import { PERMISSION_GRANT_PERM_LIST } from "@/views/system/permission-grant/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -175,6 +176,19 @@ export default {
         // 单一事实源派生：见 views/system/permission-query/utils/perms.ts
         // 临时复用 SYSTEM_CONFIG:VIEW（T-PERM-033 后切换 PERMISSION_QUERY:VIEW 全链路）
         auths: [...PERMISSION_QUERY_PERM_LIST]
+      }
+    },
+    {
+      path: "/system/permission-grant",
+      name: "SystemPermissionGrant",
+      component: () => import("@/views/system/permission-grant/index.vue"),
+      meta: {
+        icon: "ep/lock",
+        title: "权限授予",
+        // 单一事实源派生：见 views/system/permission-grant/utils/perms.ts
+        // ROLE:VIEW 控制页面查看；ROLE:MANAGE 控制编辑/保存；CONDITION:VIEW/CREATE 内联条件
+        // 后端目标角色实例校验仍是最终依据，T-PERM-034 补能力/拒绝语义
+        auths: [...PERMISSION_GRANT_PERM_LIST]
       }
     }
   ]
