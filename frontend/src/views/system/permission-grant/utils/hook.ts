@@ -436,23 +436,27 @@ export function usePermissionGrant() {
     operationCode: string
   ) {
     if (readonly.value) return;
-    const { grantable, reason } = isGrantableByOperator(
-      resourceTypeCode,
-      operationCode
-    );
-    if (!grantable) {
-      message(`不可授予：${reason}`, { type: "warning" });
-      return;
-    }
-    const key = mainKeyOf(
-      currentDomainCode.value,
+    const state = getMainCellState(
       resourceTypeCode,
       scopeMode,
       resourceCode,
       codeType,
       operationCode
     );
-    const state = getMainCellState(
+    // P1-6：只在新增时检查 grantableByOperator；撤销/恢复不检查
+    // （后端 canGrant 校验约束新增和提升转授权，不约束普通回收）
+    if (state === "UNAUTHORIZED" || state === "ALL_COVERED") {
+      const { grantable, reason } = isGrantableByOperator(
+        resourceTypeCode,
+        operationCode
+      );
+      if (!grantable) {
+        message(`不可授予：${reason}`, { type: "warning" });
+        return;
+      }
+    }
+    const key = mainKeyOf(
+      currentDomainCode.value,
       resourceTypeCode,
       scopeMode,
       resourceCode,
@@ -673,7 +677,8 @@ export function usePermissionGrant() {
       }
     }
     currentRole.value = role;
-    currentDomainCode.value = role.domainCode || "example";
+    // P1-7：全局角色 domainCode 保持空（契约空域=全局对象），不强制 "example"
+    currentDomainCode.value = role.domainCode ?? "";
     await Promise.all([loadRolePermission(), reloadResourceContext()]);
   }
 
@@ -802,6 +807,7 @@ export function usePermissionGrant() {
       const updateItems: RolePermissionUpdateItem[] = [];
       const mainRemove: number[] = [];
       const childRemoveIds: number[] = [];
+      const childRemoveItems: DraftPermission[] = [];
       const childAddGrouped: { parentKey: string; child: DraftPermission }[] =
         [];
 
@@ -832,6 +838,7 @@ export function usePermissionGrant() {
           });
         } else if (d.type === "remove") {
           childRemoveIds.push(d.permission.id!);
+          childRemoveItems.push(d.permission);
         }
       }
 
@@ -846,38 +853,41 @@ export function usePermissionGrant() {
         return;
       }
 
-      // Step 1: save（主权限 add/update/remove + 子权限 update）
-      const saveResp = await saveRolePermission({
-        domainCode: currentDomainCode.value,
-        roleTypeCode: role.roleTypeCode,
-        roleExternalId: role.roleExternalId,
-        add: mainAdd,
-        update: updateItems,
-        remove: mainRemove
-      });
-
-      // Step 2: 匹配新主权限 id（按稳定键）
+      // P1-2：主权限 add/update/remove + 子权限 update 全空时跳过 save
+      // （真实后端 GRANT_REQUEST_EMPTY，mock save 端点已兜底校验）
       const tempKeyToServerId = new Map<string, number>();
-      for (const item of saveResp.items) {
-        const key = mainKeyOf(
-          item.domainCode,
-          item.resourceTypeCode,
-          item.scopeMode,
-          item.resourceCode,
-          item.codeType,
-          item.operationCode
-        );
-        tempKeyToServerId.set(key, item.id);
+      const needMainSave =
+        mainAdd.length > 0 || updateItems.length > 0 || mainRemove.length > 0;
+      if (needMainSave) {
+        const saveResp = await saveRolePermission({
+          domainCode: currentDomainCode.value,
+          roleTypeCode: role.roleTypeCode,
+          roleExternalId: role.roleExternalId,
+          add: mainAdd,
+          update: updateItems,
+          remove: mainRemove
+        });
+        // 匹配新主权限 id（按稳定键）
+        for (const item of saveResp.items) {
+          const key = mainKeyOf(
+            item.domainCode,
+            item.resourceTypeCode,
+            item.scopeMode,
+            item.resourceCode,
+            item.codeType,
+            item.operationCode
+          );
+          tempKeyToServerId.set(key, item.id);
+        }
       }
 
       // Step 3: add-child（新子权限，按 parentPermissionId 分组）
       const failedChildAdd: DraftPermission[] = [];
       const addChildByParent = new Map<number, RolePermissionAddItem[]>();
       for (const { parentKey, child } of childAddGrouped) {
-        // 找父权限 id：已保存主权限用 baseline id，新主权限用匹配的 server id
-        const parentBase = mainBaseline.value.get(parentKey);
+        // P1-3：优先用 child.dependOn（已保存主权限），否则用 tempKeyToServerId（新主权限）
         const parentId =
-          parentBase?.id ?? tempKeyToServerId.get(parentKey) ?? null;
+          child.dependOn ?? tempKeyToServerId.get(parentKey) ?? null;
         if (!parentId) {
           // 父权限未保存成功
           failedChildAdd.push(child);
@@ -916,22 +926,24 @@ export function usePermissionGrant() {
         }
       }
 
-      // Step 4: remove-child（删除的子权限）
-      for (const childId of childRemoveIds) {
+      // Step 4: remove-child（删除的子权限，P1-4：失败保留重试信息）
+      const failedChildRemove: DraftPermission[] = [];
+      for (let i = 0; i < childRemoveIds.length; i++) {
         try {
-          await removeChildPermission({ permissionId: childId });
+          await removeChildPermission({ permissionId: childRemoveIds[i] });
         } catch {
           childFailureOccurred = true;
+          failedChildRemove.push(childRemoveItems[i]);
         }
       }
 
       // Step 5: 重载 baseline
       await reloadBaseline();
 
-      // Step 6: 部分失败处理（决策点 5）
-      if (childFailureOccurred && failedChildAdd.length > 0) {
-        failedChildren.value = failedChildAdd;
-        message(saveError.value ?? "部分子权限保存失败", { type: "warning" });
+      // Step 6: 部分失败处理（决策点 5，P1-4：remove-child 失败也纳入）
+      if (childFailureOccurred) {
+        failedChildren.value = [...failedChildAdd, ...failedChildRemove];
+        message(saveError.value ?? "部分子权限操作失败", { type: "warning" });
       } else {
         message("保存成功", { type: "success" });
       }
@@ -1041,15 +1053,23 @@ export function usePermissionGrant() {
     }
   }
 
-  // ========== 离开保护（§9.3） ==========
+  // ========== 离开保护（§9.3，P1-8：可移除监听器 + 路由导航由 index.vue onBeforeRouteLeave 拦截） ==========
 
+  const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+    if (hasDraft.value) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  };
   if (typeof window !== "undefined") {
-    window.addEventListener("beforeunload", e => {
-      if (hasDraft.value) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    });
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+  }
+
+  /** 移除监听器（组件卸载时调用，避免内存泄漏） */
+  function cleanup() {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
+    }
   }
 
   return {
@@ -1109,6 +1129,8 @@ export function usePermissionGrant() {
     saveAll,
     discardAll,
     revertDiff,
-    retryFailedChildren
+    retryFailedChildren,
+    // 离开保护
+    cleanup
   };
 }

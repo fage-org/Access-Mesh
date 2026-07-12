@@ -593,3 +593,17 @@ interface GrantCapabilities {
 | 条件编辑/选择器 | 已达第二个使用场景（条件管理页 + 本页附加设置），确认后续抽取 ReConditionPicker/ReConditionEditor |
 | 角色树数据适配层 | 登记，P0 不抽取整块 UI（页面语义差异大） |
 | 资源树数据适配层 | 登记，P0 不抽取整块 UI（页面语义差异大） |
+
+### 15.5 评审修复（2026-07-11，9 项 P1 + 补充）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P1-1 | mock 重复注册 5 共享端点 | 删除重复端点，API adapt* 适配现有 mock 结构（角色树 items[0].root.children + 字段映射 + 能力推断；资源类型过滤 resource_type + 能力推断；资源树解包 items[].root；操作 code->operationCode；条件 summary 派生） |
+| P1-2 | 空主权限 save | saveAll 主权限 add/update/remove 全空时跳过 save；mock save 端点 GRANT_REQUEST_EMPTY 兜底 |
+| P1-3 | dependOnTempKey 为 null | saveAll 优先用 child.dependOn 解析父权限 id |
+| P1-4 | remove-child 失败判断 | failedChildRemove 纳入失败列表 + 修正最终判断 |
+| P1-5 | 子权限抽屉只取 [0] + 无 ALL + 无附加设置 | 类型切换器 + ALL 行（supportsAll）+ 附加设置入口（emit open-setting） |
+| P1-6 | 撤销也检查 grantableByOperator | toggleMainCell 只在新增时检查（canGrant 不约束回收） |
+| P1-7 | domainCode 强制 "example" | selectRole 保持空（契约空域=全局）；mock permissionFacts domainCode="" |
+| P1-8 | 离开保护不拦截路由 + 不移除监听器 | onBeforeRouteLeave + onUnmounted cleanup |
+| 补充 | supportsCondition/Delegation 未消费 | AdditionalSettingDialog 按能力禁用条件/canGrant + 子权限支持（setChildCellAttr） |

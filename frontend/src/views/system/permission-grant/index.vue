@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, provide } from "vue";
+import { ref, onMounted, onUnmounted, provide } from "vue";
+import { onBeforeRouteLeave } from "vue-router";
+import { ElMessageBox } from "element-plus";
 import { usePermissionGrant } from "./utils/hook";
 import RoleTreePanel from "./components/RoleTreePanel.vue";
 import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
@@ -37,6 +39,26 @@ onMounted(() => {
     store.loadStaticData();
     store.loadRoleTree();
   }
+});
+
+// P1-8：路由导航离开保护（有草稿时拦截 Vue Router 内部导航）
+onBeforeRouteLeave(async () => {
+  if (store.hasDraft.value) {
+    try {
+      await ElMessageBox.confirm(
+        "当前有未保存的变更，离开将丢弃。是否继续？",
+        "离开页面",
+        { type: "warning" }
+      );
+    } catch {
+      return false;
+    }
+  }
+});
+
+// P1-8：组件卸载时移除 beforeunload 监听器（避免内存泄漏）
+onUnmounted(() => {
+  store.cleanup();
 });
 </script>
 
@@ -90,7 +112,11 @@ onMounted(() => {
       v-model="settingVisible"
       :context="settingContext"
     />
-    <ChildPermissionDrawer v-model="childVisible" :context="childContext" />
+    <ChildPermissionDrawer
+      v-model="childVisible"
+      :context="childContext"
+      @open-setting="onOpenSetting"
+    />
   </div>
 </template>
 

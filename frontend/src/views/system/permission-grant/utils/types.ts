@@ -151,6 +151,13 @@ export interface AdditionalSettingContext {
   isNew: boolean;
   /** 是否只读 */
   readonly: boolean;
+  /** 是否子权限（子权限用 setChildCellAttr） */
+  isChild?: boolean;
+  /** 子权限稳定键（isChild=true 时用，主权限时等于 key） */
+  childKey?: string;
+  /** 资源类型能力（补充修复：禁用条件/canGrant 用） */
+  supportsCondition?: boolean;
+  supportsDelegation?: boolean;
 }
 
 // ========== 子权限抽屉 ==========

@@ -71,10 +71,16 @@ const parentInfo = computed(() => {
 
 function onSave() {
   if (!props.context) return;
-  store.setMainCellAttr(props.context.key, {
+  const attrs = {
     conditionCode: selectedCondition.value || null,
     canGrant: canGrant.value
-  });
+  };
+  // 补充修复：子权限用 setChildCellAttr，主权限用 setMainCellAttr
+  if (props.context.isChild && props.context.childKey) {
+    store.setChildCellAttr(props.context.childKey, attrs);
+  } else {
+    store.setMainCellAttr(props.context.key, attrs);
+  }
   message("附加设置已应用（保存后生效）", { type: "success" });
   visible.value = false;
 }
@@ -139,7 +145,7 @@ async function onCreateCondition() {
         <div class="section-title">
           <span>权限条件</span>
           <el-button
-            v-if="canCreateCondition"
+            v-if="canCreateCondition && context?.supportsCondition !== false"
             link
             type="primary"
             size="small"
@@ -155,6 +161,7 @@ async function onCreateCondition() {
           placeholder="无条件"
           clearable
           filterable
+          :disabled="context?.supportsCondition === false"
           class="condition-select"
         >
           <el-option
@@ -190,9 +197,19 @@ async function onCreateCondition() {
       <!-- 允许继续授权 -->
       <div class="setting-section">
         <div class="section-title">允许继续授权（canGrant）</div>
-        <el-switch v-model="canGrant" />
+        <el-switch
+          v-model="canGrant"
+          :disabled="context?.supportsDelegation === false"
+        />
         <span class="section-hint"
           >开启后该权限持有者可将同一权限授权给他人</span
+        >
+        <el-tag
+          v-if="context?.supportsDelegation === false"
+          size="small"
+          type="info"
+          effect="plain"
+          >该资源类型不支持转授权</el-tag
         >
       </div>
     </template>

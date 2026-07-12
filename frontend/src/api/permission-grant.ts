@@ -18,6 +18,7 @@
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
+import { summarizeRules } from "@/views/system/permission-condition/utils/types";
 
 /** 授权侧范围模式（§6.4：只允许 INSTANCE/ALL；DENIED/EMPTY 是查询侧四态） */
 export type GrantScopeMode = "INSTANCE" | "ALL";
@@ -242,64 +243,212 @@ export interface RemoveChildResp {
   success: boolean;
 }
 
+// ========== 现有 mock 结构适配（P1-1：复用共享端点，结构转换 + 能力推断） ==========
+// 现有 mock 端点结构与本页 API 类型不同，adapt* 函数做字段映射 + 能力推断：
+// - 角色树（role-manage.ts）：items[0].root.children，字段 name/externalId/status，无能力字段
+// - 资源类型（type-def.ts）：TypeDefResp（typeKey=resource_type），无 supportsXxx
+// - 资源树（resource-operation.ts）：items[].root，字段 code/name
+// - 操作（resource-operation.ts）：字段 code/name，inheritMask 为 number
+// - 条件（permission-condition.ts）：ConditionResp，id（非 conditionId），无 summary
+
+/** 现有 mock 角色树节点 */
+interface RawRoleNode {
+  id: number;
+  roleTypeCode: string;
+  name: string;
+  externalId: string;
+  status: number; // 1=启用 0=禁用
+  children?: RawRoleNode[];
+}
+
+/** 角色能力推断（§3.4：GROUP_ROLE directGrantable=false） */
+function adaptRoleNode(r: RawRoleNode): RoleTreeNode {
+  const directGrantable = r.roleTypeCode !== "GROUP_ROLE";
+  const enabled = r.status === 1;
+  return {
+    roleTypeCode: r.roleTypeCode,
+    roleExternalId: r.externalId,
+    roleName: r.name,
+    domainCode: "",
+    parentId: r.id?.toString() ?? null,
+    enabled,
+    directGrantable,
+    canView: true,
+    canManage: directGrantable && enabled,
+    children: (r.children ?? []).map(adaptRoleNode)
+  };
+}
+
+function adaptRoleTree(rawItems: Array<{ root: RawRoleNode }>): RoleTreeNode[] {
+  const forest = rawItems[0]?.root?.children ?? [];
+  const typeOrder = ["BASIC_ROLE", "GROUP_ROLE", "ORG", "POSITION", "PERSONAL"];
+  const typeLabels: Record<string, string> = {
+    BASIC_ROLE: "基础角色",
+    GROUP_ROLE: "组合角色",
+    ORG: "组织角色",
+    POSITION: "岗位角色",
+    PERSONAL: "个人角色"
+  };
+  return typeOrder
+    .map(typeCode => {
+      const roles = forest.filter(r => r.roleTypeCode === typeCode);
+      if (roles.length === 0) return null;
+      return {
+        roleTypeCode: typeCode,
+        roleExternalId: `__virtual_root_${typeCode}`,
+        roleName: typeLabels[typeCode],
+        domainCode: "",
+        parentId: null,
+        enabled: true,
+        directGrantable: false,
+        canView: false,
+        canManage: false,
+        children: roles.map(adaptRoleNode)
+      } as RoleTreeNode;
+    })
+    .filter((n): n is RoleTreeNode => n !== null);
+}
+
+/** 现有 mock 资源类型定义 */
+interface RawTypeDef {
+  typeKey: string;
+  typeCode: string;
+  name: string;
+}
+
+/** 资源类型能力推断（API/BUTTON supportsAll=false supportsDelegation=false） */
+function adaptResourceTypes(rawItems: RawTypeDef[]): ResourceTypeItem[] {
+  return rawItems
+    .filter(t => t.typeKey === "resource_type")
+    .map(t => {
+      const limited = t.typeCode === "API" || t.typeCode === "BUTTON";
+      return {
+        resourceTypeCode: t.typeCode,
+        resourceTypeName: t.name,
+        supportsInstance: true,
+        supportsAll: !limited,
+        supportsCondition: true,
+        supportsDelegation: !limited
+      };
+    });
+}
+
+/** 现有 mock 资源树节点 */
+interface RawResourceNode {
+  code: string;
+  codeType: string;
+  name: string;
+  children?: RawResourceNode[];
+}
+
+function adaptResourceNode(n: RawResourceNode): ResourceTreeNode {
+  return {
+    resourceCode: n.code,
+    codeType: n.codeType,
+    resourceName: n.name,
+    parentCode: null,
+    children: (n.children ?? []).map(adaptResourceNode)
+  };
+}
+
+function adaptResourceTree(
+  rawItems: Array<{ root: RawResourceNode }>
+): ResourceTreeNode[] {
+  return rawItems.map(item => adaptResourceNode(item.root));
+}
+
+/** 现有 mock 操作 */
+interface RawOperation {
+  resourceTypeCode: string | null;
+  code: string;
+  name: string;
+  inheritMask: number;
+}
+
+function adaptOperations(rawItems: RawOperation[]): OperationItem[] {
+  return rawItems.map(op => ({
+    operationCode: op.code,
+    operationName: op.name,
+    resourceTypeCode: op.resourceTypeCode ?? "",
+    inheritMask: op.inheritMask ? String(op.inheritMask) : null
+  }));
+}
+
+/** 现有 mock 条件 */
+interface RawCondition {
+  id: number;
+  code: string;
+  name: string;
+  conditionRules: string;
+  enabled: boolean;
+  gatewayEvaluable: boolean;
+}
+
+function adaptConditions(rawItems: RawCondition[]): ConditionOption[] {
+  return rawItems.map(c => ({
+    conditionId: c.id,
+    code: c.code,
+    name: c.name,
+    enabled: c.enabled,
+    gatewayEvaluable: c.gatewayEvaluable,
+    summary: summarizeRules(c.conditionRules)
+  }));
+}
+
 // ========== API 函数 ==========
 
-/** 角色树（五类型虚拟根 + 能力字段） */
+/** 角色树（复用 abstract-role/tree，适配为五类型虚拟根 + 能力字段） */
 export const getRoleTree = async (data: RoleTreeReq): Promise<RoleTreeResp> => {
-  const res = await http.request<PermResult<RoleTreeResp>>(
-    "post",
-    "/api/perm/abstract-role/tree",
-    { data }
-  );
-  return unwrap(res);
+  const res = await http.request<
+    PermResult<{ items: Array<{ root: RawRoleNode }> }>
+  >("post", "/api/perm/abstract-role/tree", { data });
+  return { items: adaptRoleTree(unwrap(res).items) };
 };
 
-/** 资源类型列表 */
+/** 资源类型列表（复用 type-definition/list，过滤 resource_type + 能力推断） */
 export const getResourceTypeList = async (
   data: ResourceTypeListReq
 ): Promise<ResourceTypeListResp> => {
-  const res = await http.request<PermResult<ResourceTypeListResp>>(
+  const res = await http.request<PermResult<{ items: RawTypeDef[] }>>(
     "post",
     "/api/perm/type-definition/list",
     { data }
   );
-  return unwrap(res);
+  return { items: adaptResourceTypes(unwrap(res).items) };
 };
 
-/** 资源树（按资源类型） */
+/** 资源树（复用 resource-entity/tree，解包 items[].root + 字段映射） */
 export const getResourceTree = async (
   data: ResourceTreeReq
 ): Promise<ResourceTreeResp> => {
-  const res = await http.request<PermResult<ResourceTreeResp>>(
-    "post",
-    "/api/perm/resource-entity/tree",
-    { data }
-  );
-  return unwrap(res);
+  const res = await http.request<
+    PermResult<{ items: Array<{ root: RawResourceNode }> }>
+  >("post", "/api/perm/resource-entity/tree", { data });
+  return { items: adaptResourceTree(unwrap(res).items) };
 };
 
-/** 操作列表（按资源类型） */
+/** 操作列表（复用 operation-permission/list，字段映射 code->operationCode） */
 export const getOperationList = async (
   data: OperationListReq
 ): Promise<OperationListResp> => {
-  const res = await http.request<PermResult<OperationListResp>>(
+  const res = await http.request<PermResult<{ items: RawOperation[] }>>(
     "post",
     "/api/perm/operation-permission/list",
     { data }
   );
-  return unwrap(res);
+  return { items: adaptOperations(unwrap(res).items) };
 };
 
-/** 条件候选列表 */
+/** 条件候选列表（复用 permission-condition/list，映射 + summary 派生） */
 export const getConditionList = async (
   data: ConditionListReq
 ): Promise<ConditionListResp> => {
-  const res = await http.request<PermResult<ConditionListResp>>(
+  const res = await http.request<PermResult<{ items: RawCondition[] }>>(
     "post",
     "/api/perm/permission-condition/list",
     { data }
   );
-  return unwrap(res);
+  return { items: adaptConditions(unwrap(res).items) };
 };
 
 /** 查询角色已有权限事实 + 业务域能力 + 操作者能力 */
