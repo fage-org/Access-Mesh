@@ -2,20 +2,10 @@
 import { ref, watch, computed } from "vue";
 import { inject } from "vue";
 import { message } from "@/utils/message";
-import { hasPerms } from "@/utils/auth";
-import { PERMISSION_GRANT_PERMS } from "../utils/perms";
 import { usePermissionGrant } from "../utils/hook";
 import { permCellKey, type AdditionalSettingContext } from "../utils/types";
-import ConditionForm from "@/views/system/permission-condition/components/ConditionForm.vue";
-import {
-  createCondition,
-  type ConditionResp
-} from "@/api/permission-condition";
-import {
-  serializeRules,
-  summarizeRules,
-  type ConditionFormData
-} from "@/views/system/permission-condition/utils/types";
+import { ReConditionPicker } from "@/components/ReConditionPicker";
+import { type ConditionOption } from "@/api/permission-grant";
 
 defineOptions({ name: "AdditionalSettingDialog" });
 
@@ -37,15 +27,7 @@ const visible = computed({
 // 条件选择
 const selectedCondition = ref<string | null>(null);
 const canGrant = ref(false);
-
-// 内联新建条件（决策点 1：直接复用 ConditionForm）
-const showCreateCondition = ref(false);
-const conditionFormRef = ref<InstanceType<typeof ConditionForm>>();
-const creating = ref(false);
-
-const canCreateCondition = computed(() =>
-  hasPerms(PERMISSION_GRANT_PERMS.CONDITION_CREATE)
-);
+const pickerRef = ref<InstanceType<typeof ReConditionPicker>>();
 
 watch(
   () => props.context,
@@ -53,11 +35,17 @@ watch(
     if (ctx) {
       selectedCondition.value = ctx.draft.conditionCode;
       canGrant.value = ctx.draft.canGrant;
-      showCreateCondition.value = false;
+      // 上下文切换时复位内联新建态，避免跨权限残留
+      pickerRef.value?.reset();
     }
   },
   { immediate: true }
 );
+
+// 弹窗关闭时复位内联新建态（P2：showCreate 不随外层关闭重置）
+watch(visible, v => {
+  if (!v) pickerRef.value?.reset();
+});
 
 const conditionOptions = computed(() => store.conditions.value);
 
@@ -69,13 +57,20 @@ const parentInfo = computed(() => {
   return `${d.resourceTypeCode} / ${res} / ${d.operationCode} / ${d.scopeMode}`;
 });
 
+/** ReConditionPicker 内联创建成功 -> 追加到 store.conditions（保持单源） */
+function onCreated(option: ConditionOption) {
+  store.conditions.value = [...store.conditions.value, option];
+}
+
 function onSave() {
   if (!props.context) return;
+  // 停用条件保存前阻断（ReConditionPicker.validate）
+  if (pickerRef.value && !pickerRef.value.validate()) return;
   const attrs = {
     conditionCode: selectedCondition.value || null,
     canGrant: canGrant.value
   };
-  // 补充修复：子权限用 setChildCellAttr，主权限用 setMainCellAttr
+  // 子权限用 setChildCellAttr，主权限用 setMainCellAttr
   if (props.context.isChild && props.context.childKey) {
     store.setChildCellAttr(props.context.childKey, attrs);
   } else {
@@ -83,45 +78,6 @@ function onSave() {
   }
   message("附加设置已应用（保存后生效）", { type: "success" });
   visible.value = false;
-}
-
-async function onCreateCondition() {
-  if (!conditionFormRef.value) return;
-  creating.value = true;
-  try {
-    const valid = await conditionFormRef.value.validate();
-    if (!valid) return;
-    const formData: ConditionFormData = conditionFormRef.value.getFormData();
-    const resp: ConditionResp = await createCondition({
-      code: formData.code,
-      name: formData.name,
-      conditionRules: serializeRules(formData.rules),
-      enabled: formData.enabled,
-      gatewayEvaluable: formData.gatewayEvaluable,
-      description: formData.description
-    });
-    // 本地追加到条件列表
-    store.conditions.value = [
-      ...store.conditions.value,
-      {
-        conditionId: resp.id,
-        code: resp.code,
-        name: resp.name,
-        enabled: resp.enabled,
-        gatewayEvaluable: resp.gatewayEvaluable,
-        summary: summarizeRules(resp.conditionRules)
-      }
-    ];
-    selectedCondition.value = resp.code;
-    showCreateCondition.value = false;
-    message("条件创建成功", { type: "success" });
-  } catch (e) {
-    message(e instanceof Error ? e.message : "创建条件失败", {
-      type: "error"
-    });
-  } finally {
-    creating.value = false;
-  }
 }
 </script>
 
@@ -140,58 +96,16 @@ async function onCreateCondition() {
 
       <el-divider />
 
-      <!-- 条件选择 -->
+      <!-- 条件选择（ReConditionPicker：搜索 + 摘要 + 启用过滤 + gatewayEvaluable 状态 + 内联新建） -->
       <div class="setting-section">
-        <div class="section-title">
-          <span>权限条件</span>
-          <el-button
-            v-if="canCreateCondition && context?.supportsCondition !== false"
-            link
-            type="primary"
-            size="small"
-            @click="showCreateCondition = !showCreateCondition"
-          >
-            {{ showCreateCondition ? "取消新建" : "新建条件" }}
-          </el-button>
-        </div>
-
-        <el-select
-          v-if="!showCreateCondition"
+        <div class="section-title">权限条件</div>
+        <ReConditionPicker
+          ref="pickerRef"
           v-model="selectedCondition"
-          placeholder="无条件"
-          clearable
-          filterable
+          :conditions="conditionOptions"
           :disabled="context?.supportsCondition === false"
-          class="condition-select"
-        >
-          <el-option
-            v-for="c in conditionOptions"
-            :key="c.code"
-            :label="`${c.name}${c.enabled ? '' : '（已停用）'}`"
-            :value="c.code"
-            :disabled="!c.enabled && c.code !== selectedCondition"
-          >
-            <span>{{ c.name }}</span>
-            <span class="cond-summary">{{ c.summary }}</span>
-          </el-option>
-        </el-select>
-
-        <!-- 内联新建条件（复用 ConditionForm） -->
-        <div v-else class="condition-create">
-          <ConditionForm ref="conditionFormRef" mode="create" />
-          <div class="create-actions">
-            <el-button size="small" @click="showCreateCondition = false"
-              >取消</el-button
-            >
-            <el-button
-              type="primary"
-              size="small"
-              :loading="creating"
-              @click="onCreateCondition"
-              >创建并选中</el-button
-            >
-          </div>
-        </div>
+          @created="onCreated"
+        />
       </div>
 
       <!-- 允许继续授权 -->
@@ -246,9 +160,6 @@ async function onCreateCondition() {
 }
 
 .section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: var(--space-2);
   font-size: 13px;
   font-weight: 600;
@@ -259,29 +170,5 @@ async function onCreateCondition() {
   margin-left: var(--space-2);
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-
-.condition-select {
-  width: 100%;
-}
-
-.cond-summary {
-  float: right;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.condition-create {
-  padding: var(--space-2);
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-}
-
-.create-actions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  margin-top: var(--space-2);
 }
 </style>

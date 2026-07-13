@@ -7,7 +7,9 @@ import RoleTreePanel from "./components/RoleTreePanel.vue";
 import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
 import RightPanel from "./components/RightPanel.vue";
 import AdditionalSettingDialog from "./components/AdditionalSettingDialog.vue";
-import ChildPermissionDrawer from "./components/ChildPermissionDrawer.vue";
+import ChildPermissionInline from "@/components/ChildPermissionInline";
+import type { ChildOpenSettingPayload } from "@/components/ChildPermissionInline";
+import { createChildBinding } from "./utils/child-binding";
 import type {
   AdditionalSettingContext,
   ChildPermissionContext
@@ -24,6 +26,9 @@ const settingContext = ref<AdditionalSettingContext | null>(null);
 const childVisible = ref(false);
 const childContext = ref<ChildPermissionContext | null>(null);
 
+// 子权限 binding（pgStore adapter，T-FE-026 将换弹窗 adapter）
+const childBinding = createChildBinding(store, () => childContext.value);
+
 function onOpenSetting(ctx: AdditionalSettingContext) {
   settingContext.value = ctx;
   settingVisible.value = true;
@@ -32,6 +37,23 @@ function onOpenSetting(ctx: AdditionalSettingContext) {
 function onOpenChild(ctx: ChildPermissionContext) {
   childContext.value = ctx;
   childVisible.value = true;
+}
+
+/** 子权限附加设置：算 childKey + parentKey 构造 AdditionalSettingContext */
+function onOpenChildSetting(payload: ChildOpenSettingPayload) {
+  if (!childContext.value || !payload.draft) return;
+  const ctx: AdditionalSettingContext = {
+    key: childBinding.getParentKey(),
+    draft: payload.draft,
+    isNew: payload.state === "PENDING_ADD",
+    readonly: childContext.value.readonly,
+    isChild: true,
+    childKey: childBinding.getCellKey(payload.input),
+    supportsCondition: payload.supportsCondition,
+    supportsDelegation: payload.supportsDelegation
+  };
+  settingContext.value = ctx;
+  settingVisible.value = true;
 }
 
 onMounted(() => {
@@ -112,11 +134,22 @@ onUnmounted(() => {
       v-model="settingVisible"
       :context="settingContext"
     />
-    <ChildPermissionDrawer
+
+    <!-- 子权限配置：drawer 浮层 + ChildPermissionInline 内联内容 -->
+    <el-drawer
       v-model="childVisible"
-      :context="childContext"
-      @open-setting="onOpenSetting"
-    />
+      title="子权限 / 范围权限配置"
+      size="640px"
+      :close-on-click-modal="false"
+    >
+      <ChildPermissionInline
+        v-if="childContext"
+        :context="childContext"
+        :binding="childBinding"
+        :resource-types="store.resourceTypes.value"
+        @open-setting="onOpenChildSetting"
+      />
+    </el-drawer>
   </div>
 </template>
 

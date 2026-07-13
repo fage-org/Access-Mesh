@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { inject } from "vue";
 import { usePermissionGrant } from "../utils/hook";
 import { permCellKey } from "../utils/types";
-import PermissionCell from "./PermissionCell.vue";
+import { RePermissionCell } from "@/components/RePermissionCell";
 import type {
   PermissionCellContext,
   AdditionalSettingContext,
@@ -197,7 +197,7 @@ const isGroupReadOnly = computed(
             </div>
           </template>
           <template #default="{ row }">
-            <PermissionCell
+            <RePermissionCell
               :context="buildContext(row, op.operationCode)"
               @toggle="onToggle(row, op.operationCode)"
               @open-setting="onOpenSetting(row, op.operationCode)"

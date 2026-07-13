@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { PermissionCellContext } from "../utils/types";
+import type { PermissionCellContext } from "@/utils/permission-grant-types";
 
-defineOptions({ name: "PermissionCell" });
+defineOptions({ name: "RePermissionCell" });
 
-const props = defineProps<{ context: PermissionCellContext }>();
+const props = defineProps<{
+  context: PermissionCellContext;
+  /** 是否显示"子权限"菜单项（子权限只允许一层，内联场景应关闭） */
+  showChildAction?: boolean;
+}>();
 const emit = defineEmits<{
   toggle: [];
   openSetting: [];
@@ -35,12 +39,15 @@ const label = computed(() => {
   }
 });
 
-const showMore = computed(
-  () =>
-    !props.context.readonly &&
-    (["GRANTED", "PENDING_ADD", "MODIFIED"].includes(props.context.state) ||
-      props.context.childCount > 0)
-);
+const showMore = computed(() => {
+  if (props.context.readonly) return false;
+  const hasSetting = ["GRANTED", "PENDING_ADD", "MODIFIED"].includes(
+    props.context.state
+  );
+  const hasChild =
+    props.showChildAction !== false && props.context.childCount > 0;
+  return hasSetting || hasChild;
+});
 
 const tooltip = computed(() => {
   if (props.context.denyReason) return `不可授予：${props.context.denyReason}`;
@@ -95,7 +102,7 @@ const tooltip = computed(() => {
               context.conditionSummary
             }}</span>
           </el-dropdown-item>
-          <el-dropdown-item command="child">
+          <el-dropdown-item v-if="showChildAction !== false" command="child">
             子权限<span v-if="context.childCount > 0"
               >({{ context.childCount }})</span
             >

@@ -39,7 +39,7 @@ last_updated: 2026-07-12
 
 ## 执行门禁
 
-- [ ] T-FE-026 启动前 T-FE-024 已完成；T-FE-025 可在 T-FE-024 执行期间并行推进。
+- [x] T-FE-026 启动前 T-FE-024 已完成；T-FE-025 可在 T-FE-024 执行期间并行推进。
 
 ## 任务清单
 
@@ -65,3 +65,4 @@ last_updated: 2026-07-12
 - 2026-07-12：第二轮设计修订，从"右栏常驻编辑器"改为"授权弹窗 + 右栏变更记录"；新增 T-FE-028（右栏变更记录）；§16 重写为 §16.1~§16.9（R 表移至 §16.8）；R4 改写为弹窗设计；R1/R2/R3/R5/R6/R7/R9 已关，仅剩 R8；T-FE-024 扩大范围含 ChildPermissionDrawer 内联化。
 - 2026-07-12：审核修正采用 1A/2A：R1/R7 使用前端降级，不再被 T-PERM-034 锁死；T-FE-024 先于 T-FE-026。其余未定风险关闭前计划仍保持 proposed。
 - 2026-07-12：R8/R10/R11 关闭，§16.8 R1~R11 全关；§16.4 合并为四步（步骤三批量条件 + 步骤四子权限逐项）；状态改互斥；plan 转 active。
+- 2026-07-12：T-FE-024 完成（转 done）。抽取 ReConditionEditor / ReConditionPicker / RePermissionCell / ChildPermissionInline + `utils/condition-rules` 共享模块（消除 `api/permission-grant.ts` 反向依赖）；ChildPermissionInline 窄接口 binding（getCell + toggleCell）不 inject store。T-FE-026 启动前置门禁满足，T-FE-025/026 可开始实现。

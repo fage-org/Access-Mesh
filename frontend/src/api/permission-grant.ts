@@ -18,7 +18,7 @@
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
-import { summarizeRules } from "@/views/system/permission-condition/utils/types";
+import { summarizeRules } from "@/utils/condition-rules";
 
 /** 授权侧范围模式（§6.4：只允许 INSTANCE/ALL；DENIED/EMPTY 是查询侧四态） */
 export type GrantScopeMode = "INSTANCE" | "ALL";

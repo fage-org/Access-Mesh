@@ -115,16 +115,16 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 permissio
 ## 组件结构
 
 - `index.vue` - 页面壳 + PureTableBar + 弹窗调度。
-- `components/ConditionForm.vue` - 表单 + 条件规则可视化编辑器（内联）。
+- `components/ConditionForm.vue` - 条件元信息表单（code/name/enabled/gatewayEvaluable/description）+ 复用 `ReConditionEditor` 渲染条件规则（T-FE-024 抽取）。
 - `utils/hook.ts` - 列表加载 + CRUD + 本地过滤。
 - `utils/perms.ts` - 权限码 SSOT。
-- `utils/types.ts` - 表单类型 + 常量 + serializeRules/parseRules/summarizeRules。
+- `utils/types.ts` - 条件表单元信息类型（ConditionFormData）；规则模型（ConditionRules / 序列化 / 摘要 / 常量）已抽到 `@/utils/condition-rules`（T-FE-024）。
 - `api/permission-condition.ts` - 类型 + API 函数。
 - `mock/permission-condition.ts` - fake-server 路由（4 条种子：office-hours/corp-ip-only/temp-access/blacklist-vpn）。
 
 ### 可复用组件识别（T-FE-001 池）
 
-- **权限条件选择器**：本页独立 CRUD + T-FE-014 权限授予页内联选择。本页内联实现条件规则编辑器，待 T-FE-014 推进时确认抽取为 `ReConditionPicker`。
+- **权限条件选择器**：本页独立 CRUD + T-FE-014 权限授予页附加设置弹窗内联选择/新建。T-FE-024 已抽取共享组件 `ReConditionPicker`（条件搜索 + 摘要 + 启用过滤 + gatewayEvaluable 状态 + 内联新建含 `ReConditionEditor`）+ `ReConditionEditor`（logic AND/OR + items[] 4 类型 + 序列化校验，v-model + expose validate）。两处共享同一规则模型 `@/utils/condition-rules`。
 
 ## 权限接线
 
