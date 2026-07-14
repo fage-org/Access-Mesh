@@ -105,8 +105,9 @@ function resetForm() {
 }
 
 function cancelCreate() {
-  showCreate.value = false;
-  resetForm();
+  // 复用 reset：递增 createReqId 使飞行创建请求失效，迟到响应不选中
+  // P2：取消后请求返回不应自动选中
+  reset();
 }
 
 async function onCreate() {
