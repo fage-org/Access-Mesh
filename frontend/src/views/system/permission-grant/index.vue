@@ -1,60 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide } from "vue";
+import { onMounted, onUnmounted, provide } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { ElMessageBox } from "element-plus";
+import { message } from "@/utils/message";
 import { usePermissionGrant } from "./utils/hook";
 import RoleTreePanel from "./components/RoleTreePanel.vue";
 import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
 import RightPanel from "./components/RightPanel.vue";
-import AdditionalSettingDialog from "./components/AdditionalSettingDialog.vue";
-import ChildPermissionInline from "@/components/ChildPermissionInline";
-import type { ChildOpenSettingPayload } from "@/components/ChildPermissionInline";
-import { createChildBinding } from "./utils/child-binding";
 import type {
-  AdditionalSettingContext,
-  ChildPermissionContext
-} from "./utils/types";
+  GrantTriggerPayload,
+  AdjustTriggerPayload
+} from "@/utils/permission-grant-types";
 
 defineOptions({ name: "PermissionGrant" });
 
 const store = usePermissionGrant();
 provide("pgStore", store);
-
-// 弹窗状态（中栏 emit -> index.vue 管理）
-const settingVisible = ref(false);
-const settingContext = ref<AdditionalSettingContext | null>(null);
-const childVisible = ref(false);
-const childContext = ref<ChildPermissionContext | null>(null);
-
-// 子权限 binding（pgStore adapter，T-FE-026 将换弹窗 adapter）
-const childBinding = createChildBinding(store, () => childContext.value);
-
-function onOpenSetting(ctx: AdditionalSettingContext) {
-  settingContext.value = ctx;
-  settingVisible.value = true;
-}
-
-function onOpenChild(ctx: ChildPermissionContext) {
-  childContext.value = ctx;
-  childVisible.value = true;
-}
-
-/** 子权限附加设置：算 childKey + parentKey 构造 AdditionalSettingContext */
-function onOpenChildSetting(payload: ChildOpenSettingPayload) {
-  if (!childContext.value || !payload.draft) return;
-  const ctx: AdditionalSettingContext = {
-    key: childBinding.getParentKey(),
-    draft: payload.draft,
-    isNew: payload.state === "PENDING_ADD",
-    readonly: childContext.value.readonly,
-    isChild: true,
-    childKey: childBinding.getCellKey(payload.input),
-    supportsCondition: payload.supportsCondition,
-    supportsDelegation: payload.supportsDelegation
-  };
-  settingContext.value = ctx;
-  settingVisible.value = true;
-}
 
 onMounted(() => {
   if (store.canView.value) {
@@ -82,6 +43,21 @@ onBeforeRouteLeave(async () => {
 onUnmounted(() => {
   store.cleanup();
 });
+
+// T-FE-025：中栏授权入口占位接收（T-FE-026 实现授权弹窗后替换）
+function onOpenGrant(payload: GrantTriggerPayload) {
+  message(
+    `授权弹窗将在 T-FE-026 中提供（角色 ${payload.roleName} · ${payload.resourceTypeCode} · ${payload.scopeMode}）`,
+    { type: "info" }
+  );
+}
+
+function onOpenAdjust(payload: AdjustTriggerPayload) {
+  message(
+    `调整授权弹窗将在 T-FE-026 中提供（角色 ${payload.roleName} · ${payload.operationCode}）`,
+    { type: "info" }
+  );
+}
 </script>
 
 <template>
@@ -115,11 +91,11 @@ onUnmounted(() => {
           <RoleTreePanel />
         </div>
 
-        <!-- 中栏：资源×操作权限树表 -->
+        <!-- 中栏：资源权限概览 + 授权入口（T-FE-025） -->
         <div class="grid-center">
           <PermissionMatrixPanel
-            @open-setting="onOpenSetting"
-            @open-child="onOpenChild"
+            @open-grant="onOpenGrant"
+            @open-adjust="onOpenAdjust"
           />
         </div>
 
@@ -129,27 +105,6 @@ onUnmounted(() => {
         </div>
       </div>
     </template>
-
-    <AdditionalSettingDialog
-      v-model="settingVisible"
-      :context="settingContext"
-    />
-
-    <!-- 子权限配置：drawer 浮层 + ChildPermissionInline 内联内容 -->
-    <el-drawer
-      v-model="childVisible"
-      title="子权限 / 范围权限配置"
-      size="640px"
-      :close-on-click-modal="false"
-    >
-      <ChildPermissionInline
-        v-if="childContext"
-        :context="childContext"
-        :binding="childBinding"
-        :resource-types="store.resourceTypes.value"
-        @open-setting="onOpenChildSetting"
-      />
-    </el-drawer>
   </div>
 </template>
 

@@ -3,7 +3,7 @@
  *
  * 从 views/system/permission-grant/utils/types.ts 抽取，供：
  * - RePermissionCell / ChildPermissionInline（共享组件，消除反向依赖页面工具）
- * - permission-grant 页面（hook / child-binding / types.ts re-export）
+ * - permission-grant 页面（hook / types.ts re-export）
  * 统一引用。
  *
  * 设计依据：docs/design/frontend/permission-grant.md
@@ -84,8 +84,15 @@ export interface PermissionCellContext {
   state: CellState;
   /** 当前草稿权限（GRANTED/PENDING_ADD/PENDING_REMOVE/MODIFIED 时非 null） */
   draft: DraftPermission | null;
-  /** 是否被 ALL 覆盖（实例单元格 + 同操作有 ALL 授权） */
+  /**
+   * 是否被 ALL 覆盖（正交字段，R6 修正）。
+   * INSTANCE 单元格 + 同操作在 ALL draft 存在授权即为 true（计划态，不读 baseline：
+   * ALL 被草稿移除后实例不再显示 ALL 覆盖，三栏一致），
+   * 不因当前存在直接记录而被压平（支持「★ ALL 覆盖 + ● 有直接记录」共存）。
+   */
   allCovered: boolean;
+  /** baseline 是否存在该 INSTANCE 直接记录（R6 副标记「● 有直接记录」依据） */
+  hasBaselineDirectRecord: boolean;
   /** 操作者是否可授予（决策点 6：候选权限单元能力） */
   grantableByOperator: boolean;
   /** 不可授予原因（grantableByOperator=false 时） */
@@ -108,4 +115,77 @@ export interface ChildPermissionContext {
   childResourceTypeCodes: string[];
   /** 是否只读 */
   readonly: boolean;
+}
+
+// ========== 授权弹窗触发契约（T-FE-025 中栏 emit / T-FE-026 弹窗接收） ==========
+
+/** 授权弹窗公共上下文（角色 + 资源类型 + 范围模式） */
+export interface GrantTriggerBase {
+  domainCode: string;
+  roleExternalId: string;
+  roleTypeCode: string;
+  roleName: string;
+  resourceTypeCode: string;
+  /** INSTANCE=资源类型标题区授权按钮 / ALL=ALL 特殊节点授权按钮 */
+  scopeMode: GrantScopeMode;
+}
+
+/** open-grant 事件载荷：新建授权（操作/资源多选清空，条件默认无） */
+export type GrantTriggerPayload = GrantTriggerBase;
+
+/** open-adjust 事件载荷：点击已有权限标记，预填操作/资源/条件 */
+export interface AdjustTriggerPayload extends GrantTriggerBase {
+  resourceCode: string | null;
+  codeType: string | null;
+  operationCode: string;
+  /** 预填条件码（无条件时 null） */
+  conditionCode: string | null;
+  /** draft 快照（深拷贝，不可变引用；T-FE-026 弹窗据此恢复选择状态） */
+  draft: DraftPermission | null;
+}
+
+// ========== 中栏操作权限摘要（T-FE-025 PermissionSummaryCell 渲染入参） ==========
+
+/**
+ * 摘要有效主状态（R6 优先级：ALL 覆盖 > 直接(含条件) > 派生 > 继承 > 未授权）。
+ * 派生（DERIVED/⊕）渲染能力保留，normalizer 当前不产生（R1/R7 待 T-PERM-034）。
+ */
+export type SummaryEffective =
+  | "DIRECT" // 直接权限（无条件）
+  | "CONDITIONAL" // 直接权限（有条件）
+  | "ALL_COVERED" // 被 ALL 覆盖
+  | "DERIVED" // 派生权限（渲染能力保留，normalizer 当前不产生，R1/R7 待 T-PERM-034）
+  | "NOT_GRANTABLE" // 操作者不可授予
+  | "UNAUTHORIZED"; // 未授权
+
+/** 草稿副状态（draft 相对 baseline 的变更，null=无变更） */
+export type SummaryDraftChange = "ADD" | "REMOVE" | "MODIFY" | null;
+
+/** 规范化摘要项（正交分解：有效主状态 + 草稿副状态） */
+export interface SummaryItem {
+  operationCode: string;
+  operationName: string;
+  effective: SummaryEffective;
+  draftChange: SummaryDraftChange;
+  /** 被 ALL 覆盖（正交，R6） */
+  allCovered: boolean;
+  /** baseline 有直接记录（副标记「● 有直接记录」依据） */
+  hasBaselineDirectRecord: boolean;
+  conditionSummary: string | null;
+  canGrant: boolean;
+  childCount: number;
+  grantableByOperator: boolean;
+  denyReason: string | null;
+  readonly: boolean;
+  /** open-adjust 触发上下文快照（draft 为浅拷贝，不可变引用） */
+  trigger: {
+    domainCode: string;
+    resourceTypeCode: string;
+    scopeMode: GrantScopeMode;
+    resourceCode: string | null;
+    codeType: string | null;
+    operationCode: string;
+    conditionCode: string | null;
+    draft: DraftPermission | null;
+  };
 }

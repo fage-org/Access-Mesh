@@ -45,7 +45,7 @@ last_updated: 2026-07-12
 
 | ID | 标题 | 状态快照 |
 |---|---|---|
-| T-FE-025 | 中栏资源权限概览与授权入口 | proposed |
+| T-FE-025 | 中栏资源权限概览与授权入口 | done |
 | T-FE-026 | 授权弹窗（批量授权任务） | proposed |
 | T-FE-028 | 右栏本次变更记录 | proposed |
 | T-FE-027 | 三栏状态整合、回归验证与设计回写 | proposed |
@@ -66,3 +66,4 @@ last_updated: 2026-07-12
 - 2026-07-12：审核修正采用 1A/2A：R1/R7 使用前端降级，不再被 T-PERM-034 锁死；T-FE-024 先于 T-FE-026。其余未定风险关闭前计划仍保持 proposed。
 - 2026-07-12：R8/R10/R11 关闭，§16.8 R1~R11 全关；§16.4 合并为四步（步骤三批量条件 + 步骤四子权限逐项）；状态改互斥；plan 转 active。
 - 2026-07-12：T-FE-024 完成（转 done）。抽取 ReConditionEditor / ReConditionPicker / RePermissionCell / ChildPermissionInline + `utils/condition-rules` 共享模块（消除 `api/permission-grant.ts` 反向依赖）；ChildPermissionInline 窄接口 binding（getCell + toggleCell）不 inject store。T-FE-026 启动前置门禁满足，T-FE-025/026 可开始实现。
+- 2026-07-12：T-FE-025 完成（转 done）。中栏重构为资源树 + 操作权限摘要 + 授权入口；新建 `PermissionSummaryCell` 共享组件（窄接口，`SummaryItem` 正交分解 effective + draftChange）；store `buildMainCellContext` 修正 `allCovered` 正交 + 加 `hasBaselineDirectRecord`；事件契约 `GrantTriggerPayload`/`AdjustTriggerPayload` 下沉 `@/utils/permission-grant-types`（携带 domainCode，draft 快照）；`index.vue` 移除 `AdditionalSettingDialog` + 子权限 drawer + `child-binding` adapter。T-FE-026 可启动实现。

@@ -765,6 +765,20 @@ interface GrantCapabilities {
 - ALL 覆盖且无直接实例记录时，点击标记展示权限来源（ALL 权限）或定位到 ALL 特殊节点，不进入“移除直接记录”动作。
 - 新增、修改、移除使用同一套弹窗交互模型，仅初始状态不同。
 
+#### 16.3.6 实现说明（T-FE-025，2026-07-12）
+
+中栏已重构为「资源树 + 操作权限摘要 + 授权入口」：
+
+- `PermissionMatrixPanel` 改为 el-table tree 两列（资源 + 操作摘要），受控 `expand-row-keys`，row key = `codeType|resourceCode`（ALL 节点 `__ALL__`）；搜索递归过滤树保留祖先路径，不用表格列 `filter-method`。
+- 新建 `PermissionSummaryCell`（共享组件，窄接口）：接收 `SummaryItem[]`，按 §16.3.1 七类「色+符+字」三合一渲染，默认 3 个 + `+N` popover（统计含未授权的全部剩余），全未授权时单个 `·`；tag 为真实可聚焦 button + `:focus-visible` ring，Popover `trigger=['hover','focus']` 满足 Hover/Focus 等价。
+- 摘要正交分解（R6 修正）：`SummaryItem` 拆「有效主状态（effective）+ 草稿副状态（draftChange）」，ALL 覆盖下移除直接记录展示「★ ALL覆盖」+「－ 移除直接记录」；`allCovered` 只看 `mainDraft`（计划态 ALL，不 OR baseline，ALL 被草稿移除后实例不再显示 ALL 覆盖）与 INSTANCE 直接记录状态正交；`hasBaselineDirectRecord` 表示 baseline INSTANCE 直接记录（副标记依据），支持「★ ALL覆盖 + ● 有直接记录」共存；ALL 覆盖时有效权限的条件/canGrant/子权限来自 ALL 来源 ctx（`allSourceCtx`），INSTANCE 直接事实由副标记承载。
+- 授权入口：资源类型标题区「授权」按钮 emit `open-grant`（scopeMode=INSTANCE），ALL 特殊节点「授权」按钮 emit `open-grant`（scopeMode=ALL）；点击已有权限标记 emit `open-adjust`（预填操作/资源/条件 + draft 快照）；ALL 覆盖且无直接记录点击 emit `locate-all`（展示来源，不进入移除）。
+- 事件契约 `GrantTriggerPayload` / `AdjustTriggerPayload` 定义在 `@/utils/permission-grant-types`（携带 domainCode，draft 快照不可变引用），T-FE-026 弹窗接收。
+- 移除中栏直接编辑（toggle）与矩阵列模式；`RePermissionCell` 保留不动（留待其他编辑场景）。
+- 派生权限（DERIVED/⊕）渲染能力保留，normalizer 当前不产生（R1/R7 待 T-PERM-034）；GROUP_ROLE 只读 alert 保留。
+- `index.vue` 移除 `AdditionalSettingDialog` + 子权限 `el-drawer` + `child-binding` adapter（二层 Dialog 包装不是 T-FE-026 复用目标）；`open-grant`/`open-adjust` 占位接收（info message），T-FE-026 接入时替换。
+- 配色核验：文字用 `--el-text-color-primary`（对比度 >= 4.5:1），状态色仅用于符号 + 边框 + 浅背景（颜色非唯一含义，符号 + 文字 + aria-label 三重承载）。
+
 ### 16.4 授权弹窗：批量授权任务
 
 #### 16.4.1 弹窗上下文

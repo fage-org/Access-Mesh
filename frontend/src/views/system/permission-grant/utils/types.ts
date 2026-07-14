@@ -4,8 +4,7 @@
  * 共享类型（PermCellKey / permCellKey / DraftPermission / CellState /
  * PermissionCellContext / ChildPermissionContext）已抽取到
  * `@/utils/permission-grant-types`（页面无关共享模块），此处 re-export
- * 保持向后兼容；本文件保留页面级类型（角色类型常量 / DiffEntry /
- * AdditionalSettingContext）。
+ * 保持向后兼容；本文件保留页面级类型（角色类型常量 / DiffEntry）。
  *
  * 设计依据：docs/design/frontend/permission-grant.md
  * 后端契约：api-contract.md §5.5 / §6.4 / §6.5
@@ -57,24 +56,4 @@ export interface DiffEntry {
   changedFields: string[];
   /** 是否子权限变更 */
   isChild: boolean;
-}
-
-// ========== 附加设置弹窗 ==========
-
-/** 附加设置弹窗上下文（AdditionalSettingDialog 入参） */
-export interface AdditionalSettingContext {
-  /** 目标权限稳定键（已有权限用服务端 id 路径；新权限用 tempKey） */
-  key: string;
-  draft: DraftPermission;
-  /** 是否新增权限（打开未授权单元的"授予并配置"） */
-  isNew: boolean;
-  /** 是否只读 */
-  readonly: boolean;
-  /** 是否子权限（子权限用 setChildCellAttr） */
-  isChild?: boolean;
-  /** 子权限稳定键（isChild=true 时用，主权限时等于 key） */
-  childKey?: string;
-  /** 资源类型能力（补充修复：禁用条件/canGrant 用） */
-  supportsCondition?: boolean;
-  supportsDelegation?: boolean;
 }

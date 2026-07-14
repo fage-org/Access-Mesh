@@ -280,6 +280,20 @@ export function usePermissionGrant() {
     return false;
   });
 
+  /** 只读原因（供 UI 解释禁用，§16.3.4 禁用并解释原因） */
+  const readonlyReason = computed<string | null>(() => {
+    if (!currentRole.value) return null;
+    const r = currentRole.value;
+    if (r.roleExternalId.startsWith("__virtual_root_"))
+      return "虚拟根角色不可配置";
+    if (!r.directGrantable) return "角色不可直接授权";
+    if (!r.enabled) return "角色已禁用";
+    if (!canManage.value) return "无 ROLE:MANAGE 权限";
+    if (!r.canManage) return "当前角色不可管理";
+    if (!operatorCapability.value.canManage) return "操作者无管理能力";
+    return null;
+  });
+
   /** 主权限 diff */
   const mainDiff = computed(() =>
     computeMainDiff(mainDraft.value, mainBaseline.value)
@@ -397,20 +411,21 @@ export function usePermissionGrant() {
       state === "PENDING_REMOVE"
         ? (mainBaseline.value.get(key) ?? null)
         : (mainDraft.value.get(key) ?? null);
-    const allCovered =
-      scopeMode === "INSTANCE" &&
-      state !== "GRANTED" &&
-      state !== "PENDING_REMOVE" &&
-      mainDraft.value.has(
-        mainKeyOf(
-          currentDomainCode.value,
-          resourceTypeCode,
-          "ALL",
-          null,
-          null,
-          operationCode
-        )
-      );
+    // R6 修正：allCovered 表示「计划态下是否被 ALL 覆盖」，只看 draft
+    // （不 OR baseline：ALL 被草稿移除后实例不应再显示 ALL 覆盖，三栏一致）
+    // 正交于 INSTANCE 直接记录状态（不被 GRANTED/PENDING_REMOVE 压平）
+    const allKey = mainKeyOf(
+      currentDomainCode.value,
+      resourceTypeCode,
+      "ALL",
+      null,
+      null,
+      operationCode
+    );
+    const allCovered = scopeMode === "INSTANCE" && mainDraft.value.has(allKey);
+    // R6：baseline 是否有该 INSTANCE 直接记录（副标记「● 有直接记录」依据）
+    const hasBaselineDirectRecord =
+      scopeMode === "INSTANCE" && mainBaseline.value.has(key);
     const { grantable, reason } = isGrantableByOperator(
       resourceTypeCode,
       operationCode
@@ -430,6 +445,7 @@ export function usePermissionGrant() {
       state,
       draft,
       allCovered: allCovered || state === "ALL_COVERED",
+      hasBaselineDirectRecord,
       grantableByOperator: grantable,
       denyReason: reason,
       readonly: readonly.value,
@@ -1201,6 +1217,7 @@ export function usePermissionGrant() {
     operatorCapability,
     currentResourceType,
     readonly,
+    readonlyReason,
     // diff
     mainDiff,
     childDiff,
