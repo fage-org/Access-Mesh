@@ -99,11 +99,6 @@ function diffChangedFields(d: {
   return "";
 }
 
-function onRevert(d: { key: string }) {
-  const entry = store.allDiff.value.find(e => e.key === d.key);
-  if (entry) store.revertDiff(entry);
-}
-
 async function onSave() {
   await store.saveAll();
 }
@@ -214,13 +209,20 @@ const isChild = (d: { isChild: boolean }) => d.isChild;
                   {{ diffChangedFields(d) }}
                 </div>
               </div>
-              <el-button link size="small" @click="onRevert(d)">撤销</el-button>
             </div>
           </div>
           <el-empty
             v-if="diffGroups.length === 0"
             description="无变更，配置已同步"
             :image-size="60"
+          />
+          <el-alert
+            v-if="diffGroups.length > 0"
+            type="info"
+            :closable="false"
+            show-icon
+            class="revert-notice"
+            title="当前暂不支持单条撤销，可放弃全部；任务粒度撤销将在 T-FE-028 提供"
           />
           <div
             v-if="store.failedChildren.value.length > 0"
@@ -406,6 +408,10 @@ import type { DraftPermission } from "../utils/types";
 }
 
 .failed-notice {
+  margin-top: var(--space-3);
+}
+
+.revert-notice {
   margin-top: var(--space-3);
 }
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, provide } from "vue";
+import { onMounted, onUnmounted, provide, ref } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { ElMessageBox } from "element-plus";
-import { message } from "@/utils/message";
 import { usePermissionGrant } from "./utils/hook";
 import RoleTreePanel from "./components/RoleTreePanel.vue";
 import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
 import RightPanel from "./components/RightPanel.vue";
+import GrantDialog from "./components/GrantDialog.vue";
 import type {
   GrantTriggerPayload,
   AdjustTriggerPayload
@@ -44,19 +44,21 @@ onUnmounted(() => {
   store.cleanup();
 });
 
-// T-FE-025：中栏授权入口占位接收（T-FE-026 实现授权弹窗后替换）
+// T-FE-026：授权弹窗触发状态（null=关闭）
+const grantTrigger = ref<GrantTriggerPayload | AdjustTriggerPayload | null>(
+  null
+);
+
 function onOpenGrant(payload: GrantTriggerPayload) {
-  message(
-    `授权弹窗将在 T-FE-026 中提供（角色 ${payload.roleName} · ${payload.resourceTypeCode} · ${payload.scopeMode}）`,
-    { type: "info" }
-  );
+  grantTrigger.value = payload;
 }
 
 function onOpenAdjust(payload: AdjustTriggerPayload) {
-  message(
-    `调整授权弹窗将在 T-FE-026 中提供（角色 ${payload.roleName} · ${payload.operationCode}）`,
-    { type: "info" }
-  );
+  grantTrigger.value = payload;
+}
+
+function onCloseGrant() {
+  grantTrigger.value = null;
 }
 </script>
 
@@ -104,6 +106,9 @@ function onOpenAdjust(payload: AdjustTriggerPayload) {
           <RightPanel />
         </div>
       </div>
+
+      <!-- T-FE-026：授权弹窗（批量授权任务） -->
+      <GrantDialog :trigger="grantTrigger" @close="onCloseGrant" />
     </template>
   </div>
 </template>

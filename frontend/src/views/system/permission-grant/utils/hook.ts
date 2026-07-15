@@ -8,9 +8,10 @@ import {
   type DraftPermission,
   type DiffEntry,
   type CellState,
-  type PermissionCellContext,
-  type PermCellKey
+  type PermissionCellContext
 } from "./types";
+import type { GrantTaskSnapshot } from "@/utils/permission-grant-types";
+import { replayGrantTasks } from "./grant-task";
 import {
   getRoleTree,
   getResourceTypeList,
@@ -237,10 +238,11 @@ export function usePermissionGrant() {
   const conditions = ref<ConditionOption[]>([]);
 
   // ---- 草稿模型 ----
+  // baseline = 服务端事实；mainDraft/childDraft 由 baseline + 有序 grantTasks replay 生成（computed），
+  // failedChildren 作为 overlay 叠加在 childDraft 上。所有写入走 commit/replace/remove/clearGrantTask 原子操作。
   const mainBaseline = ref<Map<string, DraftPermission>>(new Map());
-  const mainDraft = ref<Map<string, DraftPermission>>(new Map());
   const childBaseline = ref<Map<string, DraftPermission>>(new Map());
-  const childDraft = ref<Map<string, DraftPermission>>(new Map());
+  const grantTasks = ref<GrantTaskSnapshot[]>([]);
 
   // ---- 能力 ----
   const domainCapability = ref<DomainCapability>({
@@ -292,6 +294,29 @@ export function usePermissionGrant() {
     if (!r.canManage) return "当前角色不可管理";
     if (!operatorCapability.value.canManage) return "操作者无管理能力";
     return null;
+  });
+
+  /**
+   * replay 投影：baseline + 有序 grantTasks -> draft。
+   * failedChildren overlay 在 childDraft computed 中叠加（保持 replay 纯函数无状态）。
+   */
+  const replayResult = computed(() =>
+    replayGrantTasks(mainBaseline.value, childBaseline.value, grantTasks.value)
+  );
+  /** 主权限草稿（computed，由 replay 生成） */
+  const mainDraft = computed(() => replayResult.value.mainDraft);
+  /**
+   * 子权限草稿（computed = replay + failedChildren overlay）。
+   * 投影顺序：baseline -> grantTasks -> failedChildren overlay。
+   * failed add 在 overlay set，failed remove 在 overlay delete。
+   */
+  const childDraft = computed(() => {
+    const m = new Map(replayResult.value.childDraft);
+    for (const fop of failedChildren.value) {
+      if (fop.op === "add") m.set(fop.childKey, fop.child);
+      else m.delete(fop.childKey);
+    }
+    return m;
   });
 
   /** 主权限 diff */
@@ -454,110 +479,62 @@ export function usePermissionGrant() {
     };
   }
 
-  // ========== 单元格操作 ==========
+  // ========== 授权任务原子操作（T-FE-026） ==========
+  // mainDraft/childDraft 为 computed，由 baseline + 有序 grantTasks replay 生成。
+  // 所有写入走任务原子操作，弹窗组件不直接修改 draft。
 
-  /** 主区域点击切换授权（§4.4 主区域点击） */
-  function toggleMainCell(
-    resourceTypeCode: string,
-    scopeMode: GrantScopeMode,
-    resourceCode: string | null,
-    codeType: string | null,
-    operationCode: string
-  ) {
-    if (readonly.value) return;
-    const state = getMainCellState(
-      resourceTypeCode,
-      scopeMode,
-      resourceCode,
-      codeType,
-      operationCode
-    );
-    // P1-6：只在新增时检查 grantableByOperator；撤销/恢复不检查
-    // （后端 canGrant 校验约束新增和提升转授权，不约束普通回收）
-    if (state === "UNAUTHORIZED" || state === "ALL_COVERED") {
-      const { grantable, reason } = isGrantableByOperator(
-        resourceTypeCode,
-        operationCode
-      );
-      if (!grantable) {
-        message(`不可授予：${reason}`, { type: "warning" });
-        return;
-      }
+  /** 校验任务上下文与当前角色一致（防止过期弹窗提交） */
+  function validateTaskContext(task: GrantTaskSnapshot) {
+    const role = currentRole.value;
+    if (!role) {
+      throw new Error("无当前角色，无法提交授权任务");
     }
-    const key = mainKeyOf(
-      currentDomainCode.value,
-      resourceTypeCode,
-      scopeMode,
-      resourceCode,
-      codeType,
-      operationCode
-    );
-    const newMap = new Map(mainDraft.value);
-    if (state === "UNAUTHORIZED" || state === "ALL_COVERED") {
-      // 新增
-      const resourceName = resolveResourceName(resourceTypeCode, resourceCode);
-      newMap.set(key, {
-        id: null,
-        domainCode: currentDomainCode.value,
-        resourceTypeCode,
-        scopeMode,
-        resourceCode,
-        codeType,
-        operationCode,
-        conditionCode: null,
-        canGrant: false,
-        dependOn: null,
-        dependOnTempKey: null,
-        grantSource: "MANUAL",
-        resourceName
-      });
-    } else if (
-      state === "GRANTED" ||
-      state === "PENDING_ADD" ||
-      state === "MODIFIED"
+    if (
+      task.roleExternalId !== role.roleExternalId ||
+      task.roleTypeCode !== role.roleTypeCode ||
+      task.domainCode !== currentDomainCode.value
     ) {
-      // 移除（含撤销新增 / 恢复后移除）
-      newMap.delete(key);
-      // 级联删除子权限草稿
-      const childPrefix = key + "|";
-      const newChildMap = new Map(childDraft.value);
-      for (const k of childDraft.value.keys()) {
-        if (k.startsWith(childPrefix)) newChildMap.delete(k);
-      }
-      childDraft.value = newChildMap;
-    } else if (state === "PENDING_REMOVE") {
-      // 恢复
-      const base = mainBaseline.value.get(key);
-      if (base) newMap.set(key, base);
+      throw new Error("任务上下文与当前角色不一致，请重新打开授权弹窗");
     }
-    mainDraft.value = newMap;
   }
 
-  /** 附加设置：更新主权限属性（条件/canGrant） */
-  function setMainCellAttr(
-    key: string,
-    attr: { conditionCode?: string | null; canGrant?: boolean }
-  ) {
-    if (readonly.value) return;
-    const newMap = new Map(mainDraft.value);
-    const existing = newMap.get(key) ?? mainBaseline.value.get(key);
-    if (!existing) return;
-    const updated: DraftPermission = { ...existing };
-    if (attr.conditionCode !== undefined)
-      updated.conditionCode = attr.conditionCode;
-    if (attr.canGrant !== undefined) updated.canGrant = attr.canGrant;
-    newMap.set(key, updated);
-    mainDraft.value = newMap;
+  /** 提交新任务（追加，replay 后生效） */
+  function commitGrantTask(task: GrantTaskSnapshot) {
+    validateTaskContext(task);
+    grantTasks.value = [...grantTasks.value, task];
   }
 
-  // ========== 子权限操作 ==========
-
-  /** 子权限 key = parentKey + "|" + childPermCellKey */
-  function childKeyOf(parentKey: string, child: PermCellKey): string {
-    return parentKey + "|" + permCellKey(child);
+  /** 替换任务（保持原数组位置、taskId、createdAt，避免编辑导致重排） */
+  function replaceGrantTask(taskId: string, task: GrantTaskSnapshot) {
+    validateTaskContext(task);
+    const idx = grantTasks.value.findIndex(t => t.taskId === taskId);
+    if (idx < 0) return;
+    const original = grantTasks.value[idx];
+    const replaced: GrantTaskSnapshot = {
+      ...task,
+      taskId: original.taskId,
+      createdAt: original.createdAt
+    };
+    const next = [...grantTasks.value];
+    next[idx] = replaced;
+    grantTasks.value = next;
   }
 
-  /** 获取主权限的子权限草稿列表 */
+  /** 移除任务（撤销单条，replay 后 draft 同步更新） */
+  function removeGrantTask(taskId: string) {
+    grantTasks.value = grantTasks.value.filter(t => t.taskId !== taskId);
+  }
+
+  /** 清空全部任务（仅清 grantTasks，不清 failedChildren overlay） */
+  function clearGrantTasks() {
+    grantTasks.value = [];
+  }
+
+  // ========== 子权限（由授权弹窗任务管理，store 不再提供直接写 API） ==========
+  // 子权限草稿由 grantTasks replay 生成（TaskChildGroup 完整集合替换），
+  // 弹窗内通过 ChildPermissionInline binding 操作本地集合，确认时随任务提交。
+
+  /** 获取主权限的子权限草稿列表（读 computed childDraft，供右栏摘要） */
   function getChildrenOfParent(parentKey: string): DraftPermission[] {
     const prefix = parentKey + "|";
     const list: DraftPermission[] = [];
@@ -565,94 +542,6 @@ export function usePermissionGrant() {
       if (k.startsWith(prefix)) list.push(v);
     }
     return list;
-  }
-
-  /** 切换子权限单元格 */
-  function toggleChildCell(
-    parentKey: string,
-    parent: DraftPermission,
-    childResourceTypeCode: string,
-    childScopeMode: GrantScopeMode,
-    childResourceCode: string | null,
-    childCodeType: string | null,
-    childOperationCode: string
-  ) {
-    if (readonly.value) return;
-    const ck = childKeyOf(parentKey, {
-      domainCode: currentDomainCode.value,
-      resourceTypeCode: childResourceTypeCode,
-      scopeMode: childScopeMode,
-      resourceCode: childResourceCode,
-      codeType: childCodeType,
-      operationCode: childOperationCode
-    });
-    const inDraft = childDraft.value.has(ck);
-    const inBase = childBaseline.value.has(ck);
-    const newMap = new Map(childDraft.value);
-    if (!inDraft && !inBase) {
-      // 新增子权限
-      newMap.set(ck, {
-        id: null,
-        domainCode: currentDomainCode.value,
-        resourceTypeCode: childResourceTypeCode,
-        scopeMode: childScopeMode,
-        resourceCode: childResourceCode,
-        codeType: childCodeType,
-        operationCode: childOperationCode,
-        conditionCode: null,
-        canGrant: false,
-        dependOn: parent.id,
-        dependOnTempKey: parent.id ? null : parentKey,
-        grantSource: "MANUAL",
-        resourceName: resolveResourceName(
-          childResourceTypeCode,
-          childResourceCode
-        )
-      });
-    } else if (inDraft) {
-      newMap.delete(ck);
-    } else if (inBase) {
-      // 恢复后移除
-      newMap.delete(ck);
-    }
-    childDraft.value = newMap;
-  }
-
-  /** 附加设置：更新子权限属性 */
-  function setChildCellAttr(
-    childKey: string,
-    attr: { conditionCode?: string | null; canGrant?: boolean }
-  ) {
-    if (readonly.value) return;
-    const newMap = new Map(childDraft.value);
-    const existing = newMap.get(childKey) ?? childBaseline.value.get(childKey);
-    if (!existing) return;
-    const updated: DraftPermission = { ...existing };
-    if (attr.conditionCode !== undefined)
-      updated.conditionCode = attr.conditionCode;
-    if (attr.canGrant !== undefined) updated.canGrant = attr.canGrant;
-    newMap.set(childKey, updated);
-    childDraft.value = newMap;
-  }
-
-  /** 资源名称查找（从 resourceTree 查） */
-  function resolveResourceName(
-    resourceTypeCode: string,
-    resourceCode: string | null
-  ): string | null {
-    if (!resourceCode) return null;
-    const find = (nodes: ResourceTreeNode[]): string | null => {
-      for (const n of nodes) {
-        if (n.resourceCode === resourceCode) return n.resourceName;
-        const r = find(n.children);
-        if (r) return r;
-      }
-      return null;
-    };
-    if (resourceTypeCode === currentResourceTypeCode.value) {
-      return find(resourceTree.value);
-    }
-    return resourceCode;
   }
 
   // ========== 加载 ==========
@@ -714,9 +603,9 @@ export function usePermissionGrant() {
       // P1-7：全局角色 domainCode 保持空（契约空域=全局对象）
       currentDomainCode.value = domainCode;
       mainBaseline.value = snapshot.mainBaseline;
-      mainDraft.value = new Map(snapshot.mainBaseline);
       childBaseline.value = snapshot.childBaseline;
-      childDraft.value = new Map(snapshot.childBaseline);
+      // 清空任务与 overlay（draft 由 baseline + grantTasks replay 重新生成）
+      grantTasks.value = [];
       domainCapability.value = snapshot.domainCapability;
       operatorCapability.value = snapshot.operatorCapability;
       failedChildren.value = [];
@@ -847,9 +736,9 @@ export function usePermissionGrant() {
         currentDomainCode.value
       );
       mainBaseline.value = snapshot.mainBaseline;
-      mainDraft.value = new Map(snapshot.mainBaseline);
       childBaseline.value = snapshot.childBaseline;
-      childDraft.value = new Map(snapshot.childBaseline);
+      // 清空任务与 overlay（draft 由 baseline + grantTasks replay 重新生成）
+      grantTasks.value = [];
       domainCapability.value = snapshot.domainCapability;
       operatorCapability.value = snapshot.operatorCapability;
       failedChildren.value = [];
@@ -879,14 +768,16 @@ export function usePermissionGrant() {
       return false;
     }
     const role = currentRole.value;
+    // 先捕获 diff（清 failedChildren 会改变 childDraft computed，必须先捕获再清空）
+    const mDiff = [...mainDiff.value];
+    const cDiff = [...childDiff.value];
+    // P1-7：snapshot 待重试 overlay，主请求失败（catch）时恢复，避免清空后丢失
+    const failedSnapshot = [...failedChildren.value];
     saving.value = true;
     saveError.value = null;
     failedChildren.value = [];
 
     try {
-      const mDiff = mainDiff.value;
-      const cDiff = childDiff.value;
-
       const mainAdd: RolePermissionAddItem[] = [];
       const updateItems: RolePermissionUpdateItem[] = [];
       const mainRemove: number[] = [];
@@ -949,7 +840,8 @@ export function usePermissionGrant() {
         childRemoveIds.length === 0
       ) {
         message("无变更", { type: "info" });
-        return;
+        // P2-2：已进入保存流程（通过门禁），无操作返回 true，保持 Promise<boolean> 契约
+        return true;
       }
 
       // P1-2：主权限 add/update/remove + 子权限 update 全空时跳过 save
@@ -1061,6 +953,9 @@ export function usePermissionGrant() {
       }
       return true;
     } catch (e) {
+      // P1-7：主请求失败（saveRolePermission 抛错），未执行 add-child/remove-child，
+      // 恢复原 overlay 使待重试子权限不丢失
+      failedChildren.value = failedSnapshot;
       saveError.value = e instanceof Error ? e.message : "保存失败";
       message(saveError.value, { type: "error" });
       return true; // 已开始保存（通过门禁），失败状态已记录在 saveError/failedChildren
@@ -1070,15 +965,16 @@ export function usePermissionGrant() {
   }
 
   /**
-   * 重试失败的子权限（P1-6：按 op 直接 set/delete childKey，不重建父键）
-   * P1-重试：stale 状态下先刷新 baseline，避免被 saveAll 的 stale guard 拦截后丢失失败操作信息；
-   * failedChildren 不在此处清空，统一由 saveAll 开头清空（保存实际开始），避免被前置 guard 拦截后丢失。
+   * 重试失败的子权限（T-FE-026：draft 为 computed，failedChildren 作为 overlay 叠加）。
+   * 投影顺序：baseline -> grantTasks -> failedChildren overlay。
+   * - 非 stale：failedChildren 已在 overlay，直接 saveAll（saveAll 先捕获含 overlay 的 diff 再清空）。
+   * - stale：备份失败操作 -> reloadBaseline（成功清 grantTasks+failedChildren）-> 恢复 overlay -> saveAll。
    */
   async function retryFailedChildren() {
     if (failedChildren.value.length === 0) return;
 
-    // stale 状态：reloadBaseline 成功会清空 failedChildren 并重置 childDraft，需先备份再重新应用
     if (baselineStale.value) {
+      // stale：reloadBaseline 成功会清空 grantTasks + failedChildren，需先备份再恢复 overlay
       const pendingOps = [...failedChildren.value];
       const reloadOk = await reloadBaseline();
       if (!reloadOk) {
@@ -1088,12 +984,12 @@ export function usePermissionGrant() {
         });
         return;
       }
-      applyChildOpsToDraft(pendingOps);
+      // 恢复 overlay（reloadBaseline 已清空 failedChildren，此处写回）
+      failedChildren.value = pendingOps;
       saveError.value = null;
-      // P2：reload 后能力可能变更（canManage=false 只读）或 saving 占用，saveAll 前置门禁会拦截；
-      // 未真正开始保存时恢复 failedChildren 与提示，避免重试入口和失败元数据丢失
       const started = await saveAll();
       if (!started) {
+        // saveAll 前置门禁拦截（只读/进行中），恢复 failedChildren 与提示
         failedChildren.value = pendingOps;
         saveError.value = readonly.value
           ? "权限能力已变更，当前为只读，无法继续保存"
@@ -1103,10 +999,8 @@ export function usePermissionGrant() {
       return;
     }
 
-    // 非 stale：直接应用失败操作（failedChildren 由 saveAll 开头清空）
-    applyChildOpsToDraft(failedChildren.value);
+    // 非 stale：failedChildren 已在 childDraft overlay，直接 saveAll
     saveError.value = null;
-    // P2：非 stale 下若被前置门禁拦截（readonly/saving），failedChildren 已保留，仅需恢复提示
     const started = await saveAll();
     if (!started) {
       saveError.value = readonly.value
@@ -1116,61 +1010,11 @@ export function usePermissionGrant() {
     }
   }
 
-  /** 将失败操作应用到 childDraft（add->set childKey，remove->delete childKey） */
-  function applyChildOpsToDraft(ops: FailedChildOp[]) {
-    const newMap = new Map(childDraft.value);
-    for (const fop of ops) {
-      if (fop.op === "add") {
-        newMap.set(fop.childKey, fop.child);
-      } else {
-        newMap.delete(fop.childKey);
-      }
-    }
-    childDraft.value = newMap;
-  }
-
-  /** 放弃全部更改 */
+  /** 放弃全部更改（清空 grantTasks + failedChildren overlay + saveError；不清 baselineStale） */
   function discardAll() {
-    mainDraft.value = new Map(mainBaseline.value);
-    childDraft.value = new Map(childBaseline.value);
+    grantTasks.value = [];
     failedChildren.value = [];
     saveError.value = null;
-  }
-
-  /** 撤销单项变更 */
-  function revertDiff(entry: DiffEntry) {
-    if (entry.type === "add") {
-      if (entry.isChild) {
-        childDraft.value = new Map(
-          [...childDraft.value].filter(([k]) => k !== entry.key)
-        );
-      } else {
-        mainDraft.value = new Map(
-          [...mainDraft.value].filter(([k]) => k !== entry.key)
-        );
-      }
-    } else if (entry.type === "remove") {
-      if (entry.isChild) {
-        childDraft.value = new Map(childDraft.value).set(
-          entry.key,
-          entry.permission
-        );
-      } else {
-        mainDraft.value = new Map(mainDraft.value).set(
-          entry.key,
-          entry.permission
-        );
-      }
-    } else if (entry.type === "update" && entry.before) {
-      if (entry.isChild) {
-        childDraft.value = new Map(childDraft.value).set(
-          entry.key,
-          entry.before
-        );
-      } else {
-        mainDraft.value = new Map(mainDraft.value).set(entry.key, entry.before);
-      }
-    }
   }
 
   // ========== 离开保护（§9.3，P1-8：可移除监听器 + 路由导航由 index.vue onBeforeRouteLeave 拦截） ==========
@@ -1207,11 +1051,12 @@ export function usePermissionGrant() {
     resourceTree,
     operations,
     conditions,
-    // 草稿
+    // 草稿（mainDraft/childDraft 为 computed，由 baseline + grantTasks replay 生成）
     mainDraft,
     mainBaseline,
     childDraft,
     childBaseline,
+    grantTasks,
     // 能力
     domainCapability,
     operatorCapability,
@@ -1236,20 +1081,20 @@ export function usePermissionGrant() {
     switchResourceType,
     reloadResourceContext,
     reloadBaseline,
-    // 单元格
+    // 单元格（只读）
     getMainCellState,
     buildMainCellContext,
-    toggleMainCell,
-    setMainCellAttr,
     isGrantableByOperator,
-    // 子权限
+    // 子权限（只读摘要）
     getChildrenOfParent,
-    toggleChildCell,
-    setChildCellAttr,
+    // 授权任务原子操作（T-FE-026）
+    commitGrantTask,
+    replaceGrantTask,
+    removeGrantTask,
+    clearGrantTasks,
     // 保存
     saveAll,
     discardAll,
-    revertDiff,
     retryFailedChildren,
     // 离开保护
     cleanup

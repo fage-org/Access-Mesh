@@ -831,6 +831,48 @@ interface GrantCapabilities {
 - 分组记录可同时包含新增、修改和无变化统计，无变化项不提交。
 - 新建弹窗取消不产生草稿；编辑弹窗取消保留原记录。
 
+#### 16.4.7 实现说明（T-FE-026，2026-07-12）
+
+授权弹窗已实现为批量授权任务入口（`components/GrantDialog.vue`），四步配置 + 调整/移除模式，不开第二层 Drawer/Dialog。
+
+**任务快照模型（方案 A+，R11 收敛版）**：
+
+- 引入 `grantTasks: GrantTaskSnapshot[]`（store 原子操作 `commitGrantTask`/`replaceGrantTask`/`removeGrantTask`/`clearGrantTask`）。
+- `mainDraft`/`childDraft` 改为 computed，由 `replayGrantTasks`（纯函数，`utils/grant-task.ts`）重放 `baseline + 有序 grantTasks` 生成；`failedChildren` 作为 overlay 在 `childDraft` computed 中叠加（投影顺序 `baseline -> grantTasks -> failedChildren`）。
+- `saveAll` 先捕获 `mainDiff`/`childDiff`（含 overlay）再清 `failedChildren`，避免重试 diff 提前消失；`reloadBaseline` 成功分支清空 `grantTasks`（已落到新 baseline）。
+- 旧 `revertDiff`（单项撤销）移除，右栏过渡提示任务粒度撤销在 T-FE-028 提供。
+- `replaceGrantTask` 保持原位置/`taskId`/`createdAt`；`commit`/`replace` 校验任务上下文与当前角色一致。
+
+**R11 显式"保留直接记录"开关**：
+
+- `GrantTaskSnapshot.keepDirectWhenAllCovered`（默认 false），仅在存在"被 ALL 覆盖且 baseline 无直接记录"的组合时显示开关。
+- replay 时 `allCovered = main.has(allKey)`（当前投影，不 OR baseline），`hadDirect = main.has(instanceKey)`；`allCovered && !hadDirect && !keepDirect` -> `redundantSkipped`。
+- 已有直接记录的组合不跳过，按相同配置无变化、不同配置修改处理。
+
+**子权限完整集合替换（支持删除）**：
+
+- `TaskChildGroup` 存在时 `children` 为该父权限最终期望的完整集合；replay 先删 `parentKey + "|"` 前缀子项再写入。
+- group 缺失不修改；group 存在且 `children=[]` 明确移除全部子权限。
+- 弹窗步骤四 `el-collapse` 展开时初始化本地草稿为 baseline 子权限副本（替换基准）；确认时仅提交展开过的组合。
+- 子权限 `ChildPermissionInline` 通过本地 binding（`getCell`/`toggleCell`）操作弹窗本地 `localChildDrafts`，确认时随任务原子提交，不直接写页面 draft。
+
+**共享键函数**：`childPermCellKey(parentKey, child)` 抽到 `@/utils/permission-grant-types`，hook 与弹窗共用，不复制算法。
+
+**步骤说明**：
+
+1. 操作多选：`operations` + `isGrantableByOperator` 置灰 + 已拥有资源数（baseline 统计，不发查询）。
+2. 资源多选：`el-tree` show-checkbox + 搜索 + 已选数量 + 已有/部分已有标识（`resOwnedCount` el-tag：✓ success 全部已有 / ◑ warning 部分已有，色符字三合一）；ALL 时固定 ALL 不创建虚拟编码。
+3. 条件/canGrant：`ReConditionPicker` + `canGrant` switch + `keepDirectWhenAllCovered` 开关（条件显示）+ 拆分提示（`selectedOps.size>1`）。
+4. 子权限逐项：`ChildPermissionInline` + 本地 binding，可跳过。
+
+**调整/移除**：`open-adjust` 预填单操作/单资源/条件；`onRemove`（intent=remove）删除主权限 + 级联子权限（replay 级联，保存层沿用 `dependOn in mainRemove` 过滤不重复 remove-child）；移除被 ALL 覆盖的直接记录时 info 提示"不影响 ALL 覆盖"。
+
+**能力门禁**：不循环发权限查询，用现有 capability 保守判定（fail-closed），最终以后端批量授权校验为准。
+
+**暂缓（T-FE-028）**：右栏任务快照分组展示、任务粒度撤销/编辑恢复入口。
+
+**子权限附加设置（P1-5，已实现）**：步骤四 `ChildPermissionInline` 的 `open-setting` 事件触发内联编辑面板（`editingChild` 只保存稳定定位信息 parentKey/childKey/input/能力标志，不持有 draft 引用；实际值从 `localChildDrafts` 读）。面板含 `ReConditionPicker` + `canGrant` switch，按 `supportsCondition`/`supportsDelegation` 禁用字段（不支持时强制 null/false）；"完成"调 `validate()`，切换编辑对象/关闭弹窗调 `reset()`；父权限因 R11 未进入投影时 `watch(mainDraft)` 自动关闭面板。
+
 ### 16.5 右栏：本次变更记录
 
 #### 16.5.1 分组记录展示

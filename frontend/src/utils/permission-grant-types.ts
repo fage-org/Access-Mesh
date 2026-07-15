@@ -189,3 +189,78 @@ export interface SummaryItem {
     draft: DraftPermission | null;
   };
 }
+
+// ========== 子权限键（共享纯函数，从 hook 抽出） ==========
+
+/** 子权限稳定键 = parentKey + "|" + permCellKey(child) */
+export function childPermCellKey(
+  parentKey: string,
+  child: PermCellKey
+): string {
+  return parentKey + "|" + permCellKey(child);
+}
+
+// ========== 授权任务快照（T-FE-026 弹窗确认产物，T-FE-028 右栏分组展示源） ==========
+
+/** 任务意图 */
+export type GrantTaskIntent = "grant" | "adjust" | "remove";
+
+/** 任务资源（ALL 时 resourceCode/codeType 均为 null，不创建虚拟编码） */
+export interface TaskResource {
+  /** null = ALL（类型级全量，不创建虚拟资源编码；__ALL__ 仅作弹窗内部 rowKey，不进快照） */
+  resourceCode: string | null;
+  /** null = ALL */
+  codeType: string | null;
+  resourceName: string | null;
+}
+
+/**
+ * 任务子权限组（完整集合替换语义，支持删除）。
+ * - group 存在：children 为该父权限最终期望的完整子权限集合。
+ * - group 缺失：本任务不修改该父权限的子权限。
+ * - group 存在且 children=[]：明确移除该父权限的全部子权限。
+ *
+ * replay 时先删除当前投影中该 parentKey 前缀下的子项，再写入完整集合。
+ */
+export interface TaskChildGroup {
+  /** 主权限稳定键（permCellKey 生成，子键前缀） */
+  parentKey: string;
+  /** 主权限操作码（展示用） */
+  operationCode: string;
+  /** 主权限资源（展示用；ALL 时 null） */
+  resourceCode: string | null;
+  codeType: string | null;
+  /** 最终期望的完整子权限集合（replay 先删前缀再写入） */
+  children: DraftPermission[];
+}
+
+/** 授权任务快照（一条 = 一个授权意图，确认加入变更的产物） */
+export interface GrantTaskSnapshot {
+  taskId: string;
+  /** 上下文（commit/replace 时校验与当前角色一致，防止过期弹窗提交） */
+  domainCode: string;
+  roleExternalId: string;
+  roleTypeCode: string;
+  resourceTypeCode: string;
+  scopeMode: GrantScopeMode;
+  /** grant=新建授权 / adjust=修改属性 / remove=移除授权 */
+  intent: GrantTaskIntent;
+  /** 选中的操作码集（有序） */
+  operationCodes: string[];
+  /** 选中的资源集（ALL 时固定 [TaskResource{resourceCode:null}]） */
+  resources: TaskResource[];
+  /** 一组条件（适用全部操作×资源） */
+  conditionCode: string | null;
+  /** 批量 canGrant */
+  canGrant: boolean;
+  /**
+   * R11：是否为"被 ALL 覆盖且 baseline 无直接记录"的组合创建直接记录。
+   * 默认 false（不创建冗余直接记录）；true 时显式保留。
+   * 仅影响 INSTANCE + allCovered + 无直接记录的组合；已有直接记录的组合不跳过。
+   */
+  keepDirectWhenAllCovered: boolean;
+  /** 步骤四子权限配置（按主权限组合分组） */
+  children: TaskChildGroup[];
+  /** 创建时间戳（排序；replace 保持原值，避免编辑导致任务重排） */
+  createdAt: number;
+}

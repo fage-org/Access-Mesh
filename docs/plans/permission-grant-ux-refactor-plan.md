@@ -46,7 +46,7 @@ last_updated: 2026-07-12
 | ID | 标题 | 状态快照 |
 |---|---|---|
 | T-FE-025 | 中栏资源权限概览与授权入口 | done |
-| T-FE-026 | 授权弹窗（批量授权任务） | proposed |
+| T-FE-026 | 授权弹窗（批量授权任务） | done |
 | T-FE-028 | 右栏本次变更记录 | proposed |
 | T-FE-027 | 三栏状态整合、回归验证与设计回写 | proposed |
 
@@ -67,3 +67,4 @@ last_updated: 2026-07-12
 - 2026-07-12：R8/R10/R11 关闭，§16.8 R1~R11 全关；§16.4 合并为四步（步骤三批量条件 + 步骤四子权限逐项）；状态改互斥；plan 转 active。
 - 2026-07-12：T-FE-024 完成（转 done）。抽取 ReConditionEditor / ReConditionPicker / RePermissionCell / ChildPermissionInline + `utils/condition-rules` 共享模块（消除 `api/permission-grant.ts` 反向依赖）；ChildPermissionInline 窄接口 binding（getCell + toggleCell）不 inject store。T-FE-026 启动前置门禁满足，T-FE-025/026 可开始实现。
 - 2026-07-12：T-FE-025 完成（转 done）。中栏重构为资源树 + 操作权限摘要 + 授权入口；新建 `PermissionSummaryCell` 共享组件（窄接口，`SummaryItem` 正交分解 effective + draftChange）；store `buildMainCellContext` 修正 `allCovered` 正交 + 加 `hasBaselineDirectRecord`；事件契约 `GrantTriggerPayload`/`AdjustTriggerPayload` 下沉 `@/utils/permission-grant-types`（携带 domainCode，draft 快照）；`index.vue` 移除 `AdditionalSettingDialog` + 子权限 drawer + `child-binding` adapter。T-FE-026 可启动实现。
+- 2026-07-12：T-FE-026 完成（转 done）。授权弹窗（`GrantDialog.vue`）四步配置 + 调整/移除模式；引入 `grantTasks` 任务快照 + `replayGrantTasks` 纯函数（`utils/grant-task.ts`），`mainDraft`/`childDraft` 改 computed（baseline + 有序 grantTasks + failedChildren overlay）；store 原子操作 `commit/replace/remove/clearGrantTask`；R11 显式 `keepDirectWhenAllCovered` 开关；子权限完整集合替换（支持删除）；`childPermCellKey` 抽共享；移除旧 `toggleMainCell`/`setMainCellAttr`/`toggleChildCell`/`setChildCellAttr`/`revertDiff`/`applyChildOpsToDraft`；`saveAll`/`retryFailedChildren` 同步改造（先捕获 diff 再清 overlay）；右栏过渡移除单项撤销。T-FE-028 可启动。
