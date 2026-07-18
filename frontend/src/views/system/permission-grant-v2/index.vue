@@ -67,10 +67,10 @@ onMounted(() => {
           <PermissionMatrixPanel />
         </div>
 
-        <!-- 右栏：变更流（T-FE-032 实现） -->
+        <!-- 右栏：变更流（T-FE-034 保存前总览联动实现） -->
         <div class="grid-right">
           <div class="placeholder">
-            <el-empty description="变更流将在 T-FE-032 实现" :image-size="80" />
+            <el-empty description="变更流将在 T-FE-034 实现" :image-size="80" />
           </div>
         </div>
       </div>

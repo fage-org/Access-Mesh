@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, inject } from "vue";
 import { type CellDisplay } from "../utils/cell-summary";
 import { type GrantVariantId, type V2DraftPermission } from "../utils/v2-types";
 import { type ConditionOption } from "@/api/permission-grant";
 import { normalizeConditionCode } from "../utils/grant-variant";
+import { usePermissionGrantV2 } from "../utils/hook";
+import { message } from "@/utils/message";
 import BranchRow from "./BranchRow.vue";
 
 defineOptions({ name: "BranchListPanelV2" });
+
+type Store = ReturnType<typeof usePermissionGrantV2>;
+const store = inject<Store>("pgV2Store")!;
 
 const props = defineProps<{
   display: CellDisplay;
@@ -18,7 +23,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (
     e: "add-branch",
-    payload: { conditionCode: string | null; canGrant: boolean }
+    payload: {
+      conditionCode: string | null;
+      canGrant: boolean;
+      keepDirect: boolean;
+    }
   ): void;
   (
     e: "edit-branch",
@@ -71,8 +80,14 @@ const branches = computed<BranchItem[]>(() => {
 const adding = ref(false);
 const newCondition = ref<string>("");
 const newCanGrant = ref(false);
+const newKeepDirect = ref(false);
 
 const canAdd = computed(() => props.display.grantableByOperator);
+
+/** R11 redundant 候选：被 ALL 覆盖+无直接记录，新增分支默认 redundantSkipped */
+const redundantCandidate = computed(() =>
+  store.redundantCandidate(props.display.cell)
+);
 
 const addConditionOptions = computed(() => [
   { label: "无条件", value: "" },
@@ -86,13 +101,23 @@ function startAdd() {
   if (!canAdd.value) return;
   newCondition.value = "";
   newCanGrant.value = false;
+  newKeepDirect.value = false;
   adding.value = true;
 }
 
 function confirmAdd() {
+  // R11：redundant 候选 + 未显式仍创建 -> 跳过（不提交任务，避免污染 grantTasks）
+  if (redundantCandidate.value && !newKeepDirect.value) {
+    message("已跳过：该操作被 ALL 覆盖，创建直接记录冗余", {
+      type: "info"
+    });
+    adding.value = false;
+    return;
+  }
   emit("add-branch", {
     conditionCode: newCondition.value === "" ? null : newCondition.value,
-    canGrant: newCanGrant.value
+    canGrant: newCanGrant.value,
+    keepDirect: newKeepDirect.value
   });
   adding.value = false;
 }
@@ -136,6 +161,20 @@ function cancelAdd() {
       <div v-if="branches.length === 0" class="empty-branches">
         无分支（未授权）
       </div>
+
+      <!-- R11 redundant 警告（被 ALL 覆盖+无直接记录） -->
+      <el-alert
+        v-if="adding && redundantCandidate"
+        type="warning"
+        :closable="false"
+        show-icon
+      >
+        <template #title> 该操作已被 ALL 覆盖，创建直接记录冗余 </template>
+        <div class="keep-direct-wrap">
+          <span>仍创建直接记录</span>
+          <el-switch v-model="newKeepDirect" size="small" />
+        </div>
+      </el-alert>
 
       <!-- 添加分支表单 -->
       <div v-if="adding" class="add-form">
@@ -234,6 +273,15 @@ function cancelAdd() {
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
+}
+
+.keep-direct-wrap {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--el-text-color-regular);
 }
 
 .can-grant-label {

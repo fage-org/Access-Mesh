@@ -8,6 +8,8 @@ const props = defineProps<{
   display: CellDisplay;
   /** 矩阵整体只读（SAVING / READONLY） */
   readonly?: boolean;
+  /** 批量多选选中（T-FE-032） */
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,6 +18,8 @@ const emit = defineEmits<{
     e: "menu-action",
     action: "grant-config" | "edit-branches" | "locate-source"
   ): void;
+  /** 批量多选：Ctrl/Shift 修饰键点击（T-FE-032） */
+  (e: "select", payload: { ctrl: boolean; shift: boolean }): void;
 }>();
 
 const cellRef = ref<HTMLElement | null>(null);
@@ -39,6 +43,27 @@ function clearLongPress() {
 function onMainClick() {
   if (menuVisible.value) return;
   if (props.readonly) return;
+  emit("main-click");
+}
+
+/**
+ * 鼠标点击路由（T-FE-032）：
+ * - Ctrl/Meta+点击 -> 加入/移出选择集（toggle）
+ * - Shift+点击 -> 矩形范围选择（由父组件用 selectionAnchor 计算）
+ * - 无修饰键 -> 主区域点击（切换授权/展开分支列表）
+ * 只读矩阵不响应多选（批量操作无意义）。
+ */
+function onCellClick(e: MouseEvent) {
+  if (menuVisible.value) return;
+  if (props.readonly) return;
+  if (e.ctrlKey || e.metaKey || e.shiftKey) {
+    e.preventDefault();
+    emit("select", {
+      ctrl: e.ctrlKey || e.metaKey,
+      shift: e.shiftKey
+    });
+    return;
+  }
   emit("main-click");
 }
 
@@ -203,6 +228,7 @@ onBeforeUnmount(() => {
         :class="{
           readonly,
           expanded: display.expanded,
+          selected,
           'has-overflow': display.overflowCount > 0
         }"
         :data-cellkey="display.cellKeyStr"
@@ -212,7 +238,8 @@ onBeforeUnmount(() => {
         :aria-disabled="readonly"
         :aria-haspopup="hasMenuActions"
         :aria-expanded="menuVisible"
-        @click="onMainClick"
+        :aria-selected="selected"
+        @click="onCellClick"
         @keydown="onKeyDown"
         @contextmenu="onContextMenu"
         @touchstart.passive="onTouchStart"
@@ -311,6 +338,7 @@ onBeforeUnmount(() => {
   min-height: 32px;
   padding: 2px 4px;
   cursor: pointer;
+  user-select: none;
   border-radius: var(--el-border-radius-small);
   transition: background-color 0.12s ease-out;
 
@@ -332,6 +360,12 @@ onBeforeUnmount(() => {
   &.expanded {
     background: var(--el-color-primary-light-9);
     box-shadow: inset 0 0 0 1px var(--el-color-primary-light-5);
+  }
+
+  // T-FE-032 批量选中：蓝色描边 + 背景区分（与 expanded 可共存）
+  &.selected {
+    background: var(--el-color-primary-light-8);
+    box-shadow: inset 0 0 0 2px var(--el-color-primary);
   }
 }
 

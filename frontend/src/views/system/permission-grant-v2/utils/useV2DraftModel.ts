@@ -35,7 +35,8 @@ import type {
   V2ReplayResult,
   VariantCommand,
   PermCellKeyStr,
-  CellSummary
+  CellSummary,
+  TaskResource
 } from "./v2-types";
 import {
   buildBaseline,
@@ -106,6 +107,35 @@ export function useV2DraftModel(
 
   function removeGrantTask(taskId: string) {
     grantTasks.value = grantTasks.value.filter(t => t.taskId !== taskId);
+  }
+
+  /**
+   * 从任务中删除满足 predicate 的 commands（P1 修复：批量任务逐 command 撤销）。
+   * 任务为空时才删整个任务，避免连带撤销同批其他分支。
+   */
+  function removeCommandsFromTask(
+    taskId: string,
+    predicate: (cmd: VariantCommand) => boolean
+  ): void {
+    const t = grantTasks.value.find(x => x.taskId === taskId);
+    if (!t) return;
+    const remaining = t.commands.filter(cmd => !predicate(cmd));
+    if (remaining.length === 0) {
+      removeGrantTask(taskId);
+      return;
+    }
+    replaceGrantTask(taskId, { ...t, commands: remaining });
+    // P1 修复：删 command 后若任务剩余全无有效变更（noChange/redundantSkipped），
+    // 清理整个任务，避免矩阵无差异但 hasDraft 虚假为 true
+    const effects = replayResult.value.taskEffects.get(taskId);
+    if (
+      effects &&
+      effects.commands.every(
+        c => c.effect === "noChange" || c.effect === "redundantSkipped"
+      )
+    ) {
+      removeGrantTask(taskId);
+    }
   }
 
   function resetDraft() {
@@ -191,12 +221,57 @@ export function useV2DraftModel(
     };
   }
 
+  /**
+   * 构建批量任务快照（1 任务多 commands，state-model §3.5 / interaction §4.3）。
+   * operationCodes/resources 为展示用聚合（去重）；执行以 commands 为准。
+   * cells 须同 resourceTypeCode（同资源类型下批量）；scopeMode 取首个（展示用）。
+   */
+  function buildBatchTask(
+    commands: VariantCommand[],
+    intent: "grant" | "adjust" | "remove",
+    cells: PermCellKey[]
+  ): V2GrantTaskSnapshot {
+    const ctx = roleContext.value;
+    const operationCodes = Array.from(new Set(cells.map(c => c.operationCode)));
+    const resourceKeySet = new Set<string>();
+    const resources: TaskResource[] = [];
+    for (const c of cells) {
+      const rk = `${c.scopeMode}|${c.resourceCode ?? ""}|${c.codeType ?? ""}`;
+      if (resourceKeySet.has(rk)) continue;
+      resourceKeySet.add(rk);
+      resources.push({
+        resourceCode: c.resourceCode,
+        codeType: c.codeType,
+        resourceName: null
+      });
+    }
+    const first = cells[0];
+    return {
+      taskId: `task-${generateVariantId()}`,
+      domainCode: ctx.domainCode,
+      roleExternalId: ctx.roleExternalId,
+      roleTypeCode: ctx.roleTypeCode,
+      resourceTypeCode: first?.resourceTypeCode ?? "",
+      scopeMode: first?.scopeMode ?? "INSTANCE",
+      intent,
+      operationCodes,
+      resources,
+      commands,
+      createdAt: Date.now()
+    };
+  }
+
   // ========== 单项操作 ==========
 
-  /** 新增无条件分支（UNAUTHORIZED + grantable 点击主区域） */
+  /**
+   * 新增无条件分支（UNAUTHORIZED + grantable 点击主区域）。
+   * keepDirectWhenAllCovered：R11 被 ALL 覆盖+无直接记录时是否显式创建直接记录
+   * （false=默认跳过 redundantSkipped；true=仍创建 add）。
+   */
   function grantUnconditional(
     cell: PermCellKey,
-    resourceName: string | null
+    resourceName: string | null,
+    keepDirectWhenAllCovered = false
   ): void {
     const grant = grantableByOperator(cell);
     if (!grant.ok) return;
@@ -208,7 +283,7 @@ export function useV2DraftModel(
       conditionCode: null,
       canGrant: false,
       resourceName,
-      keepDirectWhenAllCovered: false
+      keepDirectWhenAllCovered
     };
     commitGrantTask(buildTask(cell, [cmd], "grant"));
   }
@@ -217,12 +292,14 @@ export function useV2DraftModel(
    * 添加条件分支（分支列表"添加分支"按钮）。
    * P1 修复：mutation 边界再次检查 grantableByOperator（不只依赖按钮显示）。
    * 重复条件基础阻断（同 PermCellKey + 规范化 conditionCode 已存在 -> 拒绝）。
+   * keepDirectWhenAllCovered：R11 被 ALL 覆盖+无直接记录时是否显式创建（false=redundantSkipped）。
    */
   function addBranch(
     cell: PermCellKey,
     conditionCode: string | null,
     canGrant: boolean,
-    resourceName: string | null
+    resourceName: string | null,
+    keepDirectWhenAllCovered = false
   ): AddBranchResult {
     const grant = grantableByOperator(cell);
     if (!grant.ok) {
@@ -242,6 +319,24 @@ export function useV2DraftModel(
         };
       }
     }
+    // P1 修复：检查 baseline 中待移除的同条件分支，避免 remove+add 替换
+    // （否则保存后旧分支子权限级联删除且产生新 ID，违反 R11 同条件应 noChange/update）
+    const baselineIds = baselineState.value.mainIndex.get(key) ?? [];
+    for (const vid of baselineIds) {
+      const b = baselineState.value.mainMap.get(vid);
+      if (
+        b &&
+        normalizeConditionCode(b.conditionCode) === normalized &&
+        findRemoveTaskForVariant(vid)
+      ) {
+        return {
+          ok: false,
+          reason: normalized
+            ? `条件分支「${normalized}」已待移除，请先恢复后编辑`
+            : "无条件分支已待移除，请先恢复后编辑"
+        };
+      }
+    }
     const proposedVariantId = generateVariantId();
     const cmd: VariantCommand = {
       kind: "grant",
@@ -250,7 +345,7 @@ export function useV2DraftModel(
       conditionCode: normalized,
       canGrant,
       resourceName,
-      keepDirectWhenAllCovered: false
+      keepDirectWhenAllCovered
     };
     commitGrantTask(buildTask(cell, [cmd], "grant"));
     return { ok: true };
@@ -258,8 +353,10 @@ export function useV2DraftModel(
 
   /**
    * 编辑分支 conditionCode/canGrant（update 保持 variantId）。
-   * - baseline 分支改回原值 -> removeGrantTask（清理 noChange，避免 hasDraft 恒真）
-   * - 新增分支（proposedVariantId）-> replace 原 grant 任务
+   * P1-2：mutation 边界检查同 cell 其他变体（排除自身）重复 conditionCode，阻断并返回原因。
+   * P1-1：改回原值/撤销 update 只删该 variant 的 command（批量任务不连累其他分支）。
+   * - baseline 分支改回原值 -> 删 update command（清理 noChange）
+   * - 新增分支（proposedVariantId）-> replace 原 grant 任务内该 command
    * - baseline 分支首次编辑 -> commit update
    * - 同一 update 任务再次编辑 -> replace
    */
@@ -268,20 +365,44 @@ export function useV2DraftModel(
     conditionCode: string | null,
     canGrant: boolean,
     cell: PermCellKey
-  ): void {
-    if (capability.value.readonly) return;
+  ): { ok: boolean; reason?: string } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
     const normalized = normalizeConditionCode(conditionCode);
 
-    // baseline 分支改回原值 -> 撤销 update 任务（清理 noChange）
+    // P1-2：重复条件阻断（同 cell 其他变体已存在该 conditionCode）
+    const currentPerm = mainDraft.value.get(variantId);
+    if (currentPerm) {
+      const key = permCellKeyStr(currentPerm);
+      const otherIds = (mainIndex.value.get(key) ?? []).filter(
+        id => id !== variantId
+      );
+      for (const oid of otherIds) {
+        const v = mainDraft.value.get(oid);
+        if (v && normalizeConditionCode(v.conditionCode) === normalized) {
+          return {
+            ok: false,
+            reason: normalized
+              ? `条件分支「${normalized}」已存在`
+              : "无条件分支已存在"
+          };
+        }
+      }
+    }
+
+    // baseline 分支改回原值 -> 撤销该 variant 的 update command（清理 noChange）
     const baseline = baselineState.value.mainMap.get(variantId);
     if (baseline && !isPendingAdd(variantId)) {
       const baselineCond = normalizeConditionCode(baseline.conditionCode);
       if (baselineCond === normalized && baseline.canGrant === canGrant) {
         if (hasUpdateTask(variantId)) {
           const t = findEditTaskForVariant(variantId);
-          if (t) removeGrantTask(t.taskId);
-          return;
+          if (t)
+            removeCommandsFromTask(
+              t.taskId,
+              cmd => cmd.kind === "update" && cmd.targetVariantId === variantId
+            );
         }
+        return { ok: true };
       }
     }
 
@@ -306,18 +427,23 @@ export function useV2DraftModel(
       };
       commitGrantTask(buildTask(cell, [cmd], "adjust"));
     }
+    return { ok: true };
   }
 
   /**
    * 移除分支（分支列表"撤销此分支"）。
-   * - 新增分支（PENDING_ADD）-> removeGrantTask（撤销产生它的 grant 任务）
+   * P1-1：PENDING_ADD 只删该 variant 的 grant command（批量任务不连累其他分支）。
    * - baseline 分支 -> commit remove 任务（已有则幂等跳过）
    */
   function removeVariant(variantId: GrantVariantId, cell: PermCellKey): void {
     if (capability.value.readonly) return;
     if (isPendingAdd(variantId)) {
       const t = findEditTaskForVariant(variantId);
-      if (t) removeGrantTask(t.taskId);
+      if (t)
+        removeCommandsFromTask(
+          t.taskId,
+          cmd => cmd.kind === "grant" && cmd.proposedVariantId === variantId
+        );
       return;
     }
     if (findRemoveTaskForVariant(variantId)) return; // 幂等
@@ -325,25 +451,77 @@ export function useV2DraftModel(
     commitGrantTask(buildTask(cell, [cmd], "remove"));
   }
 
-  /** 恢复 PENDING_REMOVE（撤销对应 remove 任务） */
-  function restoreVariant(variantId: GrantVariantId): void {
-    if (capability.value.readonly) return;
-    const t = findRemoveTaskForVariant(variantId);
-    if (t) removeGrantTask(t.taskId);
+  /**
+   * P1-2：恢复 baseline variant 后与同 cell 其他 draft 分支 conditionCode 冲突检测。
+   * 恢复后 baseline conditionCode 若与另一 draft 分支重复，replay 会合并/noChange，
+   * 导致新增分支消失但任务残留；故在 mutation 边界阻断并返回原因。
+   */
+  function checkRestoreConflict(variantId: GrantVariantId): string | null {
+    const baseline = baselineState.value.mainMap.get(variantId);
+    if (!baseline) return null;
+    const restoredCond = normalizeConditionCode(baseline.conditionCode);
+    const key = permCellKeyStr(baseline);
+    const otherIds = (mainIndex.value.get(key) ?? []).filter(
+      id => id !== variantId
+    );
+    for (const oid of otherIds) {
+      const v = mainDraft.value.get(oid);
+      if (v && normalizeConditionCode(v.conditionCode) === restoredCond) {
+        return restoredCond
+          ? `恢复后与「${restoredCond}」分支重复`
+          : "恢复后与无条件分支重复";
+      }
+    }
+    return null;
   }
 
-  /** 恢复 MODIFIED（撤销对应 update 任务，恢复 baseline 属性） */
-  function restoreModify(variantId: GrantVariantId): void {
-    if (capability.value.readonly) return;
+  /**
+   * 恢复 PENDING_REMOVE（撤销对应 remove command）。
+   * P1-1：只删该 variant 的 remove command（批量任务不连累其他分支）。
+   * P1-2：检查恢复后与同 cell 其他 draft 分支 conditionCode 冲突，冲突则返回失败。
+   */
+  function restoreVariant(variantId: GrantVariantId): {
+    ok: boolean;
+    reason?: string;
+  } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
+    const t = findRemoveTaskForVariant(variantId);
+    if (!t) return { ok: true };
+    const conflict = checkRestoreConflict(variantId);
+    if (conflict) return { ok: false, reason: conflict };
+    removeCommandsFromTask(
+      t.taskId,
+      cmd => cmd.kind === "remove" && cmd.targetVariantId === variantId
+    );
+    return { ok: true };
+  }
+
+  /**
+   * 恢复 MODIFIED（撤销该 variant 的 update command，恢复 baseline 属性）。
+   * P1-1：只删该 variant 的 update command（批量任务不连累其他分支）。
+   * P1-2：检查恢复后与同 cell 其他 draft 分支 conditionCode 冲突，冲突则返回失败。
+   */
+  function restoreModify(variantId: GrantVariantId): {
+    ok: boolean;
+    reason?: string;
+  } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
     const t = findEditTaskForVariant(variantId);
-    if (!t) return;
+    if (!t) return { ok: true };
     if (
-      t.commands.some(
+      !t.commands.some(
         c => c.kind === "update" && c.targetVariantId === variantId
       )
     ) {
-      removeGrantTask(t.taskId);
+      return { ok: true };
     }
+    const conflict = checkRestoreConflict(variantId);
+    if (conflict) return { ok: false, reason: conflict };
+    removeCommandsFromTask(
+      t.taskId,
+      cmd => cmd.kind === "update" && cmd.targetVariantId === variantId
+    );
+    return { ok: true };
   }
 
   // ========== 能力门控 + 显示解析 ==========
@@ -408,6 +586,13 @@ export function useV2DraftModel(
         for (const v of display.baselineVariants) restoreVariant(v.variantId);
         return;
       }
+      // Q4：被 ALL 覆盖 + 无直接记录 + 可授予 -> 展开分支列表
+      // （列表内 redundant 警告 + 跳过/仍创建），不直接 grantUnconditional，
+      // 避免 replay redundantSkipped 后单元格无变化造成"点了没反应"困惑
+      if (display.allCovered && display.grantableByOperator) {
+        toggleExpand(cell);
+        return;
+      }
       // 无分支 + grantable -> 新增无条件分支
       if (display.grantableByOperator) {
         grantUnconditional(cell, resourceName);
@@ -445,6 +630,165 @@ export function useV2DraftModel(
     expandedCell.value = null;
   }
 
+  // ========== R11 redundant 候选判定 + 批量操作（T-FE-032） ==========
+
+  /**
+   * R11 redundant 候选：INSTANCE + 被 ALL 覆盖 + 当前 draft 无直接分支。
+   * 与 replay applyGrant 的 !hasDirect + isAllCovered 判定一致。
+   * 此类单元格新增分支默认 redundantSkipped；keepDirectWhenAllCovered=true 才创建。
+   */
+  function redundantCandidate(cell: PermCellKey): boolean {
+    if (cell.scopeMode !== "INSTANCE") return false;
+    const display = resolveCell(cell);
+    return display.allCovered && display.summary.variants.length === 0;
+  }
+
+  /**
+   * 批量授予全部（工具栏"授予全部"）。
+   * 选择集内 UNAUTHORIZED + grantable + 非全待移除 -> 新增无条件分支（1 任务多 commands）。
+   * redundant 候选走默认 redundantSkipped（keepDirect=false），计入 redundantCandidates 提示。
+   * 已有授权的不变（仅对 UNAUTHORIZED 操作）。
+   */
+  function batchGrantAll(cells: PermCellKey[]): {
+    granted: number;
+    redundantCandidates: number;
+  } {
+    if (capability.value.readonly)
+      return { granted: 0, redundantCandidates: 0 };
+    const commands: VariantCommand[] = [];
+    let redundantCandidates = 0;
+    for (const cell of cells) {
+      const summary = cellSummary(cell);
+      if (summary.effective !== "UNAUTHORIZED") continue;
+      if (summary.draftChange === "REMOVE") continue; // 全待移除走恢复
+      if (!grantableByOperator(cell).ok) continue;
+      if (redundantCandidate(cell)) redundantCandidates++;
+      commands.push({
+        kind: "grant",
+        cell,
+        proposedVariantId: generateVariantId(),
+        conditionCode: null,
+        canGrant: false,
+        resourceName: null,
+        keepDirectWhenAllCovered: false
+      });
+    }
+    const granted = commands.length - redundantCandidates;
+    // 全 redundantSkipped 时不提交（避免污染 grantTasks）
+    if (commands.length === 0 || granted === 0)
+      return { granted: 0, redundantCandidates };
+    commitGrantTask(buildBatchTask(commands, "grant", cells));
+    return { granted, redundantCandidates };
+  }
+
+  /**
+   * 批量新增条件分支（工具栏"设置条件/转授权"侧拉确认）。
+   * 为选中每个单元格新增一条统一 conditionCode + canGrant 的 OR 分支（add）。
+   * 逐单元格重复条件阻断（同 cell+规范化 conditionCode 已存在 -> 收入 failures）。
+   * keepDirectWhenAllCovered：redundant 候选是否显式创建。
+   * 修改既有分支须逐分支（非批量），本方法只新增。
+   */
+  function batchAddBranch(
+    cells: PermCellKey[],
+    conditionCode: string | null,
+    canGrant: boolean,
+    keepDirectWhenAllCovered: boolean
+  ): {
+    added: number;
+    failures: { cell: PermCellKey; reason: string }[];
+    redundantSkipped: number;
+  } {
+    if (capability.value.readonly)
+      return { added: 0, failures: [], redundantSkipped: 0 };
+    const normalized = normalizeConditionCode(conditionCode);
+    const commands: VariantCommand[] = [];
+    const failures: { cell: PermCellKey; reason: string }[] = [];
+    let redundantSkipped = 0;
+    for (const cell of cells) {
+      if (!grantableByOperator(cell).ok) {
+        failures.push({ cell, reason: "不可新增" });
+        continue;
+      }
+      const key = permCellKeyStr(cell);
+      const existing = mainIndex.value.get(key) ?? [];
+      const dup = existing.some(vid => {
+        const v = mainDraft.value.get(vid);
+        return v && normalizeConditionCode(v.conditionCode) === normalized;
+      });
+      if (dup) {
+        failures.push({
+          cell,
+          reason: normalized
+            ? `条件「${normalized}」已存在`
+            : "无条件分支已存在"
+        });
+        continue;
+      }
+      // P1 修复：baseline 待移除的同条件分支会导致 remove+add 替换，阻断
+      const baselineIds = baselineState.value.mainIndex.get(key) ?? [];
+      const removedSameCond = baselineIds.some(vid => {
+        const b = baselineState.value.mainMap.get(vid);
+        return (
+          b &&
+          normalizeConditionCode(b.conditionCode) === normalized &&
+          !!findRemoveTaskForVariant(vid)
+        );
+      });
+      if (removedSameCond) {
+        failures.push({
+          cell,
+          reason: normalized
+            ? `条件「${normalized}」已待移除，请先恢复`
+            : "无条件分支已待移除，请先恢复"
+        });
+        continue;
+      }
+      // P2 修复：redundant 候选 + !keepDirect -> 将被 replay redundantSkipped
+      if (!keepDirectWhenAllCovered && redundantCandidate(cell)) {
+        redundantSkipped++;
+      }
+      commands.push({
+        kind: "grant",
+        cell,
+        proposedVariantId: generateVariantId(),
+        conditionCode: normalized,
+        canGrant,
+        resourceName: null,
+        keepDirectWhenAllCovered
+      });
+    }
+    // added = 实际进 mainDraft 的（排除 redundantSkipped）
+    const added =
+      commands.length - (!keepDirectWhenAllCovered ? redundantSkipped : 0);
+    // 无实际 add 时不提交（全 redundantSkipped 或空，避免污染 grantTasks）
+    if (commands.length === 0 || added === 0)
+      return { added: 0, failures, redundantSkipped };
+    commitGrantTask(buildBatchTask(commands, "grant", cells));
+    return { added, failures, redundantSkipped };
+  }
+
+  /**
+   * 批量撤销全部（工具栏"撤销全部"）。
+   * 选择集内有直接记录的单元格 -> 移除其全部 baseline 变体（1 任务多 remove commands）。
+   * 幂等：已有 remove 任务的变体跳过。PENDING_ADD 草稿不在范围（非直接记录，单项撤销）。
+   * canGrant 不约束回收：不检查 grantableByOperator。
+   */
+  function batchRemove(cells: PermCellKey[]): { removed: number } {
+    if (capability.value.readonly) return { removed: 0 };
+    const commands: VariantCommand[] = [];
+    for (const cell of cells) {
+      const key = permCellKeyStr(cell);
+      const baselineIds = baselineState.value.mainIndex.get(key) ?? [];
+      for (const vid of baselineIds) {
+        if (findRemoveTaskForVariant(vid)) continue; // 幂等
+        commands.push({ kind: "remove", targetVariantId: vid });
+      }
+    }
+    if (commands.length === 0) return { removed: 0 };
+    commitGrantTask(buildBatchTask(commands, "remove", cells));
+    return { removed: commands.length };
+  }
+
   return {
     grantTasks,
     expandedCell,
@@ -471,6 +815,10 @@ export function useV2DraftModel(
     resolveCell,
     handleMainClick,
     toggleExpand,
-    collapseExpanded
+    collapseExpanded,
+    redundantCandidate,
+    batchGrantAll,
+    batchAddBranch,
+    batchRemove
   };
 }
