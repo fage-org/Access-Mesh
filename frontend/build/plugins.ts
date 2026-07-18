@@ -15,7 +15,8 @@ import { vitePluginFakeServer } from "vite-plugin-fake-server";
 
 export function getPluginsList(
   VITE_CDN: boolean,
-  VITE_COMPRESSION: ViteCompression
+  VITE_COMPRESSION: ViteCompression,
+  VITE_ENABLE_PROD_MOCK: boolean
 ): PluginOption[] {
   const lifecycle = process.env.npm_lifecycle_event;
   return [
@@ -45,7 +46,7 @@ export function getPluginsList(
       logger: false,
       include: "mock",
       infixName: false,
-      enableProd: true
+      enableProd: VITE_ENABLE_PROD_MOCK
     }),
     // svg组件化支持
     svgLoader(),

@@ -19,7 +19,7 @@ last_reviewed: 2026-07-17
 
 - 不修改现有 permission-grant 页面（T-FE-014/025~028 产出）。
 - 不改后端契约（临时 ID 契约采用选项1：按 `PermCellKey + normalized conditionCode` 匹配 save 响应）。
-- 不实现 T-PERM-034 后端改造；V2 仍 mock 驱动。**mock 隔离方案（修订）**：只读端点（abstract-role/tree、resource-entity/tree、operation-permission/list、permission-condition/list）V2 **复用共享**，不复制第二事实源；可变授权（role-resource-permission/*）在 mock 环境用 **dev-only transport**（独立拦截，不注册生产路径），生产构建关闭 fake-server 后 V2 走真实 `/api/perm/role-resource-permission/*`（后端已支持多条件，方案 A）。V2 不注册任何 fake route：dev 环境直接注入内存 transport（不经全局 http client，绕开旧 mock 对 canonical URL 的接管），生产走标准 http client。
+- 不实现 T-PERM-034 后端改造；V2 仍 mock 驱动。**mock 隔离方案（修订）**：只读端点（abstract-role/tree、type-definition/list、resource-entity/tree、operation-permission/list、permission-condition/list）V2 **复用共享**，不复制第二事实源；可变授权（role-resource-permission/*）在 mock 环境用 **dev-only transport**（独立拦截，不注册生产路径），生产构建关闭 fake-server 后 V2 走真实 `/api/perm/role-resource-permission/*`（后端已支持多条件，方案 A）。V2 不注册任何 fake route：环境判定用 `VITE_ENABLE_PROD_MOCK`（与 `build/plugins.ts` fake-server `enableProd` 同源）--dev 服务或演示构建（开关 `true`）直接注入内存 transport（不经全局 http client，绕开旧 mock 对 canonical URL 的接管），真实部署构建（开关 `false`）走标准 http client。`.env.production`/`.env.staging` 默认 `false`，`.env.demo` + `pnpm build:demo` 显式 `true`。
 - 不实现 INHERITED/DERIVED 态真实数据（依赖 T-PERM-034，V2 预留渲染能力）。
 - 不实现并发 configVersion 乐观锁（CONCURRENT_MODIFIED 态预留不可达）。
 

@@ -120,7 +120,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ⚙️ | ✅ |
 | [T-FE-026](T-FE-026.md) | 权限授予授权弹窗（批量授权任务） | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.4/§16.8 | T-FE-024, T-FE-025 | ✅ | ✅ |
 | [T-FE-028](T-FE-028.md) | 权限授予右栏本次变更记录 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.5/§16.8 | T-FE-026 | ⚙️ | ⏳ |
-| [T-FE-029](T-FE-029.md) | 权限授予V2页面骨架+路由+三栏+角色树+能力门控 | [permission-grant-v2](../plans/permission-grant-v2-plan.md) | design/frontend/permission-grant-{state-model,interaction}.md | - | ⚙️ | ⏳ |
+| [T-FE-029](T-FE-029.md) | 权限授予V2页面骨架+路由+三栏+角色树+能力门控 | [permission-grant-v2](../plans/permission-grant-v2-plan.md) | design/frontend/permission-grant-{state-model,interaction}.md | - | ✅ | ⏳ |
 | [T-FE-030](T-FE-030.md) | 方案A前端模型（GrantVariantId+replay+聚合摘要） | permission-grant-v2 | design/frontend/permission-grant-state-model.md §0/§1/§2.2/§7.1 | T-FE-029 | ⚙️ | ⏳ |
 | [T-FE-031](T-FE-031.md) | V2中栏直接操作矩阵+单元格聚合摘要+分支列表就地展开 | permission-grant-v2 | design/frontend/permission-grant-interaction.md §2/§4.1/§4.2；state-model §6.2 | T-FE-030 | ⚙️ | ⏳ |
 | [T-FE-032](T-FE-032.md) | V2授权交互（点击/添加分支/逐分支编辑撤销/批量新增分支）+R11 | permission-grant-v2 | design/frontend/permission-grant-{interaction,state-model}.md §3.4/§4.1/§4.3 | T-FE-031 | ⚙️ | ⏳ |
@@ -209,7 +209,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 
 ### P8 - 权限授予 V2（方案A多条件分支模型，active）
 
-1. `T-FE-029` V2 页面骨架+路由+三栏+角色树+能力门控 ← -
+1. `T-FE-029` V2 页面骨架+路由+三栏+角色树+能力门控 ✅ ← -
 2. `T-FE-030` 方案A前端模型（GrantVariantId+replay+聚合摘要） ← T-FE-029
 3. `T-FE-031` 中栏矩阵+单元格聚合摘要+分支列表就地展开 ← T-FE-030
 4. `T-FE-032` 授权交互（点击/添加分支/逐分支编辑撤销/批量新增分支）+R11 ← T-FE-031
