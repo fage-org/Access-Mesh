@@ -2,6 +2,7 @@
 import { onMounted, provide } from "vue";
 import { usePermissionGrantV2 } from "./utils/hook";
 import RoleTreePanel from "./components/RoleTreePanel.vue";
+import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
 
 defineOptions({ name: "PermissionGrantV2" });
 
@@ -61,14 +62,9 @@ onMounted(() => {
           <RoleTreePanel />
         </div>
 
-        <!-- 中栏：资源×操作矩阵（T-FE-031 实现） -->
+        <!-- 中栏：资源×操作矩阵（T-FE-031） -->
         <div class="grid-center">
-          <div class="placeholder">
-            <el-empty
-              description="权限矩阵将在 T-FE-031 实现"
-              :image-size="80"
-            />
-          </div>
+          <PermissionMatrixPanel />
         </div>
 
         <!-- 右栏：变更流（T-FE-032 实现） -->
