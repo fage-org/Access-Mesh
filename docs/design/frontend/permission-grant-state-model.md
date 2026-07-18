@@ -24,7 +24,7 @@ last_reviewed: 2026-07-17
 | D2 角色上下文 | 当前角色 | 选角色到切角色 | UNSELECTED / LOADING / READY / LOAD_FAILED |
 | D3 编辑能力 | 当前角色 | 跟随 D2 + 能力 | EDITABLE / READONLY(+reason) |
 | D4 权限单元有效态 | 每个资源×操作单元格 | baseline+task 投影 | 见 §1 |
-| D5 草稿-保存生命周期 | 全页草稿 | 选角色到保存完成 | CLEAN / DIRTY / SAVING / SAVE_FAILED / SAVE_OUTCOME_UNKNOWN / STALE（+ STALE_WITH_CHILD_FAILURE 组合态）；SAVE_FAILED 四子态见 §2.1 |
+| D5 草稿-保存生命周期 | 全页草稿 | 选角色到保存完成 | CLEAN / DIRTY / SAVING / SAVE_FAILED / SAVE_OUTCOME_UNKNOWN / STALE（+ STALE_WITH_CHILD_FAILURE 组合态）；SAVE_FAILED 两子态见 §2.1 |
 | D6 授权弹窗 | 弹窗实例 | 打开到关闭 | CLOSED / GRANT / ADJUST × step0–3 |
 
 **单一事实源**：`baseline`（服务端事实）+ 有序 `grantTasks[]`（本地任务快照）-> `replayGrantTasks()` 纯函数投影 -> `mainDraft`/`childDraft` -> diff -> 中栏摘要 / 右栏变更 / 弹窗预填。三栏不允许维护第二份事实。`failedChildren` 作为 overlay 叠加在 childDraft 之上（投影顺序 baseline -> grantTasks -> failedChildren）。
@@ -45,7 +45,7 @@ last_reviewed: 2026-07-17
 | `ALL_COVERED` | 覆盖 | 实例单元被同操作的 ALL 权限覆盖 | 视直接记录而定 | INSTANCE + ALL cell 有有效分支 |
 | `INHERITED` | 继承（操作位） | 被同角色其他操作的 `effectiveBits` 覆盖（如 MANAGE 覆盖 VIEW）；无直接记录但运行时有效 | **否（只读）** | baseline 无此键、但同资源有 effectiveBits 覆盖此操作的其他操作授权 |
 | `DERIVED` | 派生 | 角色组合(COMPOSED)、资源依赖(AUTO_DEP)或资源继承展开(grantSource=INHERITED)产生 | **否（只读）** | grantSource≠MANUAL |
-| `NOT_GRANTABLE` | 拒绝（授予） | 操作者缺转授权能力，不可新增 | **否（仅可回收既有）** | isGrantableByOperator=false |
+> **NOT_GRANTABLE 非有效态（P1 修正）**：操作者授予能力由正交标记 `grantableByOperator`/`denyReason` 表达（§1.3），**不是 SummaryEffective 有效态**。已有 DIRECT/CONDITIONAL 分支但操作者不可新增时，单元格同时显示有效态（✓/◑）+ ⊘ 不可新增标记；未授权且不可授予显示 · + ⊘。NOT_GRANTABLE 不覆盖真实授权状态。
 
 > **P1-3 修正**：`INHERITED` 显式建模操作位继承。后端 `OperationPermission` 有 `binaryBit`+`inheritMask`，`OperationPermissionUtils.effectiveBits` 动态计算一个操作授权覆盖的全部操作位（MANAGE 授权运行时使 VIEW/CREATE/UPDATE/DELETE 均有效）。授权页 baseline 仅含直接授权记录，若不建模 `INHERITED`，被覆盖的操作单元格会显示为 `UNAUTHORIZED` 并允许创建冗余直接授权。`INHERITED` 只读，撤销语义为"移除来源操作授权"（如移除 MANAGE），而非创建直接记录。
 >
@@ -168,14 +168,14 @@ D4 的有效主状态由底层 `CellState` 6 态 + 正交标记派生。转换�
 
 > **P1-3 组合态 `STALE_WITH_CHILD_FAILURE`**：`childFailure`（E16，failedChildren 非空）与 `stale`（E18，baselineStale=true）正交，可同时发生。UI 须同时呈现"先刷新事实"+"刷新后重试子项"，恢复顺序固定：先 fetchBaseline+reconcile 清 stale -> 再 retry 清 childFailure。原子恢复流程见 [`permission-grant-error-flow.md`](./permission-grant-error-flow.md) §2.5。
 
-### 2.1 SAVE_FAILED 的四个子分支（决策点 5）
+### 2.1 SAVE_FAILED 的两个子分支（决策点 5）
 
 | 子态 | 条件 | 草稿/overlay 处理 | 恢复路径 |
 |---|---|---|---|
 | `CHILD_PARTIAL_FAILED` | 主权限 save 成功，部分 add-child/remove-child 失败 | `failedChildren` overlay 保留；`saveError` 提示"主权限已保存，部分子权限保存失败" | `retryFailedChildren` |
-| `MAIN_FAILED` | saveRolePermission 抛错（未到 add-child） | 恢复原 `failedChildren` 快照（failedSnapshot），草稿不变 | 修正后 saveAll |
-| `SAVE_OUTCOME_UNKNOWN` | save 请求超时/断网，服务端可能已提交但响应未返回（E17b/E20） | **不盲目重试**；snapshot 期望投影 + failedChildren 快照保留 | 先 fetchBaseline+reconcile（见 error-flow §2.5 P1-1），再续传未落库项；全落库->CLEAN，部分未落库->DIRTY |
-| `RELOAD_FAILED` | 保存已提交但 reloadBaseline 失败 | `baselineStale=true`，保存已落库但本地事实陈旧 | 重新选角色刷新（进入 STALE） |
+| `MAIN_FAILED` | saveRolePermission 抛业务错（未到 add-child） | 恢复原 `failedChildren` 快照（failedSnapshot），草稿不变 | 修正后 saveAll |
+
+> **状态层级统一（P2-4 修正）**：SAVE_FAILED 仅含 MAIN_FAILED（业务拒绝）+ CHILD_PARTIAL_FAILED。`SAVE_OUTCOME_UNKNOWN` 是 D5 **独立顶层态**（非 SAVE_FAILED 子态）；`RELOAD_FAILED` 进入 STALE（非 SAVE_FAILED 子态）。避免两套矛盾枚举与 UI 分支。
 
 > `saveAll` 返回 `Promise<boolean>`：`true`=已开始保存（通过门禁），`false`=前置门禁拦截（只读/saving 中/stale）。区分"未开始"与"开始后失败"，避免重试入口丢失失败元数据（第六轮 P2 修复）。
 
@@ -423,8 +423,9 @@ step2 条件/canGrant/R11开关 ──next──► step3 子权限(可跳过) �
 | * | ADD | ＋ | success | - |
 | * | REMOVE | － | danger | - |
 | * | MODIFY | ✎ | warning | - |
-| NOT_GRANTABLE | null | ⊘ | info | denyReason |
 | UNAUTHORIZED | null | · | 无色 | - |
+
+> **capabilityMarks 维度（P1 修正）**：NOT_GRANTABLE 不是 `effective`，而是正交能力标记 `grantableByOperator=false` 的 ⊘ 渲染。单元格输出 = `effective + draftChange + capabilityMarks`，允许 DIRECT/CONDITIONAL 与 ⊘ 同时展示（已有授权但操作者不可新增）。
 
 排序权重（R3）：直接/条件/ALL覆盖(0) > 操作继承(1) > 派生(2) > 草稿变更(3) > 不可授予(4) > 未授权(5)；默认显示 3 个 + "+N" popover。INHERITED 点击跳转来源操作（只读，见 interaction §4.1）。
 
@@ -450,7 +451,7 @@ step2 条件/canGrant/R11开关 ──next──► step3 子权限(可跳过) �
 - `grantSource=MANUAL` 且 `DERIVED`（来源矛盾）
 - 子权限键存在但 `parentVariantId` 不在 mainDraft 投影（孤儿——replay `if(!main.has) continue` 防止）
 
-> **方案 A 合法组合（非不可能）**：同一 PermCellKey 可同时含 baseline 分支 + PENDING_ADD 新分支、一分支 ADD + 另一分支 REMOVE、无条件分支 + 条件分支并存。**聚合摘要规则**：单元格有效态按分支聚合--存在无条件分支（conditionCode=null）则 DIRECT；否则存在条件分支则 CONDITIONAL；全部分支待移除则 PENDING_REMOVE；无分支则 UNAUTHORIZED。草稿副状态取最显著（ADD>REMOVE>MODIFY）。
+> **方案 A 合法组合（非不可能）**：同一 PermCellKey 可同时含 baseline 分支 + PENDING_ADD 新分支、一分支 ADD + 另一分支 REMOVE、无条件分支 + 条件分支并存。**聚合摘要规则**：单元格有效态按分支聚合--存在无条件分支（conditionCode=null）则 DIRECT；否则存在条件分支则 CONDITIONAL；全部分支待移除则 UNAUTHORIZED + draftChange=REMOVE（PENDING_REMOVE 仅作单变体底层 CellState，不作为聚合有效态）；无分支则 UNAUTHORIZED。草稿副状态取最显著（ADD>REMOVE>MODIFY）。
 
 ### 7.2 能力层
 - `directGrantable=false` 且 EDITABLE
@@ -497,5 +498,5 @@ step2 条件/canGrant/R11开关 ──next──► step3 子权限(可跳过) �
 - **未配置/允许/拒绝/继承/覆盖/冲突** = D4 正交两维（有效主态 + 草稿副态）+ 正交标记；"拒绝"与"冲突"在允许模型下分别落在编辑门控（NOT_GRANTABLE）和运行时查询侧（conflict_rule），**不是**草稿态。
 - **权限依赖** = 资源依赖（AUTO_DEP，只读，暂不产生）+ 子权限 dependOn（级联、完整集合替换、两步保存）。
 - **单项/批量** = 同一 GrantDialog + 同一 GrantTaskSnapshot，仅 intent 与预填不同（R11 重叠语义统一）。
-- **未保存/保存中/保存失败** = D5 六态（CLEAN/DIRTY/SAVING/SAVE_FAILED/SAVE_OUTCOME_UNKNOWN/STALE）+ SAVE_FAILED 四子态（CHILD_PARTIAL / MAIN / SAVE_OUTCOME_UNKNOWN / RELOAD）+ STALE_WITH_CHILD_FAILURE 组合态。
+- **未保存/保存中/保存失败** = D5 六态（CLEAN/DIRTY/SAVING/SAVE_FAILED/SAVE_OUTCOME_UNKNOWN/STALE）+ SAVE_FAILED 两子态（CHILD_PARTIAL / MAIN）+ SAVE_OUTCOME_UNKNOWN/STALE 独立顶层态 + STALE_WITH_CHILD_FAILURE 组合态。
 - **并发/版本冲突** = save 增量补丁，按稳定权限键逐键冲突（互不相交键自然合并 / 同键 update 局部 last-write-wins / 同键 add 取决于 conditionCode 是否相同），**非整角色 LWW**；离开保护 + STALE(reload 失败)；真正乐观锁未实现，`CONCURRENT_MODIFIED` 态已预留但不可达。

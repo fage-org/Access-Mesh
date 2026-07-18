@@ -276,7 +276,7 @@ DIRTY ──点击保存──► SAVE_PREVIEW（bottom-sheet 总览）──确
 
 - 就地阻断：条件停用 / 子权限类型不符 / 不可授予 -> 单元格标红或灰态。
 - 保存前警告：SAVE_PREVIEW sheet 警告区（冗余/级联/冲突）。
-- 保存失败：sheet 失败视图（CHILD_PARTIAL / MAIN / SAVE_OUTCOME_UNKNOWN / RELOAD 四子态 + STALE_WITH_CHILD_FAILURE 组合态）。
+- 保存失败：sheet 失败视图（CHILD_PARTIAL / MAIN 两子态 + SAVE_OUTCOME_UNKNOWN/STALE 顶层态 + STALE_WITH_CHILD_FAILURE 组合态）。
 - 加载错误：栏级 skeleton -> empty + 重试，不影响其他栏。
 
 ## 9. 加载状态
@@ -319,13 +319,15 @@ DIRTY ──点击保存──► SAVE_PREVIEW（bottom-sheet 总览）──确
 
 唯一新增的交互态（INLINE_CONFIG_OPEN / BATCH_SELECTED / CONFLICT_HIGHLIGHT / SAVE_FAILED_MARK / SAVE_PREVIEW）都是 D4/D5 的**正交 UI 子态**，不影响有效态与草稿态的语义。
 
-## 12. 待确认风险
+## 12. 已确认风险
 
-| ID | 风险 | 默认建议 |
+> 全部风险已确认（plan 转 active 时关闭），Q1/Q2/Q3/Q5/Q6 采用默认建议，Q4 强制开启 SAVE_PREVIEW。
+
+| ID | 风险 | 已确认方案 |
 |---|---|---|
-| Q1 | 矩阵直接编辑可能误操作（误点撤销已有权限） | 撤销走 PENDING_REMOVE（可恢复），保存前总览二次确认；不做单独 undo toast |
-| Q2 | 框选批量在长资源树下性能 | 框选仅限可视区，选中集用 Set 稳定键，虚拟滚动不变 |
-| Q3 | 就地展开行与虚拟滚动冲突 | 展开行计入行高，虚拟滚动按实际行高计算；最多同时展开 1 行 |
-| Q4 | SAVE_PREVIEW 增加一次点击 | 可设"不再提示"偏好（localStorage），但默认开启以降低误保存 |
-| Q5 | 触屏无 hover 副标记常驻导致信息密度高 | 触屏降级为长按菜单，副标记不常驻 |
-| Q6 | 与 §16 已实现基线差异大，改造工作量 | 建议作为 T-FE-029~032 新任务集，分阶段：先矩阵直接编辑（替代弹窗单项），再批量工具栏，再保存总览 |
+| Q1 | 矩阵直接编辑可能误操作（误点撤销已有权限） | **已确认**：撤销走 PENDING_REMOVE（可恢复），保存前总览二次确认；不做单独 undo toast |
+| Q2 | 框选批量在长资源树下性能 | **已确认**：框选仅限可视区，选中集用 Set 稳定键，虚拟滚动不变 |
+| Q3 | 就地展开行与虚拟滚动冲突 | **已确认**：展开行计入行高，虚拟滚动按实际行高计算；最多同时展开 1 行 |
+| Q4 | SAVE_PREVIEW 增加一次点击 | **已决策：强制开启，不提供"不再提示"开关**（权限批量授权为高影响操作，与 T-FE-034 强制预览一致） |
+| Q5 | 触屏无 hover 副标记常驻导致信息密度高 | **已确认**：触屏降级为长按菜单，副标记不常驻 |
+| Q6 | 与 §16 已实现基线差异大，改造工作量 | **已确认**：作为 T-FE-029~032 新任务集，分阶段：先矩阵直接编辑（替代弹窗单项），再批量工具栏，再保存总览 |

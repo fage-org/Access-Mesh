@@ -349,6 +349,6 @@ READONLY ──重新获权/启用──► EDITABLE
 
 ## 9. 与状态模型/交互规格的对应
 
-- 本错误流**不新增**状态模型维度，所有错误态归入 D5（CLEAN/DIRTY/SAVING/SAVE_FAILED 四子态/SAVE_OUTCOME_UNKNOWN/STALE + STALE_WITH_CHILD_FAILURE 组合态）+ D3（READONLY 失格）+ 新交互态（SAVE_PREVIEW/OFFLINE_BANNER）。
+- 本错误流**不新增**状态模型维度，所有错误态归入 D5（CLEAN/DIRTY/SAVING/SAVE_FAILED 两子态/SAVE_OUTCOME_UNKNOWN/STALE + STALE_WITH_CHILD_FAILURE 组合态）+ D3（READONLY 失格）+ 新交互态（SAVE_PREVIEW/OFFLINE_BANNER）。
 - 唯一需新增的**预留态**是 `CONCURRENT_MODIFIED`（E14/E15），已在 [`permission-grant-state-model.md`](./permission-grant-state-model.md) §2.2 登记，依赖 T-PERM-034。
 - 所有错误反馈映射到 [`permission-grant-interaction.md`](./permission-grant-interaction.md) §4.5 保存前总览 sheet（失败视图）+ §7 反馈四层。
