@@ -1,5 +1,6 @@
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { ElMessageBox } from "element-plus";
+import { onBeforeRouteLeave } from "vue-router";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { PERMISSION_GRANT_V2_PERMS } from "./perms";
@@ -18,19 +19,19 @@ import { useV2DraftModel } from "./useV2DraftModel";
 import type {
   GrantVariantId,
   V2DraftPermission,
-  V2FailedChildOp
+  V2FailedChildOp,
+  V2SavePhase
 } from "./v2-types";
-import {
-  childPermCellKeyStr,
-  permCellKeyStr,
-  normalizeConditionCode
-} from "./grant-variant";
+import { childPermCellKeyStr, buildBaseline } from "./grant-variant";
 import {
   toAddItem,
   toUpdateItem,
   computeMainDiff,
   computeChildDiff,
   matchSaveResponse,
+  classifySaveError,
+  reconcileIdentities,
+  deriveSavePhase,
   type V2DiffEntry
 } from "./save-adapter";
 
@@ -86,11 +87,19 @@ export function usePermissionGrantV2() {
     ...DEFAULT_OPERATOR_CAPABILITY
   });
 
-  // ---- 保存状态（D5）----
+  // ---- 保存状态（D5，T-FE-034 扩展）----
   const failedChildren = ref<V2FailedChildOp[]>([]);
   const saving = ref(false);
   const saveError = ref<string | null>(null);
   const baselineStale = ref(false);
+  /** SAVE_PREVIEW bottom-sheet 中间态（DIRTY->SAVING 间，Q4 强制预览） */
+  const savePreview = ref(false);
+  /** SAVE_OUTCOME_UNKNOWN：主请求超时/断网/5xx，服务端可能已提交，禁止盲目重试 */
+  const saveOutcomeUnknown = ref(false);
+  /** 主请求业务拒绝标志（仅 business 错误设 true；区别于 saveError 消息字段，不靠消息推断状态） */
+  const mainFailed = ref(false);
+  /** 结果核对进行中（区分 SAVE_OUTCOME_UNKNOWN 核对中 vs 核对失败，供 sheet 显示恢复入口） */
+  const reconciling = ref(false);
 
   // ---- 加载状态 ----
   const loadingRoleTree = ref(false);
@@ -128,6 +137,20 @@ export function usePermissionGrantV2() {
     return null;
   });
 
+  /**
+   * 交互锁定（T-FE-034：saving/preview/outcome-unknown/stale 期间三栏只读）。
+   * 不同于 D3 readonly（失格），交互锁定是临时保存态，不改变 page-header "只读" 标记。
+   * 传入 useV2DraftModel capability.readonly，使编辑门控（addBranch/updateVariant 等）自动禁用。
+   */
+  const interactionLocked = computed(
+    () =>
+      readonly.value ||
+      saving.value ||
+      savePreview.value ||
+      saveOutcomeUnknown.value ||
+      baselineStale.value
+  );
+
   // ========== 子 composable ==========
 
   const matrix = useV2MatrixData(currentDomainCode);
@@ -142,7 +165,7 @@ export function usePermissionGrantV2() {
   });
 
   const capability = computed(() => ({
-    readonly: readonly.value,
+    readonly: interactionLocked.value,
     operatorCanManage: operatorCapability.value.canManage,
     grantableResourceTypeCodes:
       operatorCapability.value.grantableResourceTypeCodes,
@@ -176,6 +199,22 @@ export function usePermissionGrantV2() {
   ]);
   const hasDraft = computed(
     () => draft.grantTasks.value.length > 0 || failedChildren.value.length > 0
+  );
+
+  /**
+   * D5 保存阶段（T-FE-034，state-model §2，派生逻辑见 save-adapter.deriveSavePhase）。
+   * mainFailed 为显式标志，不靠 saveError 消息推断（saveError 仅展示，承载多种提示）。
+   */
+  const savePhase = computed<V2SavePhase>(() =>
+    deriveSavePhase({
+      saving: saving.value,
+      savePreview: savePreview.value,
+      saveOutcomeUnknown: saveOutcomeUnknown.value,
+      baselineStale: baselineStale.value,
+      failedChildrenCount: failedChildren.value.length,
+      mainFailed: mainFailed.value,
+      hasDraft: hasDraft.value
+    })
   );
 
   // ========== 加载 ==========
@@ -222,6 +261,18 @@ export function usePermissionGrantV2() {
   async function selectRole(role: RoleTreeNode) {
     if (role.roleExternalId.startsWith("__virtual_root_")) return;
     if (!role.canView) return;
+    // 保存/结果核对期间禁止切换角色（避免旧保存流程的 reload/reconcile 写入新角色上下文）
+    if (
+      saving.value ||
+      savePreview.value ||
+      saveOutcomeUnknown.value ||
+      reconciling.value
+    ) {
+      message("保存或结果核对进行中，请等待完成后再切换角色", {
+        type: "warning"
+      });
+      return;
+    }
 
     // 草稿隔离：有未保存草稿时确认放弃
     if (draft.hasDraft.value) {
@@ -258,6 +309,10 @@ export function usePermissionGrantV2() {
       failedChildren.value = [];
       saveError.value = null;
       baselineStale.value = false;
+      savePreview.value = false;
+      saveOutcomeUnknown.value = false;
+      mainFailed.value = false;
+      reconciling.value = false;
       matrix.resetMatrix();
       await matrix.loadResourceTypes();
       matrix.loadConditionOptions();
@@ -275,10 +330,9 @@ export function usePermissionGrantV2() {
   // ========== 保存（两步 + 部分失败，T-FE-033） ==========
 
   /**
-   * 重载 baseline（保存成功/重试用）。
-   * 成功清 grantTasks + failedChildren + stale；失败置 baselineStale。
-   * 注：T-FE-034 的 fetchBaseline+reconcile（不清草稿）未实现，本方法会清草稿，
-   * 不用于 STALE_WITH_CHILD_FAILURE 恢复。
+   * 重载 baseline（全成功路径用：清草稿回 CLEAN）。
+   * 成功清 grantTasks + failedChildren + stale + preview/outcome-unknown；失败置 baselineStale。
+   * 不用于 STALE_WITH_CHILD_FAILURE / SAVE_OUTCOME_UNKNOWN 恢复（那些用 fetchBaselineAndReconcile 不清草稿）。
    */
   async function reloadBaseline(): Promise<boolean> {
     if (!currentRole.value) return false;
@@ -293,6 +347,11 @@ export function usePermissionGrantV2() {
       draft.resetDraft();
       failedChildren.value = [];
       baselineStale.value = false;
+      savePreview.value = false;
+      saveOutcomeUnknown.value = false;
+      mainFailed.value = false;
+      reconciling.value = false;
+      saveError.value = null;
       return true;
     } catch {
       baselineStale.value = true;
@@ -301,15 +360,55 @@ export function usePermissionGrantV2() {
   }
 
   /**
-   * 两步保存（state-model §4.2 / error-flow §2.5）：
-   * 1. save 主权限（add/update/remove + 子 update 合并）-> 匹配响应得新主权限 id
-   * 2. add-child（按 parentPermissionId 分组，新父用匹配 id，baseline 父直接用）
-   * 3. remove-child（父在 mainRemove 跳过，级联）
-   * 4. reload baseline
-   * 主成功子失败 -> CHILD_PARTIAL_FAILED（failedChildren overlay 保留）。
-   * T-FE-033 走 DIRTY->SAVING->CLEAN/SAVE_FAILED；SAVE_PREVIEW/fetchBaseline+reconcile 留 T-FE-034。
+   * fetchBaseline + reconcile（不清草稿，T-FE-034 Q2/Q3）。
+   * 用于 SAVE_OUTCOME_UNKNOWN 与子操作失败后恢复：拉取新 baseline，reconcile 身份合并
+   * （临时 UUID -> 服务端 id）+ 剔除已落库 failedChildren + 清理 settled commands，
+   * 一次性发布 baseline/grantTasks/failedChildren。
+   * 成功返回 true（已清 stale/outcome-unknown）；失败返回 false（调用方决定状态）。
    */
-  async function saveAll(): Promise<boolean> {
+  async function fetchBaselineAndReconcile(): Promise<boolean> {
+    if (!currentRole.value) return false;
+    let resp: Awaited<ReturnType<typeof loadRolePermissionSnapshot>>;
+    try {
+      resp = await loadRolePermissionSnapshot(
+        currentRole.value,
+        currentDomainCode.value
+      );
+    } catch {
+      return false;
+    }
+    try {
+      const nextBaseline = buildBaseline(resp.items);
+      const result = reconcileIdentities(
+        nextBaseline,
+        draft.grantTasks.value,
+        failedChildren.value
+      );
+      if (!result.ok) {
+        // 多匹配/非一一映射：reconcile 失败，不发布
+        return false;
+      }
+      // 一次性发布（state-model §2.5 P1-1：先拉取事实再原子更新，避免中间态丢数据）
+      baselineItems.value = resp.items;
+      domainCapability.value = resp.domainCapability;
+      operatorCapability.value = resp.operatorCapability;
+      draft.grantTasks.value = result.tasks;
+      failedChildren.value = result.failedChildren;
+      baselineStale.value = false;
+      saveOutcomeUnknown.value = false;
+      return true;
+    } catch {
+      // buildBaseline（孤儿数据）/ reconcileIdentities 内部 replay（身份冲突）抛错
+      // 保持旧 baseline + 当前 failedChildren，返回 false 由调用方决定状态（不逃逸到 confirmSave 外层 catch）
+      return false;
+    }
+  }
+
+  /**
+   * 保存入口：门禁通过后进入 SAVE_PREVIEW（Q4 强制预览）。
+   * 区分"未开始"（return false）与"开始后失败"（confirmSave 内 true）。
+   */
+  async function requestSave(): Promise<boolean> {
     if (!currentRole.value || readonly.value || saving.value) return false;
     if (baselineStale.value) {
       message("权限事实已过期，请重新选择角色刷新后再保存", {
@@ -317,16 +416,57 @@ export function usePermissionGrantV2() {
       });
       return false;
     }
+    if (saveOutcomeUnknown.value) {
+      message("保存结果未确认，请等待事实核对完成", { type: "warning" });
+      return false;
+    }
+    if (!hasDraft.value) {
+      message("无变更", { type: "info" });
+      return false;
+    }
+    savePreview.value = true;
+    return true;
+  }
+
+  /** 取消 SAVE_PREVIEW（回 DIRTY） */
+  function cancelSavePreview(): void {
+    savePreview.value = false;
+  }
+
+  /** SAVE_PREVIEW 确认入口 -> doSave（实际保存逻辑） */
+  async function confirmSave(): Promise<boolean> {
+    if (!savePreview.value) return false;
+    return doSave();
+  }
+
+  /**
+   * 实际保存执行（SAVE_PREVIEW -> SAVING -> 分支，state-model §4.2 / error-flow §2.5）：
+   * 1. save 主权限（add/update/remove + 子 update 合并）-> 匹配响应得新主权限 id
+   * 2. add-child（按 parentPermissionId 分组，新父用匹配 id，baseline 父直接用）
+   * 3. remove-child（父在 mainRemove 跳过，级联）
+   * 4. 全成功 -> reloadBaseline 回 CLEAN；子失败 -> fetchBaseline+reconcile（Q3）
+   * 主请求失败：Q1 分类 - business -> MAIN_FAILED（草稿保留可重试）；
+   *             unknown（超时/断网/5xx）-> SAVE_OUTCOME_UNKNOWN（fetchBaseline+reconcile）。
+   * confirmSave（SAVE_PREVIEW 确认）与 reconcileAndRetry（一键刷新并重试）调用此核心；
+   * 后者绕过预览直接执行（验收第7条原子动作）。
+   */
+  async function doSave(): Promise<boolean> {
+    if (!currentRole.value || readonly.value || saving.value) return false;
+    if (baselineStale.value) {
+      message("权限事实已过期，请重新选择角色刷新后再保存", {
+        type: "warning"
+      });
+      return false;
+    }
+    // SAVE_PREVIEW -> SAVING
+    savePreview.value = false;
+    saveOutcomeUnknown.value = false;
+    mainFailed.value = false;
     const role = currentRole.value;
     // 先捕获 diff（清 failedChildren 会改变 childDraft computed，必须先捕获再清空）
     const mDiff = [...mainDiff.value];
     const cDiff = [...childDiff.value];
     const failedSnapshot = [...failedChildren.value];
-    // P1 修复：新增父 UUID -> perm 映射，reload 后重绑定失败子项 parentVariantId
-    const mainAddUuidToPerm = new Map<GrantVariantId, V2DraftPermission>();
-    for (const d of mDiff) {
-      if (d.type === "add") mainAddUuidToPerm.set(d.variantId, d.perm);
-    }
     saving.value = true;
     saveError.value = null;
     failedChildren.value = [];
@@ -377,24 +517,44 @@ export function usePermissionGrantV2() {
       const tempKeyToServerId = new Map<GrantVariantId, number>();
       const needMainSave =
         mainAdd.length > 0 || updateItems.length > 0 || mainRemove.length > 0;
+
+      // ---- 主请求 ----
       if (needMainSave) {
-        const saveResp = await transport.saveRolePermission({
-          domainCode: currentDomainCode.value,
-          roleTypeCode: role.roleTypeCode,
-          roleExternalId: role.roleExternalId,
-          add: mainAdd,
-          update: updateItems,
-          remove: mainRemove
-        });
-        const mainAddEntriesForMatch = mDiff.filter(d => d.type === "add");
-        const matched = matchSaveResponse(
-          saveResp.items,
-          mainAddEntriesForMatch
-        );
-        for (const [k, v] of matched) tempKeyToServerId.set(k, v);
+        try {
+          const saveResp = await transport.saveRolePermission({
+            domainCode: currentDomainCode.value,
+            roleTypeCode: role.roleTypeCode,
+            roleExternalId: role.roleExternalId,
+            add: mainAdd,
+            update: updateItems,
+            remove: mainRemove
+          });
+          const mainAddEntriesForMatch = mDiff.filter(d => d.type === "add");
+          const matched = matchSaveResponse(
+            saveResp.items,
+            mainAddEntriesForMatch
+          );
+          for (const [k, v] of matched) tempKeyToServerId.set(k, v);
+        } catch (e) {
+          // 主请求失败：Q1 分类分流
+          if (classifySaveError(e) === "business") {
+            // MAIN_FAILED：服务端未提交，恢复 overlay，草稿完整保留可重试
+            failedChildren.value = failedSnapshot;
+            saveError.value = e instanceof Error ? e.message : "保存失败";
+            mainFailed.value = true;
+            message(saveError.value, { type: "error" });
+          } else {
+            // SAVE_OUTCOME_UNKNOWN：先恢复历史 failedChildren 快照再 reconcile
+            //（doSave 开头已清空；unknown 分支须保留历史子失败供重绑/settled 判断，
+            // 否则子失败状态下再次保存遇超时/5xx 会丢失待重试项）
+            failedChildren.value = failedSnapshot;
+            await handleSaveOutcomeUnknown();
+          }
+          return true;
+        }
       }
 
-      // add-child（按 parentPermissionId 分组）
+      // ---- 子操作（add-child / remove-child）----
       let childFailureOccurred = false;
       const failedChildAdd: V2FailedChildOp[] = [];
       const addChildByParent = new Map<
@@ -464,53 +624,24 @@ export function usePermissionGrantV2() {
         }
       }
 
-      const reloadOk = await reloadBaseline();
-
+      // ---- 子操作后刷新 ----
       if (childFailureOccurred) {
-        // P1 修复：reload 后新增父变体已由临时 UUID 变为服务端 ID，重绑定失败子项的
-        // parentVariantId/child/childKey，避免 retry 时 tempKeyToServerId 为空导致永久失败
-        const reboundFailedChildAdd = failedChildAdd.map(fop => {
-          if (typeof fop.parentVariantId === "number") return fop;
-          const fromTemp = tempKeyToServerId.get(fop.parentVariantId);
-          if (fromTemp) {
-            return {
-              ...fop,
-              parentVariantId: fromTemp,
-              child: { ...fop.child, dependOn: fromTemp },
-              childKey: childPermCellKeyStr(fromTemp, fop.child)
-            };
-          }
-          // fallback：reload 后 baseline 按 PermCellKey+conditionCode 匹配父服务端 ID
-          const parentPerm = mainAddUuidToPerm.get(fop.parentVariantId);
-          if (parentPerm) {
-            const key = permCellKeyStr(parentPerm);
-            const cond = normalizeConditionCode(parentPerm.conditionCode);
-            const ids = draft.baselineState.value.mainIndex.get(key) ?? [];
-            for (const id of ids) {
-              const p = draft.baselineState.value.mainMap.get(id);
-              if (p && normalizeConditionCode(p.conditionCode) === cond) {
-                return {
-                  ...fop,
-                  parentVariantId: id,
-                  child: { ...fop.child, dependOn: id },
-                  childKey: childPermCellKeyStr(id, fop.child)
-                };
-              }
-            }
-          }
-          return fop;
-        });
-        failedChildren.value = [...reboundFailedChildAdd, ...failedChildRemove];
-        message(saveError.value ?? "部分子权限操作失败", { type: "warning" });
-      } else if (!reloadOk) {
-        saveError.value = "保存已提交，但刷新权限事实失败，请重新选择角色刷新";
-        message(saveError.value, { type: "warning" });
+        // Q3：fetchBaseline + reconcile（不清草稿），保留未完成 failedChildren
+        await reconcileAfterChildFailure(failedChildAdd, failedChildRemove);
       } else {
-        message("保存成功", { type: "success" });
+        // 全成功：reloadBaseline 清草稿回 CLEAN
+        const reloadOk = await reloadBaseline();
+        if (!reloadOk) {
+          saveError.value =
+            "保存已提交，但刷新权限事实失败，请重新选择角色刷新";
+          message(saveError.value, { type: "warning" });
+        } else {
+          message("保存成功", { type: "success" });
+        }
       }
       return true;
     } catch (e) {
-      // 主请求失败（未执行 add-child/remove-child），恢复 overlay
+      // 兜底（主请求错误已在 inner catch 处理；此处为未预期异常）
       failedChildren.value = failedSnapshot;
       saveError.value = e instanceof Error ? e.message : "保存失败";
       message(saveError.value, { type: "error" });
@@ -521,26 +652,188 @@ export function usePermissionGrantV2() {
   }
 
   /**
-   * 重试失败的子权限（T-FE-033 基本版：非 stale 直接 saveAll）。
-   * T-FE-034 补 fetchBaseline+reconcile（stale 分支原子恢复）。
+   * SAVE_OUTCOME_UNKNOWN 恢复（Q1/Q2）。
+   * 主请求超时/断网/5xx，服务端可能已提交：fetchBaseline+reconcile
+   * -> 已落库项 noChange / 未落库项作 diff 续传。fetchBaseline/reconcile 失败保持
+   * SAVE_OUTCOME_UNKNOWN（Q1：不降级 MAIN_FAILED），由 sheet 提供重新核对/放弃入口。
+   * reconciling 区分"核对中"与"核对失败"，供 sheet 显示恢复动作。
+   */
+  async function handleSaveOutcomeUnknown(): Promise<void> {
+    saveOutcomeUnknown.value = true;
+    reconciling.value = true;
+    saveError.value = "保存请求未确认结果，正在重新拉取事实核对…";
+    message(saveError.value, { type: "warning" });
+    const ok = await fetchBaselineAndReconcile();
+    reconciling.value = false;
+    if (!ok) {
+      saveError.value = "保存结果未确认且事实刷新失败，可重新核对或放弃后刷新";
+      return;
+    }
+    // reconcile 成功：saveOutcomeUnknown 已清，reconciling 已清
+    const remaining = allDiff.value.length;
+    if (remaining > 0) {
+      // 仍有未落库项 -> DIRTY 续传（不设 mainFailed，saveError 仅展示提示）
+      saveError.value = `已落库部分权限，仍有 ${remaining} 项未确认，请确认后重新保存`;
+      message(saveError.value, { type: "warning" });
+    } else {
+      saveError.value = null;
+      message("保存结果已确认：全部权限已落库", { type: "success" });
+    }
+  }
+
+  /** 重新核对（SAVE_OUTCOME_UNKNOWN 核对失败后的恢复入口） */
+  async function retryReconcile(): Promise<boolean> {
+    if (!saveOutcomeUnknown.value || reconciling.value) return false;
+    await handleSaveOutcomeUnknown();
+    return true;
+  }
+
+  /**
+   * 放弃结果核对（SAVE_OUTCOME_UNKNOWN 核对失败后的安全退出）。
+   * 清 saveOutcomeUnknown + 设 baselineStale 强制刷新事实后才能继续
+   *（避免基于未确认状态盲目重试导致重复落库）。
+   */
+  function discardOutcomeUnknown(): void {
+    saveOutcomeUnknown.value = false;
+    reconciling.value = false;
+    saveError.value = null;
+    baselineStale.value = true;
+  }
+
+  /** 关闭 MAIN_FAILED sheet（回 DIRTY 修改草稿） */
+  function dismissMainError(): void {
+    mainFailed.value = false;
+    saveError.value = null;
+  }
+
+  /**
+   * 子操作失败后恢复（Q3：fetchBaseline + reconcile，仅保留未完成 failedChildren）。
+   * reconcile 剔除已落库 add / 已删除 remove；未完成项保留 overlay。
+   * fetchBaseline/reconcile 失败 -> STALE_WITH_CHILD_FAILURE（failedChildren 非空 + stale）。
+   */
+  async function reconcileAfterChildFailure(
+    failedChildAdd: V2FailedChildOp[],
+    failedChildRemove: V2FailedChildOp[]
+  ): Promise<void> {
+    failedChildren.value = [...failedChildAdd, ...failedChildRemove];
+    const ok = await fetchBaselineAndReconcile();
+    if (!ok) {
+      baselineStale.value = true;
+      saveError.value = "保存已提交但刷新失败，且部分子权限待重试";
+      message(saveError.value, { type: "warning" });
+      return;
+    }
+    // reconcile 成功：failedChildren 已剔除已落库/已删项
+    if (failedChildren.value.length > 0) {
+      saveError.value = `主权限已保存，${failedChildren.value.length} 项子权限保存失败`;
+      message(saveError.value, { type: "warning" });
+    } else {
+      // 全部落库 -> CLEAN
+      saveError.value = null;
+      message("保存成功", { type: "success" });
+    }
+  }
+
+  /**
+   * 内部共享：fetchBaseline + reconcile +（若有未完成项）requestSave。
+   * 用于 retryFailedChildren stale 分支与 refreshAndRetry（STALE_WITH_CHILD_FAILURE 一键）。
+   * 恢复顺序固定：先 fetchBaseline+reconcile 清 stale -> 再 retry 清 childFailure（Q3）。
+   */
+  async function reconcileAndRetry(): Promise<boolean> {
+    message("正在刷新事实并重试…", { type: "info" });
+    const ok = await fetchBaselineAndReconcile();
+    if (!ok) {
+      baselineStale.value = true;
+      message("事实刷新失败，请重新选择角色", { type: "warning" });
+      return false;
+    }
+    // 清 stale（fetchBaselineAndReconcile 成功已清）
+    if (failedChildren.value.length === 0) {
+      message("刷新后发现子权限已全部落库", { type: "success" });
+      return true;
+    }
+    // 直接执行重试（绕过 SAVE_PREVIEW 二次确认），符合验收第7条原子一键动作
+    return doSave();
+  }
+
+  /**
+   * 重试失败的子权限。
+   * - 非 stale：直接 requestSave（SAVE_PREVIEW -> confirmSave，overlay 子项在 diff）
+   * - stale：fetchBaseline+reconcile 原子恢复后 retry（Q3）
    */
   async function retryFailedChildren(): Promise<boolean> {
     if (failedChildren.value.length === 0) return false;
-    if (baselineStale.value) {
-      message("权限事实已过期，请重新选择角色刷新后再重试", {
-        type: "warning"
-      });
-      return false;
-    }
-    return saveAll();
+    if (baselineStale.value) return reconcileAndRetry();
+    return requestSave();
   }
 
-  /** 放弃全部更改（清 grantTasks + failedChildren + saveError；不清 baselineStale） */
+  /**
+   * STALE_WITH_CHILD_FAILURE 一键"刷新并重试"（Q3 原子动作）。
+   * fetchBaseline -> reconcile -> 清 stale -> 若仍有 failedChildren 再 retry。
+   */
+  async function refreshAndRetry(): Promise<boolean> {
+    if (!baselineStale.value || failedChildren.value.length === 0) return false;
+    return reconcileAndRetry();
+  }
+
+  /** 放弃全部更改（清 grantTasks + failedChildren + saveError + preview/outcome-unknown/mainFailed；不清 baselineStale） */
   function discardAll(): void {
     draft.resetDraft();
     failedChildren.value = [];
     saveError.value = null;
+    savePreview.value = false;
+    saveOutcomeUnknown.value = false;
+    mainFailed.value = false;
+    reconciling.value = false;
+    // 不清 baselineStale（事实仍陈旧）
   }
+
+  // ========== 离开保护（T-FE-034，error-flow §2.7） ==========
+
+  function beforeUnloadHandler(e: BeforeUnloadEvent) {
+    if (hasDraft.value || saving.value) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  }
+
+  /**
+   * 路由离开保护：saving 强制阻止（草稿正在落库）；有草稿确认丢弃。
+   * 不同于 selectRole 的切换确认，此为跨页路由。
+   */
+  onBeforeRouteLeave(async (_to, _from, next) => {
+    if (saving.value) {
+      message("保存进行中，请等待完成", { type: "warning" });
+      next(false);
+      return;
+    }
+    if (hasDraft.value) {
+      try {
+        await ElMessageBox.confirm(
+          "当前有未保存变更，离开将丢弃。是否继续？",
+          "离开确认",
+          {
+            type: "warning",
+            confirmButtonText: "离开",
+            cancelButtonText: "取消"
+          }
+        );
+        next();
+      } catch {
+        next(false);
+      }
+      return;
+    }
+    next();
+  });
+
+  onMounted(() => {
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener("beforeunload", beforeUnloadHandler);
+  });
 
   return {
     // D1–D3
@@ -562,18 +855,30 @@ export function usePermissionGrantV2() {
     ...matrix,
     // 草稿模型
     ...draft,
-    // 保存（D5，T-FE-033；hasDraft 覆盖 draft.hasDraft 以纳入 failedChildren）
+    // 保存（D5，T-FE-034；hasDraft 覆盖 draft.hasDraft 以纳入 failedChildren）
     hasDraft,
     saving,
     saveError,
     baselineStale,
     failedChildren,
+    savePreview,
+    saveOutcomeUnknown,
+    mainFailed,
+    reconciling,
+    savePhase,
+    interactionLocked,
     mainDiff,
     childDiff,
     allDiff,
-    saveAll,
+    requestSave,
+    confirmSave,
+    cancelSavePreview,
+    dismissMainError,
+    retryReconcile,
+    discardOutcomeUnknown,
     reloadBaseline,
     retryFailedChildren,
+    refreshAndRetry,
     discardAll
   };
 }

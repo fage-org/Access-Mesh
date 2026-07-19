@@ -61,8 +61,8 @@ export type VariantCommand =
   | {
       kind: "grant";
       cell: PermCellKey;
-      /** 新增分支的稳定身份（任务构建时 generateVariantId() 生成，string） */
-      proposedVariantId: string;
+      /** 新增分支的稳定身份（任务构建时 generateVariantId() 生成 string；reconcile 后可能替换为服务端 number id） */
+      proposedVariantId: GrantVariantId;
       conditionCode: string | null;
       canGrant: boolean;
       resourceName: string | null;
@@ -87,7 +87,8 @@ export type VariantCommand =
       /** 父变体（须在 mainDraft 投影中，否则 replay 跳过防孤儿） */
       parentVariantId: GrantVariantId;
       cell: PermCellKey;
-      proposedVariantId: string;
+      /** 子分支稳定身份（构建时 string；reconcile 后可能替换为服务端 number id） */
+      proposedVariantId: GrantVariantId;
       conditionCode: string | null;
       canGrant: boolean;
       resourceName: string | null;
@@ -185,3 +186,25 @@ export interface V2FailedChildOp {
   childKey: ChildPermCellKeyStr;
   parentVariantId: GrantVariantId;
 }
+
+/**
+ * D5 草稿-保存生命周期阶段（T-FE-034）。
+ * state-model §2：CLEAN/DIRTY/SAVING/SAVE_FAILED(两子态)/SAVE_OUTCOME_UNKNOWN/STALE
+ * + STALE_WITH_CHILD_FAILURE 组合态 + SAVE_PREVIEW 交互中间态。
+ * - SAVE_FAILED_MAIN：主请求业务拒绝（服务端未提交，草稿完整保留可重试）
+ * - SAVE_FAILED_CHILD：主成功子部分失败（failedChildren overlay 保留）
+ * - SAVE_OUTCOME_UNKNOWN：主请求超时/断网/5xx（服务端可能已提交，禁止盲目重试）
+ * - STALE：baseline 过期（reload/fetch 失败）
+ * - STALE_WITH_CHILD_FAILURE：stale && failedChildren 非空（正交组合态）
+ * - SAVE_PREVIEW：保存前总览 bottom-sheet 中间态（DIRTY->SAVING 间）
+ */
+export type V2SavePhase =
+  | "CLEAN"
+  | "DIRTY"
+  | "SAVE_PREVIEW"
+  | "SAVING"
+  | "SAVE_FAILED_MAIN"
+  | "SAVE_FAILED_CHILD"
+  | "SAVE_OUTCOME_UNKNOWN"
+  | "STALE"
+  | "STALE_WITH_CHILD_FAILURE";

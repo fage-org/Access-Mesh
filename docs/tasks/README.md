@@ -125,7 +125,7 @@ _当前无活跃 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修复�
 | [T-FE-031](T-FE-031.md) | V2中栏直接操作矩阵+单元格聚合摘要+分支列表就地展开 | permission-grant-v2 | design/frontend/permission-grant-interaction.md §2/§4.1/§4.2；state-model §6.2 | T-FE-030 | ✅ | ⏳ |
 | [T-FE-032](T-FE-032.md) | V2授权交互（点击/添加分支/逐分支编辑撤销/批量新增分支）+R11 | permission-grant-v2 | design/frontend/permission-grant-{interaction,state-model}.md §3.4/§4.1/§4.3 | T-FE-031 | ⚙️ | ✅ |
 | [T-FE-033](T-FE-033.md) | V2子权限矩阵展开（parentVariantId）+两步保存+条件清除wire | permission-grant-v2 | design/frontend/permission-grant-{state-model,interaction,error-flow}.md §4.2 | T-FE-032 | ⚙️ | ✅ |
-| [T-FE-034](T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ⚙️ | ⏳ |
+| [T-FE-034](T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ✅ | ✅ |
 | [T-FE-035](T-FE-035.md) | 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 | permission-grant-v2 | design/frontend/permission-grant-{error-flow,state-model}.md §2.8/§8 | T-FE-034 | ⚙️ | ⏳ |
 | [T-FE-027](T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../plans/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.6~§16.9 | T-FE-025, T-FE-026, T-FE-028 | ⚙️ | ⏳ |
 

@@ -3,6 +3,7 @@ import { onMounted, provide } from "vue";
 import { usePermissionGrantV2 } from "./utils/hook";
 import RoleTreePanel from "./components/RoleTreePanel.vue";
 import PermissionMatrixPanel from "./components/PermissionMatrixPanel.vue";
+import SavePreviewSheet from "./components/SavePreviewSheet.vue";
 
 defineOptions({ name: "PermissionGrantV2" });
 
@@ -67,47 +68,51 @@ onMounted(() => {
           <PermissionMatrixPanel />
         </div>
 
-        <!-- 右栏：变更流（T-FE-034 保存前总览联动实现） -->
+        <!-- 右栏：变更流（T-FE-028 实现，SAVE_PREVIEW 警告区联动） -->
         <div class="grid-right">
           <div class="placeholder">
-            <el-empty description="变更流将在 T-FE-034 实现" :image-size="80" />
+            <el-empty description="变更流将在 T-FE-028 实现" :image-size="80" />
           </div>
         </div>
       </div>
 
-      <!-- 底部保存栏（T-FE-033 两步保存 + 失败提示）：
-           SAVE_PREVIEW/fetchBaseline+reconcile/完整离开保护留 T-FE-034 -->
+      <!-- saving 顶部进度条（T-FE-034：indeterminate） -->
+      <div v-if="store.saving.value" class="saving-bar" />
+
+      <!-- 底部保存栏（T-FE-034：SAVE_PREVIEW/失败/stale 详细视图由 SavePreviewSheet 承载） -->
       <div
         v-if="store.currentRole.value && !store.readonly.value"
         class="save-bar"
       >
-        <span v-if="store.saveError.value" class="save-error">
-          {{ store.saveError.value }}
-        </span>
-        <span v-if="store.failedChildren.value.length > 0" class="failed-hint">
-          {{ store.failedChildren.value.length }} 项子权限保存失败
-          <el-button
-            size="small"
-            type="warning"
-            :disabled="store.saving.value || store.baselineStale.value"
-            @click="store.retryFailedChildren"
+        <span class="save-status">
+          <span
+            v-if="store.savePhase.value === 'SAVE_OUTCOME_UNKNOWN'"
+            class="status-unknown"
           >
-            重试失败项
-          </el-button>
-        </span>
-        <span v-if="store.baselineStale.value" class="stale-hint">
-          权限事实已过期
-          <el-button size="small" @click="store.reloadBaseline">
-            重新加载
-          </el-button>
+            保存结果核对中…
+          </span>
+          <span
+            v-else-if="store.failedChildren.value.length > 0"
+            class="status-warning"
+          >
+            {{ store.failedChildren.value.length }} 项子权限待重试
+          </span>
+          <span v-else-if="store.baselineStale.value" class="status-danger">
+            权限事实已过期
+          </span>
         </span>
         <span class="save-actions">
           <el-button
             size="small"
-            :disabled="!store.hasDraft.value || store.saving.value"
+            :disabled="
+              !store.hasDraft.value ||
+              store.saving.value ||
+              store.saveOutcomeUnknown.value ||
+              store.baselineStale.value
+            "
             :loading="store.saving.value"
             type="primary"
-            @click="store.saveAll"
+            @click="store.requestSave"
           >
             保存{{
               store.hasDraft.value
@@ -125,6 +130,9 @@ onMounted(() => {
           </el-button>
         </span>
       </div>
+
+      <!-- 保存前总览 / 失败恢复 sheet（T-FE-034，interaction §4.5） -->
+      <SavePreviewSheet />
     </template>
   </div>
 </template>
@@ -218,6 +226,33 @@ onMounted(() => {
   justify-content: center;
 }
 
+.saving-bar {
+  flex-shrink: 0;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: var(--el-color-primary-light-8);
+
+  &::after {
+    display: block;
+    width: 40%;
+    height: 100%;
+    content: "";
+    background: var(--el-color-primary);
+    animation: saving-progress 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes saving-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(350%);
+  }
+}
+
 .save-bar {
   display: flex;
   flex-shrink: 0;
@@ -229,24 +264,21 @@ onMounted(() => {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 
-.save-error {
-  font-size: 12px;
-  color: var(--el-color-danger);
-}
-
-.failed-hint,
-.stale-hint {
+.save-status {
   display: inline-flex;
-  gap: var(--space-1);
   align-items: center;
   font-size: 12px;
 }
 
-.failed-hint {
+.status-unknown {
+  color: var(--el-color-info);
+}
+
+.status-warning {
   color: var(--el-color-warning);
 }
 
-.stale-hint {
+.status-danger {
   color: var(--el-color-danger);
 }
 

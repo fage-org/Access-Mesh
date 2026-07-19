@@ -124,7 +124,7 @@ last_reviewed: 2026-07-17
 |---|---|---|---|---|---|
 | **E16** 主成功子失败 | 保存前校验子权限父 id 可解析；replay 防孤儿 | sheet 失败视图"主权限已保存，2 项子权限保存失败" + 失败格红描边 | `failedChildren` overlay 保留 FailedChildOp[]；mainDiff 已落库 | `retryFailedChildren`：非 stale 直接 saveAll（overlay 在 childDraft 投影）；stale 先 **fetchBaseline+reconcile** 再恢复 overlay 再 saveAll | 重试成功 -> overlay 清；仍失败 -> 保留草稿 |
 | **E17** 主失败（业务拒绝） | 保存前门禁（readonly/saving/stale/hasDraft）；空保存跳过；后端返回明确业务错误（权限不足/条件不存在/参数非法） | toast error + sheet 失败视图"保存失败：<原因>" | `failedChildren` 用 failedSnapshot 恢复（未执行 add-child，原 overlay 不丢）；草稿完整保留 | 修正后 `saveAll` 重试（业务拒绝可安全重试，服务端未提交） | 草稿不丢，可改后重试 |
-| **E17b** 主失败（结果未知） | save 请求发出后**超时/断网**，服务端可能已提交事务但响应未返回 | **不能直接归 MAIN_FAILED**：先进入 `SAVE_OUTCOME_UNKNOWN`，**fetchBaseline** 后 reconcile 决定续传（禁止用 reloadBaseline，会清草稿） | reconcile 对比：已落库的不再重试 add（避免唯一约束）；未落库的作为新 diff 续传 | **必须先 fetchBaseline+reconcile 再决定**，禁止盲目重试 add；建议落地 `clientRequestId` 幂等键后端去重 | reconcile 成功 -> CLEAN；仍有未落库 -> DIRTY 续传 |
+| **E17b** 主失败（结果未知） | save 请求发出后**超时/断网/5xx**（500/502/503/504 等），服务端可能已提交事务但响应未返回（5xx 只能证明响应失败，不能证明事务未提交，尤其 502/503/504 可能发生在网关或响应链路） | **不能直接归 MAIN_FAILED**：先进入 `SAVE_OUTCOME_UNKNOWN`，**fetchBaseline** 后 reconcile 决定续传（禁止用 reloadBaseline，会清草稿） | reconcile 对比：已落库的不再重试 add（避免唯一约束）；未落库的作为新 diff 续传 | **必须先 fetchBaseline+reconcile 再决定**，禁止盲目重试 add；建议落地 `clientRequestId` 幂等键后端去重 | reconcile 成功 -> CLEAN；仍有未落库 -> DIRTY 续传 |
 | **E18** reload 失败 | 无（网络/后端不可控） | `baselineStale=true`，sheet 提示"保存已提交但刷新失败" | 保存已落库（主+子成功部分），但本地 baseline 陈旧；grantTasks 未清（reload 失败分支不清） | `reloadBaseline` 重试；或重新选角色 | STALE 态：保存禁用，提示"重新选角色刷新"；重新选角色 -> 重新加载 baseline -> CLEAN |
 
 > **P2-1 修正：子权限失败与 reload 失败正交，非互斥**。实现中 `saveAll` Step5 `reloadBaseline()` 在 Step6 部分失败判定**之前**执行，因此 `childFailureOccurred=true`（E16）与 `!reloadOk`（E18）可**同时发生**：一次保存可既得到 `failedChildren` 非空又得到 `baselineStale=true`。`CHILD_PARTIAL` 与 `reload 失败` 不是互斥分支，应作为**正交两维**建模：
@@ -134,15 +134,15 @@ last_reviewed: 2026-07-17
 >
 > 组合态 `STALE_WITH_CHILD_FAILURE`（childFailure && stale）：UI 须**同时**呈现两个恢复要求——"先重新选角色刷新事实"（stale 优先，因基于陈旧 baseline 重试子项不安全）+ "刷新后仍有 N 项子权限待重试"。恢复顺序固定：先 fetchBaseline+reconcile（清 stale，不清草稿，保留待重试数据）-> 再 retryFailedChildren（清 childFailure）。
 
-> **P1-1 修正：reload 不得清掉待 reconcile 数据**。当前 `reloadBaseline` 成功分支会清空 `grantTasks` 和 `failedChildren`，若直接用于 E17b reconcile 或 STALE_WITH_CHILD_FAILURE 恢复，刷新后将无法判断哪些主权限未落库、哪些子权限待重试。**原子恢复流程**（须实现，替代直接 reloadBaseline）：
+> **P1-1 修正：reload 不得清掉待 reconcile 数据**。`reloadBaseline` 成功分支会清空 `grantTasks` 和 `failedChildren`，若直接用于 E17b reconcile 或 STALE_WITH_CHILD_FAILURE 恢复，刷新后将无法判断哪些主权限未落库、哪些子权限待重试。**原子恢复流程**（T-FE-034 已实现，替代直接 reloadBaseline）：
 >
-> 1. **snapshot**：先捕获当前期望投影（`mainDraft`/`childDraft` 快照）与失败操作（`failedChildren` 快照）及当前 diff。
-> 2. **fetchBaseline**：调用**不清草稿**的 baseline 拉取（新增 `fetchBaseline`，仅更新 `mainBaseline`/`childBaseline`，**不动** `grantTasks`/`failedChildren`）；分离"拉取事实"与"清草稿"两个动作。
-> 3. **reconcile**：对比 snapshot 期望投影与新 baseline：已落库的 add 不再重试（避免唯一约束）；未落库的作为新 diff 续传；子权限待重试项重新解析 parentId（新 baseline 已有主权限 id）。
-> 4. **replay/diff**：`mainDraft`/`childDraft` 仍由 baseline+grantTasks replay 生成，failedChildren overlay 仍叠加；reconcile 后 diff 自动反映未落库项。
-> 5. **清 stale**：reconcile 成功后 `baselineStale=false`，保留 `failedChildren` 供 retry。
+> 1. **fetchBaseline**：调用**不清草稿**的 baseline 拉取（`fetchBaselineAndReconcile`，仅更新 baseline，**不动** `grantTasks`/`failedChildren`）；分离"拉取事实"与"清草稿"两个动作。
+> 2. **reconcile 身份合并**：按 `PermCellKey + normalized conditionCode`（要求唯一+一一映射，多匹配/非一一映射则 reconcile 失败，禁止任选一个）把 grant/child-grant 命令的临时 UUID 替换为服务端 id，同步重绑所有身份引用（update/remove/child-update/child-remove.targetVariantId、child-grant.parentVariantId、failedChildren.parentVariantId/child.variantId/dependOn/childKey）。父 ID 重绑完成后，再以"服务端父 ID + 子 PermCellKey + conditionCode"匹配子权限 UUID。
+> 3. **settled 剔除**：replay 新 baseline + 重绑后命令，清理已结算命令（effect=noChange/redundantSkipped，即已落库 add / 已删 remove），避免 `grantTasks.length` 虚假 DIRTY；failedChildren 中已落库 add / 已删 remove 一并剔除，**仅保留未完成项**（超时操作可能已成功，不剔除会造成虚假 CHILD_PARTIAL 和重复重试）。
+> 4. **一次性发布**：原子更新 baseline/grantTasks/failedChildren，replay 后 diff 自动反映未落库项（已落库 add noChange 不进 diff，未落库仍 add）。
+> 5. **清 stale**：reconcile 成功后 `baselineStale=false`、`saveOutcomeUnknown=false`，保留**未完成** `failedChildren` 供 retry。
 >
-> `STALE_WITH_CHILD_FAILURE` 须提供**原子化"刷新并重试"动作**（一键执行 fetchBaseline -> reconcile -> retryFailedChildren），避免分步操作导致中间态丢数据。未实现 `fetchBaseline` 前，E17b/STALE_WITH_CHILD_FAILURE 的恢复**不安全**（会丢待重试数据），为已知实现缺口。
+> `STALE_WITH_CHILD_FAILURE` 提供**原子化"刷新并重试"动作**（`refreshAndRetry`：fetchBaseline -> reconcile -> 清 stale -> 若仍有 failedChildren 再 retryFailedChildren），避免分步操作导致中间态丢数据。reconcile 失败（多匹配/非一一映射）或 fetchBaseline 失败时保留原 baseline/grantTasks/failedChildren，按调用上下文设 stale（子失败场景）或保持 SAVE_OUTCOME_UNKNOWN（主请求结果未知场景，不降级 MAIN_FAILED）。
 
 > 关键不变量：**MAIN_FAILED 必须用 failedSnapshot 恢复 overlay**（第五轮 P1）+ **saveAll 返回 Promise<boolean> 区分"未开始"与"开始后失败"**（第六轮 P2）+ **stale 重试先备份 pendingOps 再 reload 再恢复**（第五轮 P1）。
 
@@ -217,7 +217,7 @@ last_reviewed: 2026-07-17
                           SAVING
                  ┌──────────┬──────────┬──────────┬──────────┐
           业务拒绝 │  结果未知   │  子部分失败  │ reload失败 │ 全成功
-          (E17)    │ (E17b/超时) │   (E16)     │ (E18/21)  │
+          (E17)    │ (E17b/超时/5xx) │   (E16)     │ (E18/21)  │
                  ▼           ▼           ▼           ▼
            SAVE_FAILED  SAVE_OUTCOME_  SAVE_FAILED    STALE
            (MAIN)       UNKNOWN        (CHILD_PARTIAL)  │
@@ -343,7 +343,7 @@ READONLY ──重新获权/启用──► EDITABLE
 | **E01 依赖补全不可见** | 用户不知后端补全了什么 | 🟡 中 | T-PERM-035 自动授权预览 |
 | **E02 循环依赖跨页** | 授权页保存才发现环 | 🟢 低 | resource-dependency 页预防已足够 |
 | **长期编辑无过期提示** | baseline 长期不刷新，并发风险升高 | 🟡 中 | 编辑超 5min 提示"建议刷新" |
-| **保存结果未知（P1-2）** | 超时/断网时服务端可能已提交，盲目重试 add 触发唯一约束 | 🔴 高 | 新增 `SAVE_OUTCOME_UNKNOWN` 态：先 fetchBaseline+reconcile 再续传；落地 `clientRequestId` 幂等 |
+| **保存结果未知（P1-2）** | 超时/断网/5xx 时服务端可能已提交，盲目重试 add 触发唯一约束 | 🔴 高 | 新增 `SAVE_OUTCOME_UNKNOWN` 态：先 fetchBaseline+reconcile 再续传；落地 `clientRequestId` 幂等 |
 | **保存重试不幂等（P1-2/P2-3 关联）** | 网络重试可能重复落库 | 🟡 中 | save 请求加 `clientRequestId` 幂等键，后端去重 |
 | **清除条件 wire 不一致（P2-3）** | 前端清除发 null，后端 null=不更新，清除不生效 | 🔴 高（已实现 bug） | 适配层把清除序列化为 `conditionCode=""`；修 `hook.ts`/`permission-grant.ts` |
 
