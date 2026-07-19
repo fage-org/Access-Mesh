@@ -12,6 +12,12 @@ const props = defineProps<{
   supportsCondition: boolean;
   supportsDelegation: boolean;
   conditionOptions: ConditionOption[];
+  /** 子权限数量（T-FE-033） */
+  childCount?: number;
+  /** 子权限矩阵是否展开 */
+  childrenExpanded?: boolean;
+  /** 是否可展开子权限矩阵（父变体在投影 + 非 pendingRemove） */
+  canExpandChildren?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +28,7 @@ const emit = defineEmits<{
   (e: "revoke"): void;
   (e: "restore"): void;
   (e: "restore-modify"): void;
+  (e: "toggle-children"): void;
 }>();
 
 const isUnconditional = computed(
@@ -111,6 +118,18 @@ const statusTagType = computed<"success" | "danger" | "warning">(() =>
         @change="onCanGrantChange"
       />
     </span>
+    <el-button
+      v-if="canExpandChildren"
+      size="small"
+      link
+      class="children-toggle"
+      @click="emit('toggle-children')"
+    >
+      ⌗ 子权限<template v-if="childCount && childCount > 0">
+        ({{ childCount }})
+      </template>
+      {{ childrenExpanded ? "▾" : "▸" }}
+    </el-button>
     <span class="branch-actions">
       <el-button
         v-if="status === 'pendingRemove'"

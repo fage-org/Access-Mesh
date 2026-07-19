@@ -181,6 +181,25 @@ export function cascadeRemoveChildren(
   return toRemove.length;
 }
 
+/** 查找同父变体 + 同子 cell + 同规范化 conditionCode 的已存在子变体（重复检测） */
+export function findChildVariantByParentCellCondition(
+  state: V2DraftState,
+  parentVariantId: GrantVariantId,
+  childCell: PermCellKey,
+  conditionCode: string | null
+): V2DraftPermission | undefined {
+  const childIdxKey = childPermCellKeyStr(parentVariantId, childCell);
+  const ids = state.childIndex.get(childIdxKey) ?? [];
+  const norm = normalizeConditionCode(conditionCode);
+  for (const id of ids) {
+    const perm = state.childMap.get(id);
+    if (perm && normalizeConditionCode(perm.conditionCode) === norm) {
+      return perm;
+    }
+  }
+  return undefined;
+}
+
 /** 索引条目移除辅助（空则删 key） */
 function removeIndexEntry(
   index: Map<string, GrantVariantId[]>,

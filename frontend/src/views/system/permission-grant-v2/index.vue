@@ -75,13 +75,55 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 底部保存栏骨架（T-FE-034 实现保存语义）：
-           未选角色或只读时不显示保存动作；已选且可管理时按钮保持禁用 -->
+      <!-- 底部保存栏（T-FE-033 两步保存 + 失败提示）：
+           SAVE_PREVIEW/fetchBaseline+reconcile/完整离开保护留 T-FE-034 -->
       <div
         v-if="store.currentRole.value && !store.readonly.value"
         class="save-bar"
       >
-        <el-button type="primary" disabled>保存（T-FE-034 实现）</el-button>
+        <span v-if="store.saveError.value" class="save-error">
+          {{ store.saveError.value }}
+        </span>
+        <span v-if="store.failedChildren.value.length > 0" class="failed-hint">
+          {{ store.failedChildren.value.length }} 项子权限保存失败
+          <el-button
+            size="small"
+            type="warning"
+            :disabled="store.saving.value || store.baselineStale.value"
+            @click="store.retryFailedChildren"
+          >
+            重试失败项
+          </el-button>
+        </span>
+        <span v-if="store.baselineStale.value" class="stale-hint">
+          权限事实已过期
+          <el-button size="small" @click="store.reloadBaseline">
+            重新加载
+          </el-button>
+        </span>
+        <span class="save-actions">
+          <el-button
+            size="small"
+            :disabled="!store.hasDraft.value || store.saving.value"
+            :loading="store.saving.value"
+            type="primary"
+            @click="store.saveAll"
+          >
+            保存{{
+              store.hasDraft.value
+                ? `（${store.allDiff.value.length} 项变更）`
+                : ""
+            }}
+          </el-button>
+          <el-button
+            v-if="store.hasDraft.value"
+            size="small"
+            :disabled="store.saving.value"
+            @click="store.discardAll"
+          >
+            放弃全部
+          </el-button>
+        </span>
       </div>
     </template>
   </div>
@@ -179,9 +221,38 @@ onMounted(() => {
 .save-bar {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
   gap: var(--space-2);
+  align-items: center;
   justify-content: flex-end;
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.save-error {
+  font-size: 12px;
+  color: var(--el-color-danger);
+}
+
+.failed-hint,
+.stale-hint {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  font-size: 12px;
+}
+
+.failed-hint {
+  color: var(--el-color-warning);
+}
+
+.stale-hint {
+  color: var(--el-color-danger);
+}
+
+.save-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 </style>

@@ -7,6 +7,7 @@ import { normalizeConditionCode } from "../utils/grant-variant";
 import { usePermissionGrantV2 } from "../utils/hook";
 import { message } from "@/utils/message";
 import BranchRow from "./BranchRow.vue";
+import ChildMatrixPanel from "./ChildMatrixPanel.vue";
 
 defineOptions({ name: "BranchListPanelV2" });
 
@@ -18,6 +19,8 @@ const props = defineProps<{
   supportsCondition: boolean;
   supportsDelegation: boolean;
   conditionOptions: ConditionOption[];
+  /** 是否允许展开子权限矩阵（默认 true；子权限分支传 false 防止二层嵌套，T-FE-033） */
+  allowChildren?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -125,6 +128,33 @@ function confirmAdd() {
 function cancelAdd() {
   adding.value = false;
 }
+
+// ========== 子权限矩阵展开（T-FE-033，挂具体父变体行） ==========
+const supportsChildren = computed(
+  () =>
+    store.domainCapability.value.supportsChildren &&
+    (props.allowChildren ?? true)
+);
+const expandedChildParents = ref<Set<GrantVariantId>>(new Set());
+
+function toggleChildren(variantId: GrantVariantId): void {
+  const s = new Set(expandedChildParents.value);
+  if (s.has(variantId)) s.delete(variantId);
+  else s.add(variantId);
+  expandedChildParents.value = s;
+}
+
+function childCountOf(variantId: GrantVariantId): number {
+  return store.childVariantsOf(variantId).length;
+}
+
+function isChildrenExpanded(variantId: GrantVariantId): boolean {
+  return expandedChildParents.value.has(variantId);
+}
+
+function canExpandChildren(status: BranchItem["status"]): boolean {
+  return supportsChildren.value && status !== "pendingRemove";
+}
 </script>
 
 <template>
@@ -139,25 +169,33 @@ function cancelAdd() {
       <el-button size="small" link @click="emit('close')"> 收起 </el-button>
     </div>
     <div class="branch-list-body">
-      <BranchRow
-        v-for="item in branches"
-        :key="String(item.variant.variantId)"
-        :variant="item.variant"
-        :status="item.status"
-        :supports-condition="supportsCondition"
-        :supports-delegation="supportsDelegation"
-        :condition-options="conditionOptions"
-        @edit="
-          payload =>
-            emit('edit-branch', {
-              ...payload,
-              variantId: item.variant.variantId
-            })
-        "
-        @revoke="emit('revoke-branch', item.variant.variantId)"
-        @restore="emit('restore-branch', item.variant.variantId)"
-        @restore-modify="emit('restore-modify', item.variant.variantId)"
-      />
+      <template v-for="item in branches" :key="String(item.variant.variantId)">
+        <BranchRow
+          :variant="item.variant"
+          :status="item.status"
+          :supports-condition="supportsCondition"
+          :supports-delegation="supportsDelegation"
+          :condition-options="conditionOptions"
+          :child-count="childCountOf(item.variant.variantId)"
+          :children-expanded="isChildrenExpanded(item.variant.variantId)"
+          :can-expand-children="canExpandChildren(item.status)"
+          @edit="
+            payload =>
+              emit('edit-branch', {
+                ...payload,
+                variantId: item.variant.variantId
+              })
+          "
+          @revoke="emit('revoke-branch', item.variant.variantId)"
+          @restore="emit('restore-branch', item.variant.variantId)"
+          @restore-modify="emit('restore-modify', item.variant.variantId)"
+          @toggle-children="toggleChildren(item.variant.variantId)"
+        />
+        <ChildMatrixPanel
+          v-if="isChildrenExpanded(item.variant.variantId)"
+          :parent-variant-id="item.variant.variantId"
+        />
+      </template>
       <div v-if="branches.length === 0" class="empty-branches">
         无分支（未授权）
       </div>

@@ -80,6 +80,27 @@ export type VariantCommand =
       kind: "remove";
       /** 移除具体变体（按 variantId，非 PermCellKey） */
       targetVariantId: GrantVariantId;
+    }
+  // 子权限命令（T-FE-033）：dependOn 关联具体父变体，逐 command 撤销
+  | {
+      kind: "child-grant";
+      /** 父变体（须在 mainDraft 投影中，否则 replay 跳过防孤儿） */
+      parentVariantId: GrantVariantId;
+      cell: PermCellKey;
+      proposedVariantId: string;
+      conditionCode: string | null;
+      canGrant: boolean;
+      resourceName: string | null;
+    }
+  | {
+      kind: "child-update";
+      targetVariantId: GrantVariantId;
+      conditionCode: string | null;
+      canGrant: boolean;
+    }
+  | {
+      kind: "child-remove";
+      targetVariantId: GrantVariantId;
     };
 
 /** 任务意图 */
@@ -151,4 +172,16 @@ export interface CellSummary {
   effective: SummaryEffective;
   draftChange: SummaryDraftChange;
   variants: V2DraftPermission[];
+}
+
+/**
+ * 失败子权限操作 overlay（T-FE-033 验收⑦）。
+ * saveAll 主成功子失败时保留，叠加在 childDraft 上（add->set / remove->delete），
+ * 供 retryFailedChildren 重试。childKey 为展示用，parentVariantId 用于解析父 id。
+ */
+export interface V2FailedChildOp {
+  op: "add" | "remove";
+  child: V2DraftPermission;
+  childKey: ChildPermCellKeyStr;
+  parentVariantId: GrantVariantId;
 }

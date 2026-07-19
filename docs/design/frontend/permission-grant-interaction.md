@@ -174,10 +174,10 @@ DIRTY ──点击保存──► SAVE_PREVIEW（bottom-sheet 总览）──确
 
 ### 4.4 子权限矩阵内展开（解决 P5）
 
-**触发**：主权限单元格有 `⌗` 标记时，点击 `⌗` 或行首展开三角。
+**触发**：分支列表中父变体行的 `⌗ 子权限` 按钮（T-FE-033 Q2 决策：多条件模型下子权限 `dependOn` 具体父变体 GrantVariantId，非 PermCellKey；单元格 `⌗` 仅作"存在子权限"聚合标记与展开提示，不承担子权限归属）。
 
 **规约**：
-- 该资源行**向下展开子矩阵**（同一矩阵的嵌套层，缩进显示），列变为子资源类型×操作。
+- 父变体行**向下展开子矩阵**（同一矩阵的嵌套层，缩进显示，只一层），列变为子资源类型×操作；多个子资源类型用 tab 切换（Q3=A）。
 - 子权限单元格交互同主权限（点击切换 / 副标记就地配置）。
 - 只展开一层（不变量：子权限不再有范围入口）。
 - 删除主权限时，展开的子行先变灰 + 标记"将级联移除 N 项"，确认在保存前总览（见 §4.5）。
@@ -314,7 +314,7 @@ DIRTY ──点击保存──► SAVE_PREVIEW（bottom-sheet 总览）──确
 - 单元格切换仍走 `commitGrantTask`（grant/adjust/remove intent），只是触发器从"弹窗确认"变为"点击"。
 - 批量仍产 1 个 `GrantTaskSnapshot`（多操作×多资源），只是从"弹窗四步"变为"矩阵多选+工具栏"。
 - 条件/canGrant 就地展开仍写同一任务快照。
-- 子权限矩阵展开仍用 `TaskChildGroup` 完整集合替换语义。
+- 子权限矩阵展开用 `child-grant`/`child-update`/`child-remove` 逐命令语义（T-FE-033 修订，替代旧 `TaskChildGroup` 完整集合替换）。
 - 保存仍走 `saveAll` 两步 + 部分失败处理，新增的 SAVE_PREVIEW 是 `DIRTY->SAVING` 间的 UI 中间态，不新增后端调用。
 
 唯一新增的交互态（INLINE_CONFIG_OPEN / BATCH_SELECTED / CONFLICT_HIGHLIGHT / SAVE_FAILED_MARK / SAVE_PREVIEW）都是 D4/D5 的**正交 UI 子态**，不影响有效态与草稿态的语义。

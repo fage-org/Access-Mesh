@@ -361,3 +361,184 @@ describe("replay", () => {
     expect(() => replayGrantTasks(base, tasks)).toThrow(/已被占用/);
   });
 });
+
+// ===== T-FE-033 子权限 replay =====
+
+const CHILD_CELL: PermCellKey = {
+  domainCode: "",
+  resourceTypeCode: "BUTTON",
+  scopeMode: "INSTANCE",
+  resourceCode: "btn1",
+  codeType: "BUTTON",
+  operationCode: "VIEW"
+};
+
+function mainItem(id = 9001): RolePermissionItem {
+  return {
+    id,
+    domainCode: "",
+    resourceTypeCode: "MENU",
+    resourceCode: "sys",
+    codeType: "MENU",
+    resourceName: "系统管理",
+    operationCode: "VIEW",
+    scopeMode: "INSTANCE",
+    conditionCode: null,
+    canGrant: false,
+    dependOn: null,
+    grantSource: "MANUAL"
+  };
+}
+
+function childItem(
+  id: number,
+  parentId: number,
+  overrides: Partial<RolePermissionItem> = {}
+): RolePermissionItem {
+  return {
+    id,
+    domainCode: "",
+    resourceTypeCode: "BUTTON",
+    resourceCode: "btn1",
+    codeType: "BUTTON",
+    resourceName: "按钮1",
+    operationCode: "VIEW",
+    scopeMode: "INSTANCE",
+    conditionCode: null,
+    canGrant: false,
+    dependOn: parentId,
+    grantSource: "MANUAL",
+    ...overrides
+  };
+}
+
+function childGrantCmd(
+  parentId: number,
+  proposedId: string,
+  overrides: Partial<Extract<VariantCommand, { kind: "child-grant" }>> = {}
+): Extract<VariantCommand, { kind: "child-grant" }> {
+  return {
+    kind: "child-grant",
+    parentVariantId: parentId,
+    cell: CHILD_CELL,
+    proposedVariantId: proposedId,
+    conditionCode: null,
+    canGrant: false,
+    resourceName: "按钮1",
+    ...overrides
+  };
+}
+
+function childUpdateCmd(
+  targetId: number | string,
+  overrides: Partial<Extract<VariantCommand, { kind: "child-update" }>> = {}
+): Extract<VariantCommand, { kind: "child-update" }> {
+  return {
+    kind: "child-update",
+    targetVariantId: targetId,
+    conditionCode: null,
+    canGrant: false,
+    ...overrides
+  };
+}
+
+function childRemoveCmd(
+  targetId: number | string
+): Extract<VariantCommand, { kind: "child-remove" }> {
+  return { kind: "child-remove", targetVariantId: targetId };
+}
+
+function mainRemoveCmd(
+  targetId: number | string
+): Extract<VariantCommand, { kind: "remove" }> {
+  return { kind: "remove", targetVariantId: targetId };
+}
+
+describe("replay child permissions (T-FE-033)", () => {
+  it("child-grant: 父变体在投影 -> add", () => {
+    const base = buildBaseline([mainItem()]);
+    const r = replayGrantTasks(base, [task([childGrantCmd(9001, "c1")])]);
+    expect(r.childDraft.get("c1")).toBeDefined();
+    expect(r.childDraft.get("c1")!.dependOn).toBe(9001);
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("add");
+  });
+
+  it("child-grant: 父变体未进投影 -> noChange（孤儿防护）", () => {
+    const base = createV2DraftState();
+    const r = replayGrantTasks(base, [task([childGrantCmd(9001, "c1")])]);
+    expect(r.childDraft.get("c1")).toBeUndefined();
+    const eff = r.taskEffects.get("t1")!.commands[0];
+    expect(eff.effect).toBe("noChange");
+    expect(eff.reason).toBe("父变体未进投影");
+  });
+
+  it("child-grant: 同 parent+cell+condition 已存在 -> noChange", () => {
+    const base = buildBaseline([mainItem(), childItem(9101, 9001)]);
+    const r = replayGrantTasks(base, [task([childGrantCmd(9001, "c1")])]);
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("noChange");
+  });
+
+  it("child-grant: 同 parent+cell+condition canGrant 不同 -> update", () => {
+    const base = buildBaseline([
+      mainItem(),
+      childItem(9101, 9001, { canGrant: false })
+    ]);
+    const r = replayGrantTasks(base, [
+      task([childGrantCmd(9001, "c1", { canGrant: true })])
+    ]);
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("update");
+    expect(r.childDraft.get(9101)!.canGrant).toBe(true);
+  });
+
+  it("child-update: conditionCode 与同 parent+cell 其他子变体重复 -> noChange", () => {
+    const base = buildBaseline([
+      mainItem(),
+      childItem(9101, 9001, { conditionCode: null }),
+      childItem(9102, 9001, { conditionCode: "A" })
+    ]);
+    const r = replayGrantTasks(base, [
+      task([childUpdateCmd(9101, { conditionCode: "A" })])
+    ]);
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("noChange");
+    expect(r.childDraft.get(9101)!.conditionCode).toBe(null);
+  });
+
+  it("child-update: 属性变 -> update", () => {
+    const base = buildBaseline([
+      mainItem(),
+      childItem(9101, 9001, { canGrant: false })
+    ]);
+    const r = replayGrantTasks(base, [
+      task([childUpdateCmd(9101, { canGrant: true })])
+    ]);
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("update");
+    expect(r.childDraft.get(9101)!.canGrant).toBe(true);
+  });
+
+  it("child-remove: 删除子变体 -> remove", () => {
+    const base = buildBaseline([mainItem(), childItem(9101, 9001)]);
+    const r = replayGrantTasks(base, [task([childRemoveCmd(9101)])]);
+    expect(r.childDraft.get(9101)).toBeUndefined();
+    expect(r.taskEffects.get("t1")!.commands[0].effect).toBe("remove");
+  });
+
+  it("父变体 remove 级联删其全部子权限", () => {
+    const base = buildBaseline([mainItem(), childItem(9101, 9001)]);
+    const r = replayGrantTasks(base, [task([mainRemoveCmd(9001)])]);
+    expect(r.mainDraft.has(9001)).toBe(false);
+    expect(r.childDraft.has(9101)).toBe(false);
+  });
+
+  it("有序 child commands replay 后该 parent 的 childDraft 为最终期望全集", () => {
+    const createCell = { ...CHILD_CELL, operationCode: "CREATE" };
+    const base = buildBaseline([mainItem()]);
+    const r = replayGrantTasks(base, [
+      task([
+        childGrantCmd(9001, "c1"),
+        childGrantCmd(9001, "c2", { cell: createCell }),
+        childRemoveCmd("c1")
+      ])
+    ]);
+    expect([...r.childDraft.keys()].sort()).toEqual(["c2"]);
+  });
+});

@@ -7,12 +7,32 @@ import {
   getRoleTree,
   type RoleTreeNode,
   type RolePermissionItem,
+  type RolePermissionAddItem,
+  type RolePermissionUpdateItem,
   type DomainCapability,
   type OperatorCapability
 } from "@/api/permission-grant";
 import { useV2GrantTransport } from "../transport";
 import { useV2MatrixData } from "./useV2MatrixData";
 import { useV2DraftModel } from "./useV2DraftModel";
+import type {
+  GrantVariantId,
+  V2DraftPermission,
+  V2FailedChildOp
+} from "./v2-types";
+import {
+  childPermCellKeyStr,
+  permCellKeyStr,
+  normalizeConditionCode
+} from "./grant-variant";
+import {
+  toAddItem,
+  toUpdateItem,
+  computeMainDiff,
+  computeChildDiff,
+  matchSaveResponse,
+  type V2DiffEntry
+} from "./save-adapter";
 
 /**
  * 权限授予 V2 页 hook（facade）。
@@ -65,6 +85,12 @@ export function usePermissionGrantV2() {
   const operatorCapability = ref<OperatorCapability>({
     ...DEFAULT_OPERATOR_CAPABILITY
   });
+
+  // ---- 保存状态（D5）----
+  const failedChildren = ref<V2FailedChildOp[]>([]);
+  const saving = ref(false);
+  const saveError = ref<string | null>(null);
+  const baselineStale = ref(false);
 
   // ---- 加载状态 ----
   const loadingRoleTree = ref(false);
@@ -123,7 +149,34 @@ export function usePermissionGrantV2() {
     grantableOperationCodes: operatorCapability.value.grantableOperationCodes
   }));
 
-  const draft = useV2DraftModel(baselineItems, roleContext, capability);
+  const draft = useV2DraftModel(
+    baselineItems,
+    roleContext,
+    capability,
+    failedChildren
+  );
+
+  // ========== diff（保存层 + 右栏变更流） ==========
+  const mainDiff = computed(() =>
+    computeMainDiff(draft.mainDraft.value, draft.baselineState.value)
+  );
+  const childDiff = computed(() => {
+    const mainRemoveIds = new Set<GrantVariantId>(
+      mainDiff.value.filter(d => d.type === "remove").map(d => d.variantId)
+    );
+    return computeChildDiff(
+      draft.childDraft.value,
+      draft.baselineState.value,
+      mainRemoveIds
+    );
+  });
+  const allDiff = computed<V2DiffEntry[]>(() => [
+    ...mainDiff.value,
+    ...childDiff.value
+  ]);
+  const hasDraft = computed(
+    () => draft.grantTasks.value.length > 0 || failedChildren.value.length > 0
+  );
 
   // ========== 加载 ==========
 
@@ -200,8 +253,11 @@ export function usePermissionGrantV2() {
       baselineItems.value = resp.items;
       domainCapability.value = resp.domainCapability;
       operatorCapability.value = resp.operatorCapability;
-      // 切角色：清空旧角色草稿（不 replay 到新角色）+ 重置矩阵 + 加载新角色资源类型
+      // 切角色：清空旧角色草稿 + 保存状态（不 replay 到新角色）
       draft.resetDraft();
+      failedChildren.value = [];
+      saveError.value = null;
+      baselineStale.value = false;
       matrix.resetMatrix();
       await matrix.loadResourceTypes();
       matrix.loadConditionOptions();
@@ -214,6 +270,276 @@ export function usePermissionGrantV2() {
     } finally {
       if (seq === selectRoleSeq) loadingContext.value = false;
     }
+  }
+
+  // ========== 保存（两步 + 部分失败，T-FE-033） ==========
+
+  /**
+   * 重载 baseline（保存成功/重试用）。
+   * 成功清 grantTasks + failedChildren + stale；失败置 baselineStale。
+   * 注：T-FE-034 的 fetchBaseline+reconcile（不清草稿）未实现，本方法会清草稿，
+   * 不用于 STALE_WITH_CHILD_FAILURE 恢复。
+   */
+  async function reloadBaseline(): Promise<boolean> {
+    if (!currentRole.value) return false;
+    try {
+      const resp = await loadRolePermissionSnapshot(
+        currentRole.value,
+        currentDomainCode.value
+      );
+      baselineItems.value = resp.items;
+      domainCapability.value = resp.domainCapability;
+      operatorCapability.value = resp.operatorCapability;
+      draft.resetDraft();
+      failedChildren.value = [];
+      baselineStale.value = false;
+      return true;
+    } catch {
+      baselineStale.value = true;
+      return false;
+    }
+  }
+
+  /**
+   * 两步保存（state-model §4.2 / error-flow §2.5）：
+   * 1. save 主权限（add/update/remove + 子 update 合并）-> 匹配响应得新主权限 id
+   * 2. add-child（按 parentPermissionId 分组，新父用匹配 id，baseline 父直接用）
+   * 3. remove-child（父在 mainRemove 跳过，级联）
+   * 4. reload baseline
+   * 主成功子失败 -> CHILD_PARTIAL_FAILED（failedChildren overlay 保留）。
+   * T-FE-033 走 DIRTY->SAVING->CLEAN/SAVE_FAILED；SAVE_PREVIEW/fetchBaseline+reconcile 留 T-FE-034。
+   */
+  async function saveAll(): Promise<boolean> {
+    if (!currentRole.value || readonly.value || saving.value) return false;
+    if (baselineStale.value) {
+      message("权限事实已过期，请重新选择角色刷新后再保存", {
+        type: "warning"
+      });
+      return false;
+    }
+    const role = currentRole.value;
+    // 先捕获 diff（清 failedChildren 会改变 childDraft computed，必须先捕获再清空）
+    const mDiff = [...mainDiff.value];
+    const cDiff = [...childDiff.value];
+    const failedSnapshot = [...failedChildren.value];
+    // P1 修复：新增父 UUID -> perm 映射，reload 后重绑定失败子项 parentVariantId
+    const mainAddUuidToPerm = new Map<GrantVariantId, V2DraftPermission>();
+    for (const d of mDiff) {
+      if (d.type === "add") mainAddUuidToPerm.set(d.variantId, d.perm);
+    }
+    saving.value = true;
+    saveError.value = null;
+    failedChildren.value = [];
+
+    try {
+      const mainAdd: RolePermissionAddItem[] = [];
+      const updateItems: RolePermissionUpdateItem[] = [];
+      const mainRemove: number[] = [];
+      const childRemoveIds: number[] = [];
+      const childRemoveItems: V2FailedChildOp[] = [];
+      const childAddEntries: V2DiffEntry[] = [];
+
+      for (const d of mDiff) {
+        if (d.type === "add") mainAdd.push(toAddItem(d.perm));
+        else if (d.type === "update" && d.before)
+          updateItems.push(toUpdateItem(d.perm, d.before));
+        else if (d.type === "remove")
+          mainRemove.push(d.perm.variantId as number);
+      }
+      for (const d of cDiff) {
+        if (d.type === "add") {
+          childAddEntries.push(d);
+        } else if (d.type === "update" && d.before) {
+          updateItems.push(toUpdateItem(d.perm, d.before));
+        } else if (d.type === "remove") {
+          childRemoveIds.push(d.perm.variantId as number);
+          childRemoveItems.push({
+            op: "remove",
+            child: d.perm,
+            childKey: childPermCellKeyStr(d.perm.dependOn!, d.perm),
+            parentVariantId: d.perm.dependOn!
+          });
+        }
+      }
+
+      if (
+        mainAdd.length === 0 &&
+        updateItems.length === 0 &&
+        mainRemove.length === 0 &&
+        childAddEntries.length === 0 &&
+        childRemoveIds.length === 0
+      ) {
+        message("无变更", { type: "info" });
+        return true;
+      }
+
+      const transport = useV2GrantTransport();
+      const tempKeyToServerId = new Map<GrantVariantId, number>();
+      const needMainSave =
+        mainAdd.length > 0 || updateItems.length > 0 || mainRemove.length > 0;
+      if (needMainSave) {
+        const saveResp = await transport.saveRolePermission({
+          domainCode: currentDomainCode.value,
+          roleTypeCode: role.roleTypeCode,
+          roleExternalId: role.roleExternalId,
+          add: mainAdd,
+          update: updateItems,
+          remove: mainRemove
+        });
+        const mainAddEntriesForMatch = mDiff.filter(d => d.type === "add");
+        const matched = matchSaveResponse(
+          saveResp.items,
+          mainAddEntriesForMatch
+        );
+        for (const [k, v] of matched) tempKeyToServerId.set(k, v);
+      }
+
+      // add-child（按 parentPermissionId 分组）
+      let childFailureOccurred = false;
+      const failedChildAdd: V2FailedChildOp[] = [];
+      const addChildByParent = new Map<
+        number,
+        {
+          item: RolePermissionAddItem;
+          child: V2DraftPermission;
+          childKey: string;
+        }[]
+      >();
+      for (const entry of childAddEntries) {
+        const parentVariantId = entry.perm.dependOn!;
+        // baseline 父（number）直接用；新增父（string）用匹配结果
+        const parentId =
+          typeof parentVariantId === "number"
+            ? parentVariantId
+            : (tempKeyToServerId.get(parentVariantId) ?? null);
+        if (!parentId) {
+          failedChildAdd.push({
+            op: "add",
+            child: entry.perm,
+            childKey: childPermCellKeyStr(parentVariantId, entry.perm),
+            parentVariantId
+          });
+          childFailureOccurred = true;
+          continue;
+        }
+        if (!addChildByParent.has(parentId)) addChildByParent.set(parentId, []);
+        addChildByParent.get(parentId)!.push({
+          item: toAddItem(entry.perm),
+          child: entry.perm,
+          childKey: childPermCellKeyStr(parentVariantId, entry.perm)
+        });
+      }
+
+      for (const [parentId, entries] of addChildByParent) {
+        try {
+          await transport.addChildPermission({
+            parentPermissionId: parentId,
+            children: entries.map(e => e.item)
+          });
+        } catch (e) {
+          childFailureOccurred = true;
+          const errMsg = e instanceof Error ? e.message : "子权限保存失败";
+          for (const entry of entries) {
+            failedChildAdd.push({
+              op: "add",
+              child: entry.child,
+              childKey: entry.childKey,
+              parentVariantId: entry.child.dependOn!
+            });
+          }
+          saveError.value = `主权限已保存，部分子权限保存失败：${errMsg}`;
+        }
+      }
+
+      // remove-child
+      const failedChildRemove: V2FailedChildOp[] = [];
+      for (let i = 0; i < childRemoveIds.length; i++) {
+        try {
+          await transport.removeChildPermission({
+            permissionId: childRemoveIds[i]
+          });
+        } catch {
+          childFailureOccurred = true;
+          failedChildRemove.push(childRemoveItems[i]);
+        }
+      }
+
+      const reloadOk = await reloadBaseline();
+
+      if (childFailureOccurred) {
+        // P1 修复：reload 后新增父变体已由临时 UUID 变为服务端 ID，重绑定失败子项的
+        // parentVariantId/child/childKey，避免 retry 时 tempKeyToServerId 为空导致永久失败
+        const reboundFailedChildAdd = failedChildAdd.map(fop => {
+          if (typeof fop.parentVariantId === "number") return fop;
+          const fromTemp = tempKeyToServerId.get(fop.parentVariantId);
+          if (fromTemp) {
+            return {
+              ...fop,
+              parentVariantId: fromTemp,
+              child: { ...fop.child, dependOn: fromTemp },
+              childKey: childPermCellKeyStr(fromTemp, fop.child)
+            };
+          }
+          // fallback：reload 后 baseline 按 PermCellKey+conditionCode 匹配父服务端 ID
+          const parentPerm = mainAddUuidToPerm.get(fop.parentVariantId);
+          if (parentPerm) {
+            const key = permCellKeyStr(parentPerm);
+            const cond = normalizeConditionCode(parentPerm.conditionCode);
+            const ids = draft.baselineState.value.mainIndex.get(key) ?? [];
+            for (const id of ids) {
+              const p = draft.baselineState.value.mainMap.get(id);
+              if (p && normalizeConditionCode(p.conditionCode) === cond) {
+                return {
+                  ...fop,
+                  parentVariantId: id,
+                  child: { ...fop.child, dependOn: id },
+                  childKey: childPermCellKeyStr(id, fop.child)
+                };
+              }
+            }
+          }
+          return fop;
+        });
+        failedChildren.value = [...reboundFailedChildAdd, ...failedChildRemove];
+        message(saveError.value ?? "部分子权限操作失败", { type: "warning" });
+      } else if (!reloadOk) {
+        saveError.value = "保存已提交，但刷新权限事实失败，请重新选择角色刷新";
+        message(saveError.value, { type: "warning" });
+      } else {
+        message("保存成功", { type: "success" });
+      }
+      return true;
+    } catch (e) {
+      // 主请求失败（未执行 add-child/remove-child），恢复 overlay
+      failedChildren.value = failedSnapshot;
+      saveError.value = e instanceof Error ? e.message : "保存失败";
+      message(saveError.value, { type: "error" });
+      return true;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  /**
+   * 重试失败的子权限（T-FE-033 基本版：非 stale 直接 saveAll）。
+   * T-FE-034 补 fetchBaseline+reconcile（stale 分支原子恢复）。
+   */
+  async function retryFailedChildren(): Promise<boolean> {
+    if (failedChildren.value.length === 0) return false;
+    if (baselineStale.value) {
+      message("权限事实已过期，请重新选择角色刷新后再重试", {
+        type: "warning"
+      });
+      return false;
+    }
+    return saveAll();
+  }
+
+  /** 放弃全部更改（清 grantTasks + failedChildren + saveError；不清 baselineStale） */
+  function discardAll(): void {
+    draft.resetDraft();
+    failedChildren.value = [];
+    saveError.value = null;
   }
 
   return {
@@ -235,6 +561,19 @@ export function usePermissionGrantV2() {
     // 矩阵数据
     ...matrix,
     // 草稿模型
-    ...draft
+    ...draft,
+    // 保存（D5，T-FE-033；hasDraft 覆盖 draft.hasDraft 以纳入 failedChildren）
+    hasDraft,
+    saving,
+    saveError,
+    baselineStale,
+    failedChildren,
+    mainDiff,
+    childDiff,
+    allDiff,
+    saveAll,
+    reloadBaseline,
+    retryFailedChildren,
+    discardAll
   };
 }

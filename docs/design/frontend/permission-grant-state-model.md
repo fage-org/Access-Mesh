@@ -325,7 +325,7 @@ step2 条件/canGrant/R11开关 ──next──► step3 子权限(可跳过) �
 - 状态约束：
   - 子权限 **依赖父权限存在**，且 `dependOn` 必须关联**具体父授权变体**（GrantVariantId），不能只关联六维 PermCellKey（多条件模型下一单元格有多条父变体，见 §2.2 P1-2）。replay 时 `if (!main.has(group.parentVariantId)) continue`--父权限未进投影（如被 R11 跳过）时，子权限配置不应用，避免孤儿草稿。
   - 删除主权限 **级联**删除子权限：replay 删 `parentVariantId + "|"` 前缀（仅删该变体的子权限，不影响同单元格其他变体）；保存层沿用 `dependOn ∈ mainRemove` 过滤，不重复 remove-child。
-  - 子权限 **完整集合替换**语义：`TaskChildGroup` 存在时 children 为最终期望全集，replay 先删前缀再写入；group 缺失不改；`children=[]` 明确移除全部。
+  - 子权限 **完整集合**语义（T-FE-033 修订）：以 `child-grant`/`child-update`/`child-remove` 逐命令表达（纳入 `VariantCommand`，逐 command 撤销）；有序 child commands replay 后，该 `parentVariantId` 的 `childDraft` 为最终期望全集。旧 `TaskChildGroup` 完整集合替换语义已由逐命令模型替代（撤销更灵活，与 T-FE-032 一致）。
 - 保存时序（两步非原子，决策点 5）：
   1. save 主权限 -> 响应回新 id
   2. 匹配新主权限 id：**按 `PermCellKey + normalized conditionCode` 匹配 save 响应记录**（已决策选项1，无后端改动：`GrantAddItem` 不传临时 UUID、响应不回显 client 标识；方案 A 下同单元格不同 conditionCode 是不同分支，响应含六维+conditionCode+id 可唯一匹配；匹配后把该分支前端 GrantVariantId 从临时 UUID 替换为服务端 id）。不采用扩展 API `clientVariantId`（选项2）。

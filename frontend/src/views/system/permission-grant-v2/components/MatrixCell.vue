@@ -10,6 +10,8 @@ const props = defineProps<{
   readonly?: boolean;
   /** 批量多选选中（T-FE-032） */
   selected?: boolean;
+  /** 有子权限（⌗ 聚合标记，T-FE-033；仅展示，不承担归属） */
+  hasChildren?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -255,6 +257,9 @@ onBeforeUnmount(() => {
         >
           <span class="mark-symbol" aria-hidden="true">{{ mark.symbol }}</span>
           <span v-if="mark.label" class="mark-label">{{ mark.label }}</span>
+        </span>
+        <span v-if="hasChildren" class="cell-mark tag-primary" title="含子权限">
+          <span class="mark-symbol" aria-hidden="true">⌗</span>
         </span>
         <span v-if="display.overflowCount > 0" class="overflow-badge">
           +{{ display.overflowCount }}

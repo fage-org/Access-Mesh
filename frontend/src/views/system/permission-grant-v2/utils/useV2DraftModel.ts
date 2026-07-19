@@ -36,13 +36,16 @@ import type {
   VariantCommand,
   PermCellKeyStr,
   CellSummary,
-  TaskResource
+  TaskResource,
+  V2FailedChildOp
 } from "./v2-types";
 import {
   buildBaseline,
   generateVariantId,
   permCellKeyStr,
-  normalizeConditionCode
+  normalizeConditionCode,
+  childPermCellKeyStr,
+  findChildVariantByParentCellCondition
 } from "./grant-variant";
 import { replayGrantTasks } from "./replay";
 import { aggregateCell } from "./aggregate";
@@ -69,7 +72,8 @@ export interface AddBranchResult {
 export function useV2DraftModel(
   baselineItems: Ref<RolePermissionItem[]>,
   roleContext: ComputedRef<DraftContext>,
-  capability: ComputedRef<CapabilityInput>
+  capability: ComputedRef<CapabilityInput>,
+  failedChildren: Ref<V2FailedChildOp[]> = ref([])
 ) {
   const grantTasks = ref<V2GrantTaskSnapshot[]>([]);
   /** 展开单焦点：PermCellKeyStr（已含 resourceTypeCode），同时同资源类型最多一个 */
@@ -85,7 +89,19 @@ export function useV2DraftModel(
 
   const mainDraft = computed(() => replayResult.value.mainDraft);
   const mainIndex = computed(() => replayResult.value.mainIndex);
-  const childDraft = computed(() => replayResult.value.childDraft);
+  /**
+   * 子权限草稿（computed = replay + failedChildren overlay）。
+   * 投影顺序：baseline -> grantTasks replay -> failedChildren overlay（add->set / remove->delete）。
+   * childIndex 保持 replay（不含 overlay）；子权限矩阵展开用 childVariantsOf 遍历 childDraft。
+   */
+  const childDraft = computed<Map<GrantVariantId, V2DraftPermission>>(() => {
+    const m = new Map(replayResult.value.childDraft);
+    for (const fop of failedChildren.value) {
+      if (fop.op === "add") m.set(fop.child.variantId, fop.child);
+      else m.delete(fop.child.variantId);
+    }
+    return m;
+  });
   const childIndex = computed(() => replayResult.value.childIndex);
 
   const hasDraft = computed(() => grantTasks.value.length > 0);
@@ -431,8 +447,53 @@ export function useV2DraftModel(
   }
 
   /**
+   * 清理引用指定父变体的孤儿 child command（P2 修复：PENDING_ADD 父撤销时级联）。
+   * 删除 child-grant（parentVariantId 匹配）+ 关联子变体的 child-update/child-remove。
+   * replay 已阻止孤儿进 childDraft，但 command 残留会使 grantTasks 非空（hasDraft 虚假）。
+   */
+  function cleanOrphanChildCommands(parentVariantId: GrantVariantId): void {
+    const childVariantIds = new Set<GrantVariantId>();
+    for (const t of grantTasks.value) {
+      for (const cmd of t.commands) {
+        if (
+          cmd.kind === "child-grant" &&
+          cmd.parentVariantId === parentVariantId
+        ) {
+          childVariantIds.add(cmd.proposedVariantId);
+        }
+      }
+    }
+    if (childVariantIds.size === 0) return;
+    const orphanTaskIds = new Set<string>();
+    for (const t of grantTasks.value) {
+      for (const cmd of t.commands) {
+        if (
+          (cmd.kind === "child-grant" &&
+            cmd.parentVariantId === parentVariantId) ||
+          ((cmd.kind === "child-update" || cmd.kind === "child-remove") &&
+            childVariantIds.has(cmd.targetVariantId))
+        ) {
+          orphanTaskIds.add(t.taskId);
+          break;
+        }
+      }
+    }
+    for (const taskId of orphanTaskIds) {
+      removeCommandsFromTask(
+        taskId,
+        cmd =>
+          (cmd.kind === "child-grant" &&
+            cmd.parentVariantId === parentVariantId) ||
+          ((cmd.kind === "child-update" || cmd.kind === "child-remove") &&
+            childVariantIds.has(cmd.targetVariantId))
+      );
+    }
+  }
+
+  /**
    * 移除分支（分支列表"撤销此分支"）。
    * P1-1：PENDING_ADD 只删该 variant 的 grant command（批量任务不连累其他分支）。
+   * P2-3：PENDING_ADD 父撤销时同步清理孤儿 child command（级联语义，避免 hasDraft 虚假）。
    * - baseline 分支 -> commit remove 任务（已有则幂等跳过）
    */
   function removeVariant(variantId: GrantVariantId, cell: PermCellKey): void {
@@ -444,6 +505,7 @@ export function useV2DraftModel(
           t.taskId,
           cmd => cmd.kind === "grant" && cmd.proposedVariantId === variantId
         );
+      cleanOrphanChildCommands(variantId);
       return;
     }
     if (findRemoveTaskForVariant(variantId)) return; // 幂等
@@ -789,6 +851,346 @@ export function useV2DraftModel(
     return { removed: commands.length };
   }
 
+  // ========== 子权限操作（T-FE-033） ==========
+
+  /** 该 cell 任一主权限变体是否有子权限（⌗ 聚合标记） */
+  function hasChildren(cell: PermCellKey): boolean {
+    const key = permCellKeyStr(cell);
+    const variantIds = mainIndex.value.get(key) ?? [];
+    if (variantIds.length === 0) return false;
+    const variantSet = new Set<GrantVariantId>(variantIds);
+    for (const p of childDraft.value.values()) {
+      if (p.dependOn !== null && variantSet.has(p.dependOn)) return true;
+    }
+    return false;
+  }
+
+  /** 该父变体的全部子权限变体（含 overlay，按 dependOn 过滤） */
+  function childVariantsOf(
+    parentVariantId: GrantVariantId
+  ): V2DraftPermission[] {
+    return [...childDraft.value.values()].filter(
+      p => p.dependOn === parentVariantId
+    );
+  }
+
+  /** draft 中查找同 parent+cell+condition 的子变体（重复检测，含 overlay） */
+  function findChildInDraft(
+    parentVariantId: GrantVariantId,
+    childCell: PermCellKey,
+    conditionCode: string | null
+  ): V2DraftPermission | undefined {
+    const norm = normalizeConditionCode(conditionCode);
+    const cellKey = permCellKeyStr(childCell);
+    for (const p of childDraft.value.values()) {
+      if (
+        p.dependOn === parentVariantId &&
+        permCellKeyStr(p) === cellKey &&
+        normalizeConditionCode(p.conditionCode) === norm
+      ) {
+        return p;
+      }
+    }
+    return undefined;
+  }
+
+  function findEditTaskForChildVariant(
+    variantId: GrantVariantId
+  ): V2GrantTaskSnapshot | null {
+    for (const t of grantTasks.value) {
+      for (const cmd of t.commands) {
+        if (cmd.kind === "child-grant" && cmd.proposedVariantId === variantId)
+          return t;
+        if (cmd.kind === "child-update" && cmd.targetVariantId === variantId)
+          return t;
+      }
+    }
+    return null;
+  }
+
+  function findRemoveTaskForChildVariant(
+    variantId: GrantVariantId
+  ): V2GrantTaskSnapshot | null {
+    for (const t of grantTasks.value) {
+      for (const cmd of t.commands) {
+        if (cmd.kind === "child-remove" && cmd.targetVariantId === variantId)
+          return t;
+      }
+    }
+    return null;
+  }
+
+  function hasChildUpdateTask(variantId: GrantVariantId): boolean {
+    const t = findEditTaskForChildVariant(variantId);
+    return (
+      !!t &&
+      t.commands.some(
+        c => c.kind === "child-update" && c.targetVariantId === variantId
+      )
+    );
+  }
+
+  /**
+   * 新增子权限分支（子矩阵"添加分支"）。
+   * - 父变体必须在 mainDraft 投影（否则"父权限未生效"）
+   * - 重复检测：同 parent+cell+condition 已存在 -> 阻断
+   * - baseline 待移除同条件子变体 -> 阻断（避免 remove+add 替换）
+   * - 子权限不应用 R11 redundantSkipped
+   */
+  function addChildBranch(
+    parentVariantId: GrantVariantId,
+    childCell: PermCellKey,
+    conditionCode: string | null,
+    canGrant: boolean,
+    resourceName: string | null
+  ): AddBranchResult {
+    const grant = grantableByOperator(childCell);
+    if (!grant.ok) return { ok: false, reason: grant.reason ?? "不可新增" };
+    if (!mainDraft.value.has(parentVariantId)) {
+      return { ok: false, reason: "父权限未生效，子权限不可配" };
+    }
+    const normalized = normalizeConditionCode(conditionCode);
+    const dup = findChildInDraft(parentVariantId, childCell, normalized);
+    if (dup) {
+      return {
+        ok: false,
+        reason: normalized
+          ? `子条件分支「${normalized}」已存在`
+          : "无条件子分支已存在"
+      };
+    }
+    const baselineDup = findChildVariantByParentCellCondition(
+      baselineState.value,
+      parentVariantId,
+      childCell,
+      normalized
+    );
+    if (baselineDup && findRemoveTaskForChildVariant(baselineDup.variantId)) {
+      return {
+        ok: false,
+        reason: normalized
+          ? `子条件分支「${normalized}」已待移除，请先恢复后编辑`
+          : "无条件子分支已待移除，请先恢复后编辑"
+      };
+    }
+    const proposedVariantId = generateVariantId();
+    const cmd: VariantCommand = {
+      kind: "child-grant",
+      parentVariantId,
+      cell: childCell,
+      proposedVariantId,
+      conditionCode: normalized,
+      canGrant,
+      resourceName
+    };
+    commitGrantTask(buildTask(childCell, [cmd], "grant"));
+    return { ok: true };
+  }
+
+  /**
+   * 编辑子权限分支 conditionCode/canGrant（child-update 保持 variantId）。
+   * - 重复检测：同 parent+cell 其他子变体已存在该 conditionCode -> 阻断
+   * - baseline 改回原值 -> 撤销 child-update command（清理 noChange）
+   */
+  function updateChildVariant(
+    childVariantId: GrantVariantId,
+    conditionCode: string | null,
+    canGrant: boolean
+  ): { ok: boolean; reason?: string } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
+    const currentPerm = childDraft.value.get(childVariantId);
+    if (!currentPerm || currentPerm.dependOn === null) {
+      return { ok: false, reason: "子变体不存在" };
+    }
+    const normalized = normalizeConditionCode(conditionCode);
+    const cellKey = permCellKeyStr(currentPerm);
+    for (const p of childDraft.value.values()) {
+      if (
+        p.dependOn === currentPerm.dependOn &&
+        p.variantId !== childVariantId &&
+        permCellKeyStr(p) === cellKey &&
+        normalizeConditionCode(p.conditionCode) === normalized
+      ) {
+        return {
+          ok: false,
+          reason: normalized
+            ? `子条件分支「${normalized}」已存在`
+            : "无条件子分支已存在"
+        };
+      }
+    }
+    const baseline = baselineState.value.childMap.get(childVariantId);
+    if (baseline && !isPendingAdd(childVariantId)) {
+      const baselineCond = normalizeConditionCode(baseline.conditionCode);
+      if (baselineCond === normalized && baseline.canGrant === canGrant) {
+        if (hasChildUpdateTask(childVariantId)) {
+          const t = findEditTaskForChildVariant(childVariantId);
+          if (t)
+            removeCommandsFromTask(
+              t.taskId,
+              cmd =>
+                cmd.kind === "child-update" &&
+                cmd.targetVariantId === childVariantId
+            );
+        }
+        return { ok: true };
+      }
+    }
+    const existing = findEditTaskForChildVariant(childVariantId);
+    if (existing) {
+      const newCommands = existing.commands.map(cmd => {
+        if (
+          cmd.kind === "child-grant" &&
+          cmd.proposedVariantId === childVariantId
+        ) {
+          return { ...cmd, conditionCode: normalized, canGrant };
+        }
+        if (
+          cmd.kind === "child-update" &&
+          cmd.targetVariantId === childVariantId
+        ) {
+          return { ...cmd, conditionCode: normalized, canGrant };
+        }
+        return cmd;
+      });
+      replaceGrantTask(existing.taskId, { ...existing, commands: newCommands });
+    } else {
+      const cmd: VariantCommand = {
+        kind: "child-update",
+        targetVariantId: childVariantId,
+        conditionCode: normalized,
+        canGrant
+      };
+      commitGrantTask(buildTask(currentPerm, [cmd], "adjust"));
+    }
+    return { ok: true };
+  }
+
+  /**
+   * 移除子权限分支。
+   * - PENDING_ADD 只删该 variant 的 child-grant command（批量任务不连累）
+   * - baseline 子变体 -> commit child-remove（已有则幂等跳过）
+   */
+  function removeChildVariantOp(childVariantId: GrantVariantId): void {
+    if (capability.value.readonly) return;
+    if (isPendingAdd(childVariantId)) {
+      const t = findEditTaskForChildVariant(childVariantId);
+      if (t)
+        removeCommandsFromTask(
+          t.taskId,
+          cmd =>
+            cmd.kind === "child-grant" &&
+            cmd.proposedVariantId === childVariantId
+        );
+      return;
+    }
+    if (findRemoveTaskForChildVariant(childVariantId)) return; // 幂等
+    const perm = childDraft.value.get(childVariantId);
+    if (!perm) return;
+    const cmd: VariantCommand = {
+      kind: "child-remove",
+      targetVariantId: childVariantId
+    };
+    commitGrantTask(buildTask(perm, [cmd], "remove"));
+  }
+
+  /** 恢复 baseline 子变体后与同 parent+cell 其他 draft 子分支冲突检测 */
+  function checkRestoreChildConflict(
+    childVariantId: GrantVariantId
+  ): string | null {
+    const baseline = baselineState.value.childMap.get(childVariantId);
+    if (!baseline || baseline.dependOn === null) return null;
+    const restoredCond = normalizeConditionCode(baseline.conditionCode);
+    const cellKey = permCellKeyStr(baseline);
+    for (const p of childDraft.value.values()) {
+      if (
+        p.dependOn === baseline.dependOn &&
+        p.variantId !== childVariantId &&
+        permCellKeyStr(p) === cellKey &&
+        normalizeConditionCode(p.conditionCode) === restoredCond
+      ) {
+        return restoredCond
+          ? `恢复后与「${restoredCond}」子分支重复`
+          : "恢复后与无条件子分支重复";
+      }
+    }
+    return null;
+  }
+
+  /** 恢复 PENDING_REMOVE 子变体（撤销 child-remove command） */
+  function restoreChildVariant(childVariantId: GrantVariantId): {
+    ok: boolean;
+    reason?: string;
+  } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
+    const t = findRemoveTaskForChildVariant(childVariantId);
+    if (!t) return { ok: true };
+    const conflict = checkRestoreChildConflict(childVariantId);
+    if (conflict) return { ok: false, reason: conflict };
+    removeCommandsFromTask(
+      t.taskId,
+      cmd =>
+        cmd.kind === "child-remove" && cmd.targetVariantId === childVariantId
+    );
+    return { ok: true };
+  }
+
+  /** 恢复 MODIFIED 子变体（撤销 child-update command） */
+  function restoreChildModify(childVariantId: GrantVariantId): {
+    ok: boolean;
+    reason?: string;
+  } {
+    if (capability.value.readonly) return { ok: false, reason: "只读" };
+    const t = findEditTaskForChildVariant(childVariantId);
+    if (!t) return { ok: true };
+    if (
+      !t.commands.some(
+        c => c.kind === "child-update" && c.targetVariantId === childVariantId
+      )
+    ) {
+      return { ok: true };
+    }
+    const conflict = checkRestoreChildConflict(childVariantId);
+    if (conflict) return { ok: false, reason: conflict };
+    removeCommandsFromTask(
+      t.taskId,
+      cmd =>
+        cmd.kind === "child-update" && cmd.targetVariantId === childVariantId
+    );
+    return { ok: true };
+  }
+
+  /** 子权限单元格完整显示（子矩阵展开用；allCovered 简化为 false） */
+  function resolveChildCell(
+    parentVariantId: GrantVariantId,
+    childCell: PermCellKey
+  ): CellDisplay {
+    const childKeyStr = permCellKeyStr(childCell);
+    const draftVariants = childVariantsOf(parentVariantId).filter(
+      p => permCellKeyStr(p) === childKeyStr
+    );
+    const baselineKey = childPermCellKeyStr(parentVariantId, childCell);
+    const blIds = baselineState.value.childIndex.get(baselineKey) ?? [];
+    const baselineVariants = blIds
+      .map(vid => baselineState.value.childMap.get(vid))
+      .filter((v): v is V2DraftPermission => !!v);
+    const summary = aggregateCell(draftVariants, baselineVariants);
+    const grant = grantableByOperator(childCell);
+    // 构造临时 baselineIndex（key=permCellKeyStr，只含该 cell）适配 buildCellDisplay
+    const tempBaselineIndex = new Map<PermCellKeyStr, GrantVariantId[]>();
+    if (blIds.length > 0) tempBaselineIndex.set(childKeyStr, blIds);
+    return buildCellDisplay({
+      cell: childCell,
+      summary,
+      mainIndex: childIndex.value,
+      baselineIndex: tempBaselineIndex,
+      baselineMap: baselineState.value.childMap,
+      grantableByOperator: grant.ok,
+      denyReason: grant.reason,
+      expanded: false
+    });
+  }
+
   return {
     grantTasks,
     expandedCell,
@@ -819,6 +1221,15 @@ export function useV2DraftModel(
     redundantCandidate,
     batchGrantAll,
     batchAddBranch,
-    batchRemove
+    batchRemove,
+    // 子权限（T-FE-033）
+    hasChildren,
+    childVariantsOf,
+    addChildBranch,
+    updateChildVariant,
+    removeChildVariantOp,
+    restoreChildVariant,
+    restoreChildModify,
+    resolveChildCell
   };
 }

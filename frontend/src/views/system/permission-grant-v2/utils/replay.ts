@@ -18,6 +18,13 @@
  * - remove：按 targetVariantId 删除 + 级联该父分支子权限
  *
  * 编辑 conditionCode 保持 variantId（非 remove+add）；禁止用 remove+add 表达条件编辑。
+ *
+ * 子权限命令（T-FE-033）：
+ * - child-grant：父变体未进 mainDraft 投影 -> noChange（孤儿防护）；同 parent+cell+condition
+ *   已存在 -> noChange/update；不存在 -> add。不应用 R11 redundantSkipped。
+ * - child-update：保持 targetVariantId，编辑 conditionCode 检查同 parent+cell 重复阻断。
+ * - child-remove：按 targetVariantId 删除子变体。
+ * 有序 child commands replay 后，该 parentVariantId 的 childDraft 为最终期望全集。
  */
 import type { PermCellKey } from "@/utils/permission-grant-types";
 import type {
@@ -34,6 +41,9 @@ import {
   createV2DraftState,
   upsertMainVariant,
   removeMainVariant,
+  upsertChildVariant,
+  removeChildVariant,
+  findChildVariantByParentCellCondition,
   normalizeConditionCode,
   permCellKeyStr
 } from "./grant-variant";
@@ -117,7 +127,16 @@ function applyCommand(
   if (cmd.kind === "update") {
     return applyUpdate(state, cmd, commandIndex);
   }
-  return applyRemove(state, cmd, commandIndex);
+  if (cmd.kind === "remove") {
+    return applyRemove(state, cmd, commandIndex);
+  }
+  if (cmd.kind === "child-grant") {
+    return applyChildGrant(state, cmd, commandIndex);
+  }
+  if (cmd.kind === "child-update") {
+    return applyChildUpdate(state, cmd, commandIndex);
+  }
+  return applyChildRemove(state, cmd, commandIndex);
 }
 
 function applyGrant(
@@ -236,6 +255,132 @@ function applyRemove(
   commandIndex: number
 ): CommandEffect {
   const removed = removeMainVariant(state, cmd.targetVariantId);
+  return {
+    commandIndex,
+    variantId: cmd.targetVariantId,
+    effect: removed ? "remove" : "noChange"
+  };
+}
+
+/**
+ * 子权限新增（T-FE-033）。
+ * - 父变体未进 mainDraft 投影 -> noChange（孤儿防护，不应用）
+ * - 同 parent+cell+condition 已存在 -> noChange（属性同）/ update（canGrant 不同）
+ * - 不存在 -> add（proposedVariantId）
+ * - 子权限不应用 R11 redundantSkipped（无 ALL 覆盖语义）
+ */
+function applyChildGrant(
+  state: V2DraftState,
+  cmd: Extract<VariantCommand, { kind: "child-grant" }>,
+  commandIndex: number
+): CommandEffect {
+  // 父变体未进投影 -> 不应用（避免孤儿草稿）
+  if (!state.mainMap.has(cmd.parentVariantId)) {
+    return {
+      commandIndex,
+      variantId: cmd.proposedVariantId,
+      effect: "noChange",
+      reason: "父变体未进投影"
+    };
+  }
+  const normCond = normalizeConditionCode(cmd.conditionCode);
+  const existing = findChildVariantByParentCellCondition(
+    state,
+    cmd.parentVariantId,
+    cmd.cell,
+    normCond
+  );
+  if (existing) {
+    if (existing.canGrant === cmd.canGrant) {
+      return {
+        commandIndex,
+        variantId: existing.variantId,
+        effect: "noChange"
+      };
+    }
+    existing.canGrant = cmd.canGrant;
+    return { commandIndex, variantId: existing.variantId, effect: "update" };
+  }
+  // proposedVariantId 全局唯一（mainMap + childMap）
+  if (
+    state.mainMap.has(cmd.proposedVariantId) ||
+    state.childMap.has(cmd.proposedVariantId)
+  ) {
+    throw new Error(`proposedVariantId ${cmd.proposedVariantId} 已被占用`);
+  }
+  const newPerm: V2DraftPermission = {
+    domainCode: cmd.cell.domainCode,
+    resourceTypeCode: cmd.cell.resourceTypeCode,
+    scopeMode: cmd.cell.scopeMode,
+    resourceCode: cmd.cell.resourceCode,
+    codeType: cmd.cell.codeType,
+    operationCode: cmd.cell.operationCode,
+    variantId: cmd.proposedVariantId,
+    conditionCode: normCond,
+    canGrant: cmd.canGrant,
+    dependOn: cmd.parentVariantId,
+    grantSource: "MANUAL",
+    resourceName: cmd.resourceName
+  };
+  upsertChildVariant(state, newPerm);
+  return { commandIndex, variantId: cmd.proposedVariantId, effect: "add" };
+}
+
+/**
+ * 子权限属性更新（保持 variantId，编辑 conditionCode 非 remove+add）。
+ * 编辑 conditionCode 检查同 parent+cell 其他子变体重复（阻断 noChange）。
+ */
+function applyChildUpdate(
+  state: V2DraftState,
+  cmd: Extract<VariantCommand, { kind: "child-update" }>,
+  commandIndex: number
+): CommandEffect {
+  const perm = state.childMap.get(cmd.targetVariantId);
+  if (!perm || perm.dependOn === null) {
+    return {
+      commandIndex,
+      variantId: cmd.targetVariantId,
+      effect: "noChange",
+      reason: "目标子变体不存在"
+    };
+  }
+  const normCond = normalizeConditionCode(cmd.conditionCode);
+  const oldCond = normalizeConditionCode(perm.conditionCode);
+  // 编辑 conditionCode：检查同 parent+cell 其他子变体重复（排除自身）
+  if (oldCond !== normCond) {
+    const dup = findChildVariantByParentCellCondition(
+      state,
+      perm.dependOn,
+      perm,
+      normCond
+    );
+    if (dup && dup.variantId !== cmd.targetVariantId) {
+      return {
+        commandIndex,
+        variantId: cmd.targetVariantId,
+        effect: "noChange",
+        reason: "同 parent+cell+condition 子分支已存在"
+      };
+    }
+  }
+  const condChanged = oldCond !== normCond;
+  const grantChanged = perm.canGrant !== cmd.canGrant;
+  perm.conditionCode = normCond;
+  perm.canGrant = cmd.canGrant;
+  return {
+    commandIndex,
+    variantId: cmd.targetVariantId,
+    effect: condChanged || grantChanged ? "update" : "noChange"
+  };
+}
+
+/** 子权限移除（按 targetVariantId） */
+function applyChildRemove(
+  state: V2DraftState,
+  cmd: Extract<VariantCommand, { kind: "child-remove" }>,
+  commandIndex: number
+): CommandEffect {
+  const removed = removeChildVariant(state, cmd.targetVariantId);
   return {
     commandIndex,
     variantId: cmd.targetVariantId,

@@ -902,6 +902,16 @@ function onBatchConfirm(payload: {
                   )
                 "
                 :readonly="store.readonly.value"
+                :has-children="
+                  store.hasChildren(
+                    makeCell(
+                      'INSTANCE',
+                      row.node.resourceCode,
+                      row.node.codeType,
+                      op.operationCode
+                    )
+                  )
+                "
                 :selected="
                   isSelected(
                     permCellKeyStr(

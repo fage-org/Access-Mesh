@@ -304,3 +304,77 @@ describe("useV2DraftModel 批量操作 (T-FE-032)", () => {
     expect(r.failures[0].reason).toMatch(/待移除/);
   });
 });
+
+describe("useV2DraftModel 子权限 (T-FE-033)", () => {
+  it("P2-3: PENDING_ADD 父撤销清理孤儿子 command（hasDraft 回 false）", () => {
+    const draft = makeDraft([], {
+      grantableTypes: ["MENU", "BUTTON"],
+      grantableOps: ["VIEW"]
+    });
+    const parentCell = cell("sys", "VIEW");
+    draft.grantUnconditional(parentCell, "系统管理");
+    const parentIds =
+      draft.mainIndex.value.get(permCellKeyStr(parentCell)) ?? [];
+    const parentVariantId = parentIds[0];
+    const childCell: PermCellKey = {
+      domainCode: "HR",
+      resourceTypeCode: "BUTTON",
+      scopeMode: "INSTANCE",
+      resourceCode: "btn-save",
+      codeType: "BUTTON",
+      operationCode: "VIEW"
+    };
+    const r = draft.addChildBranch(
+      parentVariantId,
+      childCell,
+      null,
+      false,
+      "保存按钮"
+    );
+    expect(r.ok).toBe(true);
+    expect(draft.hasDraft.value).toBe(true);
+    // 撤销父 PENDING_ADD -> 同步清理孤儿子 command
+    draft.removeVariant(parentVariantId, parentCell);
+    expect(draft.hasDraft.value).toBe(false);
+    expect(draft.grantTasks.value.length).toBe(0);
+  });
+
+  it("addChildBranch: 父变体未进投影 -> 阻断", () => {
+    const draft = makeDraft([], {
+      grantableTypes: ["MENU", "BUTTON"],
+      grantableOps: ["VIEW"]
+    });
+    const childCell: PermCellKey = {
+      domainCode: "HR",
+      resourceTypeCode: "BUTTON",
+      scopeMode: "INSTANCE",
+      resourceCode: "btn-save",
+      codeType: "BUTTON",
+      operationCode: "VIEW"
+    };
+    const r = draft.addChildBranch("non-existent", childCell, null, false, "x");
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/父权限未生效/);
+  });
+
+  it("子权限重复条件阻断（同 parent+cell+condition）", () => {
+    const draft = makeDraft([item(9001, "sys", "VIEW")], {
+      grantableTypes: ["MENU", "BUTTON"],
+      grantableOps: ["VIEW"]
+    });
+    const childCell: PermCellKey = {
+      domainCode: "HR",
+      resourceTypeCode: "BUTTON",
+      scopeMode: "INSTANCE",
+      resourceCode: "btn-save",
+      codeType: "BUTTON",
+      operationCode: "VIEW"
+    };
+    expect(draft.addChildBranch(9001, childCell, null, false, "x").ok).toBe(
+      true
+    );
+    const r2 = draft.addChildBranch(9001, childCell, null, false, "x");
+    expect(r2.ok).toBe(false);
+    expect(r2.reason).toMatch(/已存在/);
+  });
+});
