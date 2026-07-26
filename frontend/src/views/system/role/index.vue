@@ -4,7 +4,6 @@ import { h } from "vue";
 import { useRoleManage } from "./utils/hook";
 import RoleForm from "./components/RoleForm.vue";
 import { addDialog } from "@/components/ReDialog";
-import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { ROLE_MANAGE_PERMS } from "./utils/perms";
 import {
@@ -16,7 +15,7 @@ import {
   type RoleSummaryResp
 } from "@/api/role-manage";
 import { isReadonlyRoleType } from "./utils/types";
-import { Plus, Edit, Delete, Setting } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete } from "@element-plus/icons-vue";
 
 defineOptions({
   name: "SystemRole"
@@ -50,7 +49,6 @@ const canView = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
 const canAdd = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ADD));
 const canEdit = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_EDIT));
 const canDelete = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_DELETE));
-const canGrant = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_GRANT));
 /** 分组角色额外角色：添加对齐后端 ASSIGN，移除对齐 REVOKE（评审 P1-额外角色） */
 const canAssign = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ASSIGN));
 const canRevoke = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_REVOKE));
@@ -120,16 +118,6 @@ const addTypeMenu = computed(() =>
 function onAddByType(type: RoleTypeCode) {
   // C2 后无类型虚拟根：新建顶层角色，parentId=null（顶层森林），类型由下拉决定。
   openRoleForm("create", null, type);
-}
-
-// ========== 跳转权限授予 ==========
-
-function goGrant() {
-  if (!selectedRole.value) return;
-  // 跳转 4.1 权限授予页（T-FE-014，待实现）；当前仅提示
-  message(`配权功能待 4.1 权限授予页实现（角色：${selectedRole.value.name}）`, {
-    type: "info"
-  });
 }
 
 // ========== 可用基本角色（分组角色添加额外角色候选） ==========
@@ -330,18 +318,6 @@ function statusTagType(status: number) {
                 @click="handleToggleStatus(selectedRole)"
               >
                 {{ selectedRole.status === 1 ? "禁用" : "启用" }}
-              </el-button>
-              <el-button
-                v-if="
-                  canGrant && !isReadonlyRoleType(selectedRole.roleTypeCode)
-                "
-                type="primary"
-                plain
-                size="small"
-                :icon="Setting"
-                @click="goGrant"
-              >
-                配权
               </el-button>
               <el-button
                 v-if="canDelete && isNodeEditable(selectedRole)"

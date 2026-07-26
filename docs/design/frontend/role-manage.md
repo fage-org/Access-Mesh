@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-06-30
+last_reviewed: 2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -20,13 +20,13 @@ last_reviewed: 2026-06-30
 
 | 类型 | 来源 | 权限分配归属 |
 |---|---|---|
-| `ORG` / `POSITION` | 组织同步自动生成（admin-service → permission-center，`default-org-tree-user-lifecycle.md:167`） | 4.1 权限授予页（T-FE-014） |
-| `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema permission-center.sql:103） | 4.1 权限授予页 + 2.1 用户详情页弹窗 |
+| `ORG` / `POSITION` | 组织同步自动生成（admin-service → permission-center，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（待重做，原 T-FE-014 已废弃） |
+| `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema permission-center.sql:103） | 权限授予页（待重做）+ 2.1 用户详情页弹窗 |
 
-**设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是 4.1 权限授予页的职责（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ADMIN_ORG`/`ADMIN_USER`）。
+**设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（页面待重做）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ADMIN_ORG`/`ADMIN_USER`）。
 
 - **本页可 CRUD**：BASIC_ROLE / GROUP_ROLE（`MANAGEABLE_ROLE_TYPES`）。
-- **配权（ROLE:MANAGE）跳转 4.1 权限授予页**（T-FE-014，待实现）；本页不内嵌配权矩阵。
+- **配权入口已随旧权限授予页移除**（原 T-FE-014 已废弃），等待重新设计；本页不内嵌配权矩阵。
 - **树结构（C2）**：后端 `getRoleTree` 返回**扁平森林**——根 = `parentId=null` 的真实角色，`TreeBuilder` 按 parentId 组装，**无任何"类型虚拟根"节点**。前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示（跳过 mock ROOT 容器、按类型过滤）。
 
 ## 2. 布局结构
@@ -38,7 +38,7 @@ last_reviewed: 2026-06-30
 │ [角色树面板 minmax(220px,280px)] [详情区 1fr]            │
 │  ├─ header（标题+新增下拉）     ├─ 角色信息卡片          │
 │  ├─ 搜索框                      │   ├─ 名称/类型/状态标签 │
-│  └─ el-scrollbar 树(flex:1)     │   └─ 编辑/启停/配权/删除 │
+│  └─ el-scrollbar 树(flex:1)     │   └─ 编辑/启停/删除 │
 │     └─ el-tree（draggable）     ├─ meta（排序/ID/只读提示）│
 │                                 └─ 额外基本角色区*        │
 └─────────────────────────────────────────────────────────┘
@@ -113,7 +113,7 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 
 ### 4.3 配权
 
-- 选中非只读角色 → 「配权」按钮（ROLE:MANAGE）→ 跳转 4.1 权限授予页（T-FE-014 待实现，当前仅提示）。
+- 配权入口已随旧权限授予页移除（原 T-FE-014 已废弃），等待重新设计；本页暂不提供配权入口。
 
 ## 5. API 依赖（链接后端契约章节）
 
@@ -147,10 +147,10 @@ views/system/role/
 
 | 候选 | 本页使用场景 | 跨页复用 | 确认状态 |
 |---|---|---|---|
-| 角色选择器 | 父角色选择（RoleForm 内 popover 树） | 4.1 权限授予（选角色）+ 2.1 功能角色分配 | ⏳ 待确认（T-FE-014 推进时） |
+| 角色选择器 | 父角色选择（RoleForm 内 popover 树） | 权限授予页（选角色，待重做）+ 2.1 功能角色分配 | ⏳ 待确认（权限授予页重做时） |
 | 树面板（左树+搜索+CRUD hover） | 本页角色树 | 3.1 资源树 / 5.1 业务域树 | ⏳ 待确认（模式相似但数据结构异） |
 
-> 角色选择器在 T-FE-014 推进时若模式一致则派生 `ReRolePicker` 子任务（T-FE-001 维护）。当前不提前抽取。
+> 角色选择器在权限授予页重做时若模式一致则派生 `ReRolePicker` 子任务（T-FE-001 维护）。当前不提前抽取。
 
 ## 7. 权限接线（hasPerms → 按钮 → 降级）
 
@@ -160,7 +160,7 @@ views/system/role/
 |---|---|---|---|
 | `ROLE:VIEW` | VIEW | ROLE | 路由可达 + 树可见 |
 | `ROLE:CREATE` | CREATE | ROLE | 新增角色下拉 |
-| `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 / 配权（跳 4.1） |
+| `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 |
 | `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色 |
 | `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色 |
 
@@ -172,17 +172,17 @@ views/system/role/
 
 - 无 `ROLE:VIEW` → 路由不可达（`meta.auths` 派生自 `ROLE_MANAGE_PERM_LIST`）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
-- 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除/配权按钮。
+- 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除按钮。
 - 无 `ROLE:ASSIGN` → 隐藏「添加」额外角色按钮。
 - 无 `ROLE:REVOKE` → 隐藏「移除」额外角色按钮。
-- ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除/配权按钮（业务约束，非权限）。
+- ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
 | 账号 | 角色管理权限 |
 |---|---|
 | admin | 全权（ROLE:VIEW/CREATE/MANAGE/ASSIGN/REVOKE） |
-| sec（安全管理员） | 全权（与 C 功能角色分配同源；含 ROLE_ADD/GRANT(MANAGE)/ASSIGN/REVOKE） |
+| sec（安全管理员） | 全权（与 C 功能角色分配同源；含 ROLE_ADD/EDIT(MANAGE)/ASSIGN/REVOKE） |
 | hr（组织人事管理员） | 只读（ROLE:VIEW） |
 | auditor（审计员） | 只读（ROLE:VIEW） |
 
@@ -222,11 +222,11 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
 ### 备注
 
 - **RoleResp 缺 `roleTypeName` 友好字段**：后端已返回 `roleTypeName`，但前端统一用 `ROLE_TYPE_LABEL` 映射更稳（防类型码扩展时后端未同步）。非缺口。
-- **本页范围限定**：角色管理页仅管理 BASIC_ROLE / GROUP_ROLE（评审反馈驱动修正）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归 T-FE-014 权限授予页与 2.1 用户详情弹窗（评审确认 B 选项 3）。非缺口，是设计意图。
-- **PERSONAL 权限分配入口**（登记 T-FE-014 设计要点）：① 4.1 权限授予页选角色时能选到 PERSONAL；② 2.1 用户详情页弹额外窗口配置该用户 PERSONAL 角色的权限（弹窗形式避免页面杂乱）。
+- **本页范围限定**：角色管理页仅管理 BASIC_ROLE / GROUP_ROLE（评审反馈驱动修正）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归权限授予页（待重做，原 T-FE-014 已废弃）与 2.1 用户详情弹窗（评审确认 B 选项 3）。非缺口，是设计意图。
+- **PERSONAL 权限分配入口**（原 T-FE-014 设计要点，页面待重做）：① 权限授予页选角色时能选到 PERSONAL；② 2.1 用户详情页弹额外窗口配置该用户 PERSONAL 角色的权限（弹窗形式避免页面杂乱）。
 
 ## 9. 已知限制（Phase 1）
 
-- 配权按钮仅提示，待 T-FE-014（4.1 权限授予页）实现后接入跳转。
-- 角色选择器组件未抽取，待 T-FE-014 推进时按 §6 确认。
+- 配权入口已随旧权限授予页移除（原 T-FE-014 已废弃），等待重新设计。
+- 角色选择器组件未抽取，待权限授予页重做时按 §6 确认。
 - mock 角色树对齐后端扁平森林结构（C2 已移除"类型虚拟根"展示构造）；联调时直接对接后端 `getRoleTree`，无虚拟根适配成本。

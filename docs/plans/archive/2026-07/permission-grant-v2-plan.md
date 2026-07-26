@@ -1,15 +1,18 @@
 ---
 doc_type: plan
 title: 权限授予页 V2（方案A多条件分支模型）
-status: active
+status: cancelled
 domain: frontend
 last_reviewed: 2026-07-17
+archived_at: 2026-07-26
 ---
 
 # 权限授予页 V2（方案A多条件分支模型）
 
-> 状态：active
-> 关联设计：`docs/design/frontend/permission-grant-state-model.md`、`permission-grant-interaction.md`、`permission-grant-error-flow.md`
+> ⚠️ 已归档（2026-07-26）：权限授予页面交互不满意，v1 + v2 两套整体删除重做。代码删除，三份设计文档（state-model / interaction / error-flow）归档至 `docs/archive/2026-07-26/`；任务 T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。本 plan 仅作历史追溯，不再作为实现依据。
+>
+> 状态：cancelled（已归档）
+> 关联设计：`docs/archive/2026-07-26/permission-grant-state-model.md`、`permission-grant-interaction.md`、`permission-grant-error-flow.md`
 
 ## 目标
 

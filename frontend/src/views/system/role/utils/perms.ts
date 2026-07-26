@@ -10,15 +10,13 @@
  * 资源类型 `ROLE`（permission-center 乙层模型），操作码对齐 OperationCodeConstants。
  * - `ROLE:VIEW` —— 查看（路由可达 + 树可见）。
  * - `ROLE:CREATE` —— 创建。
- * - `ROLE:MANAGE` —— **编辑 / 启停 / 删除 / 移动 / 配权** 统一口径。
+ * - `ROLE:MANAGE` —— **编辑 / 启停 / 删除 / 移动** 统一口径。
  * - `ROLE:ASSIGN` —— 分组角色**添加**额外基本角色（对齐后端 addGroupRoleExtraRole:104）。
  * - `ROLE:REVOKE` —— 分组角色**移除**额外基本角色（对齐后端 removeGroupRoleExtraRole:166）。
  *
  * 后端 `RoleManageAppServiceImpl` 的 updateRole(:150)/moveRole(:176)/deleteRoles(:196)
  * 均以 `ROLE:MANAGE` 做门禁，无独立的 UPDATE/DELETE/MOVE 操作码。前端原用 `ROLE:UPDATE`/
  * `ROLE:DELETE` 与后端不一致（评审 P2），现统一为 `ROLE:MANAGE`（B1）。
- * 配权亦用 `ROLE:MANAGE`，与「组织与用户」页功能角色分配（USER_ROLE_ASSIGN）同锚点同操作码，
- * 形成门禁一致性（org-user-permission-contract.md §5 备注³）。
  *
  * **额外角色 add/remove 独立门禁（评审 P1-额外角色）**：后端 `GroupRoleAppServiceImpl` 的
  * add/removeExtraRole 分别校验 `ASSIGN`/`REVOKE`（授予/回收分离，比 MANAGE 更敏感，与组织页
@@ -40,8 +38,6 @@ export const ROLE_MANAGE_PERMS = {
   ROLE_EDIT: "ROLE:MANAGE",
   /** 删除角色 —— 对齐后端 ROLE:MANAGE（B1） */
   ROLE_DELETE: "ROLE:MANAGE",
-  /** 配权/授予（跳转 4.1 权限授予页）—— ROLE:MANAGE */
-  ROLE_GRANT: "ROLE:MANAGE",
   /** 分组角色添加额外基本角色 —— 对齐后端 ROLE:ASSIGN */
   ROLE_ASSIGN: "ROLE:ASSIGN",
   /** 分组角色移除额外基本角色 —— 对齐后端 ROLE:REVOKE */
@@ -54,7 +50,7 @@ export type RoleManagePermValue = (typeof ROLE_MANAGE_PERMS)[RoleManagePermKey];
 /**
  * 全部 perm 串清单（派生 + 去重），用于路由 `meta.auths`。
  *
- * B1 后 EDIT/DELETE/GRANT 均为 `ROLE:MANAGE`，Object.values 会有重复值，
+ * B1 后 EDIT/DELETE 均为 `ROLE:MANAGE`，Object.values 会有重复值，
  * 用 Set 去重确保 `meta.auths` 无冗余条目。
  */
 export const ROLE_MANAGE_PERM_LIST: ReadonlyArray<RoleManagePermValue> =

@@ -135,7 +135,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...RESOURCE_DEPENDENCY_VIEW_PERMS
   ],
   /** IT/安全管理员：C 区写权（功能角色分配/回收）+ 2.2 角色 CRUD + 配权 + 额外角色 add/remove + 6.1 类型定义 CRUD，其余只读。
-   *  B1 后 EDIT/DELETE/GRANT 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_GRANT(MANAGE)。
+   *  B1 后 EDIT/DELETE 均为 ROLE:MANAGE，去重为 ROLE_ADD + ROLE_EDIT(MANAGE)。
    *  额外角色 add/remove 对齐后端 ASSIGN/REVOKE（评审 P1-额外角色），sec 与 C 功能角色分配同源故全权。
    *  类型定义 EDIT/DELETE 同为 TYPE_DEFINITION:MANAGE，去重为 TYPE_ADD + TYPE_EDIT(MANAGE)。
    *  系统配置仅 save 走 MANAGE，sec 配置管理同源故全权。 */
@@ -147,7 +147,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     P.USER_ROLE_ASSIGN,
     P.USER_ROLE_REVOKE,
     RP.ROLE_ADD,
-    RP.ROLE_GRANT,
+    RP.ROLE_EDIT,
     RP.ROLE_ASSIGN,
     RP.ROLE_REVOKE,
     TP.TYPE_ADD,

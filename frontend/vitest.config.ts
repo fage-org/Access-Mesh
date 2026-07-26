@@ -10,10 +10,6 @@ export default defineConfig({
   resolve: { alias },
   test: {
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts"],
-    coverage: {
-      provider: "v8",
-      include: ["src/views/system/permission-grant-v2/utils/**/*.ts"]
-    }
+    include: ["src/**/*.{test,spec}.ts"]
   }
 });

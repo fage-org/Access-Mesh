@@ -7,9 +7,8 @@
  *   （对齐 PermConstants.ConditionType + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES）
  *
  * 从原 `views/system/permission-condition/utils/types.ts` 抽取，供：
- * - ReConditionEditor / ReConditionPicker（共享组件）
+ * - ReConditionEditor（共享组件）
  * - permission-condition 页 ConditionForm
- * - permission-grant API 层 summarizeRules（适配条件候选摘要）
  * 统一引用，消除 API 层反向依赖页面工具的问题。
  */
 

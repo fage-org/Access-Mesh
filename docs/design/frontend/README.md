@@ -23,10 +23,7 @@
 | 3.2 权限条件 | `permission-condition.md` | T-FE-009 | ✅ |
 | 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | ✅ |
 | 3.4 资源依赖 | `resource-dependency.md` | T-FE-011 | ✅ |
-| 4.1 权限授予 | `permission-grant.md` | T-FE-014；T-FE-025~028 | ✅ 当前基线；§16 第二轮 UX 重构（授权弹窗）待实现 |
-| 4.1 权限授予 状态模型补充 | `permission-grant-state-model.md` | - | 🟡 draft（状态机/事件/不变量，含并发缺口预留） |
-| 4.1 权限授予 交互规格补充 | `permission-grant-interaction.md` | - | 🟡 draft（直接操作矩阵+渐进披露，重构提案） |
-| 4.1 权限授予 错误流补充 | `permission-grant-error-flow.md` | - | 🟡 draft（异常清单/预防/反馈/恢复/重试） |
+| 4.1 权限授予 | （已归档，2026-07-26） | - | ❌ 页面交互不满意，v1+v2 两套删除重做；`permission-grant.md` 及三份补充（state-model / interaction / error-flow）归档至 [`archive/2026-07-26/`](../../archive/2026-07-26/)，待重新设计后重建 |
 | 4.2 权限查询/校验 | `permission-query.md` | T-FE-013 | ✅ |
 | 5.1 业务域 | `biz-domain.md` | T-FE-006 | ✅ |
 | 5.2 服务+接口映射 | `service-interface-mapping.md` | T-FE-007 | ✅ |

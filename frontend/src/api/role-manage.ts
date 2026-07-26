@@ -17,7 +17,7 @@ import { type PermResult, unwrap } from "./_envelope";
  * 5 种抽象角色类型编码（对齐 permission-center overview §角色模型）。
  * - ORG / POSITION / PERSONAL：外部同步自动生成（ORG/POSITION 由组织同步、
  *   PERSONAL 由用户同步连带创建 PERSONAL_{external_id}），不在角色管理页展示，
- *   其权限分配归「权限授予」(T-FE-014) 与「用户详情」(2.1)。
+ *   其权限分配归「权限授予」(页面待重做，原 T-FE-014 已废弃) 与「用户详情」(2.1)。
  * - BASIC_ROLE / GROUP_ROLE：功能角色，本页可 CRUD。
  */
 export const ROLE_TYPE_CODE = {

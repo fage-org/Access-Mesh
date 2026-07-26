@@ -1,10 +1,11 @@
 ---
 doc_type: plan
 title: 权限授予页授权弹窗与右栏变更重构
-status: active
+status: cancelled
 domain: frontend
+archived_at: 2026-07-26
 design_refs:
-  - docs/design/frontend/permission-grant.md#16-中栏展示授权弹窗右栏变更重构目标设计2026-07-12
+  - docs/archive/2026-07-26/permission-grant.md#16-中栏展示授权弹窗右栏变更重构目标设计2026-07-12
 tasks:
   - T-FE-025
   - T-FE-026
@@ -15,6 +16,8 @@ last_updated: 2026-07-12
 ---
 
 # 权限授予页授权弹窗与右栏变更重构
+
+> ⚠️ 已归档（2026-07-26）：权限授予页面交互不满意，v1 + v2 两套整体删除重做。代码删除，设计文档（permission-grant.md §16）归档至 `docs/archive/2026-07-26/`；任务 T-FE-024~026 保持 done（产出废弃）、T-FE-027/028 cancelled。T-FE-024 抽取的 `ReConditionEditor` / `condition-rules` 保留，被 `permission-condition` 页继续使用。本 plan 仅作历史追溯。
 
 ## 目标
 
@@ -32,7 +35,7 @@ last_updated: 2026-07-12
 
 ## 准入条件
 
-- [x] `docs/design/frontend/permission-grant.md` §16.8 风险已逐项确认并回写；R1~R11 全部已确认。
+- [x] `docs/archive/2026-07-26/permission-grant.md` §16.8 风险已逐项确认并回写；R1~R11 全部已确认。
 - [x] R1/R7 前端降级已确认：本计划不等待 T-PERM-034；后端有效/派生来源能力在 T-PERM-034 完成时核对，并由 T-FE-018 联调回写。
 - [x] T-FE-024 先于 T-FE-026，交叉文件边界已确认；T-FE-026 正式依赖 T-FE-024。
 - [x] 明确本轮不恢复批量模式；若范围变化，先新增任务并同步本 plan 与看板。
@@ -55,7 +58,7 @@ last_updated: 2026-07-12
 ## 归档条件
 
 - T-FE-025~028 全部 `done`，且各任务 acceptance 全部满足。
-- `docs/design/frontend/permission-grant.md` 已按最终实现回写，T-FE-027 `design_writeback.status=done`。
+- `docs/archive/2026-07-26/permission-grant.md` 已按最终实现回写，T-FE-027 `design_writeback.status=done`。
 - T-FE-018 的联调依赖已确认指向 T-FE-027，且不存在 dangling 依赖。
 - 权限授予页相关测试、构建和设计索引验证通过。
 

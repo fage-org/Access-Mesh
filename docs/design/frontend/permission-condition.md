@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-11
+last_reviewed: 2026-07-26
 ---
 
 # 3.2 权限条件 前端设计
@@ -124,7 +124,7 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 permissio
 
 ### 可复用组件识别（T-FE-001 池）
 
-- **权限条件选择器**：本页独立 CRUD + T-FE-014 权限授予页附加设置弹窗内联选择/新建。T-FE-024 已抽取共享组件 `ReConditionPicker`（条件搜索 + 摘要 + 启用过滤 + gatewayEvaluable 状态 + 内联新建含 `ReConditionEditor`）+ `ReConditionEditor`（logic AND/OR + items[] 4 类型 + 序列化校验，v-model + expose validate）。两处共享同一规则模型 `@/utils/condition-rules`。
+- **权限条件选择器**：本页独立 CRUD。T-FE-024 曾抽取共享组件 `ReConditionPicker` + `ReConditionEditor`，供本页与权限授予页附加设置弹窗共用。2026-07-26 权限授予页 v1+v2 整体删除重做，`ReConditionPicker` 随之删除（仅服务权限授予页），`ReConditionEditor` 保留（本页 ConditionForm 继续使用）。两处共享同一规则模型 `@/utils/condition-rules`。
 
 ## 权限接线
 
