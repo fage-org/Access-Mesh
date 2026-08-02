@@ -407,14 +407,15 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理 |
+| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理。**`includePositions=true` 时仅支持 `VIEW`（P2-1 第九轮：CREATE + 混合树 → 参数校验失败——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）** |
 | `treeConfigId` | `Long` | 否 | 组织树配置 ID; 不传则返回默认树 |
 | `orgName` | `String` | 否 | 模糊匹配 |
-| `orgType` | `Integer` | 否 | |
+| `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）** |
+| `includePositions` | `Boolean` | 否 | **T-ADMIN-021 新增（2026-08-01 第七轮评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
 | `status` | `Integer` | 否 | |
 | `parentOrgId` | `Long` | 否 | 用于查询子树; 一般不与 `treeConfigId` 同时使用 |
 
-**响应**: `PermResult<List<OrgResp>>` (顶层 `data` 为对象时应包装在 `{ items: [...] }`; 历史此接口直接返回 List, 已纳入合规债务清单, Phase 2 修正为 `{ items: [...] }`)
+**响应（P1-3 第八轮定稿）**: `PermResult<OrgItemsResp>`，`data.items[]`（`OrgItemsResp{ items: List<OrgResp> }`）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃；包装改造由 **T-ADMIN-021** 落地，见合规债务清单）
 
 `OrgResp`:
 
@@ -435,9 +436,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_ORG:{operationCode}` 类型级.
 
+**岗位节点裁剪（T-ADMIN-021）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ADMIN_ORG:VIEW`（无 `ADMIN_ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `hasTypeLevel(ADMIN_ORG, VIEW_POSITION)`（**仅明确拒绝返回 false；permission-center 技术故障抛异常向上，不得静默降级为裁剪后的树**，P2-1）。前端隐藏不作为安全边界。
+
 **同步动作**: 无.
 
-**当前差距** (合规债务): ① `OrgQuery` 当前 record 缺 `operationCode` 与 `treeConfigId` 字段; ② 顶层响应应改为 `{ items: [...] }` 包装. 列入 Phase 2 修正项.
+**当前差距** (合规债务): ① `OrgQuery` 当前 record 缺 `operationCode` 与 `treeConfigId` 字段; ② 顶层响应应改为 `{ items: [...] }` 包装. **②已由 T-ADMIN-021 消化（2026-08-01 第八轮 P1-3：响应定稿 `PermResult<OrgItemsResp>{data:{items}}`，含调用方适配）**; ① 仍列入 Phase 2 修正项.
 
 ---
 
@@ -851,7 +854,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | # | 接口 | 来源 record | 备注 |
 |---|------|-------------|------|
-| 1 | `POST /org/tree` | `OrgQuery` | 待补 `operationCode/treeConfigId` 字段; 待包装为 `{ items }` |
+| 1 | `POST /org/tree` | `OrgQuery` | 待补 `operationCode/treeConfigId` 字段; **响应包装 `{ items }` 已由 T-ADMIN-021 消化（第八轮 P1-3）** |
 | 2 | `POST /org/page` | `OrgPageReq` | 含 `orgId` 子树筛选; 已对齐 |
 | 3 | `POST /org/users` | `IdReq` | 前端 mock 入参字段名为 `orgId`, 待 Phase 2 调整为 `id` |
 | 4 | `POST /user/update` | `UserUpdateReq` | 已对齐 |
@@ -890,7 +893,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 9 | `/user-role/assign|revoke` 不写 sys_sync_task | 功能角色走 permission-center 正式管理 API; sys_sync_task 仅承载 SYS_USER_ORG 派生关系 (admin-service.md §同步任务模型) |
 | 10 | admin-service 不存储 permission-center 内部 ID | 跨服务统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
-| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/org/tree`, `/role/list`, `/user-org/list`, `/org/users`) |
+| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, 第八轮 P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
 | 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 角色代理 10500-10599 / 其他保留 10600-19999 |
 

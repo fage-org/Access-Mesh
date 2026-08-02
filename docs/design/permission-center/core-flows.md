@@ -55,7 +55,7 @@ flowchart LR
 
 - 创建 `resource_type` 时可以自动预置 CRUD 或 ACCESS 操作，具体以实现配置为准。
 - 对外使用 `typeCode`，内部存储和计算使用 `typeValue`；服务端通过 `type_definition` 缓存完成解析。
-- `domainCode` 是管理分区和命名空间，不是子租户。传入时查该域和全局，不传时只查全局。
+- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（第八轮 P2-2 同步，旧"传域查域+全局"语义废弃）
 - `SUB_PERM` 决定哪些资源类型可以作为某类父资源的子权限。
 - 这些配置是后续授权校验的基础，不直接给用户产生权限。
 
@@ -105,23 +105,27 @@ flowchart LR
 
 ## 6. 场景四：配置基础角色权限
 
-目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。
+目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。**授权写链路收敛为唯一写入口 `apply-grant-plan`（2026-08-02 第十二轮单入口收敛）**——旧三段式 `save` 及 `revoke/children/add-child/update-child/remove-child/children-save/rebuild` 全部移除/不实现，所有写操作（新增/编辑/删除主权限与子权限、跨键替换）统一在一次 plan 中表达。
 
 | 步骤 | 接口                                           | 关键入参                                                         | 结果                             |
 | ---- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
 | 1    | `POST /api/perm/resource-entity/create`        | `resourceTypeCode + resourceCode + codeType + name`              | 创建菜单、按钮、API、DATA 等资源 |
 | 2    | `POST /api/perm/operation-permission/list`     | `resourceTypeCode`                                               | 选择适用操作                     |
 | 3    | `POST /api/perm/permission-condition/create`   | `conditionCode + conditionRules`                                 | 可选，创建复用条件               |
-| 4    | `POST /api/perm/role-resource-permission/save` | `domainCode + roleTypeCode + roleExternalId + add/update/remove` | 三段式保存授权                   |
-| 5    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId`                     | 验证角色权限                     |
+| 4    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId + includeChildren`   | 读取当前权限   |
+| 5    | `POST /api/perm/role-resource-permission/apply-grant-plan` | `roleTypeCode + roleExternalId + plan{creates/updates/removes}` | 单事务提交全部写意图             |
+| 6    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId`                     | 验证角色权限      |
 
-关键逻辑：
+关键逻辑（`apply-grant-plan`，详见 api-contract §6.5/§6.5.1）：
 
-- `save` 在一个事务中处理 `add/update/remove`。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode` 定位资源和操作。
-- 操作必须与资源类型匹配，或操作是全局操作。
-- 条件可选，填写 `conditionCode` 时必须存在且启用。
-- 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018）
+- **单事务**：`creates`（新建记录：主权限可带 children 一次性建树；子权限用 `parentPermissionId` 挂父）+ `updates`（现有记录 canGrant/conditionCode 微变更）+ `removes`（删除记录：主权限级联删子、子权限单条删）在**同一事务**内执行，任一失败整体回滚，无部分成功。
+- **跨键替换**（范围/资源/操作变化）= removes 旧 + creates 新（同事务原子）；**子权限不迁移**，随旧主权限级联删除（预期行为），新主权限子权限在 creates 中显式配置。
+- **无 CAS/无乐观锁**（第十四轮收窄）：砍 expectedRevision/grant_revision/20037；后端靠单事务原子 + uk 约束 + 受影响行数断言保证一致性。
+- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递含 condition 维度、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、完整持久化键冲突 20033、scopeMode/资源兼容）经 `prevalidateGrantPlan` 唯一预检入口执行。
+- **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
+- **无 CAS/无幂等表/无 clientRequestId**（第十四轮收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；操作必须与资源类型匹配，或操作是全局操作；条件可选，填写 `conditionCode` 时必须存在且启用。
+- 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；第十四轮收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）
 
@@ -172,16 +176,14 @@ PermQueryEngine.query(PermQuery)
 | ---- | --------------------------------------------------- | -------------------------------------------- | ------------------------------------------ |
 | 1    | `POST /api/perm/domain-config/save`                 | `configType=SUB_PERM`                        | 定义父资源类型允许挂载的子资源类型         |
 | 2    | `POST /api/perm/resource-entity/create`             | `resourceTypeCode=DATA + resourceCode`       | 创建数据范围资源                           |
-| 3    | `POST /api/perm/role-resource-permission/save`      | 主权限授权                                   | 返回主权限 `id`                            |
-| 4    | `POST /api/perm/role-resource-permission/add-child` | `parentPermissionId + children[]`            | 写入子权限，`depend_on=parentPermissionId` |
-| 5    | `POST /api/perm/role-resource-permission/children`  | `permissionId`                               | 查询主权限下子权限                         |
-| 6    | `POST /api/perm/auth/query-scopes`                  | 主资源业务键、主操作、范围资源类型和范围操作 | 运行时查询范围权限                         |
+| 3    | `POST /api/perm/role-resource-permission/apply-grant-plan` | `plan.creates` 主权限带 `children` 嵌套（子权限写在父权限 children 内，一次性建树） | 写入主权限 + 子权限，`depend_on=父权限 id` |
+| 4    | `POST /api/perm/role-resource-permission/list`      | `includeChildren=true`                       | 查询主权限下子权限（同一 list 接口）       |
+| 5    | `POST /api/perm/auth/query-scopes`                  | 主资源业务键、主操作、范围资源类型和范围操作 | 运行时查询范围权限                         |
 
 关键逻辑：
 
-- `parentPermissionId` 指向 `role_resource_permission.id`，且该记录必须 `depend_on IS NULL`。
+- **新父子树唯一通道 = `creates` 主权限带 `children` 嵌套**；`parentPermissionId` 仅引用提交前已存在的父记录（协议无临时关联键，第十三轮 P1-7）。
 - 子权限继承父权限的角色，不需要再次传 `roleTypeCode + roleExternalId`。
-- 子权限只支持一层，不允许子权限继续挂子权限。
 - 删除主权限时级联软删子权限。
 - 权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段。
 - `auth/check` 适合只判断主权限是否允许；业务需要拿范围权限集合时，使用 `auth/query-scopes`。
@@ -311,7 +313,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 步骤 | 接口                                            | 关键入参                                                        | 结果                 |
 | ---- | ----------------------------------------------- | --------------------------------------------------------------- | -------------------- |
 | 1    | `POST /api/perm/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true` | 建立依赖规则         |
-| 2    | `POST /api/perm/role-resource-permission/save`  | 给角色授权源资源                                                | 自动补齐依赖资源权限 |
+| 2    | `POST /api/perm/role-resource-permission/apply-grant-plan` | 给角色授权源资源（plan.creates）              | 自动补齐依赖资源权限（grantSource=AUTO_DEP） |
 | 3    | 自动处理                                        | 写入 `grantSource=AUTO_DEP + grantDepId`                        | 标记补全来源         |
 | 4    | `POST /api/perm/role-resource-permission/list`  | 查询角色权限                                                    | 能看到自动补齐结果   |
 | 5    | `POST /api/perm/resource-dependency/batch-sync` | 修改依赖规则                                                    | 清理旧补全并重新评估 |
@@ -414,12 +416,12 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 场景                    | 接口                                                   | 级联或失效                              |
 | ----------------------- | ------------------------------------------------------ | --------------------------------------- |
 | 回收用户角色            | `POST /api/perm/user-role/revoke`                      | 失效用户有效角色缓存                    |
-| 回收角色权限            | `POST /api/perm/role-resource-permission/revoke`       | 级联软删子权限，失效角色权限快照与相关用户缓存 |
-| 删除子权限              | `POST /api/perm/role-resource-permission/remove-child` | 只允许删除 `depend_on IS NOT NULL` 记录 |
+| 回收角色权限            | `POST /api/perm/role-resource-permission/apply-grant-plan`（plan.removes） | 级联软删子权限，失效角色权限快照与相关用户缓存 |
+| 删除子权限              | `POST /api/perm/role-resource-permission/apply-grant-plan`（plan.removes 填子权限 id） | 子权限单条删（removes 不区分主/子意图，第十三轮） |
 | 删除资源                | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系；登记受影响角色和服务编码 |
 | 删除角色                | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，直清角色权限快照并失效用户缓存 |
 | 删除用户                | `POST /api/perm/abstract-user/remove`                  | 软删用户角色关系和个人角色权限          |
-| 停用用户/角色/资源/服务 | 对应 update/save 接口                                  | 运行时鉴权直接拒绝或不参与计算          |
+| 停用用户/角色/资源/服务 | 对应 update 接口                                       | 运行时鉴权直接拒绝或不参与计算          |
 
 关键逻辑：
 
@@ -444,10 +446,10 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 ## 16. 仍需实现时重点校验
 
-- `abstract_role.external_id` 已按租户、角色类型和业务域建立唯一约束；实现解析 `roleTypeCode + roleExternalId + domainCode` 时必须带同一套过滤条件。
+- `abstract_role.external_id` 唯一约束为 `uk_abstract_role_external (tenant_id, role_type, external_id)`（**无业务域列**，schema L147）；解析 `roleTypeCode + roleExternalId` 定位角色，**不携带 domainCode 过滤**（domainCode 仅域存在性校验，第八轮 P2-2 同步修正）。
 - `type_definition.type_value` 必须在同一 `tenant_id + type_key` 内全局唯一，不能按业务域重复分配相同值。
 - `operationCode` 在解析时必须结合 `resourceTypeCode`，避免不同资源类型下同名操作产生歧义。
-- `resourceCode` 必须结合 `resourceTypeCode + codeType + domainCode` 解析，避免跨域或多编码歧义。
+- `resourceCode` 必须结合 `resourceTypeCode + codeType` 解析，避免多编码歧义（`domainCode` 不参与资源解析，第八轮 P2-2 同步）。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
 - `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许；响应必须使用 `matchedResources[]` 表达所有命中映射资源。
 - `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。

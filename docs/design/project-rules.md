@@ -1156,3 +1156,42 @@ Closes #123
 3. **docs**: 仍在推进的计划放在 `docs/plans/`；阶段完成后把过程文档归档到 `docs/archive/YYYY-MM-DD/`，并将长期有效结论沉淀到 `docs/design/`
 
 每个 Phase 保持可独立交付，避免一次性大改动导致难以审查。
+
+## 文档治理（仓库级权威，参见 .claude/rules/docs-governance.md 引用）
+
+### 分层职责
+
+| 文档 | 职责 | 禁止 |
+|---|---|---|
+| `api-contract.md` | 字段/错误码/请求响应结构（唯一详细来源） | - |
+| 任务卡 `T-*.md` | 该任务详细范围/验收/背景（唯一详细来源） | - |
+| `implementation.md`/`core-flows.md` | 实现设计/核心流程（引用 api-contract，不重复字段定义） | 重复字段表 |
+| `phase*-plan.md`/`tasks/README.md` | 任务清单（标题/状态/直接依赖/链接）+ 计数器 + 依赖图 | 复制"七项/八项/第几轮/完整字段清单/🔧 详细范围" |
+
+phase plan / README 任务行只保留：标题（简短）、状态、直接依赖、链接。详细范围写进任务卡，不复制到计划/索引。
+
+### 写入口通用清单（适用影响权限计算或缓存的写入口）
+
+1. `@Transactional(rollbackFor=Exception.class)` 单事务原子
+2. `@OperationLog` 入口级操作日志
+3. `@PermissionChange` 缓存失效 AOP（afterCommit flush mark\*）--**按影响范围适用**：仅影响权限计算/缓存的写入口标注；普通配置写操作不强制
+4. 契约要求的审计记录（如 `auditDomainService.recordChangeLog`，按写入口语义写合适的 change_log）
+5. 按影响范围调用适当的 `PermissionChangeContext.mark*`（角色权限事实写入口用 `markRoles`；条件变更用 `markConditions`；服务/API 变更用 `markServiceCodes`）
+
+> apply-grant-plan 的精确五项（recordChangeLog + markRoles）见 implementation.md §4.2 与 T-PERM-034 acceptance，本规则不复制任务细节。
+
+### 定稿前关键词扫描
+
+方案收窄后、提交前，对活跃文档（排除 `docs/archive/`）执行关键词扫描，清除正向残留（描述性引用如"已砍/移除/无"可保留）：
+
+```
+grep -rn "expectedRevision\|grant_revision\|grant_plan_idempotency\|20037\|20039\|@Idempotent\|clientRequestId\|perm-grant.schema" docs/ --include="*.md" --include="*.sql" | grep -v "docs/archive/"
+```
+
+### 测试适用性覆盖
+
+禁止笛卡尔积测试（命令类型 × 不变量全交叉）。采用适用性覆盖：每种命令一条成功路径 + 每项不变量在适用命令上一条反例 + 一条事务故障注入。详细适用关系由各任务 acceptance 定义，本规则不复制。
+
+### 方案收窄流程
+
+改 API 契约 + 任务卡（唯一详细来源）-> phase plan/README 只同步标题/状态/依赖/链接 -> 执行关键词扫描 -> 历史决策移归档/ADR。

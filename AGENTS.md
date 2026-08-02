@@ -176,3 +176,7 @@ docker compose -f docker-compose.yml up -d nacos redis postgresql
 > **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter` → `admin-service`）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
 > 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
+
+## 文档治理
+
+文档分层职责 / 写入口清单 / 关键词扫描 / 测试适用性覆盖见 `docs/design/project-rules.md` §文档治理（仓库级权威）。phase plan/README 任务行只保留标题/状态/直接依赖/链接，详细范围写进任务卡。

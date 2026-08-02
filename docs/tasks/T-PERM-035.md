@@ -10,7 +10,6 @@ design_refs:
   - docs/design/permission-center/implementation.md
   - docs/design/permission-center/api-contract.md
 depends_on:
-  - T-FE-014
   - T-PERM-034
 blocks: []
 acceptance:

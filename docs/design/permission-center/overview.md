@@ -64,9 +64,9 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode` 等稳定字符串编码；内部存储和计算使用 `type_definition.type_value`。
 - `type_value` 在同一租户和同一 `type_key` 内全局唯一，不随业务域重复；业务域只影响 `type_code` 解析范围和管理分区。
-- `domainCode` 是管理分区和命名空间，不是子租户。传入时查询该域和全局对象，不传时只查询全局对象。
+- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（第八轮 P2-2 同步，旧"传域查域+全局"语义废弃）
 - 业务域不承担数据权限载体、运行时鉴权主链或资源归属重构职责；其主要作用是降低后台管理复杂度，让不同业务管理员聚焦各自负责的角色和权限集合。
-- 资源通过 `resourceTypeCode + resourceCode + codeType + domainCode` 定位。
+- 资源通过 `resourceTypeCode + resourceCode + codeType` 定位（`domainCode` 不参与资源定位，仅管理查询域过滤，第八轮 P2-2 同步）。
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
 - 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。
 - 业务服务如果需要查询“用户能管理哪些组织/角色/菜单”，应先把这些对象建模为 `resource_entity`。

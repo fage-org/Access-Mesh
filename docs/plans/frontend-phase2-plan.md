@@ -24,8 +24,10 @@ tasks:
   - T-PERM-035
   - T-PERM-036
   - T-PERM-037
-acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-06-29
+  - T-FE-036
+  - T-ADMIN-021
+acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口，第十四轮收窄）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
+last_updated: 2026-08-01
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
@@ -75,7 +77,17 @@ last_updated: 2026-06-29
 | T-PERM-031 | 3.4 资源依赖后端 | T-FE-011 | 同上 |
 | T-PERM-032 | 7.2 变更日志后端 | T-FE-012 | 同上 |
 | T-PERM-033 | 4.2 权限查询后端 | T-FE-013 | 同上 |
-| T-PERM-034 | 4.1 权限授予后端 | T-FE-014 | 同上 |
+| T-PERM-034 | 4.1 权限授予后端（见任务卡，第十四轮收窄） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1；implementation §4/§7.7；core-flows §6；design/frontend/permission-grant.md §12；permission-center.sql | T-PERM-031 | ⚙️ | ⏳ |
+
+### 前端重建任务（T-FE-036，本 plan 关联的前端部分）
+
+> frontmatter `tasks` 同时登记 T-FE-036；前端以 **mock 数据驱动**（接口形状按 api-contract），与 T-PERM-034 并行不悖，联调任务 T-FE-018 同时依赖二者汇合（2026-08-01 review 后决策）。
+
+| ID | 内容 | depends_on | 说明 |
+|---|---|---|---|
+| [T-FE-036](../tasks/T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主 + 授权弹窗 + 详情层 + 变更清单） | T-FE-001/002/008/009 | 设计：`design/frontend/permission-grant.md`；mock 先行，T-PERM-034 非前置；**组织入口二期**（首期只角色入口，第十四轮收窄；T-ADMIN-021 延后，mock 先行） |
+| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | — | 2026-08-01 第六轮评审 P2-3 立项；admin-service；岗位作为组织子节点不分页返回；联调任务 T-FE-037 汇集（二期） |
+
 
 ### 暂缓核心能力（T-PERM-035/036）
 
@@ -92,7 +104,7 @@ last_updated: 2026-06-29
 
 ## 归档条件
 
-- T-PERM-022~034 + 037 done（或暂缓项 035/036 cancelled，需 PM 决策）
+- T-PERM-022~034 + 037 done（或暂缓项 035/036 cancelled，需 PM 决策）+ T-FE-036 done（前端部分，见上）+ **T-ADMIN-021 done（2026-08-01 第七轮 P2-2 补）**
 - 改造接口回写 `docs/design/permission-center/api-contract.md`
 - 自动授权流程回写 `core-flows.md`（若 035 推进）
 

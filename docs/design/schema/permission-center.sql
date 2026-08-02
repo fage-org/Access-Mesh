@@ -143,6 +143,7 @@ CREATE TABLE abstract_role (
 );
 
 CREATE INDEX idx_abstract_role_tenant_type ON abstract_role (tenant_id, role_type) WHERE delete_flag = 0;
+
 CREATE INDEX idx_abstract_role_parent ON abstract_role (parent_id) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_abstract_role_external ON abstract_role (tenant_id, role_type, external_id)
     WHERE external_id IS NOT NULL AND delete_flag = 0;
@@ -409,7 +410,7 @@ COMMENT ON COLUMN sync_metadata.last_sync_sequence_no IS '最后一次已应用�
 
 -- -----------------------------------------------------------------------------
 -- 12. 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
---     批量授权接口格式 {add:[], update:[], delete:[]}
+--     写链路：apply-grant-plan 唯一入口（记录级 plan{creates/updates/removes}，第十三轮收敛）
 --     只存勾选节点，查询接口支持展开父级/展开子级
 --     scope_all=true 表示该操作覆盖 resource_type 下全部范围资源，此时 resource_entity_id 为空
 -- -----------------------------------------------------------------------------
