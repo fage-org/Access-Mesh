@@ -1,9 +1,9 @@
 ---
 doc_type: design
 title: 4.1 权限授予 前端设计（v3）
-status: draft   # draft → adopted（T-FE-036 done 时）
+status: adopted   # draft → adopted（T-FE-036 实现完成，2026-08-02 回写）
 domain: frontend
-last_reviewed: 2026-08-01
+last_reviewed: 2026-08-02
 ---
 
 # 4.1 权限授予 前端设计（v3）
@@ -69,7 +69,7 @@ last_reviewed: 2026-08-01
 ```
 
 - 中栏矩阵为页面主体；右栏变更清单仅在有未保存变更时展示（空态可折叠）。
-- 矩阵滚动：资源行固定操作列区域滚动，`:deep(.el-table__body-wrapper) { max-height: calc(100vh - var(--table-offset)); }`。
+- 矩阵滚动（T-FE-036 实现定稿，2026-08-02）：**el-table-v2 虚拟化表格**（树形数据 + `expand-column-key` + 受控 `expanded-row-keys`，名称列 `fixed`），承载 S7「资源节点 >500 虚拟滚动不卡顿」验收；替代本节原 el-table + CSS max-height 方案（el-table 无虚拟滚动）。行高 36px，表格尺寸随容器 `useElementSize` 自适应。
 
 ### 2.1 主体上下文（GrantContext）
 
@@ -185,6 +185,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 
 - **Step 1 选操作后** Step 2 立即加载该操作在此主体下的全部授权（**覆盖位集展开（P1-2，第七轮修正）**：对每条记录先求覆盖位集 `coveredSet = ⋃_{bit ∈ 定义位(grantedBits)} (bit.binaryBit | bit.inheritMask)`（§3.5 组合闭包操作集的落地实现，含 `operationCode=null` 组合位同一规则求并集），判定 `(BigInt(coveredSet) & BigInt(当前操作 binaryBit)) !== 0n`——**不是裸 `grantedBits & binaryBit`**（grantedBits 是直接授予位，MANAGE 覆盖 VIEW 来自 inheritMask，裸比较会误报未授权）；组合位记录标注"组合位（含当前操作）"；**不做 operationCode 等值比较**——等值会漏掉组合位记录，误报未授权导致冗余分支）。
 - Step 3 默认值：无权限时 INSTANCE + 空选择；有权限时预填当前记录的范围。
+- **Step 3 实现注记（T-FE-036，2026-08-02）**：资源树采用 `check-strictly` 严格勾选（父选不带子，避免大树误批量授权；父节点授权经资源继承自动覆盖子孙，树内文案提示）；ALL 范围下专属操作固定为其资源类型，**全局操作需下拉选择目标资源类型**（`recordKey.resourceTypeCode` 必填，设计原文未明确，实现补全）。
 - **确定语义**（三键模型，P1-5）：
   - **分组键** = (resourceTypeCode, resourceCode, codeType, **operationKey**, scopeMode)（资源维度来自 GrantContext 资源键 §2.1，ALL 时 resourceCode/codeType=null）；**operationKey = operationCode ?? "bits:"+grantedBits**（P1-4：组合位记录以位串为键，同资源同条件下多条不同 granted_bits 记录不再折叠）；**分支键** = 分组键 + 条件；**持久化 id** = 后端记录 id。
   - **多选确定（第十四轮，2026-08-02）**：Step3 INSTANCE 多选 N 个资源 -> 确定后产生 N 条 `creates`（同一操作 + 同一条件 + 同一 canGrant + 同一 scopeMode，N 个资源键）；矩阵 N 个单元格变绿；变更清单按"操作+条件+canGrant+scopeMode"分组聚合展示（如"VIEW · 无条件 · 3 个资源"），点开看明细，避免 N 行刷屏。ALL 范围下不选资源（全量），多选仅对 INSTANCE 有意义。
@@ -194,6 +195,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
     - 分组键存在但条件不同 → 草稿 **add** 新分支（同键多条件并存，uk 含 `condition_id`）
   - **范围/资源/操作变化 = 跨键替换（第十二轮收敛）**：替换 = **removes 旧 + creates 新**（同一 `apply-grant-plan` 请求内原子执行）；**子权限不迁移**——随旧主权限级联删除（预期行为，产品语义：A 部门与 B 部门不相关），新主权限的子权限在 creates 中显式配置（`children` 一次性建树或后续挂载）；变更清单提示"子权限随主权限一并移除"；仅 canGrant/conditionCode 变更走 `updates`（不重建）
   - **匹配范围仅限 MANUAL（P1-5）**：分支键比对/草稿 diff 只匹配 `grantSource=MANUAL` 记录；AUTO_DEP 记录不进比对（只读，见 §3.3），同键并存不冲突
+  - **取消勾选 = 撤权（方案二，2026-08-02 评审决策）**：Step 3 预填的已有记录被取消勾选时，确定后生成 **remove 变更**（同分组键全部 MANUAL 分支一并移除；弹窗是该操作的"全量编辑器"，勾选状态 = 最终授权状态）；删除类变更在右栏清单与矩阵标记中**红色醒目提示**；逐条撤销可回滚。范围编辑按 scopeMode 分集合：INSTANCE 集合与 ALL 集合互不干扰（INSTANCE 取消勾选不影响 ALL 记录，反之亦然）；子权限删除/跨键替换仍归详情层（§5）
 - 确定后弹窗关闭，矩阵单元格立即显示变更态（§6.1），进入右栏清单。
 
 ## 5. 详情层（多分支 / 子权限 / 删除）
@@ -224,8 +226,9 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 
 ### 6.1 草稿模型
 
-- `baseline`（进入时的 list 数据，`includeChildren=false`） + `draft`（变更后集合），三键 diff（分组键/分支键/持久化 id，§4 确定语义；对齐 v1 §16 草稿模型）。
-- 变更类型：`add` / `update` / `remove`（对齐 apply-grant-plan 记录级 creates/updates/removes）。
+- `baseline`（进入时的 list 数据）+ `draft`（变更后集合），三键 diff（分组键/分支键/持久化 id，§4 确定语义；对齐 v1 §16 草稿模型）。
+- **baseline 加载口径（T-FE-036 实现注记，2026-08-02）**：页面进入时 `list(includeChildren=true)` **一次取全量**（主权限 + 子权限），来源链计算仅消费 `dependOn==null` 主权限（§3.5 输入不变），详情层按 `dependOn` 分组子权限——免逐项懒加载（对齐 §12 缺口 5 的 `childCount` 设计意图）；替代本节原"includeChildren=false"两次拉取文字。
+- 变更类型：`add` / `update` / `remove`（对齐 apply-grant-plan 记录级 creates/updates/removes）+ `replace`（跨键替换组合变更 = removes 旧 + creates 新，清单单条可撤销，plan 构建时展开为两段）。
 
 ### 6.2 矩阵 diff 标记
 
@@ -368,7 +371,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 ### 工程加固（2026-08-01 分析评审后，随 T-PERM-034/T-FE-036/T-FE-018 落地）
 
 - **Mutation Policy（方案二）**：`PermissionGrantDomainService` 新增唯一预检入口 `prevalidateGrantPlan(plan)`——八项不变量（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递含 condition 维度、conditionCode 清空/替换扩大、SUB_PERM 约束、完整持久化键冲突、scopeMode/资源/操作兼容性）一次校验；**apply-grant-plan 唯一写入口强制调用**，AppService 禁止自行拼门禁；“命令类型（create/update/remove × 主/子权限）× 不变量”测试矩阵入 T-PERM-034 acceptance。
-- **引擎双写消除（方案三）**：后端 `GoldenFixtureTest`（**6 用例精简**（第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记**演进方向**，本轮不实现。
+- **引擎双写消除（方案三）**：后端 `GoldenFixtureTest`（**6 用例精简**（第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记**演进方向**，本轮不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：后端 GoldenFixtureTest 随 T-PERM-034 未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；后端 T-PERM-034 落地时移植同一用例集比对（届时可评估是否上移为跨语言共享位置）。
 - **端点契约（方案四，第十四轮定案）**：**删除** `docs/contracts/perm-grant.schema.json`（第十三轮已降级为说明性、不机器校验，维护冗余）；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
@@ -376,3 +379,38 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 旧写入口（save / add-child / children / remove-child / update-child / children-save / rebuild）已全部移除/不实现（第十二轮单入口收敛，api-contract §6.5.1）；本页只依赖 list + apply-grant-plan + extra-roles/list + 资源树/操作/条件等只读接口。
 
 > 注：本页默认不支持"多操作位组合一次授权"的新增 UI（弹窗为单操作），`grantedBits` 仅为兼容展示；多操作位组合授权创建能力如未来需要，另行评估（对齐 T-PERM-034 范围外）。
+
+## 13. 实现注记（T-FE-036，2026-08-02 回写）
+
+### 13.1 文件落位
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 页面 | `frontend/src/views/perm/grant/index.vue` + `components/`（SubjectTreePanel / GrantMatrixPanel / MatrixCell / GrantDialog / ConditionPicker / PermissionDetailDrawer / ChangeListPanel） | 三栏布局 + 底部保存条 |
+| 编排 | `frontend/src/views/perm/grant/utils/hook.ts` | 依赖加载 / 门控 / 生效视图 / 事件编排 / 离开保护 |
+| 状态机 | `frontend/src/views/perm/grant/utils/grant-store.ts` | Pinia 四态 discriminated union（DoD-3） |
+| 纯函数 | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（三键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算） | 纯函数可测 |
+| fixtures | `utils/source-chain.fixtures.json` + `source-chain.spec.ts` | Golden 6 用例（§12 方案三） |
+| API | `frontend/src/api/permission-grant.ts` | list + apply-grant-plan（契约 §6.4/§6.5.1）+ 错误码映射（DoD-1） |
+| mock | `frontend/mock/permission-grant.ts`（list / apply-grant-plan 全量预校验 + 单事务模拟 + 错误码演练）+ `mock/resource-operation.ts`（+REPORT 625 节点大树，additive）+ `mock/login.ts`（权限矩阵接线） | mock 驱动，DoD-4 |
+| 路由 | `frontend/src/router/modules/perm.ts` | `/perm/grant`（showLink: false；keepAlive） |
+| 入口 | `frontend/src/views/system/role/index.vue` | 角色管理页"权限授予"按钮恢复（跳转预选 `roleExternalId`） |
+| 权限 SSOT | `frontend/src/views/perm/grant/utils/perms.ts` | 无新增权限串，全部既有串复用（§10） |
+
+### 13.2 评审决策落地（2026-08-02）
+
+1. **矩阵选型 = el-table-v2 虚拟滚动**（S7 验收驱动；§2 已回写）。
+2. **弹窗取消勾选 = 撤权（方案二）** + 删除红色醒目提示（§4 已回写）；严格勾选 + ALL 全局操作选类型（§4 已回写）。
+3. **Golden fixtures 载体 = 前端 JSON**（§12 方案三已回写）。
+4. **路由 = 新建 /perm 模块 + 角色页入口恢复**（§1.1 路由约定落地；组织入口二期占位 `el-result` 提示，未实现组织树适配器与 org-tree mock）。
+5. **操作位线格式 = 页面层宽容解析**（`bits.ts` `toBigIntBits`：string|number → BigInt；共享 `mock/resource-operation.ts` number 格式与 3.1 页不受影响；本页 `grantedBits` 严格按契约十进制字符串，DoD-1）。
+6. **baseline 一次全量加载**（§6.1 已回写）。
+7. **操作列默认 = 全部显示**（§3.2"实现时定"采纳；按 binaryBit 升序，localStorage 按 subjectType 隔离）。
+8. **单元格点击 = 无权限弹窗 / 有权限详情层**（§3.3 推荐路径采纳）。
+
+### 13.3 验证证据
+
+- 单测 61 全过：`source-chain.spec.ts`（Golden 6 用例全字段断言 + 前端补充覆盖）/ `grant-plan.spec.ts`（plan 构建 + 方案二弹窗 diff）/ `grant-store.spec.ts`（四态迁移 + baseline 迁移 + 失败保留重试）+ 既有 `condition-rules.spec.ts`。
+- `vue-tsc --noEmit` / `eslint` / `vite build` 全过。
+- mock 端点运行时冒烟：list（includeChildren 两态 + childCount）/ apply-grant-plan（creates 带 children 建树 / updates 三态 / removes 级联 / 错误码 20033/20034/20036/20011/20010/20040 演练）/ REPORT 625 节点树。
+- S1~S7 交互验收（DoD-4）以 mock 环境人工验收为准。

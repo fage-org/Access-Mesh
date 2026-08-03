@@ -67,7 +67,9 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   MENU: "菜单",
   BUTTON: "按钮",
   API: "接口",
-  DATA: "数据"
+  DATA: "数据",
+  // REPORT（T-FE-036 权限授予页 S7 场景：>500 节点大树；additive 新增类型，不影响既有数据）
+  REPORT: "报表"
 };
 
 let nextResourceId = 301;
@@ -247,8 +249,77 @@ export const resources: InternalResource[] = [
     createdAt: BASE_TIME,
     updatedAt: BASE_TIME,
     deleted: false
-  }
+  },
+  // REPORT 大树（T-FE-036 权限授予页 S7 验收：>500 节点矩阵虚拟滚动；
+  // 单根折叠展示，3.1 资源操作页同样可见——additive，不影响既有节点）
+  ...generateReportResources()
 ];
+
+/**
+ * 生成 REPORT 类型大树：1 根 + 24 分组 × 25 子节点 = 625 节点（id 10001+，避免与既有 id 冲突）。
+ * 资源继承演示：对根/分组授权可覆盖全部子孙。
+ */
+function generateReportResources(): InternalResource[] {
+  const result: InternalResource[] = [];
+  result.push({
+    id: 10000,
+    tenantId: 1,
+    parentId: null,
+    resourceTypeCode: "REPORT",
+    resourceTypeName: "报表",
+    code: "report-root",
+    codeType: "default",
+    name: "报表中心",
+    path: null,
+    status: 1,
+    sortOrder: 10,
+    extra: null,
+    createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
+    deleted: false
+  });
+  let id = 10001;
+  for (let g = 1; g <= 24; g++) {
+    const groupId = id++;
+    result.push({
+      id: groupId,
+      tenantId: 1,
+      parentId: 10000,
+      resourceTypeCode: "REPORT",
+      resourceTypeName: "报表",
+      code: `report-g${String(g).padStart(2, "0")}`,
+      codeType: "default",
+      name: `报表分组 ${g}`,
+      path: null,
+      status: 1,
+      sortOrder: g * 10,
+      extra: null,
+      createdAt: BASE_TIME,
+      updatedAt: BASE_TIME,
+      deleted: false
+    });
+    for (let i = 1; i <= 25; i++) {
+      result.push({
+        id: id++,
+        tenantId: 1,
+        parentId: groupId,
+        resourceTypeCode: "REPORT",
+        resourceTypeName: "报表",
+        code: `report-g${String(g).padStart(2, "0")}-r${String(i).padStart(2, "0")}`,
+        codeType: "default",
+        name: `报表 ${g}-${i}`,
+        path: null,
+        status: 1,
+        sortOrder: i * 10,
+        extra: null,
+        createdAt: BASE_TIME,
+        updatedAt: BASE_TIME,
+        deleted: false
+      });
+    }
+  }
+  return result;
+}
 
 // 操作权限种子：每个资源类型预置 CRUD 四操作（schema 注释 CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)）
 const CRUD_OPS = [

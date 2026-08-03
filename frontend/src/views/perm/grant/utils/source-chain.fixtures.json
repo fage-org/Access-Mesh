@@ -1,0 +1,607 @@
+{
+  "version": 1,
+  "description": "来源链 Golden Fixture（6 用例精简，第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源。前端 source-chain.ts 与后端 GoldenFixtureTest（T-PERM-034）同用例集比对——本文件为权威用例源，后端落地时移植对齐（docs/design/frontend/permission-grant.md §12 工程加固方案三）。位值均为十进制字符串（T-PERM-028 线格式）。",
+  "semantics": {
+    "coveredSet": "coveredSet = ⋃_{bit ∈ 定义位(grantedBits)} (bit.binaryBit | bit.inheritMask)",
+    "covers": "(effectiveBits(A) & B.binaryBit) != 0，effectiveBits = binaryBit | inheritMask",
+    "nodeClosure": "descendants(r) ∪ {r}（collectDescendants 不含源节点，显式并入）",
+    "mergeRule": "专属优先、全局回退：同 code 存在专属定义用专属，否则用全局"
+  },
+  "cases": [
+    {
+      "name": "global-fallback",
+      "title": "全局回退：REPORT 类型无 EXPORT 专属定义，列由全局操作回退提供，来源标注全局操作",
+      "operations": [
+        {
+          "code": "VIEW",
+          "name": "查看",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "EXPORT",
+          "name": "导出",
+          "resourceTypeCode": null,
+          "binaryBit": "16",
+          "inheritMask": "0"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:sales",
+          "codeType": "default",
+          "name": "销售报表"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "REPORT",
+          "resourceCode": "rpt:sales",
+          "codeType": "default",
+          "operationCode": "EXPORT",
+          "canGrant": false,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "16"
+        }
+      ],
+      "expected": {
+        "columns": { "REPORT": ["VIEW", "EXPORT"] },
+        "cells": [
+          {
+            "row": "RES:REPORT:rpt:sales:default",
+            "column": "EXPORT",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": true,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    },
+    {
+      "name": "combination-bits",
+      "title": "组合位：operationCode=null 记录按 grantedBits 逐位拆解，命中多列同时点亮并标注组合位；继承掩码覆盖列标注操作段",
+      "operations": [
+        {
+          "code": "READ",
+          "name": "读取",
+          "resourceTypeCode": "DATA",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "WRITE",
+          "name": "写入",
+          "resourceTypeCode": "DATA",
+          "binaryBit": "4",
+          "inheritMask": "0"
+        },
+        {
+          "code": "DELETE",
+          "name": "删除",
+          "resourceTypeCode": "DATA",
+          "binaryBit": "8",
+          "inheritMask": "4"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "DATA",
+          "code": "data:r1",
+          "codeType": "default",
+          "name": "数据一"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "DATA",
+          "resourceCode": "data:r1",
+          "codeType": "default",
+          "operationCode": null,
+          "canGrant": false,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "6"
+        },
+        {
+          "id": 101,
+          "resourceTypeCode": "DATA",
+          "resourceCode": "data:r1",
+          "codeType": "default",
+          "operationCode": null,
+          "canGrant": true,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "10"
+        }
+      ],
+      "expected": {
+        "columns": { "DATA": ["READ", "WRITE", "DELETE"] },
+        "cells": [
+          {
+            "row": "RES:DATA:data:r1:default",
+            "column": "READ",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": true,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              },
+              {
+                "recordId": 101,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": true,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": true,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:DATA:data:r1:default",
+            "column": "WRITE",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": true,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              },
+              {
+                "recordId": 101,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": "DELETE",
+                "combinationBit": true,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": true,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:DATA:data:r1:default",
+            "column": "DELETE",
+            "sources": [
+              {
+                "recordId": 101,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": true,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": true,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    },
+    {
+      "name": "all-scope",
+      "title": "ALL：scopeMode=ALL 记录落 ALL 虚拟行并照常执行操作继承展开（节点段为空）",
+      "operations": [
+        {
+          "code": "VIEW",
+          "name": "查看",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "MANAGE",
+          "name": "管理",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "8",
+          "inheritMask": "2"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:sales",
+          "codeType": "default",
+          "name": "销售报表"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "REPORT",
+          "resourceCode": null,
+          "codeType": null,
+          "operationCode": "MANAGE",
+          "canGrant": false,
+          "conditionCode": null,
+          "scopeMode": "ALL",
+          "grantSource": "MANUAL",
+          "grantedBits": "8"
+        }
+      ],
+      "expected": {
+        "columns": { "REPORT": ["VIEW", "MANAGE"] },
+        "cells": [
+          {
+            "row": "ALL:REPORT",
+            "column": "MANAGE",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "ALL"
+              }
+            ]
+          },
+          {
+            "row": "ALL:REPORT",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": "MANAGE",
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "ALL"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    },
+    {
+      "name": "resource-inherit",
+      "title": "资源继承：父资源授权作用于全部子孙（节点段标注资源继承自父，操作段为空）",
+      "operations": [
+        {
+          "code": "VIEW",
+          "name": "查看",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "MANAGE",
+          "name": "管理",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "8",
+          "inheritMask": "2"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:dept",
+          "codeType": "default",
+          "name": "部门报表"
+        },
+        {
+          "id": 2,
+          "parentId": 1,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:dept:sales",
+          "codeType": "default",
+          "name": "销售报表"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "REPORT",
+          "resourceCode": "rpt:dept",
+          "codeType": "default",
+          "operationCode": "VIEW",
+          "canGrant": false,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "2"
+        }
+      ],
+      "expected": {
+        "columns": { "REPORT": ["VIEW", "MANAGE"] },
+        "cells": [
+          {
+            "row": "RES:REPORT:rpt:dept:default",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:REPORT:rpt:dept:sales:default",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": "rpt:dept",
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    },
+    {
+      "name": "operation-inherit",
+      "title": "操作继承：MANAGE(inheritMask=VIEW) 授权点亮 VIEW 列（操作段标注继承自 MANAGE，节点段为空）",
+      "operations": [
+        {
+          "code": "VIEW",
+          "name": "查看",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "MANAGE",
+          "name": "管理",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "8",
+          "inheritMask": "2"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:sales",
+          "codeType": "default",
+          "name": "销售报表"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "REPORT",
+          "resourceCode": "rpt:sales",
+          "codeType": "default",
+          "operationCode": "MANAGE",
+          "canGrant": true,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "8"
+        }
+      ],
+      "expected": {
+        "columns": { "REPORT": ["VIEW", "MANAGE"] },
+        "cells": [
+          {
+            "row": "RES:REPORT:rpt:sales:default",
+            "column": "MANAGE",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": true,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:REPORT:rpt:sales:default",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": "MANAGE",
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": true,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    },
+    {
+      "name": "two-segment-chain",
+      "title": "两段组合来源：父资源 MANAGE → 子资源 VIEW 单元格同时含节点段（资源继承自父）与操作段（操作继承自 MANAGE）",
+      "operations": [
+        {
+          "code": "VIEW",
+          "name": "查看",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "2",
+          "inheritMask": "0"
+        },
+        {
+          "code": "MANAGE",
+          "name": "管理",
+          "resourceTypeCode": "REPORT",
+          "binaryBit": "8",
+          "inheritMask": "2"
+        }
+      ],
+      "resources": [
+        {
+          "id": 1,
+          "parentId": null,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:dept",
+          "codeType": "default",
+          "name": "部门报表"
+        },
+        {
+          "id": 2,
+          "parentId": 1,
+          "resourceTypeCode": "REPORT",
+          "code": "rpt:dept:sales",
+          "codeType": "default",
+          "name": "销售报表"
+        }
+      ],
+      "records": [
+        {
+          "id": 100,
+          "resourceTypeCode": "REPORT",
+          "resourceCode": "rpt:dept",
+          "codeType": "default",
+          "operationCode": "MANAGE",
+          "canGrant": false,
+          "conditionCode": null,
+          "scopeMode": "INSTANCE",
+          "grantSource": "MANUAL",
+          "grantedBits": "8"
+        }
+      ],
+      "expected": {
+        "columns": { "REPORT": ["VIEW", "MANAGE"] },
+        "cells": [
+          {
+            "row": "RES:REPORT:rpt:dept:default",
+            "column": "MANAGE",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:REPORT:rpt:dept:default",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": null,
+                "opInheritFromCode": "MANAGE",
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:REPORT:rpt:dept:sales:default",
+            "column": "MANAGE",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": "rpt:dept",
+                "opInheritFromCode": null,
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          },
+          {
+            "row": "RES:REPORT:rpt:dept:sales:default",
+            "column": "VIEW",
+            "sources": [
+              {
+                "recordId": 100,
+                "grantSource": "MANUAL",
+                "nodeInheritFromCode": "rpt:dept",
+                "opInheritFromCode": "MANAGE",
+                "combinationBit": false,
+                "globalOperation": false,
+                "conditionCode": null,
+                "canGrant": false,
+                "scopeMode": "INSTANCE"
+              }
+            ]
+          }
+        ],
+        "undefinedBits": {}
+      }
+    }
+  ]
+}

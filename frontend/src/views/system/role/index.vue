@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { h } from "vue";
+import { useRouter } from "vue-router";
 import { useRoleManage } from "./utils/hook";
 import RoleForm from "./components/RoleForm.vue";
 import { addDialog } from "@/components/ReDialog";
@@ -15,7 +16,7 @@ import {
   type RoleSummaryResp
 } from "@/api/role-manage";
 import { isReadonlyRoleType } from "./utils/types";
-import { Plus, Edit, Delete } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Key } from "@element-plus/icons-vue";
 
 defineOptions({
   name: "SystemRole"
@@ -183,6 +184,25 @@ function allowDrop(draggingNode: any, targetNode: any, type: string): boolean {
   return true;
 }
 
+// ========== 权限授予入口（4.1 v3，T-FE-036；跳转 /perm/grant 并预选角色） ==========
+
+const router = useRouter();
+
+/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁）；BASIC_ROLE 预选，GROUP_ROLE 到授予页展开选基础角色 */
+const canGrant = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+
+function goPermissionGrant(node: RoleTreeNode) {
+  router.push({
+    path: "/perm/grant",
+    query: {
+      subjectType: "ROLE",
+      ...(node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE && node.externalId
+        ? { roleExternalId: node.externalId }
+        : {})
+    }
+  });
+}
+
 /** 节点状态标签类型 */
 function statusTagType(status: number) {
   return status === 1 ? "success" : "danger";
@@ -301,6 +321,17 @@ function statusTagType(status: number) {
               </span>
             </div>
             <div class="role-info-actions">
+              <el-button
+                v-if="
+                  canGrant && !isReadonlyRoleType(selectedRole.roleTypeCode)
+                "
+                type="primary"
+                size="small"
+                :icon="Key"
+                @click="goPermissionGrant(selectedRole)"
+              >
+                权限授予
+              </el-button>
               <el-button
                 v-if="canEdit && isNodeEditable(selectedRole)"
                 type="primary"

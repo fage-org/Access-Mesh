@@ -132,7 +132,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 | [T-FE-034](T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ✅ | ✅ |
 | [T-FE-035](T-FE-035.md) | 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 | [permission-grant-v2](../plans/archive/2026-07/permission-grant-v2-plan.md) | design/frontend/permission-grant-{error-flow,state-model}.md §2.8/§8 | T-FE-034 | ❌ | ⏳ |
 | [T-FE-027](T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.6~§16.9~~（已删） | T-FE-025, T-FE-026, T-FE-028 | ❌ | ⏳ |
-| [T-FE-036](T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主+操作中心授权弹窗+详情层+变更清单；**第十四轮收窄**：状态机四态/GoldenFixture 6 用例/Step3 多选/组织入口二期；DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机/交互先行） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3）；api-contract §5.5/§6.4/§6.5/§6.5.1 | T-FE-001, T-FE-002, T-FE-008, T-FE-009 | ⚙️ | ⏳ |
+| [T-FE-036](T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主+操作中心授权弹窗+详情层+变更清单；**第十四轮收窄**：状态机四态/GoldenFixture 6 用例/Step3 多选/组织入口二期；DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机/交互先行） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3）；api-contract §5.5/§6.4/§6.5/§6.5.1 | T-FE-001, T-FE-002, T-FE-008, T-FE-009 | 👀 | ✓ |
 
 ---
 

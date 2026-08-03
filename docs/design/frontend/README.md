@@ -23,7 +23,7 @@
 | 3.2 权限条件 | `permission-condition.md` | T-FE-009 | ✅ |
 | 3.3 冲突规则 | `conflict-rule.md` | T-FE-010 | ✅ |
 | 3.4 资源依赖 | `resource-dependency.md` | T-FE-011 | ✅ |
-| 4.1 权限授予 | `permission-grant.md`（v3，重建） | T-FE-036 | ⚙️ draft（15 项决策评审收敛 2026-08-01；v1/v2 已归档 [`archive/2026-07-26/`](../../archive/2026-07-26/)） |
+| 4.1 权限授予 | `permission-grant.md`（v3，重建） | T-FE-036 | ✅ adopted（2026-08-02 实现回写；v1/v2 已归档 [`archive/2026-07-26/`](../../archive/2026-07-26/)） |
 | 4.2 权限查询/校验 | `permission-query.md` | T-FE-013 | ✅ |
 | 5.1 业务域 | `biz-domain.md` | T-FE-006 | ✅ |
 | 5.2 服务+接口映射 | `service-interface-mapping.md` | T-FE-007 | ✅ |

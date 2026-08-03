@@ -55,6 +55,7 @@ import {
   RESOURCE_DEPENDENCY_PERM_LIST,
   RESOURCE_DEPENDENCY_VIEW_PERMS
 } from "../src/views/system/resource-dependency/utils/perms";
+import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -94,6 +95,12 @@ import {
  * - `SERVICE:VIEW` 可查看服务和接口；`SERVICE:MANAGE` 可维护服务；
  *   `SERVICE:SYNC_INTERFACE` 和 `SERVICE:MANAGE_API_MAPPING` 分别控制 FULL 同步和手工映射。
  * - sec 负责安全边界，拥有服务接口的完整维护权；hr/auditor 保持只读。
+ *
+ * 4.1 权限授予页（T-FE-036 v3）：无新增权限串，全部为既有串复用——
+ * - 配权门禁 `ROLE:VIEW`/`ROLE:MANAGE`（目标抽象角色）+ 只读依赖 `CONDITION:VIEW`/
+ *   `RESOURCE:VIEW`/`OPERATION:VIEW`；数据源门禁 `ADMIN_ORG:VIEW` 等（组织入口二期）。
+ * - admin 经 PERMISSION_GRANT_PERM_LIST 显式登记（与既有清单重复项无害，hasPerms 为 includes 判定）；
+ *   sec 配权 RW（已有 ROLE:MANAGE + 三 VIEW）；hr/auditor 只读（已有 ROLE:VIEW + 三 VIEW）。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
   admin: [
@@ -106,7 +113,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...RESOURCE_OPERATION_PERM_LIST,
     ...CONDITION_PERM_LIST,
     ...CONFLICT_RULE_PERM_LIST,
-    ...RESOURCE_DEPENDENCY_PERM_LIST
+    ...RESOURCE_DEPENDENCY_PERM_LIST,
+    ...PERMISSION_GRANT_PERM_LIST
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
