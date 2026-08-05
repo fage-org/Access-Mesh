@@ -179,77 +179,126 @@ defineExpose({ loadTree, findNode, preselect });
     </template>
 
     <template v-else>
+      <div class="panel-header">
+        <div class="panel-title">角色主体</div>
+        <span class="panel-sub">选择角色查看/授予权限</span>
+      </div>
       <el-input
         v-model="filterText"
         placeholder="搜索角色名称"
         clearable
-        class="mb-2"
+        class="tree-search"
         @input="val => treeRef?.filter(val)"
       />
-      <el-tree
-        ref="treeRef"
-        v-loading="loading"
-        :class="{ 'is-frozen': disabled }"
-        :data="treeData"
-        :props="treeProps"
-        node-key="key"
-        :filter-node-method="filterNode"
-        :expand-on-click-node="false"
-        :highlight-current="true"
-        :current-node-key="activeKey ?? undefined"
-        @node-expand="handleNodeExpand"
-        @node-click="handleNodeClick"
-      >
-        <template #default="{ data }">
-          <span
-            class="node-label"
-            :class="{
-              'is-selecting': data.key === selectingKey,
-              'is-container': data.kind === 'EXTRA_CONTAINER'
-            }"
-          >
-            <span :class="{ 'is-disabled': data.status === 0 }">
-              {{ data.name }}
+      <div class="tree-body">
+        <el-tree
+          ref="treeRef"
+          v-loading="loading"
+          :class="{ 'is-frozen': disabled }"
+          :data="treeData"
+          :props="treeProps"
+          node-key="key"
+          :filter-node-method="filterNode"
+          :expand-on-click-node="false"
+          :highlight-current="true"
+          :current-node-key="activeKey ?? undefined"
+          @node-expand="handleNodeExpand"
+          @node-click="handleNodeClick"
+        >
+          <template #default="{ data }">
+            <span
+              class="node-label"
+              :class="{
+                'is-selecting': data.key === selectingKey,
+                'is-container': data.kind === 'EXTRA_CONTAINER'
+              }"
+            >
+              <span :class="{ 'is-disabled': data.status === 0 }">
+                {{ data.name }}
+              </span>
+              <el-tag
+                v-if="
+                  data.kind === 'ROLE' && data.roleTypeCode === 'GROUP_ROLE'
+                "
+                size="small"
+                type="info"
+                effect="plain"
+                class="node-tag"
+              >
+                分组
+              </el-tag>
+              <el-tag
+                v-else-if="data.kind === 'EXTRA_ROLE'"
+                size="small"
+                type="success"
+                effect="plain"
+                class="node-tag"
+              >
+                基础角色
+              </el-tag>
+              <el-tag
+                v-if="data.status === 0"
+                size="small"
+                type="danger"
+                effect="plain"
+                class="node-tag"
+              >
+                停用
+              </el-tag>
             </span>
-            <el-tag
-              v-if="data.kind === 'ROLE' && data.roleTypeCode === 'GROUP_ROLE'"
-              size="small"
-              type="info"
-              class="ml-1"
-            >
-              分组
-            </el-tag>
-            <el-tag
-              v-else-if="data.kind === 'EXTRA_ROLE'"
-              size="small"
-              type="success"
-              class="ml-1"
-            >
-              基础角色
-            </el-tag>
-            <el-tag
-              v-if="data.status === 0"
-              size="small"
-              type="danger"
-              class="ml-1"
-            >
-              停用
-            </el-tag>
-          </span>
-        </template>
-      </el-tree>
+          </template>
+        </el-tree>
+      </div>
     </template>
   </div>
 </template>
 
 <style lang="scss" scoped>
 .subject-tree-panel {
+  /* 面板卡片：与页面其他面板统一（白底 + 浅边框 + 轻阴影） */
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: var(--space-2);
-  overflow: auto;
+  padding: var(--space-3);
+  overflow: hidden;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+
+  .panel-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-1) var(--space-1) var(--space-3);
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--el-text-color-primary);
+    }
+
+    .panel-sub {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+    }
+  }
+
+  .tree-search {
+    flex-shrink: 0;
+    margin-bottom: var(--space-3);
+  }
+
+  .tree-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
 
   .node-label {
     display: inline-flex;
+    gap: var(--space-1);
     align-items: center;
 
     &.is-selecting {
@@ -266,11 +315,42 @@ defineExpose({ loadTree, findNode, preselect });
       color: var(--el-text-color-secondary);
       text-decoration: line-through;
     }
+
+    .node-tag {
+      border: none;
+    }
   }
 
   // saving 冻结：降透明度提示，点击已在 handleNodeClick 拦截
   .is-frozen {
     opacity: 0.6;
+  }
+
+  /* ---- Element Plus 树局部细化（仅本页） ---- */
+  :deep(.el-tree) {
+    --el-tree-node-hover-bg-color: var(--el-fill-color-light);
+
+    background: transparent;
+
+    .el-tree-node__content {
+      height: 32px;
+      border-radius: var(--radius-md);
+      transition: background-color 0.2s;
+
+      &:hover {
+        background: var(--el-fill-color-light);
+      }
+    }
+
+    .el-tree-node.is-current > .el-tree-node__content {
+      font-weight: 600;
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+    }
+
+    .el-tree-node__expand-icon {
+      transition: transform 0.2s;
+    }
   }
 }
 </style>

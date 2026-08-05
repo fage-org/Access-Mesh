@@ -142,9 +142,13 @@ const popoverVisible = ref(false);
     .picker-item {
       display: flex;
       flex-direction: column;
-      padding: 6px 8px;
+      padding: var(--space-2) var(--space-2);
       cursor: pointer;
-      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      transition:
+        background-color 0.15s,
+        border-color 0.15s;
 
       &:hover {
         background: var(--el-fill-color-light);
@@ -152,12 +156,14 @@ const popoverVisible = ref(false);
 
       &.active {
         background: var(--el-color-primary-light-9);
+        border-color: var(--el-color-primary-light-5);
       }
 
       .item-name {
         display: flex;
         gap: 6px;
         align-items: center;
+        font-size: 13px;
       }
 
       .item-summary {
@@ -169,9 +175,11 @@ const popoverVisible = ref(false);
   }
 
   .picker-footer {
+    padding-top: var(--space-2);
     margin-top: var(--space-2);
     font-size: 12px;
     color: var(--el-text-color-secondary);
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 }
 </style>

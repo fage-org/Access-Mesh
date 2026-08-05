@@ -99,7 +99,10 @@ const failed = computed(() => props.submit.kind === "saveFailed");
 
 <template>
   <div class="change-list-panel" :class="{ failed }">
-    <div class="panel-title">变更清单（{{ changes.length }}）</div>
+    <div class="panel-header">
+      <div class="panel-title">变更清单</div>
+      <span class="panel-count">{{ changes.length }}</span>
+    </div>
 
     <el-alert
       v-if="failed && submit.kind === 'saveFailed'"
@@ -296,9 +299,16 @@ const failed = computed(() => props.submit.kind === "saveFailed");
 
 <style lang="scss" scoped>
 .change-list-panel {
+  /* 面板卡片：与页面其他面板统一（白底 + 浅边框 + 轻阴影） */
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: var(--space-2);
+  padding: var(--space-3);
   overflow: auto;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 
   &.failed {
     .change-item {
@@ -307,37 +317,86 @@ const failed = computed(() => props.submit.kind === "saveFailed");
     }
   }
 
-  .panel-title {
-    margin-bottom: var(--space-2);
-    font-weight: 600;
+  .panel-header {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-1) var(--space-1) var(--space-3);
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--el-text-color-primary);
+    }
+
+    .panel-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+      border-radius: var(--radius-full);
+    }
   }
 
   .failed-alert {
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
   .change-group {
     margin-bottom: var(--space-3);
 
     .group-title {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
       margin-bottom: var(--space-1);
       font-size: 12px;
       font-weight: 600;
 
+      &::before {
+        width: 6px;
+        height: 6px;
+        content: "";
+        border-radius: var(--radius-full);
+      }
+
       &.add {
         color: var(--el-color-success);
+
+        &::before {
+          background: var(--el-color-success);
+        }
       }
 
       &.update {
         color: var(--el-color-warning);
+
+        &::before {
+          background: var(--el-color-warning);
+        }
       }
 
       &.remove {
         color: var(--el-color-danger);
+
+        &::before {
+          background: var(--el-color-danger);
+        }
       }
 
       &.replace {
         color: var(--el-color-warning-dark-2);
+
+        &::before {
+          background: var(--el-color-warning-dark-2);
+        }
       }
     }
   }
@@ -347,7 +406,15 @@ const failed = computed(() => props.submit.kind === "saveFailed");
     margin-bottom: var(--space-1);
     border: 1px solid var(--el-border-color-lighter);
     border-left-width: 3px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-border-color);
+    }
 
     &.add {
       border-left-color: var(--el-color-success);

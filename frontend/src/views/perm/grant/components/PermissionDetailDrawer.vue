@@ -420,6 +420,7 @@ function handleClose() {
         : '权限详情'
     "
     size="480px"
+    class="grant-drawer"
     @update:model-value="handleClose"
   >
     <template v-if="target">
@@ -874,8 +875,33 @@ function handleClose() {
 </template>
 
 <style lang="scss" scoped>
+/* 抽屉局部细化：el-drawer teleport 到 body，scoped 无法命中，
+   通过唯一 class grant-drawer + :global() 限定在本页详情抽屉 */
+:global(.grant-drawer .el-drawer__header) {
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+:global(.grant-drawer .el-drawer__header .el-drawer__title) {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+:global(.grant-drawer .el-drawer__body) {
+  padding: var(--space-4) var(--space-5);
+}
+
 .main-summary {
-  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-md);
+
+  :deep(.el-descriptions__body) {
+    background: transparent;
+  }
 }
 
 .branch-list,
@@ -887,9 +913,16 @@ function handleClose() {
 
 .branch-item,
 .child-item {
-  padding: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+
+  &:hover {
+    border-color: var(--el-border-color);
+  }
 
   &.auto-dep {
     background: var(--el-fill-color-lighter);
@@ -906,6 +939,7 @@ function handleClose() {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    font-size: 13px;
 
     .branch-condition {
       display: inline-flex;
@@ -923,14 +957,16 @@ function handleClose() {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
-    margin-top: 4px;
+    padding-top: var(--space-2);
+    margin-top: var(--space-2);
     font-size: 12px;
     color: var(--el-text-color-secondary);
+    border-top: 1px dashed var(--el-border-color-lighter);
   }
 }
 
 .branch-add {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .branch-edit {
@@ -956,19 +992,21 @@ function handleClose() {
 }
 
 .children-hint {
-  margin: var(--space-2) 0;
+  margin: var(--space-2) 0 var(--space-3);
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
 .child-form {
-  padding: var(--space-2);
-  margin-bottom: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
 
   .form-title {
     margin-bottom: var(--space-2);
+    font-size: 13px;
     font-weight: 600;
   }
 

@@ -97,31 +97,41 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
 <template>
   <div class="perm-grant-page">
     <!-- 无矩阵查看权限（ROLE:VIEW）→ 整页占位（§10 无权降级） -->
-    <el-result
-      v-if="!canView"
-      icon="warning"
-      title="无权限"
-      sub-title="您没有权限查看权限授予页（需要 ROLE:VIEW），请联系管理员"
-    />
+    <div v-if="!canView" class="page-empty-card">
+      <el-result
+        icon="warning"
+        title="无权限"
+        sub-title="您没有权限查看权限授予页（需要 ROLE:VIEW），请联系管理员"
+      />
+    </div>
 
     <template v-else>
       <!-- 头部：标题 + 主体提示 + 能力标签 -->
-      <div class="page-header">
-        <span class="page-title">{{ pageTitle }}</span>
-        <el-tag size="small" :type="capabilityTag.type" effect="plain">
-          {{ capabilityTag.text }}
-        </el-tag>
-        <span v-if="grantStore.context" class="subject-hint">
-          当前主体：{{ grantStore.context.displayName }}（{{
-            grantStore.context.roleTypeCode
-          }}
-          · {{ grantStore.context.roleExternalId }}）
-          <template v-if="grantStore.context.fromGroupRoleName">
-            · 来自分组角色「{{ grantStore.context.fromGroupRoleName }}」
-          </template>
-        </span>
-        <span v-else class="subject-hint muted">未选择主体</span>
-      </div>
+      <header class="page-header">
+        <div class="header-main">
+          <div class="title-line">
+            <span class="page-title">{{ pageTitle }}</span>
+            <el-tag size="small" :type="capabilityTag.type" effect="plain">
+              {{ capabilityTag.text }}
+            </el-tag>
+          </div>
+          <span class="header-sub"
+            >为当前主体配置资源操作权限，变更将在保存后生效</span
+          >
+        </div>
+        <div v-if="grantStore.context" class="subject-hint">
+          <span class="hint-label">当前主体</span>
+          <span class="hint-value">{{ grantStore.context.displayName }}</span>
+          <span class="hint-meta">
+            {{ grantStore.context.roleTypeCode }} ·
+            {{ grantStore.context.roleExternalId }}
+            <template v-if="grantStore.context.fromGroupRoleName">
+              · 来自分组角色「{{ grantStore.context.fromGroupRoleName }}」
+            </template>
+          </span>
+        </div>
+        <div v-else class="subject-hint empty">未选择主体，请从左侧选择</div>
+      </header>
 
       <!-- 三栏：主体树 / 矩阵 / 变更清单 -->
       <div class="page-body">
@@ -175,7 +185,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
       </div>
 
       <!-- 底部固定条：放弃全部 / 保存全部 (N) -->
-      <div
+      <footer
         v-if="
           hasSubject &&
           (grantStore.isDirty || grantStore.submit.kind !== 'idle')
@@ -186,10 +196,10 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
           v-if="grantStore.submit.kind === 'saveFailed'"
           class="footer-status failed"
         >
-          {{ grantStore.submit.message }}
+          <span class="status-dot" />{{ grantStore.submit.message }}
         </span>
         <span v-else-if="grantStore.isDirty" class="footer-status">
-          {{ grantStore.changeCount }} 条未保存变更
+          <span class="status-dot" />{{ grantStore.changeCount }} 条未保存变更
         </span>
         <div class="footer-actions">
           <el-button
@@ -208,7 +218,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             保存全部（{{ grantStore.changeCount }}）
           </el-button>
         </div>
-      </div>
+      </footer>
 
       <!-- 授权弹窗（操作维度 4 步，方案二全量语义） -->
       <GrantDialog
@@ -245,42 +255,108 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
 </template>
 
 <style lang="scss" scoped>
+/* ==========================================================
+   简约商务风（页面私有，不污染其他页面）
+   - 画布：浅灰 --el-bg-color-page，面板：白色卡片
+   - 层级：1px 浅边框 + 轻阴影 + --radius-lg 圆角
+   - 全部使用 Element Plus CSS 变量，dark 模式自动适配
+   ========================================================== */
 .perm-grant-page {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
   height: calc(100vh - var(--header-offset, 84px));
+  padding: var(--space-3);
+  background: var(--el-bg-color-page);
 
+  /* 无权限占位：居中白卡片 */
+  .page-empty-card {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--radius-lg);
+  }
+
+  /* ---------- 头部卡片 ---------- */
   .page-header {
     display: flex;
-    gap: var(--space-2);
+    flex-shrink: 0;
+    gap: var(--space-4);
     align-items: center;
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--el-border-color-lighter);
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 
-    .page-title {
-      font-size: 16px;
-      font-weight: 600;
+    .header-main {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+
+      .title-line {
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+      }
+
+      .page-title {
+        font-size: 18px;
+        font-weight: 600;
+        line-height: 1.4;
+        color: var(--el-text-color-primary);
+        letter-spacing: 0.2px;
+      }
+
+      .header-sub {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
     }
 
     .subject-hint {
+      display: flex;
+      gap: var(--space-1);
+      align-items: baseline;
+      padding: var(--space-1) var(--space-3);
       font-size: 12px;
-      color: var(--el-text-color-secondary);
+      background: var(--el-fill-color-light);
+      border-radius: var(--radius-md);
 
-      &.muted {
+      .hint-label {
+        font-weight: 600;
+        color: var(--el-text-color-secondary);
+      }
+
+      .hint-value {
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+      }
+
+      .hint-meta {
+        color: var(--el-text-color-secondary);
+      }
+
+      &.empty {
         color: var(--el-text-color-placeholder);
       }
     }
   }
 
+  /* ---------- 三栏：白卡片，间距分隔 ---------- */
   .page-body {
     display: flex;
     flex: 1;
+    gap: var(--space-3);
     min-height: 0;
 
     .subject-col {
       flex-shrink: 0;
-      width: 240px;
-      border-right: 1px solid var(--el-border-color-lighter);
+      width: 252px;
     }
 
     .matrix-col {
@@ -290,27 +366,49 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
 
     .change-col {
       flex-shrink: 0;
-      width: 300px;
-      border-left: 1px solid var(--el-border-color-lighter);
+      width: 312px;
     }
   }
 
+  /* ---------- 底部保存条（卡片化） ---------- */
   .page-footer {
     display: flex;
+    flex-shrink: 0;
+    gap: var(--space-4);
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-5);
     background: var(--el-bg-color);
-    border-top: 1px solid var(--el-border-color-lighter);
-    box-shadow: 0 -2px 8px rgb(0 0 0 / 4%);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 -2px 12px rgb(15 23 42 / 5%);
 
     .footer-status {
+      display: inline-flex;
+      gap: var(--space-2);
+      align-items: center;
       font-size: 13px;
       color: var(--el-text-color-secondary);
 
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--el-color-warning);
+        border-radius: var(--radius-full);
+      }
+
       &.failed {
         color: var(--el-color-danger);
+
+        .status-dot {
+          background: var(--el-color-danger);
+        }
       }
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: var(--space-2);
     }
   }
 }

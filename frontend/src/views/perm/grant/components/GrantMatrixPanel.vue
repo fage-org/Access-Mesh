@@ -351,75 +351,87 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
 
 <template>
   <div class="grant-matrix-panel">
-    <!-- 工具栏：搜索资源 + 继承开关×2 + 操作列配置 + 授权按钮 + 视图标注 -->
+    <!-- 工具栏：标题行 + 搜索/过滤行 -->
     <div class="matrix-toolbar">
-      <el-input
-        :model-value="keyword"
-        placeholder="搜索资源名称/编码"
-        clearable
-        :prefix-icon="Search"
-        class="toolbar-search"
-        @update:model-value="val => emit('update:keyword', String(val ?? ''))"
-      />
-      <el-tooltip
-        content="树级继承：子孙行显示来自祖先资源的授权（查看态过滤）"
-        placement="top"
-      >
-        <span class="toolbar-switch">
-          <el-switch
-            :model-value="includeResourceInherit"
-            inline-prompt
-            active-text="树继承"
-            inactive-text="树继承"
-            @update:model-value="
-              val => emit('update:includeResourceInherit', !!val)
-            "
-          />
-        </span>
-      </el-tooltip>
-      <el-tooltip
-        content="操作继承：被高级操作 inheritMask 覆盖的列显示为继承（查看态过滤）"
-        placement="top"
-      >
-        <span class="toolbar-switch">
-          <el-switch
-            :model-value="includeOpInherit"
-            inline-prompt
-            active-text="操作继承"
-            inactive-text="操作继承"
-            @update:model-value="val => emit('update:includeOpInherit', !!val)"
-          />
-        </span>
-      </el-tooltip>
-      <el-popover
-        v-model:visible="columnConfigVisible"
-        placement="bottom-end"
-        :width="240"
-        trigger="click"
-      >
-        <template #reference>
-          <el-button :icon="Setting" text>操作列</el-button>
-        </template>
-        <div class="column-config">
-          <div class="config-title">显示操作列（刷新保留）</div>
-          <el-checkbox
-            v-for="col in unionColumns"
-            :key="col.code"
-            :model-value="!hiddenColumnCodes.includes(col.code)"
-            :label="`${col.name}（${col.code}）${col.globalFallback ? ' · 全局' : ''}`"
-            @update:model-value="val => toggleColumn(col.code, !!val)"
-          />
+      <div class="toolbar-row primary">
+        <div class="panel-heading">
+          <div class="panel-title">权限矩阵</div>
+          <span class="view-note"
+            >含继承视图（模拟 CHILD 展开，非运行时默认）</span
+          >
         </div>
-      </el-popover>
-      <el-button
-        v-if="capability === 'edit'"
-        type="primary"
-        :disabled="!hasSubject"
-        @click="emit('grant')"
-      >
-        授权
-      </el-button>
-      <span class="view-note">含继承视图（模拟 CHILD 展开，非运行时默认）</span>
+        <el-button
+          v-if="capability === 'edit'"
+          type="primary"
+          :disabled="!hasSubject"
+          @click="emit('grant')"
+        >
+          授权
+        </el-button>
+      </div>
+      <div class="toolbar-row filters">
+        <el-input
+          :model-value="keyword"
+          placeholder="搜索资源名称/编码"
+          clearable
+          :prefix-icon="Search"
+          class="toolbar-search"
+          @update:model-value="val => emit('update:keyword', String(val ?? ''))"
+        />
+        <div class="filter-divider" />
+        <el-tooltip
+          content="树级继承：子孙行显示来自祖先资源的授权（查看态过滤）"
+          placement="top"
+        >
+          <span class="toolbar-switch">
+            <el-switch
+              :model-value="includeResourceInherit"
+              inline-prompt
+              active-text="树继承"
+              inactive-text="树继承"
+              @update:model-value="
+                val => emit('update:includeResourceInherit', !!val)
+              "
+            />
+          </span>
+        </el-tooltip>
+        <el-tooltip
+          content="操作继承：被高级操作 inheritMask 覆盖的列显示为继承（查看态过滤）"
+          placement="top"
+        >
+          <span class="toolbar-switch">
+            <el-switch
+              :model-value="includeOpInherit"
+              inline-prompt
+              active-text="操作继承"
+              inactive-text="操作继承"
+              @update:model-value="
+                val => emit('update:includeOpInherit', !!val)
+              "
+            />
+          </span>
+        </el-tooltip>
+        <el-popover
+          v-model:visible="columnConfigVisible"
+          placement="bottom-end"
+          :width="240"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button :icon="Setting" text>操作列</el-button>
+          </template>
+          <div class="column-config">
+            <div class="config-title">显示操作列（刷新保留）</div>
+            <el-checkbox
+              v-for="col in unionColumns"
+              :key="col.code"
+              :model-value="!hiddenColumnCodes.includes(col.code)"
+              :label="`${col.name}（${col.code}）${col.globalFallback ? ' · 全局' : ''}`"
+              @update:model-value="val => toggleColumn(col.code, !!val)"
+            />
+          </div>
+        </el-popover>
+      </div>
     </div>
 
     <!-- 主体区 -->
@@ -467,9 +479,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
           <!-- 资源名称列 -->
           <template v-if="column.key === 'name'">
             <span v-if="rowData.kind === 'type'" class="type-row">
-              <el-tag size="small" effect="dark" type="primary">
-                {{ rowData.label }}
-              </el-tag>
+              {{ rowData.label }}
             </span>
             <span v-else-if="rowData.kind === 'all'" class="all-row">
               {{ rowData.label }}
@@ -524,26 +534,67 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
     }
   }
 
+  /* 面板卡片：与页面其他面板统一（白底 + 浅边框 + 轻阴影） */
   display: flex;
   flex-direction: column;
   min-width: 0;
   height: 100%;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 
   .matrix-toolbar {
-    display: flex;
-    gap: var(--space-2);
-    align-items: center;
-    padding: var(--space-2);
+    flex-shrink: 0;
+    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--el-border-color-lighter);
 
-    .toolbar-search {
-      width: 220px;
-    }
+    .toolbar-row {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
 
-    .view-note {
-      margin-left: auto;
-      font-size: 12px;
-      color: var(--el-text-color-secondary);
+      &.primary {
+        justify-content: space-between;
+        margin-bottom: var(--space-3);
+
+        .panel-heading {
+          display: flex;
+          gap: var(--space-3);
+          align-items: baseline;
+
+          .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
+            color: var(--el-text-color-primary);
+          }
+
+          .view-note {
+            font-size: 12px;
+            color: var(--el-text-color-secondary);
+          }
+        }
+      }
+
+      &.filters {
+        flex-wrap: wrap;
+
+        .toolbar-search {
+          width: 220px;
+        }
+
+        .filter-divider {
+          width: 1px;
+          height: 20px;
+          margin: 0 var(--space-1);
+          background: var(--el-border-color-lighter);
+        }
+
+        .toolbar-switch {
+          display: inline-flex;
+        }
+      }
     }
   }
 
@@ -554,7 +605,15 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
   }
 
   .type-row {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 var(--space-2);
+    font-size: 12px;
     font-weight: 600;
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-light);
+    border-radius: var(--radius-md);
   }
 
   .all-row {
@@ -608,6 +667,30 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
       font-size: 12px;
       color: var(--el-text-color-secondary);
     }
+  }
+
+  /* ---- el-table-v2 局部细化（仅本页矩阵） ---- */
+  :deep(.el-table-v2__header-row) {
+    height: 36px;
+  }
+
+  :deep(.el-table-v2__header-cell) {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-lighter);
+  }
+
+  :deep(.el-table-v2__row) {
+    transition: background-color 0.15s;
+
+    &:hover {
+      background: var(--el-fill-color-light);
+    }
+  }
+
+  :deep(.el-table-v2__row-cell) {
+    border-bottom: 1px solid var(--el-border-color-extra-light);
   }
 }
 </style>

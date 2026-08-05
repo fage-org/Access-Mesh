@@ -75,12 +75,6 @@ const badges = computed(() => {
   return result;
 });
 
-const isAutoDepOnly = computed(
-  () =>
-    hasPermission.value &&
-    props.sources.every(s => s.grantSource === "AUTO_DEP")
-);
-
 function sourceLabel(s: CellSource): string {
   const parts: string[] = [];
   if (s.grantSource === "AUTO_DEP") parts.push("由资源依赖自动补全");
@@ -107,7 +101,10 @@ function handleClick() {
     class="matrix-cell"
     :class="[
       mark ? `mark-${mark}` : '',
-      { empty: !hasPermission, readonly: isAutoDepOnly }
+      {
+        empty: !hasPermission,
+        editable: capability === 'edit'
+      }
     ]"
     @click="handleClick"
   >
@@ -212,29 +209,46 @@ function handleClick() {
   height: 100%;
   cursor: pointer;
   border-radius: var(--radius-sm);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
 
+  /* 空单元格：极淡背景，hover 显示可授权提示（仅编辑态可点击） */
   &.empty {
     color: var(--el-text-color-placeholder);
     cursor: default;
-  }
 
-  &.empty:hover {
-    background: var(--el-fill-color-light);
+    &.editable:hover {
+      cursor: pointer;
+      background: var(--el-fill-color-light);
+    }
   }
 
   .empty-hint {
     visibility: hidden;
     font-size: 14px;
+    font-weight: 300;
   }
 
-  &.empty:hover .empty-hint {
+  &.empty.editable:hover .empty-hint {
     visibility: visible;
+  }
+
+  /* 有权限：细边框小圆角块（商务风授权标记） */
+  &:not(.empty) {
+    border: 1px solid var(--el-border-color-lighter);
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary-light-5);
+    }
   }
 
   .cell-body {
     display: inline-flex;
     gap: 4px;
     align-items: center;
+    padding: 0 2px;
   }
 
   .source-dot {
@@ -245,7 +259,7 @@ function handleClick() {
     height: 18px;
     font-size: 12px;
     line-height: 1;
-    border-radius: 50%;
+    border-radius: var(--radius-full);
 
     &.direct {
       color: var(--el-color-primary);
@@ -310,10 +324,12 @@ function handleClick() {
   /* §6.2 diff 标记：add 绿底 / update 黄底 / remove 删除线淡出 */
   &.mark-add {
     background: var(--el-color-success-light-8);
+    border-color: var(--el-color-success-light-6);
   }
 
   &.mark-update {
     background: var(--el-color-warning-light-9);
+    border-color: var(--el-color-warning-light-6);
   }
 
   &.mark-partial-remove {

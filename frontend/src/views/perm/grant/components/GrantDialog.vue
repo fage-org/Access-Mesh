@@ -377,12 +377,15 @@ function handleClose() {
     :model-value="modelValue"
     title="授权"
     width="720px"
+    class="grant-dialog"
     :close-on-click-modal="false"
     @update:model-value="handleClose"
   >
     <!-- Step 1 选操作权限（按资源类型分组） -->
     <div class="step">
-      <div class="step-title">Step 1 选择操作权限</div>
+      <div class="step-title">
+        <span class="step-index">1</span>选择操作权限
+      </div>
       <el-select
         v-model="selectedOpKey"
         placeholder="选择操作权限（按资源类型分组）"
@@ -406,7 +409,9 @@ function handleClose() {
 
     <!-- Step 2 现状：该操作在当前主体下的资源授予情况（只读，覆盖位集展开） -->
     <div v-if="selectedOp" class="step">
-      <div class="step-title">Step 2 当前授予现状（只读）</div>
+      <div class="step-title">
+        <span class="step-index">2</span>当前授予现状（只读）
+      </div>
       <el-table
         v-if="currentGrants.length"
         :data="currentGrants"
@@ -446,7 +451,9 @@ function handleClose() {
 
     <!-- Step 3 范围 + 资源 -->
     <div v-if="selectedOp" class="step">
-      <div class="step-title">Step 3 选择范围与资源</div>
+      <div class="step-title">
+        <span class="step-index">3</span>选择范围与资源
+      </div>
       <div class="preset-hint">
         切换操作或范围后，将按当前授权重新加载；本弹窗内尚未确认的勾选不会保留。
       </div>
@@ -517,7 +524,7 @@ function handleClose() {
 
     <!-- Step 4 条件 + canGrant -->
     <div v-if="selectedOp" class="step">
-      <div class="step-title">Step 4 条件与转授</div>
+      <div class="step-title"><span class="step-index">4</span>条件与转授</div>
       <div class="step-4">
         <ConditionPicker
           v-model="conditionCode"
@@ -550,12 +557,61 @@ function handleClose() {
 </template>
 
 <style lang="scss" scoped>
+/* 弹窗局部细化：el-dialog teleport 到 body，scoped 无法命中，
+   通过唯一 class grant-dialog + :global() 限定在本页授权弹窗 */
+:global(.grant-dialog.el-dialog) {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgb(15 23 42 / 12%);
+}
+
+:global(.grant-dialog .el-dialog__header) {
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+:global(.grant-dialog .el-dialog__header .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+:global(.grant-dialog .el-dialog__body) {
+  padding: var(--space-4) var(--space-5);
+}
+
+:global(.grant-dialog .el-dialog__footer) {
+  padding: var(--space-3) var(--space-5);
+  background: var(--el-fill-color-lighter);
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
 .step {
+  padding: var(--space-3) var(--space-4);
   margin-bottom: var(--space-3);
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-md);
 
   .step-title {
-    margin-bottom: var(--space-1);
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-bottom: var(--space-2);
+    font-size: 13px;
     font-weight: 600;
+    color: var(--el-text-color-primary);
+
+    .step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      font-size: 11px;
+      color: #fff;
+      background: var(--el-color-primary);
+      border-radius: var(--radius-full);
+    }
   }
 
   .op-select {
@@ -594,6 +650,7 @@ function handleClose() {
     max-height: 260px;
     margin-top: var(--space-2);
     overflow: auto;
+    background: var(--el-bg-color);
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--radius-sm);
 
