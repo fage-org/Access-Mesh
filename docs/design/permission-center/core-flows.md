@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-27
+last_reviewed: 2026-08-05   # 2026-08-05 评审修复：list.resourceTypeCode + 嵌套子权限 20008 + 条件转授 20041
 ---
 
 # Permission Center 核心流程链路
@@ -110,11 +110,11 @@ flowchart LR
 | 步骤 | 接口                                           | 关键入参                                                         | 结果                             |
 | ---- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
 | 1    | `POST /api/perm/resource-entity/create`        | `resourceTypeCode + resourceCode + codeType + name`              | 创建菜单、按钮、API、DATA 等资源 |
-| 2    | `POST /api/perm/operation-permission/list`     | `resourceTypeCode`                                               | 选择适用操作                     |
+| 2    | `POST /api/perm/operation-permission/list`     | `resourceTypeCode + includeGlobalFallback`                      | 选择当前类型适用操作（专属优先、全局回退合并） |
 | 3    | `POST /api/perm/permission-condition/create`   | `conditionCode + conditionRules`                                 | 可选，创建复用条件               |
-| 4    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId + includeChildren`   | 读取当前权限   |
+| 4    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId + resourceTypeCode + includeChildren` | 读取当前类型权限（含跨类型子权限按 depend_on 挂父） |
 | 5    | `POST /api/perm/role-resource-permission/apply-grant-plan` | `roleTypeCode + roleExternalId + plan{creates/updates/removes}` | 单事务提交全部写意图             |
-| 6    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId`                     | 验证角色权限      |
+| 6    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId + resourceTypeCode`  | 验证角色权限（提交后刷新验证**继续沿用当前 MatrixContext 的单个 `resourceTypeCode`**，与第 4 步同口径） |
 
 关键逻辑（`apply-grant-plan`，详见 api-contract §6.5/§6.5.1）：
 
@@ -124,7 +124,7 @@ flowchart LR
 - **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递含 condition 维度、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、完整持久化键冲突 20033、scopeMode/资源兼容）经 `prevalidateGrantPlan` 唯一预检入口执行。
 - **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **无 CAS/无幂等表/无 clientRequestId**（第十四轮收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；操作必须与资源类型匹配，或操作是全局操作；条件可选，填写 `conditionCode` 时必须存在且启用。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；**操作适用性校验（2026-08-03 单类型矩阵上下文定稿）**：`operationCode` 必须适用于 `recordKey.resourceTypeCode`——按"专属优先、全局回退"规则（与 operation-permission/list 的 includeGlobalFallback 合并共用同一解析实现）：该类型存在同码专属定义时校验通过，无专属定义时全局操作可用，同码专属+全局并存以专属为准；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`；`operationCode=null`（组合位）跳过单码校验但**仍须校验位集**（`grantedBits` 每置位 ⊆ 该类型合并后适用操作集合的 `binaryBit` 并集，否则 20008）；**嵌套子权限（children[]）与挂父 create 按子记录自身字段执行同一校验**。**条件权限不可转授（2026-08-05 评审确认）**：`conditionCode != null` 时 `canGrant` 必须为 false（creates 三形态 + updates 结果态），违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`。条件可选，填写 `conditionCode` 时必须存在且启用。
 - 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；第十四轮收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）

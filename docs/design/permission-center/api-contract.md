@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-27
+last_reviewed: 2026-08-05   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 评审修复（list 类型过滤/嵌套 20008/条件转授 20041）
 ---
 
 # Permission Center 外部 API 契约
@@ -222,6 +222,31 @@ last_reviewed: 2026-06-27
 | `POST /api/perm/resource-entity/remove`       | 删除资源，支持批量 |
 | `POST /api/perm/resource-entity/sync`         | 资源实体专用幂等同步 |
 | `POST /api/perm/resource-entity/full-sync`    | 按 scope 全量校准资源 |
+
+**请求（类型查询参数，🔧 T-PERM-040）**：
+
+```json
+{
+  "resourceTypeCode": "ADMIN_ORG",
+  "includeGlobalFallback": true
+}
+```
+
+| 参数 | 类型 | 口径 |
+|---|---|---|
+| resourceTypeCode | string\|null | 可选；**includeGlobalFallback=false/缺省时**：null/缺省 = 不过滤，返回全量原始定义（兼容现状）；**includeGlobalFallback=true 时**：null/缺省 等价于显式 null，仅返回全局操作集合（无专属侧，见合并语义） |
+| includeGlobalFallback | boolean | 可选，默认 false；true 时后端完成"**专属优先、全局回退**"合并，响应直接返回当前 `resourceTypeCode` 最终可用的操作集合（前端不再重复领域规则） |
+
+> **调用方门禁**：本参数不引入新门禁；接口鉴权维持现状（`OPERATION:VIEW` 等既有接线），矩阵页消费方仍以既有页面门禁控制可见性。
+
+**合并语义（includeGlobalFallback=true）**：
+
+- 有效操作集合 = 当前 `resourceTypeCode` 的专属操作 ∪ 没有同码专属定义时适用的全局操作（`resourceTypeCode=null`）。
+- `resourceTypeCode=null/缺省 + includeGlobalFallback=true`：无专属侧，结果 = **仅全局操作集合**（不返回其他类型的专属定义；禁止在全量口径下合并，否则专属优先会错误剔除全局定义并跨类型暴露位定义）。
+- 同一 `operationCode` 同时存在专属定义与全局定义时**专属优先**（全局定义被合并剔除）。
+- 合并结果中，被采用的专属定义条目 `resourceTypeCode` 为当前类型；被采用的全局条目 `resourceTypeCode` 保持 `null`（前端来源链据此标注"全局操作"）。
+- **操作继承语义随合并固化**：调用方使用合并结果中每条定义的 `binaryBit`/`inheritMask` 做覆盖计算，禁止跨类型混用其他类型同码位定义。
+- 如调用方自行合并（`includeGlobalFallback=false` 或未传），后端返回原始定义集合（含当前类型专属 + 全局操作），调用方按上述同一规则合并；响应每项均含明确 `resourceTypeCode` 与十进制字符串 `binaryBit/inheritMask`。
 
 `operation-permission/list` 响应 `data.items[]`，每项为 `OperationPermissionResp`（**字段精确对齐 DTO**，P1-4 修正；🔧 binaryBit/inheritMask 线格式修订归 **T-PERM-028**，T-FE-036 前置验收点）：
 
@@ -968,12 +993,16 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
   "domainCode": "admin",
   "roleTypeCode": "BASIC_ROLE",
   "roleExternalId": "role_admin",
+  "resourceTypeCode": "ADMIN_ORG",
   "includeChildren": false
 }
 ```
 
 - `domainCode` 可选：非空时仅校验域存在性（域不存在 → 解析失败返回空列表）；**不按域过滤**——`abstract_role` 无域列（`biz_domain_id` 已移除），角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页可恒传 null。（修正 2026-08-01 第五轮 review P1-1：原"为空时只定位全局角色"为旧模型残留文字）
-- `includeChildren`（可选，默认 `true` 兼容现行为）：`false` 时只返回主权限（`depend_on IS NULL`），子权限不进列表（T-FE-036 来源链计算使用）；`true` 时返回主权限 + 子权限（现状）。
+- **`resourceTypeCode`（可选；🔧 T-PERM-040，单类型矩阵上下文定稿）**：按资源类型过滤主权限（`depend_on IS NULL` 且 `resource_type` 匹配当前类型）。**授权矩阵调用时必填**（矩阵一次只呈现一个类型，见 permission-grant.md §2.2）；null/缺省 = 不过滤（兼容既有调用方，如 admin-service 菜单授权按角色取全量）。
+- `includeChildren`（可选，默认 `true` 兼容现行为）：
+  - `false`：只返回该类型主权限（`depend_on IS NULL` + 上述类型过滤），子权限不进列表（T-FE-036 来源链计算使用）；
+  - `true`：返回**该类型主权限及其全部子权限**——子权限按 `depend_on` 挂在其父主权限下返回，**子权限自身可能属于其他资源类型，不能按子记录自身 `resource_type` 过滤**（如父为 `ADMIN_ORG` 权限、子为 `BUTTON`/`DATA` 权限是合法配置）；**子权限集合双重约束：`depend_on` ∈ 主权限集合 且 `abstract_role_id` = 目标角色**（跨类型返回不引入其他角色或其他主权限下的记录）；`resourceTypeCode=null` 时按现状返回全量主权限 + 全部子权限。
 
 响应：`data.items[]`，每项为 `RolePermissionItemResp`（14 字段；🔧 其中 `grantSource`/`grantedBits`/`createdAt`/`childCount` 与 `includeChildren` 参数为 T-PERM-034 待实现，当前后端未暴露）：
 
@@ -1022,7 +1051,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 6.5.1 聚合授权提交 apply-grant-plan（🔧 T-PERM-034，第十二轮收敛为唯一写入口，第十四轮收窄）
 
-**第十四轮（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（T-PERM-040 删除）；schema 文件删除，本节为唯一权威契约（补结构约束）。
+**第十四轮（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（幂等中间件实现取消（未登记看板））；schema 文件删除，本节为唯一权威契约（补结构约束）。
 
 `POST /api/perm/role-resource-permission/apply-grant-plan`
 
@@ -1055,7 +1084,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - 请求体封闭对象（固定字段集，无额外字段）；`domainCode` 可选（非空仅校验域存在性，不按域过滤）；`roleTypeCode`/`roleExternalId`/`plan` 必填。
 - `plan.creates[]`：`key`（recordKey）+ 可选 `parentPermissionId`（挂父，仅引用提交前已存在父）+ 可选 `children`（仅主权限可用，一次性建树）。
-- `recordKey` 跨字段约束：`scopeMode=INSTANCE` -> `resourceCode`/`codeType` 必填（minLength 1）；`scopeMode=ALL` -> `resourceCode`/`codeType` 为 null。
+- `recordKey` 跨字段约束：`scopeMode=INSTANCE` -> `resourceCode`/`codeType` 必填（minLength 1）；`scopeMode=ALL` -> `resourceCode`/`codeType` 为 null；**`conditionCode != null` -> `canGrant=false`（🔧 T-PERM-041，条件权限不可转授；同约束适用于 children[] 与 updates 结果态）**。
 - `plan.updates[]`：`id` 必填 + `canGrant`（三态：null=不改/true/false）+ `conditionCode`（三态：缺省或 null=不改/""=清除/非空=覆盖）；与 `removes` 互斥（同 id 不得同时出现在两段）。
 - `plan.removes[]`：integer 数组（记录 id）。
 - `permissionItem`（响应 items）：`grantedBits` 十进制字符串（63 位位图，前端 BigInt 解析）；`createdAt` local-date-time 无时区（如 `2026-04-20T10:30:00`，ISO-8601 无时区，非 RFC 3339）。
@@ -1067,17 +1096,21 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 **校验规则**（经 `prevalidateGrantPlan` 唯一预检入口执行，AppService 禁止自行拼门禁）：
 
 - 目标抽象角色 `ROLE:MANAGE`（hasPermission 返回 boolean，必须显式判断 false 抛 SecurityException，先于一切分支）。
+- **creates/updates 共用不变量（🔧 T-PERM-041，2026-08-06 三轮评审移置）**：
+  - **条件不可转授**：`conditionCode != null` 时 `canGrant` 必须为 `false`——覆盖 `creates[].key`、`creates[].children[]`、`parentPermissionId` 挂父的 create，及 `updates` 应用三态变更后的**最终状态**（判定与 update 是否同时携带 conditionCode/canGrant **无关**：只改 conditionCode 覆盖到当前 canGrant=true 的记录、或只改 canGrant=true 使已有条件的记录变为可转授，均按最终状态判定）；违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）。
 - **creates**：
   - 主权限（`parentPermissionId` 缺省）：同持久化键已存在 MANUAL 记录 -> **20033**（查重基于本请求 removes 软删生效后状态，合法"先删后同键重加"不误判；AUTO_DEP 并列允许）；children 一次性建树；`canGrant` 缺省 false。
   - 子权限（`parentPermissionId` 非空）：父不存在 -> **20009**；父非主权限 -> **20010**；不得再带 children。
-  - 逐项 `checkCanGrant`（匹配键含 condition 维度）；`canGrant=true` 走 `canGrantPermission`，不满足 -> **20040** `GRANT_CANNOT_DELEGATE`；SUB_PERM 约束（fail-closed，父域 resource_type 直查，§6.5）；`scopeMode`/资源兼容。
-- **updates**：目标 id 必须存在且属于目标角色 -> 否则 **20036**；AUTO_DEP -> **20034**；与 removes 互斥；`canGrant` 改 true / `conditionCode` 有变更 -> `canGrantPermission`；条件冲突查重排除目标记录自身；**实际影响行数 ≠ 预期 -> 20036 整体回滚**；update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
+  - **operationCode 适用性校验（🔧 T-PERM-040）**：逐项校验 `operationCode` 是否适用于 `recordKey.resourceTypeCode`——**必须复用 operation-permission/list 的"专属优先、全局回退"规则**（同一解析实现，禁止两套逻辑），判定基于**有效（未停用）操作定义**：该类型存在同码专属定义时校验通过；无专属定义时全局操作（`resourceTypeCode=null`）可用；同码专属+全局并存时以专属定义为准（全局定义不构成该校验的适用依据）；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`（错误码已存在，复用）。`operationCode=null`（组合位记录）**跳过单码校验，但仍须校验位集**：`grantedBits` 的每个置位必须 ⊆ 该类型合并后适用操作集合的 `binaryBit` 并集（即每个位都能对应到当前类型的专属或回退全局操作定义），否则 -> **20008**——防止以组合位名义写入不适用的操作位。**覆盖全部新记录形态**：`creates[].key`（主权限）、`creates[].children[]` 嵌套子权限（以其自身 `resourceTypeCode + operationCode` 校验，**children 不是 recordKey 结构，按子记录自身字段执行同一规则**）、`parentPermissionId` 挂已有父记录的 create——不允许通过 `children[]` 或挂父形态绕过（🔧 T-PERM-040 补嵌套反例测试）。
+  - **条件不可转授 -> 20041**：见上方 **creates/updates 共用不变量**（2026-08-06 三轮评审移置，此处不再重复）。
+  - 逐项 `checkCanGrant`（匹配键含 condition 维度；**组合位（`operationCode=null`）记录按记录粒度执行 checkCanGrant**——授权传递校验维度按记录，位集合法性按位（§20008 位集规则），两者口径分离）；`canGrant=true` 走 `canGrantPermission`，不满足 -> **20040** `GRANT_CANNOT_DELEGATE`；SUB_PERM 约束（fail-closed，父域 resource_type 直查，§6.5）；`scopeMode`/资源兼容。
+- **updates**：目标 id 必须存在且属于目标角色 -> 否则 **20036**；AUTO_DEP -> **20034**；与 removes 互斥；**条件不可转授按最终状态判定（creates/updates 共用不变量，违反 -> 20041，见上）**；`canGrant` 改 true / `conditionCode` 有变更 -> `canGrantPermission`；条件冲突查重排除目标记录自身；**实际影响行数 ≠ 预期 -> 20036 整体回滚**；update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **removes**：主权限 id -> 级联删子（预期行为）；子权限 id -> 单条删；id 不存在/已软删/非目标角色 -> **20036**；AUTO_DEP -> **20034**；**实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚**。
-- **无幂等中间件（第十四轮定案）**：**砍 clientRequestId / @Idempotent / 幂等表**（T-PERM-040 删除）；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。执行顺序：① 认证 + ROLE:MANAGE 门禁（hasPermission 显式判断 false 抛 SecurityException）-> ② prevalidateGrantPlan -> ③ 单事务执行 + 受影响行数断言。
-- **砍（第十四轮）**：`expectedRevision` CAS / `grant_revision` 列 / 20037 `VERSION_CONFLICT` / 20039 `IDEMPOTENCY_OPERATOR_MISMATCH` / 幂等表 `grant_plan_idempotency` / hash canonical / replayed/currentRevision / 20037 重试 machinery / clientRequestId / @Idempotent 中间件（T-PERM-040 删除）。
+- **无幂等中间件（第十四轮定案）**：**砍 clientRequestId / @Idempotent / 幂等表**（幂等中间件实现取消（未登记看板））；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。执行顺序：① 认证 + ROLE:MANAGE 门禁（hasPermission 显式判断 false 抛 SecurityException）-> ② prevalidateGrantPlan -> ③ 单事务执行 + 受影响行数断言。
+- **砍（第十四轮）**：`expectedRevision` CAS / `grant_revision` 列 / 20037 `VERSION_CONFLICT` / 20039 `IDEMPOTENCY_OPERATOR_MISMATCH` / 幂等表 `grant_plan_idempotency` / hash canonical / replayed/currentRevision / 20037 重试 machinery / clientRequestId / @Idempotent 中间件（幂等中间件实现取消（未登记看板））。
 - 写入 `permission_change_log` + 一次 `PermInvalidateEvent`（afterCommit）。
 
-**错误码枚举（apply-grant-plan 链路，第十四轮精简）**：20001 ROLE_NOT_FOUND / 20003 ROLE_DISABLED / 20004 RESOURCE_NOT_FOUND / 20005 OPERATION_NOT_FOUND / 20006 CONDITION_NOT_FOUND / 20007 RESOURCE_TYPE_NOT_FOUND / 20008 RESOURCE_TYPE_OPERATION_MISMATCH / 20009 PARENT_PERMISSION_NOT_FOUND / 20010 PARENT_PERMISSION_NOT_TOP_LEVEL / 20011 SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED / 20012 RESOURCE_CODE_REQUIRED（INSTANCE 缺 resourceCode 服务端兜底）/ 20033 CONDITION_BRANCH_CONFLICT / 20034 AUTO_DEP_READONLY / 20036 PERMISSION_NOT_FOUND / 20040 GRANT_CANNOT_DELEGATE；**砍 20037/20039**；20013/20014/20035 随旧子权限接口移除；20038 随同键重建语义废弃。
+**错误码枚举（apply-grant-plan 链路，第十四轮精简）**：20001 ROLE_NOT_FOUND / 20003 ROLE_DISABLED / 20004 RESOURCE_NOT_FOUND / 20005 OPERATION_NOT_FOUND / 20006 CONDITION_NOT_FOUND / 20007 RESOURCE_TYPE_NOT_FOUND / 20008 RESOURCE_TYPE_OPERATION_MISMATCH / 20009 PARENT_PERMISSION_NOT_FOUND / 20010 PARENT_PERMISSION_NOT_TOP_LEVEL / 20011 SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED / 20012 RESOURCE_CODE_REQUIRED（INSTANCE 缺 resourceCode 服务端兜底）/ 20033 CONDITION_BRANCH_CONFLICT / 20034 AUTO_DEP_READONLY / 20036 PERMISSION_NOT_FOUND / 20040 GRANT_CANNOT_DELEGATE / **20041 CONDITIONAL_PERMISSION_CANNOT_DELEGATE（🔧 T-PERM-041，条件权限不可转授，2026-08-05 评审确认）**；**砍 20037/20039**；20013/20014/20035 随旧子权限接口移除；20038 随同键重建语义废弃。
 
 ### 6.6 通用资源权限查询
 

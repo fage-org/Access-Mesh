@@ -438,6 +438,10 @@ CREATE TABLE role_resource_permission (
         (scope_all = false AND resource_entity_id IS NOT NULL)
         OR
         (scope_all = true AND resource_entity_id IS NULL)
+    ),
+    -- 🔧 T-PERM-041（2026-08-05 评审确认）：条件权限不可转授
+    CONSTRAINT ck_role_resource_permission_condition_can_grant CHECK (
+        condition_id IS NULL OR can_grant = false
     )
 );
 
