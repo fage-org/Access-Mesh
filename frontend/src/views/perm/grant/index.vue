@@ -23,20 +23,26 @@ const {
   canManage,
   canCondition,
   grantStore,
+  allResourceForest,
+  allOperationDefs,
   resourceForest,
   operationDefs,
   conditions,
   depsLoading,
+  typeCandidates,
+  currentTypeCode,
+  subjectPermissionTypes,
+  matrixLoading,
   includeResourceInherit,
   includeOpInherit,
   resourceKeyword,
   hiddenColumnCodes,
   effective,
   sourceChain,
-  matrixTypeCodes,
   unionColumns,
   visibleColumns,
   handleSelectSubject,
+  handleSwitchType,
   confirmDiscardIfDirty,
   subjectTreeRef,
   activeKey,
@@ -155,15 +161,18 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             v-model:hidden-column-codes="hiddenColumnCodes"
             :source-chain="sourceChain"
             :resource-forest="resourceForest"
-            :matrix-type-codes="matrixTypeCodes"
+            :type-candidates="typeCandidates"
+            :current-type-code="currentTypeCode"
+            :permission-type-codes="subjectPermissionTypes"
             :visible-columns="visibleColumns"
             :union-columns="unionColumns"
             :mark-info="effective.markInfo"
             :capability="grantStore.capability"
-            :loading="depsLoading || grantStore.baselineLoading"
+            :matrix-loading="matrixLoading"
             :has-subject="hasSubject"
             :group-hint="groupHint"
             :locate-request="locateRequest"
+            @switch-type="handleSwitchType"
             @cell-detail="onCellDetail"
             @cell-grant="onCellGrant"
             @grant="openGrantDialog()"
@@ -232,15 +241,15 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
         @confirm="handleDialogConfirm"
       />
 
-      <!-- 详情层抽屉（多分支 / 子权限） -->
+      <!-- 详情层抽屉（多分支 / 子权限；资源树/操作传全量只读依赖——子权限可切换其他类型，T-FE-038） -->
       <PermissionDetailDrawer
         v-model="drawerVisible"
         :target="drawerTarget"
         :records="drawerRecords"
         :children-provider="childrenOf"
         :conditions="conditions"
-        :operations="operationDefs"
-        :resource-forest="resourceForest"
+        :operations="allOperationDefs"
+        :resource-forest="allResourceForest"
         :can-manage="canManage && grantStore.capability === 'edit' && !frozen"
         :can-condition="canCondition"
         :undefined-bits-by-record="sourceChain.undefinedBitsByRecord"

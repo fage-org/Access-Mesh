@@ -311,6 +311,11 @@ function resolveOperationBits(
   return hit ? String(hit.binaryBit) : null;
 }
 
+/** 操作码是否存在（任何类型专属或全局定义）——20005（不存在）与 20008（存在但不适用于当前类型）的区分依据 */
+function operationCodeExists(code: string): boolean {
+  return operations.some(op => op.code === code);
+}
+
 /** 资源类型是否存在（任一资源或操作定义引用） */
 function isKnownResourceType(resourceTypeCode: string): boolean {
   return (
@@ -349,11 +354,26 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const roleKey = roleKeyOf(body || {});
+      const { resourceTypeCode } = body || {};
       const includeChildren = body?.includeChildren !== false;
       const all = aliveRecords(roleKey);
-      const items = all
-        .filter(r => (includeChildren ? true : r.dependOn == null))
-        .map(r => toItem(r, all));
+      // resourceTypeCode 过滤只作用于主权限（depend_on IS NULL 且类型匹配，契约 §6.4 T-PERM-040）；
+      // 子权限按 depend_on 挂在其父主权限下返回，子权限自身可跨类型（不按子记录类型过滤），
+      // 双重约束：depend_on ∈ 主权限集合 且属于目标角色。
+      const mains = all.filter(
+        r =>
+          r.dependOn == null &&
+          (!resourceTypeCode || r.resourceTypeCode === resourceTypeCode)
+      );
+      const mainIds = new Set(mains.map(r => r.id));
+      const items = (
+        includeChildren
+          ? [
+              ...mains,
+              ...all.filter(r => r.dependOn != null && mainIds.has(r.dependOn))
+            ]
+          : mains
+      ).map(r => toItem(r, all));
       return ok({ items });
     }
   },
@@ -484,7 +504,13 @@ export default defineFakeRoute([
           key.operationCode
         );
         if (bits == null) {
-          return error(20005, `操作权限不存在（${key.operationCode}）`);
+          // 20008 演练（T-PERM-040 契约 §6.4-14③）：操作码存在但当前类型不适用（专属优先、全局回退合并后不匹配）
+          return operationCodeExists(key.operationCode)
+            ? error(
+                20008,
+                `操作权限与资源类型不匹配（${key.operationCode} 不适用于 ${key.resourceTypeCode}）`
+              )
+            : error(20005, `操作权限不存在（${key.operationCode}）`);
         }
         if (
           key.conditionCode != null &&
@@ -582,10 +608,16 @@ export default defineFakeRoute([
               child.operationCode
             );
             if (childBits == null) {
-              return error(
-                20005,
-                `子权限操作权限不存在（${child.operationCode}）`
-              );
+              // 20008 演练覆盖 children[] 嵌套形态（T-PERM-040：不能通过嵌套绕过）
+              return operationCodeExists(child.operationCode)
+                ? error(
+                    20008,
+                    `操作权限与资源类型不匹配（${child.operationCode} 不适用于 ${child.resourceTypeCode}）`
+                  )
+                : error(
+                    20005,
+                    `子权限操作权限不存在（${child.operationCode}）`
+                  );
             }
             if (
               child.conditionCode != null &&

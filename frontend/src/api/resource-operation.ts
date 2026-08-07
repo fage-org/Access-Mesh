@@ -123,10 +123,17 @@ export type OperationPermissionResp = {
   updatedAt: string;
 };
 
-/** 操作权限列表查询参数（对齐 OperationListReq，无分页） */
+/** 操作权限列表查询参数（对齐 OperationListReq；无分页；🔧 T-PERM-040 增加 includeGlobalFallback） */
 export type OperationListQuery = {
   resourceTypeCode?: string | null;
   domainCode?: string | null;
+  /**
+   * 可选，默认 false；true 时后端完成"专属优先、全局回退"合并，响应直接返回
+   * 当前 resourceTypeCode 最终可用的操作集合（前端不再重复领域规则）。
+   * resourceTypeCode=null/缺省 + true = 仅全局操作集合。
+   * T-FE-038 本页矩阵操作列一律走 includeGlobalFallback=true。
+   */
+  includeGlobalFallback?: boolean;
 };
 
 /** 操作权限创建请求（对齐 OperationCreateReq） */

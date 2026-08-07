@@ -647,7 +647,30 @@ export default defineFakeRoute([
     url: "/api/perm/operation-permission/list",
     method: "post",
     response: ({ body }) => {
-      const { resourceTypeCode } = body || {};
+      const { resourceTypeCode, includeGlobalFallback } = body || {};
+      // includeGlobalFallback=true：后端完成"专属优先、全局回退"合并（T-PERM-040 契约 §5.3 模拟）
+      if (includeGlobalFallback === true) {
+        // resourceTypeCode=null/缺省 + true = 仅全局操作集合（禁止全量口径合并）
+        if (resourceTypeCode == null) {
+          const globals = operations
+            .filter(op => op.resourceTypeCode === null)
+            .slice()
+            .sort((a, b) => a.binaryBit - b.binaryBit);
+          return ok({ items: globals });
+        }
+        const typed = operations.filter(
+          op => op.resourceTypeCode === resourceTypeCode
+        );
+        const typedCodes = new Set(typed.map(op => op.code));
+        const merged = [
+          ...typed,
+          ...operations.filter(
+            op => op.resourceTypeCode === null && !typedCodes.has(op.code)
+          )
+        ].sort((a, b) => a.binaryBit - b.binaryBit);
+        return ok({ items: merged });
+      }
+      // 兼容现状：有类型过滤返回该类型专属定义；无类型返回全量原始定义
       const items = operations
         .filter(op =>
           resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true

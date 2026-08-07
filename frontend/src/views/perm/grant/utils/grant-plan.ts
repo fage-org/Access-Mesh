@@ -760,5 +760,61 @@ export function computePreset(args: {
   };
 }
 
+// ========== 定位投影（T-FE-038 review P2-4） ==========
+
+/**
+ * 子权限变更的父主权限定位键。
+ * 子权限变更（含跨类型子权限）的 summary.resourceTypeCode 可能不是当前矩阵类型，
+ * 而矩阵资源树只有当前类型 → 定位需投影到父主权限单元格
+ * （父主权限一定在当前类型：详情层只在当前类型打开）。
+ * 返回 null = 主权限变更（无父），调用方用变更自身定位。
+ *
+ * @param change 待定位变更
+ * @param changes 当前草稿清单（草稿父经 parentChangeId 查找）
+ * @param mains 当前类型主权限生效视图（持久化父经 dependOn/parentPermissionId 查找，
+ *  含草稿态记录）
+ */
+export function parentLocateOf(
+  change: DraftChange,
+  changes: DraftChange[],
+  mains: RolePermissionItem[]
+): {
+  resourceTypeCode: string;
+  resourceCode: string | null;
+  codeType: string | null;
+  operationCode: string;
+} | null {
+  // 草稿父（子权限挂草稿 add 父）：父 add 的 recordKey 即父定位键
+  if (change.kind === "add" && change.parentChangeId != null) {
+    const parent = changes.find(c => c.changeId === change.parentChangeId);
+    if (parent?.kind === "add") {
+      return {
+        resourceTypeCode: parent.recordKey.resourceTypeCode,
+        resourceCode: parent.recordKey.resourceCode,
+        codeType: parent.recordKey.codeType,
+        operationCode: parent.recordKey.operationCode
+      };
+    }
+  }
+  // 持久化父：dependOn -> 主权限 id（草稿态记录亦在生效视图中）
+  const parentId =
+    change.kind === "add"
+      ? (change.parentPermissionId ?? null)
+      : change.kind === "update"
+        ? (change.before.dependOn ?? null)
+        : change.kind === "remove"
+          ? (change.records[0]?.dependOn ?? null)
+          : (change.removedRecords[0]?.dependOn ?? null);
+  if (parentId == null) return null;
+  const parent = mains.find(r => r.id === parentId);
+  if (!parent) return null;
+  return {
+    resourceTypeCode: parent.resourceTypeCode,
+    resourceCode: parent.resourceCode,
+    codeType: parent.codeType,
+    operationCode: parent.operationCode
+  };
+}
+
 /** 位运算工具 re-export（组件层便利性） */
 export { toBigIntBits };

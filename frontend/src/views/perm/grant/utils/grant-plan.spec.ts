@@ -17,6 +17,7 @@ import {
   draftParentKey,
   findBranchConflict,
   groupKeyOf,
+  parentLocateOf,
   persistedParentKey,
   resolveGrantedBits,
   computePreset,
@@ -994,5 +995,116 @@ describe("computePreset（评审问题 1）", () => {
       records
     });
     expect(preset.checkedTripleKeys.size).toBe(2);
+  });
+});
+
+// ========== parentLocateOf（T-FE-038 review P2-4 定位投影） ==========
+
+describe("parentLocateOf（子权限变更投影到父主权限单元格）", () => {
+  const parent = addChangeOf(makeRecord({ id: 9001 })); // DATA/data:r1/VIEW 主权限 add
+  const mains = [makeRecord({ id: 9001 })]; // 持久化父（effective.mains 视角）
+
+  it("主权限变更（无父）→ null（用变更自身定位）", () => {
+    expect(parentLocateOf(parent, [parent], mains)).toBeNull();
+    const remove = buildRemoveChange({
+      records: [makeRecord({ id: 9002 })],
+      cascadeChildCount: 0,
+      reason: "detail-delete",
+      summary: summaryOf(makeRecord({ id: 9002 }))
+    });
+    expect(parentLocateOf(remove, [], mains)).toBeNull();
+  });
+
+  it("add + parentChangeId（草稿父）→ 父 add 的 recordKey", () => {
+    const child: AddChange = {
+      ...addChangeOf(
+        makeRecord({
+          resourceTypeCode: "REPORT",
+          resourceCode: "report:r1"
+        })
+      ),
+      parentChangeId: parent.changeId
+    };
+    const locate = parentLocateOf(child, [parent], mains);
+    expect(locate).toEqual({
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r1",
+      codeType: "default",
+      operationCode: "VIEW"
+    });
+  });
+
+  it("add + parentPermissionId（持久化父）→ effective.mains 匹配的主权限", () => {
+    const child: AddChange = {
+      ...addChangeOf(
+        makeRecord({
+          resourceTypeCode: "REPORT",
+          resourceCode: "report:r1"
+        })
+      ),
+      parentPermissionId: 9001
+    };
+    const locate = parentLocateOf(child, [], mains);
+    expect(locate?.resourceTypeCode).toBe("DATA");
+    expect(locate?.operationCode).toBe("VIEW");
+  });
+
+  it("update（子权限编辑，before.dependOn）→ 父主权限", () => {
+    const childUpdate = buildUpdateChange({
+      before: makeRecord({
+        id: 9003,
+        dependOn: 9001,
+        resourceTypeCode: "REPORT"
+      }),
+      after: { canGrant: true, conditionCode: null },
+      summary: summaryOf(makeRecord({ id: 9003 }))
+    });
+    const locate = parentLocateOf(childUpdate, [], mains);
+    expect(locate?.resourceTypeCode).toBe("DATA");
+    expect(locate?.resourceCode).toBe("data:r1");
+  });
+
+  it("remove（子权限删除，records[0].dependOn）→ 父主权限", () => {
+    const childRemove = buildRemoveChange({
+      records: [
+        makeRecord({
+          id: 9004,
+          dependOn: 9001,
+          resourceTypeCode: "REPORT"
+        })
+      ],
+      cascadeChildCount: 0,
+      reason: "detail-delete",
+      summary: summaryOf(makeRecord({ id: 9004 }))
+    });
+    const locate = parentLocateOf(childRemove, [], mains);
+    expect(locate?.resourceTypeCode).toBe("DATA");
+    expect(locate?.operationCode).toBe("VIEW");
+  });
+
+  it("replace（子权限跨键替换，removedRecords[0].dependOn）→ 父主权限", () => {
+    const oldChild = makeRecord({
+      id: 9005,
+      dependOn: 9001,
+      resourceTypeCode: "REPORT",
+      childCount: 0
+    });
+    const replace = buildReplaceChange({
+      removedRecords: [oldChild],
+      newKey: {
+        resourceTypeCode: "DATA",
+        resourceCode: "data:r9",
+        codeType: "default",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE",
+        conditionCode: null,
+        canGrant: false
+      },
+      cascadeChildCount: 0,
+      summary: summaryOf(oldChild)
+    });
+    const locate = parentLocateOf(replace, [], mains);
+    expect(locate?.resourceTypeCode).toBe("DATA");
+    expect(locate?.operationCode).toBe("VIEW");
   });
 });

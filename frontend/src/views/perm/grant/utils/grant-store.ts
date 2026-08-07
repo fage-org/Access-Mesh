@@ -58,6 +58,27 @@ export type GrantStoreState = {
   saveToken: number;
 };
 
+/**
+ * 按当前 MatrixContext 过滤 apply-grant-plan 响应（T-FE-038 review P1-1）。
+ * 响应 = 角色**完整**权限集合（契约 §6.5.1，mock 亦然），单类型矩阵 baseline 不变量为
+ * "当前类型主权限 + 其全部子权限"（子权限按 depend_on 挂父、可跨类型，与 list 类型过滤
+ * 语义一致，契约 §6.4）；不过滤会引入其他类型主权限，再次编辑全局 INSTANCE 操作时
+ * 被识别为"取消勾选"进入 removes —— 误删其他类型权限。
+ */
+export function filterBaselineByType(
+  items: RolePermissionItem[],
+  resourceTypeCode: string
+): RolePermissionItem[] {
+  const mains = items.filter(
+    r => r.dependOn == null && r.resourceTypeCode === resourceTypeCode
+  );
+  const mainIds = new Set(mains.map(r => r.id));
+  return [
+    ...mains,
+    ...items.filter(r => r.dependOn != null && mainIds.has(r.dependOn))
+  ];
+}
+
 /** 保存失败分类（对齐 _envelope ErrorKind 语义：明确拒绝白名单可安全重试，其余结果未知） */
 export function classifySaveError(error: unknown): {
   message: string;
@@ -93,16 +114,18 @@ export function classifySaveError(error: unknown): {
 }
 
 /**
- * 拉取主体基线（selectSubject 与 loadBaseline 共用；问题 3 共享 baselineToken 代域）。
- * list includeChildren=true 一次取全量，免逐项懒加载。
+ * 拉取主体基线（selectSubject/loadBaseline/switchMatrixType 共用；问题 3 共享 baselineToken 代域）。
+ * list includeChildren=true 一次取全量；resourceTypeCode 按当前矩阵类型过滤主权限（T-PERM-040 契约 §6.4）。
  */
 async function fetchBaseline(
-  context: GrantContext
+  context: GrantContext,
+  resourceTypeCode: string | null
 ): Promise<RolePermissionItem[]> {
   const resp = await getRolePermissionList({
     domainCode: context.domainCode,
     roleTypeCode: context.roleTypeCode,
     roleExternalId: context.roleExternalId,
+    resourceTypeCode,
     includeChildren: true
   });
   return resp.items ?? [];
@@ -145,17 +168,56 @@ export const useGrantStore = defineStore("perm-grant", {
     },
 
     /**
+     * 预取主体基线（T-FE-038 review P2-4：无副作用，与资源树/操作列/类型标记并行读取）。
+     * 共享 baselineToken 代域：预取期间交互所有权转移（cancelPending 等）→ 返回 null，
+     * 数据不得用于提交；网络错误时过期请求静默（不抛），当前代则抛给页面层提示。
+     * 不设置 baselineLoading（并行读阶段由页面 matrixLoading 呈现，防误拦类型切换）。
+     */
+    async prepareBaseline(
+      context: GrantContext,
+      resourceTypeCode: string | null
+    ): Promise<RolePermissionItem[] | null> {
+      const token = ++this.baselineToken;
+      try {
+        const items = await fetchBaseline(context, resourceTypeCode);
+        if (token !== this.baselineToken) return null;
+        return items;
+      } catch (error) {
+        if (token !== this.baselineToken) return null;
+        throw error;
+      }
+    },
+
+    /**
+     * 提交已预取的主体（T-FE-038 review P2-4：prepareBaseline 成功后同步调用，无网络）。
+     * 原子提交 context/baseline/changes/submit；saving 期间拒绝（返回 false，不改状态）。
+     */
+    commitSubject(context: GrantContext, items: RolePermissionItem[]): boolean {
+      if (this.submit.kind === "saving") return false;
+      this.context = context;
+      this.baseline = items;
+      this.changes = [];
+      this.submit = { kind: "idle" };
+      return true;
+    },
+
+    /**
      * 切换主体（评审问题 3：原子提交 + 代际令牌；问题 4：saving 冻结）。
      * saving 期间拒绝（返回 false，不改状态）；未保存变更拦截由页面层先行确认。
      * 延迟设置 context：请求成功且 token 仍当前才原子提交 context/baseline/changes/submit，
      * 避免加载数据前更新上下文导致竞态（过期请求不写任何字段）。
+     * resourceTypeCode = 主体切换后的默认矩阵类型（§3.6 主体切换与类型切换共用加载管线）。
+     * （T-FE-038 主体切换主路径已改用 prepareBaseline + commitSubject 并行化，本方法保留兼容）
      */
-    async selectSubject(context: GrantContext): Promise<boolean> {
+    async selectSubject(
+      context: GrantContext,
+      resourceTypeCode: string | null
+    ): Promise<boolean> {
       if (this.submit.kind === "saving") return false;
       const token = ++this.baselineToken;
       this.baselineLoading = true;
       try {
-        const items = await fetchBaseline(context);
+        const items = await fetchBaseline(context, resourceTypeCode);
         // 过期请求不写状态（切换/刷新/重置竞争）
         if (token !== this.baselineToken) return false;
         // 原子提交：context 与 baseline/changes/submit 一起切换
@@ -179,14 +241,15 @@ export const useGrantStore = defineStore("perm-grant", {
     /**
      * 加载/刷新基线（刷新当前主体；selectSubject 已原子提交 context）。
      * 共享 baselineToken 代域：刷新期间切换主体互不覆盖（问题 3）。
+     * resourceTypeCode = 当前矩阵类型（刷新保持类型过滤）。
      */
-    async loadBaseline(): Promise<boolean> {
+    async loadBaseline(resourceTypeCode: string | null): Promise<boolean> {
       const context = this.context as GrantContext | null;
       if (!context) return false;
       const token = ++this.baselineToken;
       this.baselineLoading = true;
       try {
-        const items = await fetchBaseline(context);
+        const items = await fetchBaseline(context, resourceTypeCode);
         if (token !== this.baselineToken) return false;
         this.baseline = items;
         this.changes = [];
@@ -200,6 +263,46 @@ export const useGrantStore = defineStore("perm-grant", {
           this.baselineLoading = false;
         }
       }
+    },
+
+    /**
+     * 切换矩阵类型（T-FE-038 §3.6 类型切换加载流程）。
+     * 与 selectSubject 的差异：已确认放弃 → **立即清空**旧 baseline/草稿/submit（§3.6 步骤 2），
+     * 新数据加载失败不回滚（旧类型视图不再恢复）；资源树/操作列由页面层并行清空与填充。
+     * 共享 baselineToken 代域：快速连续切换时旧类型迟到响应被丢弃（请求序号守卫，S8-8）。
+     */
+    async switchMatrixType(resourceTypeCode: string): Promise<boolean> {
+      const context = this.context as GrantContext | null;
+      if (this.submit.kind === "saving" || !context) return false;
+      const token = ++this.baselineToken;
+      this.baseline = [];
+      this.changes = [];
+      this.submit = { kind: "idle" };
+      this.baselineLoading = true;
+      try {
+        const items = await fetchBaseline(context, resourceTypeCode);
+        if (token !== this.baselineToken) return false;
+        this.baseline = items;
+        return true;
+      } catch (error) {
+        if (token !== this.baselineToken) return false;
+        throw error;
+      } finally {
+        if (token === this.baselineToken) {
+          this.baselineLoading = false;
+        }
+      }
+    },
+
+    /**
+     * 作废在途请求（T-FE-038 review P1-1：交互所有权转移时调用）。
+     * 仅递增 baselineToken 使在途 selectSubject/loadBaseline/switchMatrixType 的迟到响应被丢弃；
+     * 被作废请求的 finally 不会清理 loading（token 已过期），故此处同步复位 baselineLoading，
+     * 避免页面冻结；不发起新请求、不改其他任何状态（与 resetAll 的差异：保留 context/baseline/changes）。
+     */
+    cancelPending() {
+      this.baselineToken += 1;
+      this.baselineLoading = false;
     },
 
     /**
@@ -246,8 +349,10 @@ export const useGrantStore = defineStore("perm-grant", {
      * 成功 -> 全部条目移出清单并入 baseline（响应整体替换）；
      * 失败 -> 全部条目保留标红、整体重试（请求粒度，不可分割）。
      * 代际令牌 + 上下文身份双保险（问题 4）：过期响应不覆盖 baseline/changes/submit。
+     * resourceTypeCode = 当前矩阵类型（T-FE-038）：响应按类型过滤为
+     * "当前类型主权限 + 其全部子权限"（filterBaselineByType），null/缺省 = 不过滤。
      */
-    async saveAll(): Promise<boolean> {
+    async saveAll(resourceTypeCode: string | null = null): Promise<boolean> {
       if (this.submit.kind === "saving" || this.baselineLoading) return false;
       const context = this.context as GrantContext | null;
       if (!context) return false;
@@ -274,7 +379,9 @@ export const useGrantStore = defineStore("perm-grant", {
         ) {
           return false;
         }
-        this.baseline = resp.items ?? [];
+        this.baseline = resourceTypeCode
+          ? filterBaselineByType(resp.items ?? [], resourceTypeCode)
+          : (resp.items ?? []);
         this.changes = [];
         this.submit = { kind: "idle" };
         return true;

@@ -11,6 +11,7 @@ import { computed, ref, watch } from "vue";
 import { useElementSize } from "@vueuse/core";
 import { Search, Setting } from "@element-plus/icons-vue";
 import type { ResourceTreeNode } from "@/api/resource-operation";
+import type { TypeDefResp } from "@/api/type-def";
 import {
   allRowKey,
   instanceRowKey,
@@ -25,7 +26,12 @@ type UnionColumn = { code: string; name: string; globalFallback: boolean };
 const props = defineProps<{
   sourceChain: SourceChainResult;
   resourceForest: ResourceTreeNode[];
-  matrixTypeCodes: string[];
+  /** 资源类型定义全集（类型下拉候选，§2.2；候选=全集，防首次授权死锁） */
+  typeCandidates: TypeDefResp[];
+  /** 当前矩阵类型（MatrixContext，§2.2） */
+  currentTypeCode: string | null;
+  /** 主体已有权限类型（仅用于下拉标记与排序——有权限的排前，§2.2） */
+  permissionTypeCodes: string[];
   visibleColumns: UnionColumn[];
   unionColumns: UnionColumn[];
   hiddenColumnCodes: string[];
@@ -37,7 +43,8 @@ const props = defineProps<{
     { mark: "add" | "update" | "remove"; changeId: string }
   >;
   capability: "edit" | "view";
-  loading: boolean;
+  /** 矩阵数据加载中（§3.6 中栏统一骨架屏） */
+  matrixLoading: boolean;
   /** 已选中可授权主体 */
   hasSubject: boolean;
   /** GROUP_ROLE 选中提示（分组节点本身无权限矩阵） */
@@ -56,6 +63,8 @@ const emit = defineEmits<{
   (e: "update:includeResourceInherit", value: boolean): void;
   (e: "update:includeOpInherit", value: boolean): void;
   (e: "update:keyword", value: string): void;
+  /** 类型切换（MatrixContext，§2.2；未保存变更确认由页面层完成） */
+  (e: "switchType", typeCode: string): void;
   (
     e: "cellDetail",
     target: {
@@ -84,7 +93,7 @@ const emit = defineEmits<{
 
 type MatrixRow = {
   key: string;
-  kind: "type" | "all" | "instance";
+  kind: "all" | "instance";
   resourceTypeCode: string;
   label: string;
   subLabel?: string;
@@ -140,43 +149,39 @@ function toInstanceRows(nodes: ResourceTreeNode[]): MatrixRow[] {
 }
 
 const rows = computed<MatrixRow[]>(() => {
+  const typeCode = props.currentTypeCode;
+  if (!typeCode) return [];
   const keyword = props.keyword.trim();
-  const result: MatrixRow[] = [];
-  for (const typeCode of props.matrixTypeCodes) {
-    const roots = forestByType.value.get(typeCode) ?? [];
-    const filtered = keyword ? filterTreeByKeyword(roots, keyword) : roots;
-    // 搜索时：类型无命中节点且 ALL 行不匹配 → 隐藏类型行
-    if (keyword && filtered.length === 0) continue;
-    result.push({
-      key: `TYPE:${typeCode}`,
-      kind: "type",
+  const roots = forestByType.value.get(typeCode) ?? [];
+  const filtered = keyword ? filterTreeByKeyword(roots, keyword) : roots;
+  // 搜索无命中 → 空（模板显示"未找到匹配的资源"）
+  if (keyword && filtered.length === 0) return [];
+  // 单类型矩阵（§2.2/§3.1）：ALL 虚拟行 + 当前类型资源实例树（无类型分组行）
+  return [
+    {
+      key: allRowKey(typeCode),
+      kind: "all" as const,
       resourceTypeCode: typeCode,
-      label: typeCode,
-      children: [
-        {
-          key: allRowKey(typeCode),
-          kind: "all",
-          resourceTypeCode: typeCode,
-          label: "全部资源（ALL）"
-        },
-        ...toInstanceRows(filtered)
-      ]
-    });
-  }
-  return result;
+      label: "全部资源（ALL）"
+    },
+    ...toInstanceRows(filtered)
+  ];
 });
 
-// ========== 展开状态（默认收起至第一层：类型行展开、实例树收起） ==========
+/** 当前类型是否有资源实例行（空态判断：该类型无任何资源） */
+const hasResourceRows = computed(() =>
+  rows.value.some(r => r.kind === "instance")
+);
+
+// ========== 展开状态（单类型：实例树默认收起至第一层，§3.1；切换类型清空） ==========
 
 const expandedRowKeys = ref<string[]>([]);
 
 watch(
-  () => props.matrixTypeCodes,
-  codes => {
-    const typeKeys = codes.map(c => `TYPE:${c}`);
-    // 保留已展开实例节点 + 确保类型行默认展开
-    const kept = expandedRowKeys.value.filter(k => !k.startsWith("TYPE:"));
-    expandedRowKeys.value = [...typeKeys, ...kept];
+  () => props.currentTypeCode,
+  () => {
+    // 单类型矩阵无类型分组行；实例节点默认收起（只显示根节点）
+    expandedRowKeys.value = [];
   },
   { immediate: true }
 );
@@ -204,15 +209,13 @@ const columns = computed<any[]>(() => [
 // ========== 单元格状态 ==========
 
 function sourcesOf(row: MatrixRow, opCode: string): CellSource[] {
-  if (row.kind === "type") return [];
-  // 列对行类型的适用性：行类型的合并列中无此操作 → 不适用（空白占位）
+  // 列对行类型的适用性：当前类型的合并列中无此操作 → 不适用（空白占位）
   const merged = props.sourceChain.columnsByType.get(row.resourceTypeCode);
   if (!merged?.some(c => c.code === opCode)) return [];
   return props.sourceChain.cells.get(row.key)?.get(opCode)?.sources ?? [];
 }
 
 function columnApplicable(row: MatrixRow, opCode: string): boolean {
-  if (row.kind === "type") return false;
   return (
     props.sourceChain.columnsByType
       .get(row.resourceTypeCode)
@@ -228,7 +231,7 @@ function markOf(row: MatrixRow, opCode: string) {
 }
 
 function handleCellSelect(row: MatrixRow, opCode: string) {
-  if (row.kind === "type" || !columnApplicable(row, opCode)) return;
+  if (!columnApplicable(row, opCode)) return;
   const sources = sourcesOf(row, opCode);
   if (sources.length > 0) {
     emit("cellDetail", {
@@ -249,6 +252,24 @@ function handleCellSelect(row: MatrixRow, opCode: string) {
     });
   }
 }
+
+// ========== 类型下拉（§2.2：候选=资源类型定义全集；已有权限类型仅标记与排序——有权限的排前） ==========
+
+const typeOptions = computed(() => {
+  const withPerm = new Set(props.permissionTypeCodes);
+  return [...props.typeCandidates]
+    .sort((a, b) => {
+      const ap = withPerm.has(a.typeCode) ? 0 : 1;
+      const bp = withPerm.has(b.typeCode) ? 0 : 1;
+      return ap - bp || a.sortOrder - b.sortOrder;
+    })
+    .map(t => ({
+      typeCode: t.typeCode,
+      label: withPerm.has(t.typeCode)
+        ? `${t.name}（${t.typeCode} · 已授权）`
+        : `${t.name}（${t.typeCode}）`
+    }));
+});
 
 // ========== 操作列配置（§3.2 增删列，localStorage 刷新保留） ==========
 
@@ -370,6 +391,25 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         </el-button>
       </div>
       <div class="toolbar-row filters">
+        <el-tooltip
+          content="矩阵一次只呈现一个资源类型；候选 = 资源类型定义全集，主体已有权限类型仅标记与排序"
+          placement="top"
+        >
+          <el-select
+            :model-value="currentTypeCode"
+            placeholder="资源类型"
+            class="toolbar-type-select"
+            :disabled="!hasSubject || typeCandidates.length === 0"
+            @update:model-value="val => val && emit('switchType', String(val))"
+          >
+            <el-option
+              v-for="t in typeOptions"
+              :key="t.typeCode"
+              :label="t.label"
+              :value="t.typeCode"
+            />
+          </el-select>
+        </el-tooltip>
         <el-input
           :model-value="keyword"
           placeholder="搜索资源名称/编码"
@@ -435,7 +475,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
     </div>
 
     <!-- 主体区 -->
-    <div ref="tableWrapRef" v-loading="loading" class="matrix-body">
+    <div ref="tableWrapRef" class="matrix-body">
       <!-- 未选主体 -->
       <el-empty
         v-if="!hasSubject && !groupHint"
@@ -448,19 +488,25 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         :title="`分组角色「${groupHint}」无独立权限矩阵`"
         sub-title="请展开该分组，选择其基础角色查看/授予权限（授权目标 = 基础角色本身）"
       />
-      <!-- 空态：主体无任何权限 -->
+      <!-- 类型候选为空（§2.2：候选=全集为空时矩阵区 el-empty 空态） -->
       <el-empty
-        v-else-if="matrixTypeCodes.length === 0"
-        description="该主体暂无权限配置"
-      >
-        <el-button
-          v-if="capability === 'edit'"
-          type="primary"
-          @click="emit('grant')"
-        >
-          去授权
-        </el-button>
-      </el-empty>
+        v-else-if="typeCandidates.length === 0"
+        description="暂无资源类型配置"
+      />
+      <!-- 类型加载中：统一骨架屏（§3.6） -->
+      <el-skeleton
+        v-else-if="matrixLoading"
+        :rows="9"
+        animated
+        class="matrix-skeleton"
+      />
+      <!-- 当前类型无资源（§3.1 空态；矩阵始终渲染当前类型，S11 首次授权不受阻） -->
+      <el-empty
+        v-else-if="currentTypeCode == null || !hasResourceRows"
+        :description="
+          keyword.trim() ? '未找到匹配的资源' : '该资源类型暂无资源'
+        "
+      />
 
       <el-table-v2
         v-else
@@ -478,10 +524,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         <template #cell="{ column, rowData }">
           <!-- 资源名称列 -->
           <template v-if="column.key === 'name'">
-            <span v-if="rowData.kind === 'type'" class="type-row">
-              {{ rowData.label }}
-            </span>
-            <span v-else-if="rowData.kind === 'all'" class="all-row">
+            <span v-if="rowData.kind === 'all'" class="all-row">
               {{ rowData.label }}
               <el-tag size="small" type="warning" effect="plain" class="ml-1"
                 >A</el-tag
@@ -493,7 +536,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
             </span>
           </template>
           <!-- 操作列单元格 -->
-          <template v-else-if="rowData.kind !== 'type'">
+          <template v-else>
             <span
               v-if="!columnApplicable(rowData, column.opCode)"
               class="cell-na"
@@ -594,6 +637,10 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         .toolbar-switch {
           display: inline-flex;
         }
+
+        .toolbar-type-select {
+          width: 210px;
+        }
       }
     }
   }
@@ -604,16 +651,8 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
     min-height: 0;
   }
 
-  .type-row {
-    display: inline-flex;
-    align-items: center;
-    height: 24px;
-    padding: 0 var(--space-2);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--el-text-color-regular);
-    background: var(--el-fill-color-light);
-    border-radius: var(--radius-md);
+  .matrix-skeleton {
+    padding: var(--space-4);
   }
 
   .all-row {

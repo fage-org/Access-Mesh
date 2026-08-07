@@ -125,12 +125,20 @@ export type RolePermissionItem = {
   childCount: number;
 };
 
-/** 角色权限配置查询请求（对齐 RolePermissionListReq + T-PERM-034 includeChildren） */
+/** 角色权限配置查询请求（对齐 RolePermissionListReq + T-PERM-034 includeChildren + T-PERM-040 resourceTypeCode） */
 export type RolePermissionListReq = {
   /** 可省略或 null：仅校验域存在性，不按域过滤（P1-1）；授权页恒传 null */
   domainCode?: string | null;
   roleTypeCode: string;
   roleExternalId: string;
+  /**
+   * 可选，默认不传；🔧 T-PERM-040 单类型矩阵上下文：
+   * 按资源类型过滤主权限（dependOn==null 且 resource_type 匹配）。
+   * 授权矩阵调用必填（矩阵一次只呈现一个类型）；null/缺省 = 不过滤（兼容既有调用方）。
+   * includeChildren=true 时返回该类型主权限及其全部子权限，子权限按 depend_on 挂父返回
+   * （子权限自身可跨类型，不能按子记录自身类型过滤）。
+   */
+  resourceTypeCode?: string | null;
   /** 可选，默认 true 兼容现行为；false 时只返回主权限（dependOn==null） */
   includeChildren?: boolean;
 };

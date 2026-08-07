@@ -113,6 +113,8 @@ interface MatrixContext {
 - 类型切换入口：中栏工具栏**资源类型下拉**，候选 = **资源类型定义全集**（type_definition 等现有只读接口，🔧 T-FE-038）——**不能只取目标主体已有权限的类型**（无权限主体将无法完成首次授权）；目标主体已有权限类型仅用于**标记与排序**（有权限的排前），不决定候选全集；默认选中第一个类型（或上次选择的类型，localStorage 按 subjectType 隔离）；候选为空时矩阵区 `el-empty` 空态提示。
 - 与 GrantContext 关系：GrantContext（主体维度）不变时，MatrixContext 在页面内自由切换；**切换类型时未保存变更先确认放弃**（§3.6 流程）。
 
+> **实现注记（T-FE-038，2026-08-07）**：类型候选 = `type-definition/list` 筛选 `type_key=resource_type`，按 `sortOrder` 排序，loadDeps 一次性加载；「已有权限类型」标记 = 主体切换时额外一次全量主权限查询（`role-resource-permission/list` 不带 `resourceTypeCode` + `includeChildren=false`，契约 §6.4 缺省=不过滤），仅用于下拉标记/排序，不进 baseline；上次选择持久化键 = `perm-grant:last-type:{subjectType}`（与隐藏列键同源命名）；无主体时下拉禁用；候选为空时选中主体仅提交 GrantContext（矩阵区空态），候选就绪后由 loadDeps 兜底补加载矩阵；切换类型期间（含未保存确认前）弹窗为模态不可达、详情层抽屉自动关闭（旧类型记录已失效）。
+
 ## 3. 查看模式（矩阵）
 
 ### 3.1 行：资源树形行
@@ -120,15 +122,17 @@ interface MatrixContext {
 - 行 = **当前 MatrixContext 资源类型下的资源树节点**（§2.2；层级缩进 + 展开/折叠（默认收起至第一层）；目标主体在该类型无任何权限时仍可进入并首次授权——类型由下拉全集决定，不依赖已有权限）。
 - **ALL 虚拟行（P1-2）**：每种资源类型的分组顶部固定一行「全部资源（ALL）」，承载该类型的 `scopeMode=ALL` 记录（`resourceCode/codeType` 为空，api-contract §6.3）；与实例行互斥展示（同单元格不叠加）；全量范围信息并入悬浮详情（🔧 T-FE-039 正交模型，不再以角标 A 占格）。
 - 搜索：keyword 过滤资源（命中节点及其祖先链展开显示）。
-- 空态：主体无任何权限时 `el-empty`「该主体暂无权限配置」。
+- 空态：主体无任何权限时 `el-empty`「该主体暂无权限配置」。（**🔧 T-FE-038 修订，2026-08-07 评审确认**：单类型上下文下矩阵**始终渲染当前类型**（ALL 行 + 资源树 + 操作列，权限单元格空白可点击授权）——S11 首次授权不受阻；原「该主体暂无权限配置」空态被类型级空态取代：类型候选为空 → `el-empty`「暂无资源类型配置」；当前类型无任何资源 → `el-empty`「该资源类型暂无资源」（搜索无命中 → 「未找到匹配的资源」）。）
+
+> **实现注记（T-FE-038，2026-08-07）**：行 = ALL 虚拟行 + 当前类型资源实例树（**无类型分组行**）；实例节点默认收起至第一层（只显示根节点），切换类型清空展开状态；资源名称列类型分组行样式（type-row）已移除。
 
 ### 3.2 列：操作列可配置
 
 - 操作列 = **当前 `resourceTypeCode` 的有效操作集合**（🔧 T-FE-038）：调用 `operation-permission/list` 携带 `resourceTypeCode + includeGlobalFallback=true`（契约见 api-contract §5.3，**后端完成合并**），响应即当前类型最终可用操作——**切换 `resourceTypeCode` 时必须重新查询，禁止复用上一类型的操作列**（上一类型独有操作不得残留）。
 - 有效操作集合语义：当前类型专属操作 ∪ 没有同码专属定义时适用的全局操作（`resourceTypeCode=null`）；同一 `operationCode` 专属定义与全局定义并存时**专属优先**（合并剔除全局）。
 - **操作继承位定义绑定当前类型**：单元格覆盖判定（§3.5 coveredSet）与操作继承展开一律使用**当前类型最终生效定义**的 `binaryBit/inheritMask`，禁止使用其他类型同 `operationCode` 的位定义参与计算；来源链对全局操作标注"全局操作"。
-- 默认展示：常用操作列（前端按 `inheritMask=0` 且使用频次排序，或全部显示，实现时定）；用户可**增删列**（配置面板勾选操作权限），配置保存在前端本地（localStorage）。
-- **操作列显示配置按类型隔离（🔧 T-FE-038）**：存储键 = `permission-grant:hidden-columns:{resourceTypeCode}`（隐藏列集合），**禁止使用所有类型共享的隐藏列配置**；类型切换后读取/写入对应键。当操作定义被删除或调整时（`operation-permission` 变更），清理当前类型配置中已不存在的操作码（按 `code` 比对）。
+- 默认展示：常用操作列（前端按 `inheritMask=0` 且使用频次排序，或全部显示，实现时定）；用户可**增删列**（配置面板勾选操作权限），配置保存在前端本地（localStorage）。（**🔧 T-FE-038 实现确认**：默认**全部显示**，按 `binaryBit` 升序，§13.2 决策 7）
+- **操作列显示配置按类型隔离（🔧 T-FE-038）**：存储键 = `permission-grant:hidden-columns:{resourceTypeCode}`（隐藏列集合），**禁止使用所有类型共享的隐藏列配置**；类型切换后读取/写入对应键。当操作定义被删除或调整时（`operation-permission` 变更），清理当前类型配置中已不存在的操作码（按 `code` 比对）。（**实现注记，2026-08-07**：清理时机 = 每次类型数据加载成功后（新操作列就绪即比对），隐藏列与当前类型最终可用操作码求交集后写回；原按 subjectType 隔离的 `perm-grant:columns:{subjectType}` 键不再读取，历史残留键不迁移）
 - 操作继承开启时，被继承覆盖的操作列仍可显示（列上角标提示"通常由高级操作继承，可隐藏"）。
 
 ### 3.3 单元格（查看态）
@@ -185,6 +189,8 @@ interface MatrixContext {
 - 资源树（`resource-entity/tree`，含 parentId 结构；**按当前 `resourceTypeCode` 过滤**）
 - 操作定义（`operation-permission/list` 携带 `resourceTypeCode + includeGlobalFallback=true`，**当前类型最终可用集合**，含 binaryBit + inheritMask + resourceTypeCode；**binaryBit/inheritMask 为十进制字符串线格式**，T-PERM-028 修订，前端 BigInt 解析，P1-3）——**操作继承计算只用当前类型最终生效定义的 `binaryBit/inheritMask`**，禁止使用其他类型同码定义参与计算（🔧 T-FE-038）
 
+> **实现注记（T-FE-038，2026-08-07）**：页面层操作数据源 = `operation-permission/list` + `includeGlobalFallback=true` 的响应（后端完成"专属优先、全局回退"合并，前端不再自行实现合并领域规则，§12-14）；`computeSourceChain` 输入（records/resources/operations）全部为**当前类型**数据（基线/树/操作均按类型加载），内部合并对"已合并结果"幂等（专属条目 resourceTypeCode=当前类型、全局回退条目保持 null 并标注"全局操作"），故纯函数与 Golden fixtures 无需改动；mock 端按 §5.3 语义模拟合并（`includeGlobalFallback=true`：专属 ∪ 无同码专属的全局，按 binaryBit 升序；`resourceTypeCode=null`+true = 仅全局集合，禁止全量口径）。详情层子权限选择器保留**全量**资源树/操作定义只读依赖（子权限可跨类型，2026-08-07 评审确认）。
+
 算法（对齐 `PermQueryEngine` / `OperationPermissionUtils`）：
 
 ```
@@ -221,6 +227,13 @@ interface MatrixContext {
 6. **丢弃旧请求**：维护请求序号（自增 id），响应返回时序号 ≠ 当前序号则丢弃（防止旧类型晚到覆盖新类型数据——"旧请求晚于新请求返回必须丢弃"）。
 
 > 本流程同样适用于主体（GrantContext）切换时的矩阵加载（主体切换与类型切换共用同一加载管线）。
+
+> **实现注记（T-FE-038，2026-08-07）**：
+>
+> - 加载管线唯一入口 = hook 层 `loadMatrixForType`：`matrixToken`（hook 层序号）守卫资源树/操作列写入，store 层 `baselineToken` 守卫 baseline/context 提交，两代域同一触发点递增，快速连续切换 A→B→C 时 A/B 迟到响应在两处均被丢弃；store action 被拒（saving/过期）时不填充树/操作，避免与新旧 baseline 不一致。
+> - store 新增 `switchMatrixType(resourceTypeCode)`：步骤 2 清空 = **立即清空** baseline/草稿/submit（已确认放弃），加载失败**不回滚**（旧类型视图不再恢复，矩阵区空态 + 错误提示可重试）；`selectSubject(context, resourceTypeCode)` 保持"成功才原子提交"语义不变。
+> - 主体切换时并行四类请求（三类矩阵数据 + 一次全量主权限查询用于类型标记，§2.2）；切换后重选同主体（上次加载失败已提交 context 的空矩阵态）会自动重试加载。
+> - 加载期间中栏矩阵区 `el-skeleton` 骨架屏（`matrixLoading`），不渲染半成品矩阵；弹窗（模态）不可达、详情层抽屉自动关闭。
 
 ## 4. 授权弹窗（以操作权限为维度）
 
@@ -398,6 +411,8 @@ interface MatrixContext {
 > 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ADMIN_ORG:VIEW` / `ADMIN_USER:VIEW` / 岗位 `ADMIN_ORG:VIEW_POSITION`，admin-service 数据，对齐 frontend `user/utils/perms.ts`）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` L152/482/520/587/748）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
 > 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——待个人 `abstract_role` 同步链路建成后恢复（§12 注）。
 
+> **已知缺口（2026-08-07 记录，暂不修改）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），但本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**决策：全链路未打通前不做处理**（mock 不校验权限，开发不受阻）；联调任务 T-FE-018 汇合时评估：为授权页声明 `TYPE_DEFINITION:VIEW` 只读依赖（perms.ts 门控 + 缺权限明确提示 + mock 角色矩阵补权限串），或由后端提供免类型管理权限的候选来源。
+
 ## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039 拆分子任务依据；S1~S11 全套）
 
 - **S1 两入口**：角色/组织入口分别进入，左栏主体树正确；GROUP_ROLE 只读（无授权按钮，来源标注"来自基础角色"）。（个人入口首期移除，P1-4）
@@ -406,8 +421,8 @@ interface MatrixContext {
 - **S4 详情层**：多分支添加/删除；子权限添加/删除/编辑（creates parentPermissionId / updates（改 canGrant / 改条件 / 清除条件传空串）/ removes）；**跨键变更 = 移除+新建（removes+creates，同事务原子）**；**改条件撞已占用条件（完整键同键同 conditionCode 已有 MANUAL 分支）→ 前端禁用 + 后端 20033 提示不崩溃**；草稿中的新增主权限挂子权限 = creates 主权限带 children 一次性建树。
 - **S5 变更提交**：矩阵标记 + 右栏清单（定位/逐条撤销）正确；**撤销标记（🔧 T-FE-039）：撤销直接=红 / 撤销继承=淡红 / 撤销来源带条件=红白·淡红白条纹；撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标；不使用减号/删除线/粗黑边框=删除符号**；保存全部 = **单请求 apply-grant-plan**（记录级 creates/updates/removes，单事务原子 + 受影响行数断言；跨键替换 = removes+creates 原子且变更清单提示子权限随主权限移除）；**请求失败后全部草稿保留并标红，整体重试**（前端 saving 期间按钮 disabled 防重复提交；apply-grant-plan 单事务原子，**数据库无部分状态**，不存在部分成功）；放弃全部回滚；未保存离开拦截。
 - **S6 数据正确性**：来源链前端计算与引擎语义抽查一致（父资源授权 → 子孙行 INHERITED；MANAGE 授权 → VIEW 列 INHERITED；**父资源 MANAGE → 子资源 VIEW 单元格出现且来源链含两段（资源继承 + 操作继承）**；**ALL/MANAGE → ALL/VIEW 列出现且标注操作继承（节点段为空）**；AUTO_DEP 标注且只读；ALL 记录落虚拟行）。
-- **S7 边界**：无权限主体空态；operationCode=null 记录不崩溃（展示兜底）；list 数据量大时矩阵渲染不卡顿（虚拟滚动，如资源节点 > 500）。
-- **S8 单类型矩阵上下文（🔧 T-FE-038，需求验收 9 项）**：
+- **S7 边界**：无权限主体空态（**🔧 T-FE-038 修订：矩阵始终渲染当前类型，无权限空态被类型级空态取代，§3.1**）；operationCode=null 记录不崩溃（展示兜底）；list 数据量大时矩阵渲染不卡顿（虚拟滚动，如资源节点 > 500）。
+- **S8 单类型矩阵上下文（🔧 T-FE-038，需求验收 9 项；✅ 已实现，2026-08-07）**：
   1. 切换 `resourceTypeCode` 后，操作列同步变化（重新查询，非复用旧列）。
   2. 上一类型独有操作不得残留（旧矩阵/旧操作列/旧 ALL 虚拟行全部清空）。
   3. 相同 `operationCode` 在不同类型具有不同位定义时，分别使用各自定义（覆盖判定/继承展开正确）。
@@ -417,9 +432,9 @@ interface MatrixContext {
   7. 操作列隐藏配置按 `resourceTypeCode` 隔离（`permission-grant:hidden-columns:{resourceTypeCode}`；类型 A 隐藏列不影响类型 B；操作定义删除后清理残留操作码）。
   8. 并发切换类型时不会显示旧请求结果（快速连续切换 A→B→C，最终矩阵 = C 数据，A/B 迟到响应被丢弃）。
   9. 写入其他类型不支持的操作时后端返回 **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`，前端提示不崩溃（弹窗/保存流程可用）。
-- **S9 类型切换加载体验**：切换时显示统一骨架屏；存在未保存变更时先确认放弃（取消则留在原类型）；切换完成后三类数据齐备才渲染。
+- **S9 类型切换加载体验（✅ 已实现，2026-08-07）**：切换时显示统一骨架屏；存在未保存变更时先确认放弃（取消则留在原类型）；切换完成后三类数据齐备才渲染。
 - **S10 图标正交模型（🔧 T-FE-039，2026-08-05 二轮评审映射）**：有效态 直接=绿无箭头 / 资源继承=淡绿+上箭头 / 操作继承=淡绿+右箭头 / 双重继承=淡绿+组合箭头 正确区分；**条纹=有条件**（任一有效来源无条件时按实色展示）、**粗黑边框=可转授 canGrant**；撤销态 直接=红 / 继承=淡红 / 来源带条件=红白·淡红白条纹；**撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标**（最多并列两个）；**不使用减号/删除线/粗黑边框=删除符号**；子权限分叉仅直接主权限记录显示、继承格不复制（精确投影 §3.3）；范围/多分支并入悬浮详情不占格。
-- **S11 首次授权与条件转授（🔧 T-FE-038/T-PERM-041）**：目标主体完全无权限时类型下拉仍可选（候选=资源类型定义全集）、可完成首次授权；授权弹窗选择条件后 canGrant 开关自动关闭并清除；带条件记录详情展示无"可再授予"标记。
+- **S11 首次授权与条件转授（🔧 T-FE-038/T-PERM-041）**：目标主体完全无权限时类型下拉仍可选（候选=资源类型定义全集）、可完成首次授权（✅ 矩阵部分，2026-08-07；条件部分随 T-PERM-041）；授权弹窗选择条件后 canGrant 开关自动关闭并清除；带条件记录详情展示无"可再授予"标记。
 
 ## 12. 与后端 T-PERM-034 的关系（范围更新）
 
@@ -478,7 +493,7 @@ interface MatrixContext {
 4. **路由 = 新建 /perm 模块 + 角色页入口恢复**（§1.1 路由约定落地；组织入口二期占位 `el-result` 提示，未实现组织树适配器与 org-tree mock）。
 5. **操作位线格式 = 页面层宽容解析**（`bits.ts` `toBigIntBits`：string|number → BigInt；共享 `mock/resource-operation.ts` number 格式与 3.1 页不受影响；本页 `grantedBits` 严格按契约十进制字符串，DoD-1）。
 6. **baseline 一次全量加载**（§6.1 已回写）。
-7. **操作列默认 = 全部显示**（§3.2"实现时定"采纳；按 binaryBit 升序，localStorage 按 subjectType 隔离）——**🔧 T-FE-038 修订**：单类型矩阵上下文定稿后，隔离维度改为 `resourceTypeCode`，存储键 `permission-grant:hidden-columns:{resourceTypeCode}`（§3.2），原按 subjectType 隔离的既有键不再使用。
+7. **操作列默认 = 全部显示**（§3.2"实现时定"采纳；按 binaryBit 升序，localStorage 按 subjectType 隔离）——**🔧 T-FE-038 修订**：单类型矩阵上下文定稿后，隔离维度改为 `resourceTypeCode`，存储键 `permission-grant:hidden-columns:{resourceTypeCode}`（§3.2），原按 subjectType 隔离的既有键不再使用。（✅ T-FE-038 已落地，2026-08-07）
 8. **单元格点击 = 无权限弹窗 / 有权限详情层**（§3.3 推荐路径采纳）。
 
 ### 13.3 验证证据
@@ -487,3 +502,80 @@ interface MatrixContext {
 - `vue-tsc --noEmit` / `eslint` / `vite build` 全过。
 - mock 端点运行时冒烟：list（includeChildren 两态 + childCount）/ apply-grant-plan（creates 带 children 建树 / updates 三态 / removes 级联 / 错误码 20033/20034/20036/20011/20010/20040 演练）/ REPORT 625 节点树。
 - S1~S7 交互验收（DoD-4）以 mock 环境人工验收为准。
+
+### 13.4 T-FE-038 单类型矩阵上下文实现注记（2026-08-07 回写）
+
+**核心决策（评审确认）**：
+
+1. 详情层子权限保留**全量**资源树/操作定义只读依赖（loadDeps 一次性加载，子权限表单可切换其他资源类型）；矩阵/操作列/来源链用按类型查询的数据（§2.2/§3.6 两套数据并存，职责分离）。
+2. 无权限空态：**矩阵始终渲染当前类型**（S11 首次授权不受阻），「该主体暂无权限配置」空态被类型级空态取代（§3.1 修订）。
+
+**实现要点**：
+
+| 项 | 落点 |
+|---|---|
+| 类型候选全集 | `type-definition/list` 筛选 `type_key=resource_type`，sortOrder 排序，loadDeps 一次性加载 |
+| 当前类型 | hook `currentTypeCode` ref；默认 = 上次选择（`perm-grant:last-type:{subjectType}`）或候选第一个；主体切换时按 subjectType 重新解析 |
+| 已有权限类型标记 | 主体切换时一次全量主权限查询（不带 `resourceTypeCode`，includeChildren=false），仅下拉标记/排序 |
+| 操作列 | `operation-permission/list` + `resourceTypeCode + includeGlobalFallback=true`，切换类型必须重新查询（hook `loadMatrixForType`） |
+| 隐藏列配置 | `permission-grant:hidden-columns:{resourceTypeCode}` 按类型读写；操作集合加载成功后清理不存在的操作码 |
+| 类型切换管线 | 确认放弃 → store `switchMatrixType`（立即清空 baseline/草稿）→ 并行三类查询 → `matrixToken` 序号守卫 → 齐备渲染；骨架屏 `el-skeleton`；失败不回滚（空态 + 可重试） |
+| 单类型行模型 | ALL 虚拟行 + 当前类型实例树（无类型分组行）；实例树默认收起至第一层 |
+| 详情层全量依赖 | `allResourceForest` / `allOperationDefs`（仅详情层子权限选择器消费） |
+| 20008 演练 | mock `apply-grant-plan` creates（主权限 + children 嵌套）按合并规则校验 operationCode 适用性 → 20008（存在但不适用）/ 20005（不存在）区分 |
+| mock list 过滤 | `resourceTypeCode` 过滤主权限（dependOn==null 且类型匹配）；includeChildren=true 时子权限按 depend_on 挂父返回（子权限跨类型不过滤） |
+
+**验证证据**：
+
+- 单测 105 全过：新增 `switchMatrixType` 5 场景（成功携带 resourceTypeCode / 立即清空 / 过期响应丢弃 S8-8 / 失败不回滚 / saving 拒绝）；`selectSubject` 请求体断言同步 `resourceTypeCode`。
+- `vue-tsc --noEmit` / `eslint` / `vite build` 全过。
+- 评审 review：双代域竞态无卡死路径、无遗漏引用（`matrixTypeCodes` 零残留）、候选为空路径标记补拉（should-fix 已修）；`kind:"type"` 死代码清理。
+- S8/S9/S11 交互验收以 mock 环境人工验收为准（DoD-4）。
+
+### 13.4.1 实现评审修复（2026-08-07 同日下午，review 结论 3×P1 + 1×P2 + 文档同步）
+
+| 问题 | 修复 |
+|---|---|
+| **[P1] 保存后误删其他类型权限**：`apply-grant-plan` 响应 = 角色完整权限集合（§6.5.1），`saveAll` 整体替换 baseline 引入其他类型主权限，再次编辑全局 INSTANCE 操作时被全量 diff 识别为"取消勾选"进入 removes | `saveAll(resourceTypeCode)` 成功后按当前 MatrixContext 过滤（新增纯函数 `filterBaselineByType`：当前类型主权限 + 其全部子权限，子权限按 depend_on 挂父、跨类型保留，与 §6.4 list 类型过滤语义一致）；hook `handleSaveAll` 传入 `currentTypeCode`（saving 期间类型切换被拒，参数稳定） |
+| **[P1] 首屏候选-主体加载竞态**：`selectSubject(context, null)` 提交前候选就绪 → loadDeps 兜底（§13.4）因 context 为空跳过 → 主体提交后无第二触发点，矩阵永不加载 | 空候选路径在 selectSubject 成功提交后检查 `matrixToken === 0`（兜底未触发）→ 重新 `resolveDefaultTypeCode()` 并补加载；候选仍未就绪则仍由 loadDeps 兜底命中（context 已提交）——两条触发路径互补 |
+| **[P1] `type-definition/list` 权限缺口**：真实后端强制 `TYPE_DEFINITION:VIEW`，本页权限清单未声明 | **记录，暂不修改**（用户决策：全链路未打通，不考虑）；缺口记录于 §10；联调任务 T-FE-018 汇合时评估（声明只读依赖或后端提供免权限候选来源） |
+| **[P2] 跨类型子权限变更定位静默失效**：子权限变更 `summary.resourceTypeCode` 可能非当前类型，矩阵树只有当前类型 | `parentLocateOf`：子权限变更投影到父主权限单元格——草稿父经 `parentChangeId` 查父 add 变更 recordKey；持久化父经 `dependOn`/`parentPermissionId` 查 `effective.mains`（父主权限一定在当前类型） |
+| **[P3] 文档状态未同步**：任务卡 done 但索引/计划仍待完成 | docs/tasks/README.md（状态 ⚙️→✅、验收 ⏳→✅、补充 design 引用列）；docs/plans/frontend-phase2-plan.md（⏳→✅） |
+
+**验证（首轮历史证据，2026-08-07 同日下午）**：新增单测 9 个（`filterBaselineByType` 过滤语义 1 个 / saveAll 按类型过滤 2 个 / `parentLocateOf` 定位投影 6 个），单测 114 全过；`npm run typecheck` / `eslint` / `vite build` 全过。
+
+### 13.4.2 实现评审二轮+三轮修复（2026-08-07 当晚，二轮 1×P1 + 1×P2 + 登记/修正；三轮 2×P1）
+
+**二轮**：
+
+| 问题 | 修复 |
+|---|---|
+| **[P1] 空候选兜底取消后选主体**：A 主体 selectSubject 提交后标记请求在途时选 B，A 的迟到标记覆盖 B 的标记；补加载读陈旧 context 调 switchMatrixType 递增 baselineToken 作废 B | `handleSelectSubject` 维护代际号，selectSubject 后/标记写入前/补加载前/非空路径 loadMatrixForType 后逐一校验，过期即放弃（不写标记、不补加载、不回滚 currentTypeCode、不提示、不消费 query） |
+| **[P2] 保存后"已授权类型"标记过期**：新增首条主权限后下拉仍未授权、删除最后一条后仍已授权 | `handleSaveAll` 成功后按过滤后 baseline 是否有当前类型主权限（dependOn==null）加入/移出 `subjectPermissionTypes`（保持排序） |
+| **[P2] TYPE_DEFINITION:VIEW 延期未进联调门禁** | T-FE-018 acceptance 新增硬门禁验收项（① 前端入口声明并校验只读依赖；② 后端提供免权限候选来源；真实接口验证候选全集/排序/已授权标记，未落地=阻塞项） |
+| **[P3] 验证证据数量不实** | 任务卡与 §13.4.1 统一修正为"新增 9 个、114 全过" |
+
+**三轮**：
+
+| 问题 | 修复 |
+|---|---|
+| **[P1] 三套代际未形成同一竞争域**：selectionToken 仅 handleSelectSubject 递增；① B 加载中点击当前主体 A（no-op）只推进 selectionToken，B 的 store selectSubject 仍提交 context=B（树高亮 A、保存作用于 B）；② 空候选 A 标记在途时切分组不推进任何代际，A 仍恢复激活；③ B 加载中切类型 C 后 B 的 !ok 分支仍回滚 currentTypeCode | **统一代际**：删除 selectionToken，`matrixToken` 升级为交互/加载统一代际——主体选择（含 no-op）、分组切换入口统一递增（确认弹窗通过后才取得所有权，避免取消弹窗作废在途）+ 复位 matrixLoading；store 新增 `cancelPending()`（递增 baselineToken 作废在途 selectSubject/switchMatrixType 迟到响应 + 复位 baselineLoading，保留 context/baseline/changes）；补加载以「恰好多一次加载（gen+1）」判定无新交互，主流程与回滚前校验同一代际 |
+| **[P1] 并行失败仍提交新主体**：Promise.all 中 selectSubject 与读请求并行，读请求先失败时 selectSubject 仍可能在途成功提交 context/baseline | **先读后提交**：主体切换路径三类读请求（资源树/操作列/类型标记）全部成功并校验代际后才调 selectSubject 统一提交；任一读失败整体失败、context 不提交（回滚 currentTypeCode + 提示）；空候选路径同步「标记先读 → selectSubject → 提交成功才写标记」 |
+
+**验证（三轮）**：新增单测 2 个（cancelPending 作废在途 selectSubject 不提交 context / cancelPending 不动已提交状态），单测 116 全过；`npm run typecheck` / `eslint --max-warnings 0` / `vite build` 全过。修复过程发现派生缺陷：被作废请求的 finally 因 token 过期不再清理 loading（baselineLoading/matrixLoading 卡死 → 页面冻结/骨架屏常驻），`cancelPending` 与交互入口同步复位。
+
+**复查 should-fix（review 复核后补）**：① loadDeps 兜底原条件 `matrixToken === 0` 在统一代际后恒假（dead code，候选晚于主体选择就绪时矩阵永不加载）→ 改为「context 非空 + currentTypeCode 非空 + !matrixLoading + 资源树空」判定补加载；② 主体切换三读在途时类型下拉仍可达（原只拦 isSaving），类型分支读旧 context 加载导致"意图 B+C 得到 A+C" → `handleSwitchType` 增加 selectingKey/baselineLoading 检查拒绝并提示。
+
+### 13.4.3 实现评审四轮修复（2026-08-07 深夜，3×P1 + 1×P2 + 1×P3）
+
+| 问题 | 修复 |
+|---|---|
+| **[P1] baselineLoading 阻断快速类型切换**：上一轮 `handleSwitchType` 用 `selectingKey \|\| baselineLoading` 判断"主体切换中"，但 baselineLoading 同时由 switchMatrixType 设置——类型 B 加载中选 C 被误拒，停留在 B，违反 A→B→C 最终为 C 验收 | 仅用 `selectingKey` 判断主体切换中（独立、可靠）；`baselineLoading` 不再参与类型切换保护，快速类型切换不受主体基线加载影响 |
+| **[P1] 旧主体请求清除新请求的选择状态**：A、B 快速连续选择时，过期的 A 流程 finally 无条件 `selectingKey = null`——B 仍在读阶段（baselineLoading=false）时保护被绕过，仍可"选择 B 得到旧主体 A + 新类型 C" | `onSelectSubject` finally 按 key 值比较清理：`selectingKey === payload.key` 才清空，A 的迟到 finally 不清 B 的选择状态 |
+| **[P1] 卸载未作废读阶段代际**：先读后提交流程在四类读请求期间卸载页面，resetAll 只作废已启动的 store 请求，matrixToken 未变——读请求卸载后仍通过 token 校验并 commitSubject 向全局 store 提交主体、继续路由后处理 | `onBeforeUnmount` 先 `++matrixToken` + 复位 matrixLoading + `cancelPending()` 再 `resetAll()`——读阶段在途请求代际过期，卸载后不得提交 |
+| **[P2] 主体权限记录不再并行加载**：先读后提交把 selectSubject（含 fetchBaseline）串行化，多一次网络往返，违反"资源树/操作权限/角色权限记录三类并行"验收 | store 拆分无副作用 `prepareBaseline`（预取主体权限记录，共享 baselineToken 守卫，过期返回 null，不设 baselineLoading）+ `commitSubject`（同步原子提交 context/baseline/changes/submit，saving 拒绝）；主体路径四类读取（树/操作/标记/基线）**并行**，全部成功并校验代际后 commitSubject；空候选路径同步「标记 + 基线并行预取 → commitSubject」 |
+| **[P3] 验证证据再次回退为 114**：§13.4.1 验证行被挤到 §13.4.2 内容之后成为文档最后一条 | 验证行移回 §13.4.1 表格后并标注「首轮历史证据」；本表为四轮最新验证 |
+
+**验证（四轮）**：新增单测 3 个（prepareBaseline+commitSubject 成功原子提交 / prepareBaseline 期间 cancelPending 返回 null / commitSubject saving 拒绝），单测 119 全过；`npm run typecheck` / `eslint --max-warnings 0` / `vite build` 全过。
+
+**复查 should-fix（review 复核后补）**：① clearSubject 分支（角色已删除）resetAll 前未作废代际——先读后提交流程的 prepareBaseline 已成功返回后树/操作/标记在途时触发，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体 → 与 onBeforeUnmount 同构：++matrixToken + 复位 matrixLoading + cancelPending 再 resetAll；② selectingKey 清理盲区——同主体读取在途时再次点击，旧流程 finally 清掉新流程的选择状态，窗口期类型切换保护被绕过 → selectingKey 清理改调用序号（selectSeq），仅最新调用清理。
