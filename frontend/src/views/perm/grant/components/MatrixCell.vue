@@ -145,21 +145,24 @@ function handleClick() {
                 solid: validIcon.solid,
                 inherited: !validIcon.solid,
                 striped: validIcon.striped,
-                bold: validIcon.boldBorder
+                bold: validIcon.boldBorder,
+                combined: validIcon.arrow === 'combined'
               }"
               :title="validTitle"
             >
-              <!-- 组合箭头：资源段 + 操作段两段继承（单个弯箭头 ⤴ 形状——一段路径先向右再向上，
-                   对应"操作覆盖（右）+ 资源继承（上）"，不拼合两个箭头） -->
+              <!-- 组合箭头：资源段 + 操作段两段继承；保持完整折线路径，避免缩小后
+                   与单一继承箭头混淆，同时沿用继承态的轻量视觉。 -->
               <svg
                 v-if="validIcon.arrow === 'combined'"
-                class="arrow-svg"
-                viewBox="0 0 15 15"
+                class="arrow-svg combined-arrow"
+                viewBox="0 0 18 18"
+                aria-hidden="true"
+                focusable="false"
               >
                 <path
-                  d="M2 8 H8.5 V3.5 M6 6.5 L8.5 3.5 L11 6.5"
+                  d="M2.5 13.5 H9 V4.5 M5.8 7.5 L9 4.3 L12.2 7.5"
                   stroke="currentColor"
-                  stroke-width="1.8"
+                  stroke-width="1.9"
                   fill="none"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -362,6 +365,11 @@ function handleClick() {
       height: 15px;
     }
 
+    .combined-arrow {
+      width: 17px;
+      height: 17px;
+    }
+
     .dot {
       width: 10px;
       height: 10px;
@@ -390,6 +398,11 @@ function handleClick() {
     &.inherited {
       color: var(--el-color-success);
       background: var(--el-color-success-light-7);
+    }
+
+    /* 组合继承只靠折线路径表达额外关系，不使用额外描边或强调色。 */
+    &.combined {
+      color: var(--el-color-success);
     }
 
     /* 条纹 = 有条件（全部有效来源带条件；任一来源无条件按实色展示） */
