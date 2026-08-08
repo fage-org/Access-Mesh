@@ -226,7 +226,7 @@ const failed = computed(() => props.submit.kind === "saveFailed");
               <span class="item-summary">
                 {{
                   change.records.length > 1
-                    ? `移除 ${change.records.length} 个分支`
+                    ? `移除 ${change.records.length} 条授权记录`
                     : "移除该授权"
                 }}
               </span>

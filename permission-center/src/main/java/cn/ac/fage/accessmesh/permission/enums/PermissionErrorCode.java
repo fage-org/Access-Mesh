@@ -174,7 +174,32 @@ public enum PermissionErrorCode {
     /**
      * 等价冲突规则已存在
      */
-    CONFLICT_RULE_DUPLICATE(20032, "等价冲突规则已存在");
+    CONFLICT_RULE_DUPLICATE(20032, "等价冲突规则已存在"),
+
+    /**
+     * 同一角色的同一资源、操作、范围及父权限下已存在 MANUAL 直接授权
+     */
+    DIRECT_PERMISSION_CONFLICT(20033, "同一资源与操作已存在直接授权"),
+
+    /**
+     * 自动补全授权记录只读
+     */
+    AUTO_DEP_READONLY(20034, "自动补全授权记录只读"),
+
+    /**
+     * 权限记录不存在、已变化或不属于目标角色
+     */
+    PERMISSION_NOT_FOUND(20036, "权限记录不存在或已发生变化"),
+
+    /**
+     * 操作者不具备授权传递能力
+     */
+    GRANT_CANNOT_DELEGATE(20040, "当前操作者无权转授该权限"),
+
+    /**
+     * 条件权限不可设置为可转授
+     */
+    CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授");
 
     private final int code;
     private final String message;

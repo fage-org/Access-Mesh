@@ -1,11 +1,12 @@
 /**
  * 草稿 → plan 构建 / 草稿生效视图 / 弹窗确定语义（方案二全量比对）测试。
- * 对齐设计 §4（三键模型/确定语义）/ §6.4（单入口提交）/ §6.2（diff 标记）。
+ * 对齐设计 §4（单记录模型/确定语义）/ §6.4（单入口提交）/ §6.2（diff 标记）。
  */
 import { describe, it, expect } from "vitest";
 import type { RolePermissionItem } from "@/api/permission-grant";
 import {
   applyDialogResultToDraft,
+  applyDialogResultsToDraft,
   applyDraftToRecords,
   buildAddChange,
   buildGrantPlan,
@@ -15,10 +16,11 @@ import {
   buildUpdateChange,
   cellDraftMark,
   draftParentKey,
-  findBranchConflict,
+  findDirectGrantConflict,
   groupKeyOf,
   parentLocateOf,
   persistedParentKey,
+  resourceGroupKeyOf,
   resolveGrantedBits,
   computePreset,
   type DialogResult,
@@ -101,7 +103,7 @@ function addChangeOf(record: RolePermissionItem): AddChange {
 
 // ========== groupKeyOf ==========
 
-describe("groupKeyOf（三键模型）", () => {
+describe("groupKeyOf（单记录键模型）", () => {
   it("operationKey = operationCode ?? bits:+grantedBits（组合位记录以位串为键不折叠）", () => {
     const a = makeRecord({ operationCode: "VIEW", grantedBits: "2" });
     const b = makeRecord({ operationCode: null, grantedBits: "6" });
@@ -314,7 +316,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(result.changes[0].kind).toBe("add");
   });
 
-  it("同键同条件且 canGrant 不同 → update（按 id）；相同 → 无变更", () => {
+  it("同键且 canGrant 不同 → update（按 id）；相同 → 无变更", () => {
     const existing = makeRecord({ canGrant: false });
     const result = applyDialogResultToDraft({
       baseline: [existing],
@@ -333,7 +335,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(noop.changes).toHaveLength(0);
   });
 
-  it("同键不同条件 → add 新分支（同键多条件并存）", () => {
+  it("同键不同条件 → 直接更新已有授权，不新增记录", () => {
     const existing = makeRecord({ conditionCode: null });
     const result = applyDialogResultToDraft({
       baseline: [existing],
@@ -342,10 +344,31 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
       operations: OPS
     });
     expect(result.changes).toHaveLength(1);
-    expect(result.changes[0].kind).toBe("add");
-    expect((result.changes[0] as AddChange).recordKey.conditionCode).toBe(
-      "office-hours"
-    );
+    expect(result.changes[0].kind).toBe("update");
+    const update = result.changes[0] as Extract<
+      DraftChange,
+      { kind: "update" }
+    >;
+    expect(update.recordId).toBe(existing.id);
+    expect(update.after.conditionCode).toBe("office-hours");
+  });
+
+  it("已有授权保持勾选且设置未修改 → 保留原属性", () => {
+    const existing = makeRecord({
+      conditionCode: "office-hours",
+      canGrant: false
+    });
+    const result = applyDialogResultToDraft({
+      baseline: [existing],
+      changes: [],
+      dialog: dialogOf({
+        conditionCode: null,
+        canGrant: true,
+        untouchedResourceKeys: [resourceGroupKeyOf(existing)]
+      }),
+      operations: OPS
+    });
+    expect(result.changes).toHaveLength(0);
   });
 
   it("带条件 + canGrant=true → canGrant 强制 false（条件不可转授最终兜底，🔧 T-FE-039）", () => {
@@ -361,7 +384,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(add.recordKey.canGrant).toBe(false);
   });
 
-  it("改条件（新分支）+ canGrant=true → add 的 canGrant 强制 false", () => {
+  it("直接修改已有授权条件 + canGrant=true → update 的 canGrant 强制 false", () => {
     const existing = makeRecord({ conditionCode: null, canGrant: true });
     const result = applyDialogResultToDraft({
       baseline: [existing],
@@ -370,13 +393,16 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
       operations: OPS
     });
     expect(result.changes).toHaveLength(1);
-    expect(result.changes[0].kind).toBe("add");
-    const add = result.changes[0] as AddChange;
-    expect(add.recordKey.conditionCode).toBe("office-hours");
-    expect(add.recordKey.canGrant).toBe(false);
+    expect(result.changes[0].kind).toBe("update");
+    const update = result.changes[0] as Extract<
+      DraftChange,
+      { kind: "update" }
+    >;
+    expect(update.after.conditionCode).toBe("office-hours");
+    expect(update.after.canGrant).toBe(false);
   });
 
-  it("同键同条件尝试置 canGrant=true → 兜底为 false 后无变更（不产生 update）", () => {
+  it("带条件的已有授权尝试置 canGrant=true → 兜底为 false 后无变更", () => {
     const existing = makeRecord({ conditionCode: "office-hours" });
     const result = applyDialogResultToDraft({
       baseline: [existing],
@@ -387,12 +413,11 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(result.changes).toHaveLength(0);
   });
 
-  it("取消勾选 → remove（同分组键全部 MANUAL 分支；AUTO_DEP 不进比对保留）", () => {
+  it("取消勾选 → remove（MANUAL 直接授权；AUTO_DEP 不进比对保留）", () => {
     const b1 = makeRecord({ id: 7000, conditionCode: null, childCount: 1 });
-    const b2 = makeRecord({ id: 7001, conditionCode: "c1" });
     const autoDep = makeRecord({ id: 7002, grantSource: "AUTO_DEP" });
     const result = applyDialogResultToDraft({
-      baseline: [b1, b2, autoDep],
+      baseline: [b1, autoDep],
       changes: [],
       dialog: dialogOf({ resources: [] }), // 全部取消勾选
       operations: OPS
@@ -401,7 +426,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(removes).toHaveLength(1);
     const removedIds = (removes[0] as Extract<DraftChange, { kind: "remove" }>)
       .records;
-    expect(removedIds.map(r => r.id).sort()).toEqual([7000, 7001]);
+    expect(removedIds.map(r => r.id)).toEqual([7000]);
     expect(removedIds.some(r => r.id === 7002)).toBe(false); // AUTO_DEP 不进比对
     expect(
       (removes[0] as Extract<DraftChange, { kind: "remove" }>).cascadeChildCount
@@ -472,7 +497,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     expect(result.changes.every(c => c.kind === "add")).toBe(true);
   });
 
-  it("草稿新增再次确定同键同条件 → 就地改 canGrant（不重复建变更）", () => {
+  it("草稿新增再次确定同键 → 就地改授权属性（不重复建变更）", () => {
     const first = applyDialogResultToDraft({
       baseline: [],
       changes: [],
@@ -598,6 +623,47 @@ describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
     });
     const removes = result.changes.filter(c => c.kind === "remove");
     expect(removes).toHaveLength(0); // DATA 保留（同键同条件），MENU 不在比对集
+  });
+
+  it("全局 ALL 空集合按目标类型撤销，不影响其他类型", () => {
+    const dataAll = makeRecord({
+      id: 7150,
+      resourceTypeCode: "DATA",
+      resourceCode: null,
+      codeType: null,
+      operationCode: "MANAGE",
+      scopeMode: "ALL",
+      grantedBits: "16"
+    });
+    const menuAll = makeRecord({
+      id: 7151,
+      resourceTypeCode: "MENU",
+      resourceCode: null,
+      codeType: null,
+      operationCode: "MANAGE",
+      scopeMode: "ALL",
+      grantedBits: "16"
+    });
+    const result = applyDialogResultToDraft({
+      baseline: [dataAll, menuAll],
+      changes: [],
+      dialog: {
+        operation: { code: "MANAGE", resourceTypeCode: null },
+        scopeMode: "ALL",
+        targetResourceTypeCode: "DATA",
+        resources: [],
+        conditionCode: null,
+        canGrant: false
+      },
+      operations: GLOBAL_OPS
+    });
+    const removes = result.changes.filter(c => c.kind === "remove");
+    expect(removes).toHaveLength(1);
+    expect(
+      (removes[0] as Extract<DraftChange, { kind: "remove" }>).records.map(
+        record => record.id
+      )
+    ).toEqual([7150]);
   });
 
   it("全局 INSTANCE 只保留类型 A：类型 B 未勾选产生 remove（问题 2）", () => {
@@ -726,12 +792,151 @@ describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
     const removes = result.changes.filter(c => c.kind === "remove");
     expect(removes).toHaveLength(0); // DATA 保留，MENU 不在比对集（专属限本类型）
   });
+
+  it("批量确认按顺序组合 ALL 撤销与 INSTANCE 最终集合", () => {
+    const dataAll = makeRecord({
+      id: 7450,
+      resourceTypeCode: "DATA",
+      resourceCode: null,
+      codeType: null,
+      operationCode: "VIEW",
+      scopeMode: "ALL",
+      grantedBits: "2"
+    });
+    const existingInstance = makeRecord({
+      id: 7451,
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r1",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE",
+      grantedBits: "2"
+    });
+    const existingKey = resourceGroupKeyOf(existingInstance);
+
+    const result = applyDialogResultsToDraft({
+      baseline: [dataAll, existingInstance],
+      changes: [],
+      dialogs: [
+        {
+          operation: { code: "VIEW", resourceTypeCode: "DATA" },
+          scopeMode: "ALL",
+          targetResourceTypeCode: "DATA",
+          resources: [],
+          conditionCode: null,
+          canGrant: false
+        },
+        {
+          operation: { code: "VIEW", resourceTypeCode: "DATA" },
+          scopeMode: "INSTANCE",
+          resources: [
+            {
+              resourceTypeCode: "DATA",
+              resourceCode: "data:r1",
+              codeType: "default",
+              name: "数据一"
+            },
+            {
+              resourceTypeCode: "DATA",
+              resourceCode: "data:r2",
+              codeType: "default",
+              name: "数据二"
+            }
+          ],
+          untouchedResourceKeys: [existingKey],
+          conditionCode: null,
+          canGrant: false
+        }
+      ],
+      operations: TYPED_OPS
+    });
+
+    const removes = result.changes.filter(
+      (change): change is Extract<DraftChange, { kind: "remove" }> =>
+        change.kind === "remove"
+    );
+    const adds = result.changes.filter(
+      (change): change is AddChange => change.kind === "add"
+    );
+    expect(removes).toHaveLength(1);
+    expect(removes[0].records.map(record => record.id)).toEqual([7450]);
+    expect(adds).toHaveLength(1);
+    expect(adds[0].recordKey.resourceCode).toBe("data:r2");
+    expect(
+      removes.flatMap(change => change.records.map(record => record.id))
+    ).not.toContain(7451);
+  });
+
+  it("同一次授权弹窗可为新主权限挂载跨类型子权限", () => {
+    const mainResult = applyDialogResultsToDraft({
+      baseline: [],
+      changes: [],
+      dialogs: [
+        {
+          operation: { code: "VIEW", resourceTypeCode: "DATA" },
+          scopeMode: "INSTANCE",
+          resources: [
+            {
+              resourceTypeCode: "DATA",
+              resourceCode: "data:new",
+              codeType: "default",
+              name: "新数据"
+            }
+          ],
+          conditionCode: null,
+          canGrant: false
+        }
+      ],
+      operations: TYPED_OPS
+    });
+    const parent = mainResult.changes.find(
+      (change): change is AddChange =>
+        change.kind === "add" && change.parentChangeId == null
+    );
+    expect(parent).toBeDefined();
+
+    const childKey = {
+      resourceTypeCode: "MENU",
+      resourceCode: "menu:child",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE" as const,
+      conditionCode: null,
+      canGrant: false
+    };
+    const child = buildAddChange({
+      recordKey: childKey,
+      parentChangeId: parent!.changeId,
+      summary: buildSummary({
+        recordKey: childKey,
+        resourceLabel: "子菜单"
+      })
+    });
+    const changes = [...mainResult.changes, child];
+    const view = applyDraftToRecords({
+      baseline: [],
+      changes,
+      operations: TYPED_OPS
+    });
+    expect(
+      view.childrenByParent.get(draftParentKey(parent!.changeId))
+    ).toHaveLength(1);
+
+    const plan = buildGrantPlan(changes);
+    expect(plan?.creates).toHaveLength(1);
+    expect(plan?.creates?.[0].key.resourceCode).toBe("data:new");
+    expect(plan?.creates?.[0].children?.[0]).toMatchObject({
+      resourceTypeCode: "MENU",
+      resourceCode: "menu:child",
+      operationCode: "VIEW"
+    });
+  });
 });
 
-// ========== findBranchConflict / cellDraftMark ==========
+// ========== findDirectGrantConflict / cellDraftMark ==========
 
-describe("findBranchConflict（S4 改条件撞已占用条件 → 前端禁用）", () => {
-  it("完整键同键同 conditionCode 已有 MANUAL 分支 → 命中；remove 标记不命中", () => {
+describe("findDirectGrantConflict（条件不参与直接授权身份）", () => {
+  it("同键已有 MANUAL 记录即命中；条件不同仍冲突；remove 标记不命中", () => {
     const existing = makeRecord({ conditionCode: "c1" });
     const key = {
       resourceTypeCode: "DATA",
@@ -742,13 +947,14 @@ describe("findBranchConflict（S4 改条件撞已占用条件 → 前端禁用�
       conditionCode: null,
       canGrant: false
     };
-    expect(findBranchConflict([existing], key, "c1")?.id).toBe(existing.id);
-    expect(findBranchConflict([existing], key, "c2")).toBeUndefined();
+    expect(findDirectGrantConflict([existing], key)?.id).toBe(existing.id);
     expect(
-      findBranchConflict(
+      findDirectGrantConflict([existing], { ...key, conditionCode: "c2" })?.id
+    ).toBe(existing.id);
+    expect(
+      findDirectGrantConflict(
         [{ ...existing, draftMark: "remove" as const }],
-        key,
-        "c1"
+        key
       )
     ).toBeUndefined();
   });

@@ -22,13 +22,13 @@ export const PERMISSION_GRANT_PERMS = {
   // ===== 配权门禁（轨道 2，目标抽象角色） =====
   /** 矩阵查看（两入口通用） */
   ROLE_VIEW: "ROLE:VIEW",
-  /** 授权/删除/详情层编辑 */
+  /** 授权弹窗内授予/撤销；权限详情保持只读 */
   ROLE_MANAGE: "ROLE:MANAGE",
 
   // ===== 只读依赖数据门控 =====
-  /** 条件选择（弹窗 Step 4 / 详情层改条件；无权置灰并引导至 3.2） */
+  /** 新授权条件选择（无权置灰并引导至 3.2） */
   CONDITION_VIEW: "CONDITION:VIEW",
-  /** 资源树（矩阵资源行 / 弹窗 Step 3 资源选择） */
+  /** 资源树（矩阵资源行 / 授权弹窗资源选择） */
   RESOURCE_VIEW: "RESOURCE:VIEW",
   /** 操作列定义 */
   OPERATION_VIEW: "OPERATION:VIEW",

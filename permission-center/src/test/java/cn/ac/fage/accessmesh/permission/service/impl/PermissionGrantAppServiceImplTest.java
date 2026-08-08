@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionAddChildReq;
 import cn.ac.fage.accessmesh.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.permission.entity.ResourceEntity;
@@ -13,23 +14,33 @@ import cn.ac.fage.accessmesh.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
+import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -57,6 +68,7 @@ class PermissionGrantAppServiceImplTest {
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     /** 权限授予领域服务Mock */
     @Mock private PermissionGrantDomainService permissionGrantDomainService;
+    @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     /** 审计领域服务Mock */
     @Mock private AuditDomainService auditDomainService;
     /** 主体领域服务Mock */
@@ -78,7 +90,7 @@ class PermissionGrantAppServiceImplTest {
     void setUp() {
         service = new PermissionGrantAppServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
-            rolePermMapper, permissionGrantDomainService,
+            rolePermMapper, permissionGrantDomainService, permissionGrantPlanDomainService,
             auditDomainService, subjectDomainService, typeResolutionService,
             domainClassifyService, engine
         );
@@ -132,5 +144,37 @@ class PermissionGrantAppServiceImplTest {
         );
 
         assertThrows(BizException.class, () -> service.addChildren(1L, req));
+    }
+
+    @Test
+    void shouldRejectChildWhenOperatorCannotDelegate() {
+        RoleResourcePermission parent = new RoleResourcePermission();
+        parent.setId(10L);
+        parent.setTenantId(1L);
+        parent.setAbstractRoleId(20L);
+        when(rolePermMapper.selectValidById(1L, null, 10L)).thenReturn(parent);
+        when(engine.hasPermission(
+            1L, 10L, ResourceTypeCode.ROLE, 20L, OperationCodeConstants.MANAGE)).thenReturn(true);
+
+        RolePermissionAddChildReq.ChildItem child = new RolePermissionAddChildReq.ChildItem(
+            "DATA", "report:sales", "default", "VIEW", ScopeMode.INSTANCE, false, null);
+        PermissionGrantDomainService.GrantCheckKey key =
+            new PermissionGrantDomainService.GrantCheckKey(
+                "DATA", "report:sales", "default", "VIEW", false);
+        when(permissionGrantDomainService.checkCanGrant(
+            eq(1L), eq(10L), eq(Set.of(key)), eq(null)))
+            .thenReturn(Map.of(
+                "DATA:report:sales:default:VIEW:SPECIFIC",
+                new PermissionGrantDomainService.GrantCheckResult(false, "NO_DELEGABLE_PERMISSION")));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(10L);
+
+            BizException exception = assertThrows(BizException.class, () ->
+                service.addChildren(1L, new RolePermissionAddChildReq(10L, List.of(child))));
+
+            assertEquals(20040, exception.getErrorCode());
+            verifyNoInteractions(typeResolutionService);
+        }
     }
 }

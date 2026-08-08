@@ -1,18 +1,18 @@
 // 权限授予 Mock（T-FE-036，4.1 权限授予页 v3）。
 // 对齐 permission-center 的 role-resource-permission/list（§6.4）与
-// role-resource-permission/apply-grant-plan（§6.5.1，唯一写入口，🔧 T-PERM-034 后端未实现）。
+// role-resource-permission/apply-grant-plan（§6.5.1，授权页面唯一写入口；mock 与真实后端同契约）。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 // 资源/操作数据经 ./resource-operation 共享（跨 mock 引用同层数据，对齐 resource-dependency 先例）。
 //
 // 场景覆盖（S1~S7 验收驱动，主体 = 角色树 mock 中的 BASIC_ROLE）：
 // - 直接授权 / 操作继承（UPDATE inheritMask 覆盖 VIEW）/ 资源继承（dept-data→role-data、
-//   sys-mgmt→子菜单）/ 两段组合来源链 / ALL 虚拟行（REPORT 全量）/ 多分支并存（同键双条件）/
-//   AUTO_DEP 只读 + 与 MANUAL 同格并列 / 组合位（grantedBits 含未定义位）/ 子权限（dependOn 挂载）/
+//   sys-mgmt→子菜单）/ 两段组合来源链 / ALL 虚拟行（REPORT 全量）/
+//   AUTO_DEP 只读 + 与 MANUAL 同格并列 / 子权限（dependOn 挂载）/
 //   空主体（BASIC_203 访客、GROUP_403）/ REPORT 大树（>500 节点虚拟滚动）
 //
 // 错误码演练（DoD-1 映射验证）：
-// - 20033 同持久化键+条件冲突（creates/updates 查重，removes 生效后状态）
+// - 20033 同角色+资源/范围+操作+父权限的 MANUAL 直接授权冲突（条件不参与身份）
 // - 20034 改/删 AUTO_DEP 记录
 // - 20036 updates/removes 目标 id 不存在/不属于目标角色/已删除；updates∩removes 交叉
 // - 20009/20010 creates 子权限挂父不存在 / 父非主权限（含子权限再带 children）
@@ -33,7 +33,7 @@ type RolePermissionItem = {
   resourceCode: string | null;
   codeType: string | null;
   resourceName: string | null;
-  operationCode: string | null;
+  operationCode: string;
   canGrant: boolean;
   conditionCode: string | null;
   scopeMode: "INSTANCE" | "ALL";
@@ -105,7 +105,7 @@ let nextPermissionId = 5001;
 /** 种子授权记录（roleKey = `${roleTypeCode}:${roleExternalId}`） */
 const records: InternalRecord[] = [
   // ---- BASIC_201 基础用户：全场景集 ----
-  // 直接授权 + 资源继承（dept-data → role-data 子孙）+ 子权限两条（多分支子权限）
+  // 直接授权 + 资源继承（dept-data → role-data 子孙）+ 两条不同操作的子权限
   seed(1001, "BASIC_ROLE:BASIC_201", {
     resourceTypeCode: "DATA",
     resourceCode: "dept-data",
@@ -137,13 +137,13 @@ const records: InternalRecord[] = [
     resourceCode: "role-data",
     codeType: "default",
     resourceName: "角色数据",
-    operationCode: "VIEW",
+    operationCode: "UPDATE",
     canGrant: false,
     conditionCode: "office-hours",
     scopeMode: "INSTANCE",
     dependOn: 1001,
     grantSource: "MANUAL",
-    grantedBits: "2"
+    grantedBits: "4"
   }),
   // 操作继承（UPDATE 覆盖 VIEW）+ 资源继承（sys-mgmt → user/role/res-op）+ 两段组合来源
   seed(1004, "BASIC_ROLE:BASIC_201", {
@@ -173,20 +173,6 @@ const records: InternalRecord[] = [
     grantSource: "MANUAL",
     grantedBits: "4"
   }),
-  // 多分支并存（与 1001 同分组键、不同条件 → 单元格 ⧉ 2 分支）
-  seed(1006, "BASIC_ROLE:BASIC_201", {
-    resourceTypeCode: "DATA",
-    resourceCode: "dept-data",
-    codeType: "default",
-    resourceName: "部门数据",
-    operationCode: "VIEW",
-    canGrant: false,
-    conditionCode: "office-hours",
-    scopeMode: "INSTANCE",
-    dependOn: null,
-    grantSource: "MANUAL",
-    grantedBits: "2"
-  }),
   // AUTO_DEP 只读（与 1008 MANUAL 同格并列展示）
   seed(1007, "BASIC_ROLE:BASIC_201", {
     resourceTypeCode: "API",
@@ -214,19 +200,19 @@ const records: InternalRecord[] = [
     grantSource: "MANUAL",
     grantedBits: "2"
   }),
-  // 组合位（operationCode=null，grantedBits 2|4|32：VIEW+UPDATE 点亮两列，32 未定义位详情层展示）
+  // 单操作直接授权（MANUAL 不再写入组合位）
   seed(1009, "BASIC_ROLE:BASIC_201", {
     resourceTypeCode: "BUTTON",
     resourceCode: "btn-add",
     codeType: "default",
     resourceName: "新增按钮",
-    operationCode: null,
+    operationCode: "VIEW",
     canGrant: false,
     conditionCode: null,
     scopeMode: "INSTANCE",
     dependOn: null,
     grantSource: "MANUAL",
-    grantedBits: "38"
+    grantedBits: "2"
   }),
   // REPORT 实例行（与 ALL 行互斥展示）
   seed(1010, "BASIC_ROLE:BASIC_201", {
@@ -327,7 +313,7 @@ function isKnownResourceType(resourceTypeCode: string): boolean {
   );
 }
 
-/** 完整持久化键（查重：(resourceType, resourceCode, codeType, grantedBits, dependOn, scopeMode) + condition） */
+/** 直接授权身份键（condition/canGrant 为可变属性，不参与查重）。 */
 function persistKeyOf(k: {
   resourceTypeCode: string;
   resourceCode: string | null;
@@ -335,7 +321,6 @@ function persistKeyOf(k: {
   grantedBits: string;
   dependOn: number | null;
   scopeMode: string;
-  conditionCode: string | null;
 }): string {
   return [
     k.resourceTypeCode,
@@ -343,8 +328,7 @@ function persistKeyOf(k: {
     k.codeType ?? "",
     k.grantedBits,
     k.dependOn ?? "",
-    k.scopeMode,
-    k.conditionCode ?? ""
+    k.scopeMode
   ].join("|");
 }
 
@@ -434,7 +418,7 @@ export default defineFakeRoute([
           !(r.dependOn != null && removeSet.has(r.dependOn))
       );
 
-      // updates 校验：条件冲突（排除自身）+ 20040 故障注入
+      // updates 校验：单直接授权冲突（排除自身）+ 20040 故障注入
       for (const u of updates) {
         const target = byId.get(u.id)!;
         const nextCondition =
@@ -453,11 +437,10 @@ export default defineFakeRoute([
           r =>
             r.id !== u.id &&
             r.grantSource === "MANUAL" &&
-            persistKeyOf({ ...r, conditionCode: r.conditionCode }) ===
-              persistKeyOf({ ...target, conditionCode: nextCondition })
+            persistKeyOf(r) === persistKeyOf(target)
         );
         if (conflict) {
-          return error(20033, "同一权限键下该条件分支已存在");
+          return error(20033, "同一资源与操作已存在直接授权");
         }
         if (u.canGrant === true && nextCondition === "temp-access") {
           return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
@@ -505,9 +488,6 @@ export default defineFakeRoute([
               `目标资源不存在（${key.resourceTypeCode}:${key.resourceCode}）`
             );
           }
-        }
-        if (key.operationCode == null) {
-          return error(20005, "操作码缺失（本页不支持组合位新增）");
         }
         const bits = resolveOperationBits(
           key.resourceTypeCode,
@@ -559,21 +539,20 @@ export default defineFakeRoute([
           }
         }
 
-        // 完整持久化键查重（removes 生效后状态；grant_source 不参与——仅 MANUAL 冲突）
+        // 直接授权键查重（removes 生效后状态；condition/canGrant 不参与身份）
         const fullKey = persistKeyOf({
           resourceTypeCode: key.resourceTypeCode,
           resourceCode: key.resourceCode,
           codeType: key.codeType,
           grantedBits: bits,
           dependOn: create.parentPermissionId ?? null,
-          scopeMode: key.scopeMode,
-          conditionCode: key.conditionCode ?? null
+          scopeMode: key.scopeMode
         });
         const conflict = surviving.find(
           r => r.grantSource === "MANUAL" && persistKeyOf(r) === fullKey
         );
         if (conflict || planKeys.has(fullKey)) {
-          return error(20033, "同一权限键下该条件分支已存在");
+          return error(20033, "同一资源与操作已存在直接授权");
         }
         planKeys.add(fullKey);
 
@@ -615,9 +594,6 @@ export default defineFakeRoute([
                 "该资源类型不允许作为子权限（SUB_PERM 配置不允许）"
               );
             }
-            if (child.operationCode == null) {
-              return error(20005, "子权限操作码缺失");
-            }
             const childBits = resolveOperationBits(
               child.resourceTypeCode,
               child.operationCode
@@ -653,11 +629,10 @@ export default defineFakeRoute([
               codeType: child.codeType,
               grantedBits: childBits,
               dependOn: null,
-              scopeMode: child.scopeMode,
-              conditionCode: child.conditionCode ?? null
+              scopeMode: child.scopeMode
             });
             if (childKeys.has(childKey)) {
-              return error(20033, "同一权限键下该条件分支已存在");
+              return error(20033, "同一资源与操作已存在直接授权");
             }
             childKeys.add(childKey);
           }
@@ -680,6 +655,8 @@ export default defineFakeRoute([
       // updates：三态应用（canGrant 缺省不改；conditionCode ""/null 清除，非空覆盖）
       for (const u of updates) {
         const target = byId.get(u.id)!;
+        // 与真实后端一致：被 removes（含主权限级联）删除的记录不再接受更新。
+        if (target.deleted) continue;
         if (u.canGrant !== undefined && u.canGrant !== null) {
           target.canGrant = u.canGrant;
         }

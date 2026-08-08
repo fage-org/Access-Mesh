@@ -414,7 +414,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
       classifySaveError(
         new RequestError("x", { appCode: 20033, kind: "business" })
       ).message
-    ).toBe("同一权限键下该条件分支已存在");
+    ).toBe("同一资源与操作已存在直接授权，请编辑已有授权");
     expect(
       classifySaveError({ response: { status: 403, data: {} } }).unknownOutcome
     ).toBe(false);

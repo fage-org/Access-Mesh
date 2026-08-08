@@ -416,12 +416,12 @@ PermQueryEngine.query(PermQuery q)
 
 ### 4.1 接口定义（第十四轮收窄重写）
 
-授权写链路收敛为 **list + apply-grant-plan** 两个端点（八个旧写入口 `save/revoke/children/add-child/remove-child/update-child/children-save/rebuild` 全部移除/不实现）。
+授权页面写链路收敛为 **list + apply-grant-plan** 两个端点。`save/revoke` 因 admin-service 存量调用暂时兼容保留；`children/add-child/remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用；`update-child/children-save/rebuild` 不实现。兼容 `add-child` 仍执行 ROLE:MANAGE 与批量 `checkCanGrant`，不可成为授权传递绕过路径。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 查询角色权限 | `POST /api/perm/role-resource-permission/list`                   | 查询角色已有权限列表（含子权限展开）             |
-| 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
+| 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
 
 > wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1` 为唯一权威；本文不重复完整字段定义。**砍（第十四轮）**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
 
@@ -462,7 +462,7 @@ sequenceDiagram
     participant PS as PermissionGrantAppService
     participant TR as TypeResolutionService
     participant ENG as PermQueryEngine
-    participant PGD as PermissionGrantDomainService
+    participant PGD as PermissionGrantPlanDomainService
     participant Mapper as RoleResourcePermissionMapper
     participant PUB as RedisPublisher (perm:invalidate)
 
@@ -509,16 +509,16 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
-        // ② 唯一预检：八项不变量（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读、
-        //    canGrant 授权传递含 condition 维度（批量收口：一次 selectByTenantAndResourceTypes 加载后
-        //    内存分组，不再按资源类型循环查询）、SUB_PERM fail-closed
-        //    （父域 resource_type 直查）、完整持久化键冲突、scopeMode/资源/操作兼容）
-        permissionGrantDomainService.prevalidateGrantPlan(tenantId, operatorId, roleId, req.plan());
+        // ② 唯一预检：记录存在及角色/父归属、段间互斥、AUTO_DEP 只读、
+        //    canGrant 授权传递（批量收口）、SUB_PERM fail-closed、
+        //    MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容
+        PreparedGrantPlan prepared = permissionGrantPlanDomainService.prevalidate(
+            tenantId, operatorId, roleId, req.domainCode(), req.plan());
 
         // ③ 单事务内执行 plan + 受影响行数断言
         //    creates（children 嵌套建树）/updates/removes；
         //    updates/removes 实际影响行数 ≠ 预期（记录被并发删除/修改）-> 20036 抛出整体回滚
-        ApplyResult result = permissionGrantDomainService.applyPlan(tenantId, roleId, req.plan());
+        permissionGrantPlanDomainService.apply(prepared);
 
         // ④ 变更审计：同事务内写一条聚合 permission_change_log（diff_snapshot.items 覆盖 creates/updates/removes，含权限记录 ID）
         //    回滚随事务消失，不写日志
@@ -527,7 +527,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             tenantId, operatorId, requestId, PermConstants.MaintainSource.MANUAL, "apply-grant-plan"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "role_resource_permission", roleId, "APPLY_GRANT_PLAN", null, null,
-                buildDiffSnapshot(result),  // diff_snapshot.items 含权限记录 ID
+                buildDiffSnapshot(prepared),  // diff_snapshot 含 creates/updates/removes 记录 ID
                 new Long[0],               // affectedUserIds
                 new Long[]{roleId})));      // affectedRoleIds
 
@@ -535,7 +535,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // （禁止业务侧手写 TransactionSynchronizationManager；markRoles 未绑定时 no-op，故必须标注 @PermissionChange）
         PermissionChangeContext.markRoles(tenantId, roleId);
 
-        return buildResp(result.items());
+        return buildResp(toItemRespList(rolePermMapper.selectValidByRoleId(tenantId, roleId)));
     }
 }
 ```
@@ -873,27 +873,24 @@ public record PermissionTreeResp(
 
 ### 7.7 授权安全校验（Grant Validation）
 
-**问题背景**：原 `batchGrant` 方法只检查 operator 是否有 MANAGE 权限，未检查是否能授予特定权限。这导致：用户可授予自己不拥有的权限；用户可授予自己拥有但 `canGrant=false` 的权限；用户可授予对外 `scopeMode=ALL` 但自己只有特定资源权限的权限；**受限条件 + canGrant 的操作者可授出无条件权限**（condition 维度缺失，第十三轮 security review MEDIUM）。
+**问题背景**：原 `batchGrant` 方法只检查 operator 是否有 MANAGE 权限，未检查是否能授予特定权限。这导致：用户可授予自己不拥有的权限；用户可授予自己拥有但 `canGrant=false` 的权限；用户可授予对外 `scopeMode=ALL` 但自己只有特定资源权限的权限。
 
-**修复方案（第十四轮口径）**：授权写链路收敛为 `apply-grant-plan` 唯一写入口后，授权校验在 `prevalidateGrantPlan` 内统一执行（condition-aware 批量 `checkCanGrant`），AppService 禁止自行拼门禁。原 `batchGrant/addItems` 已随旧写入口移除，本节示例改为 `apply-grant-plan` 口径。
+**修复方案**：授权写链路收敛为 `apply-grant-plan` 唯一写入口后，授权校验在 `prevalidateGrantPlan` 内统一执行（批量 `checkCanGrant`），AppService 禁止自行拼门禁。条件权限按 T-PERM-041 不可转授，因此操作者可用于转授的来源记录必为无条件，`conditionCode` 不参与授权传递身份。
 
-#### 校验逻辑（prevalidateGrantPlan 内，condition-aware）
+#### 校验逻辑（prevalidateGrantPlan 内）
 
 ```java
 // 对每个 creates 项校验（updates 改 canGrant=true 或 conditionCode 变更同样走此校验）：
 // 1. operator 必须有相同的权限（resourceType + resource 或 scopeAll + operation）
 // 2. operator 的该权限必须有 canGrant=true
 // 3. 授予对外 scopeMode=ALL -> operator 必须有内部 scopeAll=true（不能从特定资源权限授权全量）
-// 4. 匹配键含 conditionCode 维度：目标条件必须被操作者自身拥有的条件覆盖
-//    （首期规则：目标条件与操作者记录相同，或操作者拥有无条件版本）
-//    --杜绝"受限条件+canGrant"的操作者授出无条件/更宽条件权限
+// 4. conditionCode 不参与身份：可转授来源按 T-PERM-041 必为无条件
 
 Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = plan.creates().stream()
     .map(item -> new PermissionGrantDomainService.GrantCheckKey(
         item.key().resourceTypeCode(), item.key().resourceCode(), item.key().codeType(),
         item.key().operationCode(),
-        ScopeModeSupport.toScopeAllForGrant(item.key().scopeMode(), item.key().resourceCode(), item.key().codeType()),
-        item.key().conditionCode()   // 第十三轮 security review：condition 维度
+        ScopeModeSupport.toScopeAllForGrant(item.key().scopeMode(), item.key().resourceCode(), item.key().codeType())
     )).collect(Collectors.toSet());
 Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
     permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, domainCode);
@@ -905,4 +902,4 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 1. **scopeMode 校验**：`INSTANCE` -> operator 可用 `scopeAll=true` 或同一特定资源权限；`ALL` -> operator 必须已有 `scopeAll=true`。
 2. **update 项**：`canGrant=true` 或 `conditionCode` 变更（清空/覆盖）-> 走 `canGrantPermission` 校验。
 3. **批量收口**：`prevalidateGrantPlan` 内一次 `selectByTenantAndResourceTypes` 加载后内存分组，查询次数与资源类型数量无关。
-4. **`GrantCheckKey` 含 `conditionCode` 维度**（第十三轮 security review MEDIUM 修复），防止受限条件权限向无条件/更宽条件扩大。
+4. **条件不可转授**：`conditionCode != null -> canGrant=false` 由数据库约束与预检共同保证，因此不存在“受限条件 + canGrant”的合法来源记录。

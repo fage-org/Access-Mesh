@@ -113,6 +113,16 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                    @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
+     * 按租户、角色和记录ID更新授权可变属性；conditionId 允许显式写 null。
+     */
+    int updateGrantAttributes(@Param("tenantId") Long tenantId,
+                              @Param("roleId") Long roleId,
+                              @Param("permissionId") Long permissionId,
+                              @Param("canGrant") Boolean canGrant,
+                              @Param("conditionId") Long conditionId,
+                              @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
      * 根据角色ID集合查询有效的权限记录
      *
      * @param tenantId 租户ID

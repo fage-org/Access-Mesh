@@ -142,19 +142,46 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     @Override
     public Long findDomainIdByTypeCode(Long tenantId, String resourceTypeCode) {
         if (resourceTypeCode == null || resourceTypeCode.isBlank()) return null;
+        return findDomainIdsByTypeCodes(tenantId, Set.of(resourceTypeCode)).get(resourceTypeCode);
+    }
 
-        // 查所有非全局域
+    @Override
+    public Map<String, Long> findDomainIdsByTypeCodes(Long tenantId, Set<String> resourceTypeCodes) {
+        if (resourceTypeCodes == null || resourceTypeCodes.isEmpty()) {
+            return Map.of();
+        }
         List<BizDomain> specificDomains = bizDomainMapper.selectNonGlobalByTenant(tenantId);
-
-        for (BizDomain domain : specificDomains) {
-            Set<String> typeCodes = loadClassifyTypeCodes(tenantId, domain.getId());
-            if (typeCodes.contains(resourceTypeCode)) {
-                return domain.getId();
+        Map<Long, Set<String>> classifiedCodesByDomain = domainConfigMapper.selectByTenantId(tenantId).stream()
+            .filter(config -> ConfigType.CLASSIFY.getValue().equals(config.getConfigType()))
+            .collect(Collectors.toMap(
+                DomainConfig::getBizDomainId,
+                config -> parseResourceTypeCodes(config.getExtra()).stream()
+                    .map(code -> code.toUpperCase(Locale.ROOT))
+                    .collect(Collectors.toSet()),
+                (left, right) -> {
+                    Set<String> merged = new HashSet<>(left);
+                    merged.addAll(right);
+                    return merged;
+                }
+            ));
+        BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (String typeCode : resourceTypeCodes) {
+            if (typeCode == null || typeCode.isBlank()) {
+                continue;
+            }
+            String normalized = typeCode.toUpperCase(Locale.ROOT);
+            Long domainId = specificDomains.stream()
+                .filter(domain -> classifiedCodesByDomain
+                    .getOrDefault(domain.getId(), Set.of()).contains(normalized))
+                .map(BizDomain::getId)
+                .findFirst()
+                .orElse(globalDomain == null ? null : globalDomain.getId());
+            if (domainId != null) {
+                result.put(typeCode, domainId);
             }
         }
-
-        BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
-        return globalDomain != null ? globalDomain.getId() : null;
+        return result;
     }
 
     // ===== 内部方法 =====

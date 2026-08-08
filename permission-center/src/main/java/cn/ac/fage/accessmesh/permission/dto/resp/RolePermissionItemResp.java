@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.permission.dto.resp;
 
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 
+import java.time.LocalDateTime;
+
 /**
  * 角色权限条目响应体
  * <p>
@@ -19,6 +21,10 @@ import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
  * @param conditionCode    条件编码，无条件时为null
  * @param scopeMode        范围模式
  * @param dependOn         依赖的权限ID，无依赖时为null
+ * @param grantSource      授权来源，MANUAL/AUTO_DEP
+ * @param grantedBits      授予操作位的十进制字符串
+ * @param createdAt        创建时间
+ * @param childCount       直接子权限数量
  */
 public record RolePermissionItemResp(
     Long id,
@@ -30,5 +36,9 @@ public record RolePermissionItemResp(
     Boolean canGrant,
     String conditionCode,
     ScopeMode scopeMode,
-    Long dependOn
+    Long dependOn,
+    String grantSource,
+    String grantedBits,
+    LocalDateTime createdAt,
+    long childCount
 ) {}

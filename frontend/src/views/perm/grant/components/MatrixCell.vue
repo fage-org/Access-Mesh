@@ -4,29 +4,27 @@
  *
  * 正交模型（2026-08-05 二轮评审映射定稿，不叠加角标体系）：
  * - 有效图标：直接=绿实心无箭头 / 资源继承=淡绿+上箭头 / 操作继承=淡绿+右箭头 /
- *   双重继承（资源+操作两段）=淡绿+组合箭头；条纹=有条件（任一来源无条件按实色展示）；
+ *   双重继承（资源+操作两段）=淡绿+组合箭头；高对比条纹=全部来源均带条件；
  *   粗黑边框=可转授 canGrant（任一来源 true 即显示）。
- * - 多来源聚合归并（三轮评审）：正常态最多一个聚合有效图标；撤销时最多再一个撤销图标；
- *   颜色（任一直接->实色）/箭头（两段->组合）/粗黑边框（任一 canGrant）/条纹（全部有条件）；
+ * - 多来源聚合归并：每种状态最多一个图标；绿=有效/新增、黄=待更新、红=待撤销；
+ *   颜色（任一直接->实色）/箭头（两段->组合）/粗黑边框（任一 canGrant）/条件构成；
  *   AUTO_DEP 不占独立来源图标但参与全部聚合计算，来源属性在悬浮详情标注。
- * - 撤销图标：红=撤销直接 / 淡红=撤销继承 / 红白·淡红白条纹=撤销来源带条件（对称归并）；
- *   撤销后仍有其他有效授权 -> 有效图标 + 撤销图标并列；撤销后无有效授权 -> 只显示撤销图标；
+ * - 待更新/待撤销完整复用直接/继承/条纹/粗边框形态，只切换黄色/红色色板；
  *   不使用减号/删除线/粗黑边框=删除等额外撤销符号。
- * - 子权限下沿分叉（精确投影）：仅当当前格存在 childCount>0 的直接主权限记录时显示，
- *   继承投影不复制来源记录的分叉；级联撤销时分叉附着在红色撤销图标上。
- * - diff 背景（§6.2）：add=绿底 / partial-add=淡绿底 / update=黄底+黄描边；
- *   remove 由撤销图标表达，不加删除线/斜纹背景。
+ * - 子权限数量使用独立蓝色标识，与来源形态和状态颜色正交。
+ * - diff 背景只表达 add/partial-add；update/remove 由黄/红图标表达。
  */
 import { computed } from "vue";
 import type { CellSource } from "../utils/source-chain";
 import {
-  aggregateRemoveIcon,
-  aggregateValidIcon,
+  aggregatePermissionIcon,
   cellBackgroundMark,
-  forkAttachmentOf,
+  childPermissionCountOf,
   splitSourcesByDraft,
   type SourceDraftMark
 } from "../utils/cell-visual";
+import ChildPermissionIndicator from "./ChildPermissionIndicator.vue";
+import PermissionGlyph from "./PermissionGlyph.vue";
 
 const props = defineProps<{
   sources: CellSource[];
@@ -44,58 +42,88 @@ const emit = defineEmits<{
 const split = computed(() =>
   splitSourcesByDraft(props.sources, props.markInfo)
 );
-const valid = computed(() => split.value.valid);
+const current = computed(() => split.value.current);
+const updated = computed(() => split.value.updated);
 const removed = computed(() => split.value.removed);
 
 const hasPermission = computed(() => props.sources.length > 0);
 
-/** 聚合有效图标（最多一个；null = 无有效来源） */
-const validIcon = computed(() => aggregateValidIcon(valid.value));
+/** 每种状态独立聚合；形态相同，仅颜色区分绿/黄/红。 */
+const currentIcon = computed(() => aggregatePermissionIcon(current.value));
+const updateIcon = computed(() => aggregatePermissionIcon(updated.value));
+const removeIcon = computed(() => aggregatePermissionIcon(removed.value));
 
-/** 聚合撤销图标（最多一个；null = 无被撤销来源） */
-const removeIcon = computed(() => aggregateRemoveIcon(removed.value));
-
-/** 子权限分叉附着（存续侧 / 撤销侧 childCount 之和） */
-const fork = computed(() => forkAttachmentOf(valid.value, removed.value));
+/** 子权限数量按状态统计，最终合并到独立标识。 */
+const currentChildCount = computed(() => childPermissionCountOf(current.value));
+const updateChildCount = computed(() => childPermissionCountOf(updated.value));
+const removeChildCount = computed(() => childPermissionCountOf(removed.value));
+const totalChildCount = computed(
+  () =>
+    currentChildCount.value + updateChildCount.value + removeChildCount.value
+);
+const childPermissionTitle = computed(() => {
+  const parts: string[] = [];
+  if (currentChildCount.value > 0) {
+    parts.push(`有效 ${currentChildCount.value}`);
+  }
+  if (updateChildCount.value > 0) {
+    parts.push(`待更新 ${updateChildCount.value}`);
+  }
+  if (removeChildCount.value > 0) {
+    parts.push(`待撤销 ${removeChildCount.value}`);
+  }
+  return `子权限共 ${totalChildCount.value} 条（${parts.join(" · ")}）`;
+});
 
 /**
- * 单元格 diff 背景（add 绿底 / partial-add 淡绿底 / update 黄底；remove 无背景由撤销图标表达）。
+ * 单元格 diff 背景仅表达 add/partial-add；update/remove 由同形异色图标表达。
  * 评审 P2-1：基于有效侧标记独立计算——撤销与新增混合时新增背景不被 remove 吞掉。
  */
 const backgroundMark = computed(() =>
   cellBackgroundMark(props.sources, props.markInfo)
 );
 
-/** 有效图标 hover 摘要（首条来源 + 条数） */
-const validTitle = computed(() => {
-  if (valid.value.length === 0) return "";
-  const first = sourceLabel(valid.value[0]);
-  return valid.value.length > 1
-    ? `${first}；等 ${valid.value.length} 条来源（点击查看完整来源链）`
-    : `${first}（点击查看完整来源链）`;
-});
+function groupTitle(
+  sources: CellSource[],
+  status: "current" | "update" | "remove",
+  striped: boolean,
+  childCount: number
+): string {
+  if (sources.length === 0) return "";
+  const statusLabel =
+    status === "update" ? "待更新" : status === "remove" ? "待撤销" : "";
+  const parts = [statusLabel, sourceLabel(sources[0])].filter(Boolean);
+  if (striped) parts.push("带条件");
+  let summary = parts.join(" · ");
+  if (sources.length > 1) summary += `；等 ${sources.length} 条来源`;
+  if (childCount > 0) summary += `；含 ${childCount} 条子权限`;
+  return `${summary}（点击查看完整来源链）`;
+}
 
-/** 撤销图标 hover 摘要（直接/继承 + 条件 + 级联子权限） */
-const removeTitle = computed(() => {
-  if (removed.value.length === 0) return "";
-  const r = removeIcon.value!;
-  const parts: string[] = [];
-  parts.push(r.red ? "撤销直接授权" : "撤销继承授权");
-  if (r.striped) parts.push("（带条件）");
-  if (removed.value.length > 1) parts.push(`，共 ${removed.value.length} 条`);
-  if (fork.value.removedCount > 0) {
-    parts.push(`，含 ${fork.value.removedCount} 条子权限一并移除`);
-  }
-  return parts.join("");
-});
-
-/** 多分支并存数（有效 MANUAL 来源记录数 > 1 时在悬浮详情汇总展示） */
-const branchCount = computed(() => {
-  const manualIds = new Set(
-    valid.value.filter(s => s.grantSource === "MANUAL").map(s => s.recordId)
-  );
-  return manualIds.size;
-});
+const currentTitle = computed(() =>
+  groupTitle(
+    current.value,
+    "current",
+    currentIcon.value?.striped ?? false,
+    currentChildCount.value
+  )
+);
+const updateTitle = computed(() =>
+  groupTitle(
+    updated.value,
+    "update",
+    updateIcon.value?.striped ?? false,
+    updateChildCount.value
+  )
+);
+const removeTitle = computed(() =>
+  groupTitle(
+    removed.value,
+    "remove",
+    removeIcon.value?.striped ?? false,
+    removeChildCount.value
+  )
+);
 
 function sourceLabel(s: CellSource): string {
   const parts: string[] = [];
@@ -137,122 +165,50 @@ function handleClick() {
       <el-popover trigger="hover" placement="right" :width="360">
         <template #reference>
           <span class="cell-body">
-            <!-- 聚合有效图标（正常态最多一个） -->
-            <span
-              v-if="validIcon"
-              class="cell-icon valid"
-              :class="{
-                solid: validIcon.solid,
-                inherited: !validIcon.solid,
-                striped: validIcon.striped,
-                bold: validIcon.boldBorder,
-                combined: validIcon.arrow === 'combined'
-              }"
-              :title="validTitle"
-            >
-              <!-- 组合箭头：资源段 + 操作段两段继承；保持完整折线路径，避免缩小后
-                   与单一继承箭头混淆，同时沿用继承态的轻量视觉。 -->
-              <svg
-                v-if="validIcon.arrow === 'combined'"
-                class="arrow-svg combined-arrow"
-                viewBox="0 0 18 18"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path
-                  d="M2.5 13.5 H9 V4.5 M5.8 7.5 L9 4.3 L12.2 7.5"
-                  stroke="currentColor"
-                  stroke-width="1.9"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              <!-- 上箭头：资源继承 -->
-              <svg
-                v-else-if="validIcon.arrow === 'up'"
-                class="arrow-svg"
-                viewBox="0 0 15 15"
-              >
-                <path
-                  d="M7.5 13 V3.5 M4.8 6.2 L7.5 3.5 L10.2 6.2"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              <!-- 右箭头：操作继承 -->
-              <svg
-                v-else-if="validIcon.arrow === 'right'"
-                class="arrow-svg"
-                viewBox="0 0 15 15"
-              >
-                <path
-                  d="M1.5 7.5 H11.5 M8.2 4.2 L11.5 7.5 L8.2 10.8"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-              <!-- 直接授权：无箭头（实心圆点） -->
-              <span v-else class="dot" />
-              <!-- 子权限下沿分叉：仅直接主权限记录（存续侧） -->
-              <svg
-                v-if="fork.validCount > 0"
-                class="fork-svg"
-                viewBox="0 0 12 6"
-                :title="`${fork.validCount} 条子权限`"
-              >
-                <path
-                  d="M6 0 V2.5 M6 2.5 H2.5 V6 M6 2.5 H9.5 V6"
-                  stroke="currentColor"
-                  stroke-width="1.2"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
+            <!-- 有效/新增：绿色；形态表达来源与属性。 -->
+            <PermissionGlyph
+              v-if="currentIcon"
+              variant="valid"
+              :solid="currentIcon.solid"
+              :arrow="currentIcon.arrow"
+              :striped="currentIcon.striped"
+              :bold="currentIcon.boldBorder"
+              :title="currentTitle"
+            />
 
-            <!-- 聚合撤销图标（撤销时最多再一个；无有效来源时仅此图标） -->
-            <span
+            <!-- 待更新：沿用授权形态，仅改为黄色。 -->
+            <PermissionGlyph
+              v-if="updateIcon"
+              variant="update"
+              :solid="updateIcon.solid"
+              :arrow="updateIcon.arrow"
+              :striped="updateIcon.striped"
+              :bold="updateIcon.boldBorder"
+              :title="updateTitle"
+            />
+
+            <!-- 待撤销：沿用授权形态，仅改为红色。 -->
+            <PermissionGlyph
               v-if="removeIcon"
-              class="cell-icon remove"
-              :class="{
-                'light-red': !removeIcon.red,
-                striped: removeIcon.striped
-              }"
+              variant="remove"
+              :solid="removeIcon.solid"
+              :arrow="removeIcon.arrow"
+              :striped="removeIcon.striped"
+              :bold="removeIcon.boldBorder"
               :title="removeTitle"
-            >
-              <!-- 级联撤销：分叉附着在撤销图标上 -->
-              <svg
-                v-if="fork.removedCount > 0"
-                class="fork-svg"
-                viewBox="0 0 12 6"
-                :title="`含 ${fork.removedCount} 条子权限一并移除`"
-              >
-                <path
-                  d="M6 0 V2.5 M6 2.5 H2.5 V6 M6 2.5 H9.5 V6"
-                  stroke="currentColor"
-                  stroke-width="1.2"
-                  fill="none"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </span>
+            />
+
+            <!-- 子权限数量为独立维度，不改变任一权限状态图标。 -->
+            <ChildPermissionIndicator
+              v-if="totalChildCount > 0"
+              :count="totalChildCount"
+              :title="childPermissionTitle"
+            />
           </span>
         </template>
 
-        <!-- 悬浮详情：分支汇总 + 完整来源链（条件/范围/canGrant/子权限/创建时间/自动补全标注） -->
+        <!-- 悬浮详情：完整来源链（条件/范围/canGrant/子权限/创建时间/自动补全标注） -->
         <div class="cell-detail">
-          <div v-if="branchCount > 1" class="branch-summary">
-            ⧉ {{ branchCount }} 个分支并存
-          </div>
           <div
             v-for="s in sources"
             :key="s.recordId"
@@ -348,128 +304,7 @@ function handleClick() {
     padding: 0 2px;
   }
 
-  /* ===== 图标正交模型（🔧 T-FE-039） ===== */
-
-  .cell-icon {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: var(--radius-full);
-    flex-shrink: 0;
-
-    .arrow-svg {
-      width: 15px;
-      height: 15px;
-    }
-
-    .combined-arrow {
-      width: 17px;
-      height: 17px;
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: var(--radius-full);
-      background: currentColor;
-    }
-
-    /* 下沿分叉（子权限；仅直接主权限记录；22px 图标在 36px 行高内下探 3px 不溢出） */
-    .fork-svg {
-      position: absolute;
-      bottom: -3px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 13px;
-      height: 6px;
-    }
-  }
-
-  /* 有效图标：直接 = 实色（绿）；继承 = 淡色（淡绿）；设计定稿 §3.3，非 primary 蓝 */
-  .cell-icon.valid {
-    &.solid {
-      color: var(--el-color-white);
-      background: var(--el-color-success);
-    }
-
-    &.inherited {
-      color: var(--el-color-success);
-      background: var(--el-color-success-light-7);
-    }
-
-    /* 组合继承只靠折线路径表达额外关系，不使用额外描边或强调色。 */
-    &.combined {
-      color: var(--el-color-success);
-    }
-
-    /* 条纹 = 有条件（全部有效来源带条件；任一来源无条件按实色展示） */
-    &.striped {
-      &.solid {
-        background: repeating-linear-gradient(
-          -45deg,
-          var(--el-color-success),
-          var(--el-color-success) 3px,
-          var(--el-color-success-light-4) 3px,
-          var(--el-color-success-light-4) 6px
-        );
-      }
-
-      &.inherited {
-        background: repeating-linear-gradient(
-          -45deg,
-          var(--el-color-success-light-6),
-          var(--el-color-success-light-6) 3px,
-          var(--el-color-success-light-9) 3px,
-          var(--el-color-success-light-9) 6px
-        );
-      }
-    }
-
-    /* 粗黑边框 = 可转授 canGrant（能力属性，任一来源 true 即显示） */
-    &.bold {
-      border: 2px solid var(--el-color-black);
-      box-shadow: 0 0 0 1px var(--el-color-white) inset;
-    }
-  }
-
-  /* 撤销图标：红=直接 / 淡红=继承 / 红白·淡红白条纹=带条件；纯色圆角方块（不加符号） */
-  .cell-icon.remove {
-    border-radius: 4px;
-
-    &.light-red {
-      background: var(--el-color-danger-light-5);
-    }
-
-    &:not(.light-red) {
-      background: var(--el-color-danger);
-    }
-
-    &.striped {
-      background: repeating-linear-gradient(
-        -45deg,
-        var(--el-color-danger),
-        var(--el-color-danger) 3px,
-        var(--el-color-white) 3px,
-        var(--el-color-white) 6px
-      );
-
-      &.light-red {
-        background: repeating-linear-gradient(
-          -45deg,
-          var(--el-color-danger-light-4),
-          var(--el-color-danger-light-4) 3px,
-          var(--el-color-white) 3px,
-          var(--el-color-white) 6px
-        );
-      }
-    }
-  }
-
-  /* §6.2 diff 背景：add=绿底 / partial-add=淡绿底 / update=黄底+黄描边；
-     remove 由撤销图标表达，不叠加删除线/斜纹（正交模型） */
+  /* §6.2 diff 背景仅提示新增；update/remove 由黄/红同形图标表达。 */
   &.mark-add {
     background: var(--el-color-success-light-8);
     border-color: var(--el-color-success-light-6);
@@ -479,22 +314,9 @@ function handleClick() {
     background: var(--el-color-success-light-9);
     border-color: var(--el-color-success-light-7);
   }
-
-  &.mark-update {
-    background: var(--el-color-warning-light-9);
-    border-color: var(--el-color-warning-light-6);
-  }
 }
 
 .cell-detail {
-  .branch-summary {
-    padding: 2px 0 6px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    margin-bottom: 4px;
-  }
-
   .source-item {
     padding: 6px 0;
     border-bottom: 1px solid var(--el-border-color-lighter);

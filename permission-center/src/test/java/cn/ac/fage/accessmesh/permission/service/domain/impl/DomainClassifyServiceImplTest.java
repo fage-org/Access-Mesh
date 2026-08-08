@@ -106,9 +106,12 @@ class DomainClassifyServiceImplTest {
     void shouldFallbackToGlobalDomainWhenTypeIsUnclaimed() {
         BizDomain opsDomain = domain(10L, 1L, false, "OPS");
         BizDomain globalDomain = domain(99L, 1L, true, "GLOBAL");
+        DomainConfig config = classifyConfig("MENU");
+        config.setBizDomainId(10L);
+        config.setConfigType("CLASSIFY");
 
         when(bizDomainMapper.selectNonGlobalByTenant(any())).thenReturn(List.of(opsDomain));
-        when(domainConfigMapper.selectValidByTypeString(any(), any(), anyString())).thenReturn(classifyConfig("MENU"));
+        when(domainConfigMapper.selectByTenantId(any())).thenReturn(List.of(config));
         when(bizDomainMapper.selectGlobalByTenant(any())).thenReturn(globalDomain);
 
         assertEquals(99L, service.findDomainIdByTypeCode(1L, "API"));

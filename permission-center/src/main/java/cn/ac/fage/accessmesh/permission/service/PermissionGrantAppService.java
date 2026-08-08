@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service;
 
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionChildrenReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionListReq;
@@ -17,6 +18,11 @@ import java.util.List;
  * </p>
  */
 public interface PermissionGrantAppService {
+
+    /**
+     * 原子应用记录级授权计划，并返回目标角色的完整持久化权限集合。
+     */
+    List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req);
 
     /**
      * 批量授予角色权限

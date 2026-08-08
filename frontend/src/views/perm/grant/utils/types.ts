@@ -1,6 +1,6 @@
 /**
  * 权限授予页（4.1 v3）页面级类型模型。
- * 设计依据：docs/design/frontend/permission-grant.md §2.1（GrantContext）/ §4（三键模型）/ §6（草稿模型）。
+ * 设计依据：docs/design/frontend/permission-grant.md §2.1（GrantContext）/ §4（单直接授权模型）/ §6（草稿模型）。
  */
 import type {
   GrantRecordKey,
@@ -83,11 +83,11 @@ export type ChangeSummary = {
   codeType: string | null;
 };
 
-/** 新增变更（弹窗授权 / 详情层添加分支 / 详情层添加子权限） */
+/** 新增变更（弹窗授权 / 弹窗添加子权限） */
 export type AddChange = {
   kind: "add";
   changeId: string;
-  /** 新记录键（主权限或同键新分支；operationCode 必传——本页不支持组合位新增，设计 §12 注） */
+  /** 新记录键（主权限或子权限；operationCode 必传——MANUAL 只写单操作记录） */
   recordKey: GrantRecordKey;
   /** 子权限挂已存在父（详情层；仅引用提交前已存在的父记录） */
   parentPermissionId?: number;
@@ -109,11 +109,11 @@ export type UpdateChange = {
   summary: ChangeSummary;
 };
 
-/** 移除变更（弹窗取消勾选 / 详情层删除分支或子权限） */
+/** 移除变更（弹窗取消勾选 / 弹窗撤销子权限） */
 export type RemoveChange = {
   kind: "remove";
   changeId: string;
-  /** 被移除记录快照（可多条：弹窗取消勾选移除同分组键全部 MANUAL 分支） */
+  /** 被移除记录快照 */
   records: RolePermissionItem[];
   /** 主权限级联删子数量（>0 时清单提示"该权限下 N 条子权限将随主权限一并移除"） */
   cascadeChildCount: number;

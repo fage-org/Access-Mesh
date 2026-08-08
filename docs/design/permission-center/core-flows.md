@@ -105,7 +105,7 @@ flowchart LR
 
 ## 6. 场景四：配置基础角色权限
 
-目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。**授权写链路收敛为唯一写入口 `apply-grant-plan`（2026-08-02 第十二轮单入口收敛）**——旧三段式 `save` 及 `revoke/children/add-child/update-child/remove-child/children-save/rebuild` 全部移除/不实现，所有写操作（新增/编辑/删除主权限与子权限、跨键替换）统一在一次 plan 中表达。
+目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。**授权页面写链路收敛为唯一写入口 `apply-grant-plan`（2026-08-02 第十二轮单入口收敛）**——所有页面写操作（新增/编辑/删除主权限与子权限、跨键替换）统一在一次 plan 中表达；`save/revoke/children/add-child/remove-child` 仅作兼容保留并标记弃用，`update-child/children-save/rebuild` 不实现。
 
 | 步骤 | 接口                                           | 关键入参                                                         | 结果                             |
 | ---- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
@@ -121,10 +121,10 @@ flowchart LR
 - **单事务**：`creates`（新建记录：主权限可带 children 一次性建树；子权限用 `parentPermissionId` 挂父）+ `updates`（现有记录 canGrant/conditionCode 微变更）+ `removes`（删除记录：主权限级联删子、子权限单条删）在**同一事务**内执行，任一失败整体回滚，无部分成功。
 - **跨键替换**（范围/资源/操作变化）= removes 旧 + creates 新（同事务原子）；**子权限不迁移**，随旧主权限级联删除（预期行为），新主权限子权限在 creates 中显式配置。
 - **无 CAS/无乐观锁**（第十四轮收窄）：砍 expectedRevision/grant_revision/20037；后端靠单事务原子 + uk 约束 + 受影响行数断言保证一致性。
-- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递含 condition 维度、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、完整持久化键冲突 20033、scopeMode/资源兼容）经 `prevalidateGrantPlan` 唯一预检入口执行。
+- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容）经 `prevalidateGrantPlan` 唯一预检入口执行。
 - **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **无 CAS/无幂等表/无 clientRequestId**（第十四轮收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；**操作适用性校验（2026-08-03 单类型矩阵上下文定稿）**：`operationCode` 必须适用于 `recordKey.resourceTypeCode`——按"专属优先、全局回退"规则（与 operation-permission/list 的 includeGlobalFallback 合并共用同一解析实现）：该类型存在同码专属定义时校验通过，无专属定义时全局操作可用，同码专属+全局并存以专属为准；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`；`operationCode=null`（组合位）跳过单码校验但**仍须校验位集**（`grantedBits` 每置位 ⊆ 该类型合并后适用操作集合的 `binaryBit` 并集，否则 20008）；**嵌套子权限（children[]）与挂父 create 按子记录自身字段执行同一校验**。**条件权限不可转授（2026-08-05 评审确认）**：`conditionCode != null` 时 `canGrant` 必须为 false（creates 三形态 + updates 结果态），违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`。条件可选，填写 `conditionCode` 时必须存在且启用。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按"专属优先、全局回退"规则校验适用性，不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**。**嵌套子权限（children[]）与挂父 create 按子记录自身字段执行同一校验**。**条件权限不可转授**：`conditionCode != null` 时 `canGrant` 必须为 false（creates 三形态 + updates 结果态），违反 -> **20041**。条件可选，填写 `conditionCode` 时必须存在且启用。
 - 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；第十四轮收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）

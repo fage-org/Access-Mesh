@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.service.domain;
 import cn.ac.fage.accessmesh.permission.enums.DomainQueryMode;
 
 import java.util.Set;
+import java.util.Map;
 
 /**
  * 域分类领域服务
@@ -51,4 +52,13 @@ public interface DomainClassifyService {
      * @return 业务域ID，未找到返回null
      */
     Long findDomainIdByTypeCode(Long tenantId, String resourceTypeCode);
+
+    /**
+     * 批量反查资源类型所属业务域，未被具体域认领的类型归入全局域。
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypeCodes 资源类型码集合
+     * @return 资源类型码（原输入值）到业务域ID的映射
+     */
+    Map<String, Long> findDomainIdsByTypeCodes(Long tenantId, Set<String> resourceTypeCodes);
 }

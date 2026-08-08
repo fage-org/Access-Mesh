@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.dto.req.RoleGrantReq;
@@ -35,12 +36,14 @@ import cn.ac.fage.accessmesh.permission.aop.PermissionChange;
 import cn.ac.fage.accessmesh.permission.cache.PermissionChangeContext;
 import cn.ac.fage.accessmesh.permission.service.domain.*;
 import cn.ac.fage.accessmesh.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.permission.util.DatabaseExceptionSupport;
 import cn.ac.fage.accessmesh.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.permission.util.ScopeModeSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +78,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final PermissionGrantDomainService permissionGrantDomainService;
+    private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final AuditDomainService auditDomainService;
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
@@ -96,6 +100,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
                                       PermissionGrantDomainService permissionGrantDomainService,
+                                      PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
                                       SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
@@ -108,11 +113,50 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantDomainService = permissionGrantDomainService;
+        this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.auditDomainService = auditDomainService;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "perm", action = "role-resource-permission-apply-plan",
+        targetType = "abstract_role", targetId = "#req.roleExternalId",
+        summary = "apply role permission grant plan")
+    @PermissionChange
+    public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
+        Long roleId = typeResolutionService.resolveRoleId(
+            tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
+        if (roleId == null) {
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+        }
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE,
+            roleId, OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
+        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
+        if (role == null) {
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+        }
+        if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
+            throw biz(PermissionErrorCode.ROLE_DISABLED);
+        }
+
+        PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
+            permissionGrantPlanDomainService.prevalidate(
+                tenantId, operatorId, roleId, req.domainCode(), req.plan());
+
+        permissionGrantPlanDomainService.apply(prepared);
+        PermissionChangeContext.markRoles(tenantId, roleId);
+        recordGrantPlanChanges(tenantId, operatorId, roleId, prepared);
+
+        List<RoleResourcePermission> allPermissions = rolePermMapper
+            .selectValidByRoleId(tenantId, roleId);
+        return toItemRespList(tenantId, allPermissions);
     }
 
     /**
@@ -384,6 +428,16 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             toInsert.add(rp);
         }
 
+        // condition/canGrant 是可变属性，不参与直接授权身份；数据库唯一索引是最终并发防线。
+        // removes 在同一事务内先执行，因此预检排除本批待移除记录，允许合法替换。
+        if (!toInsert.isEmpty()) {
+            permissionGrantDomainService.validateSingleManualGrants(
+                rolePermMapper.selectValidByRoleId(tenantId, roleId),
+                toInsert,
+                new HashSet<>(removeItems)
+            );
+        }
+
         // 批量软删除权限避免N+1查询
         if (!removeItems.isEmpty()) {
             permissionGrantDomainService.revokePermissions(tenantId, roleId, removeItems);
@@ -435,13 +489,14 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                         existing.setConditionId(condition.getId());
                     }
                 }
+                permissionGrantDomainService.validateGrantAttributes(existing);
                 existing.setUpdatedAt(now);
                 rolePermMapper.update(existing);
             }
         }
 
         if (!toInsert.isEmpty()) {
-            rolePermMapper.insertBatch(toInsert);
+            insertManualPermissions(toInsert);
         }
 
         // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
@@ -521,8 +576,36 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             return List.of();
         }
 
-        List<RoleResourcePermission> perms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
-        return toItemRespList(tenantId, perms);
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
+        List<RoleResourcePermission> selectedPerms = allPerms;
+        if (req.resourceTypeCode() != null && !req.resourceTypeCode().isBlank()) {
+            Integer resourceType = typeResolutionService.resolveTypeValue(
+                tenantId, "resource_type", req.resourceTypeCode());
+            if (resourceType == null) {
+                return List.of();
+            }
+            List<RoleResourcePermission> mainPermissions = allPerms.stream()
+                .filter(permission -> permission.getDependOn() == null)
+                .filter(permission -> Objects.equals(permission.getResourceType(), resourceType))
+                .toList();
+            if (req.shouldIncludeChildren()) {
+                Set<Long> mainPermissionIds = mainPermissions.stream()
+                    .map(RoleResourcePermission::getId)
+                    .collect(Collectors.toSet());
+                selectedPerms = allPerms.stream()
+                    .filter(permission -> permission.getDependOn() == null
+                        ? Objects.equals(permission.getResourceType(), resourceType)
+                        : mainPermissionIds.contains(permission.getDependOn()))
+                    .toList();
+            } else {
+                selectedPerms = mainPermissions;
+            }
+        } else if (!req.shouldIncludeChildren()) {
+            selectedPerms = allPerms.stream()
+                .filter(permission -> permission.getDependOn() == null)
+                .toList();
+        }
+        return toItemRespList(tenantId, selectedPerms, allPerms);
     }
 
     /**
@@ -561,15 +644,15 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * 为父权限添加依赖的子权限。
      * 父权限必须是顶层权限（dependOn=null）。
      * 执行SUB_PERM配置校验，限制允许的资源类型。
-     * 执行操作者授权校验（对父权限所属角色拥有MANAGE权限）。
+     * 执行操作者授权校验（对父权限所属角色拥有MANAGE权限，且对子权限拥有可转授权限）。
      * 使用批量解析避免N+1查询。
      * </p>
      *
      * @param tenantId 租户ID
      * @param req      添加子权限请求，包含父权限ID和子权限列表
      * @return 新增的子权限项列表
-    * @throws BizException      父权限不存在、父权限不是顶层、资源类型不允许，或资源/操作/条件不存在
-     * @throws SecurityException        操作者无MANAGE权限
+     * @throws BizException      父权限不存在、父权限不是顶层、资源类型不允许、不可转授，或资源/操作/条件不存在
+     * @throws SecurityException 操作者无MANAGE权限
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -609,6 +692,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         if (children.isEmpty()) {
             return List.of();
         }
+
+        // 兼容写入口仍必须执行与 apply-grant-plan 一致的授权传递校验。
+        verifyChildDelegation(tenantId, operatorId, children);
 
         // 1. 批量解析资源类型值
         Set<String> resourceTypeCodes = children.stream()
@@ -707,9 +793,18 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 new Long[]{parent.getAbstractRoleId()}
             ));
         }
+        if (!inserted.isEmpty()) {
+            permissionGrantDomainService.validateSingleManualGrants(
+                rolePermMapper.selectValidByRoleIdAndDependIds(
+                    tenantId, parent.getAbstractRoleId(), Set.of(parent.getId())
+                ),
+                inserted,
+                Set.of()
+            );
+        }
         // 性能优化：批量插入替代循环插入
         if (!inserted.isEmpty()) {
-            rolePermMapper.insertBatch(inserted);
+            insertManualPermissions(inserted);
         }
         // 登记受影响角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         PermissionChangeContext.markRoles(tenantId, parent.getAbstractRoleId());
@@ -780,6 +875,12 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * @return 权限项响应列表
      */
     private List<RolePermissionItemResp> toItemRespList(Long tenantId, List<RoleResourcePermission> perms) {
+        return toItemRespList(tenantId, perms, perms);
+    }
+
+    private List<RolePermissionItemResp> toItemRespList(Long tenantId,
+                                                        List<RoleResourcePermission> perms,
+                                                        List<RoleResourcePermission> allRolePermissions) {
         if (perms.isEmpty()) {
             return List.of();
         }
@@ -806,21 +907,16 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
         Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", resourceTypeValues);
-        Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
-            batchLoadOperationsByResourceTypes(tenantId, resourceTypeValues)
-                .values()
-                .stream()
-                .flatMap(List::stream)
-                .toList()
-        );
+        Map<String, OperationPermission> opByTypeAndBit = buildOperationIndex(tenantId, resourceTypeValues);
+        Map<Long, Long> childCountByParentId = allRolePermissions.stream()
+            .map(RoleResourcePermission::getDependOn)
+            .filter(Objects::nonNull)
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
         return perms.stream().map(perm -> {
             ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceMap.get(perm.getResourceEntityId());
-            OperationPermission operation = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                opByTypeAndBit,
-                perm.getResourceType(),
-                perm.getGrantedBits()
-            );
+            OperationPermission operation = opByTypeAndBit.get(operationIndexKey(
+                perm.getResourceType(), perm.getGrantedBits()));
             String resourceTypeCode = resourceTypeCodeMap.get(perm.getResourceType());
             PermissionCondition condition = perm.getConditionId() == null ? null : conditionMap.get(perm.getConditionId());
             return new RolePermissionItemResp(
@@ -833,9 +929,47 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 perm.getCanGrant(),
                 condition == null ? null : condition.getCode(),
                 ScopeModeSupport.fromScopeAll(perm.getScopeAll()),
-                perm.getDependOn()
+                perm.getDependOn(),
+                perm.getGrantSource() == null ? GrantSource.MANUAL.getValue() : perm.getGrantSource(),
+                perm.getGrantedBits() == null ? "0" : String.valueOf(perm.getGrantedBits()),
+                perm.getCreatedAt(),
+                childCountByParentId.getOrDefault(perm.getId(), 0L)
             );
         }).toList();
+    }
+
+    /**
+     * 一次加载租户操作定义，并按“类型专属优先、全局定义回退”建立类型+位索引。
+     */
+    private Map<String, OperationPermission> buildOperationIndex(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Map.of();
+        }
+        List<OperationPermission> allOperations = operationPermissionMapper
+            .selectByTenantAndResourceType(tenantId, null);
+        List<OperationPermission> globalOperations = allOperations.stream()
+            .filter(operation -> operation.getResourceType() == null)
+            .toList();
+        Map<String, OperationPermission> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            Map<String, OperationPermission> specificByCode = allOperations.stream()
+                .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
+                    Function.identity(), (left, right) -> left, LinkedHashMap::new));
+            for (OperationPermission operation : specificByCode.values()) {
+                result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+            }
+            for (OperationPermission operation : globalOperations) {
+                if (!specificByCode.containsKey(operation.getCode().toUpperCase())) {
+                    result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+                }
+            }
+        }
+        return result;
+    }
+
+    private String operationIndexKey(Integer resourceType, Long binaryBit) {
+        return resourceType + ":" + binaryBit;
     }
 
     /**
@@ -871,12 +1005,66 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      * @return 权限键字符串
      */
     private String buildGrantKey(RoleGrantReq.GrantAddItem item) {
+        return grantCheckKey(new PermissionGrantDomainService.GrantCheckKey(
+            item.resourceTypeCode(), item.resourceCode(), item.codeType(), item.operationCode(),
+            ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType())));
+    }
+
+    private void verifyChildDelegation(
+            Long tenantId,
+            Long operatorId,
+            List<RolePermissionAddChildReq.ChildItem> children) {
+        Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = children.stream()
+            .map(child -> new PermissionGrantDomainService.GrantCheckKey(
+                child.resourceTypeCode(), child.resourceCode(), child.codeType(), child.operationCode(),
+                ScopeModeSupport.toScopeAllForGrant(
+                    child.scopeMode(), child.resourceCode(), child.codeType())))
+            .collect(Collectors.toSet());
+        Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
+            permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, null);
+        for (PermissionGrantDomainService.GrantCheckKey key : grantKeys) {
+            PermissionGrantDomainService.GrantCheckResult result = grantResults.get(grantCheckKey(key));
+            if (result == null || !result.canGrant()) {
+                throw biz(PermissionErrorCode.GRANT_CANNOT_DELEGATE,
+                    "Cannot delegate " + grantCheckKey(key)
+                        + "; reason=" + (result == null ? "UNKNOWN" : result.reason()));
+            }
+        }
+    }
+
+    private String grantCheckKey(PermissionGrantDomainService.GrantCheckKey key) {
         return String.format("%s:%s:%s:%s:%s",
-            item.resourceTypeCode(),
-            item.resourceCode() == null ? "*" : item.resourceCode(),
-            item.codeType() == null ? "*" : item.codeType(),
-            item.operationCode(),
-            ScopeModeSupport.toScopeAllForGrant(item.scopeMode(), item.resourceCode(), item.codeType()) ? "ALL" : "SPECIFIC");
+            key.resourceTypeCode(),
+            key.resourceCode() == null ? "*" : key.resourceCode(),
+            key.codeType() == null ? "*" : key.codeType(),
+            key.operationCode(),
+            key.scopeAll() ? "ALL" : "SPECIFIC");
+    }
+
+    private void recordGrantPlanChanges(
+            Long tenantId,
+            Long operatorId,
+            Long roleId,
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared) {
+        List<Long> createdIds = new ArrayList<>();
+        for (PermissionGrantPlanDomainService.PreparedCreate create : prepared.creates()) {
+            createdIds.add(create.permission().getId());
+            for (RoleResourcePermission child : create.children()) {
+                createdIds.add(child.getId());
+            }
+        }
+        List<Long> updatedIds = prepared.updates().stream()
+            .map(RoleResourcePermission::getId).toList();
+        if (!createdIds.isEmpty() || !updatedIds.isEmpty() || !prepared.removes().isEmpty()) {
+            String diffSnapshot = String.format(
+                "{\"creates\":%s,\"updates\":%s,\"removes\":%s}",
+                createdIds, updatedIds, prepared.removes());
+            auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL,
+                "apply-grant-plan"), List.of(new AuditDomainService.ChangeLogEntry(
+                    "role_resource_permission", roleId, "APPLY_GRANT_PLAN",
+                    null, null, diffSnapshot, null, new Long[]{roleId})));
+        }
     }
 
     private BizException biz(PermissionErrorCode errorCode) {
@@ -885,6 +1073,21 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
     private BizException biz(PermissionErrorCode errorCode, String message) {
         return new BizException(errorCode.getCode(), message);
+    }
+
+    /**
+     * 批量写入 MANUAL 授权，并将唯一索引竞态统一转换为领域错误码。
+     */
+    private void insertManualPermissions(List<RoleResourcePermission> permissions) {
+        try {
+            rolePermMapper.insertBatch(permissions);
+        } catch (DataIntegrityViolationException e) {
+            if (DatabaseExceptionSupport.isUniqueViolation(e,
+                "uk_role_resource_permission_manual_direct", "uk_role_resource_permission")) {
+                throw biz(PermissionErrorCode.DIRECT_PERMISSION_CONFLICT);
+            }
+            throw e;
+        }
     }
 
     // ===== 私有批量加载方法 =====

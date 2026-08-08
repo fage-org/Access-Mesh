@@ -1,15 +1,14 @@
 /**
  * 矩阵单元格图标正交模型纯函数测试（T-FE-039，§3.3/§6.2）。
  * 覆盖：多来源聚合归并（颜色/箭头/条纹/粗黑边框/AUTO_DEP 参与聚合）、
- * 撤销图标对称归并、子权限分叉精确投影、按草稿标记拆分有效/撤销来源。
+ * 三态图标同形聚合、子权限数量精确投影、按草稿标记拆分三态来源。
  */
 import { describe, it, expect } from "vitest";
 import type { CellSource } from "./source-chain";
 import {
-  aggregateValidIcon,
-  aggregateRemoveIcon,
+  aggregatePermissionIcon,
   cellBackgroundMark,
-  forkAttachmentOf,
+  childPermissionCountOf,
   splitSourcesByDraft,
   isDirectSource
 } from "./cell-visual";
@@ -54,13 +53,13 @@ describe("isDirectSource（直接 = 无资源段且无操作段，含 AUTO_DEP �
   });
 });
 
-describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
+describe("aggregatePermissionIcon（§3.3 颜色无关的多来源聚合）", () => {
   it("空来源 → null", () => {
-    expect(aggregateValidIcon([])).toBeNull();
+    expect(aggregatePermissionIcon([])).toBeNull();
   });
 
   it("单条直接授权：实色 + 无箭头 + 实底 + 无粗黑边框", () => {
-    expect(aggregateValidIcon([source({ recordId: 1 })])).toEqual({
+    expect(aggregatePermissionIcon([source({ recordId: 1 })])).toEqual({
       solid: true,
       arrow: "none",
       striped: false,
@@ -70,7 +69,7 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("单条资源继承 → 淡色 + 上箭头", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({
           recordId: 1,
           nodeInheritFromCode: "parent",
@@ -82,13 +81,15 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("单条操作继承 → 淡色 + 右箭头", () => {
     expect(
-      aggregateValidIcon([source({ recordId: 1, opInheritFromCode: "MANAGE" })])
+      aggregatePermissionIcon([
+        source({ recordId: 1, opInheritFromCode: "MANAGE" })
+      ])
     ).toMatchObject({ solid: false, arrow: "right" });
   });
 
   it("单条两段继承（同记录资源+操作段）→ 淡色 + 组合箭头", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({
           recordId: 1,
           nodeInheritFromCode: "parent",
@@ -100,7 +101,7 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("直接 + 资源继承并存 → 实色（直接优先）+ 无箭头", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1 }),
         source({ recordId: 2, nodeInheritFromCode: "parent" })
       ])
@@ -109,7 +110,7 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("资源继承 + 操作继承（不同记录并存）→ 组合箭头（两段来自不同记录亦可）", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1, nodeInheritFromCode: "parent" }),
         source({ recordId: 2, opInheritFromCode: "MANAGE" })
       ])
@@ -118,25 +119,29 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("全部来源带条件 → 条纹", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1, conditionCode: "office-hours" }),
         source({ recordId: 2, conditionCode: "corp-ip-only" })
       ])
     ).toMatchObject({ striped: true });
   });
 
-  it("任一来源无条件 → 实色展示（不条纹）", () => {
+  it("无条件可转授与条件来源并存 → 实色粗框，不额外表现条件来源", () => {
     expect(
-      aggregateValidIcon([
-        source({ recordId: 1, conditionCode: "office-hours" }),
-        source({ recordId: 2 })
+      aggregatePermissionIcon([
+        source({ recordId: 1, canGrant: true }),
+        source({ recordId: 2, conditionCode: "office-hours" })
       ])
-    ).toMatchObject({ striped: false });
+    ).toMatchObject({
+      solid: true,
+      striped: false,
+      boldBorder: true
+    });
   });
 
   it("任一来源 canGrant=true → 粗黑边框", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1 }),
         source({ recordId: 2, canGrant: true })
       ])
@@ -145,13 +150,18 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("全部 canGrant=false → 无粗黑边框", () => {
     expect(
-      aggregateValidIcon([source({ recordId: 1 }), source({ recordId: 2 })])
+      aggregatePermissionIcon([
+        source({ recordId: 1 }),
+        source({ recordId: 2 })
+      ])
     ).toMatchObject({ boldBorder: false });
   });
 
   it("仅 AUTO_DEP → 普通有效图标（实色，与无权限空白可区分）", () => {
     expect(
-      aggregateValidIcon([source({ recordId: 1, grantSource: "AUTO_DEP" })])
+      aggregatePermissionIcon([
+        source({ recordId: 1, grantSource: "AUTO_DEP" })
+      ])
     ).toEqual({
       solid: true,
       arrow: "none",
@@ -160,18 +170,21 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
     });
   });
 
-  it("MANUAL 带条件 + AUTO_DEP 无条件 → 实色不条纹（AUTO_DEP 参与聚合）", () => {
+  it("MANUAL 带条件 + AUTO_DEP 无条件 → 实色，不额外表现条件来源", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1, conditionCode: "office-hours" }),
         source({ recordId: 2, grantSource: "AUTO_DEP" })
       ])
-    ).toMatchObject({ solid: true, striped: false });
+    ).toMatchObject({
+      solid: true,
+      striped: false
+    });
   });
 
   it("MANUAL + AUTO_DEP 全部带条件 → 条纹（AUTO_DEP 参与聚合）", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1, conditionCode: "office-hours" }),
         source({
           recordId: 2,
@@ -184,131 +197,39 @@ describe("aggregateValidIcon（§3.3 多来源聚合归并）", () => {
 
   it("AUTO_DEP canGrant=true 参与粗黑边框判定", () => {
     expect(
-      aggregateValidIcon([
+      aggregatePermissionIcon([
         source({ recordId: 1, grantSource: "AUTO_DEP", canGrant: true })
       ])
     ).toMatchObject({ boldBorder: true });
   });
 });
 
-describe("aggregateRemoveIcon（§6.2 撤销图标；对称归并）", () => {
-  it("空来源 → null", () => {
-    expect(aggregateRemoveIcon([])).toBeNull();
-  });
-
-  it("撤销直接权限（无条件）→ 红 + 实色", () => {
-    expect(aggregateRemoveIcon([source({ recordId: 1 })])).toEqual({
-      red: true,
-      striped: false
-    });
-  });
-
-  it("撤销继承权限 → 淡红", () => {
+describe("childPermissionCountOf（§3.3 子权限独立数量投影）", () => {
+  it("无直接主权限记录（继承投影携带 childCount 不参与）→ 0", () => {
     expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1, nodeInheritFromCode: "parent" })
-      ])
-    ).toEqual({ red: false, striped: false });
-  });
-
-  it("撤销来源带条件（直接）→ 红白条纹", () => {
-    expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1, conditionCode: "office-hours" })
-      ])
-    ).toEqual({ red: true, striped: true });
-  });
-
-  it("撤销来源带条件（继承）→ 淡红白条纹", () => {
-    expect(
-      aggregateRemoveIcon([
+      childPermissionCountOf([
         source({
           recordId: 1,
-          opInheritFromCode: "MANAGE",
-          conditionCode: "office-hours"
+          nodeInheritFromCode: "parent",
+          childCount: 3
         })
       ])
-    ).toEqual({ red: false, striped: true });
+    ).toBe(0);
   });
 
-  it("多条撤销：任一直接 → 红；全部继承 → 淡红（对称归并）", () => {
+  it("直接主权限 childCount=3 → 3", () => {
     expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1 }),
-        source({ recordId: 2, nodeInheritFromCode: "parent" })
-      ])
-    ).toMatchObject({ red: true });
-    expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1, nodeInheritFromCode: "parent" }),
-        source({ recordId: 2, opInheritFromCode: "MANAGE" })
-      ])
-    ).toMatchObject({ red: false });
-  });
-
-  it("多条撤销：全部带条件 → 条纹；任一无条件 → 实色", () => {
-    expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1, conditionCode: "office-hours" }),
-        source({ recordId: 2, conditionCode: "corp-ip-only" })
-      ])
-    ).toMatchObject({ striped: true });
-    expect(
-      aggregateRemoveIcon([
-        source({ recordId: 1, conditionCode: "office-hours" }),
-        source({ recordId: 2 })
-      ])
-    ).toMatchObject({ striped: false });
-  });
-});
-
-describe("forkAttachmentOf（§3.3 子权限分叉精确投影）", () => {
-  it("无直接主权限记录（含继承投影携带 childCount 不参与）→ 双侧 0", () => {
-    expect(
-      forkAttachmentOf(
-        [
-          source({
-            recordId: 1,
-            nodeInheritFromCode: "parent",
-            childCount: 3
-          })
-        ],
-        []
-      )
-    ).toEqual({ validCount: 0, removedCount: 0 });
-  });
-
-  it("存续直接主权限 childCount=3 → 分叉附有效图标", () => {
-    expect(
-      forkAttachmentOf([source({ recordId: 1, childCount: 3 })], [])
-    ).toEqual({ validCount: 3, removedCount: 0 });
-  });
-
-  it("被撤销直接主权限（级联删子）childCount=2 → 分叉附撤销图标", () => {
-    expect(
-      forkAttachmentOf([], [source({ recordId: 1, childCount: 2 })])
-    ).toEqual({ validCount: 0, removedCount: 2 });
-  });
-
-  it("存续 + 撤销双侧并存 → 分叉各自附着（有效图标 + 带分叉撤销图标并列）", () => {
-    expect(
-      forkAttachmentOf(
-        [source({ recordId: 1, childCount: 3 })],
-        [source({ recordId: 2, childCount: 2 })]
-      )
-    ).toEqual({ validCount: 3, removedCount: 2 });
+      childPermissionCountOf([source({ recordId: 1, childCount: 3 })])
+    ).toBe(3);
   });
 
   it("多条直接记录 childCount 累加", () => {
     expect(
-      forkAttachmentOf(
-        [
-          source({ recordId: 1, childCount: 1 }),
-          source({ recordId: 2, childCount: 2 })
-        ],
-        []
-      )
-    ).toEqual({ validCount: 3, removedCount: 0 });
+      childPermissionCountOf([
+        source({ recordId: 1, childCount: 1 }),
+        source({ recordId: 2, childCount: 2 })
+      ])
+    ).toBe(3);
   });
 });
 
@@ -354,7 +275,7 @@ describe("cellBackgroundMark（§6.2 diff 背景；P2-1：基于有效侧独立�
     ).toBe("partial-add");
   });
 
-  it("add + remove 混合（撤销旧分支、同格新增新分支）→ partial-add（P2-1 核心用例）", () => {
+  it("add + remove 混合（撤销旧记录、同格新增其他来源）→ partial-add（P2-1 核心用例）", () => {
     expect(
       cellBackgroundMark(
         [source({ recordId: 1 }), source({ recordId: 2 })],
@@ -383,16 +304,16 @@ describe("cellBackgroundMark（§6.2 diff 背景；P2-1：基于有效侧独立�
     ).toBe("partial-add");
   });
 
-  it("update → update（黄底+黄描边）", () => {
+  it("update → null（由黄色同形图标表达）", () => {
     expect(
       cellBackgroundMark(
         [source({ recordId: 1 })],
         markOf([{ id: 1, mark: "update" }])
       )
-    ).toBe("update");
+    ).toBeNull();
   });
 
-  it("update + remove 混合 → update（有效侧修改背景保留）", () => {
+  it("update + remove 混合 → null（分别由黄色/红色图标表达）", () => {
     expect(
       cellBackgroundMark(
         [source({ recordId: 1 }), source({ recordId: 2 })],
@@ -401,7 +322,7 @@ describe("cellBackgroundMark（§6.2 diff 背景；P2-1：基于有效侧独立�
           { id: 2, mark: "update" }
         ])
       )
-    ).toBe("update");
+    ).toBeNull();
   });
 
   it("纯 remove → null（由撤销图标表达，不加背景）", () => {
@@ -426,7 +347,7 @@ describe("cellBackgroundMark（§6.2 diff 背景；P2-1：基于有效侧独立�
   });
 });
 
-describe("splitSourcesByDraft（撤销并列规则：有效 + 撤销最多并列两个）", () => {
+describe("splitSourcesByDraft（三态并列：有效/新增 + 待更新 + 待撤销）", () => {
   const markInfo = new Map<
     number,
     { mark: "add" | "update" | "remove"; changeId: string }
@@ -436,14 +357,19 @@ describe("splitSourcesByDraft（撤销并列规则：有效 + 撤销最多并列
     [3, { mark: "update", changeId: "c3" }]
   ]);
 
-  it("remove 标记 → removed；add/update/未标记 → valid", () => {
+  it("按标记拆分 current/updated/removed，并保留 valid 兼容集合", () => {
     const sources = [
       source({ recordId: 1 }),
       source({ recordId: 2 }),
       source({ recordId: 3 }),
       source({ recordId: 4 })
     ];
-    const { valid, removed } = splitSourcesByDraft(sources, markInfo);
+    const { current, updated, valid, removed } = splitSourcesByDraft(
+      sources,
+      markInfo
+    );
+    expect(current.map(s => s.recordId)).toEqual([2, 4]);
+    expect(updated.map(s => s.recordId)).toEqual([3]);
     expect(valid.map(s => s.recordId)).toEqual([2, 3, 4]);
     expect(removed.map(s => s.recordId)).toEqual([1]);
   });
@@ -473,5 +399,37 @@ describe("splitSourcesByDraft（撤销并列规则：有效 + 撤销最多并列
     );
     expect(valid.length).toBe(1);
     expect(removed).toEqual([]);
+  });
+
+  it("待更新与待撤销沿用完整来源形态，仅由渲染层切换颜色", () => {
+    const { updated, removed } = splitSourcesByDraft(
+      [
+        source({
+          recordId: 1,
+          opInheritFromCode: "MANAGE",
+          conditionCode: "office-hours"
+        }),
+        source({
+          recordId: 3,
+          nodeInheritFromCode: "parent",
+          conditionCode: "corp-ip-only",
+          canGrant: true
+        })
+      ],
+      markInfo
+    );
+
+    expect(aggregatePermissionIcon(updated)).toEqual({
+      solid: false,
+      arrow: "up",
+      striped: true,
+      boldBorder: true
+    });
+    expect(aggregatePermissionIcon(removed)).toEqual({
+      solid: false,
+      arrow: "right",
+      striped: true,
+      boldBorder: false
+    });
   });
 });

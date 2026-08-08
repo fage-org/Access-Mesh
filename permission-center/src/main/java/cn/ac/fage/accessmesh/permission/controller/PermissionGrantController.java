@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.permission.config.TenantContextHolder;
 import cn.ac.fage.accessmesh.permission.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionAddChildReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionChildrenReq;
 import cn.ac.fage.accessmesh.permission.dto.req.RolePermissionListReq;
@@ -39,6 +40,17 @@ public class PermissionGrantController {
      */
     public PermissionGrantController(PermissionGrantAppService permissionGrantService) {
         this.permissionGrantService = permissionGrantService;
+    }
+
+    /**
+     * 单事务应用授权计划。
+     */
+    @PostMapping("/apply-grant-plan")
+    public PermResult<RolePermissionItemsResp> applyGrantPlan(
+            @Valid @RequestBody ApplyGrantPlanReq req) {
+        List<RolePermissionItemResp> items = permissionGrantService.applyGrantPlan(
+            TenantContextHolder.getTenantId(), req);
+        return PermResult.success(new RolePermissionItemsResp(items));
     }
 
     /**

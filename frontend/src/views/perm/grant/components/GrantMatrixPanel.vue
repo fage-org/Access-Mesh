@@ -19,6 +19,7 @@ import {
 } from "../utils/source-chain";
 import type { CellSource } from "../utils/source-chain";
 import MatrixCell from "./MatrixCell.vue";
+import PermissionIconLegend from "./PermissionIconLegend.vue";
 
 type UnionColumn = { code: string; name: string; globalFallback: boolean };
 
@@ -46,6 +47,8 @@ const props = defineProps<{
   matrixLoading: boolean;
   /** 已选中可授权主体 */
   hasSubject: boolean;
+  /** 当前主体展示名；紧凑展示在矩阵标题行，避免恢复占高的页面标题卡片 */
+  subjectName: string | null;
   /** GROUP_ROLE 选中提示（分组节点本身无权限矩阵） */
   groupHint: string | null;
   locateRequest: {
@@ -372,6 +375,22 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
           <span class="view-note"
             >含继承视图（模拟 CHILD 展开，非运行时默认）</span
           >
+          <span
+            v-if="subjectName"
+            class="subject-status"
+            :title="`当前主体：${subjectName}`"
+          >
+            当前：<strong>{{ subjectName }}</strong>
+          </span>
+          <el-tag
+            v-if="hasSubject"
+            size="small"
+            :type="capability === 'edit' ? 'success' : 'info'"
+            effect="plain"
+            class="capability-tag"
+          >
+            {{ capability === "edit" ? "可编辑" : "只读" }}
+          </el-tag>
         </div>
         <el-button
           v-if="capability === 'edit'"
@@ -463,6 +482,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
             />
           </div>
         </el-popover>
+        <PermissionIconLegend />
       </div>
     </div>
 
@@ -592,6 +612,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
           display: flex;
           gap: var(--space-3);
           align-items: baseline;
+          min-width: 0;
 
           .panel-title {
             font-size: 14px;
@@ -603,6 +624,26 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
           .view-note {
             font-size: 12px;
             color: var(--el-text-color-secondary);
+          }
+
+          .subject-status {
+            max-width: 220px;
+            padding-left: var(--space-3);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px;
+            color: var(--el-text-color-secondary);
+            white-space: nowrap;
+            border-left: 1px solid var(--el-border-color-lighter);
+
+            strong {
+              font-weight: 600;
+              color: var(--el-text-color-primary);
+            }
+          }
+
+          .capability-tag {
+            flex-shrink: 0;
           }
         }
       }

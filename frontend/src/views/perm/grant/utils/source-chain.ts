@@ -55,7 +55,8 @@ export type SourceRecordInput = {
   conditionCode: string | null;
   scopeMode: GrantScopeMode;
   grantSource: GrantSource;
-  grantedBits: string;
+  /** 后端标准字段；兼容旧接口缺失时由 operationCode 回退单操作位。 */
+  grantedBits?: string;
   createdAt?: string;
   childCount?: number;
 };
@@ -72,6 +73,24 @@ export type MergedOperation = {
   /** true = 该列由全局操作回退提供（无同 code 专属定义），来源标注"全局操作" */
   globalFallback: boolean;
 };
+
+/** 兼容旧列表响应：缺少 grantedBits 时，单操作记录按 operationCode 定位定义位。 */
+function resolvedGrantedBits(
+  record: SourceRecordInput,
+  merged: MergedOperation[]
+): string {
+  if (
+    typeof record.grantedBits === "string" &&
+    record.grantedBits.trim() !== ""
+  ) {
+    return record.grantedBits;
+  }
+  return (
+    merged
+      .find(operation => operation.code === record.operationCode)
+      ?.binaryBit.toString(10) ?? "0"
+  );
+}
 
 /** 单元格来源项（一条直接记录的闭包结果命中本格） */
 export type CellSource = {
@@ -326,8 +345,9 @@ export function computeSourceChain(input: {
   for (const record of input.records) {
     const merged = getMergedColumns(columnsByType, record.resourceTypeCode);
     if (merged.length === 0) continue;
+    const grantedBits = resolvedGrantedBits(record, merged);
     const { coveredSet, matched, undefinedBits } = coveredSetOf(
-      record.grantedBits,
+      grantedBits,
       merged
     );
     if (undefinedBits !== 0n) {
@@ -381,7 +401,7 @@ export function computeSourceChain(input: {
     }
 
     // ---- 操作集 × 节点集笛卡尔积（§3.5 步骤 2/3 两段式标注） ----
-    const G = toBigIntBits(record.grantedBits);
+    const G = toBigIntBits(grantedBits);
     for (const target of nodeTargets) {
       for (const col of merged) {
         if ((coveredSet & col.binaryBit) === 0n) continue;
@@ -427,7 +447,7 @@ export function getCellState(
   return result.cells.get(rowKey)?.get(opCode);
 }
 
-// ========== 弹窗 Step 2 现状（§4 P1-2 覆盖位集展开） ==========
+// ========== 操作授权覆盖分析（§4 P1-2 覆盖位集展开） ==========
 
 export type OperationGrantHit = {
   record: SourceRecordInput;
@@ -437,7 +457,7 @@ export type OperationGrantHit = {
 };
 
 /**
- * 弹窗 Step 2 现状列表：目标操作列被哪些主权限记录覆盖。
+ * 目标操作列覆盖分析：目标操作列被哪些主权限记录覆盖。
  * 对每条记录先求覆盖位集 coveredSet = ⋃(bit.binaryBit | bit.inheritMask)，
  * 判定 (coveredSet & 当前操作 binaryBit) != 0——不是裸 grantedBits & binaryBit
  * （MANAGE 覆盖 VIEW 来自 inheritMask，裸比较会误报未授权）；不做 operationCode 等值比较
@@ -465,8 +485,9 @@ export function collectOperationGrants(input: {
     );
     const col = merged.find(c => c.code === input.target.code);
     if (!col || col.binaryBit === 0n) continue;
-    const G = toBigIntBits(record.grantedBits);
-    const { coveredSet } = coveredSetOf(record.grantedBits, merged);
+    const grantedBits = resolvedGrantedBits(record, merged);
+    const G = toBigIntBits(grantedBits);
+    const { coveredSet } = coveredSetOf(grantedBits, merged);
     if ((coveredSet & col.binaryBit) === 0n) continue;
     const direct = (G & col.binaryBit) === col.binaryBit;
     result.push({

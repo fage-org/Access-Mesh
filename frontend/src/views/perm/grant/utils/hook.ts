@@ -30,20 +30,10 @@ import { getRolePermissionList } from "@/api/permission-grant";
 import { PERMISSION_GRANT_PERMS } from "./perms";
 import { useGrantStore } from "./grant-store";
 import {
-  applyDialogResultToDraft,
   applyDraftToRecords,
-  buildAddChange,
-  buildRemoveChange,
-  buildReplaceChange,
-  buildSummary,
-  buildUpdateChange,
-  cellDraftMark,
-  findBranchConflict,
-  groupKeyOf,
   parentLocateOf,
   persistedParentKey,
   draftParentKey,
-  type DialogResult,
   type EffectiveRecord
 } from "./grant-plan";
 import {
@@ -54,7 +44,6 @@ import {
 } from "./source-chain";
 import { decideRefreshAction } from "./subject-tree";
 import type {
-  AddChange,
   DraftChange,
   GrantContext,
   SubjectType,
@@ -101,9 +90,9 @@ export function usePermissionGrant() {
    * 候选 = **全集**，不取主体已有权限类型（无权限主体才能完成首次授权，防死锁 S11）。
    */
   const typeCandidates = ref<TypeDefResp[]>([]);
-  /** 全量资源森林（详情层子权限选择器用——子权限可跨类型，T-FE-038 用户确认保留） */
+  /** 全量资源森林（授权弹窗子权限配置器与详情层使用；子权限可跨类型） */
   const allResourceForest = ref<ResourceTreeNode[]>([]);
-  /** 全量操作定义（详情层子权限操作选择器用，按所选子权限类型本地合并） */
+  /** 全量操作定义（子权限按所选资源类型本地合并） */
   const allOperationDefs = ref<OperationDefInput[]>([]);
   /** 当前矩阵类型资源树（§3.6 按类型查询；驱动矩阵行/ALL 虚拟行/授权弹窗资源树） */
   const resourceForest = ref<ResourceTreeNode[]>([]);
@@ -750,13 +739,7 @@ export function usePermissionGrant() {
     dialogVisible.value = true;
   }
 
-  function handleDialogConfirm(result: DialogResult) {
-    const { changes } = applyDialogResultToDraft({
-      baseline: grantStore.baseline,
-      changes: grantStore.changes,
-      dialog: result,
-      operations: operationDefs.value
-    });
+  function handleDialogConfirm(changes: DraftChange[]) {
     grantStore.applyChanges(changes);
     dialogVisible.value = false;
   }
@@ -814,279 +797,6 @@ export function usePermissionGrant() {
     }
     return (
       effective.value.childrenByParent.get(persistedParentKey(record.id)) ?? []
-    );
-  }
-
-  // ---- 详情层事件（统一走草稿，保存全部时单请求提交） ----
-
-  /**
-   * 条件不可转授（🔧 T-FE-039/T-PERM-041）：conditionCode 非空时 canGrant 强制 false。
-   * 调度层最终状态兜底——组件层互斥（选条件清 canGrant + checkbox 置灰）之外，
-   * 无论入口如何到达，草稿中带条件的记录 canGrant 恒为 false（后端 20041 为最终防线）。
-   */
-  function enforceNotDelegable(
-    canGrant: boolean,
-    conditionCode: string | null
-  ): boolean {
-    return conditionCode != null ? false : canGrant;
-  }
-
-  function pushChange(change: DraftChange) {
-    grantStore.applyChanges([...grantStore.changes, change]);
-  }
-
-  /** 添加分支（同键多条件并存；撞已占用条件由组件层 findBranchConflict 前置禁用） */
-  function handleAddBranch(input: {
-    record: EffectiveRecord;
-    conditionCode: string | null;
-    canGrant: boolean;
-  }) {
-    const { record } = input;
-    const recordKey = {
-      resourceTypeCode: record.resourceTypeCode,
-      resourceCode: record.resourceCode,
-      codeType: record.codeType,
-      operationCode: record.operationCode,
-      scopeMode: record.scopeMode,
-      conditionCode: input.conditionCode,
-      canGrant: enforceNotDelegable(input.canGrant, input.conditionCode)
-    };
-    pushChange(
-      buildAddChange({
-        recordKey,
-        summary: buildSummary({
-          recordKey,
-          resourceLabel:
-            record.resourceName ?? record.resourceCode ?? "全部资源"
-        })
-      })
-    );
-  }
-
-  /** 编辑分支（updates 改条件/canGrant；改条件撞已占用条件 → 组件层前置禁用 + 后端 20033） */
-  function handleUpdateBranch(input: {
-    record: EffectiveRecord;
-    canGrant: boolean;
-    conditionCode: string | null;
-  }) {
-    const { record } = input;
-    if (record.grantSource === "AUTO_DEP") {
-      message("自动补全记录只读，不可修改或删除", { type: "warning" });
-      return;
-    }
-    // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
-    const conditionCode = input.conditionCode;
-    const canGrant = enforceNotDelegable(input.canGrant, conditionCode);
-    // 草稿新增就地改（不产生 update 变更）
-    if (record.draftMark === "add" && record.changeId) {
-      grantStore.applyChanges(
-        grantStore.changes.map(c =>
-          c.changeId === record.changeId && c.kind === "add"
-            ? (() => {
-                const recordKey = {
-                  ...c.recordKey,
-                  canGrant,
-                  conditionCode
-                };
-                return {
-                  ...c,
-                  recordKey,
-                  // 评审 P2-2：就地改必须同步重建 summary——变更清单 addGroups
-                  // 分组键/展示基于 summary（ChangeListPanel.changeGroupKey），
-                  // 否则保存前总览仍是首次新增时的旧条件/旧 canGrant
-                  summary: buildSummary({
-                    recordKey,
-                    resourceLabel: c.summary.resourceLabel
-                  })
-                };
-              })()
-            : c
-        )
-      );
-      return;
-    }
-    // 已有 update 变更就地改 after
-    const existing = grantStore.changes.find(
-      (c): c is Extract<DraftChange, { kind: "update" }> =>
-        c.kind === "update" && c.recordId === record.id
-    );
-    if (existing) {
-      grantStore.applyChanges(
-        grantStore.changes.map(c =>
-          c.changeId === existing.changeId && c.kind === "update"
-            ? {
-                ...c,
-                after: {
-                  canGrant,
-                  conditionCode
-                }
-              }
-            : c
-        )
-      );
-      return;
-    }
-    pushChange(
-      buildUpdateChange({
-        before: record,
-        after: { canGrant, conditionCode },
-        summary: buildSummary({
-          recordKey: {
-            ...record,
-            conditionCode,
-            canGrant
-          },
-          resourceLabel:
-            record.resourceName ?? record.resourceCode ?? "全部资源"
-        })
-      })
-    );
-  }
-
-  /** 级联清理主权限下草稿子权限变更（主权限删除/替换时，§6.4 静默丢弃前置到草稿层） */
-  function dropStaleChildrenChanges(parentId: number) {
-    const staleIds = grantStore.changes
-      .filter(
-        c =>
-          (c.kind === "add" && c.parentPermissionId === parentId) ||
-          (c.kind === "update" && c.before.dependOn === parentId)
-      )
-      .map(c => c.changeId);
-    if (staleIds.length > 0) {
-      const stale = new Set(staleIds);
-      grantStore.applyChanges(
-        grantStore.changes.filter(c => !stale.has(c.changeId))
-      );
-    }
-  }
-
-  /** 删除分支/子权限（= remove；主权限级联删子在清单提示） */
-  function handleDeleteRecord(record: EffectiveRecord) {
-    if (record.grantSource === "AUTO_DEP") {
-      message("自动补全记录只读，不可修改或删除", { type: "warning" });
-      return;
-    }
-    // 草稿新增 → 撤销对应 AddChange（级联撤销其虚拟挂载子权限）
-    if (record.draftMark === "add" && record.changeId) {
-      grantStore.revertChange(record.changeId);
-      return;
-    }
-    if (record.dependOn == null) {
-      dropStaleChildrenChanges(record.id);
-    }
-    pushChange(
-      buildRemoveChange({
-        records: [record],
-        cascadeChildCount: record.childCount ?? 0,
-        reason: "detail-delete",
-        summary: buildSummary({
-          recordKey: record,
-          resourceLabel:
-            record.resourceName ?? record.resourceCode ?? "全部资源"
-        })
-      })
-    );
-  }
-
-  /** 添加子权限（creates parentPermissionId 挂已存在父 / parentChangeId 虚拟挂载草稿父） */
-  function handleAddChild(input: {
-    parent: EffectiveRecord;
-    recordKey: {
-      resourceTypeCode: string;
-      resourceCode: string | null;
-      codeType: string | null;
-      operationCode: string | null;
-      scopeMode: "INSTANCE" | "ALL";
-      conditionCode: string | null;
-      canGrant: boolean;
-    };
-    resourceLabel: string;
-  }) {
-    const { parent, recordKey } = input;
-    const change: AddChange = buildAddChange({
-      // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
-      recordKey: {
-        ...recordKey,
-        canGrant: enforceNotDelegable(
-          recordKey.canGrant,
-          recordKey.conditionCode
-        )
-      },
-      ...(parent.draftMark === "add" && parent.changeId
-        ? { parentChangeId: parent.changeId }
-        : { parentPermissionId: parent.id }),
-      summary: buildSummary({
-        recordKey,
-        resourceLabel: input.resourceLabel
-      })
-    });
-    pushChange(change);
-  }
-
-  /** 子权限跨键变更 = 移除 + 新建（removes+creates 同事务原子，子权限不迁移） */
-  function handleReplaceChild(input: {
-    record: EffectiveRecord;
-    newKey: Parameters<typeof buildReplaceChange>[0]["newKey"];
-    resourceLabel: string;
-  }) {
-    const { record, newKey: rawKey } = input;
-    // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
-    const newKey = {
-      ...rawKey,
-      canGrant: enforceNotDelegable(
-        rawKey.canGrant ?? false,
-        rawKey.conditionCode ?? null
-      )
-    };
-    if (record.grantSource === "AUTO_DEP") {
-      message("自动补全记录只读，不可修改或删除", { type: "warning" });
-      return;
-    }
-    // 草稿新增记录的跨键编辑 → 就地改 AddChange.recordKey（未持久化，无 removes）
-    if (record.draftMark === "add" && record.changeId) {
-      grantStore.applyChanges(
-        grantStore.changes.map(c =>
-          c.changeId === record.changeId && c.kind === "add"
-            ? {
-                ...c,
-                recordKey: newKey,
-                summary: buildSummary({
-                  recordKey: newKey,
-                  resourceLabel: input.resourceLabel
-                })
-              }
-            : c
-        )
-      );
-      return;
-    }
-    if (record.dependOn == null) {
-      // 主权限跨键变更（范围/资源/操作变化）——同样 removes+creates，子权限不迁移
-      dropStaleChildrenChanges(record.id);
-      pushChange(
-        buildReplaceChange({
-          removedRecords: [record],
-          newKey,
-          cascadeChildCount: record.childCount ?? 0,
-          summary: buildSummary({
-            recordKey: newKey,
-            resourceLabel: input.resourceLabel
-          })
-        })
-      );
-      return;
-    }
-    pushChange(
-      buildReplaceChange({
-        removedRecords: [record],
-        newKey,
-        parentPermissionId: record.dependOn,
-        cascadeChildCount: 0,
-        summary: buildSummary({
-          recordKey: newKey,
-          resourceLabel: input.resourceLabel
-        })
-      })
     );
   }
 
@@ -1232,9 +942,9 @@ export function usePermissionGrant() {
     canOperation,
     grantStore,
     // 依赖数据
-    /** 全量资源森林（详情层子权限选择器用，子权限可跨类型） */
+    /** 全量资源森林（授权弹窗子权限配置器与详情层使用，子权限可跨类型） */
     allResourceForest,
-    /** 全量操作定义（详情层子权限操作选择器用） */
+    /** 全量操作定义（授权弹窗子权限配置器与详情层使用） */
     allOperationDefs,
     resourceForest,
     operationDefs,
@@ -1277,20 +987,11 @@ export function usePermissionGrant() {
     drawerRecords,
     openDetail,
     childrenOf,
-    handleAddBranch,
-    handleUpdateBranch,
-    handleDeleteRecord,
-    handleAddChild,
-    handleReplaceChild,
     // 保存/放弃
     handleSaveAll,
     handleRevertAll,
     // 定位
     locateRequest,
-    handleLocateChange,
-    // 单元格工具（组件层复用）
-    cellDraftMark,
-    findBranchConflict,
-    groupKeyOf
+    handleLocateChange
   };
 }

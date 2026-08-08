@@ -1,9 +1,12 @@
 package cn.ac.fage.accessmesh.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.permission.enums.GrantSource;
+import cn.ac.fage.accessmesh.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.permission.service.domain.PermissionGrantDomainService;
@@ -24,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -114,10 +118,25 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return Map.of();
         }
 
+        Map<String, GrantCheckResult> results = new HashMap<>();
+        Set<GrantCheckKey> validPermissions = permissions.stream()
+            .filter(Objects::nonNull)
+            .filter(key -> {
+                boolean valid = key.resourceTypeCode() != null && !key.resourceTypeCode().isBlank()
+                    && key.operationCode() != null && !key.operationCode().isBlank();
+                if (!valid) {
+                    results.put(buildPermissionKey(key), new GrantCheckResult(false, "INVALID_PERMISSION_KEY"));
+                }
+                return valid;
+            })
+            .collect(Collectors.toSet());
+        if (validPermissions.isEmpty()) {
+            return results;
+        }
+
         Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, operatorId);
         if (operatorRoleIds.isEmpty()) {
-            Map<String, GrantCheckResult> results = new HashMap<>();
-            for (GrantCheckKey key : permissions) {
+            for (GrantCheckKey key : validPermissions) {
                 String permKey = buildPermissionKey(key);
                 results.put(permKey, new GrantCheckResult(false, "NO_ROLE"));
             }
@@ -127,10 +146,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // ===== 批量优化策略 =====
 
         // 1. 收集资源类型编码和操作码
-        Set<String> resourceTypeCodes = permissions.stream()
+        Set<String> resourceTypeCodes = validPermissions.stream()
             .map(GrantCheckKey::resourceTypeCode)
             .collect(Collectors.toSet());
-        Set<String> operationCodes = permissions.stream()
+        Set<String> operationCodes = validPermissions.stream()
             .map(GrantCheckKey::operationCode)
             .map(String::toUpperCase)
             .collect(Collectors.toSet());
@@ -148,26 +167,41 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         // 3. 批量查询操作权限
         Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
-        List<OperationPermission> allOpPerms = operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
+        if (resourceTypeValues.isEmpty()) {
+            for (GrantCheckKey key : validPermissions) {
+                results.put(buildPermissionKey(key),
+                    new GrantCheckResult(false, "INVALID_RESOURCE_TYPE"));
+            }
+            return results;
+        }
+        List<OperationPermission> specificTargetOperations = operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
             tenantId, resourceTypeValues, operationCodes);
+        List<OperationPermission> globalTargetOperations = operationPermissionMapper
+            .selectGlobalByCodes(tenantId, operationCodes);
 
         Map<String, OperationPermission> opPermByKey = new HashMap<>();
-        Map<Integer, List<OperationPermission>> operationsByType = new LinkedHashMap<>();
-        for (OperationPermission op : allOpPerms) {
-            String key = op.getResourceType() + ":" + op.getCode().toUpperCase();
-            opPermByKey.put(key, op);
-        }
+        Map<Integer, List<OperationPermission>> targetOpsByType = new LinkedHashMap<>();
         for (Integer resourceTypeValue : resourceTypeValues) {
-            operationsByType.put(resourceTypeValue, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceTypeValue));
+            Map<String, OperationPermission> specificByCode = specificTargetOperations.stream()
+                .filter(operation -> Objects.equals(operation.getResourceType(), resourceTypeValue))
+                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
+                    Function.identity(), (left, right) -> left, LinkedHashMap::new));
+            List<OperationPermission> merged = new ArrayList<>(specificByCode.values());
+            for (OperationPermission globalOperation : globalTargetOperations) {
+                if (!specificByCode.containsKey(globalOperation.getCode().toUpperCase())) {
+                    merged.add(globalOperation);
+                }
+            }
+            targetOpsByType.put(resourceTypeValue, merged);
+            for (OperationPermission operation : merged) {
+                opPermByKey.put(resourceTypeValue + ":" + operation.getCode().toUpperCase(), operation);
+            }
         }
-        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(
-            operationsByType.values().stream().flatMap(List::stream).toList()
-        );
-        Map<Integer, List<OperationPermission>> targetOpsByType = allOpPerms.stream()
-            .collect(Collectors.groupingBy(OperationPermission::getResourceType));
+        Map<String, OperationPermission> grantedOpIndex = buildOperationIndex(
+            operationPermissionMapper.selectByTenantAndResourceType(tenantId, null), resourceTypeValues);
 
         // 4. 批量解析资源实体ID
-        List<ResourceResolveRequest> resourceRequests = permissions.stream()
+        List<ResourceResolveRequest> resourceRequests = validPermissions.stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
             .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode))
             .distinct()
@@ -193,11 +227,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Map<String, List<RoleResourcePermission>> permsByScopeAll = new HashMap<>();
 
         for (RoleResourcePermission perm : allPerms) {
-            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                grantedOpIndex,
-                perm.getResourceType(),
-                perm.getGrantedBits()
-            );
+            OperationPermission grantedOp = grantedOpIndex.get(
+                operationIndexKey(perm.getResourceType(), perm.getGrantedBits()));
             if (grantedOp == null) {
                 continue;
             }
@@ -215,13 +246,51 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         // ===== 逐个评估权限 =====
-        Map<String, GrantCheckResult> results = new HashMap<>();
-        for (GrantCheckKey key : permissions) {
+        for (GrantCheckKey key : validPermissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, opPermByKey,
                 resourceEntityIdByKey, permsBySpecificResource, permsByScopeAll);
             results.put(buildPermissionKey(key), result);
         }
         return results;
+    }
+
+    @Override
+    public void validateSingleManualGrants(List<RoleResourcePermission> existingPermissions,
+                                           List<RoleResourcePermission> newPermissions,
+                                           Set<Long> removedPermissionIds) {
+        Set<Long> removedIds = removedPermissionIds == null ? Set.of() : removedPermissionIds;
+        Set<ManualGrantKey> occupied = new HashSet<>();
+
+        for (RoleResourcePermission permission : existingPermissions == null ? List.<RoleResourcePermission>of() : existingPermissions) {
+            if (removedIds.contains(permission.getId()) || !isManual(permission)) {
+                continue;
+            }
+            occupied.add(ManualGrantKey.of(permission));
+        }
+
+        for (RoleResourcePermission permission : newPermissions == null ? List.<RoleResourcePermission>of() : newPermissions) {
+            if (!isManual(permission)) {
+                continue;
+            }
+            validateGrantAttributes(permission);
+            if (!isSingleOperationBit(permission.getGrantedBits())) {
+                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                    "MANUAL permission must contain exactly one operation bit");
+            }
+            if (!occupied.add(ManualGrantKey.of(permission))) {
+                throw new BizException(PermissionErrorCode.DIRECT_PERMISSION_CONFLICT.getCode(),
+                    "Direct permission already exists for the same role, resource, operation, scope and parent");
+            }
+        }
+    }
+
+    @Override
+    public void validateGrantAttributes(RoleResourcePermission permission) {
+        if (permission != null && permission.getConditionId() != null
+            && Boolean.TRUE.equals(permission.getCanGrant())) {
+            throw new BizException(PermissionErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getCode(),
+                PermissionErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getMessage());
+        }
     }
 
     // ===== 权限撤销 =====
@@ -323,7 +392,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         for (RoleResourcePermission perm : matchingPerms) {
-            if (Boolean.TRUE.equals(perm.getCanGrant())) {
+            if (Boolean.TRUE.equals(perm.getCanGrant()) && perm.getConditionId() == null) {
                 if (key.scopeAll() && !Boolean.TRUE.equals(perm.getScopeAll())) {
                     continue;
                 }
@@ -339,6 +408,64 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             resourceTypeCode == null ? "" : resourceTypeCode.toUpperCase(),
             resourceCode == null ? "" : resourceCode,
             codeType == null ? "" : codeType);
+    }
+
+    private boolean isManual(RoleResourcePermission permission) {
+        return permission != null && (permission.getGrantSource() == null
+            || GrantSource.MANUAL.getValue().equals(permission.getGrantSource()));
+    }
+
+    private boolean isSingleOperationBit(Long grantedBits) {
+        return grantedBits != null && grantedBits > 0 && (grantedBits & (grantedBits - 1)) == 0;
+    }
+
+    private Map<String, OperationPermission> buildOperationIndex(
+            List<OperationPermission> operations, Set<Integer> resourceTypes) {
+        List<OperationPermission> globalOperations = operations.stream()
+            .filter(operation -> operation.getResourceType() == null)
+            .toList();
+        Map<String, OperationPermission> result = new HashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            Map<String, OperationPermission> specificByCode = operations.stream()
+                .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
+                    Function.identity(), (left, right) -> left));
+            for (OperationPermission operation : specificByCode.values()) {
+                result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+            }
+            for (OperationPermission operation : globalOperations) {
+                if (!specificByCode.containsKey(operation.getCode().toUpperCase())) {
+                    result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+                }
+            }
+        }
+        return result;
+    }
+
+    private String operationIndexKey(Integer resourceType, Long binaryBit) {
+        return resourceType + ":" + binaryBit;
+    }
+
+    private record ManualGrantKey(
+        Long tenantId,
+        Long roleId,
+        Long resourceEntityId,
+        Integer resourceType,
+        Long grantedBits,
+        Long dependOn,
+        boolean scopeAll
+    ) {
+        private static ManualGrantKey of(RoleResourcePermission permission) {
+            return new ManualGrantKey(
+                permission.getTenantId(),
+                permission.getAbstractRoleId(),
+                permission.getResourceEntityId(),
+                permission.getResourceType(),
+                permission.getGrantedBits(),
+                permission.getDependOn(),
+                Boolean.TRUE.equals(permission.getScopeAll())
+            );
+        }
     }
 
     /**

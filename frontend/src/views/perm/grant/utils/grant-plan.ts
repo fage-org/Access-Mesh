@@ -1,12 +1,12 @@
 /**
  * 草稿 → 提交计划（apply-grant-plan）构建与草稿生效视图（纯函数）。
- * 设计依据：docs/design/frontend/permission-grant.md §4（三键模型/确定语义）/ §6（草稿模型/统一提交）。
+ * 设计依据：docs/design/frontend/permission-grant.md §4（单记录模型/确定语义）/ §6（草稿模型/统一提交）。
  *
- * 三键模型（P1-5）：
- * - 分组键 = (resourceTypeCode, resourceCode, codeType, operationKey, scopeMode)，
+ * 单记录模型：
+ * - 直接授权键 = (resourceTypeCode, resourceCode, codeType, operationKey, scopeMode, parent)，
  *   operationKey = operationCode ?? "bits:"+grantedBits（组合位记录以位串为键）；
- * - 分支键 = 分组键 + 条件；持久化 id = 后端记录 id。
- * - 匹配范围仅限 MANUAL：分支键比对/草稿 diff 只匹配 grantSource=MANUAL 记录，
+ * - 同一直接授权键只允许一条 MANUAL 记录，conditionCode/canGrant 是可变属性；
+ * - 匹配范围仅限 MANUAL：直接授权键比对/草稿 diff 只匹配 grantSource=MANUAL 记录，
  *   AUTO_DEP 记录不进比对（只读），同键并存不冲突。
  */
 import type {
@@ -27,7 +27,7 @@ import { nextChangeId } from "./types";
 import { mergeOperationsForType, type OperationDefInput } from "./source-chain";
 import { toBigIntBits } from "./bits";
 
-// ========== 三键模型 ==========
+// ========== 单记录键模型 ==========
 
 type KeyLike = {
   resourceTypeCode: string;
@@ -38,7 +38,7 @@ type KeyLike = {
   grantedBits?: string;
 };
 
-/** 分组键（operationKey = operationCode ?? "bits:"+grantedBits，P1-4） */
+/** 直接授权键（operationKey = operationCode ?? "bits:"+grantedBits，P1-4） */
 export function groupKeyOf(k: KeyLike): string {
   const operationKey = k.operationCode ?? `bits:${k.grantedBits ?? ""}`;
   return [
@@ -48,11 +48,6 @@ export function groupKeyOf(k: KeyLike): string {
     operationKey,
     k.scopeMode
   ].join("|");
-}
-
-/** 分支键 = 分组键 + 条件 */
-export function branchKeyOf(k: KeyLike, conditionCode: string | null): string {
-  return `${groupKeyOf(k)}|${conditionCode ?? ""}`;
 }
 
 /** 资源维度分组键（弹窗全量比对按资源聚合：resourceTypeCode + resourceCode + codeType） */
@@ -347,20 +342,19 @@ export function buildGrantPlan(changes: DraftChange[]): GrantPlan | null {
 
 // ========== 变更构造辅助 ==========
 
-/** 分支冲突查重（前端禁用，S4：完整键同键同 conditionCode 已有 MANUAL 分支 → 禁止确定） */
-export function findBranchConflict(
+/** 直接授权冲突查重：条件不参与身份，同键已有 MANUAL 记录即命中。 */
+export function findDirectGrantConflict(
   records: Array<
     RolePermissionItem & { draftMark?: "add" | "update" | "remove" | null }
   >,
-  key: GrantRecordKey,
-  conditionCode: string | null
+  key: GrantRecordKey
 ): RolePermissionItem | undefined {
-  const targetBranch = branchKeyOf(key, conditionCode);
+  const targetKey = groupKeyOf(key);
   return records.find(
     r =>
       r.grantSource === "MANUAL" &&
       r.draftMark !== "remove" &&
-      branchKeyOf(r, r.conditionCode) === targetBranch
+      groupKeyOf(r) === targetKey
   );
 }
 
@@ -456,10 +450,12 @@ export function buildReplaceChange(input: {
 
 // ========== 弹窗确定语义（§4 + 方案二全量比对：勾选=最终授权状态，取消勾选=撤权） ==========
 
-/** 弹窗结果（Step1 操作 + Step3 范围/资源 + Step4 条件/canGrant） */
+/** 授权弹窗单个范围结果（一次确认可顺序包含 ALL 撤销 + INSTANCE 最终集合）。 */
 export type DialogResult = {
   operation: { code: string; resourceTypeCode: string | null };
   scopeMode: "INSTANCE" | "ALL";
+  /** ALL 空集合撤销时仍需保留目标类型；非 ALL 可缺省。 */
+  targetResourceTypeCode?: string;
   /** INSTANCE：勾选资源集合；ALL：单元素（resourceTypeCode 目标类型，resourceCode/codeType 为 null） */
   resources: Array<{
     resourceTypeCode: string;
@@ -467,6 +463,8 @@ export type DialogResult = {
     codeType: string | null;
     name: string;
   }>;
+  /** 授权设置未被用户修改时保持原属性的已有资源；仅参与最终集合防撤销。 */
+  untouchedResourceKeys?: string[];
   conditionCode: string | null;
   canGrant: boolean;
 };
@@ -479,9 +477,8 @@ export type DialogApplyResult = {
 
 /**
  * 弹窗确定 → 草稿 diff（方案二全量语义，匹配范围仅限 MANUAL 主权限）：
- * - 勾选资源：分组键不存在 → add；同键同条件 → canGrant 微调 update（草稿新增则就地改）；
- *   同键不同条件 → add 新分支（同键多条件并存）；
- * - 取消勾选的已有记录 → remove（同分组键全部 MANUAL 分支一并移除，主权限级联删子在清单提示）；
+ * - 勾选资源：直接授权键不存在 → add；已存在 → 直接更新 conditionCode/canGrant；
+ * - 取消勾选的已有记录 → remove（主权限级联删子在清单提示）；
  * - 重新勾选已标记 remove 的记录 → 撤销对应 RemoveChange（恢复原记录，保留子权限）；
  * - AUTO_DEP 记录不进比对（只读，同键并存不冲突）。
  */
@@ -524,7 +521,8 @@ export function applyDialogResultToDraft(input: {
       return record.resourceTypeCode === dialog.operation.resourceTypeCode;
     }
     if (dialog.scopeMode === "ALL") {
-      const targetType = dialog.resources[0]?.resourceTypeCode;
+      const targetType =
+        dialog.targetResourceTypeCode ?? dialog.resources[0]?.resourceTypeCode;
       return record.resourceTypeCode === targetType;
     }
     return true;
@@ -540,10 +538,13 @@ export function applyDialogResultToDraft(input: {
   const selectedKeys = new Set(
     dialog.resources.map(r => resourceGroupKeyOf(r))
   );
+  const untouchedResourceKeys = new Set(dialog.untouchedResourceKeys ?? []);
 
-  // ---- 勾选集合：add / update / add 分支 ----
+  // ---- 勾选集合：add / update ----
   for (const resource of dialog.resources) {
     const resKey = resourceGroupKeyOf(resource);
+    // 授权设置未修改：树上只表达最终授权状态，不重写已有记录属性。
+    if (untouchedResourceKeys.has(resKey)) continue;
 
     // 重新勾选：撤销命中本资源的 RemoveChange（恢复原记录与子权限）
     for (const change of [...changes]) {
@@ -556,9 +557,9 @@ export function applyDialogResultToDraft(input: {
       }
     }
 
-    // 撤销后重算本资源分支（含恢复的记录）
+    // 撤销后重算本资源直接授权（含恢复的记录）。后端唯一约束保证最多一条 MANUAL。
     const restoredView = applyDraftToRecords({ baseline, changes, operations });
-    const branches = restoredView.mains.filter(
+    const directRecords = restoredView.mains.filter(
       m =>
         m.grantSource === "MANUAL" &&
         m.draftMark !== "remove" &&
@@ -566,9 +567,7 @@ export function applyDialogResultToDraft(input: {
         m.scopeMode === dialog.scopeMode &&
         resourceGroupKeyOf(m) === resKey
     );
-    const matched = branches.find(
-      b => (b.conditionCode ?? null) === dialog.conditionCode
-    );
+    const matched = directRecords[0];
     const recordKey: GrantRecordKey = {
       resourceTypeCode: resource.resourceTypeCode,
       resourceCode: resource.resourceCode,
@@ -587,7 +586,11 @@ export function applyDialogResultToDraft(input: {
           c.changeId === matched.changeId && c.kind === "add"
             ? {
                 ...c,
-                recordKey: { ...c.recordKey, canGrant: dialog.canGrant },
+                recordKey: {
+                  ...c.recordKey,
+                  conditionCode: dialog.conditionCode,
+                  canGrant: dialog.canGrant
+                },
                 summary
               }
             : c
@@ -598,30 +601,36 @@ export function applyDialogResultToDraft(input: {
           c.changeId === matched.changeId && c.kind === "update"
             ? {
                 ...c,
-                after: { ...c.after, canGrant: dialog.canGrant },
+                after: {
+                  conditionCode: dialog.conditionCode,
+                  canGrant: dialog.canGrant
+                },
                 summary
               }
             : c
         );
-      } else if (matched.canGrant !== dialog.canGrant) {
+      } else if (
+        matched.canGrant !== dialog.canGrant ||
+        matched.conditionCode !== dialog.conditionCode
+      ) {
         changes.push(
           buildUpdateChange({
             before: matched,
             after: {
               canGrant: dialog.canGrant,
-              conditionCode: matched.conditionCode
+              conditionCode: dialog.conditionCode
             },
             summary
           })
         );
       }
     } else {
-      // 分组键不存在 → add；同键不同条件 → add 新分支（同键多条件并存）
+      // 直接授权键不存在 → add
       changes.push(buildAddChange({ recordKey, summary }));
     }
   }
 
-  // ---- 取消勾选：撤权（同分组键全部 MANUAL 分支） ----
+  // ---- 取消勾选：撤权 ----
   for (const [resKey, records] of byResource) {
     if (selectedKeys.has(resKey)) continue;
     const baselineRecords = records.filter(r => r.draftMark !== "add");
@@ -680,11 +689,36 @@ export function applyDialogResultToDraft(input: {
   return { changes, revertedChangeIds };
 }
 
+/**
+ * 一次弹窗确认的有序批量结果。
+ * 典型场景：先撤销当前类型 ALL，再以 INSTANCE 资源树最终集合继续计算草稿。
+ */
+export function applyDialogResultsToDraft(input: {
+  baseline: RolePermissionItem[];
+  changes: DraftChange[];
+  dialogs: DialogResult[];
+  operations: OperationDefInput[];
+}): DialogApplyResult {
+  let changes = input.changes;
+  const revertedChangeIds: string[] = [];
+  for (const dialog of input.dialogs) {
+    const result = applyDialogResultToDraft({
+      baseline: input.baseline,
+      changes,
+      dialog,
+      operations: input.operations
+    });
+    changes = result.changes;
+    revertedChangeIds.push(...result.revertedChangeIds);
+  }
+  return { changes, revertedChangeIds };
+}
+
 // ========== 单元格 diff 标记（§6.2） ==========
 
 export type CellDraftMark =
   | "add" // 整格新增（绿色高亮 + ＋）
-  | "partial-add" // 已有格新增分支（＋角标）
+  | "partial-add" // 已有格新增来源（＋角标）
   | "update" // 内容变化（黄色角标）
   | "partial-remove" // 部分移除（⧄ 角标，仍有其他有效来源）
   | "remove" // 整格移除（删除线 + 淡出）

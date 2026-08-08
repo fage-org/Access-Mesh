@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.permission.service.domain;
 
+import cn.ac.fage.accessmesh.permission.entity.RoleResourcePermission;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,6 +60,30 @@ public interface PermissionGrantDomainService {
      */
     Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
                                                  Set<GrantCheckKey> permissions, String domainCode);
+
+    /**
+     * 校验 MANUAL 直接授权的单记录不变量。
+     * <p>
+     * 同一租户、角色、资源/范围、操作位及父权限下最多一条有效 MANUAL 记录；
+     * conditionId/canGrant 是可变属性，不参与身份。AUTO_DEP 与 MANUAL 可并存。
+     * </p>
+     *
+     * @param existingPermissions 当前角色的有效权限
+     * @param newPermissions      本次待新增权限
+     * @param removedPermissionIds 本事务先移除的权限 ID
+     */
+    void validateSingleManualGrants(List<RoleResourcePermission> existingPermissions,
+                                    List<RoleResourcePermission> newPermissions,
+                                    Set<Long> removedPermissionIds);
+
+    /**
+     * 校验权限记录的最终可变属性。
+     *
+     * <p>条件权限不能继续转授：只要存在 conditionId，canGrant 必须为 false。</p>
+     *
+     * @param permission 待校验的最终权限记录
+     */
+    void validateGrantAttributes(RoleResourcePermission permission);
 
     /**
      * 批量撤销角色权限

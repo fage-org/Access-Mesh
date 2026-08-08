@@ -442,19 +442,28 @@ CREATE TABLE role_resource_permission (
     -- 🔧 T-PERM-041（2026-08-05 评审确认）：条件权限不可转授
     CONSTRAINT ck_role_resource_permission_condition_can_grant CHECK (
         condition_id IS NULL OR can_grant = false
+    ),
+    -- MANUAL 授权一行只对应一个操作定义；不再写入多操作组合位记录
+    CONSTRAINT ck_role_resource_permission_manual_single_operation CHECK (
+        COALESCE(grant_source, 'MANUAL') <> 'MANUAL'
+        OR (granted_bits > 0 AND (granted_bits & (granted_bits - 1)) = 0)
     )
 );
 
+-- 通用来源记录仍按来源+条件防止完全重复；不改变 AUTO_DEP 的既有存储语义。
 CREATE UNIQUE INDEX uk_role_resource_permission ON role_resource_permission (tenant_id, abstract_role_id, COALESCE(resource_entity_id, 0), resource_type, granted_bits, COALESCE(depend_on, 0), scope_all, COALESCE(grant_source, 'MANUAL'), COALESCE(condition_id, 0)) WHERE delete_flag = 0;
+-- MANUAL 直接授权额外忽略 condition_id/can_grant 做唯一约束：二者是可变属性，
+-- 同一角色 + 资源/范围 + 操作 + 父权限最多一条有效 MANUAL 记录；AUTO_DEP 不受此索引限制。
+CREATE UNIQUE INDEX uk_role_resource_permission_manual_direct ON role_resource_permission (tenant_id, abstract_role_id, COALESCE(resource_entity_id, 0), resource_type, granted_bits, COALESCE(depend_on, 0), scope_all) WHERE delete_flag = 0 AND COALESCE(grant_source, 'MANUAL') = 'MANUAL';
 CREATE INDEX idx_role_resource_permission_role ON role_resource_permission (abstract_role_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_resource ON role_resource_permission (resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_depend ON role_resource_permission (depend_on) WHERE delete_flag = 0 AND depend_on IS NOT NULL;
 CREATE INDEX idx_role_resource_permission_type ON role_resource_permission (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_scope_all ON role_resource_permission (tenant_id, resource_type, granted_bits) WHERE delete_flag = 0 AND scope_all = true;
 
-COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作位的授权；granted_bits 存储 OperationPermission.binaryBit；depend_on 实现子权限（单层）；scope_all=true 表示某资源类型全量范围授权';
+COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作位的授权；同一角色+资源/范围+操作+父权限仅允许一条 MANUAL 直接授权，condition_id/can_grant 为可变属性；depend_on 实现子权限（单层）；scope_all=true 表示某资源类型全量范围授权';
 COMMENT ON COLUMN role_resource_permission.resource_entity_id IS '资源实体ID；scope_all=false 时必填，scope_all=true 时为空';
-COMMENT ON COLUMN role_resource_permission.granted_bits IS '授予的操作位，存储 operation_permission.binary_bit；配合 effective_bits / inherit_mask 实现覆盖判定';
+COMMENT ON COLUMN role_resource_permission.granted_bits IS '授予的操作位；MANUAL 记录只存单个 operation_permission.binary_bit（2 的幂），配合 effective_bits / inherit_mask 实现覆盖判定';
 COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型；普通授权时从 resource_entity 自动填充，scope_all=true 时用于标识全量范围资源类型';
 COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自引用），NULL=主权限，非NULL=子权限。单层依赖。删除父权限时级联软删子权限';
 COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resource_type 下全部范围资源；true 时 resource_entity_id 必须为空';

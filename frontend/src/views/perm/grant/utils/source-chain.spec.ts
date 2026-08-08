@@ -5,7 +5,7 @@
  * 同用例集：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源。
  * 后端落地时移植同一 fixtures 比对，前端本测试逐例全字段断言（CI 失败即阻断）。
  *
- * 其余用例（AUTO_DEP 并列/未定义位/继承开关/Step2 现状）为前端补充覆盖，非 golden 集合。
+ * 其余用例（AUTO_DEP 并列/未定义位/继承开关/操作授权覆盖）为前端补充覆盖，非 golden 集合。
  */
 import { describe, it, expect } from "vitest";
 import fixtures from "./source-chain.fixtures.json";
@@ -614,5 +614,49 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
     );
     expect(cell?.sources).toHaveLength(1);
     expect(cell?.sources[0].globalOperation).toBe(true);
+  });
+
+  it("computeSourceChain：兼容旧响应缺少 grantedBits 时按 operationCode 回退", () => {
+    const record: SourceRecordInput = {
+      id: 200,
+      resourceTypeCode: "REPORT",
+      resourceCode: "rpt:p",
+      codeType: "default",
+      operationCode: "VIEW",
+      canGrant: false,
+      conditionCode: null,
+      scopeMode: "INSTANCE",
+      grantSource: "MANUAL"
+    };
+    const result = computeSourceChain({
+      records: [record],
+      resources: [
+        {
+          id: 1,
+          parentId: null,
+          resourceTypeCode: "REPORT",
+          code: "rpt:p",
+          codeType: "default",
+          name: "父报表",
+          children: []
+        }
+      ],
+      operations: OPS
+    });
+
+    expect(
+      getCellState(
+        result,
+        instanceRowKey("REPORT", "rpt:p", "default"),
+        "VIEW"
+      )?.sources.map(source => source.recordId)
+    ).toEqual([200]);
+    expect(
+      collectOperationGrants({
+        records: [record],
+        operations: OPS,
+        target: { resourceTypeCode: "REPORT", code: "VIEW" }
+      })[0]?.hit
+    ).toBe("DIRECT");
   });
 });

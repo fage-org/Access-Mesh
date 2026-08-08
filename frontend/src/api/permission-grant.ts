@@ -7,13 +7,11 @@
  * 契约依据：docs/design/permission-center/api-contract.md §5.5 / §6.4 / §6.5 / §6.5.1
  * 后端实现：permission-center PermissionGrantController + PermissionGrantAppServiceImpl
  *
- * 🔧 契约核对项（登记 T-PERM-034，后端未实现，本页 mock 先行按目标契约开发）：
- * - `RolePermissionItem` 的 grantSource/grantedBits/createdAt/childCount 与 list 的
- *   includeChildren 参数均为 T-PERM-034 待暴露字段，当前后端 Resp 只有 10 字段。
- * - `apply-grant-plan` 为 T-PERM-034 新增唯一写入口（记录级 creates/updates/removes，
+ * T-PERM-034 已实现的契约要点：
+ * - `RolePermissionItem` 统一返回 14 字段；list 支持 resourceTypeCode/includeChildren。
+ * - `apply-grant-plan` 是授权页面唯一写入口（记录级 creates/updates/removes，
  *   单事务原子 + 受影响行数断言；无 CAS/幂等表/clientRequestId，第十四轮收窄），
- *   旧写入口 save/revoke/children/add-child/update-child/remove-child/children-save/rebuild
- *   全部移除/不实现。
+ *   存量 save/revoke/children/add-child/remove-child 仅为其他服务兼容保留，授权页面不调用。
  * - grantedBits 为 63 位位图十进制字符串（避免 JSON number 精度丢失），前端 BigInt 解析。
  */
 import { http } from "@/utils/http";
@@ -55,7 +53,7 @@ export const GRANT_ERROR_CODE = {
   PARENT_PERMISSION_NOT_TOP_LEVEL: 20010,
   SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED: 20011,
   RESOURCE_CODE_REQUIRED: 20012,
-  CONDITION_BRANCH_CONFLICT: 20033,
+  DIRECT_PERMISSION_CONFLICT: 20033,
   AUTO_DEP_READONLY: 20034,
   PERMISSION_NOT_FOUND: 20036,
   GRANT_CANNOT_DELEGATE: 20040,
@@ -82,7 +80,8 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   [GRANT_ERROR_CODE.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED]:
     "该资源类型不允许作为子权限（SUB_PERM 配置不允许）",
   [GRANT_ERROR_CODE.RESOURCE_CODE_REQUIRED]: "实例范围授权缺少资源编码",
-  [GRANT_ERROR_CODE.CONDITION_BRANCH_CONFLICT]: "同一权限键下该条件分支已存在",
+  [GRANT_ERROR_CODE.DIRECT_PERMISSION_CONFLICT]:
+    "同一资源与操作已存在直接授权，请编辑已有授权",
   [GRANT_ERROR_CODE.AUTO_DEP_READONLY]: "自动补全记录只读，不可修改或删除",
   [GRANT_ERROR_CODE.PERMISSION_NOT_FOUND]:
     "目标记录不存在或已被修改，请刷新页面确认当前状态",
@@ -96,7 +95,7 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
 
 /**
  * 角色权限配置项（对齐后端 RolePermissionItemResp，14 字段）。
- * 🔧 grantSource/grantedBits/createdAt/childCount 为 T-PERM-034 待暴露（当前后端未返回）。
+ * grantSource/grantedBits/createdAt/childCount 已由权限中心列表与提交结果统一返回。
  */
 export type RolePermissionItem = {
   /** 记录 id（持久化行键，update/remove 按 id） */
