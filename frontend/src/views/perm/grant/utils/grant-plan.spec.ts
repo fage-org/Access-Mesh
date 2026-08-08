@@ -16,8 +16,8 @@ import {
   buildUpdateChange,
   cellDraftMark,
   draftParentKey,
-  findDirectGrantConflict,
   groupKeyOf,
+  normalizeChildGrantKey,
   parentLocateOf,
   persistedParentKey,
   resourceGroupKeyOf,
@@ -111,6 +111,30 @@ describe("groupKeyOf（单记录键模型）", () => {
     expect(groupKeyOf(a)).toContain("VIEW");
     expect(groupKeyOf(b)).toContain("bits:6");
     expect(groupKeyOf(b)).not.toBe(groupKeyOf(c));
+  });
+});
+
+describe("normalizeChildGrantKey（子权限属性收敛）", () => {
+  it("无论输入为何，子权限都不携带条件或再授予属性", () => {
+    expect(
+      normalizeChildGrantKey({
+        resourceTypeCode: "MENU",
+        resourceCode: "menu:role",
+        codeType: "default",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE",
+        conditionCode: "office-hours",
+        canGrant: true
+      })
+    ).toEqual({
+      resourceTypeCode: "MENU",
+      resourceCode: "menu:role",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE",
+      conditionCode: null,
+      canGrant: false
+    });
   });
 });
 
@@ -930,33 +954,6 @@ describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
       resourceCode: "menu:child",
       operationCode: "VIEW"
     });
-  });
-});
-
-// ========== findDirectGrantConflict / cellDraftMark ==========
-
-describe("findDirectGrantConflict（条件不参与直接授权身份）", () => {
-  it("同键已有 MANUAL 记录即命中；条件不同仍冲突；remove 标记不命中", () => {
-    const existing = makeRecord({ conditionCode: "c1" });
-    const key = {
-      resourceTypeCode: "DATA",
-      resourceCode: "data:r1",
-      codeType: "default",
-      operationCode: "VIEW",
-      scopeMode: "INSTANCE" as const,
-      conditionCode: null,
-      canGrant: false
-    };
-    expect(findDirectGrantConflict([existing], key)?.id).toBe(existing.id);
-    expect(
-      findDirectGrantConflict([existing], { ...key, conditionCode: "c2" })?.id
-    ).toBe(existing.id);
-    expect(
-      findDirectGrantConflict(
-        [{ ...existing, draftMark: "remove" as const }],
-        key
-      )
-    ).toBeUndefined();
   });
 });
 

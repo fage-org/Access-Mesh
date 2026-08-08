@@ -1,29 +1,29 @@
 <script setup lang="ts">
 /**
- * 授权弹窗内的子权限配置器。
- * 父权限来自弹窗已暂存的主权限结果；组件只负责表单与交互，草稿变更由 GrantDialog 统一编排。
+ * 授权弹窗内的子权限资源树编辑器。
+ *
+ * 交互与主权限保持一致：选择操作后，直接在资源树勾选授权、取消撤销，
+ * ALL 使用资源区右上角的紧凑开关。子权限只表达父子挂载关系，
+ * 不提供条件权限与再授予设置。
  */
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { ResourceTreeNode } from "@/api/resource-operation";
-import type { ConditionResp } from "@/api/permission-condition";
 import type { GrantRecordKey } from "@/api/permission-grant";
 import {
-  findDirectGrantConflict,
+  groupKeyOf,
+  normalizeChildGrantKey,
   type EffectiveRecord
 } from "../utils/grant-plan";
 import {
   mergeOperationsForType,
   type OperationDefInput
 } from "../utils/source-chain";
-import ConditionPicker from "./ConditionPicker.vue";
 
 const props = defineProps<{
   parents: EffectiveRecord[];
   childrenProvider: (record: EffectiveRecord) => EffectiveRecord[];
-  conditions: ConditionResp[];
   operations: OperationDefInput[];
   resourceForest: ResourceTreeNode[];
-  canCondition: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -36,22 +36,6 @@ const emit = defineEmits<{
       resourceLabel: string;
     }
   ): void;
-  (
-    e: "update",
-    input: {
-      record: EffectiveRecord;
-      canGrant: boolean;
-      conditionCode: string | null;
-    }
-  ): void;
-  (
-    e: "replace",
-    input: {
-      record: EffectiveRecord;
-      newKey: GrantRecordKey;
-      resourceLabel: string;
-    }
-  ): void;
   (e: "remove", record: EffectiveRecord): void;
   (e: "restore", record: EffectiveRecord): void;
 }>();
@@ -60,6 +44,14 @@ function parentKeyOf(record: EffectiveRecord): string {
   return record.draftMark === "add" && record.changeId
     ? `chg:${record.changeId}`
     : `id:${record.id}`;
+}
+
+function parentLabel(parent: EffectiveRecord): string {
+  const resource =
+    parent.resourceName ??
+    parent.resourceCode ??
+    `全部资源（${parent.resourceTypeCode}）`;
+  return `${resource} · ${parent.operationCode ?? "组合位"} · ${parent.conditionCode ?? "无条件"}`;
 }
 
 const selectedParentKey = ref<string | null>(null);
@@ -85,224 +77,275 @@ watch(
 const childList = computed(() =>
   selectedParent.value ? props.childrenProvider(selectedParent.value) : []
 );
+const activeChildCount = computed(
+  () => childList.value.filter(child => child.draftMark !== "remove").length
+);
 
-function conditionName(code: string | null): string {
-  if (!code) return "无条件";
-  const hit = props.conditions.find(condition => condition.code === code);
-  return hit ? hit.name : code;
-}
+type OpOption = {
+  key: string;
+  code: string;
+  name: string;
+};
 
-function parentLabel(parent: EffectiveRecord): string {
-  const resource =
-    parent.resourceName ??
-    parent.resourceCode ??
-    `全部资源（${parent.resourceTypeCode}）`;
-  return `${resource} · ${parent.operationCode ?? "组合位"} · ${conditionName(parent.conditionCode)}`;
-}
-
-const resourceTypes = computed(() => {
+const selectableTypes = computed(() => {
   const types = new Set<string>();
   for (const root of props.resourceForest) types.add(root.resourceTypeCode);
   return [...types].sort();
 });
 
-const nodesById = computed(() => {
-  const map = new Map<number, ResourceTreeNode>();
-  const walk = (nodes: ResourceTreeNode[]) => {
-    for (const node of nodes) {
-      map.set(node.id, node);
-      if (node.children?.length) walk(node.children);
-    }
-  };
-  walk(props.resourceForest);
-  return map;
+const selectedResourceType = ref<string | null>(null);
+const operationOptions = computed<OpOption[]>(() => {
+  const typeCode = selectedResourceType.value;
+  if (!typeCode) return [];
+  return mergeOperationsForType(props.operations, typeCode).map(operation => ({
+    key: `${typeCode}:${operation.code}`,
+    code: operation.code,
+    name: operation.name
+  }));
 });
 
-const form = ref<{
-  resourceTypeCode: string | null;
-  scopeMode: "INSTANCE" | "ALL";
-  resourceNodeId: number | null;
-  operationCode: string | null;
-  conditionCode: string | null;
-  canGrant: boolean;
-}>({
-  resourceTypeCode: null,
-  scopeMode: "INSTANCE",
-  resourceNodeId: null,
-  operationCode: null,
-  conditionCode: null,
-  canGrant: false
-});
+const selectedOpKey = ref<string | null>(null);
+const selectedOp = computed<OpOption | null>(
+  () =>
+    operationOptions.value.find(option => option.key === selectedOpKey.value) ??
+    null
+);
 
-const editingRecord = ref<EffectiveRecord | null>(null);
-const formVisible = ref(false);
-
-const typeNodes = computed(() => {
-  const typeCode = form.value.resourceTypeCode;
+const selectableForest = computed(() => {
+  const typeCode = selectedResourceType.value;
   if (!typeCode) return [];
   return props.resourceForest.filter(
     root => root.resourceTypeCode === typeCode
   );
 });
 
-const resourceOptions = computed(() => {
-  const options: Array<{ id: number; label: string }> = [];
-  const walk = (nodes: ResourceTreeNode[], depth: number) => {
-    for (const node of nodes) {
-      options.push({
-        id: node.id,
-        label: `${"　".repeat(depth)}${node.name}（${node.code}）`
-      });
-      if (node.children?.length) walk(node.children, depth + 1);
-    }
-  };
-  walk(typeNodes.value, 0);
-  return options;
-});
-
-const operationOptions = computed(() => {
-  const typeCode = form.value.resourceTypeCode;
-  return typeCode ? mergeOperationsForType(props.operations, typeCode) : [];
-});
-
-watch(
-  () => form.value.conditionCode,
-  conditionCode => {
-    if (conditionCode) form.value.canGrant = false;
-  }
+const defaultExpandedKeys = computed(() =>
+  selectableForest.value.map(root => root.id)
 );
 
-function nodeIdOf(record: EffectiveRecord): number | null {
-  for (const node of nodesById.value.values()) {
-    if (
-      node.resourceTypeCode === record.resourceTypeCode &&
-      node.code === record.resourceCode &&
-      node.codeType === record.codeType
-    ) {
-      return node.id;
-    }
+const effectiveAllType = computed(() => selectedResourceType.value);
+
+function childKey(input: {
+  resourceTypeCode: string;
+  resourceCode: string | null;
+  codeType: string | null;
+  scopeMode: "INSTANCE" | "ALL";
+}): GrantRecordKey | null {
+  const operationCode = selectedOp.value?.code;
+  if (!operationCode) return null;
+  return normalizeChildGrantKey({
+    ...input,
+    operationCode,
+    conditionCode: null,
+    canGrant: false
+  });
+}
+
+const manualChildrenByKey = computed(() => {
+  const map = new Map<string, EffectiveRecord>();
+  for (const child of childList.value) {
+    if (child.grantSource === "MANUAL") map.set(groupKeyOf(child), child);
   }
-  return null;
-}
-
-function resetForm(record?: EffectiveRecord) {
-  form.value = {
-    resourceTypeCode: record?.resourceTypeCode ?? null,
-    scopeMode: record?.scopeMode ?? "INSTANCE",
-    resourceNodeId: record ? nodeIdOf(record) : null,
-    operationCode: record?.operationCode ?? null,
-    conditionCode: record?.conditionCode ?? null,
-    canGrant: record?.canGrant ?? false
-  };
-}
-
-function startAdd() {
-  editingRecord.value = null;
-  resetForm();
-  formVisible.value = true;
-}
-
-function startEdit(record: EffectiveRecord) {
-  editingRecord.value = record;
-  resetForm(record);
-  formVisible.value = true;
-}
-
-function cancelForm() {
-  formVisible.value = false;
-  editingRecord.value = null;
-  resetForm();
-}
-
-function handleTypeChange() {
-  form.value.resourceNodeId = null;
-  form.value.operationCode = null;
-}
-
-const formKey = computed<GrantRecordKey | null>(() => {
-  const value = form.value;
-  if (!value.resourceTypeCode || !value.operationCode) return null;
-  const node =
-    value.scopeMode === "INSTANCE" && value.resourceNodeId != null
-      ? nodesById.value.get(value.resourceNodeId)
-      : null;
-  if (value.scopeMode === "INSTANCE" && !node) return null;
-  return {
-    resourceTypeCode: value.resourceTypeCode,
-    resourceCode: node?.code ?? null,
-    codeType: node?.codeType ?? null,
-    operationCode: value.operationCode,
-    scopeMode: value.scopeMode,
-    conditionCode: value.conditionCode,
-    canGrant: value.conditionCode == null ? value.canGrant : false
-  };
+  return map;
 });
 
-const formConflict = computed(() => {
-  const key = formKey.value;
-  if (!key) return false;
-  const hit = findDirectGrantConflict(childList.value, key);
-  return hit != null && hit.id !== editingRecord.value?.id;
-});
-
-function resourceLabelOf(key: GrantRecordKey): string {
-  if (key.scopeMode === "ALL") {
-    return `全部资源（${key.resourceTypeCode}）`;
-  }
-  const node =
-    form.value.resourceNodeId != null
-      ? nodesById.value.get(form.value.resourceNodeId)
-      : null;
-  return node?.name ?? key.resourceCode ?? "资源";
+function recordForKey(key: GrantRecordKey | null): EffectiveRecord | null {
+  return key ? (manualChildrenByKey.value.get(groupKeyOf(key)) ?? null) : null;
 }
 
-function confirmForm() {
-  const key = formKey.value;
-  const parent = selectedParent.value;
-  if (!key || !parent || formConflict.value) return;
-  const resourceLabel = resourceLabelOf(key);
-  const record = editingRecord.value;
-  if (!record) {
-    emit("add", { parent, recordKey: key, resourceLabel });
-  } else {
-    const sameStructuralKey =
-      key.resourceTypeCode === record.resourceTypeCode &&
-      key.resourceCode === record.resourceCode &&
-      key.codeType === record.codeType &&
-      key.operationCode === record.operationCode &&
-      key.scopeMode === record.scopeMode;
-    if (sameStructuralKey) {
-      emit("update", {
-        record,
-        canGrant: key.canGrant ?? false,
-        conditionCode: key.conditionCode
-      });
-    } else {
-      emit("replace", { record, newKey: key, resourceLabel });
-    }
-  }
-  cancelForm();
-}
-
-function childResourceLabel(record: EffectiveRecord): string {
-  if (record.scopeMode === "ALL") {
-    return `全部资源（${record.resourceTypeCode}）`;
-  }
-  const node = nodeIdOf(record);
-  return (
-    (node != null ? nodesById.value.get(node)?.name : null) ??
-    record.resourceName ??
-    record.resourceCode ??
-    "资源"
+function recordForNode(node: ResourceTreeNode): EffectiveRecord | null {
+  return recordForKey(
+    childKey({
+      resourceTypeCode: node.resourceTypeCode,
+      resourceCode: node.code,
+      codeType: node.codeType,
+      scopeMode: "INSTANCE"
+    })
   );
 }
 
-function draftLabel(record: EffectiveRecord): string | null {
-  if (record.draftMark === "add") return "待新增";
-  if (record.draftMark === "update") return "待更新";
-  if (record.draftMark === "remove") return "待撤销";
-  return null;
+function allRecord(): EffectiveRecord | null {
+  const resourceTypeCode = effectiveAllType.value;
+  if (!resourceTypeCode) return null;
+  return recordForKey(
+    childKey({
+      resourceTypeCode,
+      resourceCode: null,
+      codeType: null,
+      scopeMode: "ALL"
+    })
+  );
 }
+
+function isActive(record: EffectiveRecord | null): boolean {
+  return record != null && record.draftMark !== "remove";
+}
+
+function toggleRecord(
+  key: GrantRecordKey | null,
+  resourceLabel: string,
+  selected: boolean
+) {
+  const parent = selectedParent.value;
+  if (!key || !parent) return;
+  const record = recordForKey(key);
+  if (selected) {
+    if (record?.draftMark === "remove") {
+      emit("restore", record);
+    } else if (!record) {
+      emit("add", { parent, recordKey: key, resourceLabel });
+    }
+    return;
+  }
+  if (isActive(record)) emit("remove", record!);
+}
+
+const allScopeSelected = computed({
+  get: () => isActive(allRecord()),
+  set: (selected: boolean) => {
+    const typeCode = effectiveAllType.value;
+    if (!typeCode) return;
+    toggleRecord(
+      childKey({
+        resourceTypeCode: typeCode,
+        resourceCode: null,
+        codeType: null,
+        scopeMode: "ALL"
+      }),
+      `全部资源（${typeCode}）`,
+      selected
+    );
+  }
+});
+
+const treeRef = ref();
+const treeDisabled = computed(
+  () =>
+    selectedResourceType.value == null ||
+    selectedOp.value == null ||
+    allScopeSelected.value
+);
+const treeRenderKey = computed(
+  () =>
+    `${selectedParentKey.value ?? "none"}:${selectedResourceType.value ?? "no-type"}:${selectedOpKey.value ?? "preview"}`
+);
+const treeProps = {
+  label: "name",
+  children: "children",
+  disabled: () => treeDisabled.value
+};
+
+const checkedNodeIds = computed(() => {
+  const op = selectedOp.value;
+  if (!op) return [];
+  const result: number[] = [];
+  const walk = (nodes: ResourceTreeNode[]) => {
+    for (const node of nodes) {
+      if (isActive(recordForNode(node))) result.push(node.id);
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(selectableForest.value);
+  return result;
+});
+
+let presetToken = 0;
+async function applyTreePreset() {
+  const token = ++presetToken;
+  await nextTick();
+  if (token !== presetToken) return;
+  treeRef.value?.setCheckedKeys(checkedNodeIds.value);
+}
+
+const childSelectionSignature = computed(() =>
+  childList.value
+    .filter(child => child.grantSource === "MANUAL")
+    .map(
+      child => `${child.id}:${child.draftMark ?? "active"}:${groupKeyOf(child)}`
+    )
+    .sort()
+    .join(";")
+);
+
+watch(
+  [
+    selectedParentKey,
+    selectedResourceType,
+    selectedOpKey,
+    childSelectionSignature
+  ],
+  () => void applyTreePreset(),
+  { immediate: true, flush: "post" }
+);
+
+watch(
+  selectedResourceType,
+  (typeCode, previousTypeCode) => {
+    if (typeCode !== previousTypeCode) selectedOpKey.value = null;
+  },
+  { flush: "sync" }
+);
+
+watch(
+  selectableTypes,
+  types => {
+    if (
+      selectedResourceType.value != null &&
+      !types.includes(selectedResourceType.value)
+    ) {
+      selectedResourceType.value = null;
+    }
+  },
+  { immediate: true }
+);
+
+function handleNodeCheck(
+  node: ResourceTreeNode,
+  state: { checkedKeys: Array<string | number> }
+) {
+  toggleRecord(
+    childKey({
+      resourceTypeCode: node.resourceTypeCode,
+      resourceCode: node.code,
+      codeType: node.codeType,
+      scopeMode: "INSTANCE"
+    }),
+    node.name,
+    state.checkedKeys.includes(node.id)
+  );
+}
+
+function nodeState(node: ResourceTreeNode): {
+  text: string;
+  className: string;
+} | null {
+  const record = recordForNode(node);
+  if (!record) return null;
+  if (record.draftMark === "remove") {
+    return { text: "待撤销", className: "pending-remove" };
+  }
+  if (record.draftMark === "add") {
+    return { text: "待授权", className: "pending-add" };
+  }
+  // 当前子权限入口不产生 update；保留共享 EffectiveRecord 联合类型的防御性展示。
+  if (record.draftMark === "update") {
+    return { text: "待更新", className: "pending-update" };
+  }
+  return { text: "已授权", className: "existing" };
+}
+
+const resourceHint = computed(() => {
+  if (!selectedResourceType.value) return "选择资源类型后展示可配置资源";
+  if (!selectedOp.value) return "选择操作权限后可调整授权";
+  if (allScopeSelected.value) return "已选择当前类型的全部资源";
+  return "勾选表示授权，取消勾选表示撤销";
+});
+
+const emptyResourceDescription = computed(() =>
+  selectedResourceType.value
+    ? "当前资源类型暂无可配置资源"
+    : "选择资源类型后展示资源树"
+);
 </script>
 
 <template>
@@ -313,7 +356,7 @@ function draftLabel(record: EffectiveRecord): string | null {
       </button>
       <div class="header-copy">
         <strong>配置子权限</strong>
-        <span>子权限随所选主权限一起保存</span>
+        <span>沿用主权限的资源树选择方式，随所选主权限一起保存</span>
       </div>
     </header>
 
@@ -339,214 +382,117 @@ function draftLabel(record: EffectiveRecord): string | null {
             />
           </el-select>
         </div>
-        <span class="child-count">{{ childList.length }} 项</span>
+        <span class="child-count">{{ activeChildCount }} 项</span>
       </div>
 
-      <div class="child-panel">
-        <div class="child-rail" aria-hidden="true">
-          <span class="rail-line" />
-          <span class="child-node">子</span>
+      <div class="child-editor">
+        <div class="editor-heading">
+          <span class="child-node" aria-hidden="true">子</span>
+          <div>
+            <strong>子权限</strong>
+            <span>仅配置资源与操作，不设置生效条件或再授予</span>
+          </div>
         </div>
-        <div class="child-content">
-          <div class="list-heading">
-            <div>
-              <strong>子权限</strong>
-              <span>资源类型受 SUB_PERM 配置约束</span>
-            </div>
-            <el-button
-              size="small"
-              type="primary"
-              plain
-              :disabled="formVisible"
-              @click="startAdd"
+
+        <div class="selection-fields">
+          <div class="selection-field">
+            <span class="field-label">资源类型</span>
+            <el-select
+              v-model="selectedResourceType"
+              clearable
+              filterable
+              class="type-select"
+              placeholder="选择资源类型"
             >
-              添加子权限
-            </el-button>
+              <el-option
+                v-for="typeCode in selectableTypes"
+                :key="typeCode"
+                :label="typeCode"
+                :value="typeCode"
+              />
+            </el-select>
           </div>
 
-          <div v-if="formVisible" class="child-form">
-            <div class="form-heading">
-              {{ editingRecord ? "编辑子权限" : "添加子权限" }}
+          <div class="selection-field">
+            <span class="field-label">操作权限</span>
+            <el-select
+              v-model="selectedOpKey"
+              clearable
+              filterable
+              class="op-select"
+              placeholder="选择操作权限"
+              :disabled="!selectedResourceType"
+            >
+              <el-option
+                v-for="option in operationOptions"
+                :key="option.key"
+                :label="`${option.name}（${option.code}）`"
+                :value="option.key"
+              />
+            </el-select>
+          </div>
+        </div>
+
+        <section class="resource-editor">
+          <div class="resource-header">
+            <div class="resource-heading">
+              <span class="field-label">资源</span>
+              <span class="resource-hint">{{ resourceHint }}</span>
             </div>
-            <div class="form-grid">
-              <label class="form-field">
-                <span>资源类型</span>
-                <el-select
-                  v-model="form.resourceTypeCode"
-                  size="small"
-                  placeholder="选择资源类型"
-                  @change="handleTypeChange"
-                >
-                  <el-option
-                    v-for="typeCode in resourceTypes"
-                    :key="typeCode"
-                    :value="typeCode"
-                    :label="typeCode"
-                  />
-                </el-select>
-              </label>
-
-              <label class="form-field">
-                <span>操作权限</span>
-                <el-select
-                  v-model="form.operationCode"
-                  size="small"
-                  placeholder="选择操作权限"
-                  :disabled="!form.resourceTypeCode"
-                >
-                  <el-option
-                    v-for="operation in operationOptions"
-                    :key="operation.code"
-                    :value="operation.code"
-                    :label="`${operation.name}（${operation.code}）`"
-                  />
-                </el-select>
-              </label>
-
-              <label class="form-field scope-field">
-                <span>授权范围</span>
-                <el-radio-group v-model="form.scopeMode" size="small">
-                  <el-radio-button value="INSTANCE">实例</el-radio-button>
-                  <el-radio-button value="ALL">全量</el-radio-button>
-                </el-radio-group>
-              </label>
-
-              <label v-if="form.scopeMode === 'INSTANCE'" class="form-field">
-                <span>资源实例</span>
-                <el-select
-                  v-model="form.resourceNodeId"
-                  size="small"
-                  filterable
-                  placeholder="选择资源实例"
-                  :disabled="!form.resourceTypeCode"
-                >
-                  <el-option
-                    v-for="option in resourceOptions"
-                    :key="option.id"
-                    :value="option.id"
-                    :label="option.label"
-                  />
-                </el-select>
-              </label>
-
-              <label class="form-field">
-                <span>生效条件</span>
-                <ConditionPicker
-                  v-model="form.conditionCode"
-                  :conditions="conditions"
-                  :disabled="!canCondition"
-                  placeholder="无条件"
-                />
-              </label>
-
-              <label class="form-field delegation-field">
-                <span>转授</span>
-                <el-tooltip
-                  :disabled="form.conditionCode == null"
-                  content="条件权限不可转授，需先清除条件"
-                  placement="top"
-                >
-                  <span>
-                    <el-checkbox
-                      v-model="form.canGrant"
-                      :disabled="form.conditionCode != null"
-                    >
-                      允许再授予
-                    </el-checkbox>
-                  </span>
-                </el-tooltip>
-              </label>
-            </div>
-            <div v-if="formConflict" class="form-error">
-              当前主权限下已存在相同资源、操作和范围的子权限，可直接编辑已有记录。
-            </div>
-            <div class="form-actions">
-              <el-button size="small" @click="cancelForm">取消</el-button>
-              <el-button
+            <div class="resource-actions">
+              <el-checkbox
+                v-model="allScopeSelected"
+                border
                 size="small"
-                type="primary"
-                :disabled="!formKey || formConflict"
-                @click="confirmForm"
+                :disabled="!selectedOp || !effectiveAllType"
+                class="all-scope-checkbox"
               >
-                应用
-              </el-button>
+                全量
+              </el-checkbox>
             </div>
           </div>
 
-          <div class="children-list">
-            <div v-if="childList.length === 0" class="children-empty">
-              暂无子权限，可按需添加。
-            </div>
-            <article
-              v-for="child in childList"
-              :key="child.id"
-              class="child-item"
-              :class="{ removed: child.draftMark === 'remove' }"
+          <div class="scope-tree" :class="{ disabled: treeDisabled }">
+            <el-empty
+              v-if="selectableForest.length === 0"
+              :description="emptyResourceDescription"
+              :image-size="48"
+            />
+            <el-tree
+              v-else
+              :key="treeRenderKey"
+              ref="treeRef"
+              :data="selectableForest"
+              :props="treeProps"
+              show-checkbox
+              check-strictly
+              check-on-click-node
+              node-key="id"
+              :expand-on-click-node="false"
+              :default-expanded-keys="defaultExpandedKeys"
+              @check="handleNodeCheck"
             >
-              <div class="child-main">
-                <div class="child-title">
-                  <span>{{ childResourceLabel(child) }}</span>
-                  <el-tag size="small" effect="plain">
-                    {{ child.resourceTypeCode }}
-                  </el-tag>
-                  <el-tag
-                    v-if="child.grantSource === 'AUTO_DEP'"
-                    size="small"
-                    type="info"
-                    effect="plain"
+              <template #default="{ data }">
+                <span class="tree-node">
+                  <span class="node-label">
+                    {{ data.name
+                    }}<span class="node-code">{{ data.code }}</span>
+                  </span>
+                  <span
+                    v-if="nodeState(data)"
+                    class="node-state"
+                    :class="nodeState(data)!.className"
                   >
-                    自动补全
-                  </el-tag>
-                  <el-tag
-                    v-if="draftLabel(child)"
-                    size="small"
-                    effect="plain"
-                    :type="
-                      child.draftMark === 'remove'
-                        ? 'danger'
-                        : child.draftMark === 'update'
-                          ? 'warning'
-                          : 'success'
-                    "
-                  >
-                    {{ draftLabel(child) }}
-                  </el-tag>
-                </div>
-                <div class="child-meta">
-                  <span>{{ child.operationCode ?? "组合位" }}</span>
-                  <span>{{ child.scopeMode === "ALL" ? "全量" : "实例" }}</span>
-                  <span>条件：{{ conditionName(child.conditionCode) }}</span>
-                  <span>可转授：{{ child.canGrant ? "是" : "否" }}</span>
-                </div>
-              </div>
-              <div v-if="child.grantSource === 'MANUAL'" class="child-actions">
-                <el-button
-                  v-if="child.draftMark === 'remove'"
-                  size="small"
-                  text
-                  type="primary"
-                  @click="emit('restore', child)"
-                >
-                  恢复
-                </el-button>
-                <template v-else>
-                  <el-button size="small" text @click="startEdit(child)">
-                    编辑
-                  </el-button>
-                  <el-button
-                    size="small"
-                    text
-                    type="danger"
-                    @click="emit('remove', child)"
-                  >
-                    撤销
-                  </el-button>
-                </template>
-              </div>
-              <span v-else class="readonly-label">只读</span>
-            </article>
+                    {{ nodeState(data)!.text }}
+                  </span>
+                </span>
+              </template>
+            </el-tree>
+            <div v-if="selectedOp && !allScopeSelected" class="tree-hint">
+              父节点授权会自动覆盖其子孙节点；资源类型仍受 SUB_PERM 配置约束。
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     </template>
   </section>
@@ -652,48 +598,19 @@ function draftLabel(record: EffectiveRecord): string | null {
   color: var(--el-text-color-secondary);
 }
 
-.child-panel {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  margin-top: var(--space-2);
-}
-
-.child-rail {
-  position: relative;
-  min-height: 310px;
-
-  .rail-line {
-    position: absolute;
-    top: 0;
-    bottom: 18px;
-    left: 26px;
-    width: 1px;
-    background: var(--el-color-primary-light-5);
-  }
-
-  .child-node {
-    position: absolute;
-    top: 18px;
-    left: 12px;
-    width: 26px;
-    height: 26px;
-    font-size: 11px;
-    background: var(--el-color-primary-light-9);
-  }
-}
-
-.child-content {
-  min-width: 0;
-  padding-top: var(--space-3);
-}
-
-.list-heading {
+.child-editor {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
 
-  div {
+.editor-heading {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+
+  > div {
     display: flex;
     gap: var(--space-2);
     align-items: baseline;
@@ -703,130 +620,168 @@ function draftLabel(record: EffectiveRecord): string | null {
     font-size: 13px;
   }
 
-  span {
+  span:not(.child-node) {
     font-size: 12px;
     color: var(--el-text-color-secondary);
   }
 }
 
-.child-form {
-  padding: var(--space-3);
-  margin-bottom: var(--space-3);
-  background: var(--el-fill-color-lighter);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--radius-md);
+.child-node {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  background: var(--el-color-primary-light-9);
 }
 
-.form-heading {
-  margin-bottom: var(--space-3);
+.field-label {
   font-size: 13px;
   font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.selection-fields {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.form-field {
+.selection-field {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  gap: var(--space-4);
+  align-items: center;
 
-  > span:first-child {
+  .field-label {
+    flex-shrink: 0;
+    width: 64px;
+  }
+
+  .type-select,
+  .op-select {
+    width: 320px;
+  }
+}
+
+.resource-editor {
+  .resource-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+
+  .resource-heading,
+  .resource-actions {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .resource-hint {
     font-size: 12px;
     color: var(--el-text-color-secondary);
   }
 
-  :deep(.el-select),
-  :deep(.condition-trigger) {
-    width: 100%;
+  .all-scope-checkbox {
+    margin-right: 0;
   }
 }
 
-.delegation-field {
-  justify-content: flex-end;
-}
-
-.form-error {
-  margin-top: var(--space-2);
-  font-size: 12px;
-  color: var(--el-color-danger);
-}
-
-.form-actions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  margin-top: var(--space-3);
-}
-
-.children-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-height: 230px;
+.scope-tree {
+  max-height: 330px;
   overflow: auto;
-}
-
-.children-empty {
-  padding: var(--space-5);
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
-  border: 1px dashed var(--el-border-color);
-  border-radius: var(--radius-md);
-}
-
-.child-item {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  padding: var(--space-3);
+  background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--radius-md);
+  transition: background-color 0.15s ease;
 
-  &.removed {
-    background: var(--el-color-danger-light-9);
-    border-color: var(--el-color-danger-light-7);
+  &.disabled {
+    background: var(--el-fill-color-extra-light);
+  }
+
+  :deep(.el-tree) {
+    min-height: 184px;
+    padding: var(--space-1) 0;
+    background: transparent;
+  }
+
+  :deep(.el-tree-node__content) {
+    height: 32px;
+    padding-right: var(--space-3);
+  }
+
+  .tree-node {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .node-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .node-code {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .node-state {
+    flex-shrink: 0;
+    margin-left: var(--space-3);
+    font-size: 11px;
+
+    &.existing {
+      color: var(--el-color-success-dark-2);
+    }
+
+    &.pending-add {
+      color: var(--el-color-primary);
+    }
+
+    &.pending-update {
+      color: var(--el-color-warning-dark-2);
+    }
+
+    &.pending-remove {
+      color: var(--el-color-danger);
+    }
+  }
+
+  .tree-hint {
+    position: sticky;
+    bottom: 0;
+    padding: var(--space-1) var(--space-2);
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    background: var(--el-bg-color);
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 }
 
-.child-main {
-  flex: 1;
-  min-width: 0;
-}
+@media (width <= 640px) {
+  .config-header,
+  .parent-copy,
+  .selection-field,
+  .resource-header {
+    align-items: stretch;
+  }
 
-.child-title,
-.child-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
+  .config-header,
+  .parent-copy,
+  .selection-field,
+  .resource-header,
+  .resource-actions {
+    flex-direction: column;
+  }
 
-.child-title {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.child-meta {
-  margin-top: 5px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.child-actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 2px;
-}
-
-.readonly-label {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  .selection-field .field-label,
+  .selection-field .type-select,
+  .selection-field .op-select {
+    width: 100%;
+  }
 }
 </style>

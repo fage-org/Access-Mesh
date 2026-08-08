@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 4.1 权限授予 前端设计（v3）
-status: adopted # draft → adopted（T-FE-036 实现完成；T-FE-038/T-FE-039 单类型矩阵与图标模型；2026-08-08 授权弹窗收敛为资源树编辑、单条直接授权可编辑并纳入子权限配置，详情只读）
+status: adopted # draft → adopted（T-FE-036 实现完成；T-FE-038/T-FE-039 单类型矩阵与图标模型；2026-08-08 主/子权限统一为资源树编辑，子权限不配置条件与再授予，详情只读）
 domain: frontend
 last_reviewed: 2026-08-08
 ---
@@ -251,18 +251,19 @@ interface MatrixContext {
 │ ┌─ 资源树（打开即展示；未选操作时只读）────────────────────────────────┐ │
 │ │ ☑ 已授权 / ☐ 未授权；整行可点击；父节点授权覆盖子孙                  │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
-│ 授权设置：条件单选 / 无；canGrant（选择条件后自动关闭）                  │
-│ 子权限：〔配置子权限〕→ 选择主权限 → 添加/编辑/撤销子权限                 │
+│ 授权设置：条件单选 / 无；canGrant（未选操作时禁用，不隐藏）              │
+│ 子权限：〔配置子权限〕（未形成主权限时禁用，不隐藏）                     │
+│   → 资源类型 → 操作权限 → 在对应类型资源树勾选/撤销                      │
 │ ──────────────────────────────────────────────────────────────────────── │
 │ 底部：〔取消〕〔确定〕                                                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **打开即展示资源树**：未选操作时资源节点只读；选操作后按 `MANUAL + 当前生效草稿` 预填直接 INSTANCE 授权。资源树采用 `check-strictly`，父节点授权通过资源继承覆盖子孙，不自动批量勾选子节点。
+- **打开即展示完整结构**：首次打开即固定展示操作权限、资源树、授权设置与子权限入口；前置选择不足时以空态或禁用态呈现，不通过 `v-if` 隐藏区域。未选操作时资源节点只读；选操作后按 `MANUAL + 当前生效草稿` 预填直接 INSTANCE 授权。资源树采用 `check-strictly`，父节点授权通过资源继承覆盖子孙，不自动批量勾选子节点。
 - **树上编辑最终状态**：节点整行可点击；已有授权取消勾选后产生 remove 草稿，未授权节点勾选后产生 add 草稿。授权设置未被用户修改时，已有授权保持原 conditionCode/canGrant；用户显式修改任一设置后，当前勾选的已有授权统一产生 update，新增授权使用相同设置。
 - **全量选择**：INSTANCE/ALL 不再使用占位较大的 Tab/Radio；资源树右上角“全量”复选按钮表示当前类型 ALL。已有 ALL 取消选择时，由 `applyDialogResultsToDraft` 按顺序先生成该类型 ALL 撤销，再应用 INSTANCE 树最终集合；全局操作在多类型树场景显示紧凑类型选择器。
 - **最小提示**：移除 1/2/3/4 步骤编号、独立现状表格与范围切换说明，只保留“选择操作后可编辑”“勾选授权/取消撤销”“父节点覆盖子孙”“不改设置则保留已有值，修改后应用于当前选择”等必要语义。
-- **配置子权限**：点击后先将当前主权限选择暂存在弹窗本地草稿，再按主权限配置子权限；支持挂载到已保存主权限或本次刚新增的草稿主权限，子权限资源类型可跨当前矩阵类型。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限；条件与 canGrant 直接编辑该记录。添加/编辑/撤销/恢复均只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
+- **配置子权限**：点击后先将当前主权限选择暂存在弹窗本地草稿，再按主权限配置子权限；支持挂载到已保存主权限或本次刚新增的草稿主权限，子权限资源类型可跨当前矩阵类型。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。子权限不承载条件权限与再授予设置，新建键固定 `conditionCode=null`、`canGrant=false`；历史记录保持兼容读取，不在界面隐式迁移。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
 - **返回保护**：子权限已有调整时返回修改主权限必须明确确认，确认后仅丢弃本次子权限调整并保留主权限选择，不静默丢失。
 - **确定语义**（单直接授权模型）：
   - **直接授权键** = (resourceTypeCode, resourceCode, codeType, **operationKey**, scopeMode, parentPermissionId)（资源维度来自 GrantContext 资源键 §2.1，ALL 时 resourceCode/codeType=null；主权限 parentPermissionId=null）；**operationKey = operationCode ?? "bits:"+grantedBits** 仅用于读取异常/内部组合位记录的防御性展示，MANUAL 新授权必须是单 operationCode；**持久化 id** = 后端记录 id。conditionCode/canGrant 不参与身份。
@@ -288,8 +289,8 @@ interface MatrixContext {
 │ │  记录列表：MANUAL / AUTO_DEP / 继承来源                              │ │
 │ │  只读展示：条件名 / 规则摘要 / canGrant / 来源 / 草稿状态             │ │
 │ ├─ Tab2 子权限（depend_on）───────────────────────────────────────────┤ │
-│ │  子权限列表：资源 · 操作 · 范围 · 条件（add-child 产生的记录）        │ │
-│ │  只读展示：资源 / 操作 / 范围 / 条件 / canGrant / 来源 / 草稿状态     │ │
+│ │  子权限列表：资源 · 操作 · 范围（depend_on 关联的记录）               │ │
+│ │  只读展示：资源 / 操作 / 范围 / 来源 / 草稿状态                       │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -328,7 +329,7 @@ interface MatrixContext {
 - 保存全部 → **单请求 `role-resource-permission/apply-grant-plan`**（§6.5.1：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（canGrant/conditionCode 微变更）+ removes（主权限级联删子/子权限单条删），单事务原子，任一失败整体回滚后重试；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认）。
 - **删除主权限** = plan.removes 一条主记录 id（后端级联删子权限），其下子权限草稿静默丢弃（不发子权限 remove）。
 - **跨键替换（范围/资源/操作变化，第十二轮收敛，替代旧 rebuild）**：替换 = **removes 旧 + creates 新**（同一请求内原子执行）——单事务内级联删旧主权限（含全部子权限）+ 创建新主权限 + 创建全部子权限终态（事务内生成新父 id），整体成功或整体回滚，无权限并集窗口、无两阶段窗口；**子权限不迁移**（随旧主权限级联删除，产品语义：A 部门与 B 部门不相关），前端在替换前检查 `childCount>0` 提示"该权限下 N 条子权限将随主权限一并移除"；新主权限的子权限在 creates 中显式配置；canGrant/conditionCode 变更（不涉及资源/操作/范围）走 `updates`。
-- **子权限变更（第十二轮收敛）**：新增 = creates（parentPermissionId 挂父，可随主权限 children 一次性建树）；编辑 = updates（改 canGrant/conditionCode）；删除 = removes（子权限 id）；跨键变更 = 移除+新建（removes+creates）——全部在同一 apply-grant-plan 请求内原子执行。
+- **子权限变更（第十二轮收敛，T-FE-038 后续收窄）**：新增 = creates（parentPermissionId 挂父，可随主权限 children 一次性建树，固定 `conditionCode=null`、`canGrant=false`）；撤销 = removes（子权限 id）。子权限不提供条件权限、再授予或就地属性编辑；资源/操作变化由树上撤销旧授权后新增目标授权表达——全部在同一 apply-grant-plan 请求内原子执行。
 - **失败处理（请求粒度，第十四轮收窄）**：单次 `apply-grant-plan` 请求 = 一个**不可分割的项**--请求成功 -> **全部条目**移出清单并入 baseline；请求失败 -> **全部条目**保留标红、整体重试（后端单事务原子无部分成功；前端 saving 期间按钮 disabled 防重复提交，超时提示刷新确认）。
 
 ### 6.5 提交状态机（工程加固简化，2026-08-02 第十四轮收窄）
@@ -368,7 +369,7 @@ interface MatrixContext {
 | createdAt                   | string  | 创建时间（悬浮详情展示）                                                                                                                                       | 🔧 后端补 |
 | childCount                  | number  | 子权限数量（list 时按 depend_on 分组 COUNT；悬浮详情展示）                                                                                                     | 🔧 后端补 |
 | list `includeChildren` 参数 | boolean | list 仅返回主权限（dependOn==null），子权限不进来源链（现 `selectValidByRoleId` 未过滤 depend_on）                                                             | 🔧 后端补 |
-| 子权限编辑/删除             | —       | 无独立接口（第十二轮收敛）：updates 改 conditionCode/canGrant / removes 删子权限 / creates 挂父，全部并入 apply-grant-plan                                     | 🔧 后端补 |
+| 子权限新增/撤销             | —       | 无独立接口：creates 挂父（conditionCode=null、canGrant=false）/ removes 撤销子权限，全部并入 apply-grant-plan；界面不发起子权限 updates                         | 🔧 后端补 |
 
 ### 7.3 前端派生字段（自算，§3.5）
 
@@ -451,9 +452,9 @@ interface MatrixContext {
 1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList` L782）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
 3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：主权限视图只取 dependOn==null 记录，子权限不进来源链（当前 `selectValidByRoleId` 未过滤 depend_on）。
-4. ~~新增 update-child~~（第十二轮移除）：子权限编辑并入 apply-grant-plan.updates（改 canGrant/conditionCode，三态协议见 api-contract §6.5.1）。
+4. ~~新增 update-child~~（第十二轮移除，T-FE-038 后续收窄）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。
 5. **`RolePermissionItemResp` 增补 `createdAt` / `childCount`**：悬浮详情展示创建时间与子权限数量（list 时按 depend_on 分组 COUNT 一次返回，免逐项懒加载）。
-6. ~~新增 children-save~~（第十二轮移除）：子权限增删改并入 apply-grant-plan（creates parentPermissionId / updates / removes，同一事务原子）。
+6. ~~新增 children-save~~（第十二轮移除）：子权限新增/撤销并入 apply-grant-plan（creates parentPermissionId / removes，同一事务原子）；历史属性仅兼容读取，不由本界面隐式迁移。
 7. **单直接授权唯一性 + 错误码 20033**：`DIRECT_PERMISSION_CONFLICT`；MANUAL 主权限及子权限分别按 `(role, resource/范围, operation, parentPermission)` 唯一，conditionCode/canGrant 是可变属性、不参与身份；预检在本请求 removes 生效后的结果集上检查，AUTO_DEP 允许同键并存；数据库唯一索引作为竞态兜底。
 8. **plan 入口接入授权传递校验**（P1-1，第六轮新增）：creates 逐项走 `checkCanGrant`，updates 设 canGrant=true 或 conditionCode 有变更走 `canGrantPermission`（对齐原 save.add L176-200 / save.update L247-279），不满足 → **20040** `GRANT_CANNOT_DELEGATE`；T-PERM-041 已禁止条件权限可转授，因此授权传递身份不含 conditionCode；杜绝凭 MANAGE 绕过委托边界挂子权限。
 9. **AUTO_DEP 服务端只读门禁 + 新错误码 20034**（P1-2，第六轮新增）：plan 的 creates（父权限引用）/updates/removes 全部拒绝 `grantSource=AUTO_DEP` 记录 → **20034** `AUTO_DEP_READONLY`；自动补全记录只读由服务端强制，前端只读仅为体验层。
@@ -482,7 +483,7 @@ interface MatrixContext {
 
 | 层        | 文件                                                                                                                                                                                                                              | 说明                                                             |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 页面      | `frontend/src/views/perm/grant/index.vue` + `components/`（SubjectTreePanel / GrantMatrixPanel / MatrixCell / PermissionGlyph / PermissionIconLegend / GrantDialog / ConditionPicker / PermissionDetailDrawer / ChangeListPanel） | 无独立标题卡片的三栏布局 + 矩阵图例 + 底部保存条                 |
+| 页面      | `frontend/src/views/perm/grant/index.vue` + `components/`（SubjectTreePanel / GrantMatrixPanel / MatrixCell / PermissionGlyph / PermissionIconLegend / GrantDialog / GrantChildConfigurator / ConditionPicker / PermissionDetailDrawer / ChangeListPanel） | 无独立标题卡片的三栏布局 + 矩阵图例 + 底部保存条                 |
 | 编排      | `frontend/src/views/perm/grant/utils/hook.ts`                                                                                                                                                                                     | 依赖加载 / 门控 / 生效视图 / 事件编排 / 离开保护                 |
 | 状态机    | `frontend/src/views/perm/grant/utils/grant-store.ts`                                                                                                                                                                              | Pinia 四态 discriminated union（DoD-3）                          |
 | 纯函数    | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（直接授权键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算）/ `utils/cell-visual.ts`（🔧 T-FE-039 颜色无关图标聚合/三态拆分/子权限数量投影，§3.3）          | 纯函数可测                                                       |

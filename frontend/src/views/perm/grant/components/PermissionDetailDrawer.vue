@@ -225,8 +225,11 @@ function handleClose() {
                   <span>{{ child.resourceTypeCode }}</span>
                   <span>{{ child.operationCode ?? "未知操作" }}</span>
                   <span>{{ child.scopeMode === "ALL" ? "全量" : "实例" }}</span>
-                  <span>条件：{{ conditionName(child.conditionCode) }}</span>
-                  <span>可转授：{{ child.canGrant ? "是" : "否" }}</span>
+                  <span>
+                    来源：{{
+                      child.grantSource === "AUTO_DEP" ? "自动补全" : "直接授权"
+                    }}
+                  </span>
                 </div>
               </article>
             </div>

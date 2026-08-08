@@ -20,11 +20,10 @@ import {
   applyDraftToRecords,
   buildAddChange,
   buildRemoveChange,
-  buildReplaceChange,
   buildSummary,
-  buildUpdateChange,
   computePreset,
   draftParentKey,
+  normalizeChildGrantKey,
   persistedParentKey,
   resourceGroupKeyOf,
   type DialogResult,
@@ -219,6 +218,7 @@ const conditionPlaceholder = computed(() =>
     : "无条件"
 );
 const optionsHint = computed(() => {
+  if (!selectedOp.value) return "选择操作权限后可配置";
   if (existingSettingsCount.value === 0) return "应用于新勾选的资源";
   if (settingsTouched.value) {
     return `将统一应用于新授权及 ${existingSettingsCount.value} 项已有授权`;
@@ -627,13 +627,6 @@ function childrenOfLocal(record: EffectiveRecord): EffectiveRecord[] {
   );
 }
 
-function enforceNotDelegable(
-  canGrantValue: boolean,
-  condition: string | null
-): boolean {
-  return condition == null ? canGrantValue : false;
-}
-
 function effectiveResourceLabel(record: EffectiveRecord): string {
   return (
     record.resourceName ??
@@ -694,13 +687,7 @@ function handleAddChild(input: {
   recordKey: GrantRecordKey;
   resourceLabel: string;
 }) {
-  const recordKey = {
-    ...input.recordKey,
-    canGrant: enforceNotDelegable(
-      input.recordKey.canGrant ?? false,
-      input.recordKey.conditionCode
-    )
-  };
+  const recordKey = normalizeChildGrantKey(input.recordKey);
   localChanges.value = [
     ...localChanges.value,
     buildAddChange({
@@ -712,131 +699,6 @@ function handleAddChild(input: {
         recordKey,
         resourceLabel: input.resourceLabel
       })
-    })
-  ];
-}
-
-function handleUpdateChild(input: {
-  record: EffectiveRecord;
-  canGrant: boolean;
-  conditionCode: string | null;
-}) {
-  const condition = input.conditionCode;
-  const canGrantValue = enforceNotDelegable(input.canGrant, condition);
-  const recordKey: GrantRecordKey = {
-    resourceTypeCode: input.record.resourceTypeCode,
-    resourceCode: input.record.resourceCode,
-    codeType: input.record.codeType,
-    operationCode: input.record.operationCode,
-    scopeMode: input.record.scopeMode,
-    conditionCode: condition,
-    canGrant: canGrantValue
-  };
-  const summary = buildSummary({
-    recordKey,
-    resourceLabel: effectiveResourceLabel(input.record)
-  });
-
-  if (input.record.draftMark === "add" && input.record.changeId) {
-    localChanges.value = localChanges.value.map(change => {
-      if (change.changeId !== input.record.changeId) return change;
-      if (change.kind === "add") {
-        return { ...change, recordKey, summary };
-      }
-      if (change.kind === "replace") {
-        return { ...change, newKey: recordKey, summary };
-      }
-      return change;
-    });
-    return;
-  }
-
-  const existing = localChanges.value.find(
-    (change): change is Extract<DraftChange, { kind: "update" }> =>
-      change.kind === "update" && change.recordId === input.record.id
-  );
-  if (existing) {
-    localChanges.value = localChanges.value
-      .map(change =>
-        change.changeId === existing.changeId && change.kind === "update"
-          ? {
-              ...change,
-              after: {
-                canGrant: canGrantValue,
-                conditionCode: condition
-              },
-              summary
-            }
-          : change
-      )
-      .filter(change => {
-        if (change.kind !== "update") return true;
-        return (
-          change.before.canGrant !== change.after.canGrant ||
-          change.before.conditionCode !== change.after.conditionCode
-        );
-      });
-    return;
-  }
-
-  if (
-    input.record.canGrant === canGrantValue &&
-    input.record.conditionCode === condition
-  ) {
-    return;
-  }
-  localChanges.value = [
-    ...localChanges.value,
-    buildUpdateChange({
-      before: input.record,
-      after: { canGrant: canGrantValue, conditionCode: condition },
-      summary
-    })
-  ];
-}
-
-function handleReplaceChild(input: {
-  record: EffectiveRecord;
-  newKey: GrantRecordKey;
-  resourceLabel: string;
-}) {
-  const newKey = {
-    ...input.newKey,
-    canGrant: enforceNotDelegable(
-      input.newKey.canGrant ?? false,
-      input.newKey.conditionCode
-    )
-  };
-  const summary = buildSummary({
-    recordKey: newKey,
-    resourceLabel: input.resourceLabel
-  });
-
-  if (input.record.draftMark === "add" && input.record.changeId) {
-    localChanges.value = localChanges.value.map(change => {
-      if (change.changeId !== input.record.changeId) return change;
-      if (change.kind === "add") {
-        return { ...change, recordKey: newKey, summary };
-      }
-      if (change.kind === "replace") {
-        return { ...change, newKey, summary };
-      }
-      return change;
-    });
-    return;
-  }
-
-  localChanges.value = localChanges.value.filter(
-    change => !(change.kind === "update" && change.recordId === input.record.id)
-  );
-  localChanges.value = [
-    ...localChanges.value,
-    buildReplaceChange({
-      removedRecords: [input.record],
-      newKey,
-      parentPermissionId: input.record.dependOn ?? undefined,
-      cascadeChildCount: 0,
-      summary
     })
   ];
 }
@@ -1020,7 +882,7 @@ function handleClose() {
         </div>
       </section>
 
-      <section v-if="selectedOp" class="grant-options">
+      <section class="grant-options">
         <div class="options-heading">
           <span class="field-label">授权设置</span>
           <span class="options-hint">{{ optionsHint }}</span>
@@ -1029,7 +891,7 @@ function handleClose() {
           <ConditionPicker
             :model-value="conditionCode"
             :conditions="conditions"
-            :disabled="!canCondition"
+            :disabled="!selectedOp || !canCondition"
             :placeholder="conditionPlaceholder"
             @update:model-value="handleConditionChange"
           />
@@ -1059,7 +921,7 @@ function handleClose() {
         </div>
       </section>
 
-      <section v-if="selectedOp" class="child-entry">
+      <section class="child-entry">
         <div class="child-entry-copy">
           <span class="child-entry-mark" aria-hidden="true">↳</span>
           <div>
@@ -1083,14 +945,10 @@ function handleClose() {
       v-if="editorMode === 'children'"
       :parents="childParents"
       :children-provider="childrenOfLocal"
-      :conditions="conditions"
       :operations="allOperations"
       :resource-forest="allResourceForest"
-      :can-condition="canCondition"
       @back="handleBackToMain"
       @add="handleAddChild"
-      @update="handleUpdateChild"
-      @replace="handleReplaceChild"
       @remove="handleRemoveChild"
       @restore="handleRestoreChild"
     />

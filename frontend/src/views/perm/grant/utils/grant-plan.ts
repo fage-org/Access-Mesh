@@ -59,6 +59,20 @@ export function resourceGroupKeyOf(k: {
   return [k.resourceTypeCode, k.resourceCode ?? "", k.codeType ?? ""].join("|");
 }
 
+/**
+ * 子权限不承载条件与再授予语义。
+ *
+ * 子权限编辑器与弹窗编排层都调用该函数：前者构造请求，后者作为提交前兜底，
+ * 避免旧表单字段或调用方绕过界面后把主权限属性带入子权限。
+ */
+export function normalizeChildGrantKey(key: GrantRecordKey): GrantRecordKey {
+  return {
+    ...key,
+    conditionCode: null,
+    canGrant: false
+  };
+}
+
 // ========== 草稿生效视图（baseline + draft → 展示用记录集） ==========
 
 /** 生效记录（baseline 叠加草稿标记；新增记录持负数月临时 id，与持久化 id 区分） */
@@ -341,22 +355,6 @@ export function buildGrantPlan(changes: DraftChange[]): GrantPlan | null {
 }
 
 // ========== 变更构造辅助 ==========
-
-/** 直接授权冲突查重：条件不参与身份，同键已有 MANUAL 记录即命中。 */
-export function findDirectGrantConflict(
-  records: Array<
-    RolePermissionItem & { draftMark?: "add" | "update" | "remove" | null }
-  >,
-  key: GrantRecordKey
-): RolePermissionItem | undefined {
-  const targetKey = groupKeyOf(key);
-  return records.find(
-    r =>
-      r.grantSource === "MANUAL" &&
-      r.draftMark !== "remove" &&
-      groupKeyOf(r) === targetKey
-  );
-}
 
 /** 构造变更摘要 */
 export function buildSummary(input: {
