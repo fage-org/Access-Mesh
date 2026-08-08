@@ -165,6 +165,8 @@ interface MatrixContext {
 >
 > **AUTO_DEP 只读（P1-5，🔧 T-FE-039 三轮评审：详情层表达；2026-08-06 四轮评审修正：参与聚合）**：AUTO_DEP **不占独立的"授权来源图标"**，但**仍作为有效来源参与全部聚合计算**（权限存在性、直接/继承颜色、条纹、粗黑边框）——仅 AUTO_DEP 时显示**普通有效权限图标**（与"无权限=空白"可区分）；MANUAL+AUTO_DEP 按**全部有效来源**归并（实色/条纹/粗黑框按含 AUTO_DEP 的全部来源判定）；撤销 MANUAL 而 AUTO_DEP 仍有效时，显示 **AUTO_DEP 聚合后的有效图标 + 红色撤销图标并列**。仅 `grantSource=AUTO_DEP` 这一**来源属性**放入悬浮详情表达（标注自动补全来源）。AUTO_DEP 与 MANUAL **可并存**，引擎 OR 语义下各自真实生效（同一单元格可能同时存在两条记录）；**只读落实到记录/详情项**（AUTO_DEP 记录禁编辑/删除），**不禁用整个单元格**——仍允许添加或编辑并存的 MANUAL 记录；**不设来源覆盖/压制语义**。自动授权链路（T-PERM-035）未来若需压制语义，另行立项引擎改造。
 
+> **实现注记（T-FE-039，2026-08-07）**：本表与上述正交模型已落地为 `utils/cell-visual.ts` 纯函数（`aggregateValidIcon` 聚合有效图标 / `aggregateRemoveIcon` 撤销对称归并 / `forkAttachmentOf` 分叉投影 / `splitSourcesByDraft` 草稿拆分）+ `MatrixCell.vue` 渲染。三条评审确认的实现细节：①**多条被撤销来源的撤销图标归并 = 对称归并**（任一直接→红；全部继承→淡红；全部带条件→条纹，任一无条件→实色，2026-08-07 评审确认）；②**partial-add（已有格新增分支）视觉 = 淡绿底**（success-light-9，区别于整格 add 的 success-light-8，2026-08-07 评审确认）；③**撤销图标形状 = 纯色圆角方块**（红/淡红/红白条纹背景，内部不加 ✕/减号等符号，2026-08-07 评审确认）。角标体系（C/G/A/⧉/⌗/🌐/＋/−/删除线）已全部移除，条件/范围/canGrant/分支数并入悬浮详情；ALL 行 A 角标移除（§3.1）；diff 背景 = add 绿底 / partial-add 淡绿底 / update 黄底+黄描边，remove 由撤销图标表达（§6.2 无删除线/斜纹背景）。
+
 - 悬浮详情（el-popover）：来源链（含双重继承两段标注）+ 条件列表（多分支）+ 范围 + canGrant + dependOn 子权限数量 + 创建时间。
 - **子权限下沿分叉图形（🔧 T-FE-039，精确投影规则）**：
   - **仅当当前格存在 `childCount>0` 的直接主权限记录时显示**分叉（主记录行级标识，hover 显示"N 条子权限"），子权限明细在详情层管理；
@@ -308,6 +310,8 @@ interface MatrixContext {
 | remove | **撤销图标**：撤销直接权限 = **红**；撤销继承权限 = **淡红**；撤销来源带条件 = **红白/淡红白条纹**；撤销后仍有其他有效授权 → **有效图标 + 撤销图标并列**；撤销后没有有效授权 → **只显示撤销图标** |
 | 约束 | **有效图标 + 撤销图标最多并列两个**；**不使用减号、删除线或"粗黑边框=删除"等额外撤销符号**（粗黑边框语义 = 可转授 canGrant，见 §3.3） |
 
+> **实现确认（✅ T-FE-039，2026-08-07）**：本表已落地——MatrixCell 按草稿标记拆分为"有效来源/被撤销来源"两侧，分别聚合成最多一个有效图标 + 最多一个撤销图标并列（撤销后无有效授权 → 只显示撤销图标）；撤销图标颜色/条纹按对称归并（§3.3 实现注记）；add=绿底（success-light-8）、partial-add=淡绿底（success-light-9）、update=黄底+黄描边，remove/partial-remove 无背景（撤销图标表达，不加删除线/斜纹）。
+
 ### 6.3 右栏变更清单
 
 - 分组：按变更类型（新增 N / 修改 M / 删除 K）。
@@ -416,10 +420,10 @@ interface MatrixContext {
 ## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039 拆分子任务依据；S1~S11 全套）
 
 - **S1 两入口**：角色/组织入口分别进入，左栏主体树正确；GROUP_ROLE 只读（无授权按钮，来源标注"来自基础角色"）。（个人入口首期移除，P1-4）
-- **S2 查看矩阵**：继承默认开；来源图标正确区分 直接/资源继承/操作继承/双重继承（🔧 T-FE-039：绿/淡绿 + 上/右/组合箭头；**AUTO_DEP 无独立来源图标，来源属性在悬浮详情标注**）；两开关可独立关闭；操作列可配置（增删列，刷新后保留）；树形行展开/折叠/搜索；**ALL 虚拟行**（含范围标识、与实例行互斥）；悬浮详情正确（来源链/条件/范围/canGrant/createdAt/childCount，**条件/范围/可授予并入详情不占格**）；多分支并存正确展示；**AUTO_DEP 只读**（不可编辑/删除，**只读落实到记录/详情项、不禁用整个单元格**，并存 MANUAL 仍可编辑）；**多来源聚合归并正确**（**含 AUTO_DEP 参与聚合：仅 AUTO_DEP 时显示普通有效权限图标；MANUAL+AUTO_DEP 按全部有效来源计算实色/条纹/粗黑框；撤销 MANUAL 而 AUTO_DEP 仍有效时显示 AUTO_DEP 聚合有效图标 + 红色撤销图标并列**；直接+继承并存取实色、两段继承并存组合箭头、任一 canGrant=true 粗黑边框、全部有条件条纹、正常态最多一个聚合有效图标 + 撤销时最多再一个撤销图标）。
+- **S2 查看矩阵**：继承默认开；来源图标正确区分 直接/资源继承/操作继承/双重继承（🔧 T-FE-039：绿/淡绿 + 上/右/组合箭头；**AUTO_DEP 无独立来源图标，来源属性在悬浮详情标注**）；两开关可独立关闭；操作列可配置（增删列，刷新后保留）；树形行展开/折叠/搜索；**ALL 虚拟行**（含范围标识、与实例行互斥）；悬浮详情正确（来源链/条件/范围/canGrant/createdAt/childCount，**条件/范围/可授予并入详情不占格**）；多分支并存正确展示；**AUTO_DEP 只读**（不可编辑/删除，**只读落实到记录/详情项、不禁用整个单元格**，并存 MANUAL 仍可编辑）；**多来源聚合归并正确**（**含 AUTO_DEP 参与聚合：仅 AUTO_DEP 时显示普通有效权限图标；MANUAL+AUTO_DEP 按全部有效来源计算实色/条纹/粗黑框；撤销 MANUAL 而 AUTO_DEP 仍有效时显示 AUTO_DEP 聚合有效图标 + 红色撤销图标并列**；直接+继承并存取实色、两段继承并存组合箭头、任一 canGrant=true 粗黑边框、全部有条件条纹、正常态最多一个聚合有效图标 + 撤销时最多再一个撤销图标）。**（✅ T-FE-039 已实现，2026-08-07）**
 - **S3 授权弹窗**：选操作 → Step 2 现状列表正确（含继承标注）→ 范围（树选实例/**ALL**）+ 条件 + canGrant → 确定后矩阵实时 diff（含 ALL 虚拟行 diff）；同键不同条件产生新分支；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
 - **S4 详情层**：多分支添加/删除；子权限添加/删除/编辑（creates parentPermissionId / updates（改 canGrant / 改条件 / 清除条件传空串）/ removes）；**跨键变更 = 移除+新建（removes+creates，同事务原子）**；**改条件撞已占用条件（完整键同键同 conditionCode 已有 MANUAL 分支）→ 前端禁用 + 后端 20033 提示不崩溃**；草稿中的新增主权限挂子权限 = creates 主权限带 children 一次性建树。
-- **S5 变更提交**：矩阵标记 + 右栏清单（定位/逐条撤销）正确；**撤销标记（🔧 T-FE-039）：撤销直接=红 / 撤销继承=淡红 / 撤销来源带条件=红白·淡红白条纹；撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标；不使用减号/删除线/粗黑边框=删除符号**；保存全部 = **单请求 apply-grant-plan**（记录级 creates/updates/removes，单事务原子 + 受影响行数断言；跨键替换 = removes+creates 原子且变更清单提示子权限随主权限移除）；**请求失败后全部草稿保留并标红，整体重试**（前端 saving 期间按钮 disabled 防重复提交；apply-grant-plan 单事务原子，**数据库无部分状态**，不存在部分成功）；放弃全部回滚；未保存离开拦截。
+- **S5 变更提交**：矩阵标记 + 右栏清单（定位/逐条撤销）正确；**撤销标记（🔧 T-FE-039）：撤销直接=红 / 撤销继承=淡红 / 撤销来源带条件=红白·淡红白条纹；撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标；不使用减号/删除线/粗黑边框=删除符号**；保存全部 = **单请求 apply-grant-plan**（记录级 creates/updates/removes，单事务原子 + 受影响行数断言；跨键替换 = removes+creates 原子且变更清单提示子权限随主权限移除）；**请求失败后全部草稿保留并标红，整体重试**（前端 saving 期间按钮 disabled 防重复提交；apply-grant-plan 单事务原子，**数据库无部分状态**，不存在部分成功）；放弃全部回滚；未保存离开拦截。**（✅ T-FE-039 撤销并列/无额外符号已实现，2026-08-07）**
 - **S6 数据正确性**：来源链前端计算与引擎语义抽查一致（父资源授权 → 子孙行 INHERITED；MANAGE 授权 → VIEW 列 INHERITED；**父资源 MANAGE → 子资源 VIEW 单元格出现且来源链含两段（资源继承 + 操作继承）**；**ALL/MANAGE → ALL/VIEW 列出现且标注操作继承（节点段为空）**；AUTO_DEP 标注且只读；ALL 记录落虚拟行）。
 - **S7 边界**：无权限主体空态（**🔧 T-FE-038 修订：矩阵始终渲染当前类型，无权限空态被类型级空态取代，§3.1**）；operationCode=null 记录不崩溃（展示兜底）；list 数据量大时矩阵渲染不卡顿（虚拟滚动，如资源节点 > 500）。
 - **S8 单类型矩阵上下文（🔧 T-FE-038，需求验收 9 项；✅ 已实现，2026-08-07）**：
@@ -433,8 +437,8 @@ interface MatrixContext {
   8. 并发切换类型时不会显示旧请求结果（快速连续切换 A→B→C，最终矩阵 = C 数据，A/B 迟到响应被丢弃）。
   9. 写入其他类型不支持的操作时后端返回 **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`，前端提示不崩溃（弹窗/保存流程可用）。
 - **S9 类型切换加载体验（✅ 已实现，2026-08-07）**：切换时显示统一骨架屏；存在未保存变更时先确认放弃（取消则留在原类型）；切换完成后三类数据齐备才渲染。
-- **S10 图标正交模型（🔧 T-FE-039，2026-08-05 二轮评审映射）**：有效态 直接=绿无箭头 / 资源继承=淡绿+上箭头 / 操作继承=淡绿+右箭头 / 双重继承=淡绿+组合箭头 正确区分；**条纹=有条件**（任一有效来源无条件时按实色展示）、**粗黑边框=可转授 canGrant**；撤销态 直接=红 / 继承=淡红 / 来源带条件=红白·淡红白条纹；**撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标**（最多并列两个）；**不使用减号/删除线/粗黑边框=删除符号**；子权限分叉仅直接主权限记录显示、继承格不复制（精确投影 §3.3）；范围/多分支并入悬浮详情不占格。
-- **S11 首次授权与条件转授（🔧 T-FE-038/T-PERM-041）**：目标主体完全无权限时类型下拉仍可选（候选=资源类型定义全集）、可完成首次授权（✅ 矩阵部分，2026-08-07；条件部分随 T-PERM-041）；授权弹窗选择条件后 canGrant 开关自动关闭并清除；带条件记录详情展示无"可再授予"标记。
+- **S10 图标正交模型（🔧 T-FE-039，2026-08-05 二轮评审映射）**：有效态 直接=绿无箭头 / 资源继承=淡绿+上箭头 / 操作继承=淡绿+右箭头 / 双重继承=淡绿+组合箭头 正确区分；**条纹=有条件**（任一有效来源无条件时按实色展示）、**粗黑边框=可转授 canGrant**；撤销态 直接=红 / 继承=淡红 / 来源带条件=红白·淡红白条纹；**撤销后仍有其他有效授权 → 有效图标+撤销图标并列，撤销后无有效授权 → 只显示撤销图标**（最多并列两个）；**不使用减号/删除线/粗黑边框=删除符号**；子权限分叉仅直接主权限记录显示、继承格不复制（精确投影 §3.3）；范围/多分支并入悬浮详情不占格。**（✅ T-FE-039 已实现，2026-08-07）**
+- **S11 首次授权与条件转授（🔧 T-FE-038/T-PERM-041）**：目标主体完全无权限时类型下拉仍可选（候选=资源类型定义全集）、可完成首次授权（✅ 矩阵部分，2026-08-07；条件部分随 T-PERM-041）；授权弹窗选择条件后 canGrant 开关自动关闭并清除（✅ T-FE-039 前端行为已实现，2026-08-07；后端 20041 门禁随 T-PERM-041）；带条件记录详情展示无"可再授予"标记。
 
 ## 12. 与后端 T-PERM-034 的关系（范围更新）
 
@@ -477,7 +481,7 @@ interface MatrixContext {
 | 页面 | `frontend/src/views/perm/grant/index.vue` + `components/`（SubjectTreePanel / GrantMatrixPanel / MatrixCell / GrantDialog / ConditionPicker / PermissionDetailDrawer / ChangeListPanel） | 三栏布局 + 底部保存条 |
 | 编排 | `frontend/src/views/perm/grant/utils/hook.ts` | 依赖加载 / 门控 / 生效视图 / 事件编排 / 离开保护 |
 | 状态机 | `frontend/src/views/perm/grant/utils/grant-store.ts` | Pinia 四态 discriminated union（DoD-3） |
-| 纯函数 | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（三键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算） | 纯函数可测 |
+| 纯函数 | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（三键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算）/ `utils/cell-visual.ts`（🔧 T-FE-039 图标聚合归并/撤销对称归并/分叉投影，§3.3） | 纯函数可测 |
 | fixtures | `utils/source-chain.fixtures.json` + `source-chain.spec.ts` | Golden 6 用例（§12 方案三） |
 | API | `frontend/src/api/permission-grant.ts` | list + apply-grant-plan（契约 §6.4/§6.5.1）+ 错误码映射（DoD-1） |
 | mock | `frontend/mock/permission-grant.ts`（list / apply-grant-plan 全量预校验 + 单事务模拟 + 错误码演练）+ `mock/resource-operation.ts`（+REPORT 625 节点大树，additive）+ `mock/login.ts`（权限矩阵接线） | mock 驱动，DoD-4 |
@@ -579,3 +583,35 @@ interface MatrixContext {
 **验证（四轮）**：新增单测 3 个（prepareBaseline+commitSubject 成功原子提交 / prepareBaseline 期间 cancelPending 返回 null / commitSubject saving 拒绝），单测 119 全过；`npm run typecheck` / `eslint --max-warnings 0` / `vite build` 全过。
 
 **复查 should-fix（review 复核后补）**：① clearSubject 分支（角色已删除）resetAll 前未作废代际——先读后提交流程的 prepareBaseline 已成功返回后树/操作/标记在途时触发，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体 → 与 onBeforeUnmount 同构：++matrixToken + 复位 matrixLoading + cancelPending 再 resetAll；② selectingKey 清理盲区——同主体读取在途时再次点击，旧流程 finally 清掉新流程的选择状态，窗口期类型切换保护被绕过 → selectingKey 清理改调用序号（selectSeq），仅最新调用清理。
+
+### 13.5 T-FE-039 矩阵图标正交状态模型实现注记（2026-08-07 回写）
+
+**落点**：
+
+| 项 | 落点 |
+|---|---|
+| 聚合归并纯函数 | `utils/cell-visual.ts`（新增）：`aggregateValidIcon`（颜色/箭头/条纹/粗黑边框）/ `aggregateRemoveIcon`（撤销对称归并）/ `forkAttachmentOf`（分叉投影）/ `splitSourcesByDraft`（草稿拆分）/ `isDirectSource` |
+| 单元格渲染 | `MatrixCell.vue`：聚合有效图标（最多一个）+ 聚合撤销图标（最多一个）并列；条纹/粗黑边框/上/右/组合箭头；下沿分叉（仅直接主记录，级联撤销附撤销图标）；diff 背景（add 绿底 / partial-add 淡绿底 / update 黄底+黄描边）；悬浮详情（分支汇总 + 完整来源链 + 待撤销标注） |
+| 面板 | `GrantMatrixPanel.vue`：ALL 行 A 角标移除（范围并入详情）；MatrixCell 直传 markInfo（面板不再自行算 diff） |
+| 条件转授互斥 | `GrantDialog.vue` Step4 + `PermissionDetailDrawer.vue` 4 处编辑表单（分支编辑/添加分支/子权限表单/行内微编辑）：watch 选条件自动清 canGrant + checkbox 置灰 tooltip；hook `enforceNotDelegable` 调度层兜底（add/update branch + add/replace child 四处）；`grant-plan.ts` `applyDialogResultToDraft` 纯函数层最终兜底（入口 dialog 重建，草稿不变量恒成立） |
+| 20041 | `api/permission-grant.ts` 新增 `CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041` + 提示文案（`classifySaveError` 自动映射，保存失败提示不崩溃）；`mock/permission-grant.ts` 按 T-PERM-041 结果态不变量校验（creates 主权限 key / children[] 嵌套 / updates 应用后最终状态三处） |
+
+**评审确认的三条空白点补定**（2026-08-07 用户确认）：
+
+1. **多条被撤销来源的撤销图标归并 = 对称归并**：任一直接→红；全部继承→淡红；全部带条件→条纹，任一无条件→实色（与有效图标归并规则对称）。
+2. **partial-add 视觉 = 淡绿底**（success-light-9，区别于整格 add 的 success-light-8）；update = 黄底+黄描边。
+3. **撤销图标形状 = 纯色圆角方块**（红/淡红/红白条纹背景，内部不加 ✕/减号等符号，避免触碰"额外撤销符号"红线）。
+
+**实现要点**：
+
+- 正交模型不叠加角标：C/G/A/⧉/⌗/🌐/＋/−/删除线全部移除；条件/范围/canGrant/组合位/全局操作/分支数/自动补全并入悬浮详情（来源项 + 分支汇总行 + 待撤销 tag）。
+- **颜色严格执行设计 §3.3 绿/淡绿语义**（初版误用 `--el-color-primary` 蓝，2026-08-08 修正为 `--el-color-success` 系：直接=实绿、继承=淡绿、条纹=绿系斜纹；撤销保持红/淡红/红白条纹）。
+- **图标尺寸**（2026-08-08 用户反馈放大）：单元格图标 18px → **22px**，箭头 SVG 12px → **15px**（视口 15×15，描边 1.5 → 1.8），实心圆点 8px → 10px，分叉 13×6；22px 图标在 36px 行高内下探 3px 不溢出。
+- **组合箭头图形 = 单路径弯箭头**（2026-08-08 用户反馈"两个箭头强行拼合看不清"后定稿）：⤴（U+2934 风格）——一段路径**先向右再向上**的弯箭头，对应"操作覆盖（右）+ 资源继承（上）"两段继承；不再拼合上/右两个箭头。上箭头（↑）与右箭头（→）保持 15×15 直箭头。
+- **评审 P2 修复（2026-08-08 评审闭环）**：① diff 背景改由 `cell-visual.ts` 新增的 `cellBackgroundMark`（基于**有效侧**标记独立计算，remove 不吞新增背景）——撤销旧分支与同格新增新分支混合时保留 partial-add 淡绿背景（原 `cellDraftMark` remove 优先导致背景丢失；该函数保留其撤销视觉语义）；② `handleUpdateBranch` draft-add 快速路径就地改时同步用新 recordKey **重建 summary**——变更清单 addGroups 分组键/展示基于 summary（ChangeListPanel.changeGroupKey），主权限与子权限草稿新增就地编辑同一路径均覆盖（纯函数层 applyDialogResultToDraft 原本已重建，仅 hook 层遗漏）。
+- AUTO_DEP 参与全部聚合计算（存在性/实色/条纹/粗黑边框），来源属性在悬浮详情标注"由资源依赖自动补全"；仅 AUTO_DEP 显示普通有效图标（实色圆点）。
+- 分叉精确投影：`forkAttachmentOf` 只统计无继承段（直接）来源的 childCount；继承投影来源即使携带 childCount 也不计；有效侧与撤销侧可并存（存续有效图标 + 带分叉撤销图标并列）。
+- 组合箭头：单元格存在"资源段 + 操作段"两段继承即组合（同记录投影或不同记录并存均可）；有直接来源并存 → 无箭头（直接优先）。
+- 悬浮详情"待撤销"tag 由 markInfo 驱动（remove 标记来源高亮提示）。
+
+**验证证据**：新增 `cell-visual.spec.ts` 35 用例（聚合归并 14 / 撤销对称归并 7 / 分叉投影 5 / 草稿拆分 4 + isDirect 4）；`grant-plan.spec.ts` 新增 2 用例（弹窗带条件+canGrant → 强制 false；同键同条件置 true → 无变更）；单测 157 全过；`vue-tsc --noEmit` / `eslint --max-warnings 0` / `vite build` 全过；review 复核：纯函数层兜底补弹窗路径（should-fix）、fork 下探收窄至 3px（36px 行高内）、撤销侧分叉 title、remove/partial-remove inert class 清理。S2/S5/S6/S10/S11 交互验收以 mock 环境人工验收为准（DoD-4）。

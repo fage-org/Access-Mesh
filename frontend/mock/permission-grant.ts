@@ -18,6 +18,8 @@
 // - 20009/20010 creates 子权限挂父不存在 / 父非主权限（含子权限再带 children）
 // - 20011 SUB_PERM 资源类型不允许（fail-closed：父类型未配置 → 拒绝；DATA→[DATA]、REPORT→[DATA,REPORT]）
 // - 20040 ⚠️故障注入钩子：creates/updates 以 conditionCode="temp-access" 且 canGrant=true 提交
+// - 20041 条件不可转授（T-PERM-041 结果态不变量）：creates 三形态（key/children/parentPermissionId）与
+//   updates 应用后最终状态 conditionCode != null 且 canGrant=true → 20041（种子数据已满足不变量）
 //   → 模拟授权传递校验未通过（真实 checkCanGrant 语义复杂，mock 以文档化钩子演练提示文案）
 // - 20003 角色停用（BASIC_203 访客）；角色不存在 → list 空列表（契约：门禁失败返回空列表）
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
@@ -460,6 +462,14 @@ export default defineFakeRoute([
         if (u.canGrant === true && nextCondition === "temp-access") {
           return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
         }
+        // 20041 条件不可转授（T-PERM-041 结果态不变量）：updates 应用后最终状态判定
+        // （只改 canGrant=true 使已有条件记录可转授、或只改 conditionCode 覆盖到 canGrant=true
+        // 的记录，均按最终状态拒绝）
+        const finalCanGrant =
+          u.canGrant === undefined ? target.canGrant : u.canGrant === true;
+        if (finalCanGrant && nextCondition != null) {
+          return error(20041, "条件权限不可转授：带条件的权限不能设置可再授予");
+        }
       }
 
       // creates 校验
@@ -571,6 +581,11 @@ export default defineFakeRoute([
         if (key.canGrant === true && key.conditionCode === "temp-access") {
           return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
         }
+        // 20041 条件不可转授（T-PERM-041）：creates 主权限 key 结果态不变量
+        // （conditionCode != null 时 canGrant 必须 false）
+        if (key.canGrant === true && key.conditionCode != null) {
+          return error(20041, "条件权限不可转授：带条件的权限不能设置可再授予");
+        }
 
         // children 一次性建树校验（仅主权限）
         if (Array.isArray(create.children)) {
@@ -624,6 +639,13 @@ export default defineFakeRoute([
               !KNOWN_CONDITION_CODES.has(child.conditionCode)
             ) {
               return error(20006, `权限条件不存在（${child.conditionCode}）`);
+            }
+            // 20041 条件不可转授（T-PERM-041）：children[] 嵌套形态结果态不变量
+            if (child.canGrant === true && child.conditionCode != null) {
+              return error(
+                20041,
+                "条件权限不可转授：带条件的权限不能设置可再授予"
+              );
             }
             const childKey = persistKeyOf({
               resourceTypeCode: child.resourceTypeCode,

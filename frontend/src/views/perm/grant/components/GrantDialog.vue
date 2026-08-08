@@ -154,6 +154,12 @@ const treeProps = { label: "name", children: "children" };
 const conditionCode = ref<string | null>(null);
 const canGrant = ref(false);
 
+/** 条件不可转授（🔧 T-FE-039/T-PERM-041）：选择条件后自动关闭并清除 canGrant；checkbox 置灰需先清条件 */
+const canGrantDisabled = computed(() => conditionCode.value != null);
+watch(conditionCode, v => {
+  if (v) canGrant.value = false;
+});
+
 // ========== 预填（评审问题 1：双 watcher + 代际令牌） ==========
 
 /** tripleKey -> 资源节点 id（setCheckedKeys 用） */
@@ -539,7 +545,17 @@ function handleClose() {
         >
           <span class="condition-blocked">条件置灰</span>
         </el-tooltip>
-        <el-checkbox v-model="canGrant">允许再授予（canGrant）</el-checkbox>
+        <el-tooltip
+          :disabled="!canGrantDisabled"
+          content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
+          placement="top"
+        >
+          <span>
+            <el-checkbox v-model="canGrant" :disabled="canGrantDisabled">
+              允许再授予（canGrant）
+            </el-checkbox>
+          </span>
+        </el-tooltip>
       </div>
     </div>
 

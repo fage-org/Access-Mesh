@@ -491,7 +491,13 @@ export function applyDialogResultToDraft(input: {
   dialog: DialogResult;
   operations: OperationDefInput[];
 }): DialogApplyResult {
-  const { baseline, dialog } = input;
+  // 条件不可转授（🔧 T-FE-039/T-PERM-041）：弹窗结果 conditionCode 非空时 canGrant 强制 false。
+  // 纯函数层最终状态兜底——组件互斥/调度层 enforce 之外的统一防线，草稿不变量恒成立。
+  const { baseline, dialog: rawDialog } = input;
+  const dialog =
+    rawDialog.conditionCode != null
+      ? { ...rawDialog, canGrant: false }
+      : rawDialog;
   const operations = input.operations;
   let changes = [...input.changes];
   const revertedChangeIds: string[] = [];

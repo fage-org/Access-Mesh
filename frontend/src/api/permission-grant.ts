@@ -58,7 +58,9 @@ export const GRANT_ERROR_CODE = {
   CONDITION_BRANCH_CONFLICT: 20033,
   AUTO_DEP_READONLY: 20034,
   PERMISSION_NOT_FOUND: 20036,
-  GRANT_CANNOT_DELEGATE: 20040
+  GRANT_CANNOT_DELEGATE: 20040,
+  /** 🔧 T-PERM-041：条件权限不可转授（conditionCode != null 时 canGrant 必须 false） */
+  CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041
 } as const;
 
 export type GrantErrorCode =
@@ -85,7 +87,9 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   [GRANT_ERROR_CODE.PERMISSION_NOT_FOUND]:
     "目标记录不存在或已被修改，请刷新页面确认当前状态",
   [GRANT_ERROR_CODE.GRANT_CANNOT_DELEGATE]:
-    "当前账号无权转授该权限（授权传递校验未通过）"
+    "当前账号无权转授该权限（授权传递校验未通过）",
+  [GRANT_ERROR_CODE.CONDITIONAL_PERMISSION_CANNOT_DELEGATE]:
+    "条件权限不可转授：带条件的权限不能设置可再授予，请先清除条件后重试"
 };
 
 // ========== 类型定义 ==========

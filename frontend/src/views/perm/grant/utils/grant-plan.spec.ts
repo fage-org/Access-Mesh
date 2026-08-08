@@ -348,6 +348,45 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
     );
   });
 
+  it("带条件 + canGrant=true → canGrant 强制 false（条件不可转授最终兜底，🔧 T-FE-039）", () => {
+    const result = applyDialogResultToDraft({
+      baseline: [],
+      changes: [],
+      dialog: dialogOf({ conditionCode: "office-hours", canGrant: true }),
+      operations: OPS
+    });
+    expect(result.changes).toHaveLength(1);
+    const add = result.changes[0] as AddChange;
+    expect(add.recordKey.conditionCode).toBe("office-hours");
+    expect(add.recordKey.canGrant).toBe(false);
+  });
+
+  it("改条件（新分支）+ canGrant=true → add 的 canGrant 强制 false", () => {
+    const existing = makeRecord({ conditionCode: null, canGrant: true });
+    const result = applyDialogResultToDraft({
+      baseline: [existing],
+      changes: [],
+      dialog: dialogOf({ conditionCode: "office-hours", canGrant: true }),
+      operations: OPS
+    });
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0].kind).toBe("add");
+    const add = result.changes[0] as AddChange;
+    expect(add.recordKey.conditionCode).toBe("office-hours");
+    expect(add.recordKey.canGrant).toBe(false);
+  });
+
+  it("同键同条件尝试置 canGrant=true → 兜底为 false 后无变更（不产生 update）", () => {
+    const existing = makeRecord({ conditionCode: "office-hours" });
+    const result = applyDialogResultToDraft({
+      baseline: [existing],
+      changes: [],
+      dialog: dialogOf({ conditionCode: "office-hours", canGrant: true }),
+      operations: OPS
+    });
+    expect(result.changes).toHaveLength(0);
+  });
+
   it("取消勾选 → remove（同分组键全部 MANUAL 分支；AUTO_DEP 不进比对保留）", () => {
     const b1 = makeRecord({ id: 7000, conditionCode: null, childCount: 1 });
     const b2 = makeRecord({ id: 7001, conditionCode: "c1" });

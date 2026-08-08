@@ -819,6 +819,18 @@ export function usePermissionGrant() {
 
   // ---- 详情层事件（统一走草稿，保存全部时单请求提交） ----
 
+  /**
+   * 条件不可转授（🔧 T-FE-039/T-PERM-041）：conditionCode 非空时 canGrant 强制 false。
+   * 调度层最终状态兜底——组件层互斥（选条件清 canGrant + checkbox 置灰）之外，
+   * 无论入口如何到达，草稿中带条件的记录 canGrant 恒为 false（后端 20041 为最终防线）。
+   */
+  function enforceNotDelegable(
+    canGrant: boolean,
+    conditionCode: string | null
+  ): boolean {
+    return conditionCode != null ? false : canGrant;
+  }
+
   function pushChange(change: DraftChange) {
     grantStore.applyChanges([...grantStore.changes, change]);
   }
@@ -837,7 +849,7 @@ export function usePermissionGrant() {
       operationCode: record.operationCode,
       scopeMode: record.scopeMode,
       conditionCode: input.conditionCode,
-      canGrant: input.canGrant
+      canGrant: enforceNotDelegable(input.canGrant, input.conditionCode)
     };
     pushChange(
       buildAddChange({
@@ -862,19 +874,32 @@ export function usePermissionGrant() {
       message("自动补全记录只读，不可修改或删除", { type: "warning" });
       return;
     }
+    // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
+    const conditionCode = input.conditionCode;
+    const canGrant = enforceNotDelegable(input.canGrant, conditionCode);
     // 草稿新增就地改（不产生 update 变更）
     if (record.draftMark === "add" && record.changeId) {
       grantStore.applyChanges(
         grantStore.changes.map(c =>
           c.changeId === record.changeId && c.kind === "add"
-            ? {
-                ...c,
-                recordKey: {
+            ? (() => {
+                const recordKey = {
                   ...c.recordKey,
-                  canGrant: input.canGrant,
-                  conditionCode: input.conditionCode
-                }
-              }
+                  canGrant,
+                  conditionCode
+                };
+                return {
+                  ...c,
+                  recordKey,
+                  // 评审 P2-2：就地改必须同步重建 summary——变更清单 addGroups
+                  // 分组键/展示基于 summary（ChangeListPanel.changeGroupKey），
+                  // 否则保存前总览仍是首次新增时的旧条件/旧 canGrant
+                  summary: buildSummary({
+                    recordKey,
+                    resourceLabel: c.summary.resourceLabel
+                  })
+                };
+              })()
             : c
         )
       );
@@ -892,8 +917,8 @@ export function usePermissionGrant() {
             ? {
                 ...c,
                 after: {
-                  canGrant: input.canGrant,
-                  conditionCode: input.conditionCode
+                  canGrant,
+                  conditionCode
                 }
               }
             : c
@@ -904,12 +929,12 @@ export function usePermissionGrant() {
     pushChange(
       buildUpdateChange({
         before: record,
-        after: { canGrant: input.canGrant, conditionCode: input.conditionCode },
+        after: { canGrant, conditionCode },
         summary: buildSummary({
           recordKey: {
             ...record,
-            conditionCode: input.conditionCode,
-            canGrant: input.canGrant
+            conditionCode,
+            canGrant
           },
           resourceLabel:
             record.resourceName ?? record.resourceCode ?? "全部资源"
@@ -979,11 +1004,21 @@ export function usePermissionGrant() {
   }) {
     const { parent, recordKey } = input;
     const change: AddChange = buildAddChange({
-      recordKey,
+      // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
+      recordKey: {
+        ...recordKey,
+        canGrant: enforceNotDelegable(
+          recordKey.canGrant,
+          recordKey.conditionCode
+        )
+      },
       ...(parent.draftMark === "add" && parent.changeId
         ? { parentChangeId: parent.changeId }
         : { parentPermissionId: parent.id }),
-      summary: buildSummary({ recordKey, resourceLabel: input.resourceLabel })
+      summary: buildSummary({
+        recordKey,
+        resourceLabel: input.resourceLabel
+      })
     });
     pushChange(change);
   }
@@ -994,7 +1029,15 @@ export function usePermissionGrant() {
     newKey: Parameters<typeof buildReplaceChange>[0]["newKey"];
     resourceLabel: string;
   }) {
-    const { record, newKey } = input;
+    const { record, newKey: rawKey } = input;
+    // 条件不可转授最终状态兜底（T-FE-039/T-PERM-041）
+    const newKey = {
+      ...rawKey,
+      canGrant: enforceNotDelegable(
+        rawKey.canGrant ?? false,
+        rawKey.conditionCode ?? null
+      )
+    };
     if (record.grantSource === "AUTO_DEP") {
       message("自动补全记录只读，不可修改或删除", { type: "warning" });
       return;

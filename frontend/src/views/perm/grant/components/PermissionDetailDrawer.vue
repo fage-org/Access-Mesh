@@ -8,7 +8,7 @@
  *   removes 删除 / 跨键 = removes+creates）；草稿新父虚拟挂载（children 一次性建树）。
  *   SUB_PERM 允许集由后端校验（20011 提示）。
  */
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import { message } from "@/utils/message";
 import type { ResourceTreeNode } from "@/api/resource-operation";
 import type { ConditionResp } from "@/api/permission-condition";
@@ -115,9 +115,25 @@ function draftTagOf(record: EffectiveRecord): string | null {
 
 // ---- 分支编辑（改条件 = 重新绑定 conditionCode + canGrant） ----
 
+/** 条件不可转授（🔧 T-FE-039/T-PERM-041）：选择条件后自动关闭并清除 canGrant；返回 checkbox 置灰判定（改 canGrant 需先清条件） */
+function conditionalNotDelegable(
+  condition: Ref<string | null>,
+  canGrant: Ref<boolean>
+) {
+  watch(condition, v => {
+    if (v) canGrant.value = false;
+  });
+  return computed(() => condition.value != null);
+}
+
 const editingBranchId = ref<number | null>(null);
 const editConditionCode = ref<string | null>(null);
 const editCanGrant = ref(false);
+/** 分支编辑：选条件自动清 canGrant + checkbox 置灰（需先清条件才能勾选可转授） */
+const editCanGrantDisabled = conditionalNotDelegable(
+  editConditionCode,
+  editCanGrant
+);
 
 function startEditBranch(record: EffectiveRecord) {
   editingBranchId.value = record.id;
@@ -162,6 +178,11 @@ function confirmEditBranch(record: EffectiveRecord) {
 const addingBranch = ref(false);
 const addConditionCode = ref<string | null>(null);
 const addCanGrant = ref(false);
+/** 添加分支：选条件自动清 canGrant + checkbox 置灰 */
+const addCanGrantDisabled = conditionalNotDelegable(
+  addConditionCode,
+  addCanGrant
+);
 
 const addConflict = computed(() => {
   const target = props.target;
@@ -382,6 +403,22 @@ function confirmChildForm() {
 const microEditChildId = ref<number | null>(null);
 const microConditionCode = ref<string | null>(null);
 const microCanGrant = ref(false);
+/** 子权限行内微编辑：选条件自动清 canGrant + checkbox 置灰 */
+const microCanGrantDisabled = conditionalNotDelegable(
+  microConditionCode,
+  microCanGrant
+);
+
+/** 子权限表单（添加/跨键编辑共用）：选条件自动清 canGrant + checkbox 置灰 */
+const childFormCanGrantDisabled = conditionalNotDelegable(
+  computed(() => childForm.value.conditionCode),
+  computed({
+    get: () => childForm.value.canGrant,
+    set: v => {
+      childForm.value.canGrant = v;
+    }
+  })
+);
 
 function startMicroEdit(record: EffectiveRecord) {
   microEditChildId.value = record.id;
@@ -472,7 +509,19 @@ function handleClose() {
                     :disabled="!canCondition"
                     placeholder="无条件"
                   />
-                  <el-checkbox v-model="editCanGrant">可转授</el-checkbox>
+                  <el-tooltip
+                    :disabled="!editCanGrantDisabled"
+                    content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
+                    placement="top"
+                  >
+                    <span>
+                      <el-checkbox
+                        v-model="editCanGrant"
+                        :disabled="editCanGrantDisabled"
+                        >可转授</el-checkbox
+                      >
+                    </span>
+                  </el-tooltip>
                   <div class="edit-actions">
                     <el-button size="small" @click="cancelEditBranch"
                       >取消</el-button
@@ -592,7 +641,19 @@ function handleClose() {
                   :disabled="!canCondition"
                   placeholder="无条件"
                 />
-                <el-checkbox v-model="addCanGrant">可转授</el-checkbox>
+                <el-tooltip
+                  :disabled="!addCanGrantDisabled"
+                  content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
+                  placement="top"
+                >
+                  <span>
+                    <el-checkbox
+                      v-model="addCanGrant"
+                      :disabled="addCanGrantDisabled"
+                      >可转授</el-checkbox
+                    >
+                  </span>
+                </el-tooltip>
                 <div class="edit-actions">
                   <el-button size="small" @click="addingBranch = false"
                     >取消</el-button
@@ -745,7 +806,18 @@ function handleClose() {
                   />
                 </el-form-item>
                 <el-form-item label="可转授">
-                  <el-checkbox v-model="childForm.canGrant" />
+                  <el-tooltip
+                    :disabled="!childFormCanGrantDisabled"
+                    content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
+                    placement="top"
+                  >
+                    <span>
+                      <el-checkbox
+                        v-model="childForm.canGrant"
+                        :disabled="childFormCanGrantDisabled"
+                      />
+                    </span>
+                  </el-tooltip>
                 </el-form-item>
               </el-form>
               <div class="edit-actions">
@@ -790,7 +862,19 @@ function handleClose() {
                       :disabled="!canCondition"
                       placeholder="无条件"
                     />
-                    <el-checkbox v-model="microCanGrant">可转授</el-checkbox>
+                    <el-tooltip
+                      :disabled="!microCanGrantDisabled"
+                      content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
+                      placement="top"
+                    >
+                      <span>
+                        <el-checkbox
+                          v-model="microCanGrant"
+                          :disabled="microCanGrantDisabled"
+                          >可转授</el-checkbox
+                        >
+                      </span>
+                    </el-tooltip>
                     <div class="edit-actions">
                       <el-button size="small" @click="microEditChildId = null"
                         >取消</el-button

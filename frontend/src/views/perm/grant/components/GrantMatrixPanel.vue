@@ -3,7 +3,7 @@
  * 查看矩阵（§3：资源树形行 × 可配置操作列；el-table-v2 虚拟滚动承载 >500 节点，S7）。
  * - 行：类型分组行（首层，默认展开）→ ALL 虚拟行（承载 scopeMode=ALL，与实例行互斥）+ 资源实例树形行
  * - 列：操作列 union by code 跨类型去重展示（§3.2），可配置增删（localStorage 按 subjectType 隔离）
- * - 单元格：MatrixCell（有/无 + 来源图标 + 角标 + 悬浮详情 + diff 标记）
+ * - 单元格：MatrixCell（图标正交模型：聚合有效图标 + 撤销图标并列 + 悬浮详情 + diff 背景，🔧 T-FE-039）
  * - 继承开关 ×2（树级/操作，默认开）为查看态过滤；页头标注"含继承视图（模拟 CHILD 展开，非运行时默认）"
  * - 点击：有权限 = 详情层；无权限 = 授权弹窗（推荐路径，§3.3 实现时定采纳）
  */
@@ -17,7 +17,6 @@ import {
   instanceRowKey,
   type SourceChainResult
 } from "../utils/source-chain";
-import { cellDraftMark } from "../utils/grant-plan";
 import type { CellSource } from "../utils/source-chain";
 import MatrixCell from "./MatrixCell.vue";
 
@@ -221,13 +220,6 @@ function columnApplicable(row: MatrixRow, opCode: string): boolean {
       .get(row.resourceTypeCode)
       ?.some(c => c.code === opCode) ?? false
   );
-}
-
-function markOf(row: MatrixRow, opCode: string) {
-  return cellDraftMark({
-    sources: sourcesOf(row, opCode),
-    markInfo: props.markInfo
-  });
 }
 
 function handleCellSelect(row: MatrixRow, opCode: string) {
@@ -526,9 +518,6 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
           <template v-if="column.key === 'name'">
             <span v-if="rowData.kind === 'all'" class="all-row">
               {{ rowData.label }}
-              <el-tag size="small" type="warning" effect="plain" class="ml-1"
-                >A</el-tag
-              >
             </span>
             <span v-else class="instance-row">
               <span class="instance-name">{{ rowData.label }}</span>
@@ -550,9 +539,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
             >
               <MatrixCell
                 :sources="sourcesOf(rowData, column.opCode)"
-                :mark="markOf(rowData, column.opCode).mark"
-                :removed-count="markOf(rowData, column.opCode).removedCount"
-                :total-count="markOf(rowData, column.opCode).totalCount"
+                :mark-info="markInfo"
                 :capability="capability"
                 @select="handleCellSelect(rowData, column.opCode)"
               />
