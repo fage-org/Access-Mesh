@@ -29,9 +29,10 @@ tasks:
   - T-FE-036
   - T-FE-038
   - T-FE-039
+  - T-FE-040
   - T-ADMIN-021
-acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 评审扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口，第十四轮收窄）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-08-05
+acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
+last_updated: 2026-08-09
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
@@ -81,25 +82,26 @@ last_updated: 2026-08-05
 | T-PERM-031 | 3.4 资源依赖后端 | T-FE-011 | 同上 |
 | T-PERM-032 | 7.2 变更日志后端 | T-FE-012 | 同上 |
 | T-PERM-033 | 4.2 权限查询后端 | T-FE-013 | 同上 |
-| T-PERM-034 | 4.1 权限授予后端（见任务卡，第十四轮收窄） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1；implementation §4/§7.7；core-flows §6；design/frontend/permission-grant.md §12；permission-center.sql | T-PERM-031 | ⚙️ | ⏳ |
+| T-PERM-034 | 4.1 权限授予后端（见任务卡） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；design/frontend/permission-grant.md §12；permission-center.sql | T-PERM-031 | ⚙️ | ⏳ |
 
 ### 单类型矩阵后端任务（T-PERM-040/041，2026-08-03 定稿；范围见任务卡）
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-040](../tasks/T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | ⏳ | T-PERM-028, T-PERM-034 |
-| [T-PERM-041](../tasks/T-PERM-041.md) | 条件权限不可转授 | ⏳ | T-PERM-034 |
+| [T-PERM-040](../tasks/T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | ⚙️ | T-PERM-028, T-PERM-034 |
+| [T-PERM-041](../tasks/T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | ⚙️ | T-PERM-034 |
 
 ### 前端重建任务（T-FE-036/T-FE-038/T-FE-039，本 plan 关联的前端部分）
 
-> frontmatter `tasks` 同时登记 T-FE-036/T-FE-038/T-FE-039；前端以 **mock 数据驱动**（接口形状按 api-contract），T-FE-038 mock 先行、T-PERM-040 非前置（2026-08-05 评审方案 B），联调任务 T-FE-018 同时依赖 T-FE-038 + T-PERM-040 汇合。
+> frontmatter `tasks` 同时登记 T-FE-036/T-FE-038/T-FE-039/T-FE-040；前端以 **mock 数据驱动**（接口形状按 api-contract），T-FE-038 mock 先行、T-PERM-040 非前置（2026-08-05 评审方案 B），联调任务 T-FE-018 同时依赖 T-FE-038 + T-PERM-040 汇合；T-FE-040（v3.1 记录级聚焦编辑）同样 mock-first，依赖 T-FE-039 代码基线，blocks T-FE-018。
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
 | [T-FE-036](../tasks/T-FE-036.md) | 4.1 权限授予页重设计（v3） | 👀 | T-FE-001/002/008/009 |
 | [T-FE-038](../tasks/T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | ✅ | T-FE-036 |
 | [T-FE-039](../tasks/T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | ✅ | T-FE-038 |
-| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ⏳ | — |
+| [T-FE-040](../tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | ⚙️ | T-FE-039 |
+| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ⚙️ | — |
 
 
 ### 暂缓核心能力（T-PERM-035/036）
@@ -117,7 +119,7 @@ last_updated: 2026-08-05
 
 ## 归档条件
 
-- T-PERM-022~034 + 037 + 040 + 041 done（或暂缓项 035/036 cancelled，需 PM 决策）+ T-FE-036 done（前端部分，见上）+ **T-FE-038 done（单类型矩阵上下文）** + **T-FE-039 done（图标正交模型）** + **T-ADMIN-021 done（2026-08-01 第七轮 P2-2 补）**
+- T-PERM-022~034 + 037 + 040 + 041 done（或暂缓项 035/036 cancelled，需 PM 决策）+ T-FE-036 done（前端部分，见上）+ **T-FE-038 done（单类型矩阵上下文）** + **T-FE-039 done（图标正交模型）** + **T-ADMIN-021 done（2026-08-01 补充）**
 - 改造接口回写 `docs/design/permission-center/api-contract.md`
 - 自动授权流程回写 `core-flows.md`（若 035 推进）
 
@@ -126,4 +128,4 @@ last_updated: 2026-08-05
 - 2026-06-29：建立本 plan + 拆分 16 个任务（13 逐页后端 + 035/036 暂缓 + 037 共性收尾）。全部 proposed，暂缓项带门禁，待 PM 重申。
 - 2026-08-02：**T-FE-036 实现完成转 review**（mock 驱动 + 自验通过；设计 `permission-grant.md` 回写 adopted，含 §13 实现注记；S1~S7 待人工交互验收）。验收后本 plan 前端部分仅剩 T-ADMIN-021（二期）与 T-PERM-022~037 后端任务。
 - 2026-08-03：**单类型矩阵上下文定稿**（需求确认：单权限类型 = 单个 `resourceTypeCode`），新增 T-FE-038（前端 MatrixContext + 类型切换加载 + 操作列配置按类型隔离）与 T-PERM-040（后端 operation-permission/list 类型查询 + apply-grant-plan 20008 校验）；设计回写 permission-grant.md §2.2/§3.2/§3.5/§3.6/§11（S8/S9）/§12、api-contract §5.3/§6.5.1、core-flows §6。
-- 2026-08-05（二轮评审）：**图标映射定稿修正**——条纹=有条件、粗黑边框=可转授 canGrant、红/淡红=撤销（取代上轮"条纹=部分移除/粗黑边框=整格删除"映射，T-FE-039 同步重写）；子权限分叉精确投影规则（仅直接主权限记录、继承格不复制、级联撤销附红图标）；条件转授前端行为（选条件清 canGrant、20041 提示）并入 T-FE-039；T-FE-018 再补 T-FE-039/T-PERM-041 依赖；T-PERM-041 范围收窄为仅最终态建表 DDL（不考虑历史数据，用户确认）；任务行治理精简。
+- 2026-08-05：**图标映射定稿**——条纹=有条件、粗黑边框=可转授 canGrant、红/淡红=撤销（旧映射已废弃，T-FE-039 已同步）；子权限分叉精确投影规则（仅直接主权限记录、继承格不复制、级联撤销附红图标）；条件转授前端行为（选条件清 canGrant、20041 提示）并入 T-FE-039；T-FE-018 补充 T-FE-039/T-PERM-041 依赖；T-PERM-041 范围限定为仅最终态建表 DDL（不考虑历史数据，用户确认）；任务行治理精简。

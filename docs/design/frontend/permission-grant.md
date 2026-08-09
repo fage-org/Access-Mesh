@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 4.1 权限授予 前端设计（v3）
-status: adopted # draft → adopted（T-FE-036 实现完成；T-FE-038/T-FE-039 单类型矩阵与图标模型；2026-08-08 主/子权限统一为资源树编辑，子权限不配置条件与再授予，详情只读）
+status: adopted # draft → adopted（T-FE-036 实现完成；T-FE-038/T-FE-039 单类型矩阵与图标模型；2026-08-08 主/子权限统一为资源树编辑，子权限不配置条件与再授予，详情只读；2026-08-08 v3.1 记录级聚焦编辑：弹窗条件/再授予/子权限改为按聚焦授权记录编辑，新授权固定默认值，无隐式覆盖，子权限类型按 SUB_PERM 允许集过滤；2026-08-08 评审复审修订：上下文聚焦（矩阵打开自动聚焦/首次勾选自动聚焦/未授权可聚焦只读）+ 显式复制（源=聚焦记录，确认覆盖）+ SUB_PERM 契约补全；2026-08-08 二轮复审修订：includeChildren 口径统一（baseline=true，来源链过滤 dependOn==null）、复制草稿合并规则（add 就地改/update 合并/禁止同 id 多条）、焦点=MANUAL 编辑槽位（AUTO_DEP 不阻碍聚焦）、已勾选 MANUAL 节点紧凑摘要；2026-08-08 三轮复审修订：取消勾选草稿 suspended 暂存（重新勾选恢复，确认时丢弃）、子权限入口启用条件与复制统一、ALL 焦点迁移（选 ALL 聚焦 ALL 槽位/取消 ALL 清空焦点）、待撤销节点纳入摘要（红色标注）、initial 完整授权键；2026-08-08 四轮复审修订：suspended 双路径（baseline→remove / add 草稿→取消变更组）、复制合并后 after==before 归一化删除、条件选择/复制条件移除 CONDITION:VIEW 门禁、SUB_PERM 空集 CHILD_TYPES_EMPTY + reason 文案区分、摘要显示浅色[无条件]；2026-08-08 五轮复审修订：条件规则全租户开放（非敏感，管理页 VIEW 门禁/角色矩阵 VIEW 列/loadList 短路同步移除，T-PERM-029 待办 4 取消）、停用条件规则（新选限启用/存量停用回显标注保留/复制不传播停用/后端 20042 预检）、SUB_PERM 聚合优先级顺序写死（配置存在性→全量校验→通配→并集非空→并集为空）、子权限类型候选三态（交集为空/加载失败/加载中）；2026-08-08 六轮复审修订：停用源条件时**复制入口禁用**（原"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，属权限扩大）、SUB_PERM **顶层通配判定提前至 JSON 解析前**（`"*"` 非合法 JSON，原顺序误判 CONFIG_INVALID）、apply-grant-plan 示例修正（canGrant+conditionCode 违反 20041）、**20042 移入 creates/updates 共用不变量段**（与 20041 并列，updates 的 conditionCode 变更同样适用）、T-FE-036 定位为 v3 历史任务不再修补（v3.1 任务卡待新建）；2026-08-08 七轮复审修订：**子权限属性=系统不变量后端强制**（两种 create 形态 conditionCode 必须 null/canGrant 必须 false、update 目标为子权限一律拒绝、历史异常只读不编辑，新增 20043 SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED）、SUB_PERM 非匹配非法项不再容错（全量结构校验，与写实现 L452-453 一致）、tasks/README 改为"设计确认移除待实施"（实现仍保留 CONDITION:VIEW 门禁）、T-FE-036 frontmatter 块标量机械修复（js-yaml 通过）。**设计已确认、任务卡已拆分（T-FE-040 / T-PERM-034 扩展 / T-PERM-041 修订，2026-08-08 九轮评审后完成），实现待启动**，当前前端代码仍为 v3 共享设置模式，未实现 v3.1）
 domain: frontend
 last_reviewed: 2026-08-08
 ---
@@ -25,10 +25,10 @@ last_reviewed: 2026-08-08
 8. **权限详情只读**：授权记录、来源与子权限（`depend_on`）在详情层只读展示；授权/撤销、条件与可转授属性编辑、子权限配置统一从授权弹窗进入。
 9. **变更预览**：矩阵就地标记（绿=有效/新增、黄=待更新、红=待撤销，三态复用同一形态，**不使用删除线**，§3.3/§6.2）+ **右栏变更清单**（定位 / 逐条撤销）+ 底部"保存全部 / 放弃全部"。
 10. **继承默认**：默认**开**（显示含继承，页头标注"模拟 CHILD 展开视图，非运行时默认"）；**直接授权与继承用颜色区分**（直接=实色/深色，继承=淡色，来源类型用图标区分）；开关用于"只看直接授权"的干净视图（与运行时默认一致）。
-11. **条件模型**：同一角色在同一资源/范围 + 操作 + 父权限下最多一条 MANUAL 直接授权；弹窗内**单条件**（无条件或一个条件）与 canGrant 是该记录的可编辑属性。用户不改授权设置时保留已有值，显式修改后统一更新当前勾选的已有授权并应用于新增授权。
+11. **条件模型（v3.1 记录级聚焦编辑）**：同一角色在同一资源/范围 + 操作 + 父权限下最多一条 MANUAL 直接授权；弹窗内**单条件**（无条件或一个条件）与 canGrant 是**聚焦授权记录**的可编辑属性。资源树复选框只控制授权的新增/保留/撤销，点击资源行聚焦后，设置区只读取和修改该聚焦记录；新勾选资源使用固定默认值（无条件、不可再授予、无子权限），不继承设置区当前值；修改任一记录不产生其他记录的变更；不做隐式覆盖——批量效率由**显式复制**（源=聚焦记录，确认覆盖）承担（§4）。
 12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（BASIC_ROLE + GROUP_ROLE）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人 `abstract_role` 生命周期待后端同步链路落地后恢复，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
 13. **分组角色**：GROUP_ROLE **只读**——左栏展开为其关联的基础角色（`extra.basicRoleIds`，`abstract-role/extra-roles/list`，已联调 ✅），选中基础角色后按普通基础角色查看/授权（授权目标 = 基础角色本身，与运行时展开语义一致，无需聚合视图）。
-14. **来源链计算**：**前端自算**（资源树 + `inheritMask` + list 主权限，纯函数对齐引擎语义）；list 经 `includeChildren=false` 只取主权限（T-PERM-034 补）；T-PERM-034 另补小字段（§12）。
+14. **来源链计算**：**前端自算**（资源树 + `inheritMask` + list 主权限，纯函数对齐引擎语义）；list 主权限 = baseline（`includeChildren=true` 一次取全量，§6.1 加载口径）结果中过滤 `dependOn==null` 的记录——**不再单独以 `includeChildren=false` 拉取来源链输入**；仅"已有权限类型"辅助查询（T-FE-038 注记）单独使用 `includeChildren=false`；T-PERM-034 另补小字段（§12）。
 15. **页面密度与图例**：移除独立页面标题卡片，主体选择状态由左栏承担；矩阵工具栏图例拆分为“形态”和“颜色”两组：形态覆盖直接/资源继承/操作继承/组合继承/条件/可转授，颜色说明有效/新增、待更新、待撤销；子权限使用独立蓝色数量标识。
 16. **验收**：场景清单驱动（§11）。
 
@@ -190,7 +190,7 @@ interface MatrixContext {
 
 输入：
 
-- `list` 直接授权记录（`includeChildren=false`，仅主权限，T-PERM-034 补，§12 缺口 3；**按当前 `resourceTypeCode` 过滤**，🔧 T-FE-038）
+- `list` 直接授权记录（**baseline 一次取全量 `includeChildren=true`，过滤 `dependOn==null` 取主权限**，§6.1 加载口径；**按当前 `resourceTypeCode` 过滤**，🔧 T-FE-038）
 - 资源树（`resource-entity/tree`，含 parentId 结构；**按当前 `resourceTypeCode` 过滤**）
 - 操作定义（`operation-permission/list` 携带 `resourceTypeCode + includeGlobalFallback=true`，**当前类型最终可用集合**，含 binaryBit + inheritMask + resourceTypeCode；**binaryBit/inheritMask 为十进制字符串线格式**，T-PERM-028 修订，前端 BigInt 解析，P1-3）——**操作继承计算只用当前类型最终生效定义的 `binaryBit/inheritMask`**，禁止使用其他类型同码定义参与计算（🔧 T-FE-038）
 
@@ -249,29 +249,41 @@ interface MatrixContext {
 │ 操作权限：下拉选择（按资源类型分组）                                      │
 │ 资源：提示“勾选授权、取消撤销”                         [资源类型] [全量] │
 │ ┌─ 资源树（打开即展示；未选操作时只读）────────────────────────────────┐ │
-│ │ ☑ 已授权 / ☐ 未授权；整行可点击；父节点授权覆盖子孙                  │ │
+│ │ ☑ 已授权 / ☐ 未授权；复选框切换勾选，点击行聚焦；父节点授权覆盖子孙   │ │
+│ │ 已勾选节点行内紧凑摘要：[条件 C] [不可再授予] [子权限 2] [待更新]     │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
-│ 授权设置：条件单选 / 无；canGrant（未选操作时禁用，不隐藏）              │
-│ 子权限：〔配置子权限〕（未形成主权限时禁用，不隐藏）                     │
-│   → 资源类型 → 操作权限 → 在对应类型资源树勾选/撤销                      │
+│ 当前授权：A资源 · VIEW · INSTANCE（聚焦记录摘要；未聚焦时为空态）         │
+│ 授权设置：条件单选 / 无；canGrant（仅编辑聚焦记录；未聚焦时禁用，不隐藏）│
+│           〔复制当前设置到…〕（显式复制；未聚焦时禁用，不隐藏）          │
+│ 子权限：〔配置当前授权的子权限〕（挂载到聚焦记录；未聚焦时禁用，不隐藏）  │
 │ ──────────────────────────────────────────────────────────────────────── │
 │ 底部：〔取消〕〔确定〕                                                      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **打开即展示完整结构**：首次打开即固定展示操作权限、资源树、授权设置与子权限入口；前置选择不足时以空态或禁用态呈现，不通过 `v-if` 隐藏区域。未选操作时资源节点只读；选操作后按 `MANUAL + 当前生效草稿` 预填直接 INSTANCE 授权。资源树采用 `check-strictly`，父节点授权通过资源继承覆盖子孙，不自动批量勾选子节点。
-- **树上编辑最终状态**：节点整行可点击；已有授权取消勾选后产生 remove 草稿，未授权节点勾选后产生 add 草稿。授权设置未被用户修改时，已有授权保持原 conditionCode/canGrant；用户显式修改任一设置后，当前勾选的已有授权统一产生 update，新增授权使用相同设置。
+- **勾选与聚焦分离（v3.1 记录级聚焦编辑）**：资源树复选框只控制授权存在性——已有授权取消勾选后产生 remove 草稿，未授权节点勾选后产生 add 草稿（属性=新增默认值）；点击节点行其余区域（非复选框）聚焦该授权记录，授权设置区只读取和修改该记录。焦点生命周期（含上下文聚焦，评审复审修订）：
+  - **打开弹窗（上下文聚焦）**：矩阵无权限单元格或工具栏打开时若 `initial` 携带**完整授权键**（resourceTypeCode + resourceCode + codeType + operationCode + scopeMode），自动聚焦该键对应槽位（未授权也聚焦）；无 initial 资源时焦点清空，设置区空态提示"选择资源以编辑属性"；切换操作时焦点清空；
+  - **焦点 = MANUAL 编辑槽位（资源, 操作, 范围）**：任意资源行可聚焦（槽位视角，与来源记录解耦）——未授权资源聚焦时设置区只读展示"未授权 · 默认值（无条件/不可再授予）"，勾选后立即启用；**槽位内已有 AUTO_DEP / 继承来源记录不影响聚焦**（它们只读展示于详情/悬浮，不可编辑），勾选可在槽位内创建与 AUTO_DEP 并存的 MANUAL 授权（多来源 OR 合并见 §3.3）；
+  - **取消勾选当前焦点记录：焦点清空，草稿 suspended**（记录进入"待撤销"生命周期，属性编辑无意义；该记录的变更草稿**暂存 suspended 不丢弃**——同弹窗内重新勾选时恢复；确认弹窗提交时按来源分支处理：**baseline 持久化记录**保持未勾选 -> 生成 remove（update/子权限草稿随记录丢弃，与后端"主删子级联"一致）；**待新增 MANUAL add 草稿**保持未勾选 -> 取消整个 add 变更组（含其子权限变更），不生成 remove（无持久化 ID）；**取消整个弹窗** -> 恢复进入弹窗前的页面草稿，suspended 不影响页面）；
+  - **首次勾选自动聚焦**：焦点为空时勾选新资源自动聚焦该资源；焦点非空时勾选/取消其他记录不改变焦点（批量勾选时设置区不跳变）；
+  - 新勾选资源固定默认值：`conditionCode=null`、`canGrant=false`、`children=[]`——不继承设置区当前显示值，聚焦后可独立修改；
+  - 修改聚焦记录的条件/再授予只产生该记录自己的 update 草稿，不产生任何其他记录的变更；
+  - **ALL 焦点迁移**：选择 ALL → 自动聚焦当前类型 ALL 槽位（可独立配置条件/再授予/子权限）；取消 ALL 回 INSTANCE → 焦点清空（重新点击行聚焦）。
 - **全量选择**：INSTANCE/ALL 不再使用占位较大的 Tab/Radio；资源树右上角“全量”复选按钮表示当前类型 ALL。已有 ALL 取消选择时，由 `applyDialogResultsToDraft` 按顺序先生成该类型 ALL 撤销，再应用 INSTANCE 树最终集合；全局操作在多类型树场景显示紧凑类型选择器。
-- **最小提示**：移除 1/2/3/4 步骤编号、独立现状表格与范围切换说明，只保留“选择操作后可编辑”“勾选授权/取消撤销”“父节点覆盖子孙”“不改设置则保留已有值，修改后应用于当前选择”等必要语义。
-- **配置子权限**：点击后先将当前主权限选择暂存在弹窗本地草稿，再按主权限配置子权限；支持挂载到已保存主权限或本次刚新增的草稿主权限，子权限资源类型可跨当前矩阵类型。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。子权限不承载条件权限与再授予设置，新建键固定 `conditionCode=null`、`canGrant=false`；历史记录保持兼容读取，不在界面隐式迁移。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
+- **有效来源提示（v3.1，措辞限定）**：聚焦记录带条件时，若**当前角色已加载来源**（当前角色的 MANUAL / AUTO_DEP / 继承投影 / ALL，即弹窗与矩阵同源的 records）中存在其他无条件来源，设置区展示提示"该资源在当前角色已加载来源中仍有无条件 VIEW 来源；当前条件不会收紧当前角色的有效权限"。不声称掌握用户级最终权限（用户可经其他角色获得权限）——用户级最终结果引导到权限查询页核验。
+- **显式复制（v3.1，评审复审修订，替代批量覆盖）**：设置区提供"复制当前设置到…"入口——**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL 草稿**（未授权聚焦 / 仅 AUTO_DEP 槽位时不启用）；**源 = 聚焦记录（或待新增草稿）的条件 + 再授予**；弹出目标选择（当前已勾选的 MANUAL 主记录列表，可多选），确认摘要展示目标数量与目标值；覆盖提示：目标已有异构设置（条件/再授予不同）时明确标注将被覆盖；条件非空时目标 `canGrant` 自动为 false（对齐 20041 不变量）；**默认不复制子权限**（子权限按父记录独立配置，避免复制歧义）；AUTO_DEP 与继承来源不在目标范围（只读）；复制为独立动作，不改变焦点；不产生任何隐式覆盖。**草稿合并规则**：①目标排除源记录自身；②目标值与源完全相同时跳过（不生成变更）；③目标为本次新增（add 草稿）时**就地修改该 add 的属性为复制值**，不新建记录；④目标已有 update 草稿时**合并到同一条 change 的 after**；⑤**同一持久化 id 只允许一条 update 草稿**——复制不得为同一 id 追加第二条 update（后端 apply-grant-plan 拒绝重复 update ID，api-contract §6.5.1）；⑥**合并后归一化**：合并结果与 baseline 无差异（after==before）时删除该 update（复用 `applyDialogResultToDraft` 现有无差异清理逻辑，新增复制纯函数共用同一归一化步骤，避免"变更清单存在、最终 plan 无 update"的幽灵变更）。**条件门禁**：条件选择与复制不受 CONDITION:VIEW 限制（2026-08-08 产品确认：条件规则全租户开放、非敏感，见 §10 权限接线与 permission-condition.md）。**停用条件规则（v3.1，五~六轮复审，与后端 20042 同口径）**：①**新选限启用**——条件选择器仅允许选择启用条件，停用条件灰显不可选；②**存量停用绑定允许保留**——已绑定后停用的条件回显并标注"条件已停用"，保存时未修改 `conditionCode` 允许保留；③**源条件停用时复制入口禁用**（六轮复审修正：原"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，属权限扩大；现改为禁用整个复制入口并提示"请先选择启用条件或清除条件后再复制"）；④修改 `conditionCode` 时新值必须为启用状态（后端预检 20042 `CONDITION_DISABLED`，api-contract §6.5.1）。
+- **最小提示**：移除 1/2/3/4 步骤编号、独立现状表格与范围切换说明，只保留“选择操作后可编辑”“勾选授权/取消撤销”“父节点覆盖子孙”“点击资源行编辑该授权属性”等必要语义。
+- **节点紧凑摘要（v3.1，评审复审采纳）**：对**已勾选 MANUAL 节点**与 **baseline MANUAL 标记 remove（待撤销）的节点**在行内展示紧凑摘要——条件名称（有条件时；**无条件记录显示浅色[无条件]**，便于直接比较）、再授予状态、子权限数量、草稿状态（待更新/待撤销，remove 节点显示红色"待撤销"）；形态与矩阵图例一致（条件=标签、再授予=粗边框、子权限=蓝色数量）；**除 baseline MANUAL 待撤销节点外，其他未勾选节点不显示摘要**（仅 AUTO_DEP 来源节点同样不显示），避免噪音；用途：树内直接比较不同资源的属性差异，无需逐行聚焦。
+- **配置子权限（v3.1 记录级入口）**：子权限入口位于授权设置区，标题明确展示挂载目标（"配置当前授权的子权限 / 挂载到：A资源 · VIEW · 条件 C"）；点击后进入该聚焦记录的子权限配置，**单父记录上下文，不再提供父记录下拉列表**；**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL add 草稿**（与显式复制入口统一；未聚焦 / 未授权聚焦 / 仅 AUTO_DEP 槽位时保持展示但禁用）。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。**资源类型选择器按 SUB_PERM 允许集过滤（v3.1）**：通过授权专用只读契约 `role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2）按聚焦父记录的资源类型查询允许的子资源类型——`ALLOW_ALL`（顶层或嵌套 `"*"` 通配）不限制、`ALLOW_LIST` 仅允许列表内类型（其余禁用）、`ALLOW_NONE` **按 `reason` 区分展示**：`PARENT_NOT_CONFIGURED` / `CHILD_TYPES_EMPTY`（业务不允许，展示"该资源类型不允许配置子权限"）、`CONFIG_MISSING` / `CONFIG_EMPTY` / `CONFIG_INVALID`（配置异常，展示"子权限配置缺失/格式错误，请联系管理员"）；**`ALLOW_LIST` 允许集与实际类型候选交集为空时**区分展示三态（五轮复审）：候选已成功加载且交集为空 -> 配置/数据不一致（"当前无可配置的子权限类型"）；候选**加载失败或无 TYPE_DEFINITION:VIEW** -> 显示加载失败/权限不足并允许重试（不得误报为 SUB_PERM 配置错误）；候选**加载中** -> 显示 loading；不允许通过前端硬编码允许集。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。**子权限不承载条件权限与再授予设置是系统不变量而非 UI 限制（七轮复审产品确认）**：新建键固定 `conditionCode=null`、`canGrant=false`（两种 create 形态——`creates[].children[]` 嵌套与 `parentPermissionId` 挂父——后端均强制，违反 20043）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；**历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不在界面隐式迁移、不允许继续属性编辑**；api-contract §6.5.1。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
 - **返回保护**：子权限已有调整时返回修改主权限必须明确确认，确认后仅丢弃本次子权限调整并保留主权限选择，不静默丢失。
 - **确定语义**（单直接授权模型）：
   - **直接授权键** = (resourceTypeCode, resourceCode, codeType, **operationKey**, scopeMode, parentPermissionId)（资源维度来自 GrantContext 资源键 §2.1，ALL 时 resourceCode/codeType=null；主权限 parentPermissionId=null）；**operationKey = operationCode ?? "bits:"+grantedBits** 仅用于读取异常/内部组合位记录的防御性展示，MANUAL 新授权必须是单 operationCode；**持久化 id** = 后端记录 id。conditionCode/canGrant 不参与身份。
-  - **多选确定**：INSTANCE 多选 N 个新增资源 -> 确定后产生 N 条 `creates`；矩阵 N 个单元格变绿；变更清单按“操作+条件+canGrant+scopeMode”聚合展示。
-  - 弹窗结果 (操作, 资源集合, 范围, 授权设置) 与现有记录比对：
-    - 直接授权键不存在 → 草稿 **add**
-    - 直接授权键存在且用户修改了授权设置 → 草稿 **update**（按 id 修改 conditionCode/canGrant）
-    - 直接授权键存在且用户未修改授权设置 → 不改写
+  - **多选确定**：INSTANCE 多选 N 个新增资源 -> 确定后产生 N 条 `creates`（属性=新增默认值）；矩阵 N 个单元格变绿；变更清单按“操作+条件+canGrant+scopeMode”聚合展示。
+  - 弹窗结果 (操作, 资源集合, 范围, 聚焦记录的授权设置) 与现有记录比对（**记录级，v3.1**：仅聚焦记录的属性修改参与 update 判定）：
+    - 直接授权键不存在 → 草稿 **add**（新勾选资源，属性=新增默认值 `conditionCode=null`/`canGrant=false`/无子权限）
+    - 直接授权键存在且用户修改了**该聚焦记录**的授权设置 → 草稿 **update**（按 id 修改 conditionCode/canGrant，只产生该记录自己的 update）
+    - 直接授权键存在且用户未修改该记录授权设置 → 不改写
     - 同键不同条件不得新增第二条 MANUAL 记录，后端以 20033 拒绝竞态或绕过前端的写入
   - **范围/资源/操作变化 = 跨键替换（第十二轮收敛）**：替换 = **removes 旧 + creates 新**（同一 `apply-grant-plan` 请求内原子执行）；**子权限不迁移**——随旧主权限级联删除（预期行为，产品语义：A 部门与 B 部门不相关），新主权限的子权限在 creates 中显式配置（`children` 一次性建树或后续挂载）；变更清单提示"子权限随主权限一并移除"；仅 canGrant/conditionCode 变更走 `updates`（不重建）
   - **匹配范围仅限 MANUAL（P1-5）**：直接授权键比对/草稿 diff 只匹配 `grantSource=MANUAL` 记录；AUTO_DEP 记录不进比对（只读，见 §3.3），同键并存不冲突
@@ -305,6 +317,7 @@ interface MatrixContext {
 - `baseline`（进入时的 list 数据）+ `draft`（变更后集合），按直接授权键定位语义记录、按持久化 id 更新/删除（§4 确定语义；对齐 v1 §16 草稿模型）。
 - **baseline 加载口径（T-FE-036 实现注记，2026-08-02）**：页面进入时 `list(includeChildren=true)` **一次取全量**（主权限 + 子权限），来源链计算仅消费 `dependOn==null` 主权限（§3.5 输入不变），详情层按 `dependOn` 分组子权限——免逐项懒加载（对齐 §12 缺口 5 的 `childCount` 设计意图）；替代本节原"includeChildren=false"两次拉取文字。
 - 变更类型：`add` / `update` / `remove`（对齐 apply-grant-plan 记录级 creates/updates/removes）+ `replace`（跨键替换组合变更 = removes 旧 + creates 新，清单单条可撤销，plan 构建时展开为两段）。
+- **suspended（弹窗本地暂存态，v3.1 三轮复审）**：取消勾选（撤权）时该记录的变更草稿**不丢弃**，暂存为 suspended；同弹窗内重新勾选恢复。确认弹窗提交时按来源分支：**baseline 持久化记录**保持未勾选 -> 生成 remove（update/子权限草稿随记录丢弃）；**待新增 add 草稿**保持未勾选 -> 取消整个 add 变更组（含其子权限变更），不生成 remove（无持久化 ID）。取消整个弹窗 -> 恢复进入弹窗前的页面草稿，suspended 不影响页面。suspended 不进入 DraftChange/变更清单，仅存在于弹窗本地草稿层。
 
 ### 6.2 矩阵 diff 标记（🔧 T-FE-039 正交模型）
 
@@ -368,7 +381,7 @@ interface MatrixContext {
 | grantedBits                 | string  | 授予位掩码，**十进制字符串**（如 `"9223372036854775807"`，前端 BigInt 解析；对齐 api-contract §6.4 线格式；记录必有值，operationCode=null 兜底与操作继承展开） | 🔧 后端补 |
 | createdAt                   | string  | 创建时间（悬浮详情展示）                                                                                                                                       | 🔧 后端补 |
 | childCount                  | number  | 子权限数量（list 时按 depend_on 分组 COUNT；悬浮详情展示）                                                                                                     | 🔧 后端补 |
-| list `includeChildren` 参数 | boolean | list 仅返回主权限（dependOn==null），子权限不进来源链（现 `selectValidByRoleId` 未过滤 depend_on）                                                             | 🔧 后端补 |
+| list `includeChildren` 参数 | boolean | `true`=返回当前类型主权限及挂载子权限（baseline 用，§6.1）；`false`=只返回主权限（辅助查询用）；**来源链无论哪种响应都只消费 `dependOn==null` 主权限**（现 `selectValidByRoleId` 未过滤 depend_on） | 🔧 后端补 |
 | 子权限新增/撤销             | —       | 无独立接口：creates 挂父（conditionCode=null、canGrant=false）/ removes 撤销子权限，全部并入 apply-grant-plan；界面不发起子权限 updates                         | 🔧 后端补 |
 
 ### 7.3 前端派生字段（自算，§3.5）
@@ -384,8 +397,9 @@ interface MatrixContext {
 | 主体树（角色入口）         | `abstract-role/tree`                                                                                  | api-contract.md（§6.10.3）                       |
 | 主体树（组织入口）         | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021）                    | admin-service，`org-user-permission-contract.md` |
 | 统一提交（全部写操作）     | `role-resource-permission/apply-grant-plan`（**唯一写入口**，§6.5.1；creates/updates/removes 记录级） | api-contract.md §6.5.1                           |
-| 直接授权列表               | `role-resource-permission/list`（`includeChildren=false`）                                            | api-contract.md §6.4（Resp 见 §7）               |
+| 直接授权列表               | `role-resource-permission/list`（`includeChildren=true` 一次取全量，来源链仅消费 `dependOn==null` 主权限，对齐 §6.1 加载口径） | api-contract.md §6.4（Resp 见 §7）               |
 | 子权限（并入统一提交）     | 无独立接口（第十二轮收敛：creates parentPermissionId / updates / removes）                            | api-contract.md §6.5/§6.5.1                      |
+| 子权限类型过滤（🔧 v3.1） | `role-resource-permission/sub-perm-allowed-types`（按父资源类型返回 SUB_PERM 允许子类型）              | api-contract.md §6.5.2                           |
 | 资源树                     | `resource-entity/tree`                                                                                | api-contract.md §5.x（3.1 页契约）               |
 | 操作权限（含 inheritMask） | `operation-permission/list`                                                                           | api-contract.md §5.x（3.1 页契约）               |
 | 资源类型候选（类型下拉）   | `type-definition/list`（资源类型定义，筛选 type_key）                                                 | api-contract.md §5.1（🔧 T-FE-038）              |
@@ -412,7 +426,7 @@ interface MatrixContext {
 | 左栏数据源（组织树/用户列表） | ADMIN_ORG:VIEW / ADMIN_USER:VIEW（沿用 2.1 页数据源门禁，perms.ts 现有权限码） | 左栏不可见/占位                |
 | 矩阵查看（两入口）            | ROLE:VIEW（目标抽象角色）                                                      | 无权占位                       |
 | 授权/撤销（两入口）           | ROLE:MANAGE（目标抽象角色）                                                    | 按钮禁用 + tooltip             |
-| 条件选择                      | CONDITION:VIEW                                                                 | 弹窗新授权条件置灰；引导至 3.2 |
+| 条件选择/复制条件            | 无门禁（🔧 2026-08-08 产品确认：条件查看无需权限控制；后端 `condition/list` 无 VIEW 校验，T-PERM-029 待办 4 取消） | 始终可用，不置灰 |
 | 资源树                        | RESOURCE:VIEW                                                                  | 矩阵资源行不可见               |
 | 操作列                        | OPERATION:VIEW                                                                 | 操作列不可见                   |
 | 权限详情                      | ROLE:VIEW                                                                      | 分支、来源与子权限只读展示     |
@@ -422,11 +436,11 @@ interface MatrixContext {
 
 > **已知缺口（2026-08-07 记录，暂不修改）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），但本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**决策：全链路未打通前不做处理**（mock 不校验权限，开发不受阻）；联调任务 T-FE-018 汇合时评估：为授权页声明 `TYPE_DEFINITION:VIEW` 只读依赖（perms.ts 门控 + 缺权限明确提示 + mock 角色矩阵补权限串），或由后端提供免类型管理权限的候选来源。
 
-## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039 拆分子任务依据；S1~S11 全套）
+## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039/**T-FE-040（v3.1 记录级聚焦编辑，2026-08-08 十轮复审登记）** 拆分子任务依据；S1~S11 全套）
 
 - **S1 两入口**：角色/组织入口分别进入，左栏主体树正确；GROUP_ROLE 只读（无授权按钮，来源标注"来自基础角色"）。（个人入口首期移除，P1-4）
 - **S2 查看矩阵**：继承默认开；来源形态正确区分直接/资源继承/操作继承/双重继承（实色/淡色 + 上/右/组合箭头；**AUTO_DEP 无独立来源图标，来源属性在悬浮详情标注**）；两开关可独立关闭；操作列可配置（增删列，刷新后保留）；树形行展开/折叠/搜索；**ALL 虚拟行**（含范围标识、与实例行互斥）；悬浮详情正确（来源链/条件/范围/canGrant/createdAt/childCount，**条件/范围/可授予并入详情不占格**）；多来源并存正确展示；**AUTO_DEP 只读**（不可编辑/删除，**只读落实到记录/详情项、不禁用整个单元格**，并存 MANUAL 仍可编辑）；**多来源聚合归并正确**（含 AUTO_DEP 参与聚合；直接+继承并存取实色、两段继承并存组合箭头、任一 canGrant=true 粗黑边框、全部有条件条纹、任一无条件来源时普通填充且其他条件来源仅在详情中展示）；绿/黄/红三态各最多一个聚合图标；子权限用独立蓝色数量标识且继承格不复制。**（✅ T-FE-039 已实现，2026-08-08）**
-- **S3 授权弹窗**：打开即见资源树；未选操作时只读，选择操作后已有 INSTANCE 授权正确勾选；整行点击切换，取消已有节点生成 remove、新勾选生成 add；保持勾选且不改设置时保留已有值，显式修改条件/canGrant 时生成 update 并统一应用于当前勾选记录；右上角“全量”可新增/保留/撤销当前类型 ALL；可为已保存父或本次新增父配置跨类型子权限，取消弹窗不泄漏草稿，确认后主子权限一起进入变更清单；无步骤编号和独立现状表；确定后矩阵实时 diff；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
+- **S3 授权弹窗（v3.1 记录级聚焦编辑，评审复审修订）**：打开即见资源树；未选操作时只读，选择操作后已有 INSTANCE 授权正确勾选；**矩阵无权限单元格打开时自动聚焦 initial 资源**（未授权也聚焦，设置区只读展示默认值）；**复选框切换勾选**（取消已有节点生成 remove、新勾选生成 add 且属性=新增默认值），**点击行其余区域聚焦该记录**；**焦点为空时首次勾选自动聚焦，焦点非空时批量勾选不抢焦点**；未授权资源可聚焦（设置区只读，勾选后启用）；聚焦记录的条件/canGrant 修改只生成该记录自己的 update，不产生其他记录变更；**取消勾选焦点记录时焦点清空**；聚焦记录带条件且当前角色已加载来源中存在其他无条件来源时展示有效来源提示（限定当前角色，不声称用户级最终权限）；**显式复制**：源=聚焦记录的条件+再授予，目标=已勾选 MANUAL 记录多选+确认覆盖，不复制子权限，条件非空时目标 canGrant=false；右上角“全量”可新增/保留/撤销当前类型 ALL（ALL 焦点=ALL 虚拟记录，可独立配置条件/再授予/子权限）；子权限入口在设置区、挂载到聚焦记录（单父记录上下文），资源类型选择按 SUB_PERM 允许集过滤（ALLOW_ALL/ALLOW_LIST/ALLOW_NONE），**启用条件=焦点为有效 MANUAL 或待新增 add 草稿**（未授权/仅 AUTO_DEP 槽位时禁用）；**焦点=MANUAL 编辑槽位**（仅 AUTO_DEP 来源的资源行也可聚焦，勾选创建并存 MANUAL，AUTO_DEP 只在详情只读）；**取消勾选焦点记录：焦点清空+草稿 suspended**（同弹窗重新勾选恢复；提交时 baseline 记录生成 remove、待新增 add 草稿取消整个变更组、取消弹窗恢复进入前页面草稿）；**选择 ALL 聚焦 ALL 槽位，取消 ALL 回 INSTANCE 清空焦点**；**条件选择/复制条件无 CONDITION:VIEW 门禁**（产品确认条件规则全租户开放）；**停用条件**：新选仅启用（停用灰显）、存量停用绑定回显标注"条件已停用"且未改 conditionCode 时保存保留、**源条件停用时复制入口禁用**（提示"请先选择启用条件或清除条件后再复制"，六轮复审修正：避免隐式清空目标条件导致权限扩大）；**显式复制启用条件=焦点为有效 MANUAL 或待新增草稿**，目标排除源、跳过同值、add 就地改属性、update 合并单条、禁止同一 id 追加多条 update、**合并后 after==before 归一化删除**；**已勾选/待撤销 MANUAL 节点行内显示紧凑摘要**（条件/再授予/子权限数/草稿状态，remove 显示红色待撤销）；取消弹窗不泄漏草稿，确认后主子权限一起进入变更清单；无步骤编号和独立现状表；确定后矩阵实时 diff；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
 - **S4 权限详情**：授权记录、来源、条件、子权限、草稿状态均可查看；不显示添加、编辑、删除入口，点击详情不产生授权变更。
 - **S5 变更提交**：矩阵标记 + 右栏清单（定位/逐条撤销）正确；绿色=有效/新增、黄色=待更新、红色=待撤销，三态完整复用直接/继承/条件/canGrant 形态；同格按状态各聚合一个；不使用减号、删除线或“粗黑边框=删除”等额外状态符号；保存全部 = **单请求 apply-grant-plan**（记录级 creates/updates/removes，单事务原子 + 受影响行数断言；跨键替换 = removes+creates 原子且变更清单提示子权限随主权限移除）；**请求失败后全部草稿保留并标红，整体重试**（前端 saving 期间按钮 disabled 防重复提交；apply-grant-plan 单事务原子，**数据库无部分状态**，不存在部分成功）；放弃全部回滚；未保存离开拦截。**（✅ T-FE-039 已实现，2026-08-08）**
 - **S6 数据正确性**：来源链前端计算与引擎语义抽查一致（父资源授权 → 子孙行 INHERITED；MANAGE 授权 → VIEW 列 INHERITED；**父资源 MANAGE → 子资源 VIEW 单元格出现且来源链含两段（资源继承 + 操作继承）**；**ALL/MANAGE → ALL/VIEW 列出现且标注操作继承（节点段为空）**；AUTO_DEP 标注且只读；ALL 记录落虚拟行）。
@@ -447,11 +461,11 @@ interface MatrixContext {
 
 ## 12. 与后端 T-PERM-034 的关系（范围更新）
 
-前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` 仅因其他服务存量调用兼容保留，授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
+前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **仅迁移期保留**（因 admin-service 存量调用，**终态=随 T-PERM-034 迁移后删除，2026-08-08 八轮复审确认**），授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
 
 1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList` L782）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
-3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：主权限视图只取 dependOn==null 记录，子权限不进来源链（当前 `selectValidByRoleId` 未过滤 depend_on）。
+3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：`true` 返回主权限及挂载子权限（baseline 一次取全量，§6.1）；`false` 只返回主权限（辅助查询）；**来源链只消费 `dependOn==null` 主权限**（当前 `selectValidByRoleId` 未过滤 depend_on）。
 4. ~~新增 update-child~~（第十二轮移除，T-FE-038 后续收窄）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。
 5. **`RolePermissionItemResp` 增补 `createdAt` / `childCount`**：悬浮详情展示创建时间与子权限数量（list 时按 depend_on 分组 COUNT 一次返回，免逐项懒加载）。
 6. ~~新增 children-save~~（第十二轮移除）：子权限新增/撤销并入 apply-grant-plan（creates parentPermissionId / removes，同一事务原子）；历史属性仅兼容读取，不由本界面隐式迁移。
@@ -463,17 +477,19 @@ interface MatrixContext {
 12. ~~checkCanGrant 匹配键扩展 condition 维度~~：被 T-PERM-041“条件权限不可转授”取代。可转授来源必为无条件记录，`GrantCheckKey` 无需纳入 conditionCode；直接授权的 conditionCode 由 update 修改而非新增并行分支。
 13. **授权页面唯一写入口 `apply-grant-plan`**（第十二轮收敛定稿，第十四轮收窄）：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（现有记录微变更）+ removes（主权限级联删子/子权限单条删），单事务原子执行（任一失败整体回滚）；**砍** clientRequestId/@Idempotent + `expectedRevision` CAS + `grant_revision` 列 + 幂等表 `grant_plan_idempotency` + 20037/20039；返回完整持久化结果（契约见 api-contract §6.5.1）。
 14. **单类型矩阵后端支持（🔧 T-PERM-040，单类型上下文定稿）**：① `operation-permission/list` 增加 `resourceTypeCode + includeGlobalFallback` 参数（默认 false 兼容；true 时 `resourceTypeCode=null/缺省` = 仅全局操作集合，禁止全量口径合并），true 时后端完成"专属优先、全局回退"合并，响应即当前类型最终可用操作集合（契约见 api-contract §5.3）；② **`role-resource-permission/list` 增加 `resourceTypeCode`**（矩阵调用必填，按类型过滤主权限；`includeChildren=true` 返回该类型主权限及其全部子权限，子权限跨类型按 `depend_on` 挂父返回，契约见 api-contract §6.4）；③ `apply-grant-plan` creates 逐项校验必填 `operationCode` 适用于记录的资源类型（**覆盖 recordKey 主权限、`children[]` 嵌套子权限、`parentPermissionId` 挂父三种形态**），复用与 list 相同的合并规则（单一解析实现，判定基于有效定义），不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`。MANUAL 新授权必须是单 operationCode，不接受 `operationCode=null` 或组合位。本页（T-FE-038）操作列一律走 includeGlobalFallback=true，**前端不再自行实现合并领域规则**。
-15. **条件权限不可转授（🔧 T-PERM-041，2026-08-05 评审确认）**：`conditionCode != null` 时 `canGrant` 必须为 `false`——creates 三形态 + updates 结果态统一校验，违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）；schema 增加 `CHECK (condition_id IS NULL OR can_grant = false)`（契约见 api-contract §6.5.1，DDL 见 permission-center.sql）；本页授权弹窗选择条件后自动关闭并清除 canGrant（§4）。
+15. **条件权限不可转授（🔧 T-PERM-041，2026-08-05 评审确认；八轮复审修订：仅主权限）**：**主权限** `conditionCode != null` 时 `canGrant` 必须为 `false`——creates 主权限 + updates 结果态统一校验，违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）；**子权限不适用**（子权限不承载条件/再授予 -> 20043，见决策 17）；schema 增加 `CHECK (condition_id IS NULL OR can_grant = false)`（契约见 api-contract §6.5.1，DDL 见 permission-center.sql）；本页授权弹窗选择条件后自动关闭并清除 canGrant（§4）。
+16. **子权限类型只读契约（🔧 v3.1，D5）**：新增 `role-resource-permission/sub-perm-allowed-types` 只读接口（契约见 api-contract §6.5.2），按父资源类型返回 SUB_PERM 允许的子资源类型，授权弹窗子权限配置器的资源类型选择器按允许集过滤（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE）；判定口径与 `PermissionGrantPlanDomainService.prevalidate` 的 SUB_PERM fail-closed 校验一致，前端不硬编码允许集。
+17. **子权限属性系统不变量（🔧 v3.1，2026-08-08 七轮复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 嵌套与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20041/20042 仅校验主权限（错误优先级见 api-contract §6.5.1）。
 
 ### 工程加固（2026-08-01 分析评审后，随 T-PERM-034/T-FE-036/T-FE-018 落地）
 
-- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——八项不变量（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、条件权限不可转授、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性）一次校验；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
+- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**授权域内同层调用例外（十轮复审产品确认）：PlanDomainService 组合 GrantDomainService 校验能力，不推广到其他域**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
 - **引擎双写消除（方案三）**：后端 `GoldenFixtureTest`（**6 用例精简**（第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记**演进方向**，本轮不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：后端 GoldenFixtureTest 随 T-PERM-034 未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；后端 T-PERM-034 落地时移植同一用例集比对（届时可评估是否上移为跨语言共享位置）。
-- **端点契约（方案四，第十四轮定案）**：**删除** `docs/contracts/perm-grant.schema.json`（第十三轮已降级为说明性、不机器校验，维护冗余）；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
+- **端点契约（方案四，第十四轮定案）**：**删除** `docs/contracts/perm-grant.schema.json`（第十三轮已降级为说明性、不机器校验，维护冗余）；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
 
-本页只依赖 list + apply-grant-plan + extra-roles/list + 资源树/操作/条件等只读接口；兼容保留的 save/revoke/children/add-child/remove-child 不得由本页调用。
+本页只依赖 list + apply-grant-plan + extra-roles/list + 资源树/操作/条件等只读接口；**仅迁移期保留的 save/revoke/children/add-child/remove-child（终态=随 T-PERM-034 迁移后删除）不得由本页调用**。
 
 > 注：MANUAL 新授权禁止“多操作位组合一次授权”，弹窗与后端均要求单操作；`grantedBits` 的组合位拆解仅保留为读取异常/内部来源记录时的防御性展示。
 
@@ -600,8 +616,8 @@ interface MatrixContext {
 | 权限图标原语   | `PermissionGlyph.vue`：MatrixCell 与 PermissionIconLegend 共用的 22px 权限图标，统一直接/继承/条件/canGrant 形态与绿/黄/红状态色，避免图例与真实单元格漂移                                                                                                                    |
 | 子权限数量原语 | `ChildPermissionIndicator.vue`：独立蓝色“子权限 + 数量”标识，不叠加到权限图标，不参与权限状态颜色切换                                                                                                                                                                         |
 | 面板           | `GrantMatrixPanel.vue`：ALL 行 A 角标移除（范围并入详情）；MatrixCell 直传 markInfo；工具栏嵌入 `PermissionIconLegend.vue` 横向图例                                                                                                                                           |
-| 条件转授互斥   | `GrantDialog.vue` 的“授权设置”：watch 选条件自动清 canGrant + checkbox 置灰 tooltip；权限详情固定只读；hook `enforceNotDelegable` 调度层保留兼容兜底；`grant-plan.ts` `applyDialogResultToDraft` 纯函数层最终兜底（入口 dialog 重建，草稿不变量恒成立）                       |
-| 20041          | `api/permission-grant.ts` 新增 `CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041` + 提示文案（`classifySaveError` 自动映射，保存失败提示不崩溃）；`mock/permission-grant.ts` 按 T-PERM-041 结果态不变量校验（creates 主权限 key / children[] 嵌套 / updates 应用后最终状态三处） |
+| 条件转授互斥   | `GrantDialog.vue` 的“授权设置”：watch 选条件自动清 canGrant + checkbox 置灰 tooltip；权限详情固定只读；hook `enforceNotDelegable` 调度层保留兼容兜底；`grant-plan.ts` `applyDialogResultToDraft` 纯函数层最终兜底（入口 dialog 重建，草稿不变量恒成立）（**旧 v3 实现注记，十轮复审标注：v3.1 记录级聚焦编辑由 T-FE-040 替换该交互，主权限 20041 语义不变**）                       |
+| 20041/20043   | `api/permission-grant.ts` 新增错误码映射 `CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041` + `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043` + 提示文案（`classifySaveError` 自动映射，保存失败提示不崩溃）；`mock/permission-grant.ts` 按不变量校验——creates 主权限 key / updates 结果态 -> **20041**，children[] 嵌套与挂父 create 非 null/false -> **20043**（**十轮复审修正：旧实现注记误将 children[] 映射 20041；v3.1 口径子权限属性异常统一 20043，mock 更新随 T-FE-040**） |
 
 **评审确认的状态映射**（2026-08-08 用户确认）：
 

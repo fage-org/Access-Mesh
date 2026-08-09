@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-27
+last_reviewed: 2026-08-08   # 2026-08-08 十轮复审：SubPermissionPolicy、20042/20043、旧端点终态、§6.5.2 引用；十一轮复审：resolveSubPermissionPolicy 唯一公开入口、prevalidate 方法名口径
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -416,14 +416,17 @@ PermQueryEngine.query(PermQuery q)
 
 ### 4.1 接口定义（第十四轮收窄重写）
 
-授权页面写链路收敛为 **list + apply-grant-plan** 两个端点。`save/revoke` 因 admin-service 存量调用暂时兼容保留；`children/add-child/remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用；`update-child/children-save/rebuild` 不实现。兼容 `add-child` 仍执行 ROLE:MANAGE 与批量 `checkCanGrant`，不可成为授权传递绕过路径。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
+授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **随 T-PERM-034 迁移 admin-service 后统一删除（2026-08-08 八轮复审确认：仓库内无外部调用、项目未上线，兼容策略=不考虑旧接口）**；删除前兼容期：`save/revoke` 仅 admin-service 存量调用、`add-child` 仍执行 ROLE:MANAGE + 批量 `checkCanGrant` + **子权限属性不变量 20043**（不得成为 20043 绕过路径）；授权页面禁止调用；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
+
+**SUB_PERM 共享策略对象（八轮复审实现建议采纳，十一轮复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 查询角色权限 | `POST /api/perm/role-resource-permission/list`                   | 查询角色已有权限列表（含子权限展开）             |
 | 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
+| 子权限类型查询 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（§6.5.2）**：按父资源类型返回 SUB_PERM 允许策略（mode/reason/allowedChildResourceTypeCodes），AppService 直接映射 `resolveSubPermissionPolicy` 结果 |
 
-> wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1` 为唯一权威；本文不重复完整字段定义。**砍（第十四轮）**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
+> wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 为唯一权威；本文不重复完整字段定义。**砍（第十四轮）**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
 
 ### 4.2 聚合授权执行链路（apply-grant-plan）
 
@@ -474,8 +477,8 @@ sequenceDiagram
     PS->>ENG: hasPermission(ROLE, roleId, MANAGE)
     Note over PS: 返回 false -> throw SecurityException
 
-    Note over PS: ② 唯一预检 prevalidateGrantPlan（八项不变量）
-    PS->>PGD: prevalidateGrantPlan(plan)
+    Note over PS: ② 唯一预检 prevalidate（八项不变量；Java 方法名 prevalidate，prevalidateGrantPlan 为流程名）
+    PS->>PGD: prevalidate(plan)
     PGD->>Mapper: 批量查询（角色/父归属/操作定义/条件/SUB_PERM 配置一次加载，不按类型循环）
 
     Note over PS: ③ 单事务内执行 + 受影响行数断言

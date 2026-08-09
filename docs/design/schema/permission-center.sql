@@ -439,9 +439,13 @@ CREATE TABLE role_resource_permission (
         OR
         (scope_all = true AND resource_entity_id IS NULL)
     ),
-    -- 🔧 T-PERM-041（2026-08-05 评审确认）：条件权限不可转授
+    -- 🔧 T-PERM-041（2026-08-05 评审确认）：主权限条件不可转授
     CONSTRAINT ck_role_resource_permission_condition_can_grant CHECK (
         condition_id IS NULL OR can_grant = false
+    ),
+    -- 🔧 T-PERM-034（2026-08-08 七轮复审产品确认）：子权限属性系统不变量——子权限不承载条件/再授予（20043 同口径）
+    CONSTRAINT ck_role_resource_permission_child_attributes CHECK (
+        depend_on IS NULL OR (condition_id IS NULL AND can_grant = false)
     ),
     -- MANUAL 授权一行只对应一个操作定义；不再写入多操作组合位记录
     CONSTRAINT ck_role_resource_permission_manual_single_operation CHECK (

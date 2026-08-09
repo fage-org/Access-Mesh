@@ -13,6 +13,7 @@
 | [frontend-phase2-plan.md](frontend-phase2-plan.md) | 前端 Phase 2 执行编排 | proposed | 自动授权 + API 改造 + 动态数据权限。任务 T-PERM-022~037（022~034 逐页后端改造 + 035/036 暂缓 + 037 共性收尾）。⚠️ 自动授权/动态数据权限受 design-review §11 暂缓门禁 |
 | [frontend-phase3-plan.md](frontend-phase3-plan.md) | 前端 Phase 3 执行编排 | proposed | 前后端联调。任务 T-FE-015~022。待 Phase 1/2 收尾 |
 | [frontend-phase4-plan.md](frontend-phase4-plan.md) | 前端 Phase 4 执行编排 | proposed | 扩展验证 + 代码清理 + 测试 + 文档。任务 T-FE-023/T-ADMIN-020/T-PERM-038/039 |
+| [permission-grant-record-level-editing-proposal.md](permission-grant-record-level-editing-proposal.md) | 权限授予交互提案 | **confirmed（2026-08-08 确认）** | 条件、再授予与子权限按具体父授权记录编辑（记录级聚焦编辑）。D1~D6 决策结论见提案 §11.1；权威设计已回写（`permission-grant.md` v3.1 + `api-contract.md` §6.5.2），实施完成后归档 |
 | ~~permission-grant-ux-refactor-plan~~ | （已归档）| - | 权限授予页授权弹窗与右栏变更重构。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-024~026 保持 done（产出废弃）、T-FE-027/028 cancelled（`ReConditionEditor` 保留，`ReConditionPicker` 已删）。plan 归档至 [archive/2026-07/](archive/2026-07/) |
 | ~~permission-grant-v2-plan~~ | （已归档）| - | 权限授予页 V2（方案A多条件分支模型）。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；三份设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。plan 归档至 [archive/2026-07/](archive/2026-07/) |
 | [design-review-def-followup-plan.md](design-review-def-followup-plan.md) | 设计评审 D/E/F 后续任务拆分 | proposed | D/E/F 暂缓项拆分为 `T-PERM-019~021`；冲突项已标记，执行前必须确认 |

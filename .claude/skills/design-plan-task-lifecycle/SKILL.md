@@ -9,7 +9,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # 设计 / 计划 / 任务 三层生命周期管理
@@ -151,6 +151,13 @@ last_updated: 2026-06-20
 简单任务：仅在看板表占一行，不开独立文件。看板行字段：
 
 | ID | 标题 | 计划 | 领域 | 设计引用 | 依赖 | 状态 | 回写 |
+
+**任务索引图例（唯一口径）**：
+
+- 状态：`⚙️` = `proposed` / `🔨` = `in-progress` / `👀` = `review` / `✅` = `done` / `❌` = `cancelled`。
+- 回写：`⏳` = `pending` / `✓` = `done`；`design_writeback.required=false` 或简单任务不适用时使用 `—`。
+- `tasks/README.md` 与 phase plan 的状态快照必须由任务 frontmatter 映射，禁止另造图标或用 `🔧` 等问题标记代替生命周期状态；`🔧` 只能用于正文中的待修问题标记。
+- 修改任务 `status` 或 `design_writeback.status` 时，必须同步任务看板与所属 plan 的状态快照。
 
 ### 2.4 任务 ID 方案
 
@@ -385,6 +392,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 ### 索引与链接
 - [ ] 三处 README（design/plans/tasks）已同步？
+- [ ] 任务/计划索引状态是否按图例由 frontmatter 映射（未使用 `🔧` 等非状态图标）？
 - [ ] 跨层引用用相对链接，无悬空？
 - [ ] 归档时跑了 `docs/plans/README.md` 归档自检清单？
 

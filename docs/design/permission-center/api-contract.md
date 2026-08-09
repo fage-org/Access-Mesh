@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-05   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 评审修复（list 类型过滤/嵌套 20008/条件转授 20041）
+last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 评审修复（list 类型过滤/嵌套 20008/条件转授 20041）+ 2026-08-08 v3.1 新增 §6.5.2 子权限类型只读契约（评审复审修订：角色业务键/嵌套通配/并集去重/reason 枚举/门禁失败语义；十一轮复审：resolveSubPermissionPolicy 唯一公开入口与调用链）
 ---
 
 # Permission Center 外部 API 契约
@@ -292,21 +292,22 @@ last_reviewed: 2026-08-05   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 | `POST /api/perm/user-role/batch-assign`                | 按角色视角批量分配多个用户                     |
 | `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置（§6.4）                                       |
 | `POST /api/perm/role-resource-permission/apply-grant-plan` | **授权页面唯一写入口**（§6.5.1）：记录级 creates/updates/removes + 单事务原子 + 受影响行数断言（无 CAS/无幂等表，第十四轮收窄） |
-| `POST /api/perm/role-resource-permission/save` | **兼容保留、已弃用**：admin-service 存量调用；授权页面禁止调用 |
-| `POST /api/perm/role-resource-permission/revoke` | **兼容保留、已弃用**：删除语义由 apply-grant-plan.removes 覆盖 |
-| `POST /api/perm/role-resource-permission/children` | **兼容保留、已弃用**：查询由 list includeChildren 覆盖 |
-| `POST /api/perm/role-resource-permission/add-child` | **兼容保留、已弃用**：新增由 creates + parentPermissionId 覆盖；兼容入口仍强制 ROLE:MANAGE 门禁与逐项 checkCanGrant |
+| `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（🔧 v3.1）**：按父资源类型返回 SUB_PERM 允许的子资源类型（§6.5.2） |
+| `POST /api/perm/role-resource-permission/save` | **随 T-PERM-034 迁移后删除（八轮复审确认）**；删除前兼容保留、已弃用：admin-service 存量调用；授权页面禁止调用 |
+| `POST /api/perm/role-resource-permission/revoke` | **随 T-PERM-034 迁移后删除（八轮复审确认）**；删除前兼容保留、已弃用：删除语义由 apply-grant-plan.removes 覆盖 |
+| `POST /api/perm/role-resource-permission/children` | **随 T-PERM-034 迁移后删除（八轮复审确认）**；删除前兼容保留、已弃用：查询由 list includeChildren 覆盖 |
+| `POST /api/perm/role-resource-permission/add-child` | **随 T-PERM-034 迁移后删除（八轮复审确认）**；删除前兼容保留、已弃用：新增由 creates + parentPermissionId 覆盖；**兼容期仍强制 ROLE:MANAGE 门禁、逐项 checkCanGrant 与子权限属性不变量（20043）**——不得成为 20043 绕过路径 |
 | `POST /api/perm/role-resource-permission/update-child` ~~已移除~~ | 编辑子权限（同上移除；updates 覆盖）                           |
 | `POST /api/perm/role-resource-permission/children-save` ~~已移除~~ | 批量子权限提交（同上移除；plan 三段覆盖）                      |
 | `POST /api/perm/role-resource-permission/rebuild` ~~已移除~~ | 主权限原子重建（同上移除；removes+creates 同事务覆盖）         |
-| `POST /api/perm/role-resource-permission/remove-child` | **兼容保留、已弃用**：删除由 removes 覆盖 |
+| `POST /api/perm/role-resource-permission/remove-child` | **随 T-PERM-034 迁移后删除（八轮复审确认）**；删除前兼容保留、已弃用：删除由 removes 覆盖 |
 
 ### 5.6 高级能力
 
 | 接口                                            | 说明                   |
 | ----------------------------------------------- | ---------------------- |
-| `POST /api/perm/permission-condition/list`      | 查询权限条件           |
-| `POST /api/perm/permission-condition/detail`    | 查询条件详情           |
+| `POST /api/perm/permission-condition/list`      | 查询权限条件（**无读取门禁，2026-08-08 产品确认：条件规则全租户开放、非敏感**） |
+| `POST /api/perm/permission-condition/detail`    | 查询条件详情（**同上：无读取门禁**） |
 | `POST /api/perm/permission-condition/create`    | 创建条件               |
 | `POST /api/perm/permission-condition/update`    | 更新条件               |
 | `POST /api/perm/permission-condition/remove`    | 删除条件，支持批量     |
@@ -980,7 +981,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 6.4 角色权限配置查询（list）
 
-> **写入入口（2026-08-08 落地）**：授权页面的全部写操作统一走 §6.5.1 `apply-grant-plan`（记录级 creates/updates/removes + 单事务原子 + 受影响行数断言；**砍 expectedRevision CAS / grant_revision 列 / 幂等表 / 20037/20039 / clientRequestId / @Idempotent**）。`save`/`revoke` 因 admin-service 存量调用暂时兼容保留；`children`/`add-child`/`remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用。计划中的 `update-child`/`children-save`/`rebuild` 不实现。以下 §6.4/§6.5 规则已并入 §6.5.1 统一预检。
+> **写入入口（2026-08-08 落地）**：授权页面的全部写操作统一走 §6.5.1 `apply-grant-plan`（记录级 creates/updates/removes + 单事务原子 + 受影响行数断言；**砍 expectedRevision CAS / grant_revision 列 / 幂等表 / 20037/20039 / clientRequestId / @Idempotent**）。`save`/`revoke` 因 admin-service 存量调用**仅迁移期保留**、`children`/`add-child`/`remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用，**T-PERM-034 迁移 admin-service 完成后统一删除（2026-08-08 八轮复审确认，终态=删除）**。计划中的 `update-child`/`children-save`/`rebuild` 不实现。以下 §6.4/§6.5 规则已并入 §6.5.1 统一预检。
 
 #### 查询角色权限配置
 
@@ -1001,7 +1002,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `domainCode` 可选：非空时仅校验域存在性（域不存在 → 解析失败返回空列表）；**不按域过滤**——`abstract_role` 无域列（`biz_domain_id` 已移除），角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页可恒传 null。（修正 2026-08-01 第五轮 review P1-1：原"为空时只定位全局角色"为旧模型残留文字）
 - **`resourceTypeCode`（可选；🔧 T-PERM-040，单类型矩阵上下文定稿）**：按资源类型过滤主权限（`depend_on IS NULL` 且 `resource_type` 匹配当前类型）。**授权矩阵调用时必填**（矩阵一次只呈现一个类型，见 permission-grant.md §2.2）；null/缺省 = 不过滤（兼容既有调用方，如 admin-service 菜单授权按角色取全量）。
 - `includeChildren`（可选，默认 `true` 兼容现行为）：
-  - `false`：只返回该类型主权限（`depend_on IS NULL` + 上述类型过滤），子权限不进列表（T-FE-036 来源链计算使用）；
+  - `false`：只返回该类型主权限（`depend_on IS NULL` + 上述类型过滤），子权限不进列表（辅助查询用）；
   - `true`：返回**该类型主权限及其全部子权限**——子权限按 `depend_on` 挂在其父主权限下返回，**子权限自身可能属于其他资源类型，不能按子记录自身 `resource_type` 过滤**（如父为 `ADMIN_ORG` 权限、子为 `BUTTON`/`DATA` 权限是合法配置）；**子权限集合双重约束：`depend_on` ∈ 主权限集合 且 `abstract_role_id` = 目标角色**（跨类型返回不引入其他角色或其他主权限下的记录）；`resourceTypeCode=null` 时按现状返回全量主权限 + 全部子权限。
 
 响应：`data.items[]`，每项为 `RolePermissionItemResp`（14 字段；`grantSource`/`grantedBits`/`createdAt`/`childCount` 与 `includeChildren` 已实现）：
@@ -1034,8 +1035,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 **第十二轮单入口收敛（2026-08-02）**：授权页面不再调用子权限独立接口，创建/编辑/删除全部通过 §6.5.1 `apply-grant-plan` 的记录级 plan 表达。`add-child`/`remove-child` 仅作迁移期兼容保留并标记弃用；`update-child`/`children-save` 不实现：
 
-- 新增子权限 = `creates[]` 项带 `parentPermissionId`
-- 编辑子权限 = `updates[]`（id + canGrant/conditionCode）
+- 新增子权限 = `creates[]` 项带 `parentPermissionId`（**属性系统不变量：`conditionCode` 必须为 null、`canGrant` 必须为 false，违反 -> 20043，2026-08-08 七轮复审产品确认**）
+- 编辑子权限 = **不支持**（子权限不承载条件/再授予，`updates[]` 目标为子权限 -> 20043；见 §6.5.1 校验规则）
 - 删除子权限 = `removes[]`（子权限 id）
 - 删除主权限 = `removes[]`（主权限 id，**级联软删其全部子权限——预期行为**）；跨键替换（范围/资源/操作变化）= removes 旧 + creates 新（同事务原子），**子权限不迁移**（第十二轮产品语义），新主权限的子权限在 creates 中显式配置
 
@@ -1043,7 +1044,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - 子权限继承父权限的 `abstract_role_id`，调用方不需要再次传角色。
 - 子权限的 `depend_on = parentPermissionId`，只支持一层，不允许子权限继续挂子权限。
-- 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。**fail-closed**：配置不存在 / `extra` 为空 / `extra` 格式错误 → 统一拒绝（20011，错误信息区分"配置缺失/配置为空/配置格式错误"）；`extra="*"` = **显式**允许任意子资源类型（通配必须显式声明，不得靠"未配置"隐式放行）。父域直接按父权限记录自身 `resource_type` 批量反查类型码与所属域，INSTANCE/ALL 统一，不依赖 `resource_entity_id`。该规则由 `PermissionGrantPlanDomainService.prevalidate` 强制；兼容保留的旧 `add-child` 不作为授权页面入口。
+- 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。**fail-closed**：配置不存在 / `extra` 为空 / `extra` 格式错误 → 统一拒绝（20011，错误信息区分"配置缺失/配置为空/配置格式错误"）；`extra="*"` = **显式**允许任意子资源类型（通配必须显式声明，不得靠"未配置"隐式放行）。父域直接按父权限记录自身 `resource_type` 批量反查类型码与所属域，INSTANCE/ALL 统一，不依赖 `resource_entity_id`。该规则由 `PermissionGrantPlanDomainService.prevalidate` 强制；兼容保留的旧 `add-child` 不作为授权页面入口。**授权页面的类型选择过滤走只读契约 `sub-perm-allowed-types`（§6.5.2，判定口径与本条一致）**。
 - `scopeMode=ALL` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应也通过 `scopeMode=ALL` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 子权限写入、删除都必须记录 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效父角色缓存（afterCommit）。
@@ -1073,7 +1074,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       { "key": { "resourceTypeCode": "DATA", "resourceCode": "data:city:beijing", "codeType": "default", "operationCode": "DATA_READ", "scopeMode": "INSTANCE", "canGrant": false, "conditionCode": null }, "parentPermissionId": 200 }
     ],
     "updates": [
-      { "id": 100, "canGrant": true, "conditionCode": "office-hours" }
+      { "id": 100, "canGrant": false, "conditionCode": "office-hours" }
     ],
     "removes": [201, 202]
   }
@@ -1084,7 +1085,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - 请求体封闭对象（固定字段集，无额外字段）；`domainCode` 可选（非空仅校验域存在性，不按域过滤）；`roleTypeCode`/`roleExternalId`/`plan` 必填。
 - `plan.creates[]`：`key`（recordKey）+ 可选 `parentPermissionId`（挂父，仅引用提交前已存在父）+ 可选 `children`（仅主权限可用，一次性建树）。
-- `recordKey` 跨字段约束：`operationCode` 必填且只能定位一个有效操作定义；`scopeMode=INSTANCE` -> `resourceCode`/`codeType` 必填（minLength 1）；`scopeMode=ALL` -> `resourceCode`/`codeType` 为 null；**`conditionCode != null` -> `canGrant=false`（🔧 T-PERM-041，条件权限不可转授；同约束适用于 children[] 与 updates 结果态）**。
+- `recordKey` 跨字段约束（**仅结构约束，九轮复审拆分：属性不变量见 §6.5.1 校验规则**）：`operationCode` 必填且只能定位一个有效操作定义；`scopeMode=INSTANCE` -> `resourceCode`/`codeType` 必填（minLength 1）；`scopeMode=ALL` -> `resourceCode`/`codeType` 为 null。**属性约束按主/子记录分类（见 §6.5.1）**：主权限 `conditionCode != null` -> `canGrant=false`（🔧 T-PERM-041，20041）且条件必须启用（20042）；子权限 `conditionCode` 必须 null、`canGrant` 必须 false（20043），子权限 update 一律 20043。
 - `plan.updates[]`：`id` 必填 + `canGrant`（三态：null=不改/true/false）+ `conditionCode`（三态：缺省或 null=不改/""=清除/非空=覆盖）；与 `removes` 互斥（同 id 不得同时出现在两段）。
 - `plan.removes[]`：integer 数组（记录 id）。
 - `permissionItem`（响应 items）：`grantedBits` 十进制字符串（63 位位图，前端 BigInt 解析）；`createdAt` local-date-time 无时区（如 `2026-04-20T10:30:00`，ISO-8601 无时区，非 RFC 3339）。
@@ -1096,21 +1097,69 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 **校验规则**（经 `prevalidateGrantPlan` 唯一预检入口执行，AppService 禁止自行拼门禁）：
 
 - 目标抽象角色 `ROLE:MANAGE`（hasPermission 返回 boolean，必须显式判断 false 抛 SecurityException，先于一切分支）。
-- **creates/updates 共用不变量（🔧 T-PERM-041，2026-08-06 三轮评审移置）**：
-  - **条件不可转授**：`conditionCode != null` 时 `canGrant` 必须为 `false`——覆盖 `creates[].key`、`creates[].children[]`、`parentPermissionId` 挂父的 create，及 `updates` 应用三态变更后的**最终状态**（判定与 update 是否同时携带 conditionCode/canGrant **无关**：只改 conditionCode 覆盖到当前 canGrant=true 的记录、或只改 canGrant=true 使已有条件的记录变为可转授，均按最终状态判定）；违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）。
+- **creates/updates 共用不变量（🔧 T-PERM-041，2026-08-06 三轮评审移置；八轮复审修订：仅主权限）**：
+  - **条件不可转授（仅主权限）**：**主权限**（`creates[].key` 与 updates 目标为主权限）`conditionCode != null` 时 `canGrant` 必须为 `false`——覆盖 `creates[].key` 及 updates 应用三态变更后的**最终状态**（判定与 update 是否同时携带 conditionCode/canGrant **无关**：只改 conditionCode 覆盖到当前 canGrant=true 的记录、或只改 canGrant=true 使已有条件的记录变为可转授，均按最终状态判定）；**子权限不适用本不变量**（子权限 create 非 null/false -> 20043，见下）；违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）。
+  - **条件启用状态（🔧 2026-08-08 产品确认，新增 20042）**：主权限 `conditionCode` **新写入或变更**时必须 `enabled=true`——creates 主权限与 updates 中 conditionCode 变化均适用（与 20041 同样按最终状态判定）；停用条件不得新建绑定或改绑（违反 -> **20042** `CONDITION_DISABLED`）；存量绑定（update 未变更 conditionCode）允许保留并回显标注；与前端选择器/复制同规则（新选限启用，源条件停用时复制入口禁用）；**子权限不承载条件，不受 20042 约束**（子权限带条件 -> 20043）。
+**错误优先级（八轮复审明确，消除 20041/20043 重叠）**：**先按主/子记录分类**——① 子权限 create 的 `conditionCode`/`canGrant` 非 null/false 一律 **20043**（不再评估 20041/20042）；② 子权限 update 一律 **20043**；③ 20041/20042 仅评估主权限；④ 主权限同时违反多个不变量时按 **20041 → 20042 → 20033 → 其他** 顺序返回首个命中。
 - **creates**：
   - **单直接授权唯一性**：主权限及子权限均按 `(role, resource/范围, operation, parentPermission)` 唯一；同键已存在 MANUAL 记录 -> **20033** `DIRECT_PERMISSION_CONFLICT`（conditionCode/canGrant 不参与身份；查重基于本请求 removes 软删生效后状态，合法"先删后同键重加"不误判；AUTO_DEP 并列允许）。主权限（`parentPermissionId` 缺省）可带 children 一次性建树；`canGrant` 缺省 false。
-  - 子权限（`parentPermissionId` 非空）：父不存在 -> **20009**；父非主权限 -> **20010**；不得再带 children。
+  - 子权限（`parentPermissionId` 非空）：父不存在 -> **20009**；父非主权限 -> **20010**；不得再带 children；**属性系统不变量（七轮复审产品确认）**：`conditionCode` 必须为 null/空、`canGrant` 必须为 false（与主权限无关，子权限不承载条件/再授予），违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`；历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不允许继续属性编辑。
   - **operationCode 适用性校验（🔧 T-PERM-040）**：逐项校验必填的 `operationCode` 是否适用于 `recordKey.resourceTypeCode`——**必须复用 operation-permission/list 的"专属优先、全局回退"规则**（同一解析实现，禁止两套逻辑），判定基于**有效（未停用）操作定义**：该类型存在同码专属定义时校验通过；无专属定义时全局操作（`resourceTypeCode=null`）可用；同码专属+全局并存时以专属定义为准（全局定义不构成该校验的适用依据）；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`（错误码已存在，复用）。MANUAL 新授权不接受 `operationCode=null` 或组合位。**覆盖全部新记录形态**：`creates[].key`（主权限）、`creates[].children[]` 嵌套子权限、`parentPermissionId` 挂已有父记录的 create——不允许通过子权限形态绕过。
   - **条件不可转授 -> 20041**：见上方 **creates/updates 共用不变量**（2026-08-06 三轮评审移置，此处不再重复）。
   - 逐项 `checkCanGrant`（资源/范围/操作结构键；操作者可转授记录按 T-PERM-041 必为无条件，因此 conditionCode 不参与授权传递身份）；不满足 -> **20040** `GRANT_CANNOT_DELEGATE`；SUB_PERM 约束（fail-closed，父域 resource_type 直查，§6.5）；`scopeMode`/资源兼容。
-- **updates**：目标 id 必须存在且属于目标角色 -> 否则 **20036**；AUTO_DEP -> **20034**；与 removes 互斥；**条件不可转授按最终状态判定（creates/updates 共用不变量，违反 -> 20041，见上）**；`canGrant` 或 `conditionCode` 有变更 -> `canGrantPermission`；conditionCode/canGrant 直接更新原记录，不创建新记录；**实际影响行数 ≠ 预期 -> 20036 整体回滚**；update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
+- **updates**：目标 id 必须存在且属于目标角色 -> 否则 **20036**；AUTO_DEP -> **20034**；**目标为子权限（depend_on 非空）-> 20043**（子权限属性为系统不变量，不承载条件/再授予，仅可删除）；与 removes 互斥；**条件不可转授按最终状态判定（creates/updates 共用不变量，违反 -> 20041，见上）**；`canGrant` 或 `conditionCode` 有变更 -> `canGrantPermission`；conditionCode/canGrant 直接更新原记录，不创建新记录；**实际影响行数 ≠ 预期 -> 20036 整体回滚**；update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **removes**：主权限 id -> 级联删子（预期行为）；子权限 id -> 单条删；id 不存在/已软删/非目标角色 -> **20036**；AUTO_DEP -> **20034**；**实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚**。
 - **无幂等中间件（第十四轮定案）**：**砍 clientRequestId / @Idempotent / 幂等表**（幂等中间件实现取消（未登记看板））；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。执行顺序：① 认证 + ROLE:MANAGE 门禁（hasPermission 显式判断 false 抛 SecurityException）-> ② prevalidateGrantPlan -> ③ 单事务执行 + 受影响行数断言。
 - **砍（第十四轮）**：`expectedRevision` CAS / `grant_revision` 列 / 20037 `VERSION_CONFLICT` / 20039 `IDEMPOTENCY_OPERATOR_MISMATCH` / 幂等表 `grant_plan_idempotency` / hash canonical / replayed/currentRevision / 20037 重试 machinery / clientRequestId / @Idempotent 中间件（幂等中间件实现取消（未登记看板））。
 - 写入 `permission_change_log` + 一次 `PermInvalidateEvent`（afterCommit）。
 
-**错误码枚举（apply-grant-plan 链路，第十四轮精简）**：20001 ROLE_NOT_FOUND / 20003 ROLE_DISABLED / 20004 RESOURCE_NOT_FOUND / 20005 OPERATION_NOT_FOUND / 20006 CONDITION_NOT_FOUND / 20007 RESOURCE_TYPE_NOT_FOUND / 20008 RESOURCE_TYPE_OPERATION_MISMATCH / 20009 PARENT_PERMISSION_NOT_FOUND / 20010 PARENT_PERMISSION_NOT_TOP_LEVEL / 20011 SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED / 20012 RESOURCE_CODE_REQUIRED（INSTANCE 缺 resourceCode 服务端兜底）/ **20033 DIRECT_PERMISSION_CONFLICT（同角色+资源/范围+操作+父权限的 MANUAL 直接授权已存在）** / 20034 AUTO_DEP_READONLY / 20036 PERMISSION_NOT_FOUND / 20040 GRANT_CANNOT_DELEGATE / **20041 CONDITIONAL_PERMISSION_CANNOT_DELEGATE（条件权限不可转授）**；**砍 20037/20039**；20013/20014/20035 随旧子权限接口移除；20038 随同键重建语义废弃。
+**错误码枚举（apply-grant-plan 链路，第十四轮精简）**：20001 ROLE_NOT_FOUND / 20003 ROLE_DISABLED / 20004 RESOURCE_NOT_FOUND / 20005 OPERATION_NOT_FOUND / 20006 CONDITION_NOT_FOUND / 20007 RESOURCE_TYPE_NOT_FOUND / 20008 RESOURCE_TYPE_OPERATION_MISMATCH / 20009 PARENT_PERMISSION_NOT_FOUND / 20010 PARENT_PERMISSION_NOT_TOP_LEVEL / 20011 SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED / 20012 RESOURCE_CODE_REQUIRED（INSTANCE 缺 resourceCode 服务端兜底）/ **20033 DIRECT_PERMISSION_CONFLICT（同角色+资源/范围+操作+父权限的 MANUAL 直接授权已存在）** / 20034 AUTO_DEP_READONLY / 20036 PERMISSION_NOT_FOUND / 20040 GRANT_CANNOT_DELEGATE / **20041 CONDITIONAL_PERMISSION_CANNOT_DELEGATE（条件权限不可转授）** / **20042 CONDITION_DISABLED（🔧 2026-08-08 产品确认：新写入/变更的主权限 conditionCode 必须为启用状态）** / **20043 SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED（🔧 2026-08-08 七轮复审产品确认：子权限不承载条件/再授予——create 非 null/false 或 update 目标为子权限均拒绝，系统不变量）**；**砍 20037/20039**；20013/20014/20035 随旧子权限接口移除；20038 随同键重建语义废弃。
+
+### 6.5.2 子权限类型只读查询（sub-perm-allowed-types，🔧 v3.1，评审复审修订）
+
+`POST /api/perm/role-resource-permission/sub-perm-allowed-types`
+
+授权弹窗子权限配置器专用**只读**契约：按**父资源类型**返回该父类型允许挂载的子资源类型，判定口径与 §6.5 SUB_PERM fail-closed 校验一致（父域按父资源类型反查类型码与所属域，不依赖 `resource_entity_id`）。本接口只做配置查询，不触发权限缓存失效与变更日志。
+
+请求：
+
+```json
+{
+  "domainCode": null,
+  "roleTypeCode": "BASIC_ROLE",
+  "roleExternalId": "role_admin",
+  "parentResourceTypeCode": "MENU"
+}
+```
+
+- `domainCode`（可选，授权页恒传 null，同 §6.4 list 的 domainCode 口径）、`roleTypeCode`、`roleExternalId`：**目标角色业务键，门禁定位用**（`resolveRoleId` 解析失败 -> 20001，见下方门禁）。
+- `parentResourceTypeCode` 必填；资源类型不存在 -> **20007** `RESOURCE_TYPE_NOT_FOUND`。
+
+响应 `data`：
+
+| 字段 | 类型 | 口径 |
+|---|---|---|
+| parentResourceTypeCode | string | 回显请求父资源类型 |
+| mode | string | `ALLOW_ALL` / `ALLOW_LIST` / `ALLOW_NONE` |
+| reason | string\|null | `ALLOW_NONE` 时细分原因：`CONFIG_MISSING`（配置缺失）/ `CONFIG_EMPTY`（extra 为空）/ `CONFIG_INVALID`（extra 格式错误）/ `PARENT_NOT_CONFIGURED`（无匹配 parent_type 项）/ **`CHILD_TYPES_EMPTY`（匹配到 parent_type 但 child_types 为空，2026-08-08 四轮复审新增）**；`ALLOW_ALL` / `ALLOW_LIST` 时为 null |
+| allowedChildResourceTypeCodes | string[] | `ALLOW_LIST` 时返回允许的子资源类型集合（匹配项并集去重）；`ALLOW_ALL` / `ALLOW_NONE` 时为空数组 |
+
+`mode` 判定（与 `PermissionGrantPlanDomainServiceImpl.assertSubPermissionAllowed` 写校验**同一策略解析函数**，前端据 `mode` 过滤选择器，**不得前端硬编码允许集**）。**判定优先级顺序固定如下（2026-08-08 五轮复审写死，消除多匹配项歧义）**：
+
+0. **配置存在性**：`domain_config(config_type='SUB_PERM')` 不存在 -> **`CONFIG_MISSING`**；`extra` 为空/空白 -> **`CONFIG_EMPTY`**。
+1. **顶层通配识别（必须先于 JSON 解析——`"*"` 不是合法 JSON）**：`extra.trim() == "*"` -> **`ALLOW_ALL`**，直接结束。
+2. **全量解析与校验（七轮复审修正：非匹配项不再容错）**：其余值解析为 JSON 失败 -> **`CONFIG_INVALID`**；解析成功后，**完整验证 `allowed[]` 的每一项**——`parent_type` 必须为非空字符串、`child_types` 必须为字符串数组，**任一项结构非法 -> `CONFIG_INVALID`**（与写实现一致：`assertSubPermissionAllowed` L452-453 在比较父类型前遍历全部项校验结构，缺 `parent_type` 的项即拒绝——它无法证明属于其他父类型，属全局结构错误；且不得因"先前匹配项已放行"跳过后续项校验——**禁止匹配即 return**）。
+3. 无任何匹配 `parent_type` 的项 -> **`PARENT_NOT_CONFIGURED`**。
+4. **任一匹配项的 `child_types` 内含 `"*"`**（嵌套通配，写校验 L460 接受）-> **`ALLOW_ALL`**。
+5. 所有匹配项 `child_types` **并集（去重）非空** -> **`ALLOW_LIST`**（如 `[{"parent_type":"MENU","child_types":["BUTTON"]},{"parent_type":"MENU","child_types":["DATA"]}]` -> `["BUTTON","DATA"]`；`[{MENU,[]},{MENU,["BUTTON"]}]` -> `ALLOW_LIST["BUTTON"]`，空项不覆盖非空项）。
+6. 所有匹配项并集为空（如全部 `child_types=[]`）-> **`CHILD_TYPES_EMPTY`**。
+- **大小写口径**：`parent_type` 与 `child_types` 的比较均**大小写不敏感**（对齐写校验 `equalsIgnoreCase`）；响应返回**配置原文**（不做规范码转换，避免配置含 `type_definition` 外码时丢失），前端按大小写不敏感匹配过滤。
+- **实现约束**：读写链路必须复用同一个策略解析函数（抽取 `assertSubPermissionAllowed` 的配置解析逻辑为共享方法），保证"后端允许集 == 前端过滤集"。
+
+- 门禁：`resolveRoleId(domainCode, roleTypeCode, roleExternalId)` 解析**失败 -> 20001** `ROLE_NOT_FOUND`（明确抛出，不返回空结果——本接口无"空列表即自然结果"语义，避免前端把角色不存在误判为 `ALLOW_NONE`）；`hasPermission(ROLE, roleId, VIEW)` 为 false 时**抛 `SecurityException` 走统一访问拒绝**（与 §6.5.1 写入口同模式；**区别于 §6.4 list 的"失败返回空列表"**——本接口不采用空结果掩盖鉴权失败，以免把"无权查看"误判为"SUB_PERM 未配置"）。
+- 错误码：不新增；`parentResourceTypeCode` 无效 -> 20007，角色定位失败 -> 20001，无 ROLE:VIEW -> 统一访问拒绝（全局异常处理）。
+
+**实现绑定（十一轮复审补充）**：SUB_PERM 解析的唯一公开入口为 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`，返回不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`（`assertSubPermissionAllowed` 抽取，见 implementation §4）；调用链：Controller → `PermissionGrantAppService`（请求/响应 DTO 映射）→ `planDomainService.resolveSubPermissionPolicy`（读接口直接序列化策略结果）；`prevalidate` 内部复用同一解析器（`policy.allows`）。**禁止在 AppService/Controller 另行编写 SUB_PERM 判断**，读写必须同源。
 
 ### 6.6 通用资源权限查询
 
@@ -1779,7 +1828,7 @@ admin-service 查询示例：
 
 1. **租户来源**：只使用 `X-Tenant-Id` 和安全上下文，请求体不保留 `tenantId`。
 2. **对象定位**：取消通用 `Ref` 对象，使用固定扁平字段和标准业务键。
-3. **授权入口**：授权页面写链路收敛为**唯一写入口 `POST /api/perm/role-resource-permission/apply-grant-plan`**（2026-08-02 第十二轮单入口收敛，第十四轮收窄：单事务原子 + 受影响行数断言，无 CAS/幂等表/clientRequestId）。`save/revoke/children/add-child/remove-child` 仅作兼容保留并标记弃用，授权页面禁止调用；`update-child/children-save/rebuild` 不实现。
+3. **授权入口**：授权页面写链路收敛为**唯一写入口 `POST /api/perm/role-resource-permission/apply-grant-plan`**（2026-08-02 第十二轮单入口收敛，第十四轮收窄：单事务原子 + 受影响行数断言，无 CAS/幂等表/clientRequestId）。`save/revoke/children/add-child/remove-child` **仅迁移期保留并标记弃用**（授权页面禁止调用；**终态=随 T-PERM-034 迁移 admin-service 后删除，2026-08-08 八轮复审确认**）；`update-child/children-save/rebuild` 不实现。
 4. **接口同步**：首期仅支持 FULL 全量同步。
 5. **兼容策略**：项目未上线，不考虑旧接口兼容，直接按新契约实现。
 6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。
@@ -1792,3 +1841,5 @@ admin-service 查询示例：
 13. **资源依赖方向**：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 14. **同步所有权**：服务接口同步和资源依赖同步必须通过 `ownerServiceCode + maintainSource + syncKey` 限定 FULL diff 删除范围。
 15. **变更摘要枚举**：`diff_snapshot.eventType`、`items[].changeType` 和 `recent-changes.impactLevel` 使用固定枚举，不使用开放字符串。
+16. **子权限类型只读契约（v3.1，D5，2026-08-08 评审复审修订）**：授权页面子权限配置器通过 `POST /api/perm/role-resource-permission/sub-perm-allowed-types`（§6.5.2）按父资源类型获取 SUB_PERM 允许的子资源类型并过滤选择器；请求携带目标角色业务键（domainCode/roleTypeCode/roleExternalId），门禁使用与 §6.4 list **相同的 ROLE:VIEW 权限资源与操作码，但失败响应不同**（list 失败返回空列表，本接口角色定位失败 20001、无 VIEW 抛 SecurityException 走统一访问拒绝）；`mode` 判定（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE + reason 细分）与写校验 `assertSubPermissionAllowed` 完全同口径——覆盖顶层与嵌套 `"*"` 通配、多匹配项并集去重、大小写不敏感，**读写复用同一策略解析函数**；前端不硬编码允许集；本契约不改变任何写语义，不新增错误码（复用 20007/20001）。
+17. **子权限属性系统不变量（2026-08-08 七轮复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043**）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20042 不再描述 child create（子权限带条件 -> 20043 而非 20042）。

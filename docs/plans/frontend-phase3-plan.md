@@ -17,8 +17,8 @@ tasks:
   - T-FE-020
   - T-FE-021
   - T-FE-022
-acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，第十四轮拆分；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 二轮评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
-last_updated: 2026-08-05
+acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，第十四轮拆分；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + **T-FE-040** + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 二轮评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路；2026-08-08 十一轮评审：补记录级聚焦编辑 T-FE-040），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
+last_updated: 2026-08-08
 ---
 
 # 前端 Phase 3 — 前后端联调
@@ -40,7 +40,7 @@ last_updated: 2026-08-05
 | T-FE-015 | 组织与用户（已实现 2.1） | T-PERM-037 |
 | T-FE-016 | 角色管理（2.2） | T-FE-002, T-PERM-022 |
 | T-FE-017 | 资源/操作定义（3.1） | T-FE-008, T-PERM-028 |
-| T-FE-018 | 权限授予（4.1）- 角色联调（首期） | T-FE-036, T-FE-038, T-FE-039, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022, T-PERM-028, T-PERM-029, T-PERM-031 |
+| T-FE-018 | 权限授予（4.1）- 角色联调（首期） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022, T-PERM-028, T-PERM-029, T-PERM-031 |
 | T-FE-037 | 权限授予（4.1）- 组织联调（二期） | T-FE-018, T-ADMIN-021 |
 | T-FE-019 | 权限查询/校验（4.2） | T-FE-013, T-PERM-033 |
 | T-FE-020 | 条件/冲突规则（3.2/3.3） | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 |

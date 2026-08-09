@@ -148,7 +148,7 @@ Map<Long, Xxx> rowMap = rows.stream()
 ## 禁止事项
 
 - 禁止跳层调用
-- 禁止同层横向调用
+- 禁止同层横向调用（**唯一例外（2026-08-08 产品确认）**：授权域 `PermissionGrantPlanDomainServiceImpl` → `PermissionGrantDomainService` 组合注入允许，限定单向/无循环/仅校验能力不承载事务/不推广，见 project-rules.md §分层规范）
 - 禁止 `System.out.println`
 - 禁止 `catch (Exception e) {}` 静默吞异常
 - 禁止在事务内发起 Feign 或 MQ 调用

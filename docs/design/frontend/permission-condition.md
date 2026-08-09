@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-26
+last_reviewed: 2026-08-08
 ---
 
 # 3.2 权限条件 前端设计
@@ -30,7 +30,7 @@ last_reviewed: 2026-07-26
 
 - 无分页：后端 list 返回全量 ItemsResp，前端本地过滤（keyword + enabled）。
 - 表格滚动：`:deep(.el-table__body-wrapper) { max-height: calc(100vh - var(--table-offset)); }`。
-- 无权占位：`canView=false` 时 `el-empty`「你没有查看权限条件的权限」。
+- ~~无权占位~~（**2026-08-08 产品确认移除：条件查看全租户开放，无读取门禁，列表始终可读**；本地过滤 keyword + enabled 保留）。
 
 ## 字段定义
 
@@ -75,7 +75,7 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 
 ### 列表
 
-- onMounted -> loadList（CONDITION:VIEW 短路）-> 本地过滤展示。
+- onMounted -> loadList（**无读取门禁，2026-08-08 产品确认：条件规则非敏感、全租户开放**）-> 本地过滤展示。
 - 搜索：keyword（code/name 模糊）+ enabled（启用/停用）实时过滤，重置清空。
 
 ### 新增/编辑（弹窗 ConditionForm）
@@ -132,23 +132,23 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 permissio
 
 | 串 | 门控 | 按钮 |
 |---|---|---|
-| CONDITION:VIEW | 路由可达 + loadList | 列表展示 |
+| ~~CONDITION:VIEW~~（2026-08-08 产品确认移除：条件查看全租户开放，无读取门禁） | 路由可达（登录即可） | 列表展示 |
 | CONDITION:CREATE | openCreate | 新增条件 |
 | CONDITION:UPDATE | openEdit | 编辑 |
 | CONDITION:DELETE | onDelete | 删除 |
 
 > 与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同，CONDITION 后端用独立的 CREATE/UPDATE/DELETE 三档（ConditionAppServiceImpl 对齐 `OperationCodeConstants.UPDATE`/`DELETE`，非 MANAGE）。
 
-### 角色矩阵（mock/login.ts）
+### 角色矩阵（mock/login.ts，2026-08-08 起 VIEW 列移除）
 
-| 角色 | VIEW | CREATE | UPDATE | DELETE |
-|---|---|---|---|---|
-| admin | ✓ | ✓ | ✓ | ✓ |
-| sec | ✓ | ✓ | ✓ | ✓ |
-| hr | ✓ | - | - | - |
-| auditor | ✓ | - | - | - |
+| 角色 | CREATE | UPDATE | DELETE |
+|---|---|---|---|
+| admin | ✓ | ✓ | ✓ |
+| sec | ✓ | ✓ | ✓ |
+| hr | - | - | - |
+| auditor | - | - | - |
 
-sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 只读 VIEW。
+sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 无写权限（列表读取全租户开放，不再由 VIEW 列控制）。
 
 ## §8 核对清单（🔧 登记T-PERM-029）
 
@@ -157,7 +157,7 @@ sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE
 | 1 | detail 用内部主键 id | IdReq{id} | 切业务键 code（ConditionDetailReq 已定义 conditionCode 但 Controller 没用，schema uk 保证唯一） |
 | 2 | update/remove 用内部主键 | conditionId/ids | 切业务键 code（批量按 code 列表） |
 | 3 | list 无分页无筛选 | EmptyReq 全量 | 补 ConditionListReq（keyword/enabled/pageNum/pageSize） |
-| 4 | list/detail 无 VIEW 校验 | 无 hasPermission | 补 CONDITION:VIEW 校验 + schema 种子预置 VIEW 操作位 |
+| 4 | list/detail 无 VIEW 校验 | 无 hasPermission | ~~补 CONDITION:VIEW 校验 + schema 种子预置 VIEW 操作位~~ **❌ 2026-08-08 产品确认取消：条件查看全租户开放（非敏感信息，用户自查询权限亦会涉及），无读取门禁；后端 list/detail 保持无 VIEW 校验，管理页 VIEW 门禁/角色矩阵 VIEW 列/loadList 短路一并移除（见上文）** |
 | 5 | ConditionResp 缺 updatedAt | entity 有但 Resp 不返回 | 补 updatedAt 字段 |
 | 6 | api-contract §5.6 缺字段契约 | 仅端点总览 | 补 ConditionResp/CreateReq/UpdateReq 字段表与请求示例 |
 

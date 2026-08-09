@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-09   # 文档治理：禁止记录讨论轮次；授权域同层调用唯一例外
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -462,6 +462,7 @@ Mapper（数据访问层）
 
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
 - **禁止横向调用**：同层级之间禁止互相调用（如 Service A 调用 Service B 同层方法，应抽取到更低层）。
+- **授权域同层调用例外（2026-08-08 产品确认，唯一例外）**：权限中心的授权写链路中，`PermissionGrantPlanDomainServiceImpl` 组合注入 `PermissionGrantDomainService`（`checkCanGrant`/`validateSingleManualGrants`/`validateGrantAttributes`）为**明确允许的例外**，限定条件：① 仅限授权域 `PlanDomainService → GrantDomainService` 单向；② 禁止反向调用与循环依赖；③ 仅复用校验能力，不承载事务编排（**事务仅由 AppService/调度层声明，PlanDomainService 仅参与该事务**）；④ **不推广为一般规则**，其他域/其他服务仍禁止同层横向调用。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
 
 **permission-center Controller（补充）：**
@@ -1169,6 +1170,13 @@ Closes #123
 | `phase*-plan.md`/`tasks/README.md` | 任务清单（标题/状态/直接依赖/链接）+ 计数器 + 依赖图 | 复制"七项/八项/第几轮/完整字段清单/🔧 详细范围" |
 
 phase plan / README 任务行只保留：标题（简短）、状态、直接依赖、链接。详细范围写进任务卡，不复制到计划/索引。
+
+### 禁止记录讨论轮次
+
+- 设计、计划、任务、索引和项目规则中**禁止记录“第 N 轮讨论/评审/复审”**，不得把讨论轮次写入标题、状态、验收项、正文注释、frontmatter 注释或变更摘要。
+- 文档只保留**当前有效结论**及必要的确认日期、责任任务、适用范围和取代关系；需要说明变化时，直接写“原口径已废弃 / 当前口径为 …”，不得用轮次定位。
+- 讨论过程留在会话、Git 历史或归档材料中；正式决策需要长期追溯时使用 ADR/确认记录，并按**主题/决策编号**组织，不按讨论先后轮次组织。
+- 触达含轮次标记的存量活跃文档时，应在不改变已确认语义的前提下改写为当前结论；不得继续复制轮次标记到新的权威文档或任务卡。
 
 ### 写入口通用清单（适用影响权限计算或缓存的写入口）
 

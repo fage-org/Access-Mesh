@@ -89,7 +89,7 @@ Mapper                                           ← 只做数据读写，无业
 ```
 
 - **禁止跳层调用**（Controller 禁止直接调 Mapper）。
-- **禁止同层横向调用**。
+- **禁止同层横向调用**。（**唯一例外（2026-08-08 产品确认）**：授权域 `PermissionGrantPlanDomainServiceImpl` → `PermissionGrantDomainService` 组合注入允许，限定单向/无循环/仅复用校验能力不承载事务/不推广，见 `docs/design/project-rules.md` §分层规范）
 - Mapper 层禁止包含 if/switch 业务判断。
 
 ---
