@@ -42,8 +42,7 @@ import {
 } from "../src/views/system/resource-operation/utils/perms";
 import {
   CONDITION_PERMS as CP,
-  CONDITION_PERM_LIST,
-  CONDITION_VIEW_PERMS
+  CONDITION_PERM_LIST
 } from "../src/views/system/permission-condition/utils/perms";
 import {
   CONFLICT_RULE_PERMS as CRP,
@@ -96,11 +95,13 @@ import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms"
  *   `SERVICE:SYNC_INTERFACE` 和 `SERVICE:MANAGE_API_MAPPING` 分别控制 FULL 同步和手工映射。
  * - sec 负责安全边界，拥有服务接口的完整维护权；hr/auditor 保持只读。
  *
- * 4.1 权限授予页（T-FE-036 v3）：无新增权限串，全部为既有串复用——
- * - 配权门禁 `ROLE:VIEW`/`ROLE:MANAGE`（目标抽象角色）+ 只读依赖 `CONDITION:VIEW`/
- *   `RESOURCE:VIEW`/`OPERATION:VIEW`；数据源门禁 `ADMIN_ORG:VIEW` 等（组织入口二期）。
+ * 4.1 权限授予页（T-FE-036 v3 + T-FE-040 v3.1）：无新增权限串，全部为既有串复用——
+ * - 配权门禁 `ROLE:VIEW`/`ROLE:MANAGE`（目标抽象角色）+ 只读依赖 `RESOURCE:VIEW`/
+ *   `OPERATION:VIEW`；数据源门禁 `ADMIN_ORG:VIEW` 等（组织入口二期）。
+ * - 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），`CONDITION:VIEW` 不再
+ *   登记进角色矩阵（VIEW 列移除）；hr/auditor 不再持有条件读取串。
  * - admin 经 PERMISSION_GRANT_PERM_LIST 显式登记（与既有清单重复项无害，hasPerms 为 includes 判定）；
- *   sec 配权 RW（已有 ROLE:MANAGE + 三 VIEW）；hr/auditor 只读（已有 ROLE:VIEW + 三 VIEW）。
+ *   sec 配权 RW（已有 ROLE:MANAGE + 二 VIEW）；hr/auditor 只读（已有 ROLE:VIEW + 二 VIEW）。
  */
 const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
   admin: [
@@ -138,7 +139,6 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...BIZ_DOMAIN_VIEW_PERMS,
     ...SERVICE_INTERFACE_VIEW_PERMS,
     ...RESOURCE_OPERATION_VIEW_PERMS,
-    ...CONDITION_VIEW_PERMS,
     ...CONFLICT_RULE_VIEW_PERMS,
     ...RESOURCE_DEPENDENCY_VIEW_PERMS
   ],
@@ -177,7 +177,6 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ROP.OPERATION_ADD,
     ROP.OPERATION_EDIT,
     ROP.OPERATION_DELETE,
-    CP.CONDITION_VIEW,
     CP.CONDITION_ADD,
     CP.CONDITION_EDIT,
     CP.CONDITION_DELETE,
@@ -200,7 +199,6 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...BIZ_DOMAIN_VIEW_PERMS,
     ...SERVICE_INTERFACE_VIEW_PERMS,
     ...RESOURCE_OPERATION_VIEW_PERMS,
-    ...CONDITION_VIEW_PERMS,
     ...CONFLICT_RULE_VIEW_PERMS,
     ...RESOURCE_DEPENDENCY_VIEW_PERMS
   ]

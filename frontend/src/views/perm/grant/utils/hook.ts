@@ -73,9 +73,6 @@ export function usePermissionGrant() {
   const canManage = computed(() =>
     hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE)
   );
-  const canCondition = computed(() =>
-    hasPerms(PERMISSION_GRANT_PERMS.CONDITION_VIEW)
-  );
   const canResource = computed(() =>
     hasPerms(PERMISSION_GRANT_PERMS.RESOURCE_VIEW)
   );
@@ -142,7 +139,8 @@ export function usePermissionGrant() {
         canOperation.value
           ? getOperationList({})
           : Promise.resolve({ items: [] }),
-        canCondition.value ? getConditionList() : Promise.resolve({ items: [] })
+        // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载
+        getConditionList()
       ]);
       typeCandidates.value = (typeResp.items ?? [])
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
@@ -937,7 +935,6 @@ export function usePermissionGrant() {
     subjectType,
     canView,
     canManage,
-    canCondition,
     canResource,
     canOperation,
     grantStore,

@@ -447,6 +447,8 @@ export function buildReplaceChange(input: {
 }
 
 // ========== 弹窗确定语义（§4 + 方案二全量比对：勾选=最终授权状态，取消勾选=撤权） ==========
+// 🔧 T-FE-040 v3.1：属性为记录级——勾选仅表达授权存在性（add 使用默认属性），
+// conditionCode/canGrant 的修改只作用于聚焦记录（focusSlot + focusAttributes）。
 
 /** 授权弹窗单个范围结果（一次确认可顺序包含 ALL 撤销 + INSTANCE 最终集合）。 */
 export type DialogResult = {
@@ -463,6 +465,11 @@ export type DialogResult = {
   }>;
   /** 授权设置未被用户修改时保持原属性的已有资源；仅参与最终集合防撤销。 */
   untouchedResourceKeys?: string[];
+  /** 🔧 T-FE-040 v3.1：聚焦槽位（记录级编辑；缺省 = 无聚焦，不产生属性变更） */
+  focusSlot?: FocusSlot;
+  /** 聚焦记录的目标属性（null = 清除条件；undefined/缺省 = 属性未修改） */
+  focusAttributes?: SlotAttributes | null;
+  /** v3 兼容保留：add 初始属性（v3.1 下 add 统一默认属性，本字段不再影响勾选资源） */
   conditionCode: string | null;
   canGrant: boolean;
 };
@@ -538,7 +545,7 @@ export function applyDialogResultToDraft(input: {
   );
   const untouchedResourceKeys = new Set(dialog.untouchedResourceKeys ?? []);
 
-  // ---- 勾选集合：add / update ----
+  // ---- 勾选集合：add / 恢复（v3.1：仅表达授权存在性，属性修改由 focusAttributes 驱动） ----
   for (const resource of dialog.resources) {
     const resKey = resourceGroupKeyOf(resource);
     // 授权设置未修改：树上只表达最终授权状态，不重写已有记录属性。
@@ -566,65 +573,115 @@ export function applyDialogResultToDraft(input: {
         resourceGroupKeyOf(m) === resKey
     );
     const matched = directRecords[0];
+    if (matched) {
+      // v3.1：勾选不重写已有记录属性（保持原属性；属性修改仅作用于聚焦记录）
+      continue;
+    }
+    // 直接授权键不存在 → add（默认属性：无条件、不可再授予）
     const recordKey: GrantRecordKey = {
       resourceTypeCode: resource.resourceTypeCode,
       resourceCode: resource.resourceCode,
       codeType: resource.codeType,
       operationCode: dialog.operation.code,
       scopeMode: dialog.scopeMode,
-      conditionCode: dialog.conditionCode,
-      canGrant: dialog.canGrant
+      conditionCode: null,
+      canGrant: false
     };
     const summary = buildSummary({ recordKey, resourceLabel: resource.name });
+    changes.push(buildAddChange({ recordKey, summary }));
+  }
 
-    if (matched) {
-      if (matched.draftMark === "add" && matched.changeId) {
-        // 草稿新增就地改 canGrant/条件（不产生新变更）
+  // ---- 记录级属性编辑（v3.1）：仅聚焦记录生效（update / add 就地改 / 归一化） ----
+  if (dialog.focusSlot && dialog.focusAttributes != null) {
+    const rawAttributes = dialog.focusAttributes;
+    // 条件不可转授兜底（与 reducer 一致）
+    const attributes: SlotAttributes =
+      rawAttributes.conditionCode != null
+        ? { ...rawAttributes, canGrant: false }
+        : rawAttributes;
+    const focusView = applyDraftToRecords({ baseline, changes, operations });
+    const focusRecord = findSlotRecord(focusView, dialog.focusSlot);
+    if (focusRecord) {
+      if (focusRecord.draftMark === "add" && focusRecord.changeId) {
         changes = changes.map(c =>
-          c.changeId === matched.changeId && c.kind === "add"
+          c.changeId === focusRecord.changeId && c.kind === "add"
             ? {
                 ...c,
                 recordKey: {
                   ...c.recordKey,
-                  conditionCode: dialog.conditionCode,
-                  canGrant: dialog.canGrant
+                  conditionCode: attributes.conditionCode,
+                  canGrant: attributes.canGrant
                 },
-                summary
+                summary: buildSummary({
+                  recordKey: {
+                    ...c.recordKey,
+                    conditionCode: attributes.conditionCode,
+                    canGrant: attributes.canGrant
+                  },
+                  resourceLabel:
+                    focusRecord.resourceName ??
+                    dialog.focusSlot.resourceCode ??
+                    "全部资源"
+                })
               }
             : c
         );
-      } else if (matched.draftMark === "update" && matched.changeId) {
-        // 已有 update 变更 → 就地改 after（不重复建变更）
+      } else if (focusRecord.draftMark === "update" && focusRecord.changeId) {
         changes = changes.map(c =>
-          c.changeId === matched.changeId && c.kind === "update"
+          c.changeId === focusRecord.changeId && c.kind === "update"
             ? {
                 ...c,
                 after: {
-                  conditionCode: dialog.conditionCode,
-                  canGrant: dialog.canGrant
+                  conditionCode: attributes.conditionCode,
+                  canGrant: attributes.canGrant
                 },
-                summary
+                summary: buildSummary({
+                  recordKey: {
+                    resourceTypeCode: focusRecord.resourceTypeCode,
+                    resourceCode: focusRecord.resourceCode,
+                    codeType: focusRecord.codeType,
+                    operationCode: focusRecord.operationCode,
+                    scopeMode: focusRecord.scopeMode,
+                    conditionCode: attributes.conditionCode,
+                    canGrant: attributes.canGrant
+                  },
+                  resourceLabel:
+                    focusRecord.resourceName ??
+                    dialog.focusSlot.resourceCode ??
+                    "全部资源"
+                })
               }
             : c
         );
       } else if (
-        matched.canGrant !== dialog.canGrant ||
-        matched.conditionCode !== dialog.conditionCode
+        focusRecord.canGrant !== attributes.canGrant ||
+        focusRecord.conditionCode !== attributes.conditionCode
       ) {
         changes.push(
           buildUpdateChange({
-            before: matched,
+            before: focusRecord,
             after: {
-              canGrant: dialog.canGrant,
-              conditionCode: dialog.conditionCode
+              canGrant: attributes.canGrant,
+              conditionCode: attributes.conditionCode
             },
-            summary
+            summary: buildSummary({
+              recordKey: {
+                resourceTypeCode: focusRecord.resourceTypeCode,
+                resourceCode: focusRecord.resourceCode,
+                codeType: focusRecord.codeType,
+                operationCode: focusRecord.operationCode,
+                scopeMode: focusRecord.scopeMode,
+                conditionCode: attributes.conditionCode,
+                canGrant: attributes.canGrant
+              },
+              resourceLabel:
+                focusRecord.resourceName ??
+                dialog.focusSlot.resourceCode ??
+                "全部资源"
+            })
           })
         );
       }
-    } else {
-      // 直接授权键不存在 → add
-      changes.push(buildAddChange({ recordKey, summary }));
     }
   }
 
@@ -856,3 +913,632 @@ export function parentLocateOf(
 
 /** 位运算工具 re-export（组件层便利性） */
 export { toBigIntBits };
+
+// ========== v3.1 记录槽位 reducer（T-FE-040：焦点生命周期/显式复制/停用条件） ==========
+// 设计依据：docs/design/frontend/permission-grant.md §4（v3.1 记录级聚焦编辑）/ §6.1（suspended 双路径）。
+// 全部为纯函数，可单测；组件层（GrantDialog.vue）以本组函数维护弹窗本地草稿状态。
+//
+// 模型：弹窗本地草稿 = 页面草稿副本（changes）+ suspended 暂存（取消勾选）+ 焦点槽位。
+// - 勾选/取消勾选实时落草稿：勾选=add（默认属性）或恢复；取消=suspended 暂存（确认时双路径展开）；
+// - 属性修改（条件/canGrant）只作用于聚焦记录（update / add 就地改），不再批量覆盖；
+// - 显式复制：源聚焦记录属性 → 目标已勾选记录（add 就地改 / update 合并 / after==before 归一化）；
+// - suspended 不进入变更清单，仅存在于弹窗本地草稿层；取消弹窗即整体丢弃。
+
+/** 焦点槽位：MANUAL 编辑槽位（完整授权键，与来源记录解耦，设计 §4 v3.1） */
+export type FocusSlot = {
+  resourceTypeCode: string;
+  resourceCode: string | null;
+  codeType: string | null;
+  operationCode: string;
+  scopeMode: "INSTANCE" | "ALL";
+};
+
+/** 槽位属性（条件 / 再授予；条件不可转授：conditionCode 非空时 canGrant 恒 false） */
+export type SlotAttributes = {
+  conditionCode: string | null;
+  canGrant: boolean;
+};
+
+/** suspended 槽位（弹窗本地暂存态，设计 §6.1：取消勾选暂存 → 重新勾选恢复 → 确认时双路径展开） */
+export type SuspendedSlot = {
+  slotKey: string;
+  /** baseline 持久化记录（保持未勾选 → 确认时生成 remove；update/子权限草稿随记录丢弃） */
+  persistedRecord?: RolePermissionItem;
+  /** 待新增 add 草稿变更 id（保持未勾选 → 确认时取消整个 add 变更组，不生成 remove） */
+  addChangeId?: string;
+  /** 待新增 add 草稿的完整原始变更（恢复时原样放回，保留 changeId/summary/未来扩展字段；子权限 parentChangeId 无需重映射） */
+  addChange?: AddChange;
+  /** 随主记录暂存的子权限草稿（重新勾选恢复；确认时随 remove 丢弃） */
+  childChanges?: DraftChange[];
+  /** suspended 时快照属性（重新勾选恢复用） */
+  attributes: SlotAttributes;
+};
+
+/** 弹窗本地槽位草稿状态（以页面草稿为基底，取消弹窗即丢弃） */
+export type SlotDraftState = {
+  changes: DraftChange[];
+  suspended: Map<string, SuspendedSlot>;
+  focusSlotKey: string | null;
+};
+
+/** 焦点槽位 → 直接授权键字符串（与 groupKeyOf 同构；operationCode 必传） */
+export function slotKeyOf(slot: FocusSlot): string {
+  return groupKeyOf(slot);
+}
+
+/** 生效视图中查找槽位的 MANUAL 主记录（不含 remove 标记；子权限/继承来源不参与） */
+export function findSlotRecord(
+  view: DraftAppliedView,
+  slot: FocusSlot
+): EffectiveRecord | null {
+  return (
+    view.mains.find(
+      m =>
+        m.grantSource === "MANUAL" &&
+        m.draftMark !== "remove" &&
+        m.resourceTypeCode === slot.resourceTypeCode &&
+        (m.resourceCode ?? null) === (slot.resourceCode ?? null) &&
+        (m.codeType ?? null) === (slot.codeType ?? null) &&
+        m.operationCode === slot.operationCode &&
+        m.scopeMode === slot.scopeMode
+    ) ?? null
+  );
+}
+
+/** 挂载在指定主记录下的子权限草稿 changeId 列表（add 虚拟挂载 / 持久化父 dependOn 双路径） */
+function childChangeIdsOf(
+  changes: DraftChange[],
+  record: EffectiveRecord
+): string[] {
+  const ids: string[] = [];
+  for (const change of changes) {
+    if (change.kind === "add") {
+      if (
+        (change.parentPermissionId != null &&
+          change.parentPermissionId === record.id) ||
+        (change.parentChangeId != null &&
+          change.parentChangeId === record.changeId)
+      ) {
+        ids.push(change.changeId);
+      }
+    } else if (change.kind === "update") {
+      if (change.before.dependOn === record.id) ids.push(change.changeId);
+    } else if (change.kind === "remove") {
+      if (change.records[0]?.dependOn === record.id) ids.push(change.changeId);
+    } else if (change.kind === "replace") {
+      if (change.removedRecords[0]?.dependOn === record.id)
+        ids.push(change.changeId);
+    }
+  }
+  return ids;
+}
+
+/** 资源展示名（add/remove 摘要用；缺省回退 resourceCode / "全部资源"） */
+function resourceLabelOf(
+  slot: FocusSlot,
+  fallbackName?: string | null
+): string {
+  return fallbackName ?? slot.resourceCode ?? "全部资源";
+}
+
+/**
+ * 取消勾选 → suspended 暂存（设计 §6.1）：
+ * - 该槽位的 update/add 草稿及其子权限草稿从草稿中移出，属性快照入 suspended；
+ * - 焦点记录被取消时焦点清空（设计 §4：取消勾选焦点记录 → 焦点清空）；
+ * - 不生成 remove（确认时由 expandSuspended 按来源双路径展开）。
+ */
+export function uncheckSlot(
+  state: SlotDraftState,
+  input: { slot: FocusSlot; view: DraftAppliedView }
+): SlotDraftState {
+  const slotKey = slotKeyOf(input.slot);
+  if (state.suspended.has(slotKey)) return state;
+  const record = findSlotRecord(input.view, input.slot);
+  const attributes: SlotAttributes = record
+    ? { conditionCode: record.conditionCode, canGrant: record.canGrant }
+    : { conditionCode: null, canGrant: false };
+
+  let changes = [...state.changes];
+  let persistedRecord: EffectiveRecord | undefined;
+  let addChangeId: string | undefined;
+  let addChange: AddChange | undefined;
+  let childChanges: DraftChange[] | undefined;
+
+  if (record) {
+    if (record.draftMark === "add" && record.changeId) {
+      // add 路径：移出 add 主变更 + 其虚拟挂载子权限（确认时整个变更组取消）；
+      // 保存完整原始 add 变更（恢复时原样放回，保留 changeId/summary）
+      addChangeId = record.changeId;
+      addChange = state.changes.find(
+        (c): c is AddChange =>
+          c.kind === "add" && c.changeId === record.changeId
+      );
+      const childIds = new Set(childChangeIdsOf(changes, record));
+      changes = changes.filter(
+        c => !childIds.has(c.changeId) && c.changeId !== record.changeId
+      );
+      if (childIds.size > 0) {
+        childChanges = state.changes.filter(c => childIds.has(c.changeId));
+      }
+    } else {
+      // baseline 路径：主记录自身 update 随记录丢弃（恢复时按属性快照相对 baseline 重建至多一条）；
+      // childChanges 只保存真正挂载于父记录的子权限变更
+      persistedRecord = record;
+      const childIds = new Set(childChangeIdsOf(changes, record));
+      if (record.draftMark === "update" && record.changeId) {
+        changes = changes.filter(c => c.changeId !== record.changeId);
+      }
+      if (childIds.size > 0) {
+        childChanges = state.changes.filter(c => childIds.has(c.changeId));
+        changes = changes.filter(c => !childIds.has(c.changeId));
+      }
+    }
+  }
+
+  const suspended = new Map(state.suspended);
+  suspended.set(slotKey, {
+    slotKey,
+    ...(persistedRecord ? { persistedRecord } : {}),
+    ...(addChangeId ? { addChangeId } : {}),
+    ...(addChange ? { addChange } : {}),
+    ...(childChanges && childChanges.length > 0 ? { childChanges } : {}),
+    attributes
+  });
+  const focusSlotKey =
+    state.focusSlotKey === slotKey ? null : state.focusSlotKey;
+  return { changes, suspended, focusSlotKey };
+}
+
+/**
+ * 重新勾选 → 恢复（设计 §4/§6.1）：
+ * - suspended 中存在：add 路径按快照属性重建 add；baseline 路径恢复属性（差异时生成 update）；
+ *   子权限草稿随主记录恢复；
+ * - suspended 中不存在（普通勾选）：撤销该槽位上的 remove 标记变更（恢复原记录保留子权限）；
+ *   无 MANUAL 记录 → 以默认属性（无条件、不可再授予）add。
+ */
+export function resumeSlot(
+  state: SlotDraftState,
+  input: {
+    slot: FocusSlot;
+    view: DraftAppliedView;
+    baseline: RolePermissionItem[];
+    operations: OperationDefInput[];
+  }
+): SlotDraftState {
+  const slotKey = slotKeyOf(input.slot);
+  let changes = [...state.changes];
+  const suspended = new Map(state.suspended);
+  const stashed = suspended.get(slotKey);
+
+  if (stashed) {
+    if (stashed.addChange) {
+      // add 路径：原样放回原始 add 变更（保留 changeId/summary；子权限 parentChangeId 无需重映射）
+      changes.push(stashed.addChange);
+      if (stashed.childChanges && stashed.childChanges.length > 0) {
+        changes = [...changes, ...stashed.childChanges];
+      }
+    } else if (stashed.addChangeId) {
+      // 兜底（无完整 addChange 快照）：按属性快照重建 add，子权限 parentChangeId 重映射到新 changeId
+      // （三审 P3：不再丢弃 childChanges——旧子权限变更随重建父恢复，避免静默丢失）
+      const recordKey: GrantRecordKey = {
+        resourceTypeCode: input.slot.resourceTypeCode,
+        resourceCode: input.slot.resourceCode,
+        codeType: input.slot.codeType,
+        operationCode: input.slot.operationCode,
+        scopeMode: input.slot.scopeMode,
+        conditionCode: stashed.attributes.conditionCode,
+        canGrant: stashed.attributes.canGrant
+      };
+      const rebuilt = buildAddChange({
+        recordKey,
+        summary: buildSummary({
+          recordKey,
+          resourceLabel: resourceLabelOf(input.slot)
+        })
+      });
+      changes.push(rebuilt);
+      if (stashed.childChanges && stashed.childChanges.length > 0) {
+        changes = [
+          ...changes,
+          ...stashed.childChanges.map(change =>
+            change.kind === "add" &&
+            change.parentChangeId === stashed.addChangeId
+              ? { ...change, parentChangeId: rebuilt.changeId }
+              : change
+          )
+        ];
+      }
+    } else if (stashed.persistedRecord) {
+      // baseline 路径：子权限草稿随主记录恢复；主记录自身 update 已随取消丢弃，
+      // 用属性快照相对 baseline 重建至多一条 update（避免同 recordId 重复）
+      if (stashed.childChanges && stashed.childChanges.length > 0) {
+        changes = [...changes, ...stashed.childChanges];
+      }
+      const baselineRecord = input.baseline.find(
+        m =>
+          m.dependOn == null &&
+          m.grantSource === "MANUAL" &&
+          m.resourceTypeCode === input.slot.resourceTypeCode &&
+          (m.resourceCode ?? null) === (input.slot.resourceCode ?? null) &&
+          (m.codeType ?? null) === (input.slot.codeType ?? null) &&
+          m.operationCode === input.slot.operationCode &&
+          m.scopeMode === input.slot.scopeMode
+      );
+      const after: SlotAttributes = {
+        conditionCode: stashed.attributes.conditionCode,
+        canGrant: stashed.attributes.canGrant
+      };
+      if (
+        baselineRecord &&
+        (baselineRecord.canGrant !== after.canGrant ||
+          baselineRecord.conditionCode !== after.conditionCode)
+      ) {
+        changes.push(
+          buildUpdateChange({
+            before: baselineRecord,
+            after,
+            summary: buildSummary({
+              recordKey: {
+                resourceTypeCode: baselineRecord.resourceTypeCode,
+                resourceCode: baselineRecord.resourceCode,
+                codeType: baselineRecord.codeType,
+                operationCode: baselineRecord.operationCode,
+                scopeMode: baselineRecord.scopeMode,
+                conditionCode: after.conditionCode,
+                canGrant: after.canGrant
+              },
+              resourceLabel: resourceLabelOf(
+                input.slot,
+                baselineRecord.resourceName
+              )
+            })
+          })
+        );
+      }
+    }
+    suspended.delete(slotKey);
+    return { changes, suspended, focusSlotKey: state.focusSlotKey };
+  }
+
+  // ---- 普通勾选路径（无 suspended 暂存）----
+  // 撤销该槽位上的 remove 标记变更（恢复原记录，保留子权限）
+  for (const change of [...changes]) {
+    if (
+      change.kind === "remove" &&
+      change.reason === "dialog-uncheck" &&
+      change.records.some(
+        r =>
+          slotKeyOf({
+            resourceTypeCode: r.resourceTypeCode,
+            resourceCode: r.resourceCode,
+            codeType: r.codeType,
+            operationCode: r.operationCode ?? "",
+            scopeMode: r.scopeMode
+          }) === slotKey
+      )
+    ) {
+      changes = changes.filter(c => c.changeId !== change.changeId);
+    }
+  }
+  const view = applyDraftToRecords({
+    baseline: input.baseline,
+    changes,
+    operations: input.operations
+  });
+  const matched = findSlotRecord(view, input.slot);
+  if (!matched) {
+    // 直接授权键不存在 → add（默认属性：无条件、不可再授予）
+    const recordKey: GrantRecordKey = {
+      resourceTypeCode: input.slot.resourceTypeCode,
+      resourceCode: input.slot.resourceCode,
+      codeType: input.slot.codeType,
+      operationCode: input.slot.operationCode,
+      scopeMode: input.slot.scopeMode,
+      conditionCode: null,
+      canGrant: false
+    };
+    changes.push(
+      buildAddChange({
+        recordKey,
+        summary: buildSummary({
+          recordKey,
+          resourceLabel: resourceLabelOf(input.slot)
+        })
+      })
+    );
+  }
+  return { changes, suspended, focusSlotKey: state.focusSlotKey };
+}
+
+/**
+ * 修改聚焦记录属性（设计 §4 v3.1：设置区修改只作用于聚焦记录）：
+ * - 记录存在（持久化）→ 生成 update（或就地改已有 update 变更；after==before 归一化剔除）；
+ * - 记录为 add 草稿 → 就地改属性（不产生新变更）；
+ * - 记录不存在（未授权资源）→ 不生成（设置区只读展示默认值）。
+ * 条件非空时 canGrant 强制 false（条件不可转授兜底，与 T-FE-039 一致）。
+ */
+export function applyFocusAttributes(
+  state: SlotDraftState,
+  input: {
+    slot: FocusSlot;
+    attributes: SlotAttributes;
+    view: DraftAppliedView;
+  }
+): SlotDraftState {
+  const { slot, view } = input;
+  const raw = input.attributes;
+  const attributes: SlotAttributes =
+    raw.conditionCode != null ? { ...raw, canGrant: false } : raw;
+  const record = findSlotRecord(view, slot);
+  if (!record) return state;
+
+  let changes = [...state.changes];
+  if (record.draftMark === "add" && record.changeId) {
+    changes = changes.map(c =>
+      c.changeId === record.changeId && c.kind === "add"
+        ? {
+            ...c,
+            recordKey: {
+              ...c.recordKey,
+              conditionCode: attributes.conditionCode,
+              canGrant: attributes.canGrant
+            },
+            summary: buildSummary({
+              recordKey: {
+                ...c.recordKey,
+                conditionCode: attributes.conditionCode,
+                canGrant: attributes.canGrant
+              },
+              resourceLabel: resourceLabelOf(slot, record.resourceName)
+            })
+          }
+        : c
+    );
+  } else if (record.draftMark === "update" && record.changeId) {
+    changes = changes.map(c =>
+      c.changeId === record.changeId && c.kind === "update"
+        ? {
+            ...c,
+            after: {
+              conditionCode: attributes.conditionCode,
+              canGrant: attributes.canGrant
+            },
+            summary: buildSummary({
+              recordKey: {
+                resourceTypeCode: record.resourceTypeCode,
+                resourceCode: record.resourceCode,
+                codeType: record.codeType,
+                operationCode: record.operationCode,
+                scopeMode: record.scopeMode,
+                conditionCode: attributes.conditionCode,
+                canGrant: attributes.canGrant
+              },
+              resourceLabel: resourceLabelOf(slot, record.resourceName)
+            })
+          }
+        : c
+    );
+  } else if (
+    record.canGrant !== attributes.canGrant ||
+    record.conditionCode !== attributes.conditionCode
+  ) {
+    changes.push(
+      buildUpdateChange({
+        before: record,
+        after: {
+          canGrant: attributes.canGrant,
+          conditionCode: attributes.conditionCode
+        },
+        summary: buildSummary({
+          recordKey: {
+            resourceTypeCode: record.resourceTypeCode,
+            resourceCode: record.resourceCode,
+            codeType: record.codeType,
+            operationCode: record.operationCode,
+            scopeMode: record.scopeMode,
+            conditionCode: attributes.conditionCode,
+            canGrant: attributes.canGrant
+          },
+          resourceLabel: resourceLabelOf(slot, record.resourceName)
+        })
+      })
+    );
+  }
+  // 归一化：update 回退为无差异时剔除（清单幽灵条目）
+  changes = normalizeNoopUpdates(changes);
+  return {
+    changes,
+    suspended: state.suspended,
+    focusSlotKey: state.focusSlotKey
+  };
+}
+
+/**
+ * 显式复制（设计 §4 v3.1）：源聚焦记录属性应用到目标已勾选槽位。
+ * - add 目标：就地改属性（不产生新变更）；update 目标：合并 after；其余：生成新 update；
+ * - 禁止同 id 多条：先撤销目标记录上的既有 update，再合并；
+ * - 合并后 after==before 归一化剔除（复用无差异清理）；
+ * - 跳过源自身与属性相同目标；条件非空时 canGrant 强制 false。
+ */
+export function copySlotAttributes(
+  state: SlotDraftState,
+  input: {
+    sourceSlot: FocusSlot;
+    targetSlots: FocusSlot[];
+    view: DraftAppliedView;
+  }
+): SlotDraftState {
+  const { sourceSlot, targetSlots, view } = input;
+  const sourceKey = slotKeyOf(sourceSlot);
+  const source = findSlotRecord(view, sourceSlot);
+  if (!source) return state;
+  const attributes: SlotAttributes = {
+    conditionCode: source.conditionCode,
+    canGrant: source.conditionCode != null ? false : source.canGrant
+  };
+
+  let changes = [...state.changes];
+  for (const target of targetSlots) {
+    if (slotKeyOf(target) === sourceKey) continue;
+    const record = findSlotRecord(view, target);
+    if (!record) continue;
+    const after: SlotAttributes = {
+      conditionCode: attributes.conditionCode,
+      canGrant: attributes.canGrant
+    };
+    if (
+      record.canGrant === after.canGrant &&
+      record.conditionCode === after.conditionCode
+    ) {
+      continue; // 属性相同：无变更
+    }
+    // 禁止同 id 多条：目标已有 update 变更时保留其 before/changeId，仅合并 after
+    // （复制值回到 baseline 时 noop 归一化剔除伪变更；before 恒为基线值）
+    if (record.draftMark === "add" && record.changeId) {
+      // add 就地改
+      changes = changes.map(c =>
+        c.changeId === record.changeId && c.kind === "add"
+          ? {
+              ...c,
+              recordKey: {
+                ...c.recordKey,
+                conditionCode: after.conditionCode,
+                canGrant: after.canGrant
+              },
+              summary: buildSummary({
+                recordKey: {
+                  ...c.recordKey,
+                  conditionCode: after.conditionCode,
+                  canGrant: after.canGrant
+                },
+                resourceLabel: resourceLabelOf(target, record.resourceName)
+              })
+            }
+          : c
+      );
+    } else {
+      const existingUpdate = changes.find(
+        (c): c is UpdateChange =>
+          c.kind === "update" && c.recordId === record.id
+      );
+      if (existingUpdate) {
+        // 合并：保留既有 before/changeId，只覆盖 after（同 id 恒一条）
+        changes = changes.map(c =>
+          c.changeId === existingUpdate.changeId && c.kind === "update"
+            ? {
+                ...c,
+                after: {
+                  conditionCode: after.conditionCode,
+                  canGrant: after.canGrant
+                },
+                summary: buildSummary({
+                  recordKey: {
+                    resourceTypeCode: target.resourceTypeCode,
+                    resourceCode: target.resourceCode,
+                    codeType: target.codeType,
+                    operationCode: target.operationCode,
+                    scopeMode: target.scopeMode,
+                    conditionCode: after.conditionCode,
+                    canGrant: after.canGrant
+                  },
+                  resourceLabel: resourceLabelOf(target, record.resourceName)
+                })
+              }
+            : c
+        );
+      } else {
+        changes.push(
+          buildUpdateChange({
+            before: record,
+            after,
+            summary: buildSummary({
+              recordKey: {
+                resourceTypeCode: target.resourceTypeCode,
+                resourceCode: target.resourceCode,
+                codeType: target.codeType,
+                operationCode: target.operationCode,
+                scopeMode: target.scopeMode,
+                conditionCode: after.conditionCode,
+                canGrant: after.canGrant
+              },
+              resourceLabel: resourceLabelOf(target, record.resourceName)
+            })
+          })
+        );
+      }
+    }
+  }
+  changes = normalizeNoopUpdates(changes);
+  return {
+    changes,
+    suspended: state.suspended,
+    focusSlotKey: state.focusSlotKey
+  };
+}
+
+/** 归一化：剔除 after==before 的 update 变更（无差异幽灵条目清理，设计 §4 复制合并规则⑥） */
+export function normalizeNoopUpdates(changes: DraftChange[]): DraftChange[] {
+  return changes.filter(c => {
+    if (c.kind !== "update") return true;
+    return (
+      c.before.canGrant !== c.after.canGrant ||
+      c.before.conditionCode !== c.after.conditionCode
+    );
+  });
+}
+
+/**
+ * 确认时展开 suspended（设计 §6.1 双路径）：
+ * - persistedRecord（baseline 路径）保持未勾选 → 生成 remove（子权限草稿已随取消移出，级联由后端执行）；
+ * - addChangeId（add 路径）保持未勾选 → 取消整个 add 变更组，不生成 remove（无持久化 ID）；
+ * - 返回展开后的最终草稿集合（组件 emit 后写入页面）。
+ */
+export function expandSuspended(state: SlotDraftState): DraftChange[] {
+  const changes = [...state.changes];
+  for (const stashed of state.suspended.values()) {
+    if (stashed.persistedRecord) {
+      const record = stashed.persistedRecord;
+      const cascadeChildCount = record.childCount ?? 0;
+      changes.push(
+        buildRemoveChange({
+          records: [record],
+          cascadeChildCount,
+          reason: "dialog-uncheck",
+          summary: buildSummary({
+            recordKey: {
+              resourceTypeCode: record.resourceTypeCode,
+              resourceCode: record.resourceCode,
+              codeType: record.codeType,
+              operationCode: record.operationCode,
+              scopeMode: record.scopeMode,
+              conditionCode: null,
+              canGrant: false
+            },
+            resourceLabel: resourceLabelOf(
+              {
+                resourceTypeCode: record.resourceTypeCode,
+                resourceCode: record.resourceCode,
+                codeType: record.codeType,
+                operationCode: record.operationCode ?? "",
+                scopeMode: record.scopeMode
+              },
+              record.resourceName
+            )
+          })
+        })
+      );
+    }
+    // addChangeId 路径：变更组已从草稿移出（uncheckSlot），此处无需再操作；
+    // 子权限草稿同样已随主变更移出。
+  }
+  return normalizeNoopUpdates(changes);
+}
+
+/** 弹窗本地槽位状态的初始值（以页面草稿为基底） */
+export function createSlotDraftState(changes: DraftChange[]): SlotDraftState {
+  return {
+    changes: [...changes],
+    suspended: new Map(),
+    focusSlotKey: null
+  };
+}

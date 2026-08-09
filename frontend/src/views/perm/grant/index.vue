@@ -21,7 +21,6 @@ const {
   subjectType,
   canView,
   canManage,
-  canCondition,
   grantStore,
   allResourceForest,
   allOperationDefs,
@@ -200,7 +199,9 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
         :records="effective.mains"
         :baseline="grantStore.baseline"
         :draft-changes="grantStore.changes"
-        :can-condition="canCondition"
+        :subject-key="
+          grantStore.context ?? { roleTypeCode: '', roleExternalId: '' }
+        "
         @confirm="handleDialogConfirm"
       />
 

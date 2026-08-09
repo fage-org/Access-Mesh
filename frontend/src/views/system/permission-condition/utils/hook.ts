@@ -18,16 +18,16 @@ import { serializeRules, type ConditionFormData } from "./types";
  * 布局：单表格（扁平条件模板 CRUD，非树）+ 弹窗表单（含条件规则可视化编辑器）。
  *
  * 权限（设计 §权限接线）：
- * - CONDITION:VIEW 门控列表加载与路由可达性（后端 list/detail 无校验，🔧 登记同 T-PERM-029）。
+ * - 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认，非敏感信息），
+ *   无读取门禁，列表始终可读；CONDITION:VIEW 不再参与前端门控（后端 list/detail 亦无校验）。
  * - CONDITION:CREATE/UPDATE/DELETE 门控写操作，三档独立（非 MANAGE，对齐后端）。
- * - loadList 内置 VIEW 短路，无权限直接清空返回。
  *
  * 范式对齐 type-def/utils/hook.ts（扁平表格 CRUD）。后端 list 无分页无筛选，
  * 前端本地过滤（keyword + enabled）。
  */
 export function usePermissionCondition() {
   // ========== 权限门控 ==========
-  const canView = computed(() => hasPerms(CONDITION_PERMS.CONDITION_VIEW));
+  // 🔧 T-FE-040 v3.1（S5）：移除 CONDITION:VIEW 读取门控（全租户开放），仅保留写权限三档
   const canCreate = computed(() => hasPerms(CONDITION_PERMS.CONDITION_ADD));
   const canEdit = computed(() => hasPerms(CONDITION_PERMS.CONDITION_EDIT));
   const canDelete = computed(() => hasPerms(CONDITION_PERMS.CONDITION_DELETE));
@@ -41,10 +41,6 @@ export function usePermissionCondition() {
   });
 
   async function loadList() {
-    if (!canView.value) {
-      list.value = [];
-      return;
-    }
     loading.value = true;
     try {
       const res = await getConditionList();
@@ -144,7 +140,6 @@ export function usePermissionCondition() {
   });
 
   return {
-    canView,
     canCreate,
     canEdit,
     canDelete,

@@ -2,7 +2,10 @@
 /**
  * 条件选择器（页面私有轻量组件，T-FE-036 内自建，§9）。
  * 只选已有条件，不编辑规则定义（不复用 ReConditionEditor；ReConditionPicker 已随 v1/v2 删除）。
- * 搜索 + 规则摘要 + 启用状态过滤；数据源 permission-condition/list（CONDITION:VIEW 门控由调用方控制 disabled）。
+ * 搜索 + 规则摘要 + 启用状态过滤；数据源 permission-condition/list。
+ * 🔧 T-FE-040 v3.1（S4）：新选限启用中条件——停用条件灰显不可选；存量停用绑定回显标注
+ * 「条件已停用」（对应后端 20042 同口径：主权限 conditionCode 新写入或变更必须 enabled=true）。
+ * 🔧 T-FE-040 v3.1（S5）：CONDITION:VIEW 读取门禁已移除（2026-08-08 产品确认），条件列表始终可读。
  */
 import { computed, ref } from "vue";
 import { Search } from "@element-plus/icons-vue";
@@ -37,6 +40,10 @@ const filtered = computed(() => {
 });
 
 function handleSelect(code: string | null) {
+  // S4：新选限启用中条件——停用条件灰显不可选（已绑定记录仅展示）
+  if (code != null && !props.conditions.find(c => c.code === code)?.enabled) {
+    return;
+  }
   emit("update:modelValue", code);
   popoverVisible.value = false;
 }
@@ -55,9 +62,14 @@ const popoverVisible = ref(false);
       <el-button :disabled="disabled" class="condition-trigger">
         <span v-if="selected">
           {{ selected.name }}（{{ selected.code }}）
-          <el-tag v-if="!selected.enabled" size="small" type="info" class="ml-1"
-            >停用</el-tag
+          <!-- S4：存量停用绑定回显标注 -->
+          <el-tooltip
+            v-if="!selected.enabled"
+            content="该条件已停用：原绑定授权仍生效，但不可切换回此条件；需修改请先选择启用中的条件"
+            placement="top"
           >
+            <el-tag size="small" type="info" class="ml-1">条件已停用</el-tag>
+          </el-tooltip>
         </span>
         <span v-else class="placeholder">{{
           placeholder ?? "选择条件（默认无条件）"
@@ -88,7 +100,10 @@ const popoverVisible = ref(false);
           v-for="condition in filtered"
           :key="condition.code"
           class="picker-item"
-          :class="{ active: modelValue === condition.code }"
+          :class="{
+            active: modelValue === condition.code,
+            disabled: !condition.enabled
+          }"
           @click="handleSelect(condition.code)"
         >
           <span class="item-name">
@@ -98,7 +113,7 @@ const popoverVisible = ref(false);
               :type="condition.enabled ? 'success' : 'info'"
               effect="plain"
             >
-              {{ condition.enabled ? "启用" : "停用" }}
+              {{ condition.enabled ? "启用" : "已停用" }}
             </el-tag>
           </span>
           <span class="item-summary">{{
@@ -157,6 +172,15 @@ const popoverVisible = ref(false);
       &.active {
         background: var(--el-color-primary-light-9);
         border-color: var(--el-color-primary-light-5);
+      }
+
+      &.disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+
+        &:hover {
+          background: transparent;
+        }
       }
 
       .item-name {

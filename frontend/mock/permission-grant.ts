@@ -16,11 +16,15 @@
 // - 20034 改/删 AUTO_DEP 记录
 // - 20036 updates/removes 目标 id 不存在/不属于目标角色/已删除；updates∩removes 交叉
 // - 20009/20010 creates 子权限挂父不存在 / 父非主权限（含子权限再带 children）
-// - 20011 SUB_PERM 资源类型不允许（fail-closed：父类型未配置 → 拒绝；DATA→[DATA]、REPORT→[DATA,REPORT]）
-// - 20040 ⚠️故障注入钩子：creates/updates 以 conditionCode="temp-access" 且 canGrant=true 提交
-// - 20041 条件不可转授（T-PERM-041 结果态不变量）：creates 三形态（key/children/parentPermissionId）与
+// - 20011 SUB_PERM 资源类型不允许（fail-closed：父类型未配置 → 拒绝；策略解析与
+//   sub-perm-allowed-types 只读契约同一 resolveSubPermissionPolicy，读写同源）
+// - 20041 条件不可转授（T-PERM-041 结果态不变量）：**主权限** creates（key/children 内主权限）与
 //   updates 应用后最终状态 conditionCode != null 且 canGrant=true → 20041（种子数据已满足不变量）
-//   → 模拟授权传递校验未通过（真实 checkCanGrant 语义复杂，mock 以文档化钩子演练提示文案）
+// - 20042 条件已停用（v3.1，api-contract §6.5.1）：主权限 conditionCode 新写入或变更时目标必须
+//   enabled=true（mock 中 temp-access 为停用条件 → 20042）
+// - 20043 子权限属性系统不变量（v3.1，api-contract §6.5.1）：子权限 create（parentPermissionId 挂父 /
+//   children[] 嵌套）conditionCode 非 null 或 canGrant 非 false、updates 目标为子权限 → 20043
+//   （错误优先级：子权限分类先于 20041/20042）
 // - 20003 角色停用（BASIC_203 访客）；角色不存在 → list 空列表（契约：门禁失败返回空列表）
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import { resources, operations } from "./resource-operation";
@@ -91,11 +95,138 @@ const KNOWN_CONDITION_CODES = new Set([
   "blacklist-vpn"
 ]);
 
-/** SUB_PERM 允许集（fail-closed：父资源类型未配置/不含目标类型 → 20011；`*` = 显式通配） */
-const SUB_PERM_ALLOW: Record<string, string[]> = {
-  DATA: ["DATA"],
-  REPORT: ["DATA", "REPORT"]
+/** 启用中条件（20042：主权限 conditionCode 新写入或变更必须 enabled=true；temp-access 已停用） */
+const ENABLED_CONDITION_CODES = new Set([
+  "office-hours",
+  "corp-ip-only",
+  "blacklist-vpn"
+]);
+
+/**
+ * SUB_PERM 配置（domain_config(config_type='SUB_PERM').extra，本地声明）。
+ * 读写同源：apply-grant-plan 的 20011 校验与 sub-perm-allowed-types 只读契约
+ * 共用 resolveSubPermissionPolicy（判定优先级对齐 api-contract §6.5.2）。
+ * 验收场景：DATA→ALLOW_ALL（顶层通配）、MENU→ALLOW_LIST[BUTTON]、
+ * REPORT→ALLOW_LIST[DATA,REPORT]（匹配项并集）、API→PARENT_NOT_CONFIGURED、
+ * BUTTON→CONFIG_MISSING（无配置项，fail-closed）。
+ */
+const SUB_PERM_EXTRA: Record<string, string> = {
+  DATA: "*",
+  MENU: '[{"parent_type":"MENU","child_types":["BUTTON"]}]',
+  REPORT: '[{"parent_type":"REPORT","child_types":["DATA","REPORT"]}]'
 };
+
+type SubPermissionMode = "ALLOW_ALL" | "ALLOW_LIST" | "ALLOW_NONE";
+
+type SubPermissionPolicy = {
+  mode: SubPermissionMode;
+  reason: string | null;
+  allowedChildResourceTypeCodes: string[];
+};
+
+/**
+ * 解析 SUB_PERM 策略（判定优先级写死，对齐 api-contract §6.5.2 步骤 0~6）：
+ * 配置缺失 → CONFIG_MISSING；extra 空 → CONFIG_EMPTY；`*` → ALLOW_ALL；
+ * JSON 非法/结构非法 → CONFIG_INVALID；无匹配项 → PARENT_NOT_CONFIGURED；
+ * 匹配项含嵌套通配 → ALLOW_ALL；并集非空 → ALLOW_LIST；并集空 → CHILD_TYPES_EMPTY。
+ */
+function resolveSubPermissionPolicy(
+  parentResourceTypeCode: string
+): SubPermissionPolicy {
+  const extra = SUB_PERM_EXTRA[parentResourceTypeCode];
+  if (extra === undefined) {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "CONFIG_MISSING",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  const trimmed = extra.trim();
+  if (trimmed === "") {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "CONFIG_EMPTY",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  if (trimmed === "*") {
+    return {
+      mode: "ALLOW_ALL",
+      reason: null,
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  let items: Array<{ parent_type: string; child_types: string[] }>;
+  try {
+    items = JSON.parse(trimmed);
+  } catch {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "CONFIG_INVALID",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  if (
+    !Array.isArray(items) ||
+    items.some(
+      i =>
+        typeof i?.parent_type !== "string" ||
+        !Array.isArray(i?.child_types) ||
+        i.child_types.some(c => typeof c !== "string")
+    )
+  ) {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "CONFIG_INVALID",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  const matched = items.filter(
+    i => i.parent_type.toLowerCase() === parentResourceTypeCode.toLowerCase()
+  );
+  if (matched.length === 0) {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "PARENT_NOT_CONFIGURED",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  if (matched.some(i => i.child_types.some(c => c === "*"))) {
+    return {
+      mode: "ALLOW_ALL",
+      reason: null,
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  const union = Array.from(new Set(matched.flatMap(i => i.child_types)));
+  if (union.length === 0) {
+    return {
+      mode: "ALLOW_NONE",
+      reason: "CHILD_TYPES_EMPTY",
+      allowedChildResourceTypeCodes: []
+    };
+  }
+  return {
+    mode: "ALLOW_LIST",
+    reason: null,
+    allowedChildResourceTypeCodes: union
+  };
+}
+
+/** 写校验 20011 语义：策略允许（fail-closed） */
+function assertSubPermissionAllowed(
+  parentResourceTypeCode: string,
+  childResourceTypeCode: string
+): boolean {
+  const policy = resolveSubPermissionPolicy(parentResourceTypeCode);
+  if (policy.mode === "ALLOW_ALL") return true;
+  if (policy.mode === "ALLOW_LIST") {
+    return policy.allowedChildResourceTypeCodes.some(
+      c => c.toLowerCase() === childResourceTypeCode.toLowerCase()
+    );
+  }
+  return false;
+}
 
 /** 角色停用水位（对齐 role-manage mock BASIC_203 访客 status=0） */
 const DISABLED_ROLE_KEYS = new Set(["BASIC_ROLE:BASIC_203"]);
@@ -418,20 +549,44 @@ export default defineFakeRoute([
           !(r.dependOn != null && removeSet.has(r.dependOn))
       );
 
-      // updates 校验：单直接授权冲突（排除自身）+ 20040 故障注入
+      // updates 校验：子权限不变量（20043）+ 单直接授权冲突（排除自身）
       for (const u of updates) {
         const target = byId.get(u.id)!;
+        // 20043 子权限属性系统不变量（v3.1）：子权限不承载条件/再授予，仅可删除
+        if (target.dependOn != null) {
+          return error(
+            20043,
+            "子权限不承载条件与再授予属性（系统不变量），仅可删除"
+          );
+        }
+        // 三态语义（api-contract §6.5.1）：canGrant/conditionCode 缺省或 null=不改、
+        // conditionCode ""=清除、非空=覆盖——与执行阶段一致，null 不得按清除/false 处理（三审 P2-1）
         const nextCondition =
-          u.conditionCode === undefined
+          u.conditionCode == null
             ? target.conditionCode
-            : u.conditionCode === "" || u.conditionCode == null
+            : u.conditionCode === ""
               ? null
               : u.conditionCode;
+        // 契约错误优先级（api-contract §6.5.1）：主权限同时违反多个不变量时
+        // 按 20041 → 20042 → 20033 → 其他 顺序返回首个命中。
+        // 20041 条件不可转授（T-PERM-041 结果态不变量）：updates 应用后最终状态判定
+        // （只改 canGrant=true 使已有条件记录可转授、或只改 conditionCode 覆盖到 canGrant=true
+        // 的记录，均按最终状态拒绝）
+        const finalCanGrant =
+          u.canGrant == null ? target.canGrant : u.canGrant === true;
+        if (finalCanGrant && nextCondition != null) {
+          return error(20041, "条件权限不可转授：带条件的权限不能设置可再授予");
+        }
+        // 20042 条件启用状态（v3.1）：仅 conditionCode 新写入或变更时目标必须启用中；
+        // 存量绑定（update 未变更 conditionCode）允许保留并回显标注（T-PERM-041 acceptance）；
+        // 仅对存在的条件判停用（不存在的条件落入 20006）
         if (
           nextCondition != null &&
-          !KNOWN_CONDITION_CODES.has(nextCondition)
+          nextCondition !== target.conditionCode &&
+          KNOWN_CONDITION_CODES.has(nextCondition) &&
+          !ENABLED_CONDITION_CODES.has(nextCondition)
         ) {
-          return error(20006, `权限条件不存在（${nextCondition}）`);
+          return error(20042, "该权限条件已停用，请重新选择启用中的条件后重试");
         }
         const conflict = surviving.find(
           r =>
@@ -442,16 +597,16 @@ export default defineFakeRoute([
         if (conflict) {
           return error(20033, "同一资源与操作已存在直接授权");
         }
-        if (u.canGrant === true && nextCondition === "temp-access") {
-          return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
+        // 其他（优先级最后）：条件存在性
+        if (
+          nextCondition != null &&
+          !KNOWN_CONDITION_CODES.has(nextCondition)
+        ) {
+          return error(20006, `权限条件不存在（${nextCondition}）`);
         }
-        // 20041 条件不可转授（T-PERM-041 结果态不变量）：updates 应用后最终状态判定
-        // （只改 canGrant=true 使已有条件记录可转授、或只改 conditionCode 覆盖到 canGrant=true
-        // 的记录，均按最终状态拒绝）
-        const finalCanGrant =
-          u.canGrant === undefined ? target.canGrant : u.canGrant === true;
-        if (finalCanGrant && nextCondition != null) {
-          return error(20041, "条件权限不可转授：带条件的权限不能设置可再授予");
+        if (u.canGrant === true && nextCondition === "temp-access") {
+          // v3.1 起 temp-access 为停用条件，20042 已先行拦截；本钩子不再可达（20040 保留给真实后端）
+          return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
         }
       }
 
@@ -502,14 +657,8 @@ export default defineFakeRoute([
               )
             : error(20005, `操作权限不存在（${key.operationCode}）`);
         }
-        if (
-          key.conditionCode != null &&
-          !KNOWN_CONDITION_CODES.has(key.conditionCode)
-        ) {
-          return error(20006, `权限条件不存在（${key.conditionCode}）`);
-        }
-
-        // 父校验
+        // P2-5 修复：先按主子记录分类——子权限属性不变量（20043）优先于一切条件校验
+        // （api-contract §6.5.1 错误优先级：① 子权限 create 非 null/false 一律 20043，不再评估 20041/20042）
         let parent: InternalRecord | null = null;
         if (create.parentPermissionId != null) {
           parent = byId.get(create.parentPermissionId) ?? null;
@@ -522,21 +671,45 @@ export default defineFakeRoute([
           if (Array.isArray(create.children) && create.children.length > 0) {
             return error(20010, "子权限不得再挂载子权限");
           }
-        }
-
-        // SUB_PERM 约束（fail-closed）：子权限资源类型校验（父域 = 父记录自身 resource_type 直查）
-        const parentType = parent ? parent.resourceTypeCode : null;
-        if (parentType != null) {
-          const allow = SUB_PERM_ALLOW[parentType];
-          if (
-            !allow ||
-            (!allow.includes("*") && !allow.includes(key.resourceTypeCode))
-          ) {
+          // 20043 子权限属性系统不变量：conditionCode 必须 null、canGrant 必须 false
+          if (key.conditionCode != null || key.canGrant === true) {
             return error(
-              20011,
-              "该资源类型不允许作为子权限（SUB_PERM 配置不允许）"
+              20043,
+              "子权限不承载条件与再授予属性（系统不变量），仅可删除"
             );
           }
+        } else {
+          // 主权限：契约错误优先级（api-contract §6.5.1）
+          // 20041 条件不可转授 → 20042 条件启用状态（仅对存在的条件判停用）→
+          // 20033 单直接授权唯一性（下方 surviving 查重）→ 20006 条件不存在（其他类兜底）
+          if (key.canGrant === true && key.conditionCode != null) {
+            return error(
+              20041,
+              "条件权限不可转授：带条件的权限不能设置可再授予"
+            );
+          }
+          if (
+            key.conditionCode != null &&
+            KNOWN_CONDITION_CODES.has(key.conditionCode) &&
+            !ENABLED_CONDITION_CODES.has(key.conditionCode)
+          ) {
+            return error(
+              20042,
+              "该权限条件已停用，请重新选择启用中的条件后重试"
+            );
+          }
+        }
+
+        // SUB_PERM 约束（fail-closed）：子权限资源类型校验（读写同源 resolveSubPermissionPolicy）
+        const parentType = parent ? parent.resourceTypeCode : null;
+        if (
+          parentType != null &&
+          !assertSubPermissionAllowed(parentType, key.resourceTypeCode)
+        ) {
+          return error(
+            20011,
+            "该资源类型不允许作为子权限（SUB_PERM 配置不允许）"
+          );
         }
 
         // 直接授权键查重（removes 生效后状态；condition/canGrant 不参与身份）
@@ -556,14 +729,14 @@ export default defineFakeRoute([
         }
         planKeys.add(fullKey);
 
-        // 20040 故障注入钩子（见文件头注释）
-        if (key.canGrant === true && key.conditionCode === "temp-access") {
-          return error(20040, "当前账号无权转授该权限（授权传递校验未通过）");
-        }
-        // 20041 条件不可转授（T-PERM-041）：creates 主权限 key 结果态不变量
-        // （conditionCode != null 时 canGrant 必须 false）
-        if (key.canGrant === true && key.conditionCode != null) {
-          return error(20041, "条件权限不可转授：带条件的权限不能设置可再授予");
+        // 其他类（优先级最后）：主权限条件存在性（20006）
+        if (parent == null) {
+          if (
+            key.conditionCode != null &&
+            !KNOWN_CONDITION_CODES.has(key.conditionCode)
+          ) {
+            return error(20006, `权限条件不存在（${key.conditionCode}）`);
+          }
         }
 
         // children 一次性建树校验（仅主权限）
@@ -584,10 +757,19 @@ export default defineFakeRoute([
                 "子权限 scopeMode=INSTANCE 缺少 resourceCode/codeType"
               );
             }
-            const allow = SUB_PERM_ALLOW[key.resourceTypeCode];
+            // 20043 子权限属性系统不变量（v3.1，优先级先于 20006/20041/20042）：
+            // children[] 嵌套形态 conditionCode 必须 null、canGrant 必须 false
+            if (child.conditionCode != null || child.canGrant === true) {
+              return error(
+                20043,
+                "子权限不承载条件与再授予属性（系统不变量），仅可删除"
+              );
+            }
             if (
-              !allow ||
-              (!allow.includes("*") && !allow.includes(child.resourceTypeCode))
+              !assertSubPermissionAllowed(
+                key.resourceTypeCode,
+                child.resourceTypeCode
+              )
             ) {
               return error(
                 20011,
@@ -616,13 +798,7 @@ export default defineFakeRoute([
             ) {
               return error(20006, `权限条件不存在（${child.conditionCode}）`);
             }
-            // 20041 条件不可转授（T-PERM-041）：children[] 嵌套形态结果态不变量
-            if (child.canGrant === true && child.conditionCode != null) {
-              return error(
-                20041,
-                "条件权限不可转授：带条件的权限不能设置可再授予"
-              );
-            }
+            // （子权限属性不变量 20043 已先行判定；children 形态不再评估 20041/20042）
             const childKey = persistKeyOf({
               resourceTypeCode: child.resourceTypeCode,
               resourceCode: child.resourceCode,
@@ -737,6 +913,34 @@ export default defineFakeRoute([
       // 响应 = 完整持久化结果（结构同 list includeChildren=true）
       const all = aliveRecords(roleKey);
       return ok({ items: all.map(r => toItem(r, all)) });
+    }
+  },
+
+  {
+    // 子权限类型只读契约（v3.1，api-contract §6.5.2）：按父资源类型返回 SUB_PERM 允许集。
+    // 判定口径与 apply-grant-plan 的 20011 写校验同一 resolveSubPermissionPolicy（读写同源）。
+    url: "/api/perm/role-resource-permission/sub-perm-allowed-types",
+    method: "post",
+    response: ({ body }) => {
+      const roleKey = roleKeyOf(body || {});
+      const parentResourceTypeCode = body?.parentResourceTypeCode;
+      if (typeof parentResourceTypeCode !== "string") {
+        return error(20007, "资源类型不存在");
+      }
+      // 门禁：角色定位失败 → 20001（本接口无"空列表即自然结果"语义，避免误判 ALLOW_NONE）
+      if (DISABLED_ROLE_KEYS.has(roleKey)) {
+        return error(20001, "目标角色不存在，请刷新后重试");
+      }
+      if (!isKnownResourceType(parentResourceTypeCode)) {
+        return error(20007, `资源类型不存在（${parentResourceTypeCode}）`);
+      }
+      const policy = resolveSubPermissionPolicy(parentResourceTypeCode);
+      return ok({
+        parentResourceTypeCode,
+        mode: policy.mode,
+        reason: policy.reason,
+        allowedChildResourceTypeCodes: policy.allowedChildResourceTypeCodes
+      });
     }
   }
 ]);

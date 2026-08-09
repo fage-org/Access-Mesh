@@ -1,15 +1,15 @@
 ---
 doc_type: design
 title: 4.1 权限授予 前端设计（v3）
-status: adopted # draft → adopted（T-FE-036 实现完成；T-FE-038/T-FE-039 单类型矩阵与图标模型；2026-08-08 主/子权限统一为资源树编辑，子权限不配置条件与再授予，详情只读；2026-08-08 v3.1 记录级聚焦编辑：弹窗条件/再授予/子权限改为按聚焦授权记录编辑，新授权固定默认值，无隐式覆盖，子权限类型按 SUB_PERM 允许集过滤；2026-08-08 评审复审修订：上下文聚焦（矩阵打开自动聚焦/首次勾选自动聚焦/未授权可聚焦只读）+ 显式复制（源=聚焦记录，确认覆盖）+ SUB_PERM 契约补全；2026-08-08 二轮复审修订：includeChildren 口径统一（baseline=true，来源链过滤 dependOn==null）、复制草稿合并规则（add 就地改/update 合并/禁止同 id 多条）、焦点=MANUAL 编辑槽位（AUTO_DEP 不阻碍聚焦）、已勾选 MANUAL 节点紧凑摘要；2026-08-08 三轮复审修订：取消勾选草稿 suspended 暂存（重新勾选恢复，确认时丢弃）、子权限入口启用条件与复制统一、ALL 焦点迁移（选 ALL 聚焦 ALL 槽位/取消 ALL 清空焦点）、待撤销节点纳入摘要（红色标注）、initial 完整授权键；2026-08-08 四轮复审修订：suspended 双路径（baseline→remove / add 草稿→取消变更组）、复制合并后 after==before 归一化删除、条件选择/复制条件移除 CONDITION:VIEW 门禁、SUB_PERM 空集 CHILD_TYPES_EMPTY + reason 文案区分、摘要显示浅色[无条件]；2026-08-08 五轮复审修订：条件规则全租户开放（非敏感，管理页 VIEW 门禁/角色矩阵 VIEW 列/loadList 短路同步移除，T-PERM-029 待办 4 取消）、停用条件规则（新选限启用/存量停用回显标注保留/复制不传播停用/后端 20042 预检）、SUB_PERM 聚合优先级顺序写死（配置存在性→全量校验→通配→并集非空→并集为空）、子权限类型候选三态（交集为空/加载失败/加载中）；2026-08-08 六轮复审修订：停用源条件时**复制入口禁用**（原"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，属权限扩大）、SUB_PERM **顶层通配判定提前至 JSON 解析前**（`"*"` 非合法 JSON，原顺序误判 CONFIG_INVALID）、apply-grant-plan 示例修正（canGrant+conditionCode 违反 20041）、**20042 移入 creates/updates 共用不变量段**（与 20041 并列，updates 的 conditionCode 变更同样适用）、T-FE-036 定位为 v3 历史任务不再修补（v3.1 任务卡待新建）；2026-08-08 七轮复审修订：**子权限属性=系统不变量后端强制**（两种 create 形态 conditionCode 必须 null/canGrant 必须 false、update 目标为子权限一律拒绝、历史异常只读不编辑，新增 20043 SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED）、SUB_PERM 非匹配非法项不再容错（全量结构校验，与写实现 L452-453 一致）、tasks/README 改为"设计确认移除待实施"（实现仍保留 CONDITION:VIEW 门禁）、T-FE-036 frontmatter 块标量机械修复（js-yaml 通过）。**设计已确认、任务卡已拆分（T-FE-040 / T-PERM-034 扩展 / T-PERM-041 修订，2026-08-08 九轮评审后完成），实现待启动**，当前前端代码仍为 v3 共享设置模式，未实现 v3.1）
+status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现；S1~S8 mock 人工验收完成后进入 T-FE-018 真实接口联调
 domain: frontend
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-09
 ---
 
 # 4.1 权限授予 前端设计（v3）
 
 > 任务：T-FE-036（重建。v1/v2 于 2026-07-26 因交互不满意整体删除，归档于 `docs/archive/2026-07-26/`）
-> 后端契约：`api-contract.md §5.5`（L258，`role-resource-permission/*`）/ `§6.4`（list 接口）/ `§6.5`（L999，子权限语义）/ `§6.5.1`（L1047，**唯一写入口 apply-grant-plan**，第十二轮单入口收敛）
+> 后端契约：`api-contract.md §5.5`（L258，`role-resource-permission/*`）/ `§6.4`（list 接口）/ `§6.5`（L999，子权限语义）/ `§6.5.1`（L1047，**唯一写入口 apply-grant-plan**）
 > 后端任务：T-PERM-034（2026-08-08 已落地，范围见 §12）
 > 本页设计为**领域模型授权**（主体 ↔ 资源操作），不承载运行时权限查询（4.2 权限查询页）。
 
@@ -39,7 +39,7 @@ last_reviewed: 2026-08-08
 | 入口 | 挂载位置                        | 主体类型                          | 左栏主体数据源                                                | 编辑能力                                                             |
 | ---- | ------------------------------- | --------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
 | 角色 | 角色管理页（2.2）"权限授予"入口 | `ROLE`（BASIC_ROLE + GROUP_ROLE） | `abstract-role/tree`（权限中心）                              | GROUP_ROLE 只读（展开为基础角色后按基础角色编辑），BASIC_ROLE 可编辑 |
-| 组织 | 组织管理页（2.1）入口           | `ORG`（ORG + POSITION）           | 组织树（admin-service，见 `org-user-permission-contract.md`） | 可编辑（**二期，首期不做**，第十四轮收窄）                           |
+| 组织 | 组织管理页（2.1）入口           | `ORG`（ORG + POSITION）           | 组织树（admin-service，见 `org-user-permission-contract.md`） | 可编辑（**二期，首期不做**）                                         |
 | 个人 | 用户管理/详情页（2.1）入口      | `PERSONAL`                        | 用户列表（admin-service）                                     | **首期移除**（见下注）                                               |
 
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。
@@ -90,7 +90,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 | ORG  | 组织节点（orgType=ORG）      | `ORG`        | `String(节点 id)`（即 `sys_org.id`，对齐 api-contract L656 示例 `roleExternalId:"2001"`） | **恒 null**（P1-1） |
 | ORG  | 岗位节点（orgType=POSITION） | `POSITION`   | `String(节点 id)`                                                                         | 同上                |
 
-> **domainCode 统一 null（P1-1，2026-08-01 第五轮 review 修正）**：`abstract_role` 无域列（`biz_domain_id` 已移除），`resolveRoleId`/`resolveResourceId` 对 domainCode 仅做域存在性校验、**不按域过滤**（`TypeResolutionServiceImpl` L192-198/244-250，注释明言不再按 BIZ_DOMAIN_ID 过滤）；角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页全部请求恒传 null 即可获得全部能力（角色树/资源树 domainCode 为空=返回全部）。原"ORG/POSITION 必填，对齐 api-contract L106"为误用——L106 仅约束 assign/revoke 的用户-角色分配链路，与授权页无关，已撤销。
+> **domainCode 统一 null（P1-1，2026-08-01 确认）**：`abstract_role` 无域列（`biz_domain_id` 已移除），`resolveRoleId`/`resolveResourceId` 对 domainCode 仅做域存在性校验、**不按域过滤**（`TypeResolutionServiceImpl` L192-198/244-250，注释明言不再按 BIZ_DOMAIN_ID 过滤）；角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页全部请求恒传 null 即可获得全部能力（角色树/资源树 domainCode 为空=返回全部）。原"ORG/POSITION 必填，对齐 api-contract L106"为误用——L106 仅约束 assign/revoke 的用户-角色分配链路，与授权页无关，已撤销。
 
 - 资源键同步升级（P1-1）：分组键/请求中的资源维度统一为 `resourceTypeCode + resourceCode + codeType`（`codeType` 取资源树节点数据，默认 `default`；`scopeMode=ALL` 时 `resourceCode/codeType` 为 null，`scopeMode` 显式入键）。
 - 切换主体即切换 GrantContext；未保存变更拦截（§6.4）。
@@ -149,15 +149,15 @@ interface MatrixContext {
 | 有效且**全部来源均带条件**      | 绿/淡绿 + **高对比绿白条纹**（最终权限受条件约束）                                                                                                                                                                                                       |
 | 有效且**无条件与条件来源并存**  | 按无条件生效展示普通绿/淡绿主图标；各来源条件仅在只读详情中查看                                                                                                                                                                                          |
 | 有效且**可转授 canGrant**       | **粗黑边框**（🔧 T-FE-039 映射修正：粗黑边框=可转授）                                                                                                                                                                                                    |
-| AUTO_DEP（依赖自动补全）        | **不占独立来源图标**（🔧 T-FE-039 三轮/四轮评审定稿）：仍作为有效来源参与聚合计算（仅 AUTO_DEP 时显示普通有效权限图标）；`grantSource=AUTO_DEP` 来源属性在悬浮详情标注 + **记录级只读**（禁编辑/删除，不禁用整个单元格，hover 显示"由资源依赖自动补全"） |
+| AUTO_DEP（依赖自动补全）        | **不占独立来源图标**（🔧 T-FE-039 已确认）：仍作为有效来源参与聚合计算（仅 AUTO_DEP 时显示普通有效权限图标）；`grantSource=AUTO_DEP` 来源属性在悬浮详情标注 + **记录级只读**（禁编辑/删除，不禁用整个单元格，hover 显示"由资源依赖自动补全"） |
 | 范围 ALL / 多来源               | **不占格子图标位**：并入悬浮详情展示（全量范围、来源数），hover/点击进详情层                                                                                                                                                                              |
 
-> **图标正交模型（🔧 T-FE-039，2026-08-05 二轮评审映射定稿）**：
+> **图标正交模型（🔧 T-FE-039，2026-08-05 确认）**：
 >
 > - **形态维度**：实色/淡色 = 直接/继承；上/右/组合箭头 = 资源/操作/两段继承；高对比条纹 = 全部来源均带条件；粗黑边框 = 可转授 canGrant。
 > - **颜色维度**：**绿 = 有效/新增、黄 = 待更新、红 = 待撤销**。三种颜色完整复用上述形态，不再为撤销或更新创建简化图标。
 > - **状态并列规则**：来源按 current/add、update、remove 三组独立聚合；同格可并列最多一个绿色、一个黄色、一个红色图标。
-> - **不使用减号、删除线或"粗黑边框=删除"等额外撤销符号**（上一轮"条纹=部分移除/粗黑边框=整格删除"映射作废，2026-08-05 二轮评审修正）。
+> - **不使用减号、删除线或"粗黑边框=删除"等额外撤销符号**（旧的"条纹=部分移除/粗黑边框=整格删除"映射已于 2026-08-05 废弃）。
 > - **多来源聚合归并**：每个状态分组内的多条来源按以下规则归并为单一图标：
 >   - **颜色**：任一来源为直接授权 -> **实色**（直接优先）；全部来源为继承 -> **淡色**；
 >   - **箭头**：单元格存在"资源段 + 操作段"两段继承即显示**组合箭头**——两段来自**同一条记录**（§3.5 两段式标注：父 P 的 MANAGE 投影到子孙 VIEW 列）或**来自不同记录并存**均可；单一继承类型 -> 对应单一箭头；有直接来源并存 -> 无箭头（直接优先）；
@@ -167,7 +167,7 @@ interface MatrixContext {
 >   - **聚合来源范围**：聚合计算包含**全部有效来源（含 AUTO_DEP）**——权限存在性、颜色/粗黑边框与条件构成均按全部来源归并（见下 AUTO_DEP 只读注）。
 > - 颜色规则（P1-6）：**直接授权 = 实色/深色，继承（资源/操作）= 淡色**，一眼区分；来源类型（直接/资源继承/操作继承）用箭头区分，AUTO_DEP 来源属性在悬浮详情标注，悬浮详情展示完整来源链。
 >
-> **AUTO_DEP 只读（P1-5，🔧 T-FE-039 三轮评审：详情层表达；2026-08-06 四轮评审修正：参与聚合）**：AUTO_DEP **不占独立的"授权来源图标"**，但**仍作为有效来源参与全部聚合计算**（权限存在性、直接/继承颜色、条件构成、粗黑边框）——仅 AUTO_DEP 时显示**普通有效权限图标**（与"无权限=空白"可区分）；MANUAL+AUTO_DEP 按**全部有效来源**归并（实色/条纹/粗黑框均按含 AUTO_DEP 的全部来源判定，任一无条件来源即不显示条纹）；撤销 MANUAL 而 AUTO_DEP 仍有效时，显示 **AUTO_DEP 聚合后的有效图标 + 红色撤销图标并列**。仅 `grantSource=AUTO_DEP` 这一**来源属性**放入悬浮详情表达（标注自动补全来源）。AUTO_DEP 与 MANUAL **可并存**，引擎 OR 语义下各自真实生效（同一单元格可能同时存在两条记录）；**只读落实到记录/详情项**（AUTO_DEP 记录禁编辑/删除），**不禁用整个单元格**——仍允许添加或编辑并存的 MANUAL 记录；**不设来源覆盖/压制语义**。自动授权链路（T-PERM-035）未来若需压制语义，另行立项引擎改造。
+> **AUTO_DEP 只读（P1-5，🔧 T-FE-039，2026-08-06 确认）**：AUTO_DEP **不占独立的"授权来源图标"**，但**仍作为有效来源参与全部聚合计算**（权限存在性、直接/继承颜色、条件构成、粗黑边框）——仅 AUTO_DEP 时显示**普通有效权限图标**（与"无权限=空白"可区分）；MANUAL+AUTO_DEP 按**全部有效来源**归并（实色/条纹/粗黑框均按含 AUTO_DEP 的全部来源判定，任一无条件来源即不显示条纹）；撤销 MANUAL 而 AUTO_DEP 仍有效时，显示 **AUTO_DEP 聚合后的有效图标 + 红色撤销图标并列**。仅 `grantSource=AUTO_DEP` 这一**来源属性**放入悬浮详情表达（标注自动补全来源）。AUTO_DEP 与 MANUAL **可并存**，引擎 OR 语义下各自真实生效（同一单元格可能同时存在两条记录）；**只读落实到记录/详情项**（AUTO_DEP 记录禁编辑/删除），**不禁用整个单元格**——仍允许添加或编辑并存的 MANUAL 记录；**不设来源覆盖/压制语义**。自动授权链路（T-PERM-035）未来若需压制语义，另行立项引擎改造。
 
 > **实现注记（T-FE-039，2026-08-08 状态颜色正交化）**：`utils/cell-visual.ts` 的 `aggregatePermissionIcon` 只计算颜色无关的实色/箭头/条纹/粗边框形态；`splitSourcesByDraft` 将来源拆为 current、updated、removed 三组，`MatrixCell.vue` 分别以绿/黄/红渲染。add/partial-add 保留绿底 diff；update/remove 不再叠加整格背景。子权限不再附着分叉到权限图标，改由独立蓝色“子权限 + 数量”标识汇总展示。
 
@@ -241,6 +241,7 @@ interface MatrixContext {
 > - 加载期间中栏矩阵区 `el-skeleton` 骨架屏（`matrixLoading`），不渲染半成品矩阵；弹窗（模态）不可达、详情层抽屉自动关闭。
 
 ## 4. 授权弹窗（资源树单屏编辑）
+> ✅ T-FE-040 已实现（2026-08-09）：本节 v3.1 交互（焦点生命周期/显式复制/停用条件/子权限单父入口/节点摘要/有效来源提示）全部落地于 GrantDialog.vue + grant-plan.ts 记录槽位 reducer。
 
 触发：查看矩阵中无权限单元格点击“授权”，或工具栏“授权”按钮。
 
@@ -272,10 +273,10 @@ interface MatrixContext {
   - **ALL 焦点迁移**：选择 ALL → 自动聚焦当前类型 ALL 槽位（可独立配置条件/再授予/子权限）；取消 ALL 回 INSTANCE → 焦点清空（重新点击行聚焦）。
 - **全量选择**：INSTANCE/ALL 不再使用占位较大的 Tab/Radio；资源树右上角“全量”复选按钮表示当前类型 ALL。已有 ALL 取消选择时，由 `applyDialogResultsToDraft` 按顺序先生成该类型 ALL 撤销，再应用 INSTANCE 树最终集合；全局操作在多类型树场景显示紧凑类型选择器。
 - **有效来源提示（v3.1，措辞限定）**：聚焦记录带条件时，若**当前角色已加载来源**（当前角色的 MANUAL / AUTO_DEP / 继承投影 / ALL，即弹窗与矩阵同源的 records）中存在其他无条件来源，设置区展示提示"该资源在当前角色已加载来源中仍有无条件 VIEW 来源；当前条件不会收紧当前角色的有效权限"。不声称掌握用户级最终权限（用户可经其他角色获得权限）——用户级最终结果引导到权限查询页核验。
-- **显式复制（v3.1，评审复审修订，替代批量覆盖）**：设置区提供"复制当前设置到…"入口——**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL 草稿**（未授权聚焦 / 仅 AUTO_DEP 槽位时不启用）；**源 = 聚焦记录（或待新增草稿）的条件 + 再授予**；弹出目标选择（当前已勾选的 MANUAL 主记录列表，可多选），确认摘要展示目标数量与目标值；覆盖提示：目标已有异构设置（条件/再授予不同）时明确标注将被覆盖；条件非空时目标 `canGrant` 自动为 false（对齐 20041 不变量）；**默认不复制子权限**（子权限按父记录独立配置，避免复制歧义）；AUTO_DEP 与继承来源不在目标范围（只读）；复制为独立动作，不改变焦点；不产生任何隐式覆盖。**草稿合并规则**：①目标排除源记录自身；②目标值与源完全相同时跳过（不生成变更）；③目标为本次新增（add 草稿）时**就地修改该 add 的属性为复制值**，不新建记录；④目标已有 update 草稿时**合并到同一条 change 的 after**；⑤**同一持久化 id 只允许一条 update 草稿**——复制不得为同一 id 追加第二条 update（后端 apply-grant-plan 拒绝重复 update ID，api-contract §6.5.1）；⑥**合并后归一化**：合并结果与 baseline 无差异（after==before）时删除该 update（复用 `applyDialogResultToDraft` 现有无差异清理逻辑，新增复制纯函数共用同一归一化步骤，避免"变更清单存在、最终 plan 无 update"的幽灵变更）。**条件门禁**：条件选择与复制不受 CONDITION:VIEW 限制（2026-08-08 产品确认：条件规则全租户开放、非敏感，见 §10 权限接线与 permission-condition.md）。**停用条件规则（v3.1，五~六轮复审，与后端 20042 同口径）**：①**新选限启用**——条件选择器仅允许选择启用条件，停用条件灰显不可选；②**存量停用绑定允许保留**——已绑定后停用的条件回显并标注"条件已停用"，保存时未修改 `conditionCode` 允许保留；③**源条件停用时复制入口禁用**（六轮复审修正：原"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，属权限扩大；现改为禁用整个复制入口并提示"请先选择启用条件或清除条件后再复制"）；④修改 `conditionCode` 时新值必须为启用状态（后端预检 20042 `CONDITION_DISABLED`，api-contract §6.5.1）。
+- **显式复制（v3.1，替代批量覆盖）**：设置区提供"复制当前设置到…"入口——**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL 草稿**（未授权聚焦 / 仅 AUTO_DEP 槽位时不启用）；**源 = 聚焦记录（或待新增草稿）的条件 + 再授予**；弹出目标选择（当前已勾选的 MANUAL 主记录列表，可多选），确认摘要展示目标数量与目标值；覆盖提示：目标已有异构设置（条件/再授予不同）时明确标注将被覆盖；条件非空时目标 `canGrant` 自动为 false（对齐 20041 不变量）；**默认不复制子权限**（子权限按父记录独立配置，避免复制歧义）；AUTO_DEP 与继承来源不在目标范围（只读）；复制为独立动作，不改变焦点；不产生任何隐式覆盖。**草稿合并规则**：①目标排除源记录自身；②目标值与源完全相同时跳过（不生成变更）；③目标为本次新增（add 草稿）时**就地修改该 add 的属性为复制值**，不新建记录；④目标已有 update 草稿时**合并到同一条 change 的 after**；⑤**同一持久化 id 只允许一条 update 草稿**——复制不得为同一 id 追加第二条 update（后端 apply-grant-plan 拒绝重复 update ID，api-contract §6.5.1）；⑥**合并后归一化**：合并结果与 baseline 无差异（after==before）时删除该 update（复用 `applyDialogResultToDraft` 现有无差异清理逻辑，新增复制纯函数共用同一归一化步骤，避免"变更清单存在、最终 plan 无 update"的幽灵变更）。**条件门禁**：条件选择与复制不受 CONDITION:VIEW 限制（2026-08-08 产品确认：条件规则全租户开放、非敏感，见 §10 权限接线与 permission-condition.md）。**停用条件规则（v3.1，与后端 20042 同口径）**：①**新选限启用**——条件选择器仅允许选择启用条件，停用条件灰显不可选；②**存量停用绑定允许保留**——已绑定后停用的条件回显并标注"条件已停用"，保存时未修改 `conditionCode` 允许保留；③**源条件停用时复制入口禁用**（"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，因此禁用整个复制入口并提示"请先选择启用条件或清除条件后再复制"）；④修改 `conditionCode` 时新值必须为启用状态（后端预检 20042 `CONDITION_DISABLED`，api-contract §6.5.1）。
 - **最小提示**：移除 1/2/3/4 步骤编号、独立现状表格与范围切换说明，只保留“选择操作后可编辑”“勾选授权/取消撤销”“父节点覆盖子孙”“点击资源行编辑该授权属性”等必要语义。
 - **节点紧凑摘要（v3.1，评审复审采纳）**：对**已勾选 MANUAL 节点**与 **baseline MANUAL 标记 remove（待撤销）的节点**在行内展示紧凑摘要——条件名称（有条件时；**无条件记录显示浅色[无条件]**，便于直接比较）、再授予状态、子权限数量、草稿状态（待更新/待撤销，remove 节点显示红色"待撤销"）；形态与矩阵图例一致（条件=标签、再授予=粗边框、子权限=蓝色数量）；**除 baseline MANUAL 待撤销节点外，其他未勾选节点不显示摘要**（仅 AUTO_DEP 来源节点同样不显示），避免噪音；用途：树内直接比较不同资源的属性差异，无需逐行聚焦。
-- **配置子权限（v3.1 记录级入口）**：子权限入口位于授权设置区，标题明确展示挂载目标（"配置当前授权的子权限 / 挂载到：A资源 · VIEW · 条件 C"）；点击后进入该聚焦记录的子权限配置，**单父记录上下文，不再提供父记录下拉列表**；**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL add 草稿**（与显式复制入口统一；未聚焦 / 未授权聚焦 / 仅 AUTO_DEP 槽位时保持展示但禁用）。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。**资源类型选择器按 SUB_PERM 允许集过滤（v3.1）**：通过授权专用只读契约 `role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2）按聚焦父记录的资源类型查询允许的子资源类型——`ALLOW_ALL`（顶层或嵌套 `"*"` 通配）不限制、`ALLOW_LIST` 仅允许列表内类型（其余禁用）、`ALLOW_NONE` **按 `reason` 区分展示**：`PARENT_NOT_CONFIGURED` / `CHILD_TYPES_EMPTY`（业务不允许，展示"该资源类型不允许配置子权限"）、`CONFIG_MISSING` / `CONFIG_EMPTY` / `CONFIG_INVALID`（配置异常，展示"子权限配置缺失/格式错误，请联系管理员"）；**`ALLOW_LIST` 允许集与实际类型候选交集为空时**区分展示三态（五轮复审）：候选已成功加载且交集为空 -> 配置/数据不一致（"当前无可配置的子权限类型"）；候选**加载失败或无 TYPE_DEFINITION:VIEW** -> 显示加载失败/权限不足并允许重试（不得误报为 SUB_PERM 配置错误）；候选**加载中** -> 显示 loading；不允许通过前端硬编码允许集。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。**子权限不承载条件权限与再授予设置是系统不变量而非 UI 限制（七轮复审产品确认）**：新建键固定 `conditionCode=null`、`canGrant=false`（两种 create 形态——`creates[].children[]` 嵌套与 `parentPermissionId` 挂父——后端均强制，违反 20043）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；**历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不在界面隐式迁移、不允许继续属性编辑**；api-contract §6.5.1。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
+- **配置子权限（v3.1 记录级入口）**：子权限入口位于授权设置区，标题明确展示挂载目标（"配置当前授权的子权限 / 挂载到：A资源 · VIEW · 条件 C"）；点击后进入该聚焦记录的子权限配置，**单父记录上下文，不再提供父记录下拉列表**；**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL add 草稿**（与显式复制入口统一；未聚焦 / 未授权聚焦 / 仅 AUTO_DEP 槽位时保持展示但禁用）。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。**资源类型选择器按 SUB_PERM 允许集过滤（v3.1）**：通过授权专用只读契约 `role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2）按聚焦父记录的资源类型查询允许的子资源类型——`ALLOW_ALL`（顶层或嵌套 `"*"` 通配）不限制、`ALLOW_LIST` 仅允许列表内类型（其余禁用）、`ALLOW_NONE` **按 `reason` 区分展示**：`PARENT_NOT_CONFIGURED` / `CHILD_TYPES_EMPTY`（业务不允许，展示"该资源类型不允许配置子权限"）、`CONFIG_MISSING` / `CONFIG_EMPTY` / `CONFIG_INVALID`（配置异常，展示"子权限配置缺失/格式错误，请联系管理员"）；**`ALLOW_LIST` 允许集与实际类型候选交集为空时**区分展示三态：候选已成功加载且交集为空 -> 配置/数据不一致（"当前无可配置的子权限类型"）；候选**加载失败或无 TYPE_DEFINITION:VIEW** -> 显示加载失败/权限不足并允许重试（不得误报为 SUB_PERM 配置错误）；候选**加载中** -> 显示 loading；不允许通过前端硬编码允许集。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。**子权限不承载条件权限与再授予设置是系统不变量而非 UI 限制（2026-08-08 产品确认）**：新建键固定 `conditionCode=null`、`canGrant=false`（两种 create 形态——`creates[].children[]` 嵌套与 `parentPermissionId` 挂父——后端均强制，违反 20043）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；**历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不在界面隐式迁移、不允许继续属性编辑**；api-contract §6.5.1。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
 - **返回保护**：子权限已有调整时返回修改主权限必须明确确认，确认后仅丢弃本次子权限调整并保留主权限选择，不静默丢失。
 - **确定语义**（单直接授权模型）：
   - **直接授权键** = (resourceTypeCode, resourceCode, codeType, **operationKey**, scopeMode, parentPermissionId)（资源维度来自 GrantContext 资源键 §2.1，ALL 时 resourceCode/codeType=null；主权限 parentPermissionId=null）；**operationKey = operationCode ?? "bits:"+grantedBits** 仅用于读取异常/内部组合位记录的防御性展示，MANUAL 新授权必须是单 operationCode；**持久化 id** = 后端记录 id。conditionCode/canGrant 不参与身份。
@@ -285,7 +286,7 @@ interface MatrixContext {
     - 直接授权键存在且用户修改了**该聚焦记录**的授权设置 → 草稿 **update**（按 id 修改 conditionCode/canGrant，只产生该记录自己的 update）
     - 直接授权键存在且用户未修改该记录授权设置 → 不改写
     - 同键不同条件不得新增第二条 MANUAL 记录，后端以 20033 拒绝竞态或绕过前端的写入
-  - **范围/资源/操作变化 = 跨键替换（第十二轮收敛）**：替换 = **removes 旧 + creates 新**（同一 `apply-grant-plan` 请求内原子执行）；**子权限不迁移**——随旧主权限级联删除（预期行为，产品语义：A 部门与 B 部门不相关），新主权限的子权限在 creates 中显式配置（`children` 一次性建树或后续挂载）；变更清单提示"子权限随主权限一并移除"；仅 canGrant/conditionCode 变更走 `updates`（不重建）
+  - **范围/资源/操作变化 = 跨键替换**：替换 = **removes 旧 + creates 新**（同一 `apply-grant-plan` 请求内原子执行）；**子权限不迁移**——随旧主权限级联删除（预期行为，产品语义：A 部门与 B 部门不相关），新主权限的子权限在 creates 中显式配置（`children` 一次性建树或后续挂载）；变更清单提示"子权限随主权限一并移除"；仅 canGrant/conditionCode 变更走 `updates`（不重建）
   - **匹配范围仅限 MANUAL（P1-5）**：直接授权键比对/草稿 diff 只匹配 `grantSource=MANUAL` 记录；AUTO_DEP 记录不进比对（只读，见 §3.3），同键并存不冲突
   - **取消勾选 = 撤权**：预填的已有记录被取消勾选时，确定后生成该条 MANUAL 记录的 **remove 变更**；删除类变更进入右栏清单并在矩阵显示撤销态。取消已有 ALL 时按目标类型精确撤销，不影响其他类型 ALL。
 - 确定后弹窗关闭，矩阵单元格立即显示变更态（§6.1），进入右栏清单。
@@ -317,7 +318,7 @@ interface MatrixContext {
 - `baseline`（进入时的 list 数据）+ `draft`（变更后集合），按直接授权键定位语义记录、按持久化 id 更新/删除（§4 确定语义；对齐 v1 §16 草稿模型）。
 - **baseline 加载口径（T-FE-036 实现注记，2026-08-02）**：页面进入时 `list(includeChildren=true)` **一次取全量**（主权限 + 子权限），来源链计算仅消费 `dependOn==null` 主权限（§3.5 输入不变），详情层按 `dependOn` 分组子权限——免逐项懒加载（对齐 §12 缺口 5 的 `childCount` 设计意图）；替代本节原"includeChildren=false"两次拉取文字。
 - 变更类型：`add` / `update` / `remove`（对齐 apply-grant-plan 记录级 creates/updates/removes）+ `replace`（跨键替换组合变更 = removes 旧 + creates 新，清单单条可撤销，plan 构建时展开为两段）。
-- **suspended（弹窗本地暂存态，v3.1 三轮复审）**：取消勾选（撤权）时该记录的变更草稿**不丢弃**，暂存为 suspended；同弹窗内重新勾选恢复。确认弹窗提交时按来源分支：**baseline 持久化记录**保持未勾选 -> 生成 remove（update/子权限草稿随记录丢弃）；**待新增 add 草稿**保持未勾选 -> 取消整个 add 变更组（含其子权限变更），不生成 remove（无持久化 ID）。取消整个弹窗 -> 恢复进入弹窗前的页面草稿，suspended 不影响页面。suspended 不进入 DraftChange/变更清单，仅存在于弹窗本地草稿层。
+- **suspended（弹窗本地暂存态，v3.1）**：取消勾选（撤权）时该记录的变更草稿**不丢弃**，暂存为 suspended；同弹窗内重新勾选恢复。确认弹窗提交时按来源分支：**baseline 持久化记录**保持未勾选 -> 生成 remove（update/子权限草稿随记录丢弃）；**待新增 add 草稿**保持未勾选 -> 取消整个 add 变更组（含其子权限变更），不生成 remove（无持久化 ID）。取消整个弹窗 -> 恢复进入弹窗前的页面草稿，suspended 不影响页面。suspended 不进入 DraftChange/变更清单，仅存在于弹窗本地草稿层。
 
 ### 6.2 矩阵 diff 标记（🔧 T-FE-039 正交模型）
 
@@ -337,18 +338,18 @@ interface MatrixContext {
 - 操作：**定位**（点击滚动矩阵到对应单元格并闪烁）/ **撤销**（单条回滚为 baseline）。
 - 底部：〔放弃全部〕〔保存全部 (N)〕。
 
-### 6.4 提交（apply-grant-plan 单入口，第十二轮收敛）
+### 6.4 提交（apply-grant-plan 单入口）
 
 - 保存全部 → **单请求 `role-resource-permission/apply-grant-plan`**（§6.5.1：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（canGrant/conditionCode 微变更）+ removes（主权限级联删子/子权限单条删），单事务原子，任一失败整体回滚后重试；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认）。
 - **删除主权限** = plan.removes 一条主记录 id（后端级联删子权限），其下子权限草稿静默丢弃（不发子权限 remove）。
-- **跨键替换（范围/资源/操作变化，第十二轮收敛，替代旧 rebuild）**：替换 = **removes 旧 + creates 新**（同一请求内原子执行）——单事务内级联删旧主权限（含全部子权限）+ 创建新主权限 + 创建全部子权限终态（事务内生成新父 id），整体成功或整体回滚，无权限并集窗口、无两阶段窗口；**子权限不迁移**（随旧主权限级联删除，产品语义：A 部门与 B 部门不相关），前端在替换前检查 `childCount>0` 提示"该权限下 N 条子权限将随主权限一并移除"；新主权限的子权限在 creates 中显式配置；canGrant/conditionCode 变更（不涉及资源/操作/范围）走 `updates`。
-- **子权限变更（第十二轮收敛，T-FE-038 后续收窄）**：新增 = creates（parentPermissionId 挂父，可随主权限 children 一次性建树，固定 `conditionCode=null`、`canGrant=false`）；撤销 = removes（子权限 id）。子权限不提供条件权限、再授予或就地属性编辑；资源/操作变化由树上撤销旧授权后新增目标授权表达——全部在同一 apply-grant-plan 请求内原子执行。
-- **失败处理（请求粒度，第十四轮收窄）**：单次 `apply-grant-plan` 请求 = 一个**不可分割的项**--请求成功 -> **全部条目**移出清单并入 baseline；请求失败 -> **全部条目**保留标红、整体重试（后端单事务原子无部分成功；前端 saving 期间按钮 disabled 防重复提交，超时提示刷新确认）。
+- **跨键替换（范围/资源/操作变化，替代旧 rebuild）**：替换 = **removes 旧 + creates 新**（同一请求内原子执行）——单事务内级联删旧主权限（含全部子权限）+ 创建新主权限 + 创建全部子权限终态（事务内生成新父 id），整体成功或整体回滚，无权限并集窗口、无两阶段窗口；**子权限不迁移**（随旧主权限级联删除，产品语义：A 部门与 B 部门不相关），前端在替换前检查 `childCount>0` 提示"该权限下 N 条子权限将随主权限一并移除"；新主权限的子权限在 creates 中显式配置；canGrant/conditionCode 变更（不涉及资源/操作/范围）走 `updates`。
+- **子权限变更（T-FE-038 当前口径）**：新增 = creates（parentPermissionId 挂父，可随主权限 children 一次性建树，固定 `conditionCode=null`、`canGrant=false`）；撤销 = removes（子权限 id）。子权限不提供条件权限、再授予或就地属性编辑；资源/操作变化由树上撤销旧授权后新增目标授权表达——全部在同一 apply-grant-plan 请求内原子执行。
+- **失败处理（请求粒度）**：单次 `apply-grant-plan` 请求 = 一个**不可分割的项**--请求成功 -> **全部条目**移出清单并入 baseline；请求失败 -> **全部条目**保留标红、整体重试（后端单事务原子无部分成功；前端 saving 期间按钮 disabled 防重复提交，超时提示刷新确认）。
 
-### 6.5 提交状态机（工程加固简化，2026-08-02 第十四轮收窄）
+### 6.5 提交状态机（工程加固简化，2026-08-02 确认）
 
-- **Pinia store `grant-store.ts`**（T-FE-036 内新建，不复用现有全局 store）：提交状态用 **discriminated union** 表达，**四态**（第十四轮收窄）：`idle` / `dirty` / `saving` / `saveFailed`——砍八态的 loading/ready/outcomeUnknown/stale + 代际号 + list 对比恢复 + 重放；内部管理页低频，超时由“提示刷新确认”覆盖，不做自动恢复 machinery。
-- **页面 capability 与状态正交（第十一轮 P2-7 修正）**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit）+ GROUP_ROLE 主体 -> view；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
+- **Pinia store `grant-store.ts`**（T-FE-036 内新建，不复用现有全局 store）：提交状态用 **discriminated union** 表达，保持 `idle` / `dirty` / `saving` / `saveFailed` 四态；内部管理页低频，超时由“提示刷新确认”覆盖，不做自动恢复 machinery。
+- **页面 capability 与状态正交**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit）+ GROUP_ROLE 主体 -> view；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
 - **baseline 迁移规则**：`baseline` 只在 `apply-grant-plan` **明确成功**后切换（响应返回新权限结果）；失败 -> 条目保留标红，提示“保存失败，请重试”（整体重试，前端 saving 期间按钮 disabled 防重复提交）；**超时/网络未知** -> 提示“网络异常，请刷新页面确认当前状态”，管理员刷新 list 自行判断（不做自动 list 对比 + 重放）。
 - **readonly 派生**：页面 capability 由门禁（ROLE:VIEW/MANAGE）与 GROUP_ROLE 主体派生；记录级 readonlyReason 由 AUTO_DEP 派生，两者正交。
 - 状态机为 T-FE-036 实现要点（DoD：S5 相关场景必须走状态机路径验证）。
@@ -398,7 +399,7 @@ interface MatrixContext {
 | 主体树（组织入口）         | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021）                    | admin-service，`org-user-permission-contract.md` |
 | 统一提交（全部写操作）     | `role-resource-permission/apply-grant-plan`（**唯一写入口**，§6.5.1；creates/updates/removes 记录级） | api-contract.md §6.5.1                           |
 | 直接授权列表               | `role-resource-permission/list`（`includeChildren=true` 一次取全量，来源链仅消费 `dependOn==null` 主权限，对齐 §6.1 加载口径） | api-contract.md §6.4（Resp 见 §7）               |
-| 子权限（并入统一提交）     | 无独立接口（第十二轮收敛：creates parentPermissionId / updates / removes）                            | api-contract.md §6.5/§6.5.1                      |
+| 子权限（并入统一提交）     | 无独立接口（creates parentPermissionId / updates / removes）                                          | api-contract.md §6.5/§6.5.1                      |
 | 子权限类型过滤（🔧 v3.1） | `role-resource-permission/sub-perm-allowed-types`（按父资源类型返回 SUB_PERM 允许子类型）              | api-contract.md §6.5.2                           |
 | 资源树                     | `resource-entity/tree`                                                                                | api-contract.md §5.x（3.1 页契约）               |
 | 操作权限（含 inheritMask） | `operation-permission/list`                                                                           | api-contract.md §5.x（3.1 页契约）               |
@@ -436,11 +437,11 @@ interface MatrixContext {
 
 > **已知缺口（2026-08-07 记录，暂不修改）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），但本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**决策：全链路未打通前不做处理**（mock 不校验权限，开发不受阻）；联调任务 T-FE-018 汇合时评估：为授权页声明 `TYPE_DEFINITION:VIEW` 只读依赖（perms.ts 门控 + 缺权限明确提示 + mock 角色矩阵补权限串），或由后端提供免类型管理权限的候选来源。
 
-## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039/**T-FE-040（v3.1 记录级聚焦编辑，2026-08-08 十轮复审登记）** 拆分子任务依据；S1~S11 全套）
+## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039/**T-FE-040（v3.1 记录级聚焦编辑，2026-08-08 登记）** 拆分子任务依据；S1~S11 全套）
 
 - **S1 两入口**：角色/组织入口分别进入，左栏主体树正确；GROUP_ROLE 只读（无授权按钮，来源标注"来自基础角色"）。（个人入口首期移除，P1-4）
 - **S2 查看矩阵**：继承默认开；来源形态正确区分直接/资源继承/操作继承/双重继承（实色/淡色 + 上/右/组合箭头；**AUTO_DEP 无独立来源图标，来源属性在悬浮详情标注**）；两开关可独立关闭；操作列可配置（增删列，刷新后保留）；树形行展开/折叠/搜索；**ALL 虚拟行**（含范围标识、与实例行互斥）；悬浮详情正确（来源链/条件/范围/canGrant/createdAt/childCount，**条件/范围/可授予并入详情不占格**）；多来源并存正确展示；**AUTO_DEP 只读**（不可编辑/删除，**只读落实到记录/详情项、不禁用整个单元格**，并存 MANUAL 仍可编辑）；**多来源聚合归并正确**（含 AUTO_DEP 参与聚合；直接+继承并存取实色、两段继承并存组合箭头、任一 canGrant=true 粗黑边框、全部有条件条纹、任一无条件来源时普通填充且其他条件来源仅在详情中展示）；绿/黄/红三态各最多一个聚合图标；子权限用独立蓝色数量标识且继承格不复制。**（✅ T-FE-039 已实现，2026-08-08）**
-- **S3 授权弹窗（v3.1 记录级聚焦编辑，评审复审修订）**：打开即见资源树；未选操作时只读，选择操作后已有 INSTANCE 授权正确勾选；**矩阵无权限单元格打开时自动聚焦 initial 资源**（未授权也聚焦，设置区只读展示默认值）；**复选框切换勾选**（取消已有节点生成 remove、新勾选生成 add 且属性=新增默认值），**点击行其余区域聚焦该记录**；**焦点为空时首次勾选自动聚焦，焦点非空时批量勾选不抢焦点**；未授权资源可聚焦（设置区只读，勾选后启用）；聚焦记录的条件/canGrant 修改只生成该记录自己的 update，不产生其他记录变更；**取消勾选焦点记录时焦点清空**；聚焦记录带条件且当前角色已加载来源中存在其他无条件来源时展示有效来源提示（限定当前角色，不声称用户级最终权限）；**显式复制**：源=聚焦记录的条件+再授予，目标=已勾选 MANUAL 记录多选+确认覆盖，不复制子权限，条件非空时目标 canGrant=false；右上角“全量”可新增/保留/撤销当前类型 ALL（ALL 焦点=ALL 虚拟记录，可独立配置条件/再授予/子权限）；子权限入口在设置区、挂载到聚焦记录（单父记录上下文），资源类型选择按 SUB_PERM 允许集过滤（ALLOW_ALL/ALLOW_LIST/ALLOW_NONE），**启用条件=焦点为有效 MANUAL 或待新增 add 草稿**（未授权/仅 AUTO_DEP 槽位时禁用）；**焦点=MANUAL 编辑槽位**（仅 AUTO_DEP 来源的资源行也可聚焦，勾选创建并存 MANUAL，AUTO_DEP 只在详情只读）；**取消勾选焦点记录：焦点清空+草稿 suspended**（同弹窗重新勾选恢复；提交时 baseline 记录生成 remove、待新增 add 草稿取消整个变更组、取消弹窗恢复进入前页面草稿）；**选择 ALL 聚焦 ALL 槽位，取消 ALL 回 INSTANCE 清空焦点**；**条件选择/复制条件无 CONDITION:VIEW 门禁**（产品确认条件规则全租户开放）；**停用条件**：新选仅启用（停用灰显）、存量停用绑定回显标注"条件已停用"且未改 conditionCode 时保存保留、**源条件停用时复制入口禁用**（提示"请先选择启用条件或清除条件后再复制"，六轮复审修正：避免隐式清空目标条件导致权限扩大）；**显式复制启用条件=焦点为有效 MANUAL 或待新增草稿**，目标排除源、跳过同值、add 就地改属性、update 合并单条、禁止同一 id 追加多条 update、**合并后 after==before 归一化删除**；**已勾选/待撤销 MANUAL 节点行内显示紧凑摘要**（条件/再授予/子权限数/草稿状态，remove 显示红色待撤销）；取消弹窗不泄漏草稿，确认后主子权限一起进入变更清单；无步骤编号和独立现状表；确定后矩阵实时 diff；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
+- **S3 授权弹窗（v3.1 记录级聚焦编辑）**：打开即见资源树；未选操作时只读，选择操作后已有 INSTANCE 授权正确勾选；**矩阵无权限单元格打开时自动聚焦 initial 资源**（未授权也聚焦，设置区只读展示默认值）；**复选框切换勾选**（取消已有节点生成 remove、新勾选生成 add 且属性=新增默认值），**点击行其余区域聚焦该记录**；**焦点为空时首次勾选自动聚焦，焦点非空时批量勾选不抢焦点**；未授权资源可聚焦（设置区只读，勾选后启用）；聚焦记录的条件/canGrant 修改只生成该记录自己的 update，不产生其他记录变更；**取消勾选焦点记录时焦点清空**；聚焦记录带条件且当前角色已加载来源中存在其他无条件来源时展示有效来源提示（限定当前角色，不声称用户级最终权限）；**显式复制**：源=聚焦记录的条件+再授予，目标=已勾选 MANUAL 记录多选+确认覆盖，不复制子权限，条件非空时目标 canGrant=false；右上角“全量”可新增/保留/撤销当前类型 ALL（ALL 焦点=ALL 虚拟记录，可独立配置条件/再授予/子权限）；子权限入口在设置区、挂载到聚焦记录（单父记录上下文），资源类型选择按 SUB_PERM 允许集过滤（ALLOW_ALL/ALLOW_LIST/ALLOW_NONE），**启用条件=焦点为有效 MANUAL 或待新增 add 草稿**（未授权/仅 AUTO_DEP 槽位时禁用）；**焦点=MANUAL 编辑槽位**（仅 AUTO_DEP 来源的资源行也可聚焦，勾选创建并存 MANUAL，AUTO_DEP 只在详情只读）；**取消勾选焦点记录：焦点清空+草稿 suspended**（同弹窗重新勾选恢复；提交时 baseline 记录生成 remove、待新增 add 草稿取消整个变更组、取消弹窗恢复进入前页面草稿）；**选择 ALL 聚焦 ALL 槽位，取消 ALL 回 INSTANCE 清空焦点**；**条件选择/复制条件无 CONDITION:VIEW 门禁**（产品确认条件规则全租户开放）；**停用条件**：新选仅启用（停用灰显）、存量停用绑定回显标注"条件已停用"且未改 conditionCode 时保存保留、**源条件停用时复制入口禁用**（提示"请先选择启用条件或清除条件后再复制"，避免隐式清空目标条件导致权限扩大）；**显式复制启用条件=焦点为有效 MANUAL 或待新增草稿**，目标排除源、跳过同值、add 就地改属性、update 合并单条、禁止同一 id 追加多条 update、**合并后 after==before 归一化删除**；**已勾选/待撤销 MANUAL 节点行内显示紧凑摘要**（条件/再授予/子权限数/草稿状态，remove 显示红色待撤销）；取消弹窗不泄漏草稿，确认后主子权限一起进入变更清单；无步骤编号和独立现状表；确定后矩阵实时 diff；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
 - **S4 权限详情**：授权记录、来源、条件、子权限、草稿状态均可查看；不显示添加、编辑、删除入口，点击详情不产生授权变更。
 - **S5 变更提交**：矩阵标记 + 右栏清单（定位/逐条撤销）正确；绿色=有效/新增、黄色=待更新、红色=待撤销，三态完整复用直接/继承/条件/canGrant 形态；同格按状态各聚合一个；不使用减号、删除线或“粗黑边框=删除”等额外状态符号；保存全部 = **单请求 apply-grant-plan**（记录级 creates/updates/removes，单事务原子 + 受影响行数断言；跨键替换 = removes+creates 原子且变更清单提示子权限随主权限移除）；**请求失败后全部草稿保留并标红，整体重试**（前端 saving 期间按钮 disabled 防重复提交；apply-grant-plan 单事务原子，**数据库无部分状态**，不存在部分成功）；放弃全部回滚；未保存离开拦截。**（✅ T-FE-039 已实现，2026-08-08）**
 - **S6 数据正确性**：来源链前端计算与引擎语义抽查一致（父资源授权 → 子孙行 INHERITED；MANAGE 授权 → VIEW 列 INHERITED；**父资源 MANAGE → 子资源 VIEW 单元格出现且来源链含两段（资源继承 + 操作继承）**；**ALL/MANAGE → ALL/VIEW 列出现且标注操作继承（节点段为空）**；AUTO_DEP 标注且只读；ALL 记录落虚拟行）。
@@ -461,31 +462,31 @@ interface MatrixContext {
 
 ## 12. 与后端 T-PERM-034 的关系（范围更新）
 
-前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **仅迁移期保留**（因 admin-service 存量调用，**终态=随 T-PERM-034 迁移后删除，2026-08-08 八轮复审确认**），授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
+前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **仅迁移期保留**（因 admin-service 存量调用，**终态=随 T-PERM-034 迁移后删除，2026-08-08 确认**），授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
 
 1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList` L782）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
 3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：`true` 返回主权限及挂载子权限（baseline 一次取全量，§6.1）；`false` 只返回主权限（辅助查询）；**来源链只消费 `dependOn==null` 主权限**（当前 `selectValidByRoleId` 未过滤 depend_on）。
-4. ~~新增 update-child~~（第十二轮移除，T-FE-038 后续收窄）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。
+4. ~~新增 update-child~~（已移除，T-FE-038 当前口径）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。
 5. **`RolePermissionItemResp` 增补 `createdAt` / `childCount`**：悬浮详情展示创建时间与子权限数量（list 时按 depend_on 分组 COUNT 一次返回，免逐项懒加载）。
-6. ~~新增 children-save~~（第十二轮移除）：子权限新增/撤销并入 apply-grant-plan（creates parentPermissionId / removes，同一事务原子）；历史属性仅兼容读取，不由本界面隐式迁移。
+6. ~~新增 children-save~~（已移除）：子权限新增/撤销并入 apply-grant-plan（creates parentPermissionId / removes，同一事务原子）；历史属性仅兼容读取，不由本界面隐式迁移。
 7. **单直接授权唯一性 + 错误码 20033**：`DIRECT_PERMISSION_CONFLICT`；MANUAL 主权限及子权限分别按 `(role, resource/范围, operation, parentPermission)` 唯一，conditionCode/canGrant 是可变属性、不参与身份；预检在本请求 removes 生效后的结果集上检查，AUTO_DEP 允许同键并存；数据库唯一索引作为竞态兜底。
-8. **plan 入口接入授权传递校验**（P1-1，第六轮新增）：creates 逐项走 `checkCanGrant`，updates 设 canGrant=true 或 conditionCode 有变更走 `canGrantPermission`（对齐原 save.add L176-200 / save.update L247-279），不满足 → **20040** `GRANT_CANNOT_DELEGATE`；T-PERM-041 已禁止条件权限可转授，因此授权传递身份不含 conditionCode；杜绝凭 MANAGE 绕过委托边界挂子权限。
-9. **AUTO_DEP 服务端只读门禁 + 新错误码 20034**（P1-2，第六轮新增）：plan 的 creates（父权限引用）/updates/removes 全部拒绝 `grantSource=AUTO_DEP` 记录 → **20034** `AUTO_DEP_READONLY`；自动补全记录只读由服务端强制，前端只读仅为体验层。
-10. **plan 全集预校验 + 新错误码 20036**（P1-3，第九轮新增）：updates/removes 的 id 必须存在且属于目标角色（否则 **20036** `PERMISSION_NOT_FOUND`——现状实现静默跳过不存在 id）；AUTO_DEP 门禁前置化（20034）；updates/removes 集合互斥（参数校验）；预校验与单直接授权唯一性检查合并为同一预检阶段（`prevalidateGrantPlan`），任一不满足整批失败。
-11. ~~新增 rebuild~~（第十二轮移除）：跨键替换 = apply-grant-plan 内 removes 旧 + creates 新（同事务原子，子权限不迁移）；原子性由单事务保证（无 clientRequestId/幂等表，第十四轮砍）。
+8. **plan 入口接入授权传递校验**（P1-1）：creates 逐项走 `checkCanGrant`，updates 设 canGrant=true 或 conditionCode 有变更走 `canGrantPermission`（对齐原 save.add L176-200 / save.update L247-279），不满足 → **20040** `GRANT_CANNOT_DELEGATE`；T-PERM-041 已禁止条件权限可转授，因此授权传递身份不含 conditionCode；杜绝凭 MANAGE 绕过委托边界挂子权限。
+9. **AUTO_DEP 服务端只读门禁 + 错误码 20034**（P1-2）：plan 的 creates（父权限引用）/updates/removes 全部拒绝 `grantSource=AUTO_DEP` 记录 → **20034** `AUTO_DEP_READONLY`；自动补全记录只读由服务端强制，前端只读仅为体验层。
+10. **plan 全集预校验 + 错误码 20036**（P1-3）：updates/removes 的 id 必须存在且属于目标角色（否则 **20036** `PERMISSION_NOT_FOUND`——现状实现静默跳过不存在 id）；AUTO_DEP 门禁前置化（20034）；updates/removes 集合互斥（参数校验）；预校验与单直接授权唯一性检查合并为同一预检阶段（`prevalidateGrantPlan`），任一不满足整批失败。
+11. ~~新增 rebuild~~（已移除）：跨键替换 = apply-grant-plan 内 removes 旧 + creates 新（同事务原子，子权限不迁移）；原子性由单事务保证，不使用 clientRequestId 或幂等表。
 12. ~~checkCanGrant 匹配键扩展 condition 维度~~：被 T-PERM-041“条件权限不可转授”取代。可转授来源必为无条件记录，`GrantCheckKey` 无需纳入 conditionCode；直接授权的 conditionCode 由 update 修改而非新增并行分支。
-13. **授权页面唯一写入口 `apply-grant-plan`**（第十二轮收敛定稿，第十四轮收窄）：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（现有记录微变更）+ removes（主权限级联删子/子权限单条删），单事务原子执行（任一失败整体回滚）；**砍** clientRequestId/@Idempotent + `expectedRevision` CAS + `grant_revision` 列 + 幂等表 `grant_plan_idempotency` + 20037/20039；返回完整持久化结果（契约见 api-contract §6.5.1）。
+13. **授权页面唯一写入口 `apply-grant-plan`**：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（现有记录微变更）+ removes（主权限级联删子/子权限单条删），单事务原子执行（任一失败整体回滚）；不使用 clientRequestId/@Idempotent、`expectedRevision` CAS、`grant_revision` 列、幂等表 `grant_plan_idempotency` 或 20037/20039；返回完整持久化结果（契约见 api-contract §6.5.1）。
 14. **单类型矩阵后端支持（🔧 T-PERM-040，单类型上下文定稿）**：① `operation-permission/list` 增加 `resourceTypeCode + includeGlobalFallback` 参数（默认 false 兼容；true 时 `resourceTypeCode=null/缺省` = 仅全局操作集合，禁止全量口径合并），true 时后端完成"专属优先、全局回退"合并，响应即当前类型最终可用操作集合（契约见 api-contract §5.3）；② **`role-resource-permission/list` 增加 `resourceTypeCode`**（矩阵调用必填，按类型过滤主权限；`includeChildren=true` 返回该类型主权限及其全部子权限，子权限跨类型按 `depend_on` 挂父返回，契约见 api-contract §6.4）；③ `apply-grant-plan` creates 逐项校验必填 `operationCode` 适用于记录的资源类型（**覆盖 recordKey 主权限、`children[]` 嵌套子权限、`parentPermissionId` 挂父三种形态**），复用与 list 相同的合并规则（单一解析实现，判定基于有效定义），不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`。MANUAL 新授权必须是单 operationCode，不接受 `operationCode=null` 或组合位。本页（T-FE-038）操作列一律走 includeGlobalFallback=true，**前端不再自行实现合并领域规则**。
-15. **条件权限不可转授（🔧 T-PERM-041，2026-08-05 评审确认；八轮复审修订：仅主权限）**：**主权限** `conditionCode != null` 时 `canGrant` 必须为 `false`——creates 主权限 + updates 结果态统一校验，违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`（新错误码）；**子权限不适用**（子权限不承载条件/再授予 -> 20043，见决策 17）；schema 增加 `CHECK (condition_id IS NULL OR can_grant = false)`（契约见 api-contract §6.5.1，DDL 见 permission-center.sql）；本页授权弹窗选择条件后自动关闭并清除 canGrant（§4）。
+15. **条件权限不可转授（🔧 T-PERM-041，2026-08-05 确认；仅主权限）**：**主权限** `conditionCode != null` 时 `canGrant` 必须为 `false`——creates 主权限 + updates 结果态统一校验，违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`；**子权限不适用**（子权限不承载条件/再授予 -> 20043，见决策 17）；schema 增加 `CHECK (condition_id IS NULL OR can_grant = false)`（契约见 api-contract §6.5.1，DDL 见 permission-center.sql）；本页授权弹窗选择条件后自动关闭并清除 canGrant（§4）。
 16. **子权限类型只读契约（🔧 v3.1，D5）**：新增 `role-resource-permission/sub-perm-allowed-types` 只读接口（契约见 api-contract §6.5.2），按父资源类型返回 SUB_PERM 允许的子资源类型，授权弹窗子权限配置器的资源类型选择器按允许集过滤（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE）；判定口径与 `PermissionGrantPlanDomainService.prevalidate` 的 SUB_PERM fail-closed 校验一致，前端不硬编码允许集。
-17. **子权限属性系统不变量（🔧 v3.1，2026-08-08 七轮复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 嵌套与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20041/20042 仅校验主权限（错误优先级见 api-contract §6.5.1）。
+17. **子权限属性系统不变量（🔧 v3.1，2026-08-08 产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 嵌套与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20041/20042 仅校验主权限（错误优先级见 api-contract §6.5.1）。
 
 ### 工程加固（2026-08-01 分析评审后，随 T-PERM-034/T-FE-036/T-FE-018 落地）
 
-- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**授权域内同层调用例外（十轮复审产品确认）：PlanDomainService 组合 GrantDomainService 校验能力，不推广到其他域**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
-- **引擎双写消除（方案三）**：后端 `GoldenFixtureTest`（**6 用例精简**（第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记**演进方向**，本轮不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：后端 GoldenFixtureTest 随 T-PERM-034 未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；后端 T-PERM-034 落地时移植同一用例集比对（届时可评估是否上移为跨语言共享位置）。
-- **端点契约（方案四，第十四轮定案）**：**删除** `docs/contracts/perm-grant.schema.json`（第十三轮已降级为说明性、不机器校验，维护冗余）；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
+- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**授权域内同层调用例外（产品确认）：PlanDomainService 组合 GrantDomainService 校验能力，不推广到其他域**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
+- **引擎双写消除（方案三）**：后端 `GoldenFixtureTest` 使用 6 个用例（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记为**演进方向**，当前不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：后端 GoldenFixtureTest 随 T-PERM-034 未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；后端 T-PERM-034 落地时移植同一用例集比对（届时可评估是否上移为跨语言共享位置）。
+- **端点契约（方案四）**：`docs/contracts/perm-grant.schema.json` 已删除，不做说明性机器校验；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
 
@@ -557,53 +558,17 @@ interface MatrixContext {
 - 评审 review：双代域竞态无卡死路径、无遗漏引用（`matrixTypeCodes` 零残留）、候选为空路径标记补拉（should-fix 已修）；`kind:"type"` 死代码清理。
 - S8/S9/S11 交互验收以 mock 环境人工验收为准（DoD-4）。
 
-### 13.4.1 实现评审修复（2026-08-07 同日下午，review 结论 3×P1 + 1×P2 + 文档同步）
+### 13.4.1 当前实现加固（2026-08-09）
 
-| 问题                                                                                                                                                                                                        | 修复                                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[P1] 保存后误删其他类型权限**：`apply-grant-plan` 响应 = 角色完整权限集合（§6.5.1），`saveAll` 整体替换 baseline 引入其他类型主权限，再次编辑全局 INSTANCE 操作时被全量 diff 识别为"取消勾选"进入 removes | `saveAll(resourceTypeCode)` 成功后按当前 MatrixContext 过滤（新增纯函数 `filterBaselineByType`：当前类型主权限 + 其全部子权限，子权限按 depend_on 挂父、跨类型保留，与 §6.4 list 类型过滤语义一致）；hook `handleSaveAll` 传入 `currentTypeCode`（saving 期间类型切换被拒，参数稳定） |
-| **[P1] 首屏候选-主体加载竞态**：`selectSubject(context, null)` 提交前候选就绪 → loadDeps 兜底（§13.4）因 context 为空跳过 → 主体提交后无第二触发点，矩阵永不加载                                            | 空候选路径在 selectSubject 成功提交后检查 `matrixToken === 0`（兜底未触发）→ 重新 `resolveDefaultTypeCode()` 并补加载；候选仍未就绪则仍由 loadDeps 兜底命中（context 已提交）——两条触发路径互补                                                                                       |
-| **[P1] `type-definition/list` 权限缺口**：真实后端强制 `TYPE_DEFINITION:VIEW`，本页权限清单未声明                                                                                                           | **记录，暂不修改**（用户决策：全链路未打通，不考虑）；缺口记录于 §10；联调任务 T-FE-018 汇合时评估（声明只读依赖或后端提供免权限候选来源）                                                                                                                                            |
-| **[P2] 跨类型子权限变更定位静默失效**：子权限变更 `summary.resourceTypeCode` 可能非当前类型，矩阵树只有当前类型                                                                                             | `parentLocateOf`：子权限变更投影到父主权限单元格——草稿父经 `parentChangeId` 查父 add 变更 recordKey；持久化父经 `dependOn`/`parentPermissionId` 查 `effective.mains`（父主权限一定在当前类型）                                                                                        |
-| **[P3] 文档状态未同步**：任务卡 done 但索引/计划仍待完成                                                                                                                                                    | docs/tasks/README.md（状态 ⚙️→✅、验收 ⏳→✅、补充 design 引用列）；docs/plans/frontend-phase2-plan.md（⏳→✅）                                                                                                                                                                       |
+- `saveAll(resourceTypeCode)` 成功后通过 `filterBaselineByType` 仅保留当前类型主权限及其全部子权限，避免完整响应污染当前 MatrixContext；保存后同步刷新 `subjectPermissionTypes`。
+- `matrixToken` 统一承担主体选择、分组切换、类型切换和加载请求的代际守卫；`cancelPending()` 作废 store 在途请求并复位 loading，过期流程不得提交、回滚或覆盖后选状态。
+- 主体切换并行读取资源树、操作列、类型标记和 baseline，全部成功且代际有效后才由 `commitSubject` 原子提交；任一读取失败不提交新主体。
+- 快速类型切换仅由 `selectingKey` 隔离主体切换，`baselineLoading` 不阻断 A→B→C 的最终选择；`selectingKey` 按调用序号仅由最新流程清理。
+- 页面卸载、角色清空和资源候选补加载均先作废统一代际，防止迟到请求复活已清空主体或遗留骨架屏。
+- 跨类型子权限变更通过 `parentLocateOf` 投影到父主权限单元格：草稿父按 `parentChangeId` 定位，持久化父按 `dependOn`/`parentPermissionId` 定位。
+- `TYPE_DEFINITION:VIEW` 依赖仍由 T-FE-018 联调门禁处理：前端声明只读依赖或后端提供免权限候选来源，未落地时阻塞真实接口联调。
 
-**验证（首轮历史证据，2026-08-07 同日下午）**：新增单测 9 个（`filterBaselineByType` 过滤语义 1 个 / saveAll 按类型过滤 2 个 / `parentLocateOf` 定位投影 6 个），单测 114 全过；`npm run typecheck` / `eslint` / `vite build` 全过。
-
-### 13.4.2 实现评审二轮+三轮修复（2026-08-07 当晚，二轮 1×P1 + 1×P2 + 登记/修正；三轮 2×P1）
-
-**二轮**：
-
-| 问题                                                                                                                                                                          | 修复                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[P1] 空候选兜底取消后选主体**：A 主体 selectSubject 提交后标记请求在途时选 B，A 的迟到标记覆盖 B 的标记；补加载读陈旧 context 调 switchMatrixType 递增 baselineToken 作废 B | `handleSelectSubject` 维护代际号，selectSubject 后/标记写入前/补加载前/非空路径 loadMatrixForType 后逐一校验，过期即放弃（不写标记、不补加载、不回滚 currentTypeCode、不提示、不消费 query） |
-| **[P2] 保存后"已授权类型"标记过期**：新增首条主权限后下拉仍未授权、删除最后一条后仍已授权                                                                                     | `handleSaveAll` 成功后按过滤后 baseline 是否有当前类型主权限（dependOn==null）加入/移出 `subjectPermissionTypes`（保持排序）                                                                 |
-| **[P2] TYPE_DEFINITION:VIEW 延期未进联调门禁**                                                                                                                                | T-FE-018 acceptance 新增硬门禁验收项（① 前端入口声明并校验只读依赖；② 后端提供免权限候选来源；真实接口验证候选全集/排序/已授权标记，未落地=阻塞项）                                          |
-| **[P3] 验证证据数量不实**                                                                                                                                                     | 任务卡与 §13.4.1 统一修正为"新增 9 个、114 全过"                                                                                                                                             |
-
-**三轮**：
-
-| 问题                                                                                                                                                                                                                                                                                                                           | 修复                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **[P1] 三套代际未形成同一竞争域**：selectionToken 仅 handleSelectSubject 递增；① B 加载中点击当前主体 A（no-op）只推进 selectionToken，B 的 store selectSubject 仍提交 context=B（树高亮 A、保存作用于 B）；② 空候选 A 标记在途时切分组不推进任何代际，A 仍恢复激活；③ B 加载中切类型 C 后 B 的 !ok 分支仍回滚 currentTypeCode | **统一代际**：删除 selectionToken，`matrixToken` 升级为交互/加载统一代际——主体选择（含 no-op）、分组切换入口统一递增（确认弹窗通过后才取得所有权，避免取消弹窗作废在途）+ 复位 matrixLoading；store 新增 `cancelPending()`（递增 baselineToken 作废在途 selectSubject/switchMatrixType 迟到响应 + 复位 baselineLoading，保留 context/baseline/changes）；补加载以「恰好多一次加载（gen+1）」判定无新交互，主流程与回滚前校验同一代际 |
-| **[P1] 并行失败仍提交新主体**：Promise.all 中 selectSubject 与读请求并行，读请求先失败时 selectSubject 仍可能在途成功提交 context/baseline                                                                                                                                                                                     | **先读后提交**：主体切换路径三类读请求（资源树/操作列/类型标记）全部成功并校验代际后才调 selectSubject 统一提交；任一读失败整体失败、context 不提交（回滚 currentTypeCode + 提示）；空候选路径同步「标记先读 → selectSubject → 提交成功才写标记」                                                                                                                                                                                    |
-
-**验证（三轮）**：新增单测 2 个（cancelPending 作废在途 selectSubject 不提交 context / cancelPending 不动已提交状态），单测 116 全过；`npm run typecheck` / `eslint --max-warnings 0` / `vite build` 全过。修复过程发现派生缺陷：被作废请求的 finally 因 token 过期不再清理 loading（baselineLoading/matrixLoading 卡死 → 页面冻结/骨架屏常驻），`cancelPending` 与交互入口同步复位。
-
-**复查 should-fix（review 复核后补）**：① loadDeps 兜底原条件 `matrixToken === 0` 在统一代际后恒假（dead code，候选晚于主体选择就绪时矩阵永不加载）→ 改为「context 非空 + currentTypeCode 非空 + !matrixLoading + 资源树空」判定补加载；② 主体切换三读在途时类型下拉仍可达（原只拦 isSaving），类型分支读旧 context 加载导致"意图 B+C 得到 A+C" → `handleSwitchType` 增加 selectingKey/baselineLoading 检查拒绝并提示。
-
-### 13.4.3 实现评审四轮修复（2026-08-07 深夜，3×P1 + 1×P2 + 1×P3）
-
-| 问题                                                                                                                                                                                                                                        | 修复                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[P1] baselineLoading 阻断快速类型切换**：上一轮 `handleSwitchType` 用 `selectingKey \|\| baselineLoading` 判断"主体切换中"，但 baselineLoading 同时由 switchMatrixType 设置——类型 B 加载中选 C 被误拒，停留在 B，违反 A→B→C 最终为 C 验收 | 仅用 `selectingKey` 判断主体切换中（独立、可靠）；`baselineLoading` 不再参与类型切换保护，快速类型切换不受主体基线加载影响                                                                                                                                                                                                                     |
-| **[P1] 旧主体请求清除新请求的选择状态**：A、B 快速连续选择时，过期的 A 流程 finally 无条件 `selectingKey = null`——B 仍在读阶段（baselineLoading=false）时保护被绕过，仍可"选择 B 得到旧主体 A + 新类型 C"                                   | `onSelectSubject` finally 按 key 值比较清理：`selectingKey === payload.key` 才清空，A 的迟到 finally 不清 B 的选择状态                                                                                                                                                                                                                         |
-| **[P1] 卸载未作废读阶段代际**：先读后提交流程在四类读请求期间卸载页面，resetAll 只作废已启动的 store 请求，matrixToken 未变——读请求卸载后仍通过 token 校验并 commitSubject 向全局 store 提交主体、继续路由后处理                            | `onBeforeUnmount` 先 `++matrixToken` + 复位 matrixLoading + `cancelPending()` 再 `resetAll()`——读阶段在途请求代际过期，卸载后不得提交                                                                                                                                                                                                          |
-| **[P2] 主体权限记录不再并行加载**：先读后提交把 selectSubject（含 fetchBaseline）串行化，多一次网络往返，违反"资源树/操作权限/角色权限记录三类并行"验收                                                                                     | store 拆分无副作用 `prepareBaseline`（预取主体权限记录，共享 baselineToken 守卫，过期返回 null，不设 baselineLoading）+ `commitSubject`（同步原子提交 context/baseline/changes/submit，saving 拒绝）；主体路径四类读取（树/操作/标记/基线）**并行**，全部成功并校验代际后 commitSubject；空候选路径同步「标记 + 基线并行预取 → commitSubject」 |
-| **[P3] 验证证据再次回退为 114**：§13.4.1 验证行被挤到 §13.4.2 内容之后成为文档最后一条                                                                                                                                                      | 验证行移回 §13.4.1 表格后并标注「首轮历史证据」；本表为四轮最新验证                                                                                                                                                                                                                                                                            |
-
-**验证（四轮）**：新增单测 3 个（prepareBaseline+commitSubject 成功原子提交 / prepareBaseline 期间 cancelPending 返回 null / commitSubject saving 拒绝），单测 119 全过；`npm run typecheck` / `eslint --max-warnings 0` / `vite build` 全过。
-
-**复查 should-fix（review 复核后补）**：① clearSubject 分支（角色已删除）resetAll 前未作废代际——先读后提交流程的 prepareBaseline 已成功返回后树/操作/标记在途时触发，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体 → 与 onBeforeUnmount 同构：++matrixToken + 复位 matrixLoading + cancelPending 再 resetAll；② selectingKey 清理盲区——同主体读取在途时再次点击，旧流程 finally 清掉新流程的选择状态，窗口期类型切换保护被绕过 → selectingKey 清理改调用序号（selectSeq），仅最新调用清理。
+**验证**：相关竞态、baseline 过滤、父定位与原子提交路径已纳入前端单测；当前全量验证口径见 T-FE-040 完成记录。
 
 ### 13.5 T-FE-039 矩阵图标正交状态模型实现注记（2026-08-07 回写）
 
@@ -616,8 +581,8 @@ interface MatrixContext {
 | 权限图标原语   | `PermissionGlyph.vue`：MatrixCell 与 PermissionIconLegend 共用的 22px 权限图标，统一直接/继承/条件/canGrant 形态与绿/黄/红状态色，避免图例与真实单元格漂移                                                                                                                    |
 | 子权限数量原语 | `ChildPermissionIndicator.vue`：独立蓝色“子权限 + 数量”标识，不叠加到权限图标，不参与权限状态颜色切换                                                                                                                                                                         |
 | 面板           | `GrantMatrixPanel.vue`：ALL 行 A 角标移除（范围并入详情）；MatrixCell 直传 markInfo；工具栏嵌入 `PermissionIconLegend.vue` 横向图例                                                                                                                                           |
-| 条件转授互斥   | `GrantDialog.vue` 的“授权设置”：watch 选条件自动清 canGrant + checkbox 置灰 tooltip；权限详情固定只读；hook `enforceNotDelegable` 调度层保留兼容兜底；`grant-plan.ts` `applyDialogResultToDraft` 纯函数层最终兜底（入口 dialog 重建，草稿不变量恒成立）（**旧 v3 实现注记，十轮复审标注：v3.1 记录级聚焦编辑由 T-FE-040 替换该交互，主权限 20041 语义不变**）                       |
-| 20041/20043   | `api/permission-grant.ts` 新增错误码映射 `CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041` + `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043` + 提示文案（`classifySaveError` 自动映射，保存失败提示不崩溃）；`mock/permission-grant.ts` 按不变量校验——creates 主权限 key / updates 结果态 -> **20041**，children[] 嵌套与挂父 create 非 null/false -> **20043**（**十轮复审修正：旧实现注记误将 children[] 映射 20041；v3.1 口径子权限属性异常统一 20043，mock 更新随 T-FE-040**） |
+| 条件转授互斥   | v3.1 由 `GrantDialog.vue` 的记录级聚焦交互负责：选条件自动清 canGrant + checkbox 置灰 tooltip；权限详情固定只读；hook `enforceNotDelegable` 调度层保留兼容兜底；`grant-plan.ts` `applyDialogResultToDraft` 纯函数层最终兜底，主权限 20041 语义不变                                                                 |
+| 20041/20043   | `api/permission-grant.ts` 提供 `CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041` + `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043` 错误码映射与提示文案；`mock/permission-grant.ts` 按当前不变量校验——creates 主权限 key / updates 结果态 -> **20041**，children[] 嵌套与挂父 create 非 null/false -> **20043**，子权限属性异常统一使用 20043 |
 
 **评审确认的状态映射**（2026-08-08 用户确认）：
 

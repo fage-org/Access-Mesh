@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
- * 授权弹窗（§4，以资源树为主体的单屏编辑器）。
+ * 授权弹窗（§4 v3.1 记录级聚焦编辑，T-FE-040）。
  * - 打开即展示当前类型资源树；选择操作后按当前生效草稿预填授权状态；
- * - 勾选=授权，取消勾选=撤权，整行可点击；同键 MANUAL 只有一条直接授权；
- * - ALL 收敛为资源树右上角的“全量”选择按钮；条件/canGrant 可直接更新已有授权；
- * - 确定时可顺序提交 ALL 撤销与 INSTANCE 最终集合，避免取消全量后无法撤权。
+ * - 勾选=授权，取消勾选=撤权（suspended 暂存，同弹窗重新勾选恢复）；
+ * - 复选框切换勾选、点击行聚焦：授权设置（条件/canGrant）只作用于聚焦记录；
+ * - ALL 收敛为资源树右上角的"全量"选择按钮；勾选 ALL 自动聚焦当前类型 ALL 槽位，
+ *   取消 ALL 回 INSTANCE 焦点清空；显式复制把聚焦记录属性应用到已勾选目标；
+ * - 子权限配置器单父上下文（父 = 聚焦记录），按 SUB_PERM 允许集过滤候选。
  */
 import { computed, nextTick, ref, watch } from "vue";
-import { ElMessageBox } from "element-plus";
 import type { ResourceTreeNode } from "@/api/resource-operation";
 import type { ConditionResp } from "@/api/permission-condition";
 import type {
@@ -16,18 +17,26 @@ import type {
 } from "@/api/permission-grant";
 import type { OperationDefInput } from "../utils/source-chain";
 import {
-  applyDialogResultsToDraft,
   applyDraftToRecords,
+  applyFocusAttributes,
   buildAddChange,
   buildRemoveChange,
   buildSummary,
   computePreset,
+  copySlotAttributes,
   draftParentKey,
+  expandSuspended,
+  findSlotRecord,
   normalizeChildGrantKey,
   persistedParentKey,
   resourceGroupKeyOf,
-  type DialogResult,
-  type EffectiveRecord
+  resumeSlot,
+  slotKeyOf,
+  uncheckSlot,
+  type EffectiveRecord,
+  type FocusSlot,
+  type SlotDraftState,
+  type SuspendedSlot
 } from "../utils/grant-plan";
 import type { DraftChange } from "../utils/types";
 import ConditionPicker from "./ConditionPicker.vue";
@@ -35,7 +44,7 @@ import GrantChildConfigurator from "./GrantChildConfigurator.vue";
 
 const props = defineProps<{
   modelValue: boolean;
-  /** 触发预填（无权限单元格点击：操作+资源/范围预填） */
+  /** 触发预填（无权限单元格点击：操作+资源/范围预填；含聚焦槽位） */
   initial: {
     operationCode?: string;
     resourceTypeCode?: string;
@@ -54,7 +63,8 @@ const props = defineProps<{
   /** 弹窗本地事务基线；确认前不写入页面草稿。 */
   baseline: RolePermissionItem[];
   draftChanges: DraftChange[];
-  canCondition: boolean;
+  /** 目标角色业务键（sub-perm-allowed-types 门禁定位用，T-FE-040 S6） */
+  subjectKey: { roleTypeCode: string; roleExternalId: string };
 }>();
 
 const emit = defineEmits<{
@@ -64,10 +74,24 @@ const emit = defineEmits<{
 
 const editorMode = ref<"main" | "children">("main");
 const localChanges = ref<DraftChange[]>([]);
-const stagedMainChanges = ref<DraftChange[]>([]);
-const stagedParentResourceKeys = ref<Set<string>>(new Set());
-const stagedOperationCode = ref<string | null>(null);
-const stagedScopeMode = ref<"INSTANCE" | "ALL">("INSTANCE");
+
+// ========== v3.1 焦点生命周期（S1/S2，设计 §4） ==========
+
+/** 弹窗本地槽位草稿状态（suspended 暂存 + 焦点；确认时 expandSuspended 双路径展开） */
+const slotDraft = ref<SlotDraftState>({
+  changes: [],
+  suspended: new Map<string, SuspendedSlot>(),
+  focusSlotKey: null
+});
+
+/** 当前焦点槽位（null = 未聚焦；点击资源行聚焦） */
+const focusSlot = ref<FocusSlot | null>(null);
+
+/** 焦点记录属性（编辑态；聚焦未授权资源时为只读默认值） */
+const focusConditionCode = ref<string | null>(null);
+const focusCanGrant = ref(false);
+/** 焦点属性是否被用户修改过（未修改则不产生 update） */
+const focusTouched = ref(false);
 
 // ========== 操作权限（按资源类型分组；专属与全局分组展示） ==========
 
@@ -174,8 +198,97 @@ const allScopeSelected = computed({
   get: () => scopeMode.value === "ALL",
   set: (selected: boolean) => {
     if (!selectedOp.value) return;
-    scopeMode.value = selected ? "ALL" : "INSTANCE";
+    if (selected) {
+      const typeCode = effectiveAllType.value;
+      if (typeCode) {
+        // P1-1 修复：顺序必须为 构造 ALL slot → resume（add/恢复 suspended）→ 同步草稿 → focusOn，
+        // 否则焦点会读到默认值（未授权 ALL 勾选后确定应有 add 草稿，取消后再勾选应恢复）
+        const slot: FocusSlot = {
+          resourceTypeCode: typeCode,
+          resourceCode: null,
+          codeType: null,
+          operationCode: selectedOp.value.code,
+          scopeMode: "ALL"
+        };
+        slotDraft.value = resumeSlot(slotDraft.value, {
+          slot,
+          view: localView.value,
+          baseline: props.baseline,
+          operations: props.allOperations
+        });
+        localChanges.value = slotDraft.value.changes;
+        scopeMode.value = "ALL";
+        focusOn(slot);
+      }
+    } else {
+      // v3.1 S2：取消 ALL 回 INSTANCE → 原 ALL 记录取消勾选（suspended 暂存）+ 焦点清空
+      const typeCode = effectiveAllType.value;
+      if (typeCode) {
+        const slot: FocusSlot = {
+          resourceTypeCode: typeCode,
+          resourceCode: null,
+          codeType: null,
+          operationCode: selectedOp.value.code,
+          scopeMode: "ALL"
+        };
+        if (findSlotRecord(localView.value, slot)) {
+          slotDraft.value = uncheckSlot(slotDraft.value, {
+            slot,
+            view: localView.value
+          });
+          localChanges.value = slotDraft.value.changes;
+        }
+      }
+      scopeMode.value = "INSTANCE";
+      focusOn(null);
+    }
   }
+});
+
+/**
+ * P1-1 修复：全局操作（op.resourceTypeCode == null）下已勾选 ALL 时切换 allScopeType ——
+ * 撤销旧类型 ALL（若存在）→ 恢复新类型 ALL → 重新聚焦（避免旧类型 ALL 残留 + 新类型未授权）。
+ */
+watch(allScopeType, (newType, oldType) => {
+  const op = selectedOp.value;
+  if (
+    scopeMode.value !== "ALL" ||
+    !op ||
+    newType == null ||
+    newType === oldType
+  ) {
+    return;
+  }
+  if (oldType != null) {
+    const oldSlot: FocusSlot = {
+      resourceTypeCode: oldType,
+      resourceCode: null,
+      codeType: null,
+      operationCode: op.code,
+      scopeMode: "ALL"
+    };
+    if (findSlotRecord(localView.value, oldSlot)) {
+      slotDraft.value = uncheckSlot(slotDraft.value, {
+        slot: oldSlot,
+        view: localView.value
+      });
+    }
+  }
+  const newSlot: FocusSlot = {
+    resourceTypeCode: newType,
+    resourceCode: null,
+    codeType: null,
+    operationCode: op.code,
+    scopeMode: "ALL"
+  };
+  slotDraft.value = resumeSlot(slotDraft.value, {
+    slot: newSlot,
+    view: localView.value,
+    baseline: props.baseline,
+    operations: props.allOperations
+  });
+  localChanges.value = slotDraft.value.changes;
+  focusOn(newSlot);
 });
 
 const resourceSelectionDisabled = computed(
@@ -198,48 +311,206 @@ const treeProps = {
   disabled: () => resourceSelectionDisabled.value
 };
 
-// ========== 授权设置（条件 + canGrant） ==========
+// ========== 授权设置（v3.1 记录级：只作用于聚焦记录，设计 §4） ==========
 
-const conditionCode = ref<string | null>(null);
-const canGrant = ref(false);
-/** 未主动改设置时，已有授权只参与最终选中集合，不被批量改写。 */
-const settingsTouched = ref(false);
-const settingsMixed = ref(false);
-const existingSettingsCount = ref(0);
-
-/** 条件不可转授：选择条件后自动清除 canGrant；未选操作时表单不可用。 */
-const canGrantDisabled = computed(
-  () => selectedOp.value == null || conditionCode.value != null
-);
-const conditionDelegationBlocked = computed(() => conditionCode.value != null);
-const conditionPlaceholder = computed(() =>
-  settingsMixed.value && !settingsTouched.value
-    ? "多种条件（保持已有设置）"
-    : "无条件"
-);
-const optionsHint = computed(() => {
-  if (!selectedOp.value) return "选择操作权限后可配置";
-  if (existingSettingsCount.value === 0) return "应用于新勾选的资源";
-  if (settingsTouched.value) {
-    return `将统一应用于新授权及 ${existingSettingsCount.value} 项已有授权`;
-  }
-  if (settingsMixed.value) {
-    return "已有授权设置不一致；不修改则保持原值，修改后统一覆盖";
-  }
-  return "不修改则保持原值，修改后同步更新已勾选授权";
+/** 焦点槽位的生效记录（聚焦且已有授权/已勾选时存在；排除 suspended 待撤销槽位，四审 P1-2） */
+const focusedRecord = computed<EffectiveRecord | null>(() => {
+  const slot = focusSlot.value;
+  if (!slot) return null;
+  if (slotDraft.value.suspended.has(slotKeyOf(slot))) return null;
+  return findSlotRecord(localView.value, slot);
 });
 
+/**
+ * 有效来源提示（D4，措辞限定）：聚焦记录带条件，且当前角色已加载来源中
+ * 存在其他无条件来源（同槽位 AUTO_DEP/MANUAL 并列）→ 提示当前条件授权仅影响有条件来源。
+ */
+const sourceHint = computed<string | null>(() => {
+  const slot = focusSlot.value;
+  const record = focusedRecord.value;
+  if (!slot || !record || record.conditionCode == null) return null;
+  const hasUnconditional = localView.value.mains.some(
+    m =>
+      m.id !== record.id &&
+      m.draftMark !== "remove" &&
+      m.conditionCode == null &&
+      slotKeyOf({
+        resourceTypeCode: m.resourceTypeCode,
+        resourceCode: m.resourceCode,
+        codeType: m.codeType,
+        operationCode: m.operationCode ?? "",
+        scopeMode: m.scopeMode
+      }) === slotKeyOf(slot)
+  );
+  return hasUnconditional
+    ? "另有无条件来源，当前条件授权仅影响有条件来源"
+    : null;
+});
+
+/** 聚焦槽位（点击资源行 / 打开预填 / ALL 勾选 调用；null = 清除焦点）；
+ * suspended 待撤销槽位可聚焦但只读默认值（四审 P1-2：不恢复可编辑属性，避免同 ID 双 update） */
+function focusOn(slot: FocusSlot | null) {
+  focusSlot.value = slot;
+  if (!slot) {
+    focusConditionCode.value = null;
+    focusCanGrant.value = false;
+    focusTouched.value = false;
+    return;
+  }
+  const record = slotDraft.value.suspended.has(slotKeyOf(slot))
+    ? null
+    : findSlotRecord(localView.value, slot);
+  focusConditionCode.value = record?.conditionCode ?? null;
+  focusCanGrant.value = record?.canGrant ?? false;
+  focusTouched.value = false;
+}
+
+/**
+ * 焦点属性修改 → 实时落草稿（S1）：仅聚焦记录生成 update / add 就地改；
+ * 未聚焦或未修改不产生变更（设置区在未授权资源上只读展示默认值）。
+ */
+function applyFocusEdit() {
+  const slot = focusSlot.value;
+  if (!slot || !focusTouched.value) return;
+  slotDraft.value = applyFocusAttributes(slotDraft.value, {
+    slot,
+    attributes: {
+      conditionCode: focusConditionCode.value,
+      canGrant: focusCanGrant.value
+    },
+    view: localView.value
+  });
+  localChanges.value = slotDraft.value.changes;
+}
+
 function handleConditionChange(value: string | null) {
-  conditionCode.value = value;
-  if (value != null) canGrant.value = false;
-  settingsTouched.value = true;
-  settingsMixed.value = false;
+  focusConditionCode.value = value;
+  if (value != null) focusCanGrant.value = false; // 条件不可转授
+  focusTouched.value = true;
+  applyFocusEdit();
 }
 
 function handleCanGrantChange(value: boolean | string | number) {
-  canGrant.value = value === true;
-  settingsTouched.value = true;
-  settingsMixed.value = false;
+  focusCanGrant.value = value === true;
+  focusTouched.value = true;
+  applyFocusEdit();
+}
+
+/** 条件不可转授：选择条件后自动清除 canGrant；未聚焦或聚焦未授权资源时表单不可用（P2-2）。 */
+const canGrantDisabled = computed(
+  () => focusedRecord.value == null || focusConditionCode.value != null
+);
+const conditionDelegationBlocked = computed(
+  () => focusConditionCode.value != null
+);
+const conditionPlaceholder = computed(() =>
+  focusSlot.value == null ? "聚焦资源行后选择" : "无条件"
+);
+
+/** 设置区状态提示（v3.1：记录级，无混合态批量语义） */
+const settingsHint = computed(() => {
+  const record = focusedRecord.value;
+  if (!focusSlot.value) return "点击资源行聚焦后编辑该记录的授权设置";
+  if (!record) return "该资源未授权：新授权默认无条件、不可再授予";
+  if (record.draftMark === "add") return "草稿新增记录：修改将就地应用";
+  if (record.draftMark === "update") return "修改中：当前设置将覆盖原值";
+  return "修改只作用于当前聚焦记录";
+});
+
+// ========== 显式复制（S3，设计 §4：源=聚焦记录属性 → 目标=已勾选 MANUAL 记录） ==========
+
+const copyVisible = ref(false);
+const copyTargets = ref<string[]>([]);
+
+/** 复制入口可用：聚焦记录存在且条件为启用中（停用条件不可复制，20042 同口径） */
+const copyEnabled = computed(() => {
+  const record = focusedRecord.value;
+  if (!record) return false;
+  if (record.conditionCode != null) {
+    const condition = props.conditions.find(
+      c => c.code === record.conditionCode
+    );
+    return condition?.enabled === true;
+  }
+  return true;
+});
+
+/** 复制目标候选：当前操作已勾选的 MANUAL 主记录（INSTANCE；排除源自身与 suspended 待撤销，四审 P1-2） */
+const copyCandidates = computed(() => {
+  const op = selectedOp.value;
+  const sourceKey = focusSlot.value ? slotKeyOf(focusSlot.value) : null;
+  if (!op || !sourceKey) return [];
+  return localView.value.mains.filter(m => {
+    if (m.grantSource !== "MANUAL" || m.draftMark === "remove") return false;
+    if (m.operationCode !== op.code) return false;
+    if (
+      op.resourceTypeCode != null &&
+      m.resourceTypeCode !== op.resourceTypeCode
+    ) {
+      return false;
+    }
+    if (m.scopeMode !== "INSTANCE") return false;
+    if (
+      slotDraft.value.suspended.has(
+        slotKeyOf({
+          resourceTypeCode: m.resourceTypeCode,
+          resourceCode: m.resourceCode,
+          codeType: m.codeType,
+          operationCode: m.operationCode ?? "",
+          scopeMode: m.scopeMode
+        })
+      )
+    ) {
+      return false;
+    }
+    return (
+      slotKeyOf({
+        resourceTypeCode: m.resourceTypeCode,
+        resourceCode: m.resourceCode,
+        codeType: m.codeType,
+        operationCode: m.operationCode ?? "",
+        scopeMode: m.scopeMode
+      }) !== sourceKey
+    );
+  });
+});
+
+function openCopyDialog() {
+  copyTargets.value = [];
+  copyVisible.value = true;
+}
+
+function handleCopyConfirm() {
+  const slot = focusSlot.value;
+  if (!slot) return;
+  const targetSlots: FocusSlot[] = [];
+  for (const key of copyTargets.value) {
+    const record = copyCandidates.value.find(
+      c =>
+        slotKeyOf({
+          resourceTypeCode: c.resourceTypeCode,
+          resourceCode: c.resourceCode,
+          codeType: c.codeType,
+          operationCode: c.operationCode ?? "",
+          scopeMode: c.scopeMode
+        }) === key
+    );
+    if (!record) continue;
+    targetSlots.push({
+      resourceTypeCode: record.resourceTypeCode,
+      resourceCode: record.resourceCode,
+      codeType: record.codeType,
+      operationCode: record.operationCode ?? "",
+      scopeMode: record.scopeMode
+    });
+  }
+  slotDraft.value = copySlotAttributes(slotDraft.value, {
+    sourceSlot: slot,
+    targetSlots,
+    view: localView.value
+  });
+  localChanges.value = slotDraft.value.changes;
+  copyVisible.value = false;
 }
 
 // ========== 预填（评审问题 1：双 watcher + 代际令牌） ==========
@@ -274,17 +545,33 @@ async function applyPresetForCurrentScope(
   if (token !== presetToken.value) return;
   if (!op) {
     treeRef.value?.setCheckedKeys([]);
+    prevCheckedIds = new Set();
     return;
   }
   if (scopeMode.value !== "INSTANCE") {
     // ALL 无树勾选
     if (token !== presetToken.value) return;
     treeRef.value?.setCheckedKeys([]);
+    prevCheckedIds = new Set();
     return;
   }
+  // P1（三审）：排除 suspended 待撤销槽位的记录——baseline 记录取消勾选后仅入
+  // slotDraft.suspended，仍存在于 localView.mains，预填不得重新勾选（确认时 expandSuspended 生成 remove）
+  const suspendedSlots = new Set(slotDraft.value.suspended.keys());
   const preset = computePreset({
     op: { code: op.code, resourceTypeCode: op.resourceTypeCode },
-    records: props.records
+    records: localView.value.mains.filter(record => {
+      if (record.operationCode !== op.code) return true;
+      return !suspendedSlots.has(
+        slotKeyOf({
+          resourceTypeCode: record.resourceTypeCode,
+          resourceCode: record.resourceCode,
+          codeType: record.codeType,
+          operationCode: record.operationCode,
+          scopeMode: record.scopeMode
+        })
+      );
+    })
   });
   const keys = new Set(preset.checkedTripleKeys);
   for (const k of presetExtra.value) keys.add(k);
@@ -294,6 +581,8 @@ async function applyPresetForCurrentScope(
   // DOM 写入前再核对 token
   if (token !== presetToken.value) return;
   treeRef.value?.setCheckedKeys(ids);
+  // 同步勾选差量基线（v3.1：@check 差量驱动草稿；预填不触发 check 事件）
+  prevCheckedIds = new Set(ids);
 }
 
 // ========== 打开初始化 + 手动切换预填（评审问题 1+2） ==========
@@ -308,11 +597,14 @@ function resolveOp(key: string | null): OpOption | null {
   return null;
 }
 
-/** 当前草稿视图中可由弹窗管理的 MANUAL 主权限。 */
-function activeManualRecords(op: OpOption): EffectiveRecord[] {
+/**
+ * 原始授权视图中的 MANUAL 主权限（props.records = 打开弹窗时的状态，含页面草稿）。
+ * 四审 P2：按 draftMark 保留草稿状态——排除页面 add（显示"待授权"）、保留页面 remove（显示"待撤销"）。
+ */
+function originalManualRecords(op: OpOption): EffectiveRecord[] {
   return props.records.filter(record => {
     if (record.grantSource !== "MANUAL") return false;
-    if (record.draftMark === "remove") return false;
+    if (record.draftMark === "add") return false;
     if (record.operationCode !== op.code) return false;
     return (
       op.resourceTypeCode == null ||
@@ -322,74 +614,70 @@ function activeManualRecords(op: OpOption): EffectiveRecord[] {
 }
 
 /**
- * 读取当前范围已有直接授权设置。
- * 同值时直接预填；存在不同值时显示混合态。只有用户主动改字段才统一覆盖。
+ * 当前选中状态中的 MANUAL 主权限（localView 含弹窗本地变更，排除 suspended 待撤销槽位）。
+ * 用于 scopeMode 判定 / ALL 默认类型（三审 P1+P2-2a：与原始状态分开计算）。
  */
-function syncGrantSettings(
-  op: OpOption | null,
-  mode: "INSTANCE" | "ALL" = scopeMode.value
-) {
-  if (!op) {
-    conditionCode.value = null;
-    canGrant.value = false;
-    settingsTouched.value = false;
-    settingsMixed.value = false;
-    existingSettingsCount.value = 0;
-    return;
-  }
-  const records = activeManualRecords(op).filter(record => {
-    if (record.scopeMode !== mode) return false;
-    if (mode !== "ALL") return true;
-    const targetType = effectiveAllType.value;
-    return targetType == null || record.resourceTypeCode === targetType;
+function currentManualRecords(op: OpOption): EffectiveRecord[] {
+  const suspendedSlots = new Set(slotDraft.value.suspended.keys());
+  return localView.value.mains.filter(record => {
+    if (record.grantSource !== "MANUAL") return false;
+    if (record.draftMark === "remove") return false;
+    if (record.operationCode !== op.code) return false;
+    if (
+      op.resourceTypeCode != null &&
+      record.resourceTypeCode !== op.resourceTypeCode
+    ) {
+      return false;
+    }
+    // P1：待撤销（suspended）槽位的记录不属于当前选中状态
+    if (
+      suspendedSlots.has(
+        slotKeyOf({
+          resourceTypeCode: record.resourceTypeCode,
+          resourceCode: record.resourceCode,
+          codeType: record.codeType,
+          operationCode: record.operationCode,
+          scopeMode: record.scopeMode
+        })
+      )
+    ) {
+      return false;
+    }
+    return true;
   });
-  existingSettingsCount.value = records.length;
-  settingsTouched.value = false;
-  if (records.length === 0) {
-    conditionCode.value = null;
-    canGrant.value = false;
-    settingsMixed.value = false;
-    return;
-  }
-  const first = records[0];
-  const mixed = records.some(
-    record =>
-      record.conditionCode !== first.conditionCode ||
-      record.canGrant !== first.canGrant
-  );
-  settingsMixed.value = mixed;
-  conditionCode.value = mixed ? null : first.conditionCode;
-  canGrant.value = mixed ? false : first.canGrant;
 }
 
-/** 当前操作已生效的 INSTANCE/ALL 资源键，用于区分保持、授权与撤销。 */
+// ========== 预填与焦点联动 ==========
+
+/** 原始授权资源键（打开弹窗时状态；用于模板"已授权/待撤销"判定，三审 P2-2a）。 */
 const originalInstanceResourceKeys = computed(() => {
   const op = selectedOp.value;
   if (!op) return new Set<string>();
   return new Set(
-    activeManualRecords(op)
+    originalManualRecords(op)
       .filter(record => record.scopeMode === "INSTANCE")
       .map(record => resourceGroupKeyOf(record))
   );
 });
 
+/** 当前选中 ALL 资源键（含弹窗本地变更、排除 suspended；scopeMode 判定用）。 */
 const originalAllResourceKeys = computed(() => {
   const op = selectedOp.value;
   if (!op) return new Set<string>();
   return new Set(
-    activeManualRecords(op)
+    currentManualRecords(op)
       .filter(record => record.scopeMode === "ALL")
       .map(record => resourceGroupKeyOf(record))
   );
 });
 
-/** 切换操作时记录初始授权集合，并选定 ALL 的默认目标类型。 */
+/** 切换操作时记录当前选中集合，并选定 ALL 的默认目标类型。 */
 function captureOriginalSelections(op: OpOption | null) {
   if (!op) {
     allScopeType.value = null;
     return;
   }
-  const records = activeManualRecords(op);
+  const records = currentManualRecords(op);
   const allRecords = records.filter(record => record.scopeMode === "ALL");
   const visibleTypes = new Set(selectableTypes.value);
   const existingAllType = allRecords.find(
@@ -407,30 +695,50 @@ function originalAllSelectedForCurrentType(): boolean {
 
 /**
  * 打开预填（initial 首次消费，评审问题 1+2）。
- * initial.scopeMode 优先 + initial.resourceCode 入 extra。
+ * initial.scopeMode 优先 + initial.resourceCode 入 extra + 聚焦 initial 槽位（v3.1 S1）。
+ * 四审 P1-1：未授权 initial 只聚焦、不伪造勾选——INSTANCE 不再经 presetExtra 注入树勾选、
+ * ALL 仅在已有 ALL 授权时置 scopeMode=ALL（否则保持 INSTANCE 并聚焦 ALL 槽位，设置区只读默认值）。
  */
 async function applyOpenPreset(op: OpOption | null) {
   const initial = props.initial;
   captureOriginalSelections(op);
   if (!op) {
-    scopeMode.value = initial.scopeMode ?? "INSTANCE";
-    syncGrantSettings(op, scopeMode.value);
+    scopeMode.value = "INSTANCE";
     presetExtra.value = new Set();
     await applyPresetForCurrentScope(op);
     return;
   }
-  scopeMode.value = originalAllSelectedForCurrentType()
-    ? "ALL"
-    : (initial.scopeMode ?? "INSTANCE");
-  syncGrantSettings(op, scopeMode.value);
-  const extra = new Set<string>();
-  if (initial.resourceCode && initial.codeType && initial.resourceTypeCode) {
-    extra.add(
-      `${initial.resourceTypeCode}:${initial.resourceCode}:${initial.codeType}`
-    );
-  }
-  presetExtra.value = extra;
+  scopeMode.value = originalAllSelectedForCurrentType() ? "ALL" : "INSTANCE";
+  presetExtra.value = new Set();
   await applyPresetForCurrentScope(op);
+  // v3.1 S1 + 四审 P1-1：按完整授权键聚焦 initial 槽位（未授权也聚焦，设置区只读默认值；
+  // 不调用 resumeSlot / 不伪造勾选——确认时未勾选的未授权 initial 不会产生 add）
+  if (initial.scopeMode === "ALL") {
+    focusOn({
+      resourceTypeCode:
+        initial.resourceTypeCode ??
+        op.resourceTypeCode ??
+        allScopeType.value ??
+        selectableTypes.value[0] ??
+        "",
+      resourceCode: null,
+      codeType: null,
+      operationCode: op.code,
+      scopeMode: "ALL"
+    });
+  } else if (initial.resourceCode) {
+    focusOn({
+      resourceTypeCode:
+        initial.resourceTypeCode ??
+        op.resourceTypeCode ??
+        selectableTypes.value[0] ??
+        "",
+      resourceCode: initial.resourceCode,
+      codeType: initial.codeType ?? "default",
+      operationCode: op.code,
+      scopeMode: "INSTANCE"
+    });
+  }
 }
 
 /**
@@ -440,15 +748,15 @@ async function applySwitchPreset(op: OpOption | null) {
   captureOriginalSelections(op);
   if (!op) {
     scopeMode.value = "INSTANCE";
-    syncGrantSettings(op, scopeMode.value);
     presetExtra.value = new Set();
     await applyPresetForCurrentScope(op);
     return;
   }
   scopeMode.value = originalAllSelectedForCurrentType() ? "ALL" : "INSTANCE";
-  syncGrantSettings(op, scopeMode.value);
   presetExtra.value = new Set();
   await applyPresetForCurrentScope(op);
+  // 切换操作后焦点重置（旧操作的聚焦槽位不再有效）
+  focusOn(null);
 }
 
 /** 打开流程标志：selectedOpKey sync watcher 跳过打开时的程序设值（评审问题 2） */
@@ -460,15 +768,12 @@ watch(
     if (!visible) return;
     editorMode.value = "main";
     localChanges.value = [...props.draftChanges];
-    stagedMainChanges.value = [];
-    stagedParentResourceKeys.value = new Set();
-    stagedOperationCode.value = null;
-    stagedScopeMode.value = "INSTANCE";
-    conditionCode.value = null;
-    canGrant.value = false;
-    settingsTouched.value = false;
-    settingsMixed.value = false;
-    existingSettingsCount.value = 0;
+    slotDraft.value = {
+      changes: [...props.draftChanges],
+      suspended: new Map<string, SuspendedSlot>(),
+      focusSlotKey: null
+    };
+    focusOn(null);
     allScopeType.value = null;
     presetExtra.value = new Set();
     const initial = props.initial;
@@ -505,19 +810,153 @@ watch(
   { flush: "post" }
 );
 
-/** 范围切换 -> 重新预填（不改默认 scopeMode，评审问题 1） */
-watch(scopeMode, async mode => {
-  syncGrantSettings(selectedOp.value, mode);
+/** 范围切换 -> 重新预填（不改默认 scopeMode，评审问题 1；v3.1 焦点由 allScopeSelected 管理） */
+watch(scopeMode, async () => {
   await applyPresetForCurrentScope();
 });
 
-watch(allScopeType, () => {
-  if (scopeMode.value === "ALL") {
-    syncGrantSettings(selectedOp.value, "ALL");
-  }
+// ========== 树勾选 ↔ 草稿实时同步 + 焦点（v3.1 S2） ==========
+
+/** 节点 id → 焦点槽位（当前操作 + INSTANCE 范围） */
+const slotByNodeId = computed(() => {
+  const map = new Map<number, FocusSlot>();
+  const opCode = selectedOp.value?.code;
+  if (!opCode) return map;
+  const collect = (nodes: ResourceTreeNode[]) => {
+    for (const node of nodes) {
+      map.set(node.id, {
+        resourceTypeCode: node.resourceTypeCode,
+        resourceCode: node.code,
+        codeType: node.codeType,
+        operationCode: opCode,
+        scopeMode: "INSTANCE"
+      });
+      if (node.children?.length) collect(node.children);
+    }
+  };
+  collect(selectableForest.value);
+  return map;
 });
 
-// ========== 主权限暂存 + 子权限本地事务 + 确定 ==========
+/** 上次勾选集合（node-key=id），@check 差量驱动 uncheckSlot/resumeSlot */
+let prevCheckedIds = new Set<number>();
+
+function handleTreeCheck(
+  _data: unknown,
+  info: { checkedKeys: Array<number | string> }
+) {
+  if (!selectedOp.value) return;
+  const current = new Set(info.checkedKeys.map(k => Number(k)));
+  const newlyChecked: number[] = [];
+  const newlyUnchecked: number[] = [];
+  for (const id of current) {
+    if (!prevCheckedIds.has(id)) newlyChecked.push(id);
+  }
+  for (const id of prevCheckedIds) {
+    if (!current.has(id)) newlyUnchecked.push(id);
+  }
+  prevCheckedIds = current;
+
+  for (const id of newlyChecked) {
+    const slot = slotByNodeId.value.get(id);
+    if (!slot) continue;
+    slotDraft.value = resumeSlot(slotDraft.value, {
+      slot,
+      view: localView.value,
+      baseline: props.baseline,
+      operations: props.allOperations
+    });
+    localChanges.value = slotDraft.value.changes;
+    // P2-3 修复：S1 首次勾选自动聚焦——循环内每次重新判断焦点是否为空，
+    // 确保批量勾选仅第一项取得焦点（焦点非空时不抢焦点）
+    if (!focusSlot.value) {
+      focusOn(slot);
+    }
+  }
+  for (const id of newlyUnchecked) {
+    const slot = slotByNodeId.value.get(id);
+    if (!slot) continue;
+    slotDraft.value = uncheckSlot(slotDraft.value, {
+      slot,
+      view: localView.value
+    });
+    localChanges.value = slotDraft.value.changes;
+    // 取消勾选焦点记录 → 焦点清空（S2）
+    if (focusSlot.value && slotKeyOf(slot) === slotKeyOf(focusSlot.value)) {
+      focusOn(null);
+    }
+  }
+}
+
+/** 点击资源行 → 聚焦该槽位（复选框仍用于勾选切换，S1 分离） */
+function handleNodeClick(data: ResourceTreeNode) {
+  if (!selectedOp.value || scopeMode.value !== "INSTANCE") return;
+  focusOn({
+    resourceTypeCode: data.resourceTypeCode,
+    resourceCode: data.code,
+    codeType: data.codeType,
+    operationCode: selectedOp.value.code,
+    scopeMode: "INSTANCE"
+  });
+}
+
+/** 聚焦节点 id（行高亮） */
+const focusNodeId = computed<number | null>(() => {
+  const slot = focusSlot.value;
+  if (!slot) return null;
+  for (const [id, s] of slotByNodeId.value) {
+    if (slotKeyOf(s) === slotKeyOf(slot)) return id;
+  }
+  return null;
+});
+
+/** 节点槽位摘要（S7）：条件名（无条件显示浅色[无条件]）/ 再授予 / 子权限数 / 草稿状态 */
+function nodeSummary(node: ResourceTreeNode): string[] {
+  const opCode = selectedOp.value?.code;
+  if (!opCode) return [];
+  const slot: FocusSlot = {
+    resourceTypeCode: node.resourceTypeCode,
+    resourceCode: node.code,
+    codeType: node.codeType,
+    operationCode: opCode,
+    scopeMode: "INSTANCE"
+  };
+  // findSlotRecord 面向可编辑槽位，会排除 remove；摘要还需读取页面草稿中
+  // 已标记待撤销的 baseline MANUAL 记录（S7），但不能放宽编辑/复制入口。
+  const record =
+    findSlotRecord(localView.value, slot) ??
+    localView.value.mains.find(
+      item =>
+        item.grantSource === "MANUAL" &&
+        item.draftMark === "remove" &&
+        item.resourceTypeCode === slot.resourceTypeCode &&
+        (item.resourceCode ?? null) === slot.resourceCode &&
+        (item.codeType ?? null) === slot.codeType &&
+        item.operationCode === slot.operationCode &&
+        item.scopeMode === slot.scopeMode
+    );
+  if (!record) return [];
+  const tags: string[] = [];
+  if (record.conditionCode != null) {
+    const condition = props.conditions.find(
+      c => c.code === record.conditionCode
+    );
+    tags.push(condition?.name ?? record.conditionCode);
+  } else {
+    tags.push("无条件");
+  }
+  if (record.canGrant) tags.push("可转授");
+  if (record.draftMark === "update") tags.push("待更新");
+  const children = localView.value.childrenByParent.get(
+    record.draftMark === "add" && record.changeId
+      ? draftParentKey(record.changeId)
+      : persistedParentKey(record.id)
+  );
+  if (children && children.length > 0) tags.push(`${children.length} 子权限`);
+  return tags;
+}
+
+// ========== 主权限确认（v3.1：expandSuspended 双路径展开） + 子权限单父上下文 ==========
 
 const confirmDisabled = computed(() => {
   if (!selectedOp.value) return true;
@@ -527,91 +966,13 @@ const confirmDisabled = computed(() => {
   return false;
 });
 
-/** 将当前主权限编辑状态转换为有序结果（ALL 撤销必须先于 INSTANCE 最终集合）。 */
-function buildDialogResults(): DialogResult[] | null {
-  const op = selectedOp.value;
-  if (!op) return null;
-  const operation = { code: op.code, resourceTypeCode: op.resourceTypeCode };
-  const results: DialogResult[] = [];
-  if (scopeMode.value === "ALL") {
-    const typeCode = effectiveAllType.value!;
-    const resource = {
-      resourceTypeCode: typeCode,
-      resourceCode: null,
-      codeType: null,
-      name: `全部资源（${typeCode}）`
-    };
-    const resourceKey = resourceGroupKeyOf(resource);
-    results.push({
-      operation,
-      scopeMode: "ALL",
-      targetResourceTypeCode: typeCode,
-      resources: [resource],
-      untouchedResourceKeys:
-        !settingsTouched.value && originalAllResourceKeys.value.has(resourceKey)
-          ? [resourceKey]
-          : [],
-      conditionCode: conditionCode.value,
-      canGrant: canGrant.value
-    });
-  } else {
-    const checked = treeRef.value?.getCheckedNodes(false) as
-      | ResourceTreeNode[]
-      | undefined;
-    const resources = (checked ?? []).map(node => ({
-      resourceTypeCode: node.resourceTypeCode,
-      resourceCode: node.code,
-      codeType: node.codeType,
-      name: node.name
-    }));
-    const allType = effectiveAllType.value;
-    const allKey = currentAllResourceKey.value;
-    if (
-      allType != null &&
-      allKey != null &&
-      originalAllResourceKeys.value.has(allKey)
-    ) {
-      // 取消“全量”后先撤销当前类型 ALL，再应用实例树最终集合。
-      results.push({
-        operation,
-        scopeMode: "ALL",
-        targetResourceTypeCode: allType,
-        resources: [],
-        conditionCode: null,
-        canGrant: false
-      });
-    }
-    results.push({
-      operation,
-      scopeMode: "INSTANCE",
-      resources,
-      untouchedResourceKeys: settingsTouched.value
-        ? []
-        : [...originalInstanceResourceKeys.value],
-      conditionCode: conditionCode.value,
-      canGrant: canGrant.value
-    });
-  }
-  return results;
-}
+/** 将当前主权限编辑状态转换为有序结果（v3.1 已移除：弹窗实时草稿 + 确认时 expandSuspended）。 */
 
 const localView = computed(() =>
   applyDraftToRecords({
     baseline: props.baseline,
     changes: localChanges.value,
     operations: props.allOperations
-  })
-);
-
-/** 当前主权限选择对应的 MANUAL 记录，包含本次弹窗刚新增的草稿父。 */
-const childParents = computed(() =>
-  localView.value.mains.filter(record => {
-    if (record.grantSource !== "MANUAL" || record.draftMark === "remove") {
-      return false;
-    }
-    if (record.operationCode !== stagedOperationCode.value) return false;
-    if (record.scopeMode !== stagedScopeMode.value) return false;
-    return stagedParentResourceKeys.value.has(resourceGroupKeyOf(record));
   })
 );
 
@@ -635,50 +996,28 @@ function effectiveResourceLabel(record: EffectiveRecord): string {
   );
 }
 
-/** 主权限先在弹窗内暂存，随后才允许挂载子权限。 */
+/** 草稿变更同步（localChanges 与 slotDraft.changes 保持同一引用；所有写路径统一入口） */
+function syncChanges(changes: DraftChange[]) {
+  localChanges.value = changes;
+  slotDraft.value = { ...slotDraft.value, changes };
+}
+
+/** 子权限配置器单父上下文（S6）：父 = 聚焦记录（有效 MANUAL 主权限，INSTANCE 与 ALL 均可，设计 §4「ALL 可独立配置子权限」） */
+const childParent = computed<EffectiveRecord | null>(() => {
+  const record = focusedRecord.value;
+  if (!record || record.grantSource !== "MANUAL") return null;
+  if (record.draftMark === "remove") return null;
+  return record;
+});
+
+/** 配置子权限：进入单父上下文（父 = 聚焦记录，设计 §4 v3.1 记录级入口） */
 function handleConfigureChildren() {
-  const dialogs = buildDialogResults();
-  if (!dialogs) return;
-  const result = applyDialogResultsToDraft({
-    baseline: props.baseline,
-    changes: props.draftChanges,
-    dialogs,
-    operations: props.allOperations
-  });
-  localChanges.value = result.changes;
-  stagedMainChanges.value = [...result.changes];
-  const finalDialog = dialogs[dialogs.length - 1];
-  stagedParentResourceKeys.value = new Set(
-    finalDialog.resources.map(resource => resourceGroupKeyOf(resource))
-  );
-  stagedOperationCode.value = finalDialog.operation.code;
-  stagedScopeMode.value = finalDialog.scopeMode;
+  if (!childParent.value) return;
   editorMode.value = "children";
 }
 
-const childDraftDirty = computed(
-  () =>
-    JSON.stringify(localChanges.value) !==
-    JSON.stringify(stagedMainChanges.value)
-);
-
-async function handleBackToMain() {
-  if (childDraftDirty.value) {
-    try {
-      await ElMessageBox.confirm(
-        "返回修改主权限将放弃本次子权限调整，是否继续？",
-        "放弃子权限调整",
-        {
-          confirmButtonText: "继续返回",
-          cancelButtonText: "留在当前页",
-          type: "warning"
-        }
-      );
-    } catch {
-      return;
-    }
-  }
-  localChanges.value = [...stagedMainChanges.value];
+/** 返回主模式：实时草稿不丢弃（v3.1 弹窗本地草稿，取消弹窗整体丢弃） */
+function handleBackToMain() {
   editorMode.value = "main";
 }
 
@@ -688,7 +1027,7 @@ function handleAddChild(input: {
   resourceLabel: string;
 }) {
   const recordKey = normalizeChildGrantKey(input.recordKey);
-  localChanges.value = [
+  syncChanges([
     ...localChanges.value,
     buildAddChange({
       recordKey,
@@ -700,21 +1039,21 @@ function handleAddChild(input: {
         resourceLabel: input.resourceLabel
       })
     })
-  ];
+  ]);
 }
 
 function handleRemoveChild(record: EffectiveRecord) {
   if (record.draftMark === "add" && record.changeId) {
-    localChanges.value = localChanges.value.filter(
-      change => change.changeId !== record.changeId
+    syncChanges(
+      localChanges.value.filter(change => change.changeId !== record.changeId)
     );
     return;
   }
-  localChanges.value = localChanges.value.filter(
+  let changes = localChanges.value.filter(
     change => !(change.kind === "update" && change.recordId === record.id)
   );
-  localChanges.value = [
-    ...localChanges.value,
+  changes = [
+    ...changes,
     buildRemoveChange({
       records: [record],
       cascadeChildCount: 0,
@@ -733,29 +1072,19 @@ function handleRemoveChild(record: EffectiveRecord) {
       })
     })
   ];
+  syncChanges(changes);
 }
 
 function handleRestoreChild(record: EffectiveRecord) {
   if (!record.changeId) return;
-  localChanges.value = localChanges.value.filter(
-    change => change.changeId !== record.changeId
+  syncChanges(
+    localChanges.value.filter(change => change.changeId !== record.changeId)
   );
 }
 
+/** 确定：expandSuspended 双路径展开（baseline→remove / add→取消变更组）后提交完整草稿 */
 function handleConfirm() {
-  if (editorMode.value === "children") {
-    emit("confirm", localChanges.value);
-    return;
-  }
-  const dialogs = buildDialogResults();
-  if (!dialogs) return;
-  const result = applyDialogResultsToDraft({
-    baseline: props.baseline,
-    changes: props.draftChanges,
-    dialogs,
-    operations: props.allOperations
-  });
-  emit("confirm", result.changes);
+  emit("confirm", expandSuspended(slotDraft.value));
 }
 
 function handleClose() {
@@ -843,17 +1172,29 @@ function handleClose() {
             :props="treeProps"
             show-checkbox
             check-strictly
-            check-on-click-node
             node-key="id"
             :expand-on-click-node="false"
             default-expand-all
+            @check="handleTreeCheck"
+            @node-click="handleNodeClick"
           >
             <template #default="{ node, data }">
-              <span class="tree-node">
+              <span
+                class="tree-node"
+                :class="{ focused: node.id === focusNodeId }"
+              >
                 <span class="node-label">
                   {{ data.name }}<span class="node-code">{{ data.code }}</span>
                 </span>
                 <template v-if="scopeMode === 'INSTANCE'">
+                  <!-- S7 节点紧凑摘要：条件名（无条件浅色）/ 可再授予 / 子权限数 / 待更新 -->
+                  <span
+                    v-for="tag in nodeSummary(data)"
+                    :key="tag"
+                    class="node-tag"
+                    :class="{ 'node-tag--unconditional': tag === '无条件' }"
+                    >{{ tag }}</span
+                  >
                   <span
                     v-if="
                       node.checked &&
@@ -877,7 +1218,7 @@ function handleClose() {
             </template>
           </el-tree>
           <div v-if="selectedOp && scopeMode === 'INSTANCE'" class="tree-hint">
-            父节点授权会自动覆盖其子孙节点。
+            点击行聚焦后可编辑该记录的授权设置；复选框用于勾选/撤销。
           </div>
         </div>
       </section>
@@ -885,23 +1226,16 @@ function handleClose() {
       <section class="grant-options">
         <div class="options-heading">
           <span class="field-label">授权设置</span>
-          <span class="options-hint">{{ optionsHint }}</span>
+          <span class="options-hint">{{ settingsHint }}</span>
         </div>
         <div class="option-fields">
           <ConditionPicker
-            :model-value="conditionCode"
+            :model-value="focusConditionCode"
             :conditions="conditions"
-            :disabled="!selectedOp || !canCondition"
+            :disabled="!focusedRecord"
             :placeholder="conditionPlaceholder"
             @update:model-value="handleConditionChange"
           />
-          <el-tooltip
-            v-if="!canCondition"
-            content="无 CONDITION:VIEW 权限，条件选择不可用（可前往 3.2 权限条件页了解）"
-            placement="top"
-          >
-            <span class="condition-blocked">条件置灰</span>
-          </el-tooltip>
           <el-tooltip
             :disabled="!conditionDelegationBlocked"
             content="条件权限不可转授：带条件的权限不能设置可再授予，需先清除条件"
@@ -909,8 +1243,7 @@ function handleClose() {
           >
             <span>
               <el-checkbox
-                :model-value="canGrant"
-                :indeterminate="settingsMixed && !settingsTouched"
+                :model-value="focusCanGrant"
                 :disabled="canGrantDisabled"
                 @update:model-value="handleCanGrantChange"
               >
@@ -918,7 +1251,24 @@ function handleClose() {
               </el-checkbox>
             </span>
           </el-tooltip>
+          <el-tooltip
+            :disabled="copyEnabled"
+            content="源条件已停用，不可复制（需先选择启用中的条件）"
+            placement="top"
+          >
+            <span>
+              <el-button
+                size="small"
+                :disabled="!copyEnabled"
+                @click="openCopyDialog"
+              >
+                复制设置到已勾选授权
+              </el-button>
+            </span>
+          </el-tooltip>
         </div>
+        <!-- D4 有效来源提示（v3.1，措辞限定） -->
+        <div v-if="sourceHint" class="source-hint">{{ sourceHint }}</div>
       </section>
 
       <section class="child-entry">
@@ -926,14 +1276,18 @@ function handleClose() {
           <span class="child-entry-mark" aria-hidden="true">↳</span>
           <div>
             <span class="field-label">子权限</span>
-            <span>为所选主权限按需挂载下级权限</span>
+            <span>{{
+              childParent
+                ? `为聚焦记录「${effectiveResourceLabel(childParent)}」挂载下级权限`
+                : "请先点击资源行聚焦一条已授权主权限"
+            }}</span>
           </div>
         </div>
         <el-button
           size="small"
           type="primary"
           plain
-          :disabled="confirmDisabled"
+          :disabled="!childParent"
           @click="handleConfigureChildren"
         >
           配置子权限
@@ -942,8 +1296,9 @@ function handleClose() {
     </div>
 
     <GrantChildConfigurator
-      v-if="editorMode === 'children'"
-      :parents="childParents"
+      v-if="editorMode === 'children' && childParent"
+      :parent="childParent"
+      :subject-key="props.subjectKey"
       :children-provider="childrenOfLocal"
       :operations="allOperations"
       :resource-forest="allResourceForest"
@@ -952,6 +1307,56 @@ function handleClose() {
       @remove="handleRemoveChild"
       @restore="handleRestoreChild"
     />
+
+    <!-- S3 显式复制弹窗：目标 = 已勾选 MANUAL 记录多选 -->
+    <el-dialog
+      v-model="copyVisible"
+      title="复制授权设置"
+      width="480px"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <div class="copy-dialog-body">
+        <p class="copy-dialog-tip">
+          将聚焦记录的条件与再授予设置应用到以下已勾选授权（属性相同项自动跳过）：
+        </p>
+        <el-checkbox-group v-model="copyTargets" class="copy-target-list">
+          <el-checkbox
+            v-for="candidate in copyCandidates"
+            :key="candidate.id"
+            :value="
+              slotKeyOf({
+                resourceTypeCode: candidate.resourceTypeCode,
+                resourceCode: candidate.resourceCode,
+                codeType: candidate.codeType,
+                operationCode: candidate.operationCode ?? '',
+                scopeMode: candidate.scopeMode
+              })
+            "
+            class="copy-target-item"
+          >
+            {{ effectiveResourceLabel(candidate) }}（{{
+              candidate.operationCode
+            }}）
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty
+          v-if="copyCandidates.length === 0"
+          description="当前无可复制目标（已勾选的其他授权）"
+          :image-size="48"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="copyVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="copyTargets.length === 0"
+          @click="handleCopyConfirm"
+        >
+          复制
+        </el-button>
+      </template>
+    </el-dialog>
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
@@ -1083,6 +1488,13 @@ function handleClose() {
     justify-content: space-between;
     width: 100%;
     min-width: 0;
+    padding-right: 4px;
+    border-radius: var(--radius-sm);
+
+    &.focused {
+      background: var(--el-color-primary-light-9);
+      box-shadow: inset 2px 0 0 var(--el-color-primary);
+    }
   }
 
   .node-label {
@@ -1095,6 +1507,22 @@ function handleClose() {
     margin-left: 6px;
     font-size: 11px;
     color: var(--el-text-color-secondary);
+  }
+
+  .node-tag {
+    flex-shrink: 0;
+    padding: 0 6px;
+    margin-left: var(--space-2);
+    font-size: 11px;
+    line-height: 18px;
+    color: var(--el-text-color-secondary);
+    background: var(--el-fill-color-light);
+    border-radius: 4px;
+
+    &.node-tag--unconditional {
+      color: var(--el-text-color-placeholder);
+      background: transparent;
+    }
   }
 
   .node-state {
@@ -1123,6 +1551,35 @@ function handleClose() {
     color: var(--el-text-color-secondary);
     background: var(--el-bg-color);
     border-top: 1px solid var(--el-border-color-lighter);
+  }
+}
+
+.source-hint {
+  padding: var(--space-1) var(--space-2);
+  font-size: 12px;
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+  border-radius: var(--radius-sm);
+}
+
+.copy-dialog-body {
+  .copy-dialog-tip {
+    margin: 0 0 var(--space-2);
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .copy-target-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 320px;
+    overflow: auto;
+  }
+
+  .copy-target-item {
+    height: auto;
+    margin-right: 0;
   }
 }
 

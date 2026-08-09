@@ -58,7 +58,11 @@ export const GRANT_ERROR_CODE = {
   PERMISSION_NOT_FOUND: 20036,
   GRANT_CANNOT_DELEGATE: 20040,
   /** 🔧 T-PERM-041：条件权限不可转授（conditionCode != null 时 canGrant 必须 false） */
-  CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041
+  CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041,
+  /** 🔧 T-FE-040 v3.1：条件已停用（主权限 conditionCode 新写入或变更时必须 enabled=true，api-contract §6.5.1 20042） */
+  CONDITION_DISABLED: 20042,
+  /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §6.5.1 20043） */
+  SUB_PERMISSION_ATTRIBUTE_INVALID: 20043
 } as const;
 
 export type GrantErrorCode =
@@ -88,7 +92,11 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   [GRANT_ERROR_CODE.GRANT_CANNOT_DELEGATE]:
     "当前账号无权转授该权限（授权传递校验未通过）",
   [GRANT_ERROR_CODE.CONDITIONAL_PERMISSION_CANNOT_DELEGATE]:
-    "条件权限不可转授：带条件的权限不能设置可再授予，请先清除条件后重试"
+    "条件权限不可转授：带条件的权限不能设置可再授予，请先清除条件后重试",
+  [GRANT_ERROR_CODE.CONDITION_DISABLED]:
+    "该权限条件已停用，请重新选择启用中的条件后重试",
+  [GRANT_ERROR_CODE.SUB_PERMISSION_ATTRIBUTE_INVALID]:
+    "子权限不承载条件与再授予属性（系统不变量），仅可删除，请修正后重试"
 };
 
 // ========== 类型定义 ==========
@@ -230,6 +238,56 @@ export const applyGrantPlan = async (
   const res = await http.request<PermResult<ItemsResp<RolePermissionItem>>>(
     "post",
     "/api/perm/role-resource-permission/apply-grant-plan",
+    { data: params }
+  );
+  return unwrap(res);
+};
+
+// ========== v3.1 子权限类型只读契约（api-contract §6.5.2，T-FE-040） ==========
+
+/** 子权限类型策略 mode（判定口径与写校验同源，前端不得硬编码允许集） */
+export type SubPermissionMode = "ALLOW_ALL" | "ALLOW_LIST" | "ALLOW_NONE";
+
+/** ALLOW_NONE 细分原因（api-contract §6.5.2；ALLOW_ALL/ALLOW_LIST 时为 null） */
+export type SubPermissionDenyReason =
+  | "CONFIG_MISSING"
+  | "CONFIG_EMPTY"
+  | "CONFIG_INVALID"
+  | "PARENT_NOT_CONFIGURED"
+  | "CHILD_TYPES_EMPTY";
+
+/**
+ * 子权限类型策略（sub-perm-allowed-types 响应 data）。
+ * mode=ALLOW_LIST 时 allowedChildResourceTypeCodes 为允许集（并集去重）；
+ * ALLOW_ALL / ALLOW_NONE 时为空数组（前端据 mode 过滤选择器，不得硬编码允许集）。
+ */
+export type SubPermissionPolicy = {
+  /** 回显请求父资源类型 */
+  parentResourceTypeCode: string;
+  mode: SubPermissionMode;
+  reason: SubPermissionDenyReason | null;
+  allowedChildResourceTypeCodes: string[];
+};
+
+/** sub-perm-allowed-types 请求（目标角色业务键，门禁定位用；domainCode 授权页恒传 null） */
+export type SubPermAllowedTypesReq = {
+  domainCode?: string | null;
+  roleTypeCode: string;
+  roleExternalId: string;
+  /** 父资源类型（必填；不存在 -> 20007） */
+  parentResourceTypeCode: string;
+};
+
+/**
+ * 查询子权限允许类型（POST /api/perm/role-resource-permission/sub-perm-allowed-types）。
+ * 只读契约：判定口径与 §6.5 SUB_PERM fail-closed 写校验同一策略解析函数。
+ */
+export const getSubPermAllowedTypes = async (
+  params: SubPermAllowedTypesReq
+): Promise<SubPermissionPolicy> => {
+  const res = await http.request<PermResult<SubPermissionPolicy>>(
+    "post",
+    "/api/perm/role-resource-permission/sub-perm-allowed-types",
     { data: params }
   );
   return unwrap(res);

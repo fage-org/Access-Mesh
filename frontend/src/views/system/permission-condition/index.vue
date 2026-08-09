@@ -17,7 +17,6 @@ import Refresh from "~icons/ep/refresh";
 defineOptions({ name: "SystemPermissionCondition" });
 
 const {
-  canView,
   canCreate,
   canEdit,
   canDelete,
@@ -32,8 +31,9 @@ const {
 
 // ========== 权限门控 ==========
 // 与 docs/design/frontend/permission-condition.md §权限接线 对齐。
-// CONDITION:VIEW 门控路由可达性；CREATE/UPDATE/DELETE 三档独立门控写按钮（非 MANAGE，对齐后端）。
-// canView/canCreate/canEdit/canDelete 来自 hook，computed 包装响应 store.permissions 变化。
+// 🔧 T-FE-040 v3.1（S5）：CONDITION:VIEW 读取门控已移除（条件查看全租户开放，2026-08-08 产品确认），
+// CREATE/UPDATE/DELETE 三档独立门控写按钮（非 MANAGE，对齐后端）。
+// canCreate/canEdit/canDelete 来自 hook，computed 包装响应 store.permissions 变化。
 
 // ========== 列定义 ==========
 const columns = [
@@ -138,12 +138,8 @@ function onDelete(row: ConditionResp) {
 
 <template>
   <div class="permission-condition-page">
-    <el-empty
-      v-if="!canView"
-      description="你没有查看权限条件的权限"
-      class="permission-empty"
-    />
-    <div v-else class="table-wrap">
+    <!-- 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放，移除 canView 空态 -->
+    <div class="table-wrap">
       <PureTableBar title="" :columns="columns" @refresh="loadList">
         <template #title>
           <el-form :inline="true" class="search-form-inline">

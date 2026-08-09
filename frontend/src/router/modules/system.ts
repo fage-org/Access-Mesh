@@ -6,7 +6,7 @@ import { OPERATION_LOG_PERM_LIST } from "@/views/system/operation-log/utils/perm
 import { BIZ_DOMAIN_PERM_LIST } from "@/views/system/biz-domain/utils/perms";
 import { SERVICE_INTERFACE_PERM_LIST } from "@/views/system/service-interface/utils/perms";
 import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/utils/perms";
-import { CONDITION_PERM_LIST } from "@/views/system/permission-condition/utils/perms";
+// 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放，路由 auths 门禁移除，不再引用 CONDITION_PERM_LIST
 import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
 import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
 import { PERMISSION_CHANGE_LOG_PERM_LIST } from "@/views/system/permission-change-log/utils/perms";
@@ -122,10 +122,9 @@ export default {
       component: () => import("@/views/system/permission-condition/index.vue"),
       meta: {
         icon: "ep/key",
-        title: "权限条件",
-        // 单一事实源派生：见 views/system/permission-condition/utils/perms.ts
-        // 条件 CRUD 门禁 CONDITION:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
-        auths: [...CONDITION_PERM_LIST]
+        title: "权限条件"
+        // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），路由不再做读取门禁；
+        // 写权限 CREATE/UPDATE/DELETE 三档由页面按钮 v-if 门控（见 views/system/permission-condition/utils/perms.ts）
       }
     },
     {
