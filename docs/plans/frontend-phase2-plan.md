@@ -100,7 +100,7 @@ last_updated: 2026-08-09
 | [T-FE-036](../tasks/T-FE-036.md) | 4.1 权限授予页重设计（v3） | ✅ | T-FE-001/002/008/009 |
 | [T-FE-038](../tasks/T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | ✅ | T-FE-036 |
 | [T-FE-039](../tasks/T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | ✅ | T-FE-038 |
-| [T-FE-040](../tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | 👀 | T-FE-039 |
+| [T-FE-040](../tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | ✅ | T-FE-039 |
 | [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ⚙️ | — |
 
 
@@ -129,3 +129,4 @@ last_updated: 2026-08-09
 - 2026-08-02：**T-FE-036 实现完成转 review**（mock 驱动 + 自验通过；设计 `permission-grant.md` 回写 adopted，含 §13 实现注记；S1~S7 待人工交互验收）。验收后本 plan 前端部分仅剩 T-ADMIN-021（二期）与 T-PERM-022~037 后端任务。
 - 2026-08-03：**单类型矩阵上下文定稿**（需求确认：单权限类型 = 单个 `resourceTypeCode`），新增 T-FE-038（前端 MatrixContext + 类型切换加载 + 操作列配置按类型隔离）与 T-PERM-040（后端 operation-permission/list 类型查询 + apply-grant-plan 20008 校验）；设计回写 permission-grant.md §2.2/§3.2/§3.5/§3.6/§11（S8/S9）/§12、api-contract §5.3/§6.5.1、core-flows §6。
 - 2026-08-05：**图标映射定稿**——条纹=有条件、粗黑边框=可转授 canGrant、红/淡红=撤销（旧映射已废弃，T-FE-039 已同步）；子权限分叉精确投影规则（仅直接主权限记录、继承格不复制、级联撤销附红图标）；条件转授前端行为（选条件清 canGrant、20041 提示）并入 T-FE-039；T-FE-018 补充 T-FE-039/T-PERM-041 依赖；T-PERM-041 范围限定为仅最终态建表 DDL（不考虑历史数据，用户确认）；任务行治理精简。
+- 2026-08-09：**T-FE-040 授权弹窗 v3.1 记录级聚焦编辑完成**（mock-first：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要；S1~S8 mock 人工验收 + 纯 reducer 单测 206 tests 全过，design 回写 done）。本 plan 前端部分剩余 T-ADMIN-021（二期）；后端任务 T-PERM-022~034/037/040/041 全部 ⚙️ 待启动（T-FE-040 blocks 的 T-FE-018 联调依赖 T-PERM-034/040/041）。
