@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: 4.1 权限授予 前端设计（v3）
-status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现；S1~S8 mock 人工验收完成后进入 T-FE-018 真实接口联调
+status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现并完成 S1~S8 mock 人工验收；后续进入 T-FE-018 真实接口联调
 domain: frontend
 last_reviewed: 2026-08-09
 ---
@@ -241,7 +241,7 @@ interface MatrixContext {
 > - 加载期间中栏矩阵区 `el-skeleton` 骨架屏（`matrixLoading`），不渲染半成品矩阵；弹窗（模态）不可达、详情层抽屉自动关闭。
 
 ## 4. 授权弹窗（资源树单屏编辑）
-> ✅ T-FE-040 已实现（2026-08-09）：本节 v3.1 交互（焦点生命周期/显式复制/停用条件/子权限单父入口/节点摘要/有效来源提示）全部落地于 GrantDialog.vue + grant-plan.ts 记录槽位 reducer。
+> ✅ T-FE-040 已实现并完成 S1~S8 mock 人工验收（2026-08-09）：本节 v3.1 交互（焦点生命周期/显式复制/停用条件/子权限单父入口/节点摘要/有效来源提示）全部落地于 GrantDialog.vue + grant-plan.ts 记录槽位 reducer。initial 行高亮已按业务资源 id 修正，行聚焦与复选框勾选已显式隔离；条件 CRUD 与授权校验通过 fake-server 服务进程全局状态同源，跨标签页停用后保存可稳定触发 20042；20043 采用非法 payload 契约测试验证（正常 UI 不开放非法子权限属性入口）。
 
 触发：查看矩阵中无权限单元格点击“授权”，或工具栏“授权”按钮。
 

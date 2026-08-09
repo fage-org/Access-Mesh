@@ -409,12 +409,34 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     await selectP;
   });
 
-  it("classifySaveError：业务码映射 / 明确拒绝状态码 / 未知来源归结果未知", () => {
-    expect(
-      classifySaveError(
-        new RequestError("x", { appCode: 20033, kind: "business" })
-      ).message
-    ).toBe("同一资源与操作已存在直接授权，请编辑已有授权");
+  it.each([
+    [20033, "同一资源与操作已存在直接授权，请编辑已有授权"],
+    [20034, "自动补全记录只读，不可修改或删除"],
+    [20036, "目标记录不存在或已被修改，请刷新页面确认当前状态"],
+    [
+      20041,
+      "条件权限不可转授：带条件的权限不能设置可再授予，请先清除条件后重试"
+    ],
+    [20042, "该权限条件已停用，请重新选择启用中的条件后重试"],
+    [
+      20043,
+      "子权限不承载条件与再授予属性（系统不变量），仅可删除，请修正后重试"
+    ]
+  ] as const)(
+    "classifySaveError：业务码 %i 映射为稳定页面文案",
+    (code, expected) => {
+      expect(
+        classifySaveError(
+          new RequestError("后端原始文案", {
+            appCode: code,
+            kind: "business"
+          })
+        )
+      ).toEqual({ message: expected, unknownOutcome: false });
+    }
+  );
+
+  it("classifySaveError：明确拒绝状态码 / 未知来源归结果未知", () => {
     expect(
       classifySaveError({ response: { status: 403, data: {} } }).unknownOutcome
     ).toBe(false);

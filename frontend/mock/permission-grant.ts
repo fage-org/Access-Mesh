@@ -28,6 +28,16 @@
 // - 20003 角色停用（BASIC_203 访客）；角色不存在 → list 空列表（契约：门禁失败返回空列表）
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import { resources, operations } from "./resource-operation";
+import {
+  isEnabledMockCondition,
+  isKnownMockCondition
+} from "./_shared/permission-condition-store";
+import {
+  mockSubPermissionAllows,
+  parseMockSubPermissionPolicy,
+  type MockSubPermissionConfig,
+  type MockSubPermissionPolicy
+} from "./_shared/sub-perm-policy";
 
 // ========== 本地类型（对齐 api-contract §6.4 RolePermissionItemResp 14 字段） ==========
 
@@ -87,130 +97,41 @@ const error = (code: number, message: string) => ({
   data: null
 });
 
-/** 与 mock/permission-condition.ts 种子对齐（本地声明，避免跨 mock 环依赖） */
-const KNOWN_CONDITION_CODES = new Set([
-  "office-hours",
-  "corp-ip-only",
-  "temp-access",
-  "blacklist-vpn"
-]);
-
-/** 启用中条件（20042：主权限 conditionCode 新写入或变更必须 enabled=true；temp-access 已停用） */
-const ENABLED_CONDITION_CODES = new Set([
-  "office-hours",
-  "corp-ip-only",
-  "blacklist-vpn"
-]);
-
 /**
- * SUB_PERM 配置（domain_config(config_type='SUB_PERM').extra，本地声明）。
+ * SUB_PERM 配置场景（模拟父资源所属业务域的 domain_config）。
  * 读写同源：apply-grant-plan 的 20011 校验与 sub-perm-allowed-types 只读契约
  * 共用 resolveSubPermissionPolicy（判定优先级对齐 api-contract §6.5.2）。
  * 验收场景：DATA→ALLOW_ALL（顶层通配）、MENU→ALLOW_LIST[BUTTON]、
  * REPORT→ALLOW_LIST[DATA,REPORT]（匹配项并集）、API→PARENT_NOT_CONFIGURED、
  * BUTTON→CONFIG_MISSING（无配置项，fail-closed）。
  */
-const SUB_PERM_EXTRA: Record<string, string> = {
-  DATA: "*",
-  MENU: '[{"parent_type":"MENU","child_types":["BUTTON"]}]',
-  REPORT: '[{"parent_type":"REPORT","child_types":["DATA","REPORT"]}]'
-};
+const SUB_PERM_CONFIG_BY_PARENT_TYPE: Record<string, MockSubPermissionConfig> =
+  {
+    DATA: { exists: true, extra: "*" },
+    MENU: {
+      exists: true,
+      extra: '[{"parent_type":"MENU","child_types":["BUTTON"]}]'
+    },
+    REPORT: {
+      exists: true,
+      extra: '[{"parent_type":"REPORT","child_types":["DATA","REPORT"]}]'
+    },
+    // 配置存在但未声明 API 父类型 → PARENT_NOT_CONFIGURED（非 CONFIG_MISSING）。
+    API: {
+      exists: true,
+      extra: '[{"parent_type":"SERVICE","child_types":["API"]}]'
+    },
+    // 显式保留“所属域未配置 SUB_PERM”的验收场景。
+    BUTTON: { exists: false, extra: null }
+  };
 
-type SubPermissionMode = "ALLOW_ALL" | "ALLOW_LIST" | "ALLOW_NONE";
-
-type SubPermissionPolicy = {
-  mode: SubPermissionMode;
-  reason: string | null;
-  allowedChildResourceTypeCodes: string[];
-};
-
-/**
- * 解析 SUB_PERM 策略（判定优先级写死，对齐 api-contract §6.5.2 步骤 0~6）：
- * 配置缺失 → CONFIG_MISSING；extra 空 → CONFIG_EMPTY；`*` → ALLOW_ALL；
- * JSON 非法/结构非法 → CONFIG_INVALID；无匹配项 → PARENT_NOT_CONFIGURED；
- * 匹配项含嵌套通配 → ALLOW_ALL；并集非空 → ALLOW_LIST；并集空 → CHILD_TYPES_EMPTY。
- */
 function resolveSubPermissionPolicy(
   parentResourceTypeCode: string
-): SubPermissionPolicy {
-  const extra = SUB_PERM_EXTRA[parentResourceTypeCode];
-  if (extra === undefined) {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "CONFIG_MISSING",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  const trimmed = extra.trim();
-  if (trimmed === "") {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "CONFIG_EMPTY",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  if (trimmed === "*") {
-    return {
-      mode: "ALLOW_ALL",
-      reason: null,
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  let items: Array<{ parent_type: string; child_types: string[] }>;
-  try {
-    items = JSON.parse(trimmed);
-  } catch {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "CONFIG_INVALID",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  if (
-    !Array.isArray(items) ||
-    items.some(
-      i =>
-        typeof i?.parent_type !== "string" ||
-        !Array.isArray(i?.child_types) ||
-        i.child_types.some(c => typeof c !== "string")
-    )
-  ) {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "CONFIG_INVALID",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  const matched = items.filter(
-    i => i.parent_type.toLowerCase() === parentResourceTypeCode.toLowerCase()
+): MockSubPermissionPolicy {
+  return parseMockSubPermissionPolicy(
+    SUB_PERM_CONFIG_BY_PARENT_TYPE[parentResourceTypeCode],
+    parentResourceTypeCode
   );
-  if (matched.length === 0) {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "PARENT_NOT_CONFIGURED",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  if (matched.some(i => i.child_types.some(c => c === "*"))) {
-    return {
-      mode: "ALLOW_ALL",
-      reason: null,
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  const union = Array.from(new Set(matched.flatMap(i => i.child_types)));
-  if (union.length === 0) {
-    return {
-      mode: "ALLOW_NONE",
-      reason: "CHILD_TYPES_EMPTY",
-      allowedChildResourceTypeCodes: []
-    };
-  }
-  return {
-    mode: "ALLOW_LIST",
-    reason: null,
-    allowedChildResourceTypeCodes: union
-  };
 }
 
 /** 写校验 20011 语义：策略允许（fail-closed） */
@@ -218,14 +139,10 @@ function assertSubPermissionAllowed(
   parentResourceTypeCode: string,
   childResourceTypeCode: string
 ): boolean {
-  const policy = resolveSubPermissionPolicy(parentResourceTypeCode);
-  if (policy.mode === "ALLOW_ALL") return true;
-  if (policy.mode === "ALLOW_LIST") {
-    return policy.allowedChildResourceTypeCodes.some(
-      c => c.toLowerCase() === childResourceTypeCode.toLowerCase()
-    );
-  }
-  return false;
+  return mockSubPermissionAllows(
+    resolveSubPermissionPolicy(parentResourceTypeCode),
+    childResourceTypeCode
+  );
 }
 
 /** 角色停用水位（对齐 role-manage mock BASIC_203 访客 status=0） */
@@ -359,7 +276,8 @@ const records: InternalRecord[] = [
     grantSource: "MANUAL",
     grantedBits: "2"
   }),
-  // ---- BASIC_202 高级用户：简单场景 ----
+  // ---- BASIC_202 高级用户：T-FE-040 S3/S4 稳定验收夹具 ----
+  // 无条件可转授基线：复制回退源。
   seed(1101, "BASIC_ROLE:BASIC_202", {
     resourceTypeCode: "MENU",
     resourceCode: "user",
@@ -372,6 +290,48 @@ const records: InternalRecord[] = [
     dependOn: null,
     grantSource: "MANUAL",
     grantedBits: "2"
+  }),
+  // 启用条件复制源。
+  seed(1102, "BASIC_ROLE:BASIC_202", {
+    resourceTypeCode: "MENU",
+    resourceCode: "role",
+    codeType: "default",
+    resourceName: "角色管理",
+    operationCode: "VIEW",
+    canGrant: false,
+    conditionCode: "office-hours",
+    scopeMode: "INSTANCE",
+    dependOn: null,
+    grantSource: "MANUAL",
+    grantedBits: "2"
+  }),
+  // 复制目标：先由 1102 覆盖，再由 1101 复制回基线，用于验证 noop 归一化。
+  seed(1103, "BASIC_ROLE:BASIC_202", {
+    resourceTypeCode: "MENU",
+    resourceCode: "res-op",
+    codeType: "default",
+    resourceName: "资源与操作",
+    operationCode: "VIEW",
+    canGrant: true,
+    conditionCode: null,
+    scopeMode: "INSTANCE",
+    dependOn: null,
+    grantSource: "MANUAL",
+    grantedBits: "2"
+  }),
+  // 存量停用条件：允许原样保留，但禁止作为复制源或重新选择。
+  seed(1104, "BASIC_ROLE:BASIC_202", {
+    resourceTypeCode: "MENU",
+    resourceCode: "sys-mgmt",
+    codeType: "default",
+    resourceName: "系统管理",
+    operationCode: "DELETE",
+    canGrant: false,
+    conditionCode: "temp-access",
+    scopeMode: "INSTANCE",
+    dependOn: null,
+    grantSource: "MANUAL",
+    grantedBits: "8"
   })
 ];
 
@@ -583,8 +543,8 @@ export default defineFakeRoute([
         if (
           nextCondition != null &&
           nextCondition !== target.conditionCode &&
-          KNOWN_CONDITION_CODES.has(nextCondition) &&
-          !ENABLED_CONDITION_CODES.has(nextCondition)
+          isKnownMockCondition(nextCondition) &&
+          !isEnabledMockCondition(nextCondition)
         ) {
           return error(20042, "该权限条件已停用，请重新选择启用中的条件后重试");
         }
@@ -598,10 +558,7 @@ export default defineFakeRoute([
           return error(20033, "同一资源与操作已存在直接授权");
         }
         // 其他（优先级最后）：条件存在性
-        if (
-          nextCondition != null &&
-          !KNOWN_CONDITION_CODES.has(nextCondition)
-        ) {
+        if (nextCondition != null && !isKnownMockCondition(nextCondition)) {
           return error(20006, `权限条件不存在（${nextCondition}）`);
         }
         if (u.canGrant === true && nextCondition === "temp-access") {
@@ -690,8 +647,8 @@ export default defineFakeRoute([
           }
           if (
             key.conditionCode != null &&
-            KNOWN_CONDITION_CODES.has(key.conditionCode) &&
-            !ENABLED_CONDITION_CODES.has(key.conditionCode)
+            isKnownMockCondition(key.conditionCode) &&
+            !isEnabledMockCondition(key.conditionCode)
           ) {
             return error(
               20042,
@@ -733,7 +690,7 @@ export default defineFakeRoute([
         if (parent == null) {
           if (
             key.conditionCode != null &&
-            !KNOWN_CONDITION_CODES.has(key.conditionCode)
+            !isKnownMockCondition(key.conditionCode)
           ) {
             return error(20006, `权限条件不存在（${key.conditionCode}）`);
           }
@@ -794,7 +751,7 @@ export default defineFakeRoute([
             }
             if (
               child.conditionCode != null &&
-              !KNOWN_CONDITION_CODES.has(child.conditionCode)
+              !isKnownMockCondition(child.conditionCode)
             ) {
               return error(20006, `权限条件不存在（${child.conditionCode}）`);
             }

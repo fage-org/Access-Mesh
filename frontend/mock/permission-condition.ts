@@ -4,6 +4,13 @@
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
+import {
+  allocateMockConditionId,
+  mockConditions,
+  persistMockConditions,
+  syncMockConditionsFromStorage,
+  type MockCondition
+} from "./_shared/permission-condition-store";
 
 // ========== 本地类型（对齐后端 DTO，api-contract.md §5.6） ==========
 
@@ -19,12 +26,11 @@ type ConditionResp = {
   createdAt: string;
 };
 
-type InternalCondition = ConditionResp & { deleted: boolean };
+type InternalCondition = MockCondition;
 
 // ========== 常量与种子 ==========
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
-const BASE_TIME = "2026-06-18 09:30:00";
 const ok = <T>(data: T) => ({ code: 200, message: "success", data });
 const error = (code: number, message: string) => ({
   code,
@@ -42,62 +48,7 @@ const GATEWAY_PUSHABLE_TYPES = new Set([
 /** 对齐 ConditionEvalUtils.VALID_LOGIC */
 const VALID_LOGIC = new Set(["AND", "OR"]);
 
-let nextId = 701;
-
-const conditions: InternalCondition[] = [
-  {
-    id: 601,
-    tenantId: 1,
-    code: "office-hours",
-    name: "工作时间",
-    conditionRules:
-      '{"logic":"AND","items":[{"type":"TIME_RANGE","params":{"start":"09:00:00","end":"18:00:00"}}]}',
-    enabled: true,
-    gatewayEvaluable: true,
-    description: "仅工作时间段可访问",
-    createdAt: BASE_TIME,
-    deleted: false
-  },
-  {
-    id: 602,
-    tenantId: 1,
-    code: "corp-ip-only",
-    name: "公司网络",
-    conditionRules:
-      '{"logic":"AND","items":[{"type":"IP_WHITELIST","params":{"cidrs":["192.168.1.0/24","10.0.0.0/8"]}}]}',
-    enabled: true,
-    gatewayEvaluable: true,
-    description: "仅公司内网 IP 可访问",
-    createdAt: BASE_TIME,
-    deleted: false
-  },
-  {
-    id: 603,
-    tenantId: 1,
-    code: "temp-access",
-    name: "临时开放窗口",
-    conditionRules:
-      '{"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2026-07-01","end":"2026-07-31"}},{"type":"TIME_RANGE","params":{"start":"09:00:00","end":"18:00:00"}}]}',
-    enabled: false,
-    gatewayEvaluable: true,
-    description: "2026 年 7 月工作日时间窗（当前停用）",
-    createdAt: BASE_TIME,
-    deleted: false
-  },
-  {
-    id: 604,
-    tenantId: 1,
-    code: "blacklist-vpn",
-    name: "VPN 黑名单",
-    conditionRules:
-      '{"logic":"AND","items":[{"type":"IP_BLACKLIST","params":{"cidrs":["203.0.113.0/24"]}}]}',
-    enabled: true,
-    gatewayEvaluable: false,
-    description: "封禁已知 VPN 出口（走实时鉴权）",
-    createdAt: BASE_TIME,
-    deleted: false
-  }
-];
+const conditions: InternalCondition[] = mockConditions;
 
 // ========== 工具函数 ==========
 
@@ -156,6 +107,7 @@ export default defineFakeRoute([
     url: "/api/perm/permission-condition/list",
     method: "post",
     response: () => {
+      syncMockConditionsFromStorage();
       const items = conditions
         .filter(c => !c.deleted)
         .sort((a, b) => a.id - b.id)
@@ -168,6 +120,7 @@ export default defineFakeRoute([
     url: "/api/perm/permission-condition/detail",
     method: "post",
     response: ({ body }) => {
+      syncMockConditionsFromStorage();
       const c = conditions.find(item => item.id === body?.id && !item.deleted);
       return c ? ok(clone(c)) : error(404, "条件不存在");
     }
@@ -177,6 +130,7 @@ export default defineFakeRoute([
     url: "/api/perm/permission-condition/create",
     method: "post",
     response: ({ body }) => {
+      syncMockConditionsFromStorage();
       const {
         code,
         name,
@@ -195,7 +149,7 @@ export default defineFakeRoute([
       const err = validateRules(conditionRules, ge);
       if (err) return error(400, err);
       const created: InternalCondition = {
-        id: nextId++,
+        id: allocateMockConditionId(),
         tenantId: 1,
         code,
         name,
@@ -207,6 +161,7 @@ export default defineFakeRoute([
         deleted: false
       };
       conditions.push(created);
+      persistMockConditions();
       return ok(clone(created));
     }
   },
@@ -215,6 +170,7 @@ export default defineFakeRoute([
     url: "/api/perm/permission-condition/update",
     method: "post",
     response: ({ body }) => {
+      syncMockConditionsFromStorage();
       const {
         conditionId,
         name,
@@ -243,6 +199,7 @@ export default defineFakeRoute([
       if (enabled != null) c.enabled = enabled;
       if (gatewayEvaluable != null) c.gatewayEvaluable = gatewayEvaluable;
       if (description != null) c.description = description;
+      persistMockConditions();
       return ok(clone(c));
     }
   },
@@ -251,6 +208,7 @@ export default defineFakeRoute([
     url: "/api/perm/permission-condition/remove",
     method: "post",
     response: ({ body }) => {
+      syncMockConditionsFromStorage();
       const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
       if (ids.length === 0) return error(400, "ids 不能为空");
       let count = 0;
@@ -260,6 +218,7 @@ export default defineFakeRoute([
           count += 1;
         }
       }
+      persistMockConditions();
       return ok({ removed: count });
     }
   }

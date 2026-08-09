@@ -45,6 +45,7 @@ export function getPluginsList(
     vitePluginFakeServer({
       logger: false,
       include: "mock",
+      exclude: ["mock/**/*.spec.ts", "mock/**/*.test.ts"],
       infixName: false,
       enableProd: VITE_ENABLE_PROD_MOCK
     }),

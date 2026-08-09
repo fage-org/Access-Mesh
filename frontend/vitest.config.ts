@@ -10,6 +10,6 @@ export default defineConfig({
   resolve: { alias },
   test: {
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts"]
+    include: ["src/**/*.{test,spec}.ts", "mock/**/*.{test,spec}.ts"]
   }
 });

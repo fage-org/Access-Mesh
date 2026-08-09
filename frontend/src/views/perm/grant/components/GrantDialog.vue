@@ -1174,14 +1174,15 @@ function handleClose() {
             check-strictly
             node-key="id"
             :expand-on-click-node="false"
+            :check-on-click-node="false"
             default-expand-all
             @check="handleTreeCheck"
-            @node-click="handleNodeClick"
           >
             <template #default="{ node, data }">
               <span
                 class="tree-node"
-                :class="{ focused: node.id === focusNodeId }"
+                :class="{ focused: data.id === focusNodeId }"
+                @click.stop="handleNodeClick(data)"
               >
                 <span class="node-label">
                   {{ data.name }}<span class="node-code">{{ data.code }}</span>
