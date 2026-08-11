@@ -1,14 +1,15 @@
 ---
 doc_type: design
 title: admin-service 与 permission-center 同步设计
-status: adopted
+status: superseded
 domain: cross-service
-last_reviewed: 2026-06-20
+superseded_by: docs/design/access-service-architecture.md
+last_reviewed: 2026-08-10
 ---
 
 # admin-service 与 permission-center 同步设计
 
-> 状态：**v1.0 定稿**（2026-06-14）。本文是 admin-service 与 permission-center 同步模块的当前有效设计。
+> 状态：**已被取代**（2026-08-10）。`admin-service` 与 `permission-center` 已决定归并为模块化单体 `access-service`，内部异步同步改为单库本地强事务。当前权威设计见 [`../access-service-architecture.md`](../access-service-architecture.md)。本文仅保留历史追溯，不再作为新增实现依据。
 >
 > 历史执行过程已归档到 `docs/archive/2026-06-14/sync-module-execution-plan.md`，仅用于追溯，不作为实现依据。
 

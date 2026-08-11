@@ -9,6 +9,7 @@
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 [design-review-def-followup-plan.md](design-review-def-followup-plan.md)。详见归档批次 README |
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划。4 阶段已拆为独立 plan（见下 frontend-phase1~4），本文件保留为 roadmap（tasks:[] 保持空） |
+| [access-service-merge-plan.md](access-service-merge-plan.md) | 后端基础架构归并 | proposed | `admin-service` + `permission-center` 归并为模块化单体 `access-service`；任务 T-ACCESS-001~012。该计划是尚未开始后端功能任务的当前前置门禁，权威约束见 `design/access-service-architecture.md` |
 | [frontend-phase1-plan.md](frontend-phase1-plan.md) | 前端 Phase 1 执行编排 | active | 13 页前端实现（mock 驱动）+ API 核对。任务 T-FE-001~014；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034（不在本 plan 闭环）。D/E/F 重启的关键路径 |
 | [frontend-phase2-plan.md](frontend-phase2-plan.md) | 前端 Phase 2 执行编排 | proposed | 自动授权 + API 改造 + 动态数据权限。任务 T-PERM-022~037（022~034 逐页后端改造 + 035/036 暂缓 + 037 共性收尾）。⚠️ 自动授权/动态数据权限受 design-review §11 暂缓门禁 |
 | [frontend-phase3-plan.md](frontend-phase3-plan.md) | 前端 Phase 3 执行编排 | proposed | 前后端联调。任务 T-FE-015~022。待 Phase 1/2 收尾 |

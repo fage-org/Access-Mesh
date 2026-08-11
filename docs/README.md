@@ -9,10 +9,11 @@ docs/
 │   ├── README.md                      # 设计文档索引
 │   ├── project-rules.md               # 项目工程规范
 │   ├── architecture.md                # 微服务整体架构
+│   ├── access-service-architecture.md # access-service 目标架构与归并约束
 │   ├── default-org-tree-user-lifecycle.md # 默认组织树与用户生命周期
 │   ├── cross-service/                 # 跨服务设计
 │   │   ├── README.md
-│   │   └── admin-permission-sync.md   # admin-service 与 permission-center 同步设计
+│   │   └── admin-permission-sync.md   # 已取代的旧异步同步设计（历史追溯）
 │   ├── permission-center/             # 权限中心设计
 │   │   ├── overview.md                # 概念模型
 │   │   ├── api-contract.md            # API契约
@@ -53,12 +54,12 @@ docs/
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 项目工程规范         | [design/project-rules.md](design/project-rules.md)                                                                                   |
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |
+| access-service 目标架构 | [design/access-service-architecture.md](design/access-service-architecture.md)（归并拓扑、事务、数据、缓存与安全的权威约束） |
 | 权限中心概念模型     | [design/permission-center/overview.md](design/permission-center/overview.md)                                                         |
 | 权限中心 API 契约    | [design/permission-center/api-contract.md](design/permission-center/api-contract.md)                                                 |
 | 权限中心核心调用链路 | [design/permission-center/core-flows.md](design/permission-center/core-flows.md)                                                     |
 | 权限中心实现设计     | [design/permission-center/implementation.md](design/permission-center/implementation.md)                                             |
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
-| admin-service 与 permission-center 同步 | [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)                                      |
 | admin-service 对前端 API 契约 | [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) |
 | PostgreSQL 表结构    | [design/schema/](design/schema/)                                                                                                     |
 
@@ -66,6 +67,7 @@ docs/
 
 | 主题 | 文档 |
 |------|------|
+| access-service 归并计划 | [plans/access-service-merge-plan.md](plans/access-service-merge-plan.md)（T-ACCESS-001~012，当前后端前置） |
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
@@ -73,11 +75,11 @@ docs/
 ## 推荐阅读顺序
 
 1. 先读 [design/project-rules.md](design/project-rules.md)，确认接口、分层、DTO、异常、数据库等通用约束。
-2. 再读 [design/architecture.md](design/architecture.md)，理解 Gateway、admin-service、permission-center、example-service 的边界。
+2. 再读 [design/architecture.md](design/architecture.md) 理解当前仓库基线；新增后端与服务归并读取 [design/access-service-architecture.md](design/access-service-architecture.md)，并以其目标约束为准。
 3. 开发权限中心前，按顺序读 [design/permission-center/overview.md](design/permission-center/overview.md)、[design/permission-center/api-contract.md](design/permission-center/api-contract.md)、[design/permission-center/core-flows.md](design/permission-center/core-flows.md)、[design/permission-center/implementation.md](design/permission-center/implementation.md)。了解重构历史可读 [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)。
 4. 开发具体服务时，读取 [design/services/](design/services/) 下对应服务设计；涉及组织与用户页 admin 接口契约时, 读取 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md)。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)。
-6. 涉及 admin-service 与 permission-center 同步时，读取 [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)。
+6. 原 admin→permission 异步同步设计已被取代；实现归并读取 [design/access-service-architecture.md](design/access-service-architecture.md) §4，历史追溯才读取 [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)。
 7. 跟进仍在推进的任务时，读取 [plans/README.md](plans/README.md)。
 8. 涉及表字段、索引、约束时，以 [design/schema/](design/schema/) 下 SQL 为准。
 
@@ -123,10 +125,10 @@ docs/
 | `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |
 | `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |
-| `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。稳定结论已沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
+| `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。当时结论沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync；同步设计现仅供历史追溯。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
 | `archive/2026-06/` | v3.0~v3.3 权限中心设计演进历史快照（双轨 AND + sys_menu.operations 元数据化等），已被 v3.5 取代。 | [archive/2026-06/README.md](archive/2026-06/README.md) |
 | `archive/2026-06-17/` | AccessMesh 设计评审记录（2026-06-17）。评审结论已沉淀至 `design/`，工作单 A-C 派生为 P0 计划，D/E/F 暂缓；D1-D10 文档数字勘误待 F-1.a 自动化根治。 | [archive/2026-06-17/README.md](archive/2026-06-17/README.md) |
-| `archive/2026-06-14/` | 同步模块重构执行计划归档；稳定设计已沉淀到 `design/cross-service/admin-permission-sync.md`。 | [archive/2026-06-14/README.md](archive/2026-06-14/README.md) |
+| `archive/2026-06-14/` | 同步模块重构执行计划归档；当时的稳定设计沉淀到 `design/cross-service/admin-permission-sync.md`，该设计已于 2026-08-10 被 access-service 单库强事务目标架构取代。 | [archive/2026-06-14/README.md](archive/2026-06-14/README.md) |
 | `archive/2026-06-05/` | 编码与创作风格分析报告。可操作知识已合并到项目规范（项目规范§17、权限中心规范§19、文档治理规范），报告仅作历史追溯。 | [archive/2026-06-05/README.md](archive/2026-06-05/README.md) |
 | `archive/2026-06-03/` | 模块与接口逐轮核对及问题诊断。记录 Round 1 到 Round 7 的现状核对、目标模型、问题诊断表与建议实施顺序。 | [archive/2026-06-03/README.md](archive/2026-06-03/README.md) |
 | `archive/2026-05-30/` | 前端集成方案、Service 层重构审查、权限中心重构影响分析等阶段性文档。                                   | [archive/2026-05-30/README.md](archive/2026-05-30/README.md) |

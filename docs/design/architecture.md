@@ -3,12 +3,14 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-10
 ---
 
 # 微服务架构设计
 
 本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。权限中心概念模型见 `permission-center/overview.md`。
+
+> **目标架构提示（2026-08-10）**：项目已采纳将 `admin-service` 与 `permission-center` 归并为模块化单体 `access-service` 的目标设计。本文尚未完成 T-ACCESS-012 的全量实现回写；涉及新增后端代码、服务拓扑、事务、数据库、缓存或安全边界时，以 [`access-service-architecture.md`](access-service-architecture.md) 为准。下文旧双服务拓扑仅用于说明当前实施基线，不得继续扩展。
 
 ---
 

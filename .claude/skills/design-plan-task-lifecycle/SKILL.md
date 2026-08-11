@@ -166,6 +166,7 @@ last_updated: 2026-06-20
 
 | 前缀 | 领域 |
 |---|---|
+| `T-ACCESS` | access-service 归并（跨服务） |
 | `T-PERM` | permission-center |
 | `T-ADMIN` | admin-service |
 | `T-GW` | gateway |
