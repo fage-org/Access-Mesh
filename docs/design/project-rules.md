@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-08-09   # 文档治理：禁止记录讨论轮次；授权域同层调用唯一例外
+last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -66,13 +66,16 @@ last_reviewed: 2026-08-09   # 文档治理：禁止记录讨论轮次；授权�
 | 范围          | 归属模块          | 说明                             |
 | ------------- | ----------------- | -------------------------------- |
 | `200`         | 全局              | 成功                             |
-| `10001–19999` | admin-service     | 管理服务业务错误                 |
-| `20001–29999` | permission-center | 权限中心业务错误                 |
+| `10001–19999` | access-service 管理域 | 兼容原 admin 管理业务错误      |
+| `20001–29999` | access-service 权限域 | 兼容原 permission 权限业务错误 |
 | `30001–39999` | example-service   | 演示服务业务错误                 |
 | `90001–99999` | 全局系统错误      | 参数校验失败、系统异常等公共错误 |
 
 - `9xxxx` 段系统公共错误由 `common` 模块统一定义枚举，各业务模块**不得重复定义**。
-- 每个模块维护一个 `XxxErrorCode` 枚举类，字段格式：`CODE(int code, String msg)`。
+- `admin-service` 与 `permission-center` 物理归并后不改变错误码的领域归属：既有码值原样保留，管理域新增错误继续使用 `1xxxx`，权限域新增错误继续使用 `2xxxx`。
+- `access.application` 不单独占用错误码段；跨域编排错误按对外入口所属领域选择 `1xxxx` 或 `2xxxx`，与具体领域无关的公共技术失败使用 `9xxxx`。
+- 禁止因服务重命名而重编号，禁止为 `access-service` 新增 `4xxxx` 错误码段。
+- 每个业务域维护一个 `XxxErrorCode` 枚举类，字段格式：`CODE(int code, String msg)`；管理域和权限域枚举不得合并。
 
 ### 1.3 分页入参与响应规范
 

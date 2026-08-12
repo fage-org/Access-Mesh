@@ -14,6 +14,7 @@ depends_on:
   - T-ACCESS-004
 blocks: []
 acceptance:
+  - "多实例继续各自触发 Spring Scheduler；所有实例为同一计划时刻生成相同执行键，只有数据库原子抢占成功者进入业务执行，不以条件化调度或 Redis 锁承担正确性"
   - "动态任务与保留的系统维护任务使用数据库执行键和唯一约束竞争同一次计划执行"
   - "复用 T-ACCESS-002 已纳入最终 DDL 的任务执行表、实体及基础 Mapper/XML，不在运行代码或独立脚本中临时创建第二套持久层"
   - "只扩展原子抢占、续租、租约接管、条件完成/失败等并发 SQL 与 Mapper 方法，不重复创建基础 CRUD 和字段映射"
@@ -26,7 +27,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-11
+last_updated: 2026-08-12
 ---
 
 # T-ACCESS-009 建立数据库任务租约、幂等和异步执行治理

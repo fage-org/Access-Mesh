@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/design/cross-service/admin-permission-sync.md
-last_reviewed: 2026-08-11
+last_reviewed: 2026-08-12
 ---
 
 # access-service 目标架构与归并约束
@@ -158,6 +158,10 @@ flowchart LR
 
 请求完成必须在 `finally`/`afterCompletion` 清理上下文。异步任务显式传递上下文快照，定时任务通过租户提供器建立有界作用域，禁止盲目继承 ThreadLocal。
 
+平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 必须在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token `token-name`、`login-type`、Token 解析模式、密钥、会话键命名空间及有效期语义；平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。
+
+OAuth2 客户端令牌继续使用各客户端注册配置的有效期，不套用平台用户会话的 2 小时/30 分钟口径。`perm-sdk`、外部 `sync/full-sync` 和注册业务服务调用属于服务身份认证，不复用平台用户 Sa-Token 会话，继续按权限 API 契约使用签名或内部服务凭证建立 `callerType=SERVICE` 的可信上下文。
+
 ### 6.2 安全策略矩阵
 
 | 入口 | 调用方要求 | 关键约束 |
@@ -175,7 +179,7 @@ flowchart LR
 ### 7.1 统一缓存框架
 
 - 业务代码只注入唯一 `CacheService`。
-- Redis 统一使用 logical DB 0；Sa-Token 使用独立键前缀。
+- Redis 统一使用 logical DB 0；Sa-Token 使用与业务缓存隔离、但由 Gateway 与 `access-service` 共享的唯一会话键命名空间。
 - `access-service` 内缓存目录按领域使用 `admin:*`、`perm:*`、`access:*` 前缀；独立部署的 Gateway 继续使用 `gw:*` 前缀，不并入 `access-service` 的目录命名空间。
 - 统一缓存 TTL 类型使用 `java.time.Duration`：`CacheCatalogEntry`、`CacheProperties`、Caffeine 与 Redisson store 均支持秒级精度，YAML 使用 Spring Boot Duration 文法（例如 `15s`、`5m`），禁止业务侧硬编码换算。
 - 现有 `l1TtlMinutes`、`l2TtlMinutes`、`l1-expire-minutes`、`l2-ttl-minutes` 在 T-ACCESS-008 中一次性迁移并删除，不保留分钟字段或兼容别名。
@@ -187,11 +191,13 @@ flowchart LR
 - 数据库业务事实与跨域写入保持强事务一致。
 - 第一阶段不引入 `permission_revision`。
 - `access-service` 内所有可能影响接口权限快照的授权缓存统一使用 `L2_ONLY`，TTL 均不得超过 10 秒且不创建授权 L1。
+- 每次授权 L2 miss 必须在开始数据库读取事务或快照查询前记录单调时钟起点，回填值的绝对过期时刻不得晚于“读取起点 + catalog TTL”；写入时只使用扣除数据库处理时间后的剩余 TTL，剩余 TTL 小于等于零时不得回填。单条、批量、并发合并及重试不得重置该读取起点。
+- `CacheService` 与底层 Store SPI 必须支持单次写入的有效 TTL，并同时受 catalog TTL 上限约束；单条与批量写入语义一致。业务代码不得直接操作 Redis/Caffeine，也不得把单次有效 TTL 放大到 catalog 上限之外；非授权普通缓存继续使用 catalog TTL。
 - `access-service` 缓存不可用时绕过缓存查询数据库；无法获得可信授权结果时 fail-closed。
 - Gateway 本地权限快照使用 `L1_ONLY`，TTL 不得超过 15 秒；删除 `gateway.permission.fail-mode` 配置及 `open`、`stale-allow` 分支，权限回源失败固定 fail-closed，不得绕过授权或使用过期的放行结果。
 - Gateway 一次授权请求触发的整个权限快照加载流程必须具有不超过 5 秒的墙钟硬截止时间。计时范围覆盖服务发现与负载均衡、连接、请求发送、`access-service` 处理、响应读取与解码，以及失效竞争触发的重试；连接超时、响应超时等分段限制不能代替该全链路截止时间。超过截止时间不得写入 Gateway 缓存并固定 fail-closed。
 - 串行总预算必须满足“上游授权 L2 TTL + Gateway 快照回源全链路截止时间 + Gateway 权限 L1 TTL ≤ 30 秒”；第一阶段固定采用 10 秒 + 5 秒 + 15 秒。配置覆盖值超过任一分项上限时必须启动失败，不在 `InterfaceSnapshotResp` 增加版本号或 `validUntil`。
-- 接受广播丢失或提交后缓存删除失败时最长 30 秒的授权读取不一致窗口；正常失效目标为毫秒到亚秒级。
+- 接受广播丢失、提交后缓存删除失败或失效后旧读取完成回填时最长 30 秒的授权读取不一致窗口；正常失效目标为毫秒到亚秒级。
 - 后续只有在性能数据证明必须启用授权 L1 时，才评估租户级权限版本屏障。
 
 ## 8. 任务、异步与审计
@@ -216,6 +222,7 @@ flowchart LR
 ## 9. API、SDK 与生态切换
 
 - 除 §4.3 明确退役的内部同步管理接口外，保持现有 POST + JSON Body、HTTP 路径、DTO、统一响应体和错误码分段；`/admin/sync-task/*` 不属于兼容范围。
+- 错误码继续按业务域归属：管理域保留并新增于 `1xxxx`，权限域保留并新增于 `2xxxx`；`access.application` 的跨域编排错误按对外入口所属领域取码，与领域无关的公共技术失败使用 `9xxxx`。不得为 `access-service` 新增 `4xxxx` 段，也不得因归并重编号既有错误码。
 - `/admin/**`、`/perm/**`、`/auth/**` 的 Gateway 目标统一为 `lb://access-service`。
 - `perm-sdk` 继续作为外部客户端，Feign 目标从 `permission-center` 改为 `access-service`。
 - access 内部代码禁止通过 `perm-sdk` 或 Feign 调用自身。
@@ -229,10 +236,12 @@ flowchart LR
 - Java 21 全量构建、单元测试和 Spring Context 启动通过，无 Bean 名冲突。
 - 空 PostgreSQL 可一次执行最终 DDL，表、索引、约束和种子数据正确。
 - 除退役的 `/admin/sync-task/*` 外，原 admin 与 permission HTTP 契约回归通过；退役接口必须无法路由或返回明确的不存在响应，且不得残留 Controller 映射。
+- 错误码扫描测试证明既有管理域 `1xxxx`、权限域 `2xxxx` 码值保持兼容，`9xxxx` 只由公共错误定义，跨枚举无重复码，且不存在新增 `4xxxx` 业务错误码。
 - 故障注入证明管理事实、权限投影与强事务审计能够整体回滚。
 - 安全测试覆盖租户串扰、伪造请求头、服务身份冒充和同步所有权。
 - 两个 `access-service` 实例共享 PostgreSQL/Redis 时，授权失效满足 30 秒上限，普通 L1 能跨节点失效。
 - 缓存故障测试覆盖上游授权 L2 接近 10 秒过期时、Gateway 快照回源被注入接近 5 秒的全链路延迟后再回填 15 秒 L1 的边界，证明最坏陈旧窗口仍不超过 30 秒；回源超过 5 秒时必须验证不写缓存并返回 503。
+- 陈旧回填并发测试用闩锁制造“旧授权读取开始 → 权限事务提交并失效 → 旧读取完成并尝试回填”，验证回填仅获得从读取起点计算的剩余 TTL，预算耗尽时不写缓存，且批量与重试不能重新获得完整 TTL。
 - Gateway 权限回源不可达时固定返回 503；代码与配置中不存在 `open`、`stale-allow` 或可切换的 `gateway.permission.fail-mode`。
 - 多实例任务不存在同一执行键的并发执行，故障接管和幂等重试通过。
 - 架构测试证明跨域依赖只出现在允许的 application/query 边界。

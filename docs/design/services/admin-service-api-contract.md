@@ -3,12 +3,14 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-12
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
 
-> 状态: v1.0 草案 (2026-06-14). 本文是「组织与用户」融合页所需 admin-service 接口的契约基线.
+> 状态：`adopted`。本文整体仍是「组织与用户」融合页 HTTP 路径、DTO、错误码和业务行为的兼容基线。
+>
+> **目标架构提示（2026-08-12）**：仅 §3、§4 各接口的“同步动作/当前差距”以及 §6/§7 中依赖 `sys_sync_task`、Feign、调度重试的内部实现契约，已被 [`../access-service-architecture.md`](../access-service-architecture.md) §4 的同事务本地权限投影取代，禁止继续实施。T-ACCESS-005 负责逐接口回写这些位置；文件其余外部 API 契约继续有效，因此本文件不整体降级为 `superseded`。
 >
 > 关联文档:
 > - `../project-rules.md` (强约束: 报文/接口/异常/错误码段)

@@ -10,6 +10,7 @@ design_refs:
   - docs/design/project-rules.md
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
+  - docs/design/services/gateway.md
 depends_on:
   - T-ACCESS-006
   - T-ACCESS-007
@@ -20,19 +21,22 @@ acceptance:
   - "Java 21 全量 clean install、单元测试和 access-service Spring Context 测试通过"
   - "空 PostgreSQL DDL 测试、统一 Redis 配置测试和种子数据校验通过"
   - "除退役的 /admin/sync-task/* 外，admin 与 permission 现有 HTTP 路径、DTO、统一响应和错误码契约回归通过"
+  - "错误码扫描证明管理域既有 1xxxx、权限域既有 2xxxx 码值未变，9xxxx 只由公共错误定义，跨枚举无重复码且不存在新增 4xxxx 业务错误码"
   - "负向验收确认 /admin/sync-task/* 无路由或返回明确的不存在响应，且 access-service 不注册对应 Controller 映射"
   - "跨域事务故障注入、强事务审计、独立日志失败和缓存 afterCommit/rollback 测试通过"
   - "安全矩阵、租户隔离、来源所有权和请求上下文清理负向测试通过"
+  - "平台用户会话端到端测试覆盖 /auth 登录签发、Gateway 校验、access-service 身份绑定、30分钟无操作失效、2小时绝对失效及注销；Gateway 与 access-service 结果一致，OAuth2 客户端令牌保持客户端自定义有效期，服务身份入口拒绝把用户 Token 当作服务凭证"
   - "两个 access-service 实例共享 PostgreSQL/Redis 的权限失效、缓存故障、任务抢占和故障接管测试通过"
   - "授权缓存端到端测试覆盖 access-service L2 已接近10秒过期、Gateway 全链路回源延迟接近5秒后再缓存15秒的边界，证明从权限事实变更起的总陈旧窗口仍不超过30秒"
   - "Gateway 快照回源超过5秒时不写入本地缓存并返回503；测试证明服务发现、连接、发送、服务端处理、响应读取/解码和失效竞争重试共享同一全链路截止时间"
+  - "授权陈旧回填竞态测试覆盖旧读取开始后权限变更提交与失效、旧读取随后完成的顺序；验证 L2 只获得从读取起点计算的剩余 TTL，预算耗尽时不写入，端到端陈旧窗口仍不超过30秒"
   - "Gateway 权限回源不可达时固定返回503；配置、代码和测试证明 open、stale-allow 与 gateway.permission.fail-mode 已删除"
   - "架构测试证明跨域写/读白名单、禁止横向依赖和禁止跨域写 QueryMapper"
   - "生成验收记录，列出命令、测试数、故障场景和所有遗留项；P0/P1 未关闭项阻止任务完成"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-11
+last_updated: 2026-08-12
 ---
 
 # T-ACCESS-011 完成契约、回滚、架构、空库和双实例验收

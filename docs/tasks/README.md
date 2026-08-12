@@ -22,23 +22,23 @@
 
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
-> **当前后端前置门禁（2026-08-10）**：`T-ACCESS-001~012` 完成前，尚未开始的 `T-PERM-*` / `T-ADMIN-*` 后端功能任务保持 proposed，不得在旧模块上进入 `in-progress`。纯前端 mock/UI 工作可继续，真接口联调等待 T-ACCESS-011。最终逐卡重基线由 T-ACCESS-012 完成。
+> **当前后端前置门禁（2026-08-12）**：`T-ACCESS-001~012` 完成前，尚未开始的 `T-PERM-*` / `T-ADMIN-*` 后端功能任务保持 proposed，不得在旧模块上进入 `in-progress`。T-ACCESS-012 完成逐卡重基线后，Phase 2 后端任务才能按各自依赖推进；前端真接口联调再等待对应 Phase 2 后端任务完成。纯前端 mock/UI 工作可继续。
 
 ### access-service 归并（当前后端前置）
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-001](T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | [access-service-merge](../plans/access-service-merge-plan.md) | design/access-service-architecture.md §2/§3；project-rules | — | ⚙️ | ⏳ |
+| [T-ACCESS-001](T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | [access-service-merge](../plans/access-service-merge-plan.md) | design/access-service-architecture.md §2/§3/§9；project-rules | — | ⚙️ | ⏳ |
 | [T-ACCESS-002](T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | access-service-merge | access-service-architecture §4/§5/§8.1；schema/access-service.sql（本任务产出） | T-ACCESS-001 | ⚙️ | ⏳ |
-| [T-ACCESS-003](T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | access-service-merge | access-service-architecture §2/§6/§7.1；project-rules | T-ACCESS-001, T-ACCESS-002 | ⚙️ | ⏳ |
-| [T-ACCESS-004](T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | access-service-merge | access-service-architecture §6；admin/permission API 契约 | T-ACCESS-003 | ⚙️ | ⏳ |
-| [T-ACCESS-005](T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | access-service-merge | access-service-architecture §3/§4；permission core-flows；用户生命周期；admin-service-api-contract | T-ACCESS-002, T-ACCESS-004 | ⚙️ | ⏳ |
+| [T-ACCESS-003](T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | access-service-merge | access-service-architecture §2/§6/§7.1；project-rules；gateway | T-ACCESS-001, T-ACCESS-002 | ⚙️ | ⏳ |
+| [T-ACCESS-004](T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | access-service-merge | access-service-architecture §6；admin/permission API 契约；gateway | T-ACCESS-003 | ⚙️ | ⏳ |
+| [T-ACCESS-005](T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | access-service-merge | access-service-architecture §3/§4；permission core-flows；用户生命周期；admin-service-api-contract §3/§4/§6/§7 | T-ACCESS-002, T-ACCESS-004 | ⚙️ | ⏳ |
 | [T-ACCESS-006](T-ACCESS-006.md) | 建立跨域只读查询模型 | access-service-merge | access-service-architecture §3；org-user/permission 契约 | T-ACCESS-002, T-ACCESS-005 | ⚙️ | ⏳ |
 | [T-ACCESS-007](T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | access-service-merge | access-service-architecture §5.2/§8.2；project-rules | T-ACCESS-002, T-ACCESS-004 | ⚙️ | ⏳ |
 | [T-ACCESS-008](T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | access-service-merge | access-service-architecture §7；project-rules §12；v3.5 §7.2；gateway | T-ACCESS-003, T-ACCESS-005 | ⚙️ | ⏳ |
 | [T-ACCESS-009](T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | access-service-merge | access-service-architecture §8；admin-service | T-ACCESS-002, T-ACCESS-004 | ⚙️ | ⏳ |
 | [T-ACCESS-010](T-ACCESS-010.md) | 切换 Gateway、SDK、Nacos和部署配置 | access-service-merge | access-service-architecture §2/§9；architecture；gateway | T-ACCESS-004, T-ACCESS-005, T-ACCESS-008 | ⚙️ | ⏳ |
-| [T-ACCESS-011](T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | access-service-merge | access-service-architecture §10；项目与 API 契约 | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 | ⚙️ | ⏳ |
+| [T-ACCESS-011](T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | access-service-merge | access-service-architecture §10；项目与 API 契约；gateway | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 | ⚙️ | ⏳ |
 | [T-ACCESS-012](T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | access-service-merge | access-service-architecture；architecture；project-rules；服务/API/权限设计；旧 schema；文档索引 | T-ACCESS-011 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
@@ -172,7 +172,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 3. `T-ACCESS-010` 完成生态切换；`T-ACCESS-011` 汇总全量与双实例验收。
 4. `T-ACCESS-012` 回写设计并逐卡重基线旧后端任务。
 
-门禁期间，尚未开始的旧后端任务保持 proposed；前端真接口联调等待 T-ACCESS-011，纯 mock/UI 任务不受影响。
+门禁期间，尚未开始的旧后端任务保持 proposed；T-ACCESS-012 重基线完成后 Phase 2 后端任务才可按依赖启动，前端真接口联调等待各自依赖的 Phase 2 后端任务完成；纯 mock/UI 任务不受影响。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
 
@@ -282,9 +282,12 @@ _（暂无）_
 
 | 设计变更 | 受影响任务 | 核对状态 | 处理要求 |
 |---|---|---|---|
+| `design/access-service-architecture.md` §9 与 `design/project-rules.md` §1.2 明确归并后的错误码归属（2026-08-12） | T-ACCESS-001、T-ACCESS-011、T-ACCESS-012 | T-ACCESS-001/011 已重基线；待实施与验收 | 既有管理域 `1xxxx`、权限域 `2xxxx` 原值保留并继续按领域新增；`access.application` 按对外入口所属领域取码，公共技术失败使用 `9xxxx`；禁止合并枚举、重编号或新增 `4xxxx` 段。T-ACCESS-001 保留领域枚举，T-ACCESS-011 扫描验收，T-ACCESS-012 收口设计一致性 |
+| `design/access-service-architecture.md` §7.2/§10 补充授权失效后的陈旧回填防护（2026-08-12） | T-ACCESS-008、T-ACCESS-011、T-ACCESS-012 | T-ACCESS-008/011 已重基线；待实施与验收 | 授权 L2 miss 在数据库读取前记录单调时钟起点，回填只能使用从该起点计算的剩余 catalog TTL，预算耗尽不写入，批量/重试不得重置；T-ACCESS-008 扩展受 catalog 上限约束的单次 TTL SPI 并补闩锁竞态测试，实施完成时同步两份缓存 skill，T-ACCESS-011 验收，T-ACCESS-012 收口设计一致性 |
+| `design/access-service-architecture.md` §6.1 明确平台用户会话与服务身份认证边界（2026-08-12） | T-ACCESS-003、T-ACCESS-004、T-ACCESS-011、T-ACCESS-012 | T-ACCESS-003/004/011 已重基线；待实施与验收 | Sa-Token 只承载平台用户会话，固定 2 小时绝对有效期和 30 分钟无操作有效期，Gateway 与 access-service 共享兼容且唯一的 Token/会话配置与键命名空间；OAuth2 客户端令牌保留客户端自定义有效期，perm-sdk、sync/full-sync 继续使用服务签名或内部凭证。T-ACCESS-003 收敛配置，T-ACCESS-004 落实安全矩阵，T-ACCESS-011 验收，T-ACCESS-012 收口设计一致性 |
 | `design/access-service-architecture.md` §7.2/§10 将授权陈旧窗口预算由 `15+15` 修订为包含回源时间的 `10+5+15`（2026-08-11） | T-ACCESS-008、T-ACCESS-011、T-ACCESS-012 | 已重基线；待实施与验收 | T-ACCESS-008 实现并校验授权 L2≤10秒、Gateway 全链路回源截止≤5秒、Gateway L1≤15秒，整个回源流程及重试共享截止时间，超时不写缓存且 fail-closed；T-ACCESS-011 注入接近/超过5秒延迟验证边界；T-ACCESS-012 收口设计一致性 |
 | `design/access-service-architecture.md` §7.2 取消 `design/services/gateway.md` 的可切换 fail-mode、open 与 stale-allow（2026-08-11） | T-GW-001、T-GW-003、T-GW-004、T-GW-005、T-PERM-008 | 待 T-ACCESS-008 回写 | done 保持历史完成事实、不重开；由 T-ACCESS-008 删除 `gateway.permission.fail-mode`、open/stale-allow 实现、stale store 及相关指标和告警，Gateway 权限回源失败固定 fail-closed；保留失效代际、回源并发防护和订阅重连全量清空等仍有效能力。T-GW-002 与 T-PERM-001/006/017 的 fail-closed、快照、广播、本地重评主体语义经扫描仍有效，实施时核对广义 `gateway.md` 引用 |
-| `design/services/admin-service-api-contract.md` §3、各写接口同步动作及 §6 的 `sys_sync_task` 契约被 `design/access-service-architecture.md` §4 取代（2026-08-10） | T-ACCESS-005、T-ACCESS-011 | 待 T-ACCESS-005 回写、T-ACCESS-011 验收 | T-ACCESS-005 逐接口改写为同事务本地权限投影并保留真实不同步例外，同时退役 `/admin/sync-task/*`；T-ACCESS-011 对其余外部 API 做兼容回归并对退役接口做不存在负向验收。T-ACCESS-004、T-ADMIN-021、T-FE-037 的安全矩阵或 org-tree 精确章节不受影响；T-FE-015 的外部联调契约经核对不依赖内部同步实现 |
+| `design/services/admin-service-api-contract.md` §3、§4 各写接口同步动作/当前差距及 §6/§7 的 `sys_sync_task` 契约被 `design/access-service-architecture.md` §4 取代（2026-08-10） | T-ACCESS-005、T-ACCESS-011 | 待 T-ACCESS-005 回写、T-ACCESS-011 验收 | T-ACCESS-005 逐接口改写为同事务本地权限投影并保留真实不同步例外，同时退役 `/admin/sync-task/*`；T-ACCESS-011 对其余外部 API 做兼容回归并对退役接口做不存在负向验收。T-ACCESS-004、T-ADMIN-021、T-FE-037 的安全矩阵或 org-tree 精确章节不受影响；T-FE-015 的外部联调契约经核对不依赖内部同步实现 |
 | `design/cross-service/admin-permission-sync.md` 被 `design/access-service-architecture.md` 取代（2026-08-10） | T-PERM-019、T-PERM-021 | 待重基线 | 旧内部同步、SyncHandler/ownership/full-sync runbook 范围不得继续实施；由 T-ACCESS-012 逐卡更新设计引用、删除重叠范围或取消并重连依赖 |
 | `design/frontend/permission-grant.md` §16 取代中栏矩阵直接编辑和右栏双 Tab（2026-07-12） | T-FE-014 | 历史基线已核对 | T-FE-014 保持 done，§15 保留其验收与实现记录，不重新打开任务 |
 | 同上 | T-FE-018 | ~~已重连，执行前待确认~~ **被 2026-08-01 重设计决策取代** | ~~`depends_on` 已增加 T-FE-027；联调验收必须以 §16 新交互为准，不得回退旧矩阵~~（v3 重设计后 T-FE-018 恢复待排期，实际依赖 = T-FE-036 + T-PERM-034 + T-PERM-022/028/029/031；组织二期 T-FE-037 另依赖 T-ADMIN-021，见 phase3-plan；§16 为 v1 旧章节，已归档） |

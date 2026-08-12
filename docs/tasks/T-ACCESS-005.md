@@ -10,7 +10,10 @@ design_refs:
   - docs/design/access-service-architecture.md#4-管理事实与权限投影
   - docs/design/permission-center/core-flows.md
   - docs/design/default-org-tree-user-lifecycle.md
-  - docs/design/services/admin-service-api-contract.md
+  - docs/design/services/admin-service-api-contract.md#3-与-permission-center-的同步动作
+  - docs/design/services/admin-service-api-contract.md#4-接口契约
+  - docs/design/services/admin-service-api-contract.md#6-验收标准
+  - docs/design/services/admin-service-api-contract.md#7-已确认决策-设计沉淀
 depends_on:
   - T-ACCESS-002
   - T-ACCESS-004
@@ -20,14 +23,14 @@ acceptance:
   - "管理事实是本地实体唯一事实源；投影保留独立主键并通过稳定外部键定位"
   - "权限管理入口拒绝直接修改 access-service 所有的本地投影；外部同步所有权保持有效"
   - "删除 sys_sync_task API（Gateway 对外 /admin/sync-task/*、服务内 /sync-task/*）、实体、Mapper、builder、handler、scheduler、重试、补偿和内部 full-sync 编排；退役路径不再注册 Controller 映射"
-  - "回写 admin-service-api-contract.md：以同事务本地权限投影取代 sys_sync_task 契约，并逐接口保留或更正明确的不同步例外"
+  - "回写 admin-service-api-contract.md §3、§4 各接口的同步动作/当前差距及 §6/§7：以同事务本地权限投影取代 sys_sync_task、Feign、调度重试契约，并逐接口保留或更正明确的不同步例外"
   - "删除 access 内部 PermissionFeignClient/SyncTaskFeignClient 及相关依赖；外部 sync/full-sync 和 sync_metadata 保留"
   - "故障注入证明管理事实、权限投影和 permission_change_log 任一步失败都会整体回滚"
   - "缓存失效只在事务成功提交后发生，回滚不发布变更"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-11
+last_updated: 2026-08-12
 ---
 
 # T-ACCESS-005 实现强事务权限投影并删除内部同步子系统
