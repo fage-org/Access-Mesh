@@ -124,7 +124,7 @@ public class FileServiceImpl implements FileService {
     @Value("${file.storage.path:${user.home}/accessmesh-files}")
     private String storagePath;
 
-    @Value("${file.max-size:${DEFAULT_MAX_FILE_SIZE}}")
+    @Value("${file.max-size:" + DEFAULT_MAX_FILE_SIZE + "}")
     private long maxFileSize;
 
     private final SysFileMapper fileMapper;
