@@ -58,7 +58,7 @@ last_updated: 2026-08-12
 - permission 源码迁入 `cn.ac.fage.accessmesh.access.permission`（319 main + 47 test = 366 文件）
 - perm-entity 实体迁入 `cn.ac.fage.accessmesh.access.permission.entity`（18 文件）
 - 35 个 mapper XML 迁入并更新 namespace
-- 合并 `bootstrap.yml`（端口 9100、access_db、Redis DB 0、双域 type-aliases-package）
+- 合并配置（`application.yml`，原 bootstrap.yml 迁入）（端口 9100、access_db、Redis DB 0、双域 type-aliases-package）
 - 删除 `AdminServiceApplication` 和 `PermissionCenterApplication`，仅保留 `AccessServiceApplication`
 - 旧模块 admin-service、permission-center、perm-entity 从根 pom 移除并删除目录
 
@@ -72,7 +72,7 @@ last_updated: 2026-08-12
 - 修复 `RoleResourcePermissionMapper.xml` 中 `&` 未转义为 `&amp;` 的 XML 语法问题
 
 **验证结果**：
-- `mvn compile`（全 reactor）BUILD SUCCESS — Java 21，557 源文件
+- `mvn compile`（全 reactor）BUILD SUCCESS — Java 21，555 源文件（218 admin + 334 permission + 2 infrastructure/application + 1 启动类）
 - `mvn test-compile` BUILD SUCCESS — 72 测试文件
 - 架构边界测试 3/3 通过（admin↔permission 无横向依赖、切片无循环）
 - 启动类验证测试 3/3 通过（@SpringBootApplication/@MapperScan 配置正确、无重复启动类）
@@ -110,4 +110,13 @@ AI 评审 6 个问题处理结果：
 | 3 | 定时任务污染后续测试 | 成立 | `accessmesh.sync.scheduler.enabled=false` 关闭 SyncTaskScheduler（5s 查库）；`@MockBean UserRoleOrphanCleanupTask`（无开关）；SyncFullSyncTrigger 默认不启用 |
 | 4 | 任务卡结论与代码矛盾 | 成立 | 更正：SDK `FeignInternalSyncInterceptor` 是 `X-Service-Code` 设置方（默认 `admin-service`），删除 `perm.service-code=access-service` 后回退默认值与 Payload 对齐；7 跳过测试 = 5 Docker + 2 OperatorContext mock |
 
-**二轮复审验证**：Context 测试 2/2 通过；全量 347 测试 0 失败 7 跳过（构成不变）；无 log4j2 配置警告；测试运行无 Nacos 连接痕迹。
+**二轮复审验证**：Context 测试 2/2 通过；全量 347 测试 0 失败 7 跳过（构成不变）；无 log4j2 配置警告、无 Nacos 连接痕迹。
+
+### 三轮评审修复（2026-08-12，无 P0/P1，清理后收口）
+
+| # | 评审问题 | 结论 | 处理 |
+|---|---|---|---|
+| 1 | Nacos 日志监听器写外部文件（`~/logs/nacos/config.log`） | 成立 | surefire 配置 `nacos.logging.default.config.enabled=false`，测试不再写构建目录外文件 |
+| 2 | 完成记录过期数据（bootstrap.yml / 557 / 无警告结论） | 成立 | 更正：配置说明改为 application.yml；源文件计数 555（218+334+2+1）；验证结论补充 Nacos 日志副作用已消除 |
+
+**三轮复审验证**：Context 测试 2/2 通过；删除外部日志文件后重跑，不再产生 `~/logs/nacos/config.log`；全量 347 测试 0 失败 7 跳过（5 Docker + 2 OperatorContext）；全 reactor 编译通过。

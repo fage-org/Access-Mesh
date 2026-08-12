@@ -206,6 +206,16 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!-- 禁用 Nacos SpringApplicationRunListener 默认日志：测试不得在构建目录外写日志文件（如 ~/logs/nacos/config.log） -->
+                        <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
