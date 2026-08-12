@@ -20,7 +20,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @MapperScan({
     "cn.ac.fage.accessmesh.access.admin.mapper",
-    "cn.ac.fage.accessmesh.access.permission.mapper"
+    "cn.ac.fage.accessmesh.access.permission.mapper",
+    "cn.ac.fage.accessmesh.access.infrastructure.mapper"
 })
 public class AccessServiceApplication {
 

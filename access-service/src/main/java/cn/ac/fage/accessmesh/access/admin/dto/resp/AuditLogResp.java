@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.admin.dto.resp;
 
-import cn.ac.fage.accessmesh.access.admin.entity.SysAuditLog;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 
 import java.time.LocalDateTime;
 
@@ -91,7 +91,7 @@ public record AuditLogResp(
      * @param entity 审计日志实体
      * @return 审计日志响应DTO，entity为null时返回null
      */
-    public static AuditLogResp from(SysAuditLog entity) {
+    public static AuditLogResp from(OperationLog entity) {
         return new AuditLogResp(
             entity.getId(),
             entity.getModule(),

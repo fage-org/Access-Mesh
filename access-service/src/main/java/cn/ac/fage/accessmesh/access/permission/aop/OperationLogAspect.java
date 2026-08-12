@@ -103,7 +103,7 @@ public class OperationLogAspect {
             opLog.module(),
             opLog.action(),
             targetType,
-            resolveTargetIdAsLong(targetId),
+            targetId,
             summary,
             operatorId,
             null,
@@ -176,17 +176,4 @@ public class OperationLogAspect {
         }
     }
 
-    /**
-     * 将 targetId 字符串转换为 Long（用于 targetId 参数），失败返回 null
-     */
-    private Long resolveTargetIdAsLong(String targetId) {
-        if (targetId == null || targetId.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(targetId);
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
 }

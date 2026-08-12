@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service;
 
 import cn.ac.fage.accessmesh.common.model.PageReq;
-import cn.ac.fage.accessmesh.access.admin.entity.SysAuditLog;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 
 /**
@@ -22,5 +22,5 @@ public interface AuditLogService {
      * @param pageReq 分页请求参数
      * @return 分页审计日志结果
      */
-    PaginatedResult<SysAuditLog> pageAuditLogs(PageReq pageReq);
+    PaginatedResult<OperationLog> pageAuditLogs(PageReq pageReq);
 }

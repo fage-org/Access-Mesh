@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.SystemConfigResp;
-import cn.ac.fage.accessmesh.access.permission.entity.SystemConfig;
-import cn.ac.fage.accessmesh.access.permission.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;

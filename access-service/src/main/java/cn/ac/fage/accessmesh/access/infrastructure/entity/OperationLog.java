@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.permission.entity;
+package cn.ac.fage.accessmesh.access.infrastructure.entity;
 
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
@@ -50,9 +50,9 @@ public class OperationLog {
     private String targetType;
 
     /**
-     * 目标ID，标识操作对象的唯一标识
+     * 目标ID，标识操作对象的唯一标识（T-ACCESS-002 起为字符串，兼容业务键与数值 ID）
      */
-    private Long targetId;
+    private String targetId;
 
     /**
      * 操作摘要，简述操作内容
@@ -70,6 +70,16 @@ public class OperationLog {
     private String operatorName;
 
     /**
+     * 操作用户ID（T-ACCESS-002 归并自 admin sys_audit_log）
+     */
+    private Long userId;
+
+    /**
+     * 操作用户名（T-ACCESS-002 归并自 admin sys_audit_log）
+     */
+    private String username;
+
+    /**
      * IP地址，记录操作来源
      */
     private String ipAddress;
@@ -78,6 +88,26 @@ public class OperationLog {
      * 请求ID，用于关联请求链路
      */
     private String requestId;
+
+    /**
+     * 请求URL（T-ACCESS-002 归并自 admin sys_audit_log）
+     */
+    private String requestUrl;
+
+    /**
+     * 请求体内容（T-ACCESS-002 归并自 admin sys_audit_log，敏感字段已脱敏，限长 4000）
+     */
+    private String requestBody;
+
+    /**
+     * 响应状态码（T-ACCESS-002 归并自 admin sys_audit_log）
+     */
+    private Integer responseCode;
+
+    /**
+     * 操作耗时（毫秒，T-ACCESS-002 归并自 admin sys_audit_log）
+     */
+    private Integer costTime;
 
     /**
      * 创建时间

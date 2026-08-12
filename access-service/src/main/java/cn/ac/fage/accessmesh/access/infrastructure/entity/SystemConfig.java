@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.permission.entity;
+package cn.ac.fage.accessmesh.access.infrastructure.entity;
 
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
@@ -48,6 +48,21 @@ public class SystemConfig {
      * 配置描述，说明配置用途和效果
      */
     private String description;
+
+    /**
+     * 配置名称（T-ACCESS-002 归并自 admin sys_config）
+     */
+    private String configName;
+
+    /**
+     * 备注（T-ACCESS-002 归并自 admin sys_config）
+     */
+    private String remark;
+
+    /**
+     * 是否系统配置（T-ACCESS-002 归并自 admin sys_config；true=系统内置不可删除）
+     */
+    private Boolean isSystem;
 
     /**
      * 创建者用户ID

@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.access.permission.entity.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog;
-import cn.ac.fage.accessmesh.access.permission.mapper.OperationLogMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
@@ -101,7 +101,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
      */
     @Override
     @Async
-    public void asyncRecordLog(String module, String action, String targetType, Long targetId,
+    public void asyncRecordLog(String module, String action, String targetType, String targetId,
                                 String summary, Long operatorId, String ipAddress, String requestId, Long tenantId) {
         try {
             OperationLog opLog = new OperationLog();

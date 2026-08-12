@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.common.model.PageReq;
-import cn.ac.fage.accessmesh.access.admin.entity.SysAuditLog;
-import cn.ac.fage.accessmesh.access.admin.mapper.SysAuditLogMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.access.admin.service.AuditLogService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
@@ -24,14 +24,14 @@ import java.util.List;
 @Service
 public class AuditLogServiceImpl implements AuditLogService {
 
-    private final SysAuditLogMapper auditLogMapper;
+    private final OperationLogMapper auditLogMapper;
 
     /**
      * 构造函数注入依赖
      *
-     * @param auditLogMapper 审计日志数据访问Mapper
+     * @param auditLogMapper 审计日志数据访问Mapper（T-ACCESS-002 归并后为 OperationLogMapper）
      */
-    public AuditLogServiceImpl(SysAuditLogMapper auditLogMapper) {
+    public AuditLogServiceImpl(OperationLogMapper auditLogMapper) {
         this.auditLogMapper = auditLogMapper;
     }
 
@@ -46,12 +46,12 @@ public class AuditLogServiceImpl implements AuditLogService {
      * @return 分页审计日志列表结果
      */
     @Override
-    public PaginatedResult<SysAuditLog> pageAuditLogs(PageReq pageReq) {
+    public PaginatedResult<OperationLog> pageAuditLogs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
-        Page<SysAuditLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysAuditLog> result = auditLogMapper.paginateByTenantId(page, tenantId);
+        Page<OperationLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
+        Page<OperationLog> result = auditLogMapper.paginateByTenantId(page, tenantId);
 
-        List<SysAuditLog> items = result.getRecords();
+        List<OperationLog> items = result.getRecords();
         long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
         return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));

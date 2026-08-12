@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.admin.controller;
 
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.AuditLogResp;
-import cn.ac.fage.accessmesh.access.admin.entity.SysAuditLog;
 import cn.ac.fage.accessmesh.access.admin.service.AuditLogService;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -49,7 +49,7 @@ public class AuditLogController {
      */
     @PostMapping("/page")
     public PermResult<PaginatedResult<AuditLogResp>> pageAuditLogs(@RequestBody PageReq pageReq) {
-        PaginatedResult<SysAuditLog> result = auditLogService.pageAuditLogs(pageReq);
+        PaginatedResult<OperationLog> result = auditLogService.pageAuditLogs(pageReq);
         List<AuditLogResp> items = result.items().stream()
             .map(AuditLogResp::from)
             .toList();

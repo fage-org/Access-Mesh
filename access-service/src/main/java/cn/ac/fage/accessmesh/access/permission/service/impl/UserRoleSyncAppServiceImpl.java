@@ -47,6 +47,11 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private static final String RELATION_ROLE_TYPE_ORG = "ORG";
     private static final String RELATION_ROLE_TYPE_POSITION = "POSITION";
 
+    /** 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE），判定本地投影的唯一依据 */
+    private static final String ADMIN_SOURCE_SERVICE = "admin-service";
+    /** 本地投影所有权标识（access-service-architecture §4.2） */
+    private static final String LOCAL_PROJECTION_OWNER = "access-service";
+
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final TypeResolutionService typeResolutionService;
     private final UserRoleMapper userRoleMapper;
@@ -315,7 +320,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     ? preExisting
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
-                    existingForUpsert, now);
+                    existingForUpsert, now, localProjectionOwner(req.sourceService()));
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
             // upserted 由 mapper.insert/update 内联返回（含主键），无需再查 DB
@@ -347,11 +352,21 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     // upsertUserRoleWithExisting 由 doSyncOneInternal 直接调用
 
     /**
+     * 本地投影所有权判定（access-service-architecture §4.2）：
+     * 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE=admin-service）写入 'access-service'，
+     * 其余（外部业务服务同步）返回 null 保持未标记，所有权以 sync_metadata 为准。
+     */
+    private String localProjectionOwner(String sourceService) {
+        return ADMIN_SOURCE_SERVICE.equals(sourceService) ? LOCAL_PROJECTION_OWNER : null;
+    }
+
+    /**
      * upsert user_role；接受调用方已加载的 {@code existing}（可为 null 表示需新建）。
      * @return 写入或已更新的 UserRole 实例
      */
     private UserRole upsertUserRoleWithExisting(Long tenantId, Long userId, Long roleId, Long relationId,
-                                                 UserRoleSyncReq req, UserRole existing, LocalDateTime now) {
+                                                 UserRoleSyncReq req, UserRole existing, LocalDateTime now,
+                                                 String ownerServiceCode) {
         if (existing == null) {
             UserRole ur = new UserRole();
             ur.setTenantId(tenantId);
@@ -361,6 +376,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             ur.setRelationId(relationId);
             ur.setValidFrom(req.validFrom());
             ur.setValidTo(req.validTo());
+            // 本地投影（sourceService=admin-service）显式标记所有权；外部同步/人工维护保持 NULL
+            ur.setOwnerServiceCode(ownerServiceCode);
             ur.setCreatedAt(now);
             ur.setUpdatedAt(now);
             ur.setDeleteFlag(0L);

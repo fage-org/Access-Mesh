@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.admin.aspect;
 
 import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
-import cn.ac.fage.accessmesh.access.admin.entity.SysAuditLog;
-import cn.ac.fage.accessmesh.access.admin.mapper.SysAuditLogMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper;
 import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,16 +28,16 @@ public class AuditLogAspect {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogAspect.class);
 
-    private final SysAuditLogMapper auditLogMapper;
+    private final OperationLogMapper auditLogMapper;
     private final ObjectMapper objectMapper;
 
     /**
      * 构造函数
      *
-     * @param auditLogMapper 审计日志Mapper
+     * @param auditLogMapper 审计日志Mapper（T-ACCESS-002 归并后为 OperationLogMapper）
      * @param objectMapper   JSON序列化工具
      */
-    public AuditLogAspect(SysAuditLogMapper auditLogMapper, ObjectMapper objectMapper) {
+    public AuditLogAspect(OperationLogMapper auditLogMapper, ObjectMapper objectMapper) {
         this.auditLogMapper = auditLogMapper;
         this.objectMapper = objectMapper;
     }
@@ -58,7 +58,7 @@ public class AuditLogAspect {
         long start = System.currentTimeMillis();
 
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-        SysAuditLog entry = new SysAuditLog();
+        OperationLog entry = new OperationLog();
         entry.setModule(auditLog.module());
         entry.setAction(auditLog.action());
         entry.setTargetType(auditLog.targetType());

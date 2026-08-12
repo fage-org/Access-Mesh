@@ -42,6 +42,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private static final String OP_DISABLE = "DISABLE";
     private static final String OP_DELETE = "DELETE";
 
+    /** 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE），判定本地投影的唯一依据 */
+    private static final String ADMIN_SOURCE_SERVICE = "admin-service";
+    /** 本地投影所有权标识（access-service-architecture §4.2） */
+    private static final String LOCAL_PROJECTION_OWNER = "access-service";
+
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DISABLED = "DISABLED";
     private static final String STATUS_DELETED = "DELETED";
@@ -119,7 +124,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
 
         // 7. 写目标事实表 + markStatus
         Long targetId = applyToTarget(tenantId, roleType, req.roleExternalId(), op,
-                req.name(), parentId, req.status(), req.sortOrder(), serializeExtra(req.extra()));
+                req.name(), parentId, req.status(), req.sortOrder(), serializeExtra(req.extra()),
+                localProjectionOwner(req.sourceService()));
 
         String targetStatus = switch (op) {
             case OP_UPSERT -> STATUS_ACTIVE;
@@ -243,7 +249,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             AbstractRole existing = existingByExternalId.get(item.roleExternalId());
             Long itemTargetId = applyToTargetWithExisting(tenantId, roleType, item.roleExternalId(), OP_UPSERT,
                     item.name(), parentId, item.status(), item.sortOrder(), serializeExtra(item.extra()),
-                    existing, now);
+                    existing, now, localProjectionOwner(req.scope().sourceService()));
             if (existing == null && itemTargetId != null) {
                 AbstractRole fresh = new AbstractRole();
                 fresh.setId(itemTargetId);
@@ -291,10 +297,20 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
 
     private Long applyToTarget(Long tenantId, Integer roleType, String externalId,
                                 String operation, String name, Long parentId,
-                                Integer statusVal, Integer sortOrder, String extra) {
+                                Integer statusVal, Integer sortOrder, String extra,
+                                String ownerServiceCode) {
         AbstractRole existing = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, externalId);
         return applyToTargetWithExisting(tenantId, roleType, externalId, operation,
-                name, parentId, statusVal, sortOrder, extra, existing, LocalDateTime.now());
+                name, parentId, statusVal, sortOrder, extra, existing, LocalDateTime.now(), ownerServiceCode);
+    }
+
+    /**
+     * 本地投影所有权判定（access-service-architecture §4.2）：
+     * 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE=admin-service）写入 'access-service'，
+     * 其余（外部业务服务同步）返回 null 保持未标记，所有权以 sync_metadata 为准。
+     */
+    private String localProjectionOwner(String sourceService) {
+        return ADMIN_SOURCE_SERVICE.equals(sourceService) ? LOCAL_PROJECTION_OWNER : null;
     }
 
     /**
@@ -304,7 +320,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private Long applyToTargetWithExisting(Long tenantId, Integer roleType, String externalId,
                                             String operation, String name, Long parentId,
                                             Integer statusVal, Integer sortOrder, String extra,
-                                            AbstractRole existing, LocalDateTime now) {
+                                            AbstractRole existing, LocalDateTime now,
+                                            String ownerServiceCode) {
         if (OP_DELETE.equals(operation)) {
             if (existing != null) {
                 abstractRoleMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
@@ -324,6 +341,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     : (statusVal != null ? statusVal : STATUS_ENABLED_VAL));
             role.setSortOrder(sortOrder);
             role.setExtra(extra);
+            // 本地投影（sourceService=admin-service）显式标记所有权；外部同步/人工维护保持 NULL
+            role.setOwnerServiceCode(ownerServiceCode);
             role.setCreatedAt(now);
             role.setUpdatedAt(now);
             role.setDeleteFlag(0L);

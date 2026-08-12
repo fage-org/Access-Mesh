@@ -66,6 +66,13 @@ public class UserRole {
     private LocalDateTime validTo;
 
     /**
+     * 所有权标识（可空，T-ACCESS-002）：
+     * access-service=管理事实派生的本地投影（禁止权限管理 API 直接修改）；
+     * NULL=人工维护或外部同步（外部同步所有权以 sync_metadata 为准）
+     */
+    private String ownerServiceCode;
+
+    /**
      * 创建者用户ID
      */
     private Long createdBy;

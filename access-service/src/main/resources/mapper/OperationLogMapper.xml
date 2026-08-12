@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.ac.fage.accessmesh.access.permission.mapper.OperationLogMapper">
+<mapper namespace="cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper">
 
-    <select id="selectByTenantModuleAction" resultType="cn.ac.fage.accessmesh.access.permission.entity.OperationLog">
+    <select id="selectByTenantModuleAction" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog">
         SELECT * FROM operation_log
         WHERE tenant_id = #{tenantId}
         <if test="module != null">
@@ -24,6 +24,13 @@
         <if test="action != null">
           AND action = #{action}
         </if>
+    </select>
+
+    <!-- T-ACCESS-002 归并：以下语句自原 admin SysAuditLogMapper.xml 并入，表名统一为 operation_log -->
+    <select id="paginateByTenantId" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog">
+        SELECT * FROM operation_log
+        WHERE tenant_id = #{tenantId}
+        ORDER BY created_at DESC
     </select>
 
 </mapper>

@@ -192,7 +192,7 @@ class OperationLogAspectTest {
             aspect.around(joinPoint, opLog);
 
             verify(auditDomainService).asyncRecordLog(
-                eq("test"), eq("manage"), eq("SINGLE"), eq(42L), eq("managed id=42"),
+                eq("test"), eq("manage"), eq("SINGLE"), eq("42"), eq("managed id=42"),
                 eq(999L), isNull(), isNull(), isNull()
             );
         }
@@ -239,7 +239,7 @@ class OperationLogAspectTest {
             aspect.around(joinPoint, opLog);
 
             verify(auditDomainService).asyncRecordLog(
-                eq("test"), eq("manage"), eq("ROLE"), eq(77L), eq("actual managed id=77"),
+                eq("test"), eq("manage"), eq("ROLE"), eq("77"), eq("actual managed id=77"),
                 eq(999L), isNull(), isNull(), isNull()
             );
         }
@@ -270,7 +270,7 @@ class OperationLogAspectTest {
             aspect.around(joinPoint, opLog);
 
             verify(auditDomainService).asyncRecordLog(
-                eq("test"), eq("batch-delete"), eq("BATCH"), isNull(), eq("soft-deleted 2 row(s)"),
+                eq("test"), eq("batch-delete"), eq("BATCH"), eq(""), eq("soft-deleted 2 row(s)"),
                 eq(100L), isNull(), isNull(), isNull()
             );
         }

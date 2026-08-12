@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @param module       操作模块
  * @param action       操作动作
  * @param targetType   目标类型
- * @param targetId     目标ID
+ * @param targetId     目标ID（T-ACCESS-002 起为字符串，兼容业务键与数值 ID）
  * @param summary      操作摘要
  * @param operatorId   操作者ID
  * @param operatorName 操作者名称
@@ -28,7 +28,7 @@ public record OperationLogResp(
     String module,
     String action,
     String targetType,
-    Long targetId,
+    String targetId,
     String summary,
     Long operatorId,
     String operatorName,

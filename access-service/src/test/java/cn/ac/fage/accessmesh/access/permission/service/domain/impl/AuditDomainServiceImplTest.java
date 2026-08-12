@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
-import cn.ac.fage.accessmesh.access.permission.entity.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog;
-import cn.ac.fage.accessmesh.access.permission.mapper.OperationLogMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +37,7 @@ class AuditDomainServiceImplTest {
 
     @Test
     void shouldInsertOperationLogWhenAsyncRecordLog() {
-        service.asyncRecordLog("perm", "CREATE", "abstract_role", 10L,
+        service.asyncRecordLog("perm", "CREATE", "abstract_role", "10",
             "created role", 100L, "127.0.0.1", "req-1", 1L);
 
         ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
@@ -47,7 +47,7 @@ class AuditDomainServiceImplTest {
         assertEquals("perm", log.getModule());
         assertEquals("CREATE", log.getAction());
         assertEquals("abstract_role", log.getTargetType());
-        assertEquals(10L, log.getTargetId());
+        assertEquals("10", log.getTargetId());
         assertEquals(100L, log.getOperatorId());
         assertEquals(1L, log.getTenantId());
     }

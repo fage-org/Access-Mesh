@@ -4,14 +4,14 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.ConfigUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp;
-import cn.ac.fage.accessmesh.access.admin.entity.SysConfig;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.admin.mapper.SysConfigMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
+import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
@@ -35,16 +35,16 @@ import java.util.stream.Collectors;
 @Service
 public class ConfigServiceImpl implements ConfigService {
 
-    private final SysConfigMapper configMapper;
+    private final SystemConfigMapper configMapper;
     private final AdminPermissionValidator permissionValidator;
 
     /**
      * 构造函数注入依赖
      *
-     * @param configMapper 配置数据访问Mapper
+     * @param configMapper 配置数据访问Mapper（T-ACCESS-002 归并后为 SystemConfigMapper）
      * @param permissionValidator 权限校验器，校验配置操作权限
      */
-    public ConfigServiceImpl(SysConfigMapper configMapper, AdminPermissionValidator permissionValidator) {
+    public ConfigServiceImpl(SystemConfigMapper configMapper, AdminPermissionValidator permissionValidator) {
         this.configMapper = configMapper;
         this.permissionValidator = permissionValidator;
     }
@@ -61,8 +61,8 @@ public class ConfigServiceImpl implements ConfigService {
     @Override
     public PaginatedResult<ConfigResp> pageConfigs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
-        Page<SysConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysConfig> result = configMapper.selectPageByTenantId(page, tenantId);
+        Page<SystemConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
+        Page<SystemConfig> result = configMapper.selectPageByTenantId(page, tenantId);
 
         var items = result.getRecords().stream()
             .map(c -> new ConfigResp(c.getId(), c.getConfigName(), c.getConfigKey(), c.getConfigValue(), c.getRemark(), c.getCreatedAt(), c.getUpdatedAt()))
@@ -86,7 +86,7 @@ public class ConfigServiceImpl implements ConfigService {
      */
     @Override
     public ConfigResp getConfig(Long id) {
-        SysConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), id);
+        SystemConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), id);
         if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
@@ -114,7 +114,7 @@ public class ConfigServiceImpl implements ConfigService {
             AdminOperationCode.UPDATE
         );
 
-        SysConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), req.id());
+        SystemConfig config = configMapper.selectOneByIdAndTenantId(TenantContextHolder.getTenantId(), req.id());
         if (config == null) {
             throw new BizException(AdminErrorCode.CONFIG_NOT_FOUND.getCode(), AdminErrorCode.CONFIG_NOT_FOUND.getMessage());
         }
@@ -149,10 +149,10 @@ public class ConfigServiceImpl implements ConfigService {
         permissionValidator.checkBatchInstanceLevel(AdminResourceType.CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
         // 批量查询检查系统配置并过滤有效ID
-        List<SysConfig> configs = configMapper.selectListByIdsAndTenantId(TenantContextHolder.getTenantId(), req.ids());
+        List<SystemConfig> configs = configMapper.selectListByIdsAndTenantId(TenantContextHolder.getTenantId(), req.ids());
 
         // 检查是否有系统内置配置（不可修改）
-        for (SysConfig config : configs) {
+        for (SystemConfig config : configs) {
             if (Boolean.TRUE.equals(config.getIsSystem())) {
                 throw new BizException(AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getCode(),
                     AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getMessage());
@@ -162,7 +162,7 @@ public class ConfigServiceImpl implements ConfigService {
         // 批量软删除
         if (!configs.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
-            List<Long> validIds = configs.stream().map(SysConfig::getId).collect(java.util.stream.Collectors.toList());
+            List<Long> validIds = configs.stream().map(SystemConfig::getId).collect(java.util.stream.Collectors.toList());
             configMapper.softDeleteBatch(TenantContextHolder.getTenantId(), validIds, now);
         }
     }

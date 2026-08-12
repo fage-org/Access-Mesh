@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.infrastructure.mapper.SysTaskExecutionMapper">
+
+    <select id="selectByTenantAndExecutionKey" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.SysTaskExecution">
+        SELECT * FROM sys_task_execution
+        WHERE tenant_id = #{tenantId}
+          AND execution_key = #{executionKey}
+          AND delete_flag = 0
+    </select>
+
+</mapper>

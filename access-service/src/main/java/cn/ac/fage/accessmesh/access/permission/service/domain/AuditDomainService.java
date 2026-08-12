@@ -32,14 +32,14 @@ public interface AuditDomainService {
      * @param module     操作所属模块名称
      * @param action     具体操作动作
      * @param targetType 操作目标类型
-     * @param targetId   操作目标ID
+     * @param targetId   操作目标ID（T-ACCESS-002 起为字符串，兼容业务键与数值 ID）
      * @param summary    操作摘要描述
      * @param operatorId 操作者用户ID
      * @param ipAddress  操作者IP地址
      * @param requestId  请求唯一标识ID
      * @param tenantId   租户ID
      */
-    void asyncRecordLog(String module, String action, String targetType, Long targetId,
+    void asyncRecordLog(String module, String action, String targetType, String targetId,
                          String summary, Long operatorId, String ipAddress, String requestId, Long tenantId);
 
     // ===== 变更历史查询 =====
