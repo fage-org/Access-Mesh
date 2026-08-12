@@ -54,8 +54,8 @@ last_updated: 2026-08-12
 
 **工程变更**：
 - 新增 `access-service` Maven 模块，`AccessServiceApplication` 位于 `cn.ac.fage.accessmesh.access`
-- admin 源码迁入 `cn.ac.fage.accessmesh.access.admin`（221 main + 23 test = 244 文件）
-- permission 源码迁入 `cn.ac.fage.accessmesh.access.permission`（319 main + 47 test = 366 文件）
+- admin 源码迁入 `cn.ac.fage.accessmesh.access.admin`（218 main + 23 test = 241 文件；迁入 221 后统一删除旧启动类与 2 个冲突配置类）
+- permission 源码迁入 `cn.ac.fage.accessmesh.access.permission`（334 main + 47 test = 381 文件；迁入 319 + perm-entity 18 后统一删除旧启动类与 2 个冲突配置类）
 - perm-entity 实体迁入 `cn.ac.fage.accessmesh.access.permission.entity`（18 文件）
 - 35 个 mapper XML 迁入并更新 namespace
 - 合并配置（`application.yml`，原 bootstrap.yml 迁入）（端口 9100、access_db、Redis DB 0、双域 type-aliases-package）
@@ -75,7 +75,7 @@ last_updated: 2026-08-12
 - `mvn compile`（全 reactor）BUILD SUCCESS — Java 21，555 源文件（218 admin + 334 permission + 2 infrastructure/application + 1 启动类）
 - `mvn test-compile` BUILD SUCCESS — 72 测试文件
 - 架构边界测试 3/3 通过（admin↔permission 无横向依赖、切片无循环）
-- 启动类验证测试 3/3 通过（@SpringBootApplication/@MapperScan 配置正确、无重复启动类）
+- 启动类验证测试 2/2 通过（Context 启动 + 注解配置正确）
 - `AdminErrorCode`（1xxxx）与 `PermissionErrorCode`（2xxxx）分别保留原包路径和码值
 - HTTP 路由未改变（admin: /auth、/role、/user 等；permission: /api/perm/*）
 
@@ -120,3 +120,12 @@ AI 评审 6 个问题处理结果：
 | 2 | 完成记录过期数据（bootstrap.yml / 557 / 无警告结论） | 成立 | 更正：配置说明改为 application.yml；源文件计数 555（218+334+2+1）；验证结论补充 Nacos 日志副作用已消除 |
 
 **三轮复审验证**：Context 测试 2/2 通过；删除外部日志文件后重跑，不再产生 `~/logs/nacos/config.log`；全量 347 测试 0 失败 7 跳过（5 Docker + 2 OperatorContext）；全 reactor 编译通过。
+
+### 四轮评审修复（2026-08-12，收口）
+
+| # | 评审问题 | 结论 | 处理 |
+|---|---|---|---|
+| 1 | Surefire 插件缺少版本（Maven 模型稳定性警告） | 成立 | 根 pom `pluginManagement` 统一管理 `maven-surefire-plugin` 3.5.4（access-service 插件继承），警告消除 |
+| 2 | 域级统计仍是旧值 | 成立 | 更正：admin 218（迁入 221 − 旧启动类 1 − 冲突配置类 2）、permission 334（迁入 319 + perm-entity 18 − 旧启动类 1 − 冲突配置类 2）；启动类验证测试 3/3 → 2/2 |
+
+**四轮复审验证**：`mvn help:effective-pom` 无 surefire 版本缺失警告；全量 347 测试 0 失败 7 跳过；全 reactor 编译通过。
