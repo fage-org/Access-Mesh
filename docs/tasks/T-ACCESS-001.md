@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-001
 title: 建立 access-service 工程骨架并物理归并源码
-status: review
+status: done
 plan: docs/plans/access-service-merge-plan.md
 domain: cross-service
 design_refs:
