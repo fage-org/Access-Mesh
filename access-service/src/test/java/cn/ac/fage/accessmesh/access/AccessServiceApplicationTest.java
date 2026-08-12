@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import cn.ac.fage.accessmesh.access.permission.scheduler.UserRoleOrphanCleanupTask;
 import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
@@ -38,6 +39,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
     webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @TestPropertySource(properties = {
+    // Nacos Config Data 阶段隔离：覆盖 application.yml 的 nacos import，测试不连接 Nacos
+    "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
+    "spring.cloud.nacos.config.enabled=false",
+    "spring.cloud.nacos.config.import-check.enabled=false",
+    "spring.cloud.nacos.discovery.enabled=false",
+    // 定时任务隔离：关闭 SyncTaskScheduler（5s 间隔查库），避免污染后续测试
+    "accessmesh.sync.scheduler.enabled=false",
+    // 排除 Redis/Nacos 自动配置
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
@@ -52,6 +61,14 @@ class AccessServiceApplicationTest {
      */
     @MockBean
     private TenantIdProvider tenantIdProvider;
+
+    /**
+     * Mock 无开关的孤儿清理定时任务（5 分钟间隔），避免测试期间查询空库 H2 抛异常。
+     * SyncTaskScheduler 通过 accessmesh.sync.scheduler.enabled=false 属性关闭；
+     * SyncFullSyncTrigger 默认（cron-enabled 未配置）不启用。
+     */
+    @MockBean
+    private UserRoleOrphanCleanupTask userRoleOrphanCleanupTask;
 
     @org.junit.jupiter.api.BeforeEach
     void mockTenantIds() {

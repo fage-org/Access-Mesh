@@ -93,10 +93,21 @@ AI 评审 6 个问题处理结果：
 | 1 | bootstrap.yml 未被加载 | 成立 | 改为 `application.yml` + `spring.config.import=optional:nacos:access-service.yml`（用户决策选 application.yml 方案） |
 | 2 | 缺少连接池 | 成立 | 添加 `spring-boot-starter-jdbc`（HikariCP） |
 | 3 | Feign 无 LoadBalancer | 成立 | 添加 `spring-cloud-starter-loadbalancer` |
-| 4 | 同步服务身份不一致 | **不成立** | 代码中无任何 `X-Service-Code` 设置方（T-ACCESS-004 才实现可信上下文）；删除合并时自造的无效配置 `perm.service-code` |
+| 4 | 同步服务身份不一致 | **部分成立（结论更正）** | SDK `FeignInternalSyncInterceptor` 通过 `perm.service-code`（默认 `admin-service`）设置 `X-Service-Code`。首轮核实遗漏了该设置方，结论错误。删除合并时自造的 `perm.service-code=access-service` 配置后，拦截器回退默认 `admin-service`，与 `SyncTaskBuilder` Payload 对齐，同步链路保持原行为（正确做法） |
 | 5 | 无 Context 启动测试 | 成立 | 重写 `AccessServiceApplicationTest` 为真正的最小 Context 测试（H2 + mock Redis/Redisson/TenantIdProvider），2/2 通过 |
 | 6 | Log4j2/Logback 冲突 | 成立 | 排除 `perm-client-spring-boot-starter` 传递的 `spring-boot-starter-logging` |
 
 **额外发现**：修复 `FileServiceImpl` 存量 bug——`@Value("${file.max-size:${DEFAULT_MAX_FILE_SIZE}}")` 的默认值引用 Java 常量不生效，改为编译期常量拼接（默认值 10MB 不变，行为保持）。该 bug 及缺连接池/bootstrap starter 等问题说明**原 admin-service/permission-center 从未能通过本地配置完成 Spring Context 启动**；access-service 是第一个可完整启动的模块。
 
-**复审验证**：`AccessServiceApplicationTest` 2/2 通过（Context 真实启动、配置加载、Bean 无冲突）；access-service 全量 347 测试 0 失败 7 跳过（Docker 相关）；全 reactor 编译通过。
+**复审验证**：`AccessServiceApplicationTest` 2/2 通过（Context 真实启动、配置加载、Bean 无冲突）；access-service 全量 347 测试 0 失败 7 跳过（5 个 Testcontainers Docker 不可用 + 2 个 `@Disabled("Requires OperatorContext mock setup")`）；全 reactor 编译通过。
+
+### 二轮评审修复（2026-08-12）
+
+| # | 评审问题 | 结论 | 处理 |
+|---|---|---|---|
+| 1 | log4j2 `<Property>` 结构无效 | 成立 | `<Property>` 移入 `<Properties>` 容器，`${LOG_PATTERN}` 正常解析 |
+| 2 | Context 测试未隔离 Nacos | 成立 | 测试属性覆盖 `spring.config.import=optional:classpath:/test-nacos-dummy.yml` + `nacos.config.import-check.enabled=false` + discovery/config enabled=false，Config Data 阶段不再连接 Nacos |
+| 3 | 定时任务污染后续测试 | 成立 | `accessmesh.sync.scheduler.enabled=false` 关闭 SyncTaskScheduler（5s 查库）；`@MockBean UserRoleOrphanCleanupTask`（无开关）；SyncFullSyncTrigger 默认不启用 |
+| 4 | 任务卡结论与代码矛盾 | 成立 | 更正：SDK `FeignInternalSyncInterceptor` 是 `X-Service-Code` 设置方（默认 `admin-service`），删除 `perm.service-code=access-service` 后回退默认值与 Payload 对齐；7 跳过测试 = 5 Docker + 2 OperatorContext mock |
+
+**二轮复审验证**：Context 测试 2/2 通过；全量 347 测试 0 失败 7 跳过（构成不变）；无 log4j2 配置警告；测试运行无 Nacos 连接痕迹。
