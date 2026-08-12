@@ -110,7 +110,7 @@ flowchart LR
 
 以下内部 admin→permission 机制全部退役：
 
-- `sys_sync_task` 表及管理 API（Gateway 对外路径 `/admin/sync-task/*`，服务内路径 `/sync-task/*`）。
+- `sys_sync_task` 表及管理 API（Gateway 对外路径 `/admin/sync-task/*`，服务内路径 `/sync-task/*`）。`sys_sync_task` 表以过渡表保留在最终 DDL 中（T-ACCESS-002 起），同步链路代码删除（T-ACCESS-005）时与过渡表删除原子完成，防止中间态 admin 域写操作回滚。
 - 同步任务 builder、handler、scheduler、重试、乱序版本、人工补偿和内部 full-sync 编排。
 - admin 到 permission 的 Feign 调用及 `SyncTaskFeignClient`。
 - 为旧同步链路存在的配置、测试和运行手册。

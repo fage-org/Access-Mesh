@@ -63,13 +63,13 @@ last_updated: 2026-08-12
 
 **产出**：
 
-1. **`docs/design/schema/access-service.sql`（权威最终 DDL，33 张表）**
-   - admin 域 14 张（sys_sync_task 退役删除）+ permission 域 16 张 + 合并表 2 张（system_config/operation_log）+ 基础设施 1 张（sys_task_execution）
+1. **`docs/design/schema/access-service.sql`（权威最终 DDL，34 张表）**
+   - admin 域 15 张（sys_sync_task 以过渡表保留，T-ACCESS-005 退役时与同步代码原子删除）+ permission 域 16 张 + 合并表 2 张（system_config/operation_log）+ 基础设施 1 张（sys_task_execution）
    - `system_config` 超集字段合并（config_key/config_value/description/config_name/remark/is_system），种子 9 条键名不变
    - `operation_log` 超集字段合并（user_id/username/request_url/request_body/response_code/cost_time + operator_id/operator_name，target_id 字符串化 VARCHAR(64)，request_body 限长 4000），索引合并去重（idx_operation_log_user 承接原 idx_audit_log_user）
    - `abstract_user`/`abstract_role`/`user_role` 增加可空 `owner_service_code`（无默认值）
-   - `type_definition` 系统种子 35 行：user_type USER=1/SERVICE=2；role_type ORG=1/POSITION=2/PERSONAL=3/GROUP_ROLE=5/BASIC_ROLE=6；resource_type MENU=1/BUTTON=2/API=3/DATA=4（枚举权威）+ ROLE=5…DEPENDENCY=15（ResourceTypeCode 顺序）+ ADMIN_USER=16…ADMIN_SYNC_TASK=28（AdminResourceType 顺序）
-   - `operation_permission` 非预置操作码种子 17 行（原 seed-admin-operations 16 + seed-perm-operations 1，二进制位分配不变）
+   - `type_definition` 系统种子 36 行：user_type USER=1/SERVICE=2/ADMIN_USER=3（本地管理用户主体类型，SyncTaskBuilder 同步 abstract_user 必需）；role_type ORG=1/POSITION=2/PERSONAL=3/GROUP_ROLE=5/BASIC_ROLE=6；resource_type MENU=1/BUTTON=2/API=3/DATA=4（枚举权威）+ ROLE=5…DEPENDENCY=15（ResourceTypeCode 顺序）+ ADMIN_USER=16…ADMIN_SYNC_TASK=28（AdminResourceType 顺序）
+   - `operation_permission` 种子 129 行：28 个静态 resource_type 各预置 CRUD 四操作（112 行，CREATE bit=1/VIEW bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2；DDL 直接种入的类型不触发运行时生成，必须在初始化阶段种入）+ 非预置扩展操作 17 行（原 seed-admin-operations 16 + seed-perm-operations 1，bit 从 16 起与 CRUD 不冲突）
    - `sys_task_execution` 预建（execution_key 唯一约束，T-ACCESS-009 原子 SQL 扩展）
 2. **持久层收敛**
    - 删除 admin 域 `SysConfig`/`SysAuditLog` 实体、`SysConfigMapper`/`SysAuditLogMapper` 接口及 XML（4 语句并入 SystemConfigMapper.xml、paginateByTenantId 并入 OperationLogMapper.xml）
@@ -95,8 +95,23 @@ last_updated: 2026-08-12
 - `access-service-architecture.md` §4.2/§5.1/§5.2/§8.1 已由实现落地：owner_service_code 语义、权威 DDL 文件、合并表结构、sys_task_execution 预建；§5.1 的"旧 DDL 验收后转为 superseded"已执行（4 个旧文件头部标记）
 - 旧文件 superseded 影响登记至看板"设计变更待核对"
 
+### 评审修复（2026-08-12）
+
+AI 评审 5 项问题处理结果（用户决策确认）：
+
+| # | 评审问题 | 结论 | 处理 |
+|---|---|---|---|
+| 1 | sys_sync_task 表已删但同步链路代码仍写（admin 写操作回滚） | 成立 | 用户决策：保留过渡表。access-service.sql 恢复 sys_sync_task 定义并标注 `[T-ACCESS-005 退役]`（代码删除与过渡表删除原子完成）；架构 §4.3 回写；表数 33→34，测试存在断言反转 |
+| 2 | 缺 user_type=ADMIN_USER 主体类型种子（SyncTaskBuilder 以 ADMIN_USER 同步 abstract_user，空库解析失败） | 成立 | 用户决策：补 `ADMIN_USER=3`（USER=1 外部人员/SERVICE=2 外部服务/ADMIN_USER=3 本地管理用户）；种子 35→36 行，测试补数值断言 |
+| 3 | 静态资源类型无 CRUD 操作（DDL 直插类型不触发运行时生成，且应用无生成逻辑，多数类型 fail-closed） | 成立 | 用户决策：为 28 个静态 resource_type 种入 CRUD 四操作（INSERT...SELECT CROSS JOIN VALUES，bit 1/2/4/8，与扩展码 16 起不冲突）；种子 17→129 行；H2 测试按 code 去重断言 4 码齐全、Postgres 测试断言恰好 4 条（扩展 VIEW 由 ON CONFLICT 跳过） |
+| 4 | JSONB 列与实体 String 映射（PGJDBC stringtype=VARCHAR 真实 PG 写入报 42804，全项目约 10 个 JSONB 列） | 成立 | 用户决策：application.yml 数据源 URL 加 `stringtype=unspecified`（服务端按目标列推断，一处配置覆盖全部 JSONB 列）；Testcontainers 测试连接同步加参数并补 system_config JSONB 往返用例（Docker 环境生效） |
+| 5 | operation_log.target_id VARCHAR(64) 不足（configKey 128/roleExternalId 256 超长审计写入失败被吞） | 成立 | 用户决策：扩至 VARCHAR(256)；H2 测试补长度断言（character_maximum_length=256） |
+
+**评审修复验证**：H2 空库测试 11/11 通过；全量回归（见下文验证结果）。
+
 ### 已知限制与后续
 - H2 无法表达软删部分唯一索引（delete_flag 谓词）、NULLS NOT DISTINCT、COALESCE 索引列与 JSONB 路径索引，相关语义由 Testcontainers PostgreSQL 测试（Docker 环境）与应用层保证
 - 全局域（biz_domain global=true）由管理 API 创建，不在 DDL 预置（现状一致，空库验收 T-ACCESS-011 观察）
 - type_value 数值为权威定义（归档文档 SERVICE=10 历史数值作废重排，空库无存量数据影响）
 - operation_log 模块标识 ADMIN/PERMISSION/ACCESS 统一与配置键命名空间（admin.*）迁移留待 T-ACCESS-007
+- sys_sync_task 过渡表删除与同步链路代码删除（T-ACCESS-005）原子绑定，见架构 §4.3

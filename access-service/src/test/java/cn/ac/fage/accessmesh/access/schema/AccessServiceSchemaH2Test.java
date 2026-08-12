@@ -186,41 +186,85 @@ class AccessServiceSchemaH2Test {
     // ---------------------------------------------------------------------
 
     @Test
-    @DisplayName("空库执行后共有 33 张表")
-    void shouldHave33Tables() throws SQLException {
+    @DisplayName("空库执行后共有 34 张表")
+    void shouldHave34Tables() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE LOWER(table_schema) = 'public'")) {
             rs.next();
-            assertEquals(33, rs.getLong(1), "表数量应为 33（admin 14 + permission 16 + 合并 2 + 基础设施 1）");
+            assertEquals(34, rs.getLong(1), "表数量应为 34（admin 15 + permission 16 + 合并 2 + 基础设施 1，含 sys_sync_task 过渡表）");
         }
     }
 
     @Test
-    @DisplayName("sys_sync_task 不进入最终结构")
-    void shouldNotHaveSysSyncTask() throws SQLException {
-        assertFalse(tableExists("sys_sync_task"), "sys_sync_task 已退役，不得存在于最终 DDL");
+    @DisplayName("sys_sync_task 以过渡表保留（T-ACCESS-005 退役）")
+    void shouldHaveSysSyncTaskTransitionTable() throws SQLException {
+        assertTrue(tableExists("sys_sync_task"), "sys_sync_task 为过渡表，T-ACCESS-005 删除同步链路代码前必须保留（当前代码仍写入本表）");
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 35 行 / operation_permission 17 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 36 行 / operation_permission 129 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
-        assertEquals(35, countRows("type_definition"), "type_definition 系统种子 35 行（user_type 2 + role_type 5 + resource_type 28）");
-        assertEquals(17, countRows("operation_permission"), "operation_permission 非预置操作码种子 17 行（admin 16 + perm 1）");
+        assertEquals(36, countRows("type_definition"), "type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28）");
+        assertEquals(129, countRows("operation_permission"), "operation_permission 种子 129 行（静态类型 CRUD 112 + 非预置扩展 17）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（原 sys_config 键名不变）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
 
     @Test
-    @DisplayName("type_definition 种子数值与枚举一致：USER=1/SERVICE=2/ORG=1/BASIC_ROLE=6/MENU=1/ADMIN_ORG=17")
+    @DisplayName("type_definition 种子数值与枚举一致：USER=1/SERVICE=2/ADMIN_USER=3/ORG=1/BASIC_ROLE=6/MENU=1/ADMIN_ORG=17")
     void shouldHaveAuthoritativeTypeValues() throws SQLException {
         assertTypeValue("user_type", "USER", 1);
         assertTypeValue("user_type", "SERVICE", 2);
+        assertTypeValue("user_type", "ADMIN_USER", 3);
         assertTypeValue("role_type", "ORG", 1);
         assertTypeValue("role_type", "BASIC_ROLE", 6);
         assertTypeValue("resource_type", "MENU", 1);
         assertTypeValue("resource_type", "ADMIN_ORG", 17);
         assertTypeValue("resource_type", "ROLE", 5);
+    }
+
+    @Test
+    @DisplayName("每个静态 resource_type 均预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE）")
+    void shouldHaveCrudOperationsForEveryStaticResourceType() throws SQLException {
+        // 28 个静态 resource_type 全部有 CRUD 四操作。
+        // 按 code 去重统计：H2 中 uk_operation_permission_typed（含 resource_type IS NOT NULL
+        // 业务谓词）被适配规则删除，扩展码 VIEW 与 CRUD VIEW 可并存（多 1 条），PG 中由
+        // ON CONFLICT DO NOTHING 跳过、恰好 4 条（由 AccessServiceSchemaPostgresTest 断言）。
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT td.type_code, COUNT(DISTINCT op.code) FROM type_definition td " +
+                 "LEFT JOIN operation_permission op ON op.tenant_id = td.tenant_id " +
+                 "  AND op.resource_type = td.type_value AND op.code IN ('CREATE','VIEW','UPDATE','DELETE') AND op.delete_flag = 0 " +
+                 "WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0 " +
+                 "GROUP BY td.type_code HAVING COUNT(DISTINCT op.code) <> 4")) {
+            StringBuilder missing = new StringBuilder();
+            while (rs.next()) {
+                missing.append(rs.getString(1)).append('(').append(rs.getLong(2)).append("码) ");
+            }
+            assertTrue(missing.isEmpty(), "存在未完整预置 CRUD 的资源类型：" + missing);
+        }
+        // 关键类型抽查：MENU=1 与 ADMIN_ORG=17 的 CRUD 位值正确
+        assertOperationBit("MENU", "CREATE", 1, 0);
+        assertOperationBit("MENU", "VIEW", 2, 0);
+        assertOperationBit("MENU", "UPDATE", 4, 2);
+        assertOperationBit("MENU", "DELETE", 8, 2);
+        assertOperationBit("ADMIN_ORG", "CREATE", 1, 0);
+        // 扩展码与 CRUD 位不冲突（ADMIN_ORG:VIEW_POSITION 从 512 起）
+        assertOperationBit("ADMIN_ORG", "VIEW_POSITION", 512, 0);
+    }
+
+    private void assertOperationBit(String typeCode, String opCode, long expectedBit, long expectedMask) throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT op.binary_bit, op.inherit_mask FROM operation_permission op " +
+                 "JOIN type_definition td ON td.tenant_id = op.tenant_id AND td.type_value = op.resource_type " +
+                 "WHERE op.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = '" + typeCode + "' " +
+                 "  AND op.code = '" + opCode + "' AND op.delete_flag = 0")) {
+            assertTrue(rs.next(), typeCode + ":" + opCode + " 操作种子缺失");
+            assertEquals(expectedBit, rs.getLong(1), typeCode + ":" + opCode + " binary_bit");
+            assertEquals(expectedMask, rs.getLong(2), typeCode + ":" + opCode + " inherit_mask");
+        }
     }
 
     private void assertTypeValue(String typeKey, String typeCode, int expected) throws SQLException {
@@ -262,10 +306,12 @@ class AccessServiceSchemaH2Test {
         assertTrue(columnExists("operation_log", "cost_time"));
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
-                 "SELECT data_type FROM information_schema.columns WHERE LOWER(table_schema) = 'public' AND table_name = 'operation_log' AND column_name = 'target_id'")) {
+                 "SELECT data_type, character_maximum_length FROM information_schema.columns " +
+                 "WHERE LOWER(table_schema) = 'public' AND table_name = 'operation_log' AND column_name = 'target_id'")) {
             assertTrue(rs.next(), "operation_log.target_id 列存在");
             String type = rs.getString(1).toLowerCase();
             assertTrue(type.contains("char") || type.contains("varchar"), "target_id 应为字符串类型，实际 " + type);
+            assertEquals(256, rs.getInt(2), "target_id 长度应为 256（覆盖 configKey 128 / roleExternalId 256 等业务键上限）");
         }
     }
 

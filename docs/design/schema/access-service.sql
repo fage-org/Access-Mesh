@@ -5,11 +5,17 @@
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
 --       （四份旧文件已标记 superseded，不再作为实现依据）
 --
--- 范围：33 张表
---   admin 域 14 张（sys_*，原 17 张：sys_sync_task 退役删除，sys_config/sys_audit_log 并入合并表）
+-- 范围：34 张表
+--   admin 域 15 张（sys_*，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 以过渡表保留）
 --   permission 域 16 张（原 18 张：system_config/operation_log 由合并表承接）
 --   合并表 2 张（system_config、operation_log）
 --   基础设施 1 张（sys_task_execution，T-ACCESS-009 任务租约预建）
+--
+-- 过渡结构：
+--   sys_sync_task 以过渡表保留至 T-ACCESS-005（实现强事务权限投影并删除内部同步子系统）：
+--   当前同步链路代码（SyncTaskBuilder/envelope/SysSyncTaskMapper）仍写入本表，删除过渡表必须
+--   与同步链路代码删除原子完成，防止用本 DDL 初始化后 admin 域写操作回滚。
+--   表定义自带 [T-ACCESS-005 退役] 标注。
 --
 -- 合并说明（access-service-architecture §5.2）：
 --   system_config = sys_config + 原 system_config（字段取超集；tenant_id+config_key 唯一；
@@ -32,11 +38,13 @@
 -- 种子数据：
 --   sys_oauth2_client 3 条（原样保留）
 --   system_config 9 条（原 sys_config 种子，键名保持现状）
---   type_definition 系统种子 35 行（user_type 2 + role_type 5 + resource_type 28；
+--   type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28；
 --     type_value 为权威数值，与 RoleType/ResourceType 枚举一致；代码不硬编码数值，
 --     运行时经 TypeResolutionService 动态解析；归档文档中 SERVICE=10 的历史数值作废重排）
---   operation_permission 17 条（原 seed-admin-operations.sql 16 条 + seed-perm-operations.sql 1 条，
---     预置 CRUD 四操作由创建 resource_type 时运行时自动生成，不在本文件）
+--   operation_permission 129 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
+--     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 112 条；DDL 直接种入的类型不会触发运行时
+--     生成，必须在初始化阶段种入）+ 非预置扩展操作 17 条（原 seed-admin-operations.sql 16 条 +
+--     seed-perm-operations.sql 1 条，bit 从 16 起分配与 CRUD 不冲突）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 -- =============================================================================
@@ -529,7 +537,7 @@ CREATE TABLE operation_log (
     module         VARCHAR(64) NOT NULL,   -- 模块标识：ADMIN/PERMISSION/ACCESS 前缀约定
     action         VARCHAR(64) NOT NULL,
     target_type    VARCHAR(64),
-    target_id      VARCHAR(64),            -- 字符串（合并口径，原 permission 为 BIGINT）
+    target_id      VARCHAR(256),           -- 字符串（合并口径，原 permission 为 BIGINT；256 覆盖 configKey 128 / roleExternalId 256 等业务键上限）
     summary        VARCHAR(512),
     operator_id    BIGINT,                 -- 原 permission operation_log
     operator_name  VARCHAR(256),           -- 原 permission operation_log
@@ -608,9 +616,11 @@ COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，�
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，详见文件头说明）
 INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
-    -- user_type
+    -- user_type（USER=外部人员 / SERVICE=外部服务 / ADMIN_USER=本地管理用户，
+    --   admin 域 SyncTaskBuilder 以 ADMIN_USER 作为 subjectTypeCode 同步 abstract_user，必须可解析）
     (1, 'user_type', 'USER',       1, '人员', true, 1, 0, now(), now()),
     (1, 'user_type', 'SERVICE',    2, '服务', true, 2, 0, now(), now()),
+    (1, 'user_type', 'ADMIN_USER', 3, '本地管理用户', true, 3, 0, now(), now()),
     -- role_type（RoleType 枚举权威值：4 留空不可用）
     (1, 'role_type', 'ORG',        1, '组织',     true, 1, 0, now(), now()),
     (1, 'role_type', 'POSITION',   2, '职位',     true, 2, 0, now(), now()),
@@ -789,8 +799,23 @@ COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 
+-- 静态资源类型 CRUD 预置种子（112 条 = 28 个 resource_type × CREATE/VIEW/UPDATE/DELETE）：
+-- DDL 直接种入的 resource_type 不会触发运行时自动生成（当前应用亦无该生成逻辑），
+-- 必须在初始化阶段种入；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
+SELECT 1, td.type_value, ops.code, ops.name, ops.binary_bit, ops.inherit_mask, 0, 0, 0
+FROM type_definition td
+CROSS JOIN (VALUES
+    ('CREATE', '创建', 1, 0),
+    ('VIEW',   '查看', 2, 0),
+    ('UPDATE', '更新', 4, 2),
+    ('DELETE', '删除', 8, 2)
+) AS ops(code, name, binary_bit, inherit_mask)
+WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+
 -- 非预置操作码种子（原 seed-admin-operations.sql 16 条 + seed-perm-operations.sql 1 条；
--- 预置 CRUD 由创建 resource_type 时运行时自动生成；binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
+-- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
 -- ADMIN_ORG(17)：普通组织 VIEW + 岗位 CRUD 精化 + 成员关系
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
     (1, 17, 'VIEW',                '查看组织',       2,   0, 0, 0, 0),
@@ -1271,3 +1296,70 @@ COMMENT ON COLUMN sys_task_execution.lease_until IS '租约截止时间；过期
 COMMENT ON COLUMN sys_task_execution.attempt_count IS '已尝试执行次数（幂等重试计数）';
 COMMENT ON COLUMN sys_task_execution.last_error IS '最近一次失败原因';
 COMMENT ON COLUMN sys_task_execution.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
+
+-- -----------------------------------------------------------------------------
+-- 34. sys_sync_task - 同步任务表（本地消息表）【过渡表，T-ACCESS-005 退役】
+--     [T-ACCESS-005 退役]：T-ACCESS-005（实现强事务权限投影并删除内部同步子系统）
+--     删除同步链路代码时，必须同步从本 DDL 删除本表；在此之前保留以维持 admin 域
+--     写操作可用（SyncTaskBuilder/envelope/SysSyncTaskMapper 仍写入本表）。
+--     原定义（admin-service.sql）原样保留。
+-- -----------------------------------------------------------------------------
+CREATE TABLE sys_sync_task (
+    id                    BIGSERIAL PRIMARY KEY,
+    tenant_id             BIGINT NOT NULL,
+    message_key           VARCHAR(192) NOT NULL,
+    sync_action           VARCHAR(64) NOT NULL,
+    business_key          TEXT NOT NULL,
+    business_key_hash     CHAR(64) NOT NULL,
+    batch_key             TEXT,
+    batch_key_hash        CHAR(64),
+    target_service        VARCHAR(64) NOT NULL DEFAULT 'permission-center',
+    payload               JSONB NOT NULL DEFAULT '{}',
+    payload_version       INT NOT NULL DEFAULT 1,
+    display_attrs         JSONB NOT NULL DEFAULT '{}',
+    sync_occurred_at      TIMESTAMPTZ NOT NULL,
+    sync_sequence_no      BIGINT NOT NULL,
+    phase                 VARCHAR(64),
+    retry_count           INT NOT NULL DEFAULT 0,
+    max_retries           INT NOT NULL DEFAULT 5,
+    next_retry_at         TIMESTAMPTZ,
+    locked_at             TIMESTAMPTZ,
+    locked_by             VARCHAR(128),
+    last_error            VARCHAR(1024),
+    status                VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    created_by            BIGINT,
+    updated_by            BIGINT,
+    deleted_by            BIGINT,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at            TIMESTAMPTZ,
+    delete_flag           BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX uk_sync_task_message_key ON sys_sync_task (tenant_id, message_key) WHERE delete_flag = 0;
+CREATE UNIQUE INDEX uk_sync_task_pending_business ON sys_sync_task (tenant_id, sync_action, business_key_hash) WHERE status = 'PENDING' AND delete_flag = 0;
+CREATE INDEX idx_sync_task_due ON sys_sync_task (tenant_id, status, phase, next_retry_at) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_task_business_key ON sys_sync_task (tenant_id, sync_action, business_key_hash) WHERE delete_flag = 0;
+CREATE INDEX idx_sync_task_batch_phase ON sys_sync_task (tenant_id, batch_key_hash, phase, status) WHERE delete_flag = 0 AND batch_key_hash IS NOT NULL;
+
+COMMENT ON TABLE sys_sync_task IS '同步任务表（本地消息表）【过渡表，T-ACCESS-005 退役】；主业务事务内写任务，事务外重放；T-ACCESS-005 删除同步链路代码时必须同步从最终 DDL 删除本表';
+COMMENT ON COLUMN sys_sync_task.message_key IS '事件唯一键，每次业务变更唯一；合并 PENDING 任务时覆盖为最新事件 key，旧事件 key 不再保留';
+COMMENT ON COLUMN sys_sync_task.sync_action IS '同步动作：PERM_ABSTRACT_USER_SYNC/PERM_ABSTRACT_ROLE_SYNC/PERM_USER_ROLE_SYNC/PERM_RESOURCE_ENTITY_SYNC';
+COMMENT ON COLUMN sys_sync_task.business_key IS '同步业务键原文，采用 api-contract §6.2.2.4 的规范化 businessKey；用于排查，不直接参与唯一索引';
+COMMENT ON COLUMN sys_sync_task.business_key_hash IS 'business_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
+COMMENT ON COLUMN sys_sync_task.batch_key IS '全量校准批次键原文；单次实时同步为空。全量任务同一批次共享同一 batch_key';
+COMMENT ON COLUMN sys_sync_task.batch_key_hash IS 'batch_key 的 SHA-256 lowercase hex，用于同批次 phase 推进查询';
+COMMENT ON COLUMN sys_sync_task.target_service IS '目标服务（如 permission-center）';
+COMMENT ON COLUMN sys_sync_task.payload IS '同步请求参数快照，必须匹配 sync_action 对应的强类型 DTO';
+COMMENT ON COLUMN sys_sync_task.payload_version IS 'payload 契约版本；handler 遇到高于自身支持上限的版本必须拒绝并置为不可重试失败';
+COMMENT ON COLUMN sys_sync_task.display_attrs IS '仅供 UI/审计展示的冗余信息，如 entityType/externalId/operationType；严禁用于执行路由或业务判断';
+COMMENT ON COLUMN sys_sync_task.sync_occurred_at IS '源事件发生时间，参与 syncVersion 乱序判断';
+COMMENT ON COLUMN sys_sync_task.sync_sequence_no IS '源事件序号，和 sync_occurred_at 共同构成 syncVersion';
+COMMENT ON COLUMN sys_sync_task.phase IS '执行阶段枚举：USER_SUBJECT/USER_RESOURCE/ORG_RESOURCE/ORG_ROLE/USER_ROLE/MENU_RESOURCE/OTHER_RESOURCE；阶段推进规则见 admin-service.md';
+COMMENT ON COLUMN sys_sync_task.retry_count IS '已重试次数';
+COMMENT ON COLUMN sys_sync_task.max_retries IS '最大自动重试次数';
+COMMENT ON COLUMN sys_sync_task.next_retry_at IS '下次重试时间（退避策略计算）';
+COMMENT ON COLUMN sys_sync_task.locked_at IS '任务认领时间，用于多实例调度防重复执行';
+COMMENT ON COLUMN sys_sync_task.locked_by IS '任务认领节点标识';
+COMMENT ON COLUMN sys_sync_task.last_error IS '最后一次失败原因；首期不建 attempt 明细表';
+COMMENT ON COLUMN sys_sync_task.status IS '状态：PENDING/PROCESSING/SUCCESS/FAILED';

@@ -47,8 +47,10 @@ class AccessServiceSchemaPostgresTest {
         if (!Files.exists(DDL_PATH)) {
             throw new IllegalStateException("access-service.sql 不存在：" + DDL_PATH.toAbsolutePath());
         }
-        conn = DriverManager.getConnection(
-            POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+        // stringtype=unspecified：与 application.yml 数据源一致，验证 JSONB 列接受 String 绑定
+        // （T-ACCESS-002 评审修复：PGJDBC 默认 stringtype=VARCHAR 对 JSONB 列写入报 42804）
+        String url = POSTGRES.getJdbcUrl() + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "stringtype=unspecified";
+        conn = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (Statement s = conn.createStatement()) {
             s.execute(sql);
@@ -82,29 +84,64 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("原样 DDL 可执行：33 张表")
-    void shouldHave33Tables() throws SQLException {
+    @DisplayName("原样 DDL 可执行：34 张表")
+    void shouldHave34Tables() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")) {
             rs.next();
-            assertEquals(33, rs.getLong(1));
+            assertEquals(34, rs.getLong(1));
         }
     }
 
     @Test
-    @DisplayName("sys_sync_task 不在最终结构中")
-    void shouldNotHaveSysSyncTask() throws SQLException {
-        assertFalse(tableExists("sys_sync_task"));
+    @DisplayName("sys_sync_task 以过渡表保留（T-ACCESS-005 退役）")
+    void shouldHaveSysSyncTaskTransitionTable() throws SQLException {
+        assertTrue(tableExists("sys_sync_task"), "sys_sync_task 为过渡表，T-ACCESS-005 删除同步链路代码前必须保留");
     }
 
     @Test
-    @DisplayName("种子数据齐备")
+    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 129 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
-        assertEquals(35, countRows("type_definition"));
-        assertEquals(17, countRows("operation_permission"));
+        assertEquals(36, countRows("type_definition"));
+        assertEquals(129, countRows("operation_permission"));
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
+    }
+
+    @Test
+    @DisplayName("JSONB 列接受 String 绑定（stringtype=unspecified 生效，system_config 往返）")
+    void shouldWriteStringToJsonbColumn() throws SQLException {
+        try (Statement s = conn.createStatement()) {
+            // 插入：String 参数绑定 JSONB 列（等价于实体 String 字段写入路径）
+            s.execute("INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) " +
+                "VALUES (1, 'JSONB_ROUNDTRIP_TEST', '{\"mode\":\"test\"}', '往返测试', false)");
+            // 读取回验
+            try (ResultSet rs = s.executeQuery(
+                "SELECT config_value FROM system_config WHERE tenant_id = 1 AND config_key = 'JSONB_ROUNDTRIP_TEST'")) {
+                assertTrue(rs.next(), "插入后应能读取");
+                String value = rs.getString(1);
+                assertTrue(value.contains("mode"), "JSONB 值应可读取（PG 规范化后为 {\"mode\": \"test\"}），实际 " + value);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("每个静态 resource_type 恰好 4 条 CRUD（扩展码 VIEW 由 ON CONFLICT 跳过）")
+    void shouldHaveExactCrudPerType() throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT td.type_code, COUNT(*) FROM type_definition td " +
+                 "LEFT JOIN operation_permission op ON op.tenant_id = td.tenant_id " +
+                 "  AND op.resource_type = td.type_value AND op.code IN ('CREATE','VIEW','UPDATE','DELETE') AND op.delete_flag = 0 " +
+                 "WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0 " +
+                 "GROUP BY td.type_code HAVING COUNT(*) <> 4")) {
+            StringBuilder unexpected = new StringBuilder();
+            while (rs.next()) {
+                unexpected.append(rs.getString(1)).append('(').append(rs.getLong(2)).append("条) ");
+            }
+            assertTrue(unexpected.isEmpty(), "存在 CRUD 计数非 4 的资源类型（扩展码 VIEW 应被 ON CONFLICT 跳过）：" + unexpected);
+        }
     }
 
     @Test
