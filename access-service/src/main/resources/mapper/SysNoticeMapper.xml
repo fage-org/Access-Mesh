@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.admin.mapper.SysNoticeMapper">
+
+    <select id="selectByIdSafe" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
+        SELECT * FROM sys_notice
+        WHERE id = #{id} AND tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
+    <select id="selectByIdsSafe" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
+        SELECT * FROM sys_notice
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="paginateByTenant" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
+        SELECT * FROM sys_notice
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectPublishedByTenant" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
+        SELECT * FROM sys_notice
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND status = 1
+        ORDER BY created_at DESC
+    </select>
+
+    <update id="softDeleteBatch">
+        UPDATE sys_notice
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND delete_flag = 0
+        AND tenant_id = #{tenantId}
+    </update>
+
+</mapper>

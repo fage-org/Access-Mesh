@@ -1,0 +1,631 @@
+package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
+
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
+import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
+import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
+import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.access.permission.enums.ConfigType;
+import cn.ac.fage.accessmesh.access.permission.enums.GrantSource;
+import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantPlanDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.permission.util.DatabaseExceptionSupport;
+import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * 聚合授权计划领域实现：先一次性解析并校验完整计划，再执行记录级变更。
+ */
+@Service
+public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlanDomainService {
+
+    private final TypeResolutionService typeResolutionService;
+    private final DomainClassifyService domainClassifyService;
+    private final PermissionGrantDomainService permissionGrantDomainService;
+    private final RoleResourcePermissionMapper rolePermissionMapper;
+    private final ResourceEntityMapper resourceEntityMapper;
+    private final OperationPermissionMapper operationPermissionMapper;
+    private final PermissionConditionMapper permissionConditionMapper;
+    private final DomainConfigMapper domainConfigMapper;
+    private final ObjectMapper objectMapper;
+
+    public PermissionGrantPlanDomainServiceImpl(
+            TypeResolutionService typeResolutionService,
+            DomainClassifyService domainClassifyService,
+            PermissionGrantDomainService permissionGrantDomainService,
+            RoleResourcePermissionMapper rolePermissionMapper,
+            ResourceEntityMapper resourceEntityMapper,
+            OperationPermissionMapper operationPermissionMapper,
+            PermissionConditionMapper permissionConditionMapper,
+            DomainConfigMapper domainConfigMapper,
+            ObjectMapper objectMapper) {
+        this.typeResolutionService = typeResolutionService;
+        this.domainClassifyService = domainClassifyService;
+        this.permissionGrantDomainService = permissionGrantDomainService;
+        this.rolePermissionMapper = rolePermissionMapper;
+        this.resourceEntityMapper = resourceEntityMapper;
+        this.operationPermissionMapper = operationPermissionMapper;
+        this.permissionConditionMapper = permissionConditionMapper;
+        this.domainConfigMapper = domainConfigMapper;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public PreparedGrantPlan prevalidate(Long tenantId, Long operatorId, Long roleId, String domainCode,
+                                         ApplyGrantPlanReq.GrantPlan plan) {
+        List<ApplyGrantPlanReq.CreateItem> createItems = plan.createItems();
+        List<ApplyGrantPlanReq.UpdateItem> updateItems = plan.updateItems();
+        List<Long> removeIds = plan.removeIds();
+        if (createItems.isEmpty() && updateItems.isEmpty() && removeIds.isEmpty()) {
+            throw biz(PermissionErrorCode.GRANT_REQUEST_EMPTY);
+        }
+
+        assertDistinct(updateItems.stream().map(ApplyGrantPlanReq.UpdateItem::id).toList(),
+            "plan.updates contains duplicate id");
+        assertDistinct(removeIds, "plan.removes contains duplicate id");
+        Set<Long> updateIds = updateItems.stream().map(ApplyGrantPlanReq.UpdateItem::id)
+            .collect(Collectors.toSet());
+        Set<Long> removeIdSet = new HashSet<>(removeIds);
+        if (!java.util.Collections.disjoint(updateIds, removeIdSet)) {
+            throw validation("The same permission id cannot be updated and removed");
+        }
+
+        List<RoleResourcePermission> existingPermissions = rolePermissionMapper
+            .selectValidByRoleId(tenantId, roleId);
+        Map<Long, RoleResourcePermission> existingById = existingPermissions.stream()
+            .collect(Collectors.toMap(RoleResourcePermission::getId, Function.identity()));
+
+        Set<Long> referencedIds = new LinkedHashSet<>();
+        referencedIds.addAll(updateIds);
+        referencedIds.addAll(removeIdSet);
+        createItems.stream().map(ApplyGrantPlanReq.CreateItem::parentPermissionId)
+            .filter(Objects::nonNull).forEach(referencedIds::add);
+        for (Long referencedId : referencedIds) {
+            if (!existingById.containsKey(referencedId)) {
+                PermissionErrorCode code = createItems.stream()
+                    .anyMatch(item -> Objects.equals(item.parentPermissionId(), referencedId))
+                    ? PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND
+                    : PermissionErrorCode.PERMISSION_NOT_FOUND;
+                throw biz(code, "Permission id not found: " + referencedId);
+            }
+        }
+
+        for (Long id : updateIds) {
+            assertMutable(existingById.get(id));
+            RoleResourcePermission permission = existingById.get(id);
+            if (permission.getDependOn() != null && removeIdSet.contains(permission.getDependOn())) {
+                throw validation("Cannot update a child permission while removing its parent");
+            }
+        }
+        for (Long id : removeIdSet) {
+            assertMutable(existingById.get(id));
+        }
+
+        List<ApplyGrantPlanReq.GrantRecordKey> allKeys = new ArrayList<>();
+        for (ApplyGrantPlanReq.CreateItem create : createItems) {
+            if (create.parentPermissionId() != null && !create.childItems().isEmpty()) {
+                throw validation("A child create cannot contain children");
+            }
+            if (create.parentPermissionId() != null) {
+                RoleResourcePermission parent = existingById.get(create.parentPermissionId());
+                if (parent.getDependOn() != null) {
+                    throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_TOP_LEVEL);
+                }
+                if (removeIdSet.contains(parent.getId())) {
+                    throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND,
+                        "Cannot add a child to a removed parent permission");
+                }
+            }
+            allKeys.add(create.key());
+            allKeys.addAll(create.childItems());
+        }
+        validateKeyShapes(allKeys);
+
+        Set<String> resourceTypeCodes = allKeys.stream()
+            .map(ApplyGrantPlanReq.GrantRecordKey::resourceTypeCode)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, Integer> rawTypeValues = typeResolutionService.batchResolveTypeValues(
+            tenantId, "resource_type", resourceTypeCodes);
+        Map<String, Integer> typeValues = normalizeTypeValues(rawTypeValues);
+        for (String typeCode : resourceTypeCodes) {
+            if (!typeValues.containsKey(normalize(typeCode))) {
+                throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND,
+                    "resourceTypeCode not found: " + typeCode);
+            }
+        }
+
+        List<ResourceResolveRequest> resourceRequests = allKeys.stream()
+            .filter(key -> !isScopeAll(key))
+            .map(key -> new ResourceResolveRequest(
+                key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode))
+            .distinct()
+            .toList();
+        Map<ResourceResolveKey, Long> resourceIds = typeResolutionService
+            .batchResolveResourceIds(tenantId, resourceRequests);
+
+        List<OperationPermission> allOperations = operationPermissionMapper
+            .selectByTenantAndResourceType(tenantId, null);
+        Set<String> knownOperationCodes = allOperations.stream()
+            .map(OperationPermission::getCode).filter(Objects::nonNull)
+            .map(PermissionGrantPlanDomainServiceImpl::normalize)
+            .collect(Collectors.toSet());
+
+        Set<String> conditionCodes = new LinkedHashSet<>();
+        allKeys.stream().map(ApplyGrantPlanReq.GrantRecordKey::conditionCode)
+            .filter(code -> code != null && !code.isBlank()).forEach(conditionCodes::add);
+        updateItems.stream().map(ApplyGrantPlanReq.UpdateItem::conditionCode)
+            .filter(code -> code != null && !code.isBlank()).forEach(conditionCodes::add);
+        Map<String, PermissionCondition> conditionsByCode = conditionCodes.isEmpty() ? Map.of()
+            : permissionConditionMapper.selectValidByCodes(tenantId, conditionCodes).stream()
+                .collect(Collectors.toMap(PermissionCondition::getCode, Function.identity()));
+        for (String conditionCode : conditionCodes) {
+            if (!conditionsByCode.containsKey(conditionCode)) {
+                throw biz(PermissionErrorCode.CONDITION_NOT_FOUND,
+                    "conditionCode not found: " + conditionCode);
+            }
+        }
+
+        List<PreparedCreate> preparedCreates = new ArrayList<>();
+        List<RoleResourcePermission> directCreates = new ArrayList<>();
+        Set<PermissionGrantDomainService.GrantCheckKey> delegationKeys = new LinkedHashSet<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (ApplyGrantPlanReq.CreateItem create : createItems) {
+            RoleResourcePermission permission = toPermission(tenantId, roleId, domainCode,
+                create.key(), create.parentPermissionId(), typeValues, resourceIds,
+                allOperations, knownOperationCodes, conditionsByCode, now);
+            List<RoleResourcePermission> children = create.childItems().stream()
+                .map(key -> toPermission(tenantId, roleId, domainCode, key, null,
+                    typeValues, resourceIds, allOperations, knownOperationCodes,
+                    conditionsByCode, now))
+                .toList();
+            preparedCreates.add(new PreparedCreate(permission, children));
+            directCreates.add(permission);
+            delegationKeys.add(toGrantCheckKey(create.key()));
+            create.childItems().stream().map(this::toGrantCheckKey).forEach(delegationKeys::add);
+        }
+
+        permissionGrantDomainService.validateSingleManualGrants(
+            existingPermissions, directCreates, removeIdSet);
+        for (PreparedCreate create : preparedCreates) {
+            if (!create.children().isEmpty()) {
+                permissionGrantDomainService.validateSingleManualGrants(
+                    List.of(), create.children(), Set.of());
+            }
+        }
+
+        validateSubPermissions(tenantId, preparedCreates, existingById, typeValues);
+
+        Set<Integer> updateTypeValues = updateItems.stream()
+            .map(item -> existingById.get(item.id()).getResourceType())
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Integer, String> updateTypeCodes = typeResolutionService.batchResolveTypeCodes(
+            tenantId, "resource_type", updateTypeValues);
+        Set<Long> updateResourceIds = updateItems.stream()
+            .map(item -> existingById.get(item.id()).getResourceEntityId())
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, ResourceEntity> updateResources = updateResourceIds.isEmpty() ? Map.of()
+            : resourceEntityMapper.selectValidByIds(tenantId, updateResourceIds).stream()
+                .collect(Collectors.toMap(ResourceEntity::getId, Function.identity()));
+
+        List<RoleResourcePermission> preparedUpdates = new ArrayList<>();
+        for (ApplyGrantPlanReq.UpdateItem update : updateItems) {
+            if (update.canGrant() == null && update.conditionCode() == null) {
+                throw validation("An update must change canGrant or conditionCode");
+            }
+            RoleResourcePermission permission = existingById.get(update.id());
+            if (update.canGrant() != null) {
+                permission.setCanGrant(update.canGrant());
+            }
+            if (update.conditionCode() != null) {
+                permission.setConditionId(update.conditionCode().isBlank()
+                    ? null : conditionsByCode.get(update.conditionCode()).getId());
+            }
+            permissionGrantDomainService.validateGrantAttributes(permission);
+            permission.setUpdatedAt(now);
+            preparedUpdates.add(permission);
+
+            ResourceEntity resource = permission.getResourceEntityId() == null ? null
+                : updateResources.get(permission.getResourceEntityId());
+            OperationPermission operation = resolveOperationByBit(
+                allOperations, permission.getResourceType(), permission.getGrantedBits());
+            String resourceTypeCode = updateTypeCodes.get(permission.getResourceType());
+            if (resourceTypeCode == null || operation == null
+                || (!Boolean.TRUE.equals(permission.getScopeAll()) && resource == null)) {
+                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                    "Permission definition has changed: " + permission.getId());
+            }
+            delegationKeys.add(new PermissionGrantDomainService.GrantCheckKey(
+                resourceTypeCode,
+                resource == null ? null : resource.getCode(),
+                resource == null ? null : resource.getCodeType(),
+                operation.getCode(),
+                Boolean.TRUE.equals(permission.getScopeAll())
+            ));
+        }
+
+        verifyDelegation(tenantId, operatorId, domainCode, delegationKeys);
+        return new PreparedGrantPlan(tenantId, roleId, preparedCreates,
+            preparedUpdates, List.copyOf(removeIds), Set.copyOf(delegationKeys));
+    }
+
+    @Override
+    public void apply(PreparedGrantPlan plan) {
+        LocalDateTime now = LocalDateTime.now();
+        if (!plan.removes().isEmpty()) {
+            int affected = rolePermissionMapper.softDeleteBatch(plan.tenantId(), plan.removes(), now);
+            if (affected != plan.removes().size()) {
+                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND);
+            }
+            rolePermissionMapper.cascadeSoftDeleteChildren(plan.tenantId(), plan.removes(), now);
+        }
+        for (RoleResourcePermission update : plan.updates()) {
+            if (rolePermissionMapper.updateGrantAttributes(
+                plan.tenantId(), plan.roleId(), update.getId(), update.getCanGrant(),
+                update.getConditionId(), update.getUpdatedAt()) != 1) {
+                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND);
+            }
+        }
+        for (PreparedCreate create : plan.creates()) {
+            insertOne(create.permission());
+            if (!create.children().isEmpty()) {
+                for (RoleResourcePermission child : create.children()) {
+                    child.setDependOn(create.permission().getId());
+                }
+                insertBatch(create.children());
+            }
+        }
+    }
+
+    private RoleResourcePermission toPermission(
+            Long tenantId,
+            Long roleId,
+            String domainCode,
+            ApplyGrantPlanReq.GrantRecordKey key,
+            Long parentPermissionId,
+            Map<String, Integer> typeValues,
+            Map<ResourceResolveKey, Long> resourceIds,
+            List<OperationPermission> operations,
+            Set<String> knownOperationCodes,
+            Map<String, PermissionCondition> conditionsByCode,
+            LocalDateTime now) {
+        Integer resourceType = typeValues.get(normalize(key.resourceTypeCode()));
+        OperationPermission operation = resolveOperation(
+            operations, resourceType, key.operationCode(), knownOperationCodes);
+        boolean scopeAll = isScopeAll(key);
+        Long resourceId = null;
+        if (!scopeAll) {
+            resourceId = resourceIds.get(new ResourceResolveKey(
+                key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode));
+            if (resourceId == null) {
+                throw biz(PermissionErrorCode.RESOURCE_NOT_FOUND,
+                    "resource not found: " + key.resourceCode());
+            }
+        }
+        RoleResourcePermission permission = new RoleResourcePermission();
+        permission.setTenantId(tenantId);
+        permission.setAbstractRoleId(roleId);
+        permission.setResourceEntityId(resourceId);
+        permission.setGrantedBits(operation.getBinaryBit());
+        permission.setResourceType(resourceType);
+        permission.setDependOn(parentPermissionId);
+        permission.setScopeAll(scopeAll);
+        permission.setCanGrant(Boolean.TRUE.equals(key.canGrant()));
+        permission.setConditionId(key.conditionCode() == null ? null
+            : conditionsByCode.get(key.conditionCode()).getId());
+        permission.setGrantSource(GrantSource.MANUAL.getValue());
+        permission.setCreatedAt(now);
+        permission.setUpdatedAt(now);
+        permission.setDeleteFlag(0L);
+        permissionGrantDomainService.validateGrantAttributes(permission);
+        return permission;
+    }
+
+    private void validateKeyShapes(List<ApplyGrantPlanReq.GrantRecordKey> keys) {
+        for (ApplyGrantPlanReq.GrantRecordKey key : keys) {
+            if (key == null || key.resourceTypeCode() == null || key.resourceTypeCode().isBlank()
+                || key.operationCode() == null || key.operationCode().isBlank()
+                || key.scopeMode() == null) {
+                throw validation("Invalid grant record key");
+            }
+            if (isScopeAll(key)) {
+                if (key.resourceCode() != null || key.codeType() != null) {
+                    throw validation("ALL scope requires null resourceCode and codeType");
+                }
+            } else {
+                if (key.resourceCode() == null || key.resourceCode().isBlank()) {
+                    throw biz(PermissionErrorCode.RESOURCE_CODE_REQUIRED);
+                }
+                if (key.codeType() == null || key.codeType().isBlank()) {
+                    throw validation("INSTANCE scope requires codeType");
+                }
+            }
+            if (key.conditionCode() != null && key.conditionCode().isBlank()) {
+                throw biz(PermissionErrorCode.CONDITION_NOT_FOUND,
+                    "Create conditionCode cannot be blank");
+            }
+        }
+    }
+
+    private void validateSubPermissions(
+            Long tenantId,
+            List<PreparedCreate> creates,
+            Map<Long, RoleResourcePermission> existingById,
+            Map<String, Integer> typeValues) {
+        List<ParentChildTypes> relations = new ArrayList<>();
+        Map<Integer, String> requestedTypeCodesByValue = typeValues.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey, (left, right) -> left));
+        Set<Integer> unresolvedParentTypes = creates.stream()
+            .filter(create -> create.permission().getDependOn() != null)
+            .map(create -> existingById.get(create.permission().getDependOn()).getResourceType())
+            .filter(type -> !requestedTypeCodesByValue.containsKey(type))
+            .collect(Collectors.toSet());
+        if (!unresolvedParentTypes.isEmpty()) {
+            requestedTypeCodesByValue.putAll(typeResolutionService.batchResolveTypeCodes(
+                tenantId, "resource_type", unresolvedParentTypes));
+        }
+        for (PreparedCreate create : creates) {
+            if (create.permission().getDependOn() != null) {
+                RoleResourcePermission parent = existingById.get(create.permission().getDependOn());
+                relations.add(new ParentChildTypes(
+                    requestedTypeCodesByValue.get(parent.getResourceType()),
+                    List.of(requestedTypeCodesByValue.get(create.permission().getResourceType()))));
+            }
+            if (!create.children().isEmpty()) {
+                relations.add(new ParentChildTypes(
+                    requestedTypeCodesByValue.get(create.permission().getResourceType()),
+                    create.children().stream()
+                        .map(child -> requestedTypeCodesByValue.get(child.getResourceType())).toList()));
+            }
+        }
+        if (relations.isEmpty()) {
+            return;
+        }
+        Set<String> parentTypeCodes = relations.stream().map(ParentChildTypes::parentTypeCode)
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<String, Long> domainIds = domainClassifyService.findDomainIdsByTypeCodes(
+            tenantId, parentTypeCodes);
+        Map<Long, DomainConfig> subPermByDomain = domainConfigMapper.selectByTenantId(tenantId).stream()
+            .filter(config -> ConfigType.SUB_PERM.getValue().equals(config.getConfigType()))
+            .collect(Collectors.toMap(DomainConfig::getBizDomainId, Function.identity(),
+                (left, right) -> left));
+        for (ParentChildTypes relation : relations) {
+            Long domainId = domainIds.get(relation.parentTypeCode());
+            DomainConfig config = domainId == null ? null : subPermByDomain.get(domainId);
+            for (String childTypeCode : relation.childTypeCodes()) {
+                assertSubPermissionAllowed(config, relation.parentTypeCode(), childTypeCode);
+            }
+        }
+    }
+
+    private void assertSubPermissionAllowed(DomainConfig config, String parentTypeCode,
+                                            String childTypeCode) {
+        if (config == null) {
+            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+                "SUB_PERM config is missing for parent type " + parentTypeCode);
+        }
+        String extra = config.getExtra();
+        if (extra == null || extra.isBlank()) {
+            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+                "SUB_PERM config is empty for parent type " + parentTypeCode);
+        }
+        if ("*".equals(extra.trim())) {
+            return;
+        }
+        try {
+            JsonNode allowed = objectMapper.readTree(extra).get("allowed");
+            if (allowed == null || !allowed.isArray()) {
+                throw new IllegalArgumentException("allowed must be an array");
+            }
+            for (JsonNode item : allowed) {
+                String configuredParent = item.path("parent_type").asText(null);
+                JsonNode childTypes = item.get("child_types");
+                if (configuredParent == null || childTypes == null || !childTypes.isArray()) {
+                    throw new IllegalArgumentException("invalid allowed item");
+                }
+                if (!configuredParent.equalsIgnoreCase(parentTypeCode)) {
+                    continue;
+                }
+                for (JsonNode childType : childTypes) {
+                    String configuredChild = childType.asText();
+                    if ("*".equals(configuredChild)
+                        || configuredChild.equalsIgnoreCase(childTypeCode)) {
+                        return;
+                    }
+                }
+            }
+        } catch (BizException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+                "SUB_PERM config format is invalid for parent type " + parentTypeCode);
+        }
+        throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+            "Child type " + childTypeCode + " is not allowed for parent type " + parentTypeCode);
+    }
+
+    private OperationPermission resolveOperation(List<OperationPermission> operations,
+                                                 Integer resourceType,
+                                                 String operationCode,
+                                                 Set<String> knownOperationCodes) {
+        String normalizedCode = normalize(operationCode);
+        OperationPermission specific = operations.stream()
+            .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+            .filter(operation -> normalizedCode.equals(normalize(operation.getCode())))
+            .findFirst().orElse(null);
+        if (specific != null) {
+            return specific;
+        }
+        OperationPermission global = operations.stream()
+            .filter(operation -> operation.getResourceType() == null)
+            .filter(operation -> normalizedCode.equals(normalize(operation.getCode())))
+            .findFirst().orElse(null);
+        if (global != null) {
+            return global;
+        }
+        if (knownOperationCodes.contains(normalizedCode)) {
+            throw biz(PermissionErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,
+                "operationCode does not apply to resourceTypeCode: " + operationCode);
+        }
+        throw biz(PermissionErrorCode.OPERATION_NOT_FOUND,
+            "operationCode not found: " + operationCode);
+    }
+
+    private OperationPermission resolveOperationByBit(List<OperationPermission> operations,
+                                                      Integer resourceType,
+                                                      Long grantedBits) {
+        OperationPermission specific = operations.stream()
+            .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+            .filter(operation -> Objects.equals(operation.getBinaryBit(), grantedBits))
+            .findFirst().orElse(null);
+        if (specific != null) {
+            return specific;
+        }
+        Set<String> specificCodes = operations.stream()
+            .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+            .map(OperationPermission::getCode).filter(Objects::nonNull)
+            .map(PermissionGrantPlanDomainServiceImpl::normalize)
+            .collect(Collectors.toSet());
+        return operations.stream()
+            .filter(operation -> operation.getResourceType() == null)
+            .filter(operation -> Objects.equals(operation.getBinaryBit(), grantedBits))
+            .filter(operation -> !specificCodes.contains(normalize(operation.getCode())))
+            .findFirst().orElse(null);
+    }
+
+    private PermissionGrantDomainService.GrantCheckKey toGrantCheckKey(
+            ApplyGrantPlanReq.GrantRecordKey key) {
+        return new PermissionGrantDomainService.GrantCheckKey(
+            key.resourceTypeCode(), key.resourceCode(), key.codeType(), key.operationCode(),
+            isScopeAll(key));
+    }
+
+    private void verifyDelegation(
+            Long tenantId,
+            Long operatorId,
+            String domainCode,
+            Set<PermissionGrantDomainService.GrantCheckKey> keys) {
+        if (keys.isEmpty()) {
+            return;
+        }
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results =
+            permissionGrantDomainService.checkCanGrant(tenantId, operatorId, keys, domainCode);
+        for (PermissionGrantDomainService.GrantCheckKey key : keys) {
+            PermissionGrantDomainService.GrantCheckResult result = results.get(grantCheckKey(key));
+            if (result == null || !result.canGrant()) {
+                throw biz(PermissionErrorCode.GRANT_CANNOT_DELEGATE,
+                    "Cannot delegate " + grantCheckKey(key)
+                        + "; reason=" + (result == null ? "UNKNOWN" : result.reason()));
+            }
+        }
+    }
+
+    private String grantCheckKey(PermissionGrantDomainService.GrantCheckKey key) {
+        return String.format("%s:%s:%s:%s:%s",
+            key.resourceTypeCode(),
+            key.resourceCode() == null ? "*" : key.resourceCode(),
+            key.codeType() == null ? "*" : key.codeType(),
+            key.operationCode(),
+            key.scopeAll() ? "ALL" : "SPECIFIC");
+    }
+
+    private boolean isScopeAll(ApplyGrantPlanReq.GrantRecordKey key) {
+        return ScopeModeSupport.toScopeAllForGrant(
+            key.scopeMode(), key.resourceCode(), key.codeType());
+    }
+
+    private Map<String, Integer> normalizeTypeValues(Map<String, Integer> values) {
+        Map<String, Integer> normalized = new HashMap<>();
+        values.forEach((code, value) -> normalized.put(normalize(code), value));
+        return normalized;
+    }
+
+    private void assertMutable(RoleResourcePermission permission) {
+        if (permission != null && GrantSource.AUTO_DEP.getValue().equals(permission.getGrantSource())) {
+            throw biz(PermissionErrorCode.AUTO_DEP_READONLY);
+        }
+    }
+
+    private void assertDistinct(Collection<Long> ids, String message) {
+        if (ids.stream().anyMatch(Objects::isNull) || new HashSet<>(ids).size() != ids.size()) {
+            throw validation(message);
+        }
+    }
+
+    private void insertOne(RoleResourcePermission permission) {
+        try {
+            if (rolePermissionMapper.insert(permission) != 1) {
+                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                    "Permission create did not affect exactly one row");
+            }
+        } catch (DataIntegrityViolationException exception) {
+            throw translateUniqueViolation(exception);
+        }
+    }
+
+    private void insertBatch(List<RoleResourcePermission> permissions) {
+        try {
+            if (rolePermissionMapper.insertBatch(permissions) != permissions.size()) {
+                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                    "Permission create count does not match the plan");
+            }
+        } catch (DataIntegrityViolationException exception) {
+            throw translateUniqueViolation(exception);
+        }
+    }
+
+    private RuntimeException translateUniqueViolation(DataIntegrityViolationException exception) {
+        if (DatabaseExceptionSupport.isUniqueViolation(exception,
+            "uk_role_resource_permission_manual_direct", "uk_role_resource_permission")) {
+            return biz(PermissionErrorCode.DIRECT_PERMISSION_CONFLICT);
+        }
+        return exception;
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private BizException validation(String message) {
+        return new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(), message);
+    }
+
+    private BizException biz(PermissionErrorCode errorCode) {
+        return new BizException(errorCode.getCode(), errorCode.getMessage());
+    }
+
+    private BizException biz(PermissionErrorCode errorCode, String message) {
+        return new BizException(errorCode.getCode(), message);
+    }
+
+    private record ParentChildTypes(String parentTypeCode, List<String> childTypeCodes) {}
+}

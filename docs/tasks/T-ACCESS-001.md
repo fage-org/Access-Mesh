@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-001
 title: 建立 access-service 工程骨架并物理归并源码
-status: proposed
+status: review
 plan: docs/plans/access-service-merge-plan.md
 domain: cross-service
 design_refs:
@@ -21,7 +21,7 @@ acceptance:
   - "补充架构边界测试骨架，能够在后续任务中扩展依赖白名单"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-08-12
 ---
 
@@ -43,4 +43,43 @@ last_updated: 2026-08-12
 
 ## 完成记录
 
-（待实施后填写。）
+### 实施摘要（2026-08-12）
+
+**决策确认**（5 项，全部选 A）：
+1. Java 21 全局升级（根 pom `java.version` 17→21）
+2. `perm-entity` 模块合并进 access-service，删除独立模块
+3. 旧模块（admin-service、permission-center）从根 pom 移除并删除目录
+4. `TenantContextHolder` 和 `MybatisFlexTenantConfig` 统一到 `access.infrastructure`
+5. 4 对重名 Controller 使用域前缀重命名（AdminXxxController / PermXxxController）
+
+**工程变更**：
+- 新增 `access-service` Maven 模块，`AccessServiceApplication` 位于 `cn.ac.fage.accessmesh.access`
+- admin 源码迁入 `cn.ac.fage.accessmesh.access.admin`（221 main + 23 test = 244 文件）
+- permission 源码迁入 `cn.ac.fage.accessmesh.access.permission`（319 main + 47 test = 366 文件）
+- perm-entity 实体迁入 `cn.ac.fage.accessmesh.access.permission.entity`（18 文件）
+- 35 个 mapper XML 迁入并更新 namespace
+- 合并 `bootstrap.yml`（端口 9100、access_db、Redis DB 0、双域 type-aliases-package）
+- 删除 `AdminServiceApplication` 和 `PermissionCenterApplication`，仅保留 `AccessServiceApplication`
+- 旧模块 admin-service、permission-center、perm-entity 从根 pom 移除并删除目录
+
+**冲突消除**：
+- `TenantContextHolder` → 统一到 `access.infrastructure.TenantContextHolder`
+- `MybatisFlexTenantConfig` → 统一到 `access.infrastructure.MybatisFlexTenantConfig`
+- `AuthController` → `AdminAuthController` / `PermAuthController`
+- `RoleController` → `AdminRoleController` / `PermRoleController`
+- `UserController` → `AdminUserController` / `PermUserController`
+- `UserRoleController` → `AdminUserRoleController` / `PermUserRoleController`
+- 修复 `RoleResourcePermissionMapper.xml` 中 `&` 未转义为 `&amp;` 的 XML 语法问题
+
+**验证结果**：
+- `mvn compile`（全 reactor）BUILD SUCCESS — Java 21，557 源文件
+- `mvn test-compile` BUILD SUCCESS — 72 测试文件
+- 架构边界测试 3/3 通过（admin↔permission 无横向依赖、切片无循环）
+- 启动类验证测试 3/3 通过（@SpringBootApplication/@MapperScan 配置正确、无重复启动类）
+- `AdminErrorCode`（1xxxx）与 `PermissionErrorCode`（2xxxx）分别保留原包路径和码值
+- HTTP 路由未改变（admin: /auth、/role、/user 等；permission: /api/perm/*）
+
+**设计回写**：
+- `access-service-architecture.md` §2/§3/§9 无需修改（实现与设计一致）
+- `project-rules.md` §1.2 错误码分段无需修改（AdminErrorCode/PermissionErrorCode 未合并）
+- `architecture.md` 旧双服务拓扑标注已存在（待 T-ACCESS-012 全量回写）

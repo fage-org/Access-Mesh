@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper">
+
+    <select id="selectRoleTreeByGroupIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        WITH RECURSIVE role_tree AS (
+            SELECT * FROM abstract_role
+            WHERE id IN
+            <foreach collection="groupRoleIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            AND tenant_id = #{tenantId} AND delete_flag = 0
+
+            UNION ALL
+
+            SELECT r.* FROM abstract_role r
+            INNER JOIN role_tree rt ON r.parent_id = rt.id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+        )
+        SELECT * FROM role_tree
+    </select>
+
+    <update id="softDeleteBatch">
+        UPDATE abstract_role
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND delete_flag = 0 AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- CTE recursive query to get all descendant role IDs for multiple roles (excluding self) -->
+    <select id="selectDescendantIdsBatch" resultType="java.lang.Long">
+        WITH RECURSIVE descendants AS (
+            SELECT id, parent_id FROM abstract_role
+            WHERE id IN
+            <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION ALL
+            SELECT r.id, r.parent_id FROM abstract_role r
+            INNER JOIN descendants d ON r.parent_id = d.id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+        )
+        SELECT id FROM descendants WHERE id NOT IN
+        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+<!-- CTE recursive query to find all ancestor GROUP_ROLE IDs that contain the given role -->
+    <select id="selectAncestorGroupRoleIds" resultType="java.lang.Long">
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id, role_type FROM abstract_role
+            WHERE id = #{roleId} AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION ALL
+            SELECT r.id, r.parent_id, r.role_type FROM abstract_role r
+            INNER JOIN ancestors a ON r.id = a.parent_id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+        )
+        SELECT id FROM ancestors WHERE role_type = 5 AND id != #{roleId}
+    </select>
+
+    <!-- 批量递归 CTE 查询多个角色的所有祖先 GROUP_ROLE ID（T-PERM-018 P2：消除按角色循环 N+1） -->
+    <select id="selectAncestorGroupRoleIdsBatch" resultType="java.lang.Long">
+        WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id, role_type FROM abstract_role
+            WHERE id IN
+            <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+                #{rid}
+            </foreach>
+              AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION ALL
+            SELECT r.id, r.parent_id, r.role_type FROM abstract_role r
+            INNER JOIN ancestors a ON r.id = a.parent_id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+        )
+        SELECT DISTINCT id FROM ancestors
+        WHERE role_type = 5
+          AND id NOT IN
+          <foreach collection="roleIds" item="rid" open="(" separator="," close=")">
+              #{rid}
+          </foreach>
+    </select>
+
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectFilteredByIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+        <if test="externalId != null and externalId != ''">
+          AND external_id = #{externalId}
+        </if>
+        <if test="roleType != null">
+          AND role_type = #{roleType}
+        </if>
+    </select>
+
+    <select id="selectEnabledRoleTree" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND status = 1
+    </select>
+
+    <select id="selectRoleListPaged" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="matchNone">
+          AND id = -1
+        </if>
+        <if test="!matchNone and roleTypes != null and roleTypes.size() > 0">
+          AND role_type IN
+          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
+              #{roleType}
+          </foreach>
+        </if>
+        <if test="!matchNone and keyword != null and keyword != ''">
+          AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectRoleListCount" resultType="long">
+        SELECT COUNT(*) FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="matchNone">
+          AND id = -1
+        </if>
+        <if test="!matchNone and roleTypes != null and roleTypes.size() > 0">
+          AND role_type IN
+          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
+              #{roleType}
+          </foreach>
+        </if>
+        <if test="!matchNone and keyword != null and keyword != ''">
+          AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </select>
+
+    <select id="selectEnabledIdsByIds" resultType="java.lang.Long">
+        SELECT id FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND status = 1
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypeAndExternalIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND role_type = #{roleType}
+          AND external_id IN
+        <foreach collection="externalIds" item="eid" open="(" separator="," close=")">
+            #{eid}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypeAndExternalId" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+        SELECT * FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND role_type = #{roleType}
+          AND external_id = #{externalId}
+          AND delete_flag = 0
+    </select>
+
+</mapper>

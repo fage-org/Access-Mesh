@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.admin.mapper.SysUserNoticeMapper">
+
+    <select id="selectByNoticeAndUser" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUserNotice">
+        SELECT * FROM sys_user_notice
+        WHERE notice_id = #{noticeId} AND user_id = #{userId} AND tenant_id = #{tenantId}
+    </select>
+
+    <select id="selectByUserAndNoticeIds" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUserNotice">
+        SELECT * FROM sys_user_notice
+        WHERE user_id = #{userId} AND tenant_id = #{tenantId}
+        AND notice_id IN
+        <foreach collection="noticeIds" item="noticeId" open="(" separator="," close=")">
+            #{noticeId}
+        </foreach>
+    </select>
+
+</mapper>

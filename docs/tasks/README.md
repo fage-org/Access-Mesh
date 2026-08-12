@@ -28,7 +28,7 @@
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-001](T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | [access-service-merge](../plans/access-service-merge-plan.md) | design/access-service-architecture.md §2/§3/§9；project-rules | — | ⚙️ | ⏳ |
+| [T-ACCESS-001](T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | [access-service-merge](../plans/access-service-merge-plan.md) | design/access-service-architecture.md §2/§3/§9；project-rules | — | 👀 | ✓ |
 | [T-ACCESS-002](T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | access-service-merge | access-service-architecture §4/§5/§8.1；schema/access-service.sql（本任务产出） | T-ACCESS-001 | ⚙️ | ⏳ |
 | [T-ACCESS-003](T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | access-service-merge | access-service-architecture §2/§6/§7.1；project-rules；gateway | T-ACCESS-001, T-ACCESS-002 | ⚙️ | ⏳ |
 | [T-ACCESS-004](T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | access-service-merge | access-service-architecture §6；admin/permission API 契约；gateway | T-ACCESS-003 | ⚙️ | ⏳ |
