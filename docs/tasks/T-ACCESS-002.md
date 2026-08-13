@@ -25,7 +25,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-08-12
+last_updated: 2026-08-13
 ---
 
 # T-ACCESS-002 建立 access_db 最终 DDL 并收敛持久层模型
@@ -81,15 +81,15 @@ last_updated: 2026-08-12
    - `AccessServiceApplication` @MapperScan 增加 infrastructure.mapper
    - 代码中无 `admin_db`/`perm_db` 数据库名字面量（核实结论）
 3. **空库自动化测试**
-   - `AccessServiceSchemaH2Test`（H2 PostgreSQL 模式适配执行，11 用例）：34 表、sys_sync_task 过渡表存在、4 组种子计数与 type_value 权威数值、owner_service_code 列、合并表超集字段、uk_system_config 唯一约束行为、role_resource_permission CHECK 行为、sys_task_execution 唯一约束
-   - `AccessServiceSchemaPostgresTest`（Testcontainers 原样 DDL，11 用例）：含 H2 无法表达的软删部分唯一索引语义（uk_operation_permission_global 只约束 resource_type IS NULL 行）、COALESCE 索引列、NULLS NOT DISTINCT、JSONB String 参数绑定往返（PreparedStatement#setString）；每测试独立事务回滚防数据污染；Docker 可用时自动执行（本机无 Docker 跳过）
+   - `AccessServiceSchemaH2Test`（H2 PostgreSQL 模式适配执行，12 用例）：34 表、sys_sync_task 过渡表存在、4 组种子计数与 type_value 权威数值、owner_service_code 列、合并表超集字段、uk_system_config 唯一约束行为、role_resource_permission CHECK 行为、sys_task_execution 唯一约束、运行时必需操作对完整性
+   - `AccessServiceSchemaPostgresTest`（Testcontainers 原样 DDL，12 用例）：含 H2 无法表达的软删部分唯一索引语义（uk_operation_permission_global 只约束 resource_type IS NULL 行）、COALESCE 索引列、NULLS NOT DISTINCT、JSONB String 参数绑定往返（PreparedStatement#setString）、运行时必需操作对完整性；每测试独立事务回滚防数据污染；Docker 可用时自动执行（本机无 Docker 跳过）
    - H2 适配规则：TIMESTAMPTZ→TIMESTAMP WITH TIME ZONE、去 USING GIN、数组列 DEFAULT ARRAY[]、位运算→BITAND、部分唯一索引仅含 delete_flag 谓词时去 WHERE 保留（业务谓词删除）、ON CONFLICT 尾缀删除
 
 **验证结果**：
 - `mvn clean compile` + `test-compile` 全通过
-- 全量 369 测试 0 失败 18 跳过（5 Testcontainers Docker + 2 OperatorContext mock + 11 Testcontainers Postgres）
+- 全量 372 测试 0 失败 19 跳过（5 Testcontainers Docker + 2 OperatorContext mock + 12 Testcontainers Postgres）
 - Context 启动测试 2/2、架构边界测试 3/3（合并表实体/Mapper 迁入 infrastructure 后 admin↔permission 无横向依赖）
-- H2 空库测试 11/11 通过
+- H2 空库测试 12/12 通过
 
 **设计回写**：
 - `access-service-architecture.md` §4.2/§5.1/§5.2/§8.1 已由实现落地：owner_service_code 语义、权威 DDL 文件、合并表结构、sys_task_execution 预建；§5.1 的"旧 DDL 验收后转为 superseded"已执行（4 个旧文件头部标记）
@@ -126,7 +126,7 @@ AI 复审 4 项问题处理结果（冗余 VIEW 处置经用户澄清与决策�
 
 | # | 评审问题 | 结论 | 处理 |
 |---|---|---|---|
-| 1 | 空库缺少运行时实际使用的操作码（USER:MANAGE、ROLE:ASSIGN/REVOKE、RESOURCE:MANAGE、SERVICE:MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE、TYPE_DEFINITION:MANAGE、SYSTEM_CONFIG:MANAGE、OPERATION:MANAGE、DEPENDENCY:SYNC），解析不到即 fail-closed | 成立 | 全量扫描 55 对 (资源类型, 操作码) 调用点（42 对已覆盖，12 对缺失）；补齐 12 条权限中心运行时必需操作种子（评审 11 + 额外核实 API:ACCESS——接口鉴权 forInterfaceCheck 依赖，同样 fail-closed）；种子 127→139；新增"运行时必需操作对完整性"断言（H2/Postgres 双轨，27 对非 CRUD 清单） |
+| 1 | 空库缺少运行时实际使用的操作码（USER:MANAGE、ROLE:ASSIGN/REVOKE、RESOURCE:MANAGE、SERVICE:MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE、TYPE_DEFINITION:MANAGE、SYSTEM_CONFIG:MANAGE、OPERATION:MANAGE、DEPENDENCY:SYNC），解析不到即 fail-closed | 成立 | 全量扫描代码调用点，非 CRUD 必需操作对共 27 对（Admin 扩展码 15 + 权限中心运行时必需 12 缺失）；补齐 12 条权限中心运行时必需操作种子（评审 11 + 额外核实 API:ACCESS——接口鉴权 forInterfaceCheck 依赖，同样 fail-closed）；种子 127→139；新增"运行时必需操作对完整性"断言（H2/Postgres 双轨，27 对非 CRUD 清单） |
 | 2 | 本地 resource_entity 投影未写入所有权标记（insert 分支只设 maintainSource/syncKey，未设 ownerServiceCode） | 成立 | 与另三个 Sync 实现对齐：sourceService==admin-service 时写入 'access-service'，外部同步保持 NULL；补 insert 两分支回归测试（本地投影标记/外部来源 NULL） |
 | 3 | 两处文案残留旧口径（user_type 2、重复 VIEW 由 ON CONFLICT 跳过） | 成立 | 任务卡 user_type 2→3；Postgres 测试 DisplayName/失败消息去除 ON CONFLICT 表述 |
 

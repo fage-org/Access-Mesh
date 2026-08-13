@@ -128,6 +128,7 @@ class AccessServiceSchemaPostgresTest {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 27 对 = 权限中心 13 + Admin 14）
         String[][] required = {
             {"USER", "MANAGE"},
             {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},

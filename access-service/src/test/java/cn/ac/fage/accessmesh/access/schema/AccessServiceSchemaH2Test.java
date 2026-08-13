@@ -214,9 +214,9 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（agent 全量扫描 55 对去重，此处为非 CRUD 部分）
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 27 对 = 权限中心 13 + Admin 14）
         String[][] required = {
-            // 权限中心家族（12 对，评审 11 + API:ACCESS 接口鉴权）
+            // 权限中心家族（13 对，含既有 ROLE:MANAGE；评审 11 缺失 + API:ACCESS 接口鉴权）
             {"USER", "MANAGE"},
             {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
             {"RESOURCE", "MANAGE"},
@@ -226,7 +226,7 @@ class AccessServiceSchemaH2Test {
             {"OPERATION", "MANAGE"},
             {"DEPENDENCY", "SYNC"},
             {"API", "ACCESS"},
-            // Admin 家族扩展码（15 对）
+            // Admin 家族扩展码（14 对）
             {"ADMIN_ORG", "CREATE_POSITION"}, {"ADMIN_ORG", "UPDATE_POSITION"},
             {"ADMIN_ORG", "DELETE_POSITION"}, {"ADMIN_ORG", "ASSIGN_POSITION_USER"},
             {"ADMIN_ORG", "MANAGE_MEMBER"}, {"ADMIN_ORG", "VIEW_POSITION"},
