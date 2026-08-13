@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-002
 title: 建立 access_db 最终 DDL 并收敛持久层模型
-status: in-progress
+status: done
 plan: docs/plans/access-service-merge-plan.md
 domain: cross-service
 design_refs:
