@@ -21,11 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -84,6 +87,35 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.accepted()).isTrue();
         assertThat(resp.applied()).isTrue();
         assertThat(resp.stale()).isFalse();
+
+        // 本地投影（sourceService=admin-service）插入时显式标记所有权（T-ACCESS-002）
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOwnerServiceCode()).isEqualTo("access-service");
+    }
+
+    @Test
+    void shouldKeepOwnerNull_whenExternalSourceService() {
+        // 外部业务服务来源（sourceService != admin-service）：所有权保持 NULL，以 sync_metadata 为准
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", null, null, null, "/menu/one", 1, 0, null,
+                "example-service", "menu", "menu-1",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("example-service");
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq("example-service"), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default")).thenReturn(null);
+        lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isTrue();
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOwnerServiceCode()).isNull();
     }
 
     @Test

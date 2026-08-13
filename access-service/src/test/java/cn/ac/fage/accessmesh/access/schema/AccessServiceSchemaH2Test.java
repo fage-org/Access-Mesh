@@ -203,12 +203,58 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 36 行 / operation_permission 127 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 36 行 / operation_permission 139 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(36, countRows("type_definition"), "type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28）");
-        assertEquals(127, countRows("operation_permission"), "operation_permission 种子 127 行（静态类型 CRUD 112 + 非预置扩展 15，冗余 VIEW 已合并消除）");
+        assertEquals(139, countRows("operation_permission"), "operation_permission 种子 139 行（静态类型 CRUD 112 + 非预置扩展 15 + 权限中心运行时必需 12）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（原 sys_config 键名不变）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
+    }
+
+    @Test
+    @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
+    void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
+        // 与代码调用点交叉核对的必需清单（agent 全量扫描 55 对去重，此处为非 CRUD 部分）
+        String[][] required = {
+            // 权限中心家族（12 对，评审 11 + API:ACCESS 接口鉴权）
+            {"USER", "MANAGE"},
+            {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
+            {"RESOURCE", "MANAGE"},
+            {"SERVICE", "MANAGE"}, {"SERVICE", "MANAGE_API_MAPPING"}, {"SERVICE", "SYNC_INTERFACE"},
+            {"TYPE_DEFINITION", "MANAGE"},
+            {"SYSTEM_CONFIG", "MANAGE"},
+            {"OPERATION", "MANAGE"},
+            {"DEPENDENCY", "SYNC"},
+            {"API", "ACCESS"},
+            // Admin 家族扩展码（15 对）
+            {"ADMIN_ORG", "CREATE_POSITION"}, {"ADMIN_ORG", "UPDATE_POSITION"},
+            {"ADMIN_ORG", "DELETE_POSITION"}, {"ADMIN_ORG", "ASSIGN_POSITION_USER"},
+            {"ADMIN_ORG", "MANAGE_MEMBER"}, {"ADMIN_ORG", "VIEW_POSITION"},
+            {"ADMIN_USER", "ENABLE"}, {"ADMIN_USER", "RESET_PASSWORD"},
+            {"ADMIN_ROLE", "GRANT"}, {"ADMIN_ROLE", "REVOKE"},
+            {"ADMIN_NOTICE", "PUBLISH"},
+            {"ADMIN_JOB", "ENABLE"}, {"ADMIN_JOB", "TRIGGER"},
+            {"ADMIN_ORG_TREE_CONFIG", "TOGGLE"},
+        };
+        StringBuilder missing = new StringBuilder();
+        for (String[] pair : required) {
+            if (!operationExists(pair[0], pair[1])) {
+                missing.append(pair[0]).append(':').append(pair[1]).append(' ');
+            }
+        }
+        assertTrue(missing.isEmpty(), "缺少运行时必需操作种子：" + missing);
+    }
+
+    private boolean operationExists(String typeCode, String opCode) throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT COUNT(*) FROM operation_permission op " +
+                 "JOIN type_definition td ON td.tenant_id = op.tenant_id AND td.type_value = op.resource_type " +
+                 "WHERE op.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = '" + typeCode + "' " +
+                 "  AND op.code = '" + opCode + "' AND op.delete_flag = 0")) {
+            rs.next();
+            return rs.getLong(1) > 0;
+        }
     }
 
     @Test

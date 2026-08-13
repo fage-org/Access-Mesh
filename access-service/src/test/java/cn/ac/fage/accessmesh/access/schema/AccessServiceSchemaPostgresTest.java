@@ -117,12 +117,53 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 127 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 139 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(36, countRows("type_definition"));
-        assertEquals(127, countRows("operation_permission"));
+        assertEquals(139, countRows("operation_permission"));
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
+    }
+
+    @Test
+    @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
+    void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
+        String[][] required = {
+            {"USER", "MANAGE"},
+            {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
+            {"RESOURCE", "MANAGE"},
+            {"SERVICE", "MANAGE"}, {"SERVICE", "MANAGE_API_MAPPING"}, {"SERVICE", "SYNC_INTERFACE"},
+            {"TYPE_DEFINITION", "MANAGE"},
+            {"SYSTEM_CONFIG", "MANAGE"},
+            {"OPERATION", "MANAGE"},
+            {"DEPENDENCY", "SYNC"},
+            {"API", "ACCESS"},
+            {"ADMIN_ORG", "CREATE_POSITION"}, {"ADMIN_ORG", "UPDATE_POSITION"},
+            {"ADMIN_ORG", "DELETE_POSITION"}, {"ADMIN_ORG", "ASSIGN_POSITION_USER"},
+            {"ADMIN_ORG", "MANAGE_MEMBER"}, {"ADMIN_ORG", "VIEW_POSITION"},
+            {"ADMIN_USER", "ENABLE"}, {"ADMIN_USER", "RESET_PASSWORD"},
+            {"ADMIN_ROLE", "GRANT"}, {"ADMIN_ROLE", "REVOKE"},
+            {"ADMIN_NOTICE", "PUBLISH"},
+            {"ADMIN_JOB", "ENABLE"}, {"ADMIN_JOB", "TRIGGER"},
+            {"ADMIN_ORG_TREE_CONFIG", "TOGGLE"},
+        };
+        StringBuilder missing = new StringBuilder();
+        for (String[] pair : required) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM operation_permission op " +
+                "JOIN type_definition td ON td.tenant_id = op.tenant_id AND td.type_value = op.resource_type " +
+                "WHERE op.tenant_id = 1 AND td.type_key = 'resource_type' AND td.type_code = ? AND op.code = ? AND op.delete_flag = 0")) {
+                ps.setString(1, pair[0]);
+                ps.setString(2, pair[1]);
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    if (rs.getLong(1) == 0) {
+                        missing.append(pair[0]).append(':').append(pair[1]).append(' ');
+                    }
+                }
+            }
+        }
+        assertTrue(missing.isEmpty(), "缺少运行时必需操作种子：" + missing);
     }
 
     @Test
@@ -152,7 +193,7 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("每个静态 resource_type 恰好 4 条 CRUD（扩展码 VIEW 由 ON CONFLICT 跳过）")
+    @DisplayName("每个静态 resource_type 恰好 4 条 CRUD（冗余 VIEW 已从种子定义中合并消除）")
     void shouldHaveExactCrudPerType() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
@@ -165,7 +206,7 @@ class AccessServiceSchemaPostgresTest {
             while (rs.next()) {
                 unexpected.append(rs.getString(1)).append('(').append(rs.getLong(2)).append("条) ");
             }
-            assertTrue(unexpected.isEmpty(), "存在 CRUD 计数非 4 的资源类型（扩展码 VIEW 应被 ON CONFLICT 跳过）：" + unexpected);
+            assertTrue(unexpected.isEmpty(), "存在 CRUD 计数非 4 的资源类型：" + unexpected);
         }
     }
 

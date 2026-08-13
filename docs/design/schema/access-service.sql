@@ -41,11 +41,13 @@
 --   type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28；
 --     type_value 为权威数值，与 RoleType/ResourceType 枚举一致；代码不硬编码数值，
 --     运行时经 TypeResolutionService 动态解析；归档文档中 SERVICE=10 的历史数值作废重排）
---   operation_permission 127 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
+--   operation_permission 139 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
 --     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 112 条；DDL 直接种入的类型不会触发运行时
 --     生成，必须在初始化阶段种入）+ 非预置扩展操作 15 条（原 seed-admin-operations.sql 16 条 +
 --     seed-perm-operations.sql 1 条 = 17 条，其中 ADMIN_ORG:VIEW 与 ADMIN_USER:VIEW 两条与 CRUD
 --     预置 VIEW 完全重复（同 code/bit/mask），合并时消除；其余 bit 从 16 起分配与 CRUD 不冲突）
+--     + 权限中心运行时必需操作 12 条（代码实际校验的 MANAGE/ASSIGN/REVOKE/SYNC/
+--     MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，缺失时权限引擎 fail-closed 全量拒绝）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 -- =============================================================================
@@ -841,6 +843,33 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 27, 'TOGGLE',              '切换默认树/单关联', 16, 2, 0, 0, 0),
     -- ROLE(5)：双层门禁关键操作码（权限中心内部角色管理）
     (1, 5,  'MANAGE',              '管理',           16,  2, 0, 0, 0)
+ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
+
+-- 权限中心运行时必需操作码（12 条）：代码实际校验但 CRUD/Admin 扩展码未覆盖；
+-- 缺失时 TypeResolutionServiceImpl 解析返回 null → PermQueryEngine fail-closed 全量拒绝。
+-- bit 16 起按类型避让，写类 mask=2（继承 VIEW），API:ACCESS 为接口鉴权专用（mask=0）。
+INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
+    -- USER(6)：更新/删除用户门禁
+    (1, 6,  'MANAGE',             '管理用户',         16, 2, 0, 0, 0),
+    -- ROLE(5)：分组角色分配/撤销（MANAGE 已占 16）
+    (1, 5,  'ASSIGN',             '分配角色',         32, 2, 0, 0, 0),
+    (1, 5,  'REVOKE',             '撤销角色',         64, 2, 0, 0, 0),
+    -- RESOURCE(7)：更新/删除资源实体门禁
+    (1, 7,  'MANAGE',             '管理资源实体',     16, 2, 0, 0, 0),
+    -- SERVICE(8)：服务配置/API 映射/接口同步
+    (1, 8,  'MANAGE',             '管理服务配置',     16, 2, 0, 0, 0),
+    (1, 8,  'MANAGE_API_MAPPING', '管理API映射',      32, 2, 0, 0, 0),
+    (1, 8,  'SYNC_INTERFACE',     '同步服务接口',     64, 2, 0, 0, 0),
+    -- TYPE_DEFINITION(10)：更新/删除类型定义门禁
+    (1, 10, 'MANAGE',             '管理类型定义',     16, 2, 0, 0, 0),
+    -- SYSTEM_CONFIG(11)：系统配置/业务域/域配置管理门禁
+    (1, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
+    -- OPERATION(12)：更新/删除操作权限门禁
+    (1, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
+    -- DEPENDENCY(15)：批量同步依赖门禁
+    (1, 15, 'SYNC',               '批量同步依赖',     16, 2, 0, 0, 0),
+    -- API(3)：网关接口鉴权专用（PermissionCheckAppServiceImpl forInterfaceCheck）
+    (1, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
 -- -----------------------------------------------------------------------------

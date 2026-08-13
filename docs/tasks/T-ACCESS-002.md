@@ -54,7 +54,7 @@ last_updated: 2026-08-12
 
 | # | 决策点 | 结论 |
 |---|---|---|
-| 1 | type_definition 种子缺失修复 | 完整系统种子（user_type 2 + role_type 5 + resource_type 28 行，type_value 权威数值与 RoleType/ResourceType 枚举一致） |
+| 1 | type_definition 种子缺失修复 | 完整系统种子（user_type 3 + role_type 5 + resource_type 28 行，type_value 权威数值与 RoleType/ResourceType 枚举一致） |
 | 2 | system_config 合并结构 | 字段超集（description/config_name/remark/is_system）+ 9 条种子键名保持现状（命名空间约定约束新增键） |
 | 3 | 空库测试载体 | H2 适配执行 + Testcontainers 双轨 |
 | 4 | 本地投影所有权 | abstract_user/abstract_role/user_role 三表加可空 `owner_service_code`（无默认值），不复制 maintain_source，resource_entity 复用现有字段 |
@@ -69,7 +69,7 @@ last_updated: 2026-08-12
    - `operation_log` 超集字段合并（user_id/username/request_url/request_body/response_code/cost_time + operator_id/operator_name，target_id 字符串化 VARCHAR(256) 覆盖业务键上限，request_body 限长 4000），索引合并去重（idx_operation_log_user 承接原 idx_audit_log_user）
    - `abstract_user`/`abstract_role`/`user_role` 增加可空 `owner_service_code`（无默认值）
    - `type_definition` 系统种子 36 行：user_type USER=1/SERVICE=2/ADMIN_USER=3（本地管理用户主体类型，SyncTaskBuilder 同步 abstract_user 必需）；role_type ORG=1/POSITION=2/PERSONAL=3/GROUP_ROLE=5/BASIC_ROLE=6；resource_type MENU=1/BUTTON=2/API=3/DATA=4（枚举权威）+ ROLE=5…DEPENDENCY=15（ResourceTypeCode 顺序）+ ADMIN_USER=16…ADMIN_SYNC_TASK=28（AdminResourceType 顺序）
-   - `operation_permission` 种子 127 行：28 个静态 resource_type 各预置 CRUD 四操作（112 行，CREATE bit=1/VIEW bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2；DDL 直接种入的类型不触发运行时生成，必须在初始化阶段种入）+ 非预置扩展操作 15 行（原 seed-admin-operations 16 + seed-perm-operations 1 = 17 条，其中 ADMIN_ORG:VIEW/ADMIN_USER:VIEW 两条与 CRUD 预置 VIEW 完全重复（同 code/bit/mask），合并时消除；其余 bit 从 16 起与 CRUD 不冲突）
+   - `operation_permission` 种子 139 行：28 个静态 resource_type 各预置 CRUD 四操作（112 行，CREATE bit=1/VIEW bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2；DDL 直接种入的类型不触发运行时生成，必须在初始化阶段种入）+ 非预置扩展操作 15 行（原 seed-admin-operations 16 + seed-perm-operations 1 = 17 条，其中 ADMIN_ORG:VIEW/ADMIN_USER:VIEW 两条与 CRUD 预置 VIEW 完全重复（同 code/bit/mask），合并时消除；其余 bit 从 16 起与 CRUD 不冲突）+ 权限中心运行时必需操作 12 行（USER:MANAGE、ROLE:ASSIGN/REVOKE、RESOURCE:MANAGE、SERVICE:MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE、TYPE_DEFINITION:MANAGE、SYSTEM_CONFIG:MANAGE、OPERATION:MANAGE、DEPENDENCY:SYNC、API:ACCESS；代码实际校验，缺失时权限引擎 fail-closed）
    - `sys_task_execution` 预建（execution_key 唯一约束，T-ACCESS-009 原子 SQL 扩展）
 2. **持久层收敛**
    - 删除 admin 域 `SysConfig`/`SysAuditLog` 实体、`SysConfigMapper`/`SysAuditLogMapper` 接口及 XML（4 语句并入 SystemConfigMapper.xml、paginateByTenantId 并入 OperationLogMapper.xml）
@@ -121,6 +121,16 @@ AI 复审 4 项问题处理结果（冗余 VIEW 处置经用户澄清与决策�
 | 4 | abstract_user.user_type 注释未含新增主体类型 | 成立 | 注释更新为 USER(1)/SERVICE(2)/ADMIN_USER(3) |
 
 **复审修复验证**：H2 空库测试 11/11 通过；全量回归（见下文验证结果）。
+
+### 评审修复补充（2026-08-13，运行完整性）
+
+| # | 评审问题 | 结论 | 处理 |
+|---|---|---|---|
+| 1 | 空库缺少运行时实际使用的操作码（USER:MANAGE、ROLE:ASSIGN/REVOKE、RESOURCE:MANAGE、SERVICE:MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE、TYPE_DEFINITION:MANAGE、SYSTEM_CONFIG:MANAGE、OPERATION:MANAGE、DEPENDENCY:SYNC），解析不到即 fail-closed | 成立 | 全量扫描 55 对 (资源类型, 操作码) 调用点（42 对已覆盖，12 对缺失）；补齐 12 条权限中心运行时必需操作种子（评审 11 + 额外核实 API:ACCESS——接口鉴权 forInterfaceCheck 依赖，同样 fail-closed）；种子 127→139；新增"运行时必需操作对完整性"断言（H2/Postgres 双轨，27 对非 CRUD 清单） |
+| 2 | 本地 resource_entity 投影未写入所有权标记（insert 分支只设 maintainSource/syncKey，未设 ownerServiceCode） | 成立 | 与另三个 Sync 实现对齐：sourceService==admin-service 时写入 'access-service'，外部同步保持 NULL；补 insert 两分支回归测试（本地投影标记/外部来源 NULL） |
+| 3 | 两处文案残留旧口径（user_type 2、重复 VIEW 由 ON CONFLICT 跳过） | 成立 | 任务卡 user_type 2→3；Postgres 测试 DisplayName/失败消息去除 ON CONFLICT 表述 |
+
+**评审修复补充验证**：H2 空库测试 12/12 通过；全量回归（见下文验证结果）。
 
 ### 已知限制与后续
 - H2 无法表达软删部分唯一索引（delete_flag 谓词）、NULLS NOT DISTINCT、COALESCE 索引列与 JSONB 路径索引，相关语义由 Testcontainers PostgreSQL 测试（Docker 环境）与应用层保证
