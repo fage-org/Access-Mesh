@@ -203,10 +203,10 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 36 行 / operation_permission 129 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 36 行 / operation_permission 127 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(36, countRows("type_definition"), "type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28）");
-        assertEquals(129, countRows("operation_permission"), "operation_permission 种子 129 行（静态类型 CRUD 112 + 非预置扩展 17）");
+        assertEquals(127, countRows("operation_permission"), "operation_permission 种子 127 行（静态类型 CRUD 112 + 非预置扩展 15，冗余 VIEW 已合并消除）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（原 sys_config 键名不变）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
@@ -227,20 +227,17 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("每个静态 resource_type 均预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE）")
     void shouldHaveCrudOperationsForEveryStaticResourceType() throws SQLException {
-        // 28 个静态 resource_type 全部有 CRUD 四操作。
-        // 按 code 去重统计：H2 中 uk_operation_permission_typed（含 resource_type IS NOT NULL
-        // 业务谓词）被适配规则删除，扩展码 VIEW 与 CRUD VIEW 可并存（多 1 条），PG 中由
-        // ON CONFLICT DO NOTHING 跳过、恰好 4 条（由 AccessServiceSchemaPostgresTest 断言）。
+        // 28 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
-                 "SELECT td.type_code, COUNT(DISTINCT op.code) FROM type_definition td " +
+                 "SELECT td.type_code, COUNT(*) FROM type_definition td " +
                  "LEFT JOIN operation_permission op ON op.tenant_id = td.tenant_id " +
                  "  AND op.resource_type = td.type_value AND op.code IN ('CREATE','VIEW','UPDATE','DELETE') AND op.delete_flag = 0 " +
                  "WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0 " +
-                 "GROUP BY td.type_code HAVING COUNT(DISTINCT op.code) <> 4")) {
+                 "GROUP BY td.type_code HAVING COUNT(*) <> 4")) {
             StringBuilder missing = new StringBuilder();
             while (rs.next()) {
-                missing.append(rs.getString(1)).append('(').append(rs.getLong(2)).append("码) ");
+                missing.append(rs.getString(1)).append('(').append(rs.getLong(2)).append("条) ");
             }
             assertTrue(missing.isEmpty(), "存在未完整预置 CRUD 的资源类型：" + missing);
         }

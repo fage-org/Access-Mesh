@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -47,14 +48,29 @@ class AccessServiceSchemaPostgresTest {
         if (!Files.exists(DDL_PATH)) {
             throw new IllegalStateException("access-service.sql 不存在：" + DDL_PATH.toAbsolutePath());
         }
-        // stringtype=unspecified：与 application.yml 数据源一致，验证 JSONB 列接受 String 绑定
-        // （T-ACCESS-002 评审修复：PGJDBC 默认 stringtype=VARCHAR 对 JSONB 列写入报 42804）
+        // stringtype=unspecified：与 application.yml 数据源一致，验证 JSONB 列接受 String 参数绑定
+        // （PGJDBC 默认 stringtype=VARCHAR 对 JSONB 列写入报 42804）
         String url = POSTGRES.getJdbcUrl() + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "stringtype=unspecified";
         conn = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (Statement s = conn.createStatement()) {
             s.execute(sql);
         }
+    }
+
+    /**
+     * 每个测试独立事务，测试内写入（临时 operation、JSONB 往返等）在回滚后丢弃，
+     * 不污染共享连接上的种子计数断言（测试方法执行顺序不定）。
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void beginTransaction() throws SQLException {
+        conn.setAutoCommit(false);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void rollbackTransaction() throws SQLException {
+        conn.rollback();
+        conn.setAutoCommit(true);
     }
 
     private static long countRows(String table) throws SQLException {
@@ -101,24 +117,33 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 129 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 127 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(36, countRows("type_definition"));
-        assertEquals(129, countRows("operation_permission"));
+        assertEquals(127, countRows("operation_permission"));
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
     }
 
     @Test
-    @DisplayName("JSONB 列接受 String 绑定（stringtype=unspecified 生效，system_config 往返）")
+    @DisplayName("JSONB 列接受 String 参数绑定（PreparedStatement#setString 走 PGJDBC 绑定路径，stringtype=unspecified 生效）")
     void shouldWriteStringToJsonbColumn() throws SQLException {
-        try (Statement s = conn.createStatement()) {
-            // 插入：String 参数绑定 JSONB 列（等价于实体 String 字段写入路径）
-            s.execute("INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) " +
-                "VALUES (1, 'JSONB_ROUNDTRIP_TEST', '{\"mode\":\"test\"}', '往返测试', false)");
-            // 读取回验
-            try (ResultSet rs = s.executeQuery(
-                "SELECT config_value FROM system_config WHERE tenant_id = 1 AND config_key = 'JSONB_ROUNDTRIP_TEST'")) {
+        // 使用 PreparedStatement#setString：模拟实体 String 字段经 MyBatis 绑定到 JSONB 列的真实路径
+        // （Statement 拼接字面量会被 PG 直接推断为 JSONB，不经过 PGJDBC setString，无法验证修复）
+        try (PreparedStatement ps = conn.prepareStatement(
+            "INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) VALUES (?, ?, ?, ?, ?)")) {
+            ps.setLong(1, 1L);
+            ps.setString(2, "JSONB_ROUNDTRIP_TEST");
+            ps.setString(3, "{\"mode\":\"test\"}");
+            ps.setString(4, "往返测试");
+            ps.setBoolean(5, false);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+            "SELECT config_value FROM system_config WHERE tenant_id = ? AND config_key = ?")) {
+            ps.setLong(1, 1L);
+            ps.setString(2, "JSONB_ROUNDTRIP_TEST");
+            try (ResultSet rs = ps.executeQuery()) {
                 assertTrue(rs.next(), "插入后应能读取");
                 String value = rs.getString(1);
                 assertTrue(value.contains("mode"), "JSONB 值应可读取（PG 规范化后为 {\"mode\": \"test\"}），实际 " + value);

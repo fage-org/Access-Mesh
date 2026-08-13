@@ -41,10 +41,11 @@
 --   type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28；
 --     type_value 为权威数值，与 RoleType/ResourceType 枚举一致；代码不硬编码数值，
 --     运行时经 TypeResolutionService 动态解析；归档文档中 SERVICE=10 的历史数值作废重排）
---   operation_permission 129 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
+--   operation_permission 127 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
 --     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 112 条；DDL 直接种入的类型不会触发运行时
---     生成，必须在初始化阶段种入）+ 非预置扩展操作 17 条（原 seed-admin-operations.sql 16 条 +
---     seed-perm-operations.sql 1 条，bit 从 16 起分配与 CRUD 不冲突）
+--     生成，必须在初始化阶段种入）+ 非预置扩展操作 15 条（原 seed-admin-operations.sql 16 条 +
+--     seed-perm-operations.sql 1 条 = 17 条，其中 ADMIN_ORG:VIEW 与 ADMIN_USER:VIEW 两条与 CRUD
+--     预置 VIEW 完全重复（同 code/bit/mask），合并时消除；其余 bit 从 16 起分配与 CRUD 不冲突）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 -- =============================================================================
@@ -711,7 +712,7 @@ CREATE UNIQUE INDEX uk_abstract_user ON abstract_user (tenant_id, user_type, ext
 CREATE INDEX idx_abstract_user_tenant ON abstract_user (tenant_id) WHERE delete_flag = 0;
 
 COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持外部系统 API 同步（幂等）。ADMIN_USER 类型表示访问主体，不等同于被管理用户资源；具体同步方由调用方 serviceCode 标识';
-COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)/SERVICE(2)，来自 type_definition';
+COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)外部人员/SERVICE(2)外部服务/ADMIN_USER(3)本地管理用户，来自 type_definition';
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识；本地投影使用 external_id = sys_user.id.toString()';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
 COMMENT ON COLUMN abstract_user.enabled IS '是否启用：false 时鉴权不通过';
@@ -814,19 +815,18 @@ CROSS JOIN (VALUES
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
--- 非预置操作码种子（原 seed-admin-operations.sql 16 条 + seed-perm-operations.sql 1 条；
--- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
--- ADMIN_ORG(17)：普通组织 VIEW + 岗位 CRUD 精化 + 成员关系
+-- 非预置操作码种子（原 seed-admin-operations.sql 16 条 + seed-perm-operations.sql 1 条 = 17 条，
+-- 其中 ADMIN_ORG:VIEW / ADMIN_USER:VIEW 与 CRUD 预置 VIEW 完全重复（同 code/bit/mask），
+-- 合并时消除 → 实际 15 条；binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
+-- ADMIN_ORG(17)：岗位 CRUD 精化 + 成员关系（普通组织 VIEW 由 CRUD 预置覆盖）
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
-    (1, 17, 'VIEW',                '查看组织',       2,   0, 0, 0, 0),
     (1, 17, 'CREATE_POSITION',     '创建岗位',       16,  2, 0, 0, 0),
     (1, 17, 'UPDATE_POSITION',     '编辑/移动/启停岗位', 32, 2, 0, 0, 0),
     (1, 17, 'DELETE_POSITION',     '删除岗位',       64,  2, 0, 0, 0),
     (1, 17, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
     (1, 17, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
     (1, 17, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
-    -- ADMIN_USER(16)：用户列表查看 + 启停 + 重置密码
-    (1, 16, 'VIEW',                '查看用户',       2,   0, 0, 0, 0),
+    -- ADMIN_USER(16)：启停 + 重置密码（用户列表查看由 CRUD 预置 VIEW 覆盖）
     (1, 16, 'ENABLE',              '启用/禁用用户',  16,  2, 0, 0, 0),
     (1, 16, 'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
     -- ADMIN_ROLE(18)：授权/撤销
