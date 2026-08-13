@@ -67,7 +67,7 @@ last_updated: 2026-08-11
 |---|---|---|---|
 | [T-ACCESS-001](../tasks/T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | ✅ | — |
 | [T-ACCESS-002](../tasks/T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | ✅ | T-ACCESS-001 |
-| [T-ACCESS-003](../tasks/T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | ⚙️ | T-ACCESS-001, T-ACCESS-002 |
+| [T-ACCESS-003](../tasks/T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | ✅ | T-ACCESS-001, T-ACCESS-002 |
 | [T-ACCESS-004](../tasks/T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | ⚙️ | T-ACCESS-003 |
 | [T-ACCESS-005](../tasks/T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-006](../tasks/T-ACCESS-006.md) | 建立跨域只读查询模型 | ⚙️ | T-ACCESS-002, T-ACCESS-005 |
@@ -91,6 +91,7 @@ last_updated: 2026-08-11
 - 2026-08-10：grill 决策讨论完成，目标设计 adopted；建立 proposed 计划与 T-ACCESS-001~012 任务卡。
 - 2026-08-12：T-ACCESS-001 done（工程骨架与物理归并完成，347 测试基线）。
 - 2026-08-13：T-ACCESS-002 done（权威 DDL `schema/access-service.sql` 34 表 + 139 条操作种子 + 持久层收敛 + 空库测试双轨，四轮评审收口，372 测试基线）。
+- 2026-08-13：T-ACCESS-003 done（Sa-Token 两端统一 + 删除重复缓存/序列化配置 + expiresIn 配置化，ultracode 评审 4 项问题修复含 P1 token-prefix，377 测试基线；阶段 1 出口达成：单模块、单库和单运行基础设施可编译启动）。
 
 ## 归档条件
 

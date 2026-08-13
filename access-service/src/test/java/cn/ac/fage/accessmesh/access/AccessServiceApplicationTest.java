@@ -4,28 +4,37 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import cn.ac.fage.accessmesh.access.permission.scheduler.UserRoleOrphanCleanupTask;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
+import cn.dev33.satoken.SaManager;
+import cn.dev33.satoken.config.SaTokenConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.test.context.TestPropertySource;
 
 import javax.sql.DataSource;
+import java.time.LocalDateTime;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyLong;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * access-service Spring Context 启动验证测试。
@@ -55,6 +64,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
     "PERM_INTERNAL_SECRET=test-internal-secret-for-context-test-only"
 })
 class AccessServiceApplicationTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     /**
      * Mock 租户提供器：空租户集合，跳过 @PostConstruct 初始化查询（sys_job/sys_user 等表在空库中不存在）。
@@ -127,5 +139,96 @@ class AccessServiceApplicationTest {
         assertNotNull(AccessServiceApplication.class.getAnnotation(EnableFeignClients.class));
         assertNotNull(AccessServiceApplication.class.getAnnotation(EnableAsync.class));
         assertNotNull(AccessServiceApplication.class.getAnnotation(EnableScheduling.class));
+    }
+
+    /**
+     * T-ACCESS-003 验收：基础设施 Bean 唯一（单数据源、单事务管理器、唯一 CacheService、唯一 ObjectMapper）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：基础设施 Bean 唯一（数据源/事务/CacheService/ObjectMapper）")
+    void infrastructureBeansAreUnique() {
+        // 单数据源
+        assertNotNull(applicationContext.getBean(DataSource.class));
+        assertTrue(applicationContext.getBeanNamesForType(DataSource.class).length == 1,
+            "数据源必须唯一，实际 " + applicationContext.getBeanNamesForType(DataSource.class).length + " 个");
+
+        // 单事务管理器（MyBatis-Flex starter 自动配置的 FlexTransactionManager，唯一）
+        org.springframework.transaction.PlatformTransactionManager tm =
+            applicationContext.getBean(org.springframework.transaction.PlatformTransactionManager.class);
+        assertNotNull(tm, "事务管理器必须存在");
+        assertTrue(tm instanceof com.mybatisflex.spring.FlexTransactionManager,
+            "事务管理器应为 MyBatis-Flex FlexTransactionManager，实际 " + tm.getClass().getName());
+        assertTrue(applicationContext.getBeanNamesForType(
+            org.springframework.transaction.PlatformTransactionManager.class).length == 1,
+            "事务管理器必须唯一");
+
+        // 唯一 CacheService（common 统一缓存框架）
+        assertNotNull(applicationContext.getBean(CacheService.class));
+        assertTrue(applicationContext.getBeanNamesForType(CacheService.class).length == 1,
+            "CacheService 必须唯一");
+
+        // 唯一 ObjectMapper（删除 permission RedisConfig 裸 ObjectMapper 后由 Boot 自动配置独占）
+        assertNotNull(applicationContext.getBean(ObjectMapper.class));
+        assertTrue(applicationContext.getBeanNamesForType(ObjectMapper.class).length == 1,
+            "ObjectMapper 必须唯一");
+    }
+
+    /**
+     * T-ACCESS-003 验收：唯一 ObjectMapper 序列化可用（JavaTimeModule 生效，LocalDateTime 可序列化）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：ObjectMapper JavaTimeModule 生效，LocalDateTime 序列化可用")
+    void objectMapperSerializesLocalDateTime() throws Exception {
+        ObjectMapper mapper = applicationContext.getBean(ObjectMapper.class);
+        String json = mapper.writeValueAsString(LocalDateTime.of(2026, 8, 13, 10, 30, 0));
+        assertTrue(json.contains("2026"), "LocalDateTime 应可序列化，实际 " + json);
+    }
+
+    /**
+     * T-ACCESS-003 验收：Sa-Token 权威配置生效（timeout=7200/active-timeout=1800/token-style=uuid/token-name/token-prefix）。
+     * login-type 无配置键，两侧均为 StpUtil.login() 默认类型 "login"（文档口径）。
+     * token-prefix=Bearer 是评审修复（P1）：前端恒发 "Authorization: Bearer <token>"，缺失时整个
+     * "Bearer <uuid>" 被当作 token 查 Redis 导致全部会话校验 401（/auth/userinfo 等白名单直连接口）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：Sa-Token 平台用户会话权威配置生效（2h + 30min 滑动 + uuid + Bearer 前缀）")
+    void saTokenConfigMatchesAuthority() {
+        SaTokenConfig config = SaManager.getConfig();
+        assertTrue(7200 == config.getTimeout(), "timeout 必须为 7200（2 小时），实际 " + config.getTimeout());
+        assertTrue(1800 == config.getActiveTimeout(), "active-timeout 必须为 1800（30 分钟滑动续期），实际 " + config.getActiveTimeout());
+        assertTrue("Authorization".equals(config.getTokenName()), "token-name 必须为 Authorization");
+        assertTrue("Bearer".equals(config.getTokenPrefix()), "token-prefix 必须为 Bearer（与 Gateway/前端一致），实际 " + config.getTokenPrefix());
+        assertTrue("uuid".equals(config.getTokenStyle()), "token-style 必须为 uuid（与 Gateway 统一），实际 " + config.getTokenStyle());
+    }
+
+    /**
+     * T-ACCESS-003 评审修复（P3）：expiresIn 配置键唯一权威来源防漂移。
+     * yml 的 access.session.expires-in-seconds 被 AuthServiceImpl @Value 读取（默认值兜底），
+     * 若 yml 键被误删，@Value 会静默回退 7200 掩盖漂移——此断言确保配置键存在且为权威值。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：expires-in-seconds 配置键存在且为权威值 7200")
+    void expiresInConfigKeyMatchesAuthority() {
+        String value = applicationContext.getEnvironment().getProperty("access.session.expires-in-seconds");
+        assertNotNull(value, "access.session.expires-in-seconds 配置键必须存在（AuthServiceImpl @Value 依赖）");
+        assertTrue("7200".equals(value), "expires-in-seconds 必须为 7200（与 sa-token.timeout 一致），实际 " + value);
+    }
+
+    /**
+     * T-ACCESS-003 验收：租户解析可用（infrastructure 唯一 TenantContextHolder + MybatisFlexTenantConfig）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：租户上下文设置与清理可用")
+    void tenantContextResolvesAndClears() {
+        cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder.setTenantId(42L);
+        assertTrue(42L == cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder.getTenantId(),
+            "租户 ID 应可设置与读取");
+        cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder.clear();
+        assertTrue(cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder.getTenantId() == null,
+            "清理后租户上下文应为空");
+        // 租户配置类存在且已装配（@Configuration 生效）
+        assertTrue(applicationContext.getBeanNamesForType(
+            cn.ac.fage.accessmesh.access.infrastructure.MybatisFlexTenantConfig.class).length == 1,
+            "MybatisFlexTenantConfig 必须装配");
     }
 }

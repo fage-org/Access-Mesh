@@ -73,12 +73,18 @@ spring:
             max-age: 3600
 
 sa-token:
+  # T-ACCESS-003：与 access-service 统一（token-name/token-prefix/token-style/timeout/active-timeout/会话键）
+  # 权威值：token-name=Authorization、token-prefix=Bearer、token-style=uuid、timeout=7200（2h）、active-timeout=1800（30min 滑动续期）
+  # login-type：Sa-Token 无该配置键，两侧均为 StpUtil.login() 默认类型 "login"（文档口径，非配置项）
+  # Gateway 不签发 token，仅按 token 值查共享 Redis（database 0）校验用户会话；会话键格式
+  # token-name:login-type:token:<token>（即 Authorization:login:token:*，无 "satoken:" 前缀常量）
   token-name: Authorization
   token-prefix: Bearer
   timeout: 7200
   active-timeout: 1800
   is-concurrent: true
   is-share: false
+  token-style: uuid
   is-read-header: true
   is-read-cookie: true
   is-log: false

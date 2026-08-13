@@ -30,6 +30,7 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -108,6 +109,19 @@ public class AuthServiceImpl implements AuthService {
     private final StringRedisTemplate redisTemplate;
     private final MenuDomainService menuDomainService;
     private final PermissionFeignClient permissionFeignClient;
+
+    /**
+     * 平台用户会话过期展示口径（秒）。
+     * <p>
+     * T-ACCESS-003：与 sa-token.timeout=7200 保持一致（权威值 2 小时，yml 中
+     * access.session.expires-in-seconds 为唯一权威来源），login/smsLogin 返回的
+     * expiresIn 使用此值；OAuth2 /oauth2/token 的 access_token 有效期继续用
+     * 客户端注册 TTL（架构 §6.1，不套用本口径）。无字段初始化：@Value 注入恒覆盖，
+     * 默认值仅兜底非 Spring 实例化场景。
+     * </p>
+     */
+    @Value("${access.session.expires-in-seconds:7200}")
+    private int expiresInSeconds;
 
     private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
     private static final String OPERATION_VIEW = "VIEW";
@@ -196,7 +210,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResp login(LoginReq req) {
         validateCaptcha(req.captchaId(), req.captchaCode());
-        SysOauth2Client client = validateClient(req.clientId());
+        validateClient(req.clientId());
 
         Long tenantId = Long.parseLong(req.tenantId());
         SysUser user = userDomainService.findByUsername(tenantId, req.username());
@@ -233,7 +247,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResp(
             token,
             null,
-            client != null ? client.getAccessTokenTtl() : 86400,
+            expiresInSeconds,
             "Bearer",
             user.getId(),
             user.getUsername(),
@@ -255,7 +269,7 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     public LoginResp smsLogin(SmsLoginReq req) {
-        SysOauth2Client client = validateClient(req.clientId());
+        validateClient(req.clientId());
         Long tenantId = Long.parseLong(req.tenantId());
 
         validateSmsCode(req.phone(), req.smsCode());
@@ -282,7 +296,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResp(
             token,
             null,
-            client != null ? client.getAccessTokenTtl() : 86400,
+            expiresInSeconds,
             "Bearer",
             user.getId(),
             user.getUsername(),
