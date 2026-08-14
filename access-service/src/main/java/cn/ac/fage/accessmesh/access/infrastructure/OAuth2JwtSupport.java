@@ -1,9 +1,14 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
-import cn.hutool.json.JSONObject;
+import java.util.Map;
 
 /**
  * OAuth2 JWT 认证共享常量与载荷提取（评审三轮 P1，2026-08-14 用户决策完整实现）。
+ * <p>
+ * 评审四轮 P2：SaJwtUtil.getPayloads 返回 hutool JSONObject（LinkedHashMap 子类），
+ * 业务代码一律以 {@code Map<String, Object>} 接收，禁止 hutool 类型进入业务代码
+ * （AGENTS.md / project-rules 禁止 Hutool）。
+ * </p>
  * <p>
  * OAuth2 访问令牌由 SaJwtUtil（HS256）独立签发，与平台用户会话（uuid 模式）无关。
  * 签发与验签必须使用相同的 loginType 与密钥（jwt-secret-key）：
@@ -34,13 +39,13 @@ public final class OAuth2JwtSupport {
     /**
      * 从 JWT 载荷提取租户 ID；"0" 或缺省视为无租户（返回 null）。
      */
-    public static Long tenantIdOf(JSONObject payloads) {
-        String tenantId = payloads.getStr(TENANT_CLAIM);
-        if (tenantId == null || tenantId.isBlank() || "0".equals(tenantId)) {
+    public static Long tenantIdOf(Map<String, Object> payloads) {
+        Object tenantId = payloads.get(TENANT_CLAIM);
+        if (tenantId == null || tenantId.toString().isBlank() || "0".equals(tenantId.toString())) {
             return null;
         }
         try {
-            return Long.parseLong(tenantId);
+            return Long.parseLong(tenantId.toString());
         } catch (NumberFormatException e) {
             return null;
         }

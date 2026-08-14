@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import lombok.Getter;
 import lombok.Setter;
 
+import cn.dev33.satoken.exception.SaTokenException;
 import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
@@ -280,13 +281,31 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     @Override
     public void revokeToken(String accessToken) {
-        if (accessToken != null && !accessToken.isBlank()) {
-            // JWT 令牌：添加到 Redis 黑名单
-            String blackKey = OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + extractJti(accessToken);
-            long ttl = getTokenRemainingTtl(accessToken);
-            if (ttl > 0) {
-                redisTemplate.opsForValue().set(blackKey, "1", ttl, TimeUnit.SECONDS);
-            }
+        // 评审四轮 P1 修复（2026-08-14）：撤销前必须验签（签名 + loginType + 有效期），
+        // 非法令牌不得写 Redis——原实现对任意字符串直接写 oauth2:blacklist:* 键
+        // （extractJti 失败返回原 token 作键、getTokenRemainingTtl 读不存在的 exp 恒回退 86400），
+        // 匿名调用者可制造任意黑名单键造成 Redis 内存型 DoS。
+        if (accessToken == null || accessToken.isBlank()) {
+            return;
+        }
+        Map<String, Object> payloads;
+        try {
+            // getPayloads 校验签名 + loginType + 有效期（isCheckTimeout=true）
+            payloads = SaJwtUtil.getPayloads(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        } catch (SaTokenException e) {
+            log.warn("revoke ignored invalid oauth2 jwt (signature/loginType/expired)");
+            return;
+        }
+        Object jti = payloads.get(OAuth2JwtSupport.JTI_CLAIM);
+        if (jti == null || jti.toString().isBlank()) {
+            log.warn("revoke ignored oauth2 jwt without jti");
+            return;
+        }
+        // 实际剩余有效期（SaJwtTemplate 以 eff claim 计算，签发侧 6 参 createToken 写入）
+        long ttl = SaJwtUtil.getTimeout(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        if (ttl > 0) {
+            redisTemplate.opsForValue().set(
+                OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jti, "1", ttl, TimeUnit.SECONDS);
         }
     }
 
@@ -652,52 +671,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @param token JWT令牌
      * @return jti字符串，解析失败返回原令牌
      */
-    private String extractJti(String token) {
-        try {
-            // JWT 格式：header.payload.signature
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return token;
-            String payloadJson = new String(
-                Base64.getUrlDecoder().decode(parts[1]),
-                StandardCharsets.UTF_8
-            );
-            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
-            Object jti = payload.get("jti");
-            return jti != null ? jti.toString() : token;
-        } catch (Exception e) {
-            return token;
-        }
-    }
-
-    /**
-     * 获取令牌剩余有效时间
-     * <p>
-     * 解析JWT payload获取exp（过期时间），计算剩余秒数。
-     * 用于设置黑名单过期时间。
-     * </p>
-     *
-     * @param token JWT令牌
-     * @return 剩余有效秒数，解析失败返回86400
-     */
-    private long getTokenRemainingTtl(String token) {
-        try {
-            // JWT 格式：header.payload.signature
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return 86400;
-            String payloadJson = new String(
-                Base64.getUrlDecoder().decode(parts[1]),
-                StandardCharsets.UTF_8
-            );
-            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
-            Object exp = payload.get("exp");
-            if (exp == null) return 86400;
-            long expTime = exp instanceof Number ? ((Number) exp).longValue() : Long.parseLong(exp.toString());
-            long remaining = expTime - System.currentTimeMillis() / 1000;
-            return Math.max(remaining, 0);
-        } catch (Exception e) {
-            return 86400;
-        }
-    }
 
     /**
      * 授权码数据类

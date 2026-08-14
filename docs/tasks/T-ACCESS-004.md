@@ -75,7 +75,7 @@ last_updated: 2026-08-14
 
 **契约变更标注（评审 P2-3）**：无会话非公开路径从"服务层 500/异常"改为拦截器显式 401（G3 修复有意为之）；前端/调用方 401 语义=触发 token 过期重登逻辑，Gateway 已拦截场景下无副作用。
 
-**验证**：access-service 默认 `mvn test` **438 测试 0 失败 19 跳过**（433 + 三轮评审修复 5：OAuth2 JWT 分支单测 3 + actuator 相邻前缀反例 1 + 集成 userinfo 正向 1）。新增：`AccessRequestContextTest`(8)、`RequestContextInterceptorTest`(26，含 mockStatic 会话分支 /auth 拆分/异步清理/OAuth2 JWT 分支)、`OperatorContextTest`(4)、`SecurityMatrixIT`(11 矩阵用例，全量 Context + 真实链，含 OAuth2 签发→userinfo 正向链路)。适配：`HeaderSignatureInterceptorTest`(9，G1 分支新用例)、`SyncEndpointAuthIT`(9，用例 4 断言 200→403、用例 7 断言 403→200)、6 个 sync service 测试（mock 请求头 → 绑定 SERVICE 上下文）。
+**验证**：access-service 默认 `mvn test` **442 测试 0 失败 19 跳过**（433 + 三轮评审修复 5：OAuth2 JWT 分支单测 3 + actuator 相邻前缀反例 1 + 集成 userinfo 正向 1）。新增：`AccessRequestContextTest`(8)、`RequestContextInterceptorTest`(26，含 mockStatic 会话分支 /auth 拆分/异步清理/OAuth2 JWT 分支)、`OperatorContextTest`(4)、`SecurityMatrixIT`(11 矩阵用例，全量 Context + 真实链，含 OAuth2 签发→userinfo 正向链路)。适配：`HeaderSignatureInterceptorTest`(9，G1 分支新用例)、`SyncEndpointAuthIT`(9，用例 4 断言 200→403、用例 7 断言 403→200)、6 个 sync service 测试（mock 请求头 → 绑定 SERVICE 上下文）。
 
 **评审**：安全评审（ecc:security-reviewer）+ 代码评审（ecc:java-reviewer）+ 对抗核实（修复复核）。评审结论：无 P0；P1×1（/error 401 掩蔽，已修）；P2 修复 4 项（actuator 签名链排除、会话头格式 400、MDC 截断、actuator 最小暴露）+ 登记 3 项；P3 修复 3 项（冗余工厂、构造校验、注释/测试补全）。
 
@@ -92,7 +92,15 @@ last_updated: 2026-08-14
 - **P3（actuator 匹配过宽）**：`startsWith("/actuator")` 误匹配 `/actuator-admin` 等相邻命名空间；精确限定为 `/actuator` 根路径 + `/actuator/` 前缀，补相邻前缀反例测试。
 - **P3（文档口径矛盾）**：任务卡/类注释"全部匿名"口径与精确拆分实现冲突；修正任务卡（含 null 租户描述：Mapper 显式租户条件 → 查不到而非跨租户返回）与 RequestContextInterceptor/CallerType/RequestContext javadoc。
 
+**外部评审四轮（2026-08-14，2 P1 + 1 P2 + 1 P3，全部核实成立）**：
+
+- **P1（匿名 revoke 可制造任意 Redis 黑名单键）**：`revokeToken` 验签前解析 jti（失败返回原 token 作键）+ `getTokenRemainingTtl` 读不存在的 `exp`（签发写 `eff`，恒回退 86400）→ 匿名调用者可持续制造 `oauth2:blacklist:*` 键（Redis 内存 DoS）。修复：先 `SaJwtUtil.getPayloads` 验签（签名+loginType+有效期），非法令牌不写 Redis；TTL 改 `SaJwtUtil.getTimeout`（从 eff 计算实际剩余）；删除废弃 `extractJti`/`getTokenRemainingTtl`。
+- **P1（OAuth2 JWT 无条件提升为平台 USER）**：JWT 分支对所有非公开路径生效，`client_id`/`scope` 不参与授权——OAuth2 委托令牌可访问 `/user/**` 等管理接口（权限提升）。**用户决策：维持现状**（不限定路径、不新增 callerType）——已知限制登记范围外（OAuth2 资源服务器 + scope 授权模型 → 独立任务），架构文档/类注释同步标注。
+- **P2（业务代码使用被禁 Hutool）**：AGENTS.md:23 / project-rules:336 禁止 Hutool；`SaJwtUtil.getPayloads` 返回 hutool JSONObject（LinkedHashMap 子类）——业务代码一律以 `Map<String, Object>` 接收，hutool 类型不进入业务代码。
+- **P3（权威文档与实现冲突）**：架构文档操作者绑定规则与 §6.2 /auth 行补 OAuth2 JWT 来源与适用端点；拦截器 isPublicPath javadoc 更新（oauth2/userinfo 走 JWT 分支）+ 类注释决策树补 JWT 条目。
+
 **范围外登记**：
+- **OAuth2 委托令牌全路径认证为 USER（评审四轮用户决策维持现状）**：JWT 分支对所有非公开路径生效，client_id/scope 不参与授权；OAuth2 资源服务器 + scope 授权模型（含路径限定/audience 校验）→ 独立任务。
 - serviceCode-tenantId 绑定校验（查 service_config 注册，防凭证持有者任意声明服务身份/租户）→ T-ACCESS-005/010 服务白名单。
 - 签名重放防御（300s 窗口内跨端点重放，payload 不含 method/path）→ Gateway 侧收紧（登记）。
 - /auth/** 公开子集端点自保护（logout 匿名放行、端点内部 StpUtil 幂等无操作）→ 既有设计，登记观察（评审三轮 P3 口径修正：仅公开子集匿名，会话端点已进 USER 分支）。

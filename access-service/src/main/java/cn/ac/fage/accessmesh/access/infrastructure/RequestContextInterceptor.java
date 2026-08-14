@@ -4,7 +4,6 @@ import cn.dev33.satoken.exception.SaTokenException;
 import cn.dev33.satoken.jwt.SaJwtTemplate;
 import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.stp.StpUtil;
-import cn.hutool.json.JSONObject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -16,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -31,6 +31,8 @@ import java.util.UUID;
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
+ *   <li>OAuth2 JWT（Bearer 三段式）→ 验签 + 撤销黑名单检查 → USER
+ *       （评审三轮 P1；全路径生效为用户决策，范围外登记独立任务）</li>
  *   <li>Sa-Token 会话 → USER（会话权威：operatorId=loginId、tenantId=session 租户；
  *       X-Tenant-Id / X-User-Id 头存在必须与会话一致，否则 403 拒绝伪造头）</li>
  *   <li>签名用户态（/api/** 路径，HeaderSignatureInterceptor 验签通过的 X-User-Id）→ USER</li>
@@ -259,61 +261,21 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * <p>
      * 只匿名放行明确公开端点：/actuator/**（含精确根路径 /actuator，评审 P3）与
      * /auth/** 的公开子集（验证码/登录/令牌/撤销/登出）。其余 /auth/** 端点
-     * （userinfo/user-menu/oauth2-authorize/oauth2-userinfo）需会话，进入 USER 分支——
-     * 修复登录用户查询无租户上下文（跨租户查询风险）与 OAuth2 授权码空租户问题。
+     * （userinfo/user-menu/oauth2-authorize 需会话 → USER 分支；oauth2/userinfo
+     * 需 OAuth2 JWT → JWT 认证分支，评审三轮 P1）——修复登录用户查询无租户上下文
+     * 与 OAuth2 授权码空租户问题。
      * </p>
      */
-    /**
-     * OAuth2 JWT 认证：SaJwtUtil 验签（HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 →
-     * 绑定 USER 上下文（operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
-     */
-    private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
-                                          String token) throws IOException {
-        if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
-            logSecurity(request, "oauth2 jwt auth attempted without jwt secret configured");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
+    private static boolean isPublicPath(String uri) {
+        // 评审三轮 P3（2026-08-14）：精确限定 /actuator 根路径与 /actuator/ 前缀，
+        // 防止 /actuator-admin 等相邻命名空间被 startsWith 误判为匿名。
+        if (uri.equals("/actuator") || uri.startsWith("/actuator/")) {
+            return true;
         }
-        JSONObject payloads;
-        try {
-            // getPayloads 校验签名 + loginType + 超时，失败抛 SaTokenException
-            payloads = SaJwtUtil.getPayloads(token, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
-        } catch (SaTokenException e) {
-            logSecurity(request, "oauth2 jwt signature or timeout invalid");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
+        if (uri.startsWith("/auth/")) {
+            return isPublicAuthEndpoint(uri);
         }
-
-        String loginId = payloads.getStr(SaJwtTemplate.LOGIN_ID);
-        String jti = payloads.getStr(OAuth2JwtSupport.JTI_CLAIM);
-        if (loginId == null || loginId.isBlank() || jti == null || jti.isBlank()) {
-            logSecurity(request, "oauth2 jwt missing loginId or jti");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
-        }
-
-        // 撤销检查：revoke 时写入 oauth2:blacklist:<jti>，TTL=令牌剩余有效期
-        Boolean revoked = stringRedisTemplate.hasKey(OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jti);
-        if (Boolean.TRUE.equals(revoked)) {
-            logSecurity(request, "oauth2 jwt revoked");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
-        }
-
-        Long operatorId;
-        try {
-            operatorId = Long.parseLong(loginId);
-        } catch (NumberFormatException e) {
-            logSecurity(request, "oauth2 jwt invalid loginId");
-            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
-            return false;
-        }
-        Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
-
-        AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
-        setMdc(request, String.valueOf(operatorId),
-            tenantId == null ? null : String.valueOf(tenantId), null);
-        return true;
+        return false;
     }
 
     /**
@@ -327,16 +289,64 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         return token.isEmpty() ? null : token;
     }
 
-    private static boolean isPublicPath(String uri) {
-        // 评审三轮 P3（2026-08-14）：精确限定 /actuator 根路径与 /actuator/ 前缀，
-        // 防止 /actuator-admin 等相邻命名空间被 startsWith 误判为匿名。
-        if (uri.equals("/actuator") || uri.startsWith("/actuator/")) {
-            return true;
+    /**
+     * OAuth2 JWT 认证（评审三轮 P1 实现，四轮 P2 Map 化）：SaJwtUtil 验签
+     * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
+     * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
+     * 注（评审四轮用户决策）：本分支对所有非公开路径生效——OAuth2 委托令牌与
+     * 平台会话同为 USER 身份（client_id/scope 不参与授权），范围外登记独立任务。
+     */
+    private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
+                                          String token) throws IOException {
+        if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
+            logSecurity(request, "oauth2 jwt auth attempted without jwt secret configured");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
         }
-        if (uri.startsWith("/auth/")) {
-            return isPublicAuthEndpoint(uri);
+        // 评审四轮 P2：SaJwtUtil 返回 hutool JSONObject（LinkedHashMap 子类），
+        // 一律以 Map 接收，hutool 类型不进入业务代码（AGENTS.md 禁止 Hutool）。
+        Map<String, Object> payloads;
+        try {
+            // getPayloads 校验签名 + loginType + 超时，失败抛 SaTokenException
+            payloads = SaJwtUtil.getPayloads(token, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        } catch (SaTokenException e) {
+            logSecurity(request, "oauth2 jwt signature or timeout invalid");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
         }
-        return false;
+
+        Object loginIdObj = payloads.get(SaJwtTemplate.LOGIN_ID);
+        Object jtiObj = payloads.get(OAuth2JwtSupport.JTI_CLAIM);
+        if (loginIdObj == null || jtiObj == null
+            || loginIdObj.toString().isBlank() || jtiObj.toString().isBlank()) {
+            logSecurity(request, "oauth2 jwt missing loginId or jti");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        // 撤销检查：revoke 时写入 oauth2:blacklist:<jti>，TTL=令牌剩余有效期
+        Boolean revoked = stringRedisTemplate.hasKey(
+            OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jtiObj);
+        if (Boolean.TRUE.equals(revoked)) {
+            logSecurity(request, "oauth2 jwt revoked");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        Long operatorId;
+        try {
+            operatorId = Long.parseLong(loginIdObj.toString());
+        } catch (NumberFormatException e) {
+            logSecurity(request, "oauth2 jwt invalid loginId");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+        Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
+
+        AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
+        setMdc(request, String.valueOf(operatorId),
+            tenantId == null ? null : String.valueOf(tenantId), null);
+        return true;
     }
 
     /**
