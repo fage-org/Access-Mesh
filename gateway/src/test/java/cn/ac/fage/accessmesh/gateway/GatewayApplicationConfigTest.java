@@ -18,6 +18,11 @@ import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.context.TestPropertySource;
 import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.layout.JsonLayout;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -119,6 +124,25 @@ class GatewayApplicationConfigTest {
         assertTrue(factory instanceof org.apache.logging.slf4j.Log4jLoggerFactory,
             "SLF4J 必须绑定 Log4j2（若为 Logback 则 log4j2-spring.xml 被忽略），实际 " + factory.getClass().getName());
         // Logback 已从依赖树排除（pom 排除 spring-boot-starter-logging），其类不在 classpath，无需反向断言
+    }
+
+    /**
+     * T-ACCESS-003 第四轮评审 P2 修复（2026-08-14）：配置解析与布局回归校验。
+     * 原配置将 Property 直接放根节点（Log4j2 报 Unknown object Property 后忽略），
+     * ${LOG_PATTERN} 输出为字面量导致日志内容丢失——该错误不阻断启动、仅靠 Provider
+     * 测试无法捕获。此断言校验实际 Appender 存在且 Layout 为 JsonLayout
+     * （project-rules §4.2 全环境 JSON）：配置错误或布局回退（PatternLayout）时失败。
+     */
+    @Test
+    @DisplayName("Log4j2 配置成功解析且 Layout 为 JSON（防 Property 字面量/布局回归）")
+    void log4j2ConfigParsesWithJsonLayout() {
+        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        Configuration cfg = ctx.getConfiguration();
+        Appender console = cfg.getRootLogger().getAppenders().get("Console");
+        assertNotNull(console,
+            "Console Appender 必须存在（log4j2-spring.xml 配置解析失败时 Appenders 为空）");
+        assertTrue(console.getLayout() instanceof JsonLayout,
+            "Layout 必须为 JsonLayout（project-rules §4.2），实际 " + console.getLayout().getClass().getName());
     }
 
     @Test

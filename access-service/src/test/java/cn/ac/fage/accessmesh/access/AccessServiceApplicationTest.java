@@ -9,6 +9,11 @@ import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.layout.JsonLayout;
 import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -219,6 +224,22 @@ class AccessServiceApplicationTest {
     void expiresInHasSingleAuthoritySource() {
         String staleKey = applicationContext.getEnvironment().getProperty("access.session.expires-in-seconds");
         assertTrue(staleKey == null, "access.session.expires-in-seconds 独立键已移除（评审 P2 修复），残留 " + staleKey);
+    }
+
+    /**
+     * T-ACCESS-003 第四轮评审 P2 修复（2026-08-14，用户决策两端同步 JSON 化）：
+     * access-service 的 log4j2-spring.xml 布局改为 JsonLayout（project-rules §4.2 全环境 JSON），
+     * 与 Gateway 日志口径一致。此断言防布局回归（文本 PatternLayout 或配置错误时失败）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-003：access-service Log4j2 布局为 JSON（规范 §4.2）")
+    void log4j2ConfigUsesJsonLayout() {
+        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        Configuration cfg = ctx.getConfiguration();
+        Appender console = cfg.getRootLogger().getAppenders().get("Console");
+        assertNotNull(console, "Console Appender 必须存在（log4j2-spring.xml 配置解析失败时 Appenders 为空）");
+        assertTrue(console.getLayout() instanceof JsonLayout,
+            "Layout 必须为 JsonLayout（project-rules §4.2 全环境 JSON），实际 " + console.getLayout().getClass().getName());
     }
 
     /**

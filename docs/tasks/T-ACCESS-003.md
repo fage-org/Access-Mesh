@@ -63,7 +63,7 @@ last_updated: 2026-08-14
 4. **expiresIn 单一来源（AuthServiceImpl，评审 P2 修订）**：改读 `SaManager.getConfig().getTimeout()`（即 sa-token.timeout=7200，真实会话 TTL），移除 `client.getAccessTokenTtl()` 分支、`@Value` 注入与未使用局部变量；`access.session.expires-in-seconds` 独立键已删除
 5. **Context 测试强化（AccessServiceApplicationTest，+5 断言）**：基础设施 Bean 唯一（DataSource / PlatformTransactionManager=FlexTransactionManager / CacheService / ObjectMapper）、ObjectMapper JavaTimeModule 生效（LocalDateTime 精确断言 ISO-8601）、Sa-Token 权威配置生效（timeout=7200 / active-timeout=1800 / token-name=Authorization / token-prefix=Bearer / token-style=uuid）、租户上下文设置与清理可用（TenantContextHolder + MybatisFlexTenantConfig 装配）、expiresIn 无独立配置键（防旧配置残留）
 
-**验证结果**：全量 **377 测试 0 失败 19 跳过**（基线 372 + 新增 5 个 Context 断言）；Context 测试 7/7；Gateway 全量 72 测试 0 失败（新增 4 个配置加载上下文测试）；`mvn clean compile test-compile` 通过。
+**验证结果**：全量 **378 测试 0 失败 19 跳过**（基线 372 + 新增 6 个 Context 断言）；Context 测试 8/8；Gateway 全量 74 测试 0 失败（新增 5 个配置加载/日志断言）；`mvn clean compile test-compile` 通过。
 
 **设计回写**：`access-service-architecture.md` §6.1 回写 Sa-Token 权威配置值（token-style=uuid、login-type 文档口径、jwt-secret-key 仅 OAuth2、两端一致性由部署配置约束保障且代码不实现跨进程启动校验）。
 
@@ -91,7 +91,7 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 | 3 | 「Boot 唯一 ObjectMapper」断言与实际不符（条件报告证实全局实例是 common 的 cacheObjectMapper，Boot 的 jacksonObjectMapper 回退，spring.jackson.* 不驱动全局） | P2 | 成立（cacheObjectMapper 有 JavaTimeModule，功能完备；LocalDateTime 输出与 Boot mapper 无差异——date-time-format 仅作用 java.util.Date，响应 DTO 几乎全 LocalDateTime，实际影响很小） | 接受现状+修注释断言 | Context 测试注释改述实际装配（common cacheObjectMapper 提供全局）；序列化断言精确化为 ISO-8601（2026-08-13T10:30:00）；application.yml spring.jackson 配置加说明（未来装配顺序调整时生效） |
 | 4 | 完成记录测试数字过期（376/6/6/4 vs 实际 377/7/7/5） | P3 | 成立 | — | 完成记录统一为最终基线：377 测试、Context 7/7、新增 5 断言；Gateway 全量 72 测试 |
 
-**第二轮修复验证**：access-service 全量 377 测试 0 失败 19 跳过；Gateway 全量 72 测试 0 失败（含新 4 个配置加载用例）；Context 7/7。
+**第二轮修复验证**：access-service 全量 378 测试 0 失败 19 跳过；Gateway 全量 74 测试 0 失败（含新 5 个配置加载用例）；Context 8/8。
 
 **P1 修复的部署语义**（评审未列但核实附带）：Gateway 迁移后 `spring.config.import: optional:nacos:gateway.yml` 与 access-service 同模式，Nacos 配置（gateway.yml 若存在）开始真正加载——**归并前 Gateway 的所有配置（含 Nacos 远端）实际从未生效**，本任务修复后首次按配置运行，生产部署需核对 Nacos 中 gateway.yml 是否存在（不存在则 optional 静默跳过，仅本地 application.yml 生效）。
 
@@ -106,6 +106,16 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 | 3 | 任务卡两处过期信息（last_updated 仍 2026-08-13；验收表「4 个新断言」未统一为 5 个） | P3 | 成立 | last_updated → 2026-08-14；验收表 → 5 个新断言 |
 
 **第三轮修复验证**：Gateway 全量 73 测试 0 失败（新增日志实现回归断言）；access-service 全量回归见提交前验证。
+
+### 第四轮评审修复（2026-08-14，复评：1 P2）
+
+| # | 评审问题 | 严重度 | 核实结论 | 用户决策 | 处理 |
+|---|---|---|---|---|---|
+| 1 | **Gateway 的 Log4j2 配置解析失败，日志内容被替换为字面量 `${LOG_PATTERN}`**（`<Property>` 直接放根节点，Log4j2 报 Unknown object Property 后忽略；PatternLayout 输出字面量，实际消息/级别/时间/异常全部丢失；Provider 测试只验证绑定不验证配置解析，仍绿色通过） | P2 | 成立（access-service 的 xml 用 `<Properties>` 容器解析正常，对照确认） | 同步 JSON 化（access-service 同为文本 PatternLayout 不合规 §4.2，用户决策两端统一） | Gateway：`<Property>` 包进 `<Properties>` 容器并改 JsonLayout（compact + properties=true 输出 MDC + includeStacktrace + eventEol）；access-service：同样改 JsonLayout（用户决策）；两端删除无消费者的 LOG_PATTERN 死属性；回归测试：两端 Context 测试各新增断言（Console Appender 存在 + Layout 为 JsonLayout——配置错误或布局回退时失败，捕获"配置解析成功"） |
+
+**第四轮修复验证**：Gateway 全量 74 测试 0 失败（新增配置解析+JsonLayout 断言）；access-service 378 测试 0 失败 19 跳过（新增 JsonLayout 断言）；全模块 BUILD SUCCESS。
+
+**日志格式说明**：JsonLayout 输出 timeMillis（epoch 毫秒）与规范示例的 ISO `timestamp` 键名略有差异，但为标准 JSON 可被 ELK/Loki 采集（规范核心意图）；MDC 字段（traceId/userId/tenantId/serviceCode）由 properties=true 输出，应用侧 MDC 注入属 T-ACCESS-004 安全上下文范围（登记）。
 
 ### 验收项落实情况
 

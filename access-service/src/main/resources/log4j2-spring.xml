@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- T-ACCESS-003 第四轮评审 P2 修复（2026-08-14，用户决策两端同步）：布局改为 JsonLayout
+     （project-rules §4.2「所有环境统一输出 JSON 格式」），与 Gateway 日志口径一致：
+     properties=true 输出 MDC 上下文（traceId/userId/tenantId/serviceCode 由应用侧注入），
+     includeStacktrace=true 保留异常堆栈，eventEol 每条一行便于 ELK/Loki 采集。 -->
 <configuration scan="true" scanPeriod="60 seconds">
     <include resource="org/springframework/boot/logging/log4j2/log4j2-file.xml"/>
 
-    <Properties>
-        <Property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
-    </Properties>
-
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="${LOG_PATTERN}"/>
+            <JsonLayout compact="true" complete="false" properties="true"
+                        includeStacktrace="true" eventEol="true"/>
         </Console>
     </Appenders>
 
