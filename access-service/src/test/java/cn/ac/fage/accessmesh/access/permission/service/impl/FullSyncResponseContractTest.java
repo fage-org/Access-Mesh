@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq;
@@ -74,9 +76,13 @@ class FullSyncResponseContractTest {
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        AccessRequestContext.clear();
+    }
 
     private void mockHeaderMatch() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn(SOURCE_SERVICE);
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
     }
 
     // ---- 1. AbstractUserSyncAppService.fullSync ----
@@ -118,7 +124,7 @@ class FullSyncResponseContractTest {
 
     @Test
     void abstractUserFullSync_securityDenied_topLevelRetryable() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("other-service");
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper());
@@ -253,7 +259,7 @@ class FullSyncResponseContractTest {
 
     @Test
     void resourceEntityFullSync_securityDenied_topLevelSecurityDenied() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("other-service");
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper());

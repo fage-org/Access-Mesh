@@ -147,16 +147,28 @@ flowchart LR
 
 ### 6.1 唯一请求上下文
 
-`access-service` 内只保留一个可信请求上下文，至少承载：
+`access-service` 内只保留一个可信请求上下文 `AccessRequestContext`（infrastructure，T-ACCESS-004 落地），承载四要素：
 
-- `tenantId`
-- `operatorId`
-- 调用方类型（用户、服务、系统任务）
-- 已验证的 `serviceCode`
+- `tenantId`（已验证租户 ID）
+- `operatorId`（已验证操作者 ID）
+- `callerType`（四态：`USER` 平台用户 / `SERVICE` 注册业务服务 / `TASK` 定时任务 / `ANONYMOUS` 公开路径）
+- `verifiedServiceCode`（已验证服务编码，仅 SERVICE 调用非 null）
 
-只有统一安全入口可以建立上下文，业务代码只能读取。原始请求头不能未经验证直接成为租户、操作人或服务身份。admin 与 permission 共用一个 `TenantIdProvider` 和一套 MyBatis-Flex 租户配置。
+只有统一安全入口 `RequestContextInterceptor` 可以绑定上下文，业务代码只能读取（`AccessRequestContext` 提供便捷 getter 与 `snapshot()/restore()` 快照 API）。原始请求头不能未经验证直接成为租户、操作人或服务身份。`TenantContextHolder` 保留为兼容门面（set/get/clear 委托新上下文，约 60 处存量引用零迁移；T-ACCESS-012 收口时扁平化）。admin 与 permission 共用一个 `TenantIdProvider` 和一套 MyBatis-Flex 租户配置。
 
-请求完成必须在 `finally`/`afterCompletion` 清理上下文。异步任务显式传递上下文快照，定时任务通过租户提供器建立有界作用域，禁止盲目继承 ThreadLocal。
+请求完成必须在 `afterCompletion` 清理上下文（拦截器统一执行，含异常路径）。异步任务显式传递上下文快照（现有 @Async 均显式传 tenantId 参数，不读 ThreadLocal），定时任务通过租户提供器/显式 set 建立有界作用域，禁止盲目继承 ThreadLocal。
+
+日志 MDC 由同一拦截器注入（`traceId`=X-Request-Id 或 UUID、`userId`、`tenantId`、`serviceCode`，配合 log4j2 JsonLayout properties=true；外部可控值截断 64 字符），afterCompletion 同步清理。
+
+**统一安全链**（`SecurityWebMvcConfig` 唯一 WebMvcConfigurer，T-ACCESS-004 替换原 admin/permission 双链）：
+
+| order | 拦截器 | 覆盖 | 职责 |
+|---|---|---|---|
+| 1 | `InternalApiSecretInterceptor` | `/api/perm/**` | 内部凭证（X-Internal-Secret）验证，通过写 `INTERNAL_AUTHENTICATED` attribute |
+| 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头），通过写 `SIGNATURE_VERIFIED` attribute |
+| 3 | `RequestContextInterceptor` | `/**` | 唯一上下文绑定入口：安全策略矩阵决策 + MDC 注入 + afterCompletion 清理；/error ERROR dispatch 放行（防真实错误被 401 掩蔽） |
+
+操作者绑定规则（T-ACCESS-004 用户决策）：`operatorId` 只在 Sa-Token 会话或签名验证通过后绑定；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。
 
 平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 用户决策：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
@@ -166,13 +178,17 @@ OAuth2 客户端令牌继续使用各客户端注册配置的有效期，不套�
 
 ### 6.2 安全策略矩阵
 
-| 入口 | 调用方要求 | 关键约束 |
-|---|---|---|
-| `/auth/**` 公开子集 | 匿名 | 只开放登录、验证码、OAuth2 token 等明确接口 |
-| 用户管理接口 | 有效用户会话 | 租户与会话一致；Gateway 清除伪造头后重新签名 |
-| `/api/perm/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 |
-| `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于认证主体 |
-| 其他 `/api/perm/**` 管理接口 | 已验证 Gateway + 用户身份，或显式服务白名单 | 内部凭证不隐式获得全量管理权限 |
+T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
+
+| 入口 | 调用方要求 | 关键约束 | 实现 |
+|---|---|---|---|
+| `/auth/**` 公开子集 | 匿名 | 只开放登录、验证码、OAuth2 token 等明确接口；logout/userinfo/user-menu 由端点内部 StpUtil 自保护 | ANONYMOUS 上下文；登录会话键 tenantId + subjectTypeCode |
+| 用户管理接口（`/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
+| `/api/perm/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
+| `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
+| 其他 `/api/perm/**` 管理接口 | 已验证 Gateway + 用户身份，或显式服务白名单 | 内部凭证不隐式获得全量管理权限：纯凭证调用 operatorId=null → 权限判定 fail-closed；X-User-Id 恒需验签才绑定操作者 | USER（验签）/ SERVICE（无操作者） |
+| `/internal/**` | 已签名/凭证调用 | 与 /api/** 同签名链；匿名放行后由 RequestContext 显式 401 | HeaderSignature 覆盖 |
+| `/actuator/**` | 匿名 | 健康检查匿名放行（不强制 X-Tenant-Id）；暴露面最小化 health,info | ANONYMOUS；不在签名链 |
 
 `access-service` 端口仅在内部网络开放，Gateway 是用户流量唯一入口。本地跨域调用不模拟 HTTP 请求头，但仍使用可信上下文和权限校验器。
 

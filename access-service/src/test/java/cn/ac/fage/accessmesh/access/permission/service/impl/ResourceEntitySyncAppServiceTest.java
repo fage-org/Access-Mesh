@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
@@ -51,6 +53,10 @@ class ResourceEntitySyncAppServiceTest {
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        AccessRequestContext.clear();
+    }
 
     private ResourceEntitySyncAppServiceImpl service;
 
@@ -68,7 +74,7 @@ class ResourceEntitySyncAppServiceTest {
     }
 
     private void mockHeaderMatch() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn(SOURCE_SERVICE);
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
     }
 
     @Test
@@ -101,7 +107,7 @@ class ResourceEntitySyncAppServiceTest {
                 "Menu One", null, null, null, "/menu/one", 1, 0, null,
                 "example-service", "menu", "menu-1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("example-service");
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "example-service"));
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
                 eq("example-service"), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
@@ -159,7 +165,7 @@ class ResourceEntitySyncAppServiceTest {
 
     @Test
     void shouldReturnSecurityDenied_whenSourceServiceMismatch() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("other-service");
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
 

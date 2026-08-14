@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.config;
 
+import cn.ac.fage.accessmesh.access.infrastructure.SignatureVerifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,15 +45,17 @@ class HeaderSignatureInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new HeaderSignatureInterceptor();
-        ReflectionTestUtils.setField(interceptor, "signatureSecret", SECRET);
-        ReflectionTestUtils.setField(interceptor, "signatureValidSeconds", VALID_SECONDS);
-        // 初始化 macThreadLocal
-        interceptor.validateConfiguration();
+        // T-ACCESS-004：验签逻辑抽取到 SignatureVerifier，构造注入 HeaderSignatureInterceptor
+        SignatureVerifier verifier = new SignatureVerifier();
+        ReflectionTestUtils.setField(verifier, "signatureSecret", SECRET);
+        ReflectionTestUtils.setField(verifier, "signatureValidSeconds", VALID_SECONDS);
+        verifier.validateConfiguration();
+
+        interceptor = new HeaderSignatureInterceptor(verifier);
     }
 
     @Test
-    @DisplayName("路径1：INTERNAL_AUTHENTICATED=true → 放行（任何 user/signature 头都可缺）")
+    @DisplayName("路径2：INTERNAL_AUTHENTICATED=true 且无 X-User-Id → 放行（纯服务调用）")
     void shouldPassThrough_whenInternalAuthenticatedAttributeSet() throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest();
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -63,6 +66,46 @@ class HeaderSignatureInterceptorTest {
 
         assertThat(result).isTrue();
         assertThat(resp.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("路径1：INTERNAL_AUTHENTICATED=true + X-User-Id 无签名 → 403（T-ACCESS-004 G1 修复）")
+    void shouldReject_whenInternalAuthenticatedWithUserIdWithoutSignature() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader(HEADER_USER_ID, "100");
+        req.addHeader(HEADER_TENANT_ID, "1");
+        req.setAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        // 缺 HEADER_SIGNATURE 与 HEADER_TIMESTAMP：内部凭证不得无条件信任用户头
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("路径1：INTERNAL_AUTHENTICATED=true + X-User-Id + 有效签名 → 放行并写 SIGNATURE_VERIFIED")
+    void shouldPassThrough_whenInternalAuthenticatedWithValidSignature() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        String userId = "100";
+        String tenantId = "1";
+        long ts = System.currentTimeMillis() / 1000;
+        String signature = sign(userId, tenantId, ts);
+
+        req.addHeader(HEADER_USER_ID, userId);
+        req.addHeader(HEADER_TENANT_ID, tenantId);
+        req.addHeader(HEADER_SIGNATURE, signature);
+        req.addHeader(HEADER_TIMESTAMP, String.valueOf(ts));
+        req.setAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(resp.getStatus()).isEqualTo(200);
+        assertThat(Boolean.TRUE.equals(req.getAttribute(
+            cn.ac.fage.accessmesh.access.infrastructure.SecurityAttributes.ATTR_SIGNATURE_VERIFIED))).isTrue();
     }
 
     @Test

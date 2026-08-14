@@ -72,6 +72,16 @@ mybatis-flex:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
+management:
+  # 安全评审 P2-5（2026-08-14）：显式最小化 actuator 暴露面——仅 health/info。
+  # Boot 3.2 默认仅 web 暴露 health；此处为本地默认值，明确收敛到 health,info
+  # （/actuator/** 为匿名公开路径，端口仅内网开放；注意 Nacos 配置优先级更高，
+  # 生产覆盖需在 Nacos access-service.yml 保持一致的最小暴露）。
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
 perm:
   internal-secret: ${PERM_INTERNAL_SECRET:}
   signature:

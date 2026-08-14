@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.integration;
 
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContextInterceptor;
+import cn.ac.fage.accessmesh.access.infrastructure.SignatureVerifier;
 import cn.ac.fage.accessmesh.access.permission.config.HeaderSignatureInterceptor;
 import cn.ac.fage.accessmesh.access.permission.config.InternalApiSecretInterceptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,10 +42,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <tr><td>1</td><td>/api/perm/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(correct)</td><td>200</td></tr>
  *   <tr><td>2</td><td>/api/perm/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(wrong)</td><td>403</td></tr>
  *   <tr><td>3</td><td>/api/perm/abstract-user/sync</td><td>仅 X-Tenant-Id 无 secret 无 user</td><td>403</td></tr>
- *   <tr><td>4</td><td>/api/perm/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id 无 HMAC</td><td>403</td></tr>
+ *   <tr><td>4</td><td>/api/perm/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id 无 HMAC + InternalSecret</td><td>403（T-ACCESS-004 G1：用户头恒需验签）</td></tr>
  *   <tr><td>5</td><td>/api/perm/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id + 有效 HMAC + secret</td><td>非 401/403</td></tr>
  *   <tr><td>6</td><td>/internal/health</td><td>X-Tenant-Id 无 secret 无 user</td><td>403（路径3 拒绝）</td></tr>
- *   <tr><td>7</td><td>/actuator/health</td><td>X-Tenant-Id + X-Internal-Secret</td><td>403（actuator 不在密钥拦截路径，attribute 不被设）</td></tr>
+ *   <tr><td>7</td><td>/actuator/health</td><td>X-Tenant-Id + X-Internal-Secret</td><td>200（评审 P2-2：actuator 公开契约不依赖头）</td></tr>
  *   <tr><td>8</td><td>/actuator/health</td><td>完全无身份头</td><td>200</td></tr>
  * </table>
  */
@@ -63,20 +65,27 @@ class SyncEndpointAuthIT {
 
     @BeforeEach
     void setUp() {
-        HeaderSignatureInterceptor sigInterceptor = new HeaderSignatureInterceptor();
-        ReflectionTestUtils.setField(sigInterceptor, "signatureSecret", SECRET);
-        ReflectionTestUtils.setField(sigInterceptor, "signatureValidSeconds", VALID_SECONDS);
-        sigInterceptor.validateConfiguration();
+        // T-ACCESS-004：验签逻辑抽取到 SignatureVerifier（构造注入 HeaderSignatureInterceptor）
+        SignatureVerifier verifier = new SignatureVerifier();
+        ReflectionTestUtils.setField(verifier, "signatureSecret", SECRET);
+        ReflectionTestUtils.setField(verifier, "signatureValidSeconds", VALID_SECONDS);
+        verifier.validateConfiguration();
+
+        HeaderSignatureInterceptor sigInterceptor = new HeaderSignatureInterceptor(verifier);
 
         InternalApiSecretInterceptor internalInterceptor = new InternalApiSecretInterceptor();
         ReflectionTestUtils.setField(internalInterceptor, "expectedSecret", INTERNAL_SECRET);
         internalInterceptor.validateConfiguration();
 
-        // 复制 PermWebMvcConfig 的实际拦截器链顺序
-        // order=1 InternalApi(/api/perm/**) → order=2 HeaderSignature → order=3 PermTenant
+        RequestContextInterceptor ctxInterceptor = new RequestContextInterceptor(verifier);
+
+        // 复制 SecurityWebMvcConfig 的实际拦截器链顺序
+        // order=1 InternalApi(/api/perm/**) → order=2 HeaderSignature(/api/**,/internal/**，
+        //   评审 P2-2 后 /actuator/** 已排除出签名链——公开端点契约不依赖头) → order=3 RequestContext
         mockMvc = MockMvcBuilders.standaloneSetup(new StubSyncController(), new StubActuatorController())
             .addMappedInterceptors(new String[]{"/api/perm/**"}, internalInterceptor)
-            .addMappedInterceptors(new String[]{"/api/**", "/internal/**", "/actuator/**"}, sigInterceptor)
+            .addMappedInterceptors(new String[]{"/api/**", "/internal/**"}, sigInterceptor)
+            .addMappedInterceptors(new String[]{"/**"}, ctxInterceptor)
             .build();
     }
 
@@ -113,17 +122,17 @@ class SyncEndpointAuthIT {
     }
 
     @Test
-    @DisplayName("用例4：X-User-Id + X-Tenant-Id 无 HMAC → 403")
+    @DisplayName("用例4：X-User-Id + X-Tenant-Id 无 HMAC + InternalSecret → 403（T-ACCESS-004 修复 G1）")
     void case4_userIdNoSignature_shouldReject() throws Exception {
+        // T-ACCESS-004 修复 G1：内部凭证不再无条件信任用户身份头——X-User-Id 恒需验签。
+        // 凭证持有者携带伪造 X-User-Id 冒充操作者的路径被 403 阻断（原为路径 1 直接放行 200）。
         mockMvc.perform(post("/api/perm/abstract-user/sync")
                 .header(HEADER_USER_ID, "100")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
-            .andExpect(status().isOk());
-        // 注：当 INTERNAL_AUTHENTICATED attribute 被设置时，签名拦截器会直接放行（路径1）
-        // 这是设计意图：内部调用不需要用户态 HMAC
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -165,14 +174,14 @@ class SyncEndpointAuthIT {
     }
 
     @Test
-    @DisplayName("用例7：/actuator/health + X-Tenant-Id + X-Internal-Secret → 403（actuator 不在密钥拦截器路径）")
-    void case7_actuatorWithSecret_shouldReject() throws Exception {
-        // /actuator/** 不在 InternalApiSecretInterceptor 路径，X-Internal-Secret 不会被验证
-        // attribute 不被设 → HeaderSignatureInterceptor 路径3 → 403
+    @DisplayName("用例7：/actuator/health + X-Tenant-Id + X-Internal-Secret → 200（评审 P2-2：actuator 公开契约不依赖头）")
+    void case7_actuatorWithSecret_shouldPass() throws Exception {
+        // 评审 P2-2（2026-08-14）：/actuator/** 已排除出签名链——公开端点契约不依赖头，
+        // 监控探针带 X-Tenant-Id 头访问 health 不再被路径 3/4 误拒（原 403 语义已删除）。
         mockMvc.perform(get("/actuator/health")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk());
     }
 
     @Test

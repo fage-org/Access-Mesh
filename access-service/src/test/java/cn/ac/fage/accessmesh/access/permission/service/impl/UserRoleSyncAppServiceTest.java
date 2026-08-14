@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem;
@@ -48,6 +50,10 @@ class UserRoleSyncAppServiceTest {
     private UserRoleMapper userRoleMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        AccessRequestContext.clear();
+    }
 
     private UserRoleSyncAppServiceImpl service;
 
@@ -65,7 +71,7 @@ class UserRoleSyncAppServiceTest {
     }
 
     private void mockHeaderMatch() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn(SOURCE_SERVICE);
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
     }
 
     @Test
@@ -132,7 +138,7 @@ class UserRoleSyncAppServiceTest {
 
     @Test
     void shouldReturnSecurityDenied_whenSourceServiceMismatch() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn("other-service");
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         SyncResultResp resp = service.sync(TENANT_ID, bindReq(), httpRequest);
 

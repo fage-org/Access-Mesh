@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractUserFullSyncReq;
@@ -77,10 +79,14 @@ class FullSyncN1GuardTest {
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        AccessRequestContext.clear();
+    }
 
     @BeforeEach
     void setUp() {
-        when(httpRequest.getHeader(SyncAuthVerifier.HEADER_SERVICE_CODE)).thenReturn(SOURCE_SERVICE);
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
         // 公共 stub：listScopeForFullSync 返回空（防止 deactivate 路径影响计数）
         lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Collections.emptyList());

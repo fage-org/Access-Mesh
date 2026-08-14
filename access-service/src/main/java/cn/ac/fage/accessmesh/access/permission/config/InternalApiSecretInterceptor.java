@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.config;
 
+import cn.ac.fage.accessmesh.access.infrastructure.SecurityAttributes;
 import cn.ac.fage.accessmesh.access.permission.util.SecurityEventType;
 import cn.ac.fage.accessmesh.access.permission.util.SecurityLogUtil;
 import cn.ac.fage.accessmesh.access.permission.util.StringUtils;
@@ -39,9 +40,10 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
      * 安全决策原则：基于已验证的 attribute（仅本拦截器可写）而非未验证的请求头。
      * 后续拦截器读取此 attribute 而非读取 X-Internal-Secret，避免被伪造请求绕过。
      * </p>
+     * <p>T-ACCESS-004：常量统一收敛至 {@link SecurityAttributes}（infrastructure 共享）。</p>
      */
-    public static final String ATTR_INTERNAL_AUTHENTICATED =
-        "cn.ac.fage.accessmesh.access.permission.INTERNAL_AUTHENTICATED";
+    @Deprecated
+    public static final String ATTR_INTERNAL_AUTHENTICATED = SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED;
 
     @Value("${perm.internal-secret:}")
     private String expectedSecret;
@@ -103,7 +105,7 @@ public class InternalApiSecretInterceptor implements HandlerInterceptor {
             return false;
         }
         // 标记请求已通过内部密钥校验，供后续拦截器（HeaderSignatureInterceptor）决策
-        request.setAttribute(ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        request.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
         return true;
     }
 }
