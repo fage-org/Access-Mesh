@@ -51,7 +51,7 @@ last_updated: 2026-08-13
 |---|---|---|
 | 1 | Sa-Token token-style 统一方向 | 统一 uuid：access-service `token-style: jwt`→`uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）；`sa-token-jwt` 依赖与 `jwt-secret-key` 配置保留（OAuth2 访问令牌经 `SaJwtUtil.createToken` HS256 独立签发，与平台会话 token-style 无关） |
 | 2 | 「两端关键配置缺失或不一致时启动失败」 | **不实现代码校验**（用户决策：运维部署部分，不应影响代码逻辑）；两端配置一致性由部署配置约束保障；`jwt-secret-key` 为 `${JWT_SECRET_KEY}` 无默认值，缺失时 Spring 占位符解析失败天然启动失败 |
-| 3 | LoginResp.expiresIn 口径 | 做成配置：新增 `access.session.expires-in-seconds: 7200`（与 `sa-token.timeout=7200` 一致），login/smsLogin 返回该值；自动续期由 `active-timeout=1800` 滑动机制提供（Sa-Token 校验时自动更新 last-active-time）；前端不再展示剩余时间（登记前端任务）；OAuth2 `/oauth2/token` 的 accessTokenTtl 继续用客户端注册 TTL（架构 §6.1） |
+| 3 | LoginResp.expiresIn 口径 | 做成配置（单一权威来源，评审 P2 修订）：`login/smsLogin` 的 expiresIn 直接读 `SaManager.getConfig().getTimeout()`（即 `sa-token.timeout=7200`，真实会话 TTL，配置驱动且永不漂移）；独立配置键 `access.session.expires-in-seconds` 已移除（双源耦合风险：Nacos 只覆盖一项即漂移）；自动续期由 `active-timeout=1800` 滑动机制提供（Sa-Token 校验时自动更新 last-active-time）；前端不再展示剩余时间（登记前端任务）；OAuth2 `/oauth2/token` 的 accessTokenTtl 继续用客户端注册 TTL（架构 §6.1） |
 | 4 | 业务侧 StringRedisTemplate 直接操作 | **全部保留**（用户决策，原子性澄清后确认）：验证码/短信码 Lua GET+DEL 一次性消费、登录失败计数 Lua INCR+EXPIRE、OAuth2 授权码/刷新令牌/黑名单（含 Lua 原子脚本）均依赖原子语义，CacheService 仅 get/put/evict 无法表达，多实例（架构目标 2+ 实例）下收敛会破坏安全语义 |
 | 5 | login-type 配置键（实施中核实） | Sa-Token 无 `login-type` 配置键（编译验证 `SaTokenConfig` 无该属性）；登录类型为 `StpUtil.login()` 默认 `"login"`，两侧一致——文档口径而非配置项，未写入 yml |
 
@@ -60,10 +60,10 @@ last_updated: 2026-08-13
 1. **Sa-Token 统一（access-service application.yml）**：`timeout` 86400→7200、`active-timeout` -1→1800、`token-style` jwt→uuid，注释声明权威值；`jwt-secret-key` 保留并注明仅 OAuth2 使用
 2. **Sa-Token 统一（gateway bootstrap.yml）**：sa-token 块显式 `token-style: uuid` + 权威值注释（timeout=7200/active-timeout=1800 两侧原已一致）
 3. **删除重复配置**：`admin/config/CacheConfig.java`（Spring Cache + RedisCacheManager + Caffeine + @EnableCaching，全仓无 @Cacheable 使用者）、`permission/config/RedisConfig.java`（自定义 `RedisTemplate<String,Object>` 无注入点 + 裸 `ObjectMapper` 顶掉 Boot 自动配置使 `spring.jackson` 失效）；pom 删除 `spring-boot-starter-cache`；application.yml 删除死配置 `cache.caffeine.spec`
-4. **expiresIn 配置化（AuthServiceImpl）**：`@Value("${access.session.expires-in-seconds:7200}")`，login()/smsLogin() 的 LoginResp.expiresIn 改传配置值，移除 `client.getAccessTokenTtl()` 分支与未使用局部变量
-5. **Context 测试强化（AccessServiceApplicationTest，+4 断言）**：基础设施 Bean 唯一（DataSource / PlatformTransactionManager=FlexTransactionManager / CacheService / ObjectMapper）、ObjectMapper JavaTimeModule 生效（LocalDateTime 序列化可用）、Sa-Token 权威配置生效（timeout=7200 / active-timeout=1800 / token-name=Authorization / token-style=uuid）、租户上下文设置与清理可用（TenantContextHolder + MybatisFlexTenantConfig 装配）
+4. **expiresIn 单一来源（AuthServiceImpl，评审 P2 修订）**：改读 `SaManager.getConfig().getTimeout()`（即 sa-token.timeout=7200，真实会话 TTL），移除 `client.getAccessTokenTtl()` 分支、`@Value` 注入与未使用局部变量；`access.session.expires-in-seconds` 独立键已删除
+5. **Context 测试强化（AccessServiceApplicationTest，+5 断言）**：基础设施 Bean 唯一（DataSource / PlatformTransactionManager=FlexTransactionManager / CacheService / ObjectMapper）、ObjectMapper JavaTimeModule 生效（LocalDateTime 精确断言 ISO-8601）、Sa-Token 权威配置生效（timeout=7200 / active-timeout=1800 / token-name=Authorization / token-prefix=Bearer / token-style=uuid）、租户上下文设置与清理可用（TenantContextHolder + MybatisFlexTenantConfig 装配）、expiresIn 无独立配置键（防旧配置残留）
 
-**验证结果**：全量 **376 测试 0 失败 19 跳过**（基线 372 + 新增 4 个 Context 断言）；Context 测试 6/6；`mvn clean compile test-compile` 通过。
+**验证结果**：全量 **377 测试 0 失败 19 跳过**（基线 372 + 新增 5 个 Context 断言）；Context 测试 7/7；Gateway 全量 72 测试 0 失败（新增 4 个配置加载上下文测试）；`mvn clean compile test-compile` 通过。
 
 **设计回写**：`access-service-architecture.md` §6.1 回写 Sa-Token 权威配置值（token-style=uuid、login-type 文档口径、jwt-secret-key 仅 OAuth2、两端一致性由部署配置约束保障且代码不实现跨进程启动校验）。
 
@@ -78,7 +78,22 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 | 3 | 新增注释 "satoken:* 默认命名空间" 与 sa-token 1.38.0 实际键格式不符（`splicingKeyTokenValue()` = `tokenName:loginType:token:tokenValue`，即 `Authorization:login:token:*`，无 "satoken:" 前缀常量） | P3 | 修复：application.yml 与 gateway bootstrap.yml 注释改为实际键格式（排障时按正确键找） |
 | 4 | `gateway/gateway-cp.txt` 被 git 跟踪的 IDE 类路径转储（含本机绝对路径与 starter-cache 条目；核实确认 starter-cache 条目为 loadbalancer 传递依赖，内容真实，但 IDE 转储本不应提交） | P3 | 修复：删除该文件（IDE 生成物不入库） |
 
-**评审修复验证**：Context 测试 6/6（含 token-prefix 断言）；全量回归见下文。
+**评审修复验证**：Context 测试 7/7（含 token-prefix 断言）；全量回归见下文。
+
+### 第二轮评审修复（2026-08-14，Request Changes：1 P1 + 2 P2 + 1 P3）
+
+外部 AI 评审发现 4 项问题，经逐项核实全部成立（3 项用户决策）：
+
+| # | 评审问题 | 严重度 | 核实结论 | 用户决策 | 处理 |
+|---|---|---|---|---|---|
+| 1 | **Gateway 的 bootstrap.yml 实际没有加载**（Boot 3 默认不加载 bootstrap.yml；无 spring-cloud-starter-bootstrap、无 bootstrap.enabled=true；运行时 sa-token/Redis/路由/Nacos 属性全部 null；Gateway 用默认 token-name=satoken 读不到 access-service 的 `Authorization:login:*` 会话） | P1 | 成立（gateway 无 application.yml、测试全为 mock 单测从不加载配置） | 迁移 application.yml（Boot 3 标准 ConfigData） | bootstrap.yml→application.yml + `spring.config.import: optional:nacos:gateway.yml`；新增 `GatewayApplicationConfigTest`（4 用例：sa-token 权威值/Redis DB 0/4 条路由/gateway.* 配置）。**上下文启动暴露并修复 7 个 Gateway 既有启动缺陷**：①GatewayApplication 排除 CommonAutoConfiguration（common 的 WebMvc GlobalExceptionHandler 与 gateway 同名冲突）②自定义 GatewayProperties 指定 Bean 名 accessGatewayProperties（与 Spring Cloud Gateway 自带类默认 bean 名冲突）③`#{@gatewayProperties...}` SpEL 引用同步更新 ④pom 排除 spring-webmvc 传递依赖（SCG MvcFoundOnClasspathException：Gateway 不允许 MVC/WebFlux 共存）⑤删除 SaTokenConfig（sa-token-redis-jackson 自动配置无条件创建 SaTokenDaoRedisJackson，重复 Bean）⑥路由前缀 `spring.data.gateway.*`→`spring.cloud.gateway.*`（原前缀错误，路由从未加载）⑦测试用 WebEnvironment.MOCK（reactive 上下文，ServerProperties 加载） |
+| 2 | expiresIn 多权威来源（sa-token.timeout + access.session.expires-in-seconds + @Value 默认值三处 7200；Nacos 只覆盖一个即漂移） | P2 | 成立（第一轮评审曾以 P3 提过，本轮升级） | 读 sa-token.timeout 单一来源（sa-token.timeout 本身即配置，符合"做成配置"决策） | AuthServiceImpl `expiresInSeconds` 字段删除，改 `SaManager.getConfig().getTimeout()`；删除 `access.session.expires-in-seconds` 键；Context 测试改断言独立键已移除（防旧配置残留） |
+| 3 | 「Boot 唯一 ObjectMapper」断言与实际不符（条件报告证实全局实例是 common 的 cacheObjectMapper，Boot 的 jacksonObjectMapper 回退，spring.jackson.* 不驱动全局） | P2 | 成立（cacheObjectMapper 有 JavaTimeModule，功能完备；LocalDateTime 输出与 Boot mapper 无差异——date-time-format 仅作用 java.util.Date，响应 DTO 几乎全 LocalDateTime，实际影响很小） | 接受现状+修注释断言 | Context 测试注释改述实际装配（common cacheObjectMapper 提供全局）；序列化断言精确化为 ISO-8601（2026-08-13T10:30:00）；application.yml spring.jackson 配置加说明（未来装配顺序调整时生效） |
+| 4 | 完成记录测试数字过期（376/6/6/4 vs 实际 377/7/7/5） | P3 | 成立 | — | 完成记录统一为最终基线：377 测试、Context 7/7、新增 5 断言；Gateway 全量 72 测试 |
+
+**第二轮修复验证**：access-service 全量 377 测试 0 失败 19 跳过；Gateway 全量 72 测试 0 失败（含新 4 个配置加载用例）；Context 7/7。
+
+**P1 修复的部署语义**（评审未列但核实附带）：Gateway 迁移后 `spring.config.import: optional:nacos:gateway.yml` 与 access-service 同模式，Nacos 配置（gateway.yml 若存在）开始真正加载——**归并前 Gateway 的所有配置（含 Nacos 远端）实际从未生效**，本任务修复后首次按配置运行，生产部署需核对 Nacos 中 gateway.yml 是否存在（不存在则 optional 静默跳过，仅本地 application.yml 生效）。
 
 ### 验收项落实情况
 
@@ -104,4 +119,4 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 
 - uuid 模式下会话有效性依赖共享 Redis 条目（会话键 `Authorization:login:*`，DB 0）；Redis 清空后两端一致失效（fail-closed），与决策 1 一致
 - OAuth2 access_token 有效期由客户端注册 TTL 决定（默认 86400），不套用平台会话 2h/30min 口径（架构 §6.1）
-- expiresIn 改动无行为级单测（access-service 无 AuthServiceImpl 单测）；由 Context 测试环境属性断言（`access.session.expires-in-seconds`）与 yml 唯一权威来源保证（评审 P3 记录）
+- expiresIn 改动无行为级单测（access-service 无 AuthServiceImpl 单测）；由单一权威来源（`SaManager.getConfig().getTimeout()` = sa-token.timeout）与 Context 测试断言（权威值 + 无独立键残留）保证（评审 P3 记录）

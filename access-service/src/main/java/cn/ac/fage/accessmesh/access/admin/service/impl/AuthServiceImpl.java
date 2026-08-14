@@ -27,10 +27,10 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -113,15 +113,16 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 平台用户会话过期展示口径（秒）。
      * <p>
-     * T-ACCESS-003：与 sa-token.timeout=7200 保持一致（权威值 2 小时，yml 中
-     * access.session.expires-in-seconds 为唯一权威来源），login/smsLogin 返回的
-     * expiresIn 使用此值；OAuth2 /oauth2/token 的 access_token 有效期继续用
-     * 客户端注册 TTL（架构 §6.1，不套用本口径）。无字段初始化：@Value 注入恒覆盖，
-     * 默认值仅兜底非 Spring 实例化场景。
+     * T-ACCESS-003 评审 P2 修复（2026-08-14）：单一权威来源 = {@link SaManager#getConfig()}
+     * 的 sa-token.timeout（真实会话 TTL，配置驱动）。原独立配置键
+     * access.session.expires-in-seconds 与 sa-token.timeout 双源耦合，Nacos 只覆盖
+     * 其中一项时 LoginResp.expiresIn 与实际会话漂移。OAuth2 /oauth2/token 的
+     * access_token 有效期继续用客户端注册 TTL（架构 §6.1，不套用本口径）。
      * </p>
      */
-    @Value("${access.session.expires-in-seconds:7200}")
-    private int expiresInSeconds;
+    private long expiresInSeconds() {
+        return SaManager.getConfig().getTimeout();
+    }
 
     private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
     private static final String OPERATION_VIEW = "VIEW";
@@ -247,7 +248,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResp(
             token,
             null,
-            expiresInSeconds,
+            expiresInSeconds(),
             "Bearer",
             user.getId(),
             user.getUsername(),
@@ -296,7 +297,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResp(
             token,
             null,
-            expiresInSeconds,
+            expiresInSeconds(),
             "Bearer",
             user.getId(),
             user.getUsername(),

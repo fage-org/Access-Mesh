@@ -167,21 +167,27 @@ class AccessServiceApplicationTest {
         assertTrue(applicationContext.getBeanNamesForType(CacheService.class).length == 1,
             "CacheService 必须唯一");
 
-        // 唯一 ObjectMapper（删除 permission RedisConfig 裸 ObjectMapper 后由 Boot 自动配置独占）
+        // 唯一 ObjectMapper：删除 permission RedisConfig 裸 ObjectMapper 后，
+        // 全局唯一实例由 common 缓存框架 CacheAutoConfiguration.cacheObjectMapper 提供
+        // （条件评估顺序：common jar 在 classpath 前部先注册，Boot 的 jacksonObjectMapper 回退）。
+        // 注：spring.jackson.* 配置不驱动全局（评审 P2 结论，用户决策接受现状），
+        // 该 mapper 已注册 JavaTimeModule + 禁用时间戳，LocalDateTime 输出 ISO-8601。
         assertNotNull(applicationContext.getBean(ObjectMapper.class));
         assertTrue(applicationContext.getBeanNamesForType(ObjectMapper.class).length == 1,
             "ObjectMapper 必须唯一");
     }
 
     /**
-     * T-ACCESS-003 验收：唯一 ObjectMapper 序列化可用（JavaTimeModule 生效，LocalDateTime 可序列化）。
+     * T-ACCESS-003 验收：唯一 ObjectMapper 序列化可用（JavaTimeModule 生效，
+     * LocalDateTime 输出 ISO-8601 —— 精确断言，评审 P2 修正）。
      */
     @Test
-    @DisplayName("T-ACCESS-003：ObjectMapper JavaTimeModule 生效，LocalDateTime 序列化可用")
+    @DisplayName("T-ACCESS-003：ObjectMapper JavaTimeModule 生效，LocalDateTime 输出 ISO-8601")
     void objectMapperSerializesLocalDateTime() throws Exception {
         ObjectMapper mapper = applicationContext.getBean(ObjectMapper.class);
         String json = mapper.writeValueAsString(LocalDateTime.of(2026, 8, 13, 10, 30, 0));
-        assertTrue(json.contains("2026"), "LocalDateTime 应可序列化，实际 " + json);
+        assertTrue(json.contains("2026-08-13T10:30:00"),
+            "LocalDateTime 应输出 ISO-8601（2026-08-13T10:30:00），实际 " + json);
     }
 
     /**
@@ -202,16 +208,17 @@ class AccessServiceApplicationTest {
     }
 
     /**
-     * T-ACCESS-003 评审修复（P3）：expiresIn 配置键唯一权威来源防漂移。
-     * yml 的 access.session.expires-in-seconds 被 AuthServiceImpl @Value 读取（默认值兜底），
-     * 若 yml 键被误删，@Value 会静默回退 7200 掩盖漂移——此断言确保配置键存在且为权威值。
+     * T-ACCESS-003 评审 P2 修复（2026-08-14）：expiresIn 单一权威来源防漂移。
+     * AuthServiceImpl 的 LoginResp.expiresIn 直接读 SaManager.getConfig().getTimeout()（sa-token.timeout），
+     * 无独立 expiresIn 配置键——Nacos 只覆盖 sa-token.timeout 时展示自动跟随真实 TTL。
+     * 此断言确保 sa-token.timeout 为权威值（见 saTokenConfigMatchesAuthority），并确认独立键已移除
+     * （防旧配置残留漂移）。
      */
     @Test
-    @DisplayName("T-ACCESS-003：expires-in-seconds 配置键存在且为权威值 7200")
-    void expiresInConfigKeyMatchesAuthority() {
-        String value = applicationContext.getEnvironment().getProperty("access.session.expires-in-seconds");
-        assertNotNull(value, "access.session.expires-in-seconds 配置键必须存在（AuthServiceImpl @Value 依赖）");
-        assertTrue("7200".equals(value), "expires-in-seconds 必须为 7200（与 sa-token.timeout 一致），实际 " + value);
+    @DisplayName("T-ACCESS-003：expiresIn 无独立配置键（单一来源 sa-token.timeout）")
+    void expiresInHasSingleAuthoritySource() {
+        String staleKey = applicationContext.getEnvironment().getProperty("access.session.expires-in-seconds");
+        assertTrue(staleKey == null, "access.session.expires-in-seconds 独立键已移除（评审 P2 修复），残留 " + staleKey);
     }
 
     /**

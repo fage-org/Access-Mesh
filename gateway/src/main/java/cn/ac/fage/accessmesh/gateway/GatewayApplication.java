@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.gateway;
 
+import cn.ac.fage.accessmesh.common.config.CommonAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -12,8 +13,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 提供 API 网关功能，包括路由转发、认证校验、权限校验等。
  * 使用 Spring Cloud Gateway 实现响应式网关，启用服务发现。
  * </p>
+ *
+ * <p>T-ACCESS-003 评审 P1 修复（2026-08-14）：排除 {@link CommonAutoConfiguration}。
+ * common 的 GlobalExceptionHandler / PermResultResponseAdvice 是 WebMvc（Servlet）组件，
+ * Gateway 为 WebFlux 应用，加载后与 gateway 自身的 GlobalExceptionHandler 同名 Bean 冲突
+ * 导致上下文无法启动（归并前既有缺陷，由新 Gateway 上下文测试暴露）。
+ * 排除后 common 的缓存自动配置（CacheAutoConfiguration/RedissonCacheAutoConfiguration
+ * 独立注册于 AutoConfiguration.imports）与 BizException/SystemException（普通类）不受影响。</p>
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = CommonAutoConfiguration.class)
 @EnableDiscoveryClient
 @EnableScheduling
 public class GatewayApplication {

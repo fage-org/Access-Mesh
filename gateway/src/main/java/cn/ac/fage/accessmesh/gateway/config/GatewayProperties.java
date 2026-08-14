@@ -13,10 +13,16 @@ import java.util.List;
  * 绑定到'gateway'前缀的配置属性，包含白名单、缓存、请求头、权限、签名等配置。
  * 通过application.yml中的gateway.*配置项进行配置。
  * </p>
+ *
+ * <p>T-ACCESS-003 评审 P1 修复（2026-08-14）：指定 Bean 名 {@code accessGatewayProperties}。
+ * 默认 Bean 名 {@code gatewayProperties} 与 Spring Cloud Gateway 自带的
+ * {@code org.springframework.cloud.gateway.config.GatewayProperties}（GatewayAutoConfiguration
+ * 创建）同名冲突，导致上下文无法启动（归并前既有缺陷，由新 Gateway 上下文测试暴露）。
+ * 注入点按类型（cn.ac.fage.accessmesh.gateway.config.GatewayProperties）查找不受影响。</p>
  */
 @Getter
 @Setter
-@Component
+@Component("accessGatewayProperties")
 @ConfigurationProperties(prefix = "gateway")
 public class GatewayProperties {
 

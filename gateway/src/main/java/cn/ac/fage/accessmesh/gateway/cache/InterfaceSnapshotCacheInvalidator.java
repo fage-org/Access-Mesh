@@ -101,7 +101,9 @@ public class InterfaceSnapshotCacheInvalidator {
         return keys;
     }
 
-    @Scheduled(fixedDelayString = "#{@gatewayProperties.cache.l1.staleGraceSeconds * 2000L}")
+    // T-ACCESS-003 评审 P1 修复：Bean 名 accessGatewayProperties（自定义配置类指定名，
+    // 避免与 Spring Cloud Gateway 自带 GatewayProperties 的默认 bean 名冲突）
+    @Scheduled(fixedDelayString = "#{@accessGatewayProperties.cache.l1.staleGraceSeconds * 2000L}")
     void cleanupOrphanedMarkers() {
         invalidationMarker.retainLiveKeys(liveKeys());
     }
