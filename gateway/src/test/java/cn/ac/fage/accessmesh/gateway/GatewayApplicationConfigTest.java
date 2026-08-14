@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.context.TestPropertySource;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -104,6 +105,20 @@ class GatewayApplicationConfigTest {
     void redisConfigLoadsDatabaseZero() {
         String db = applicationContext.getEnvironment().getProperty("spring.data.redis.database");
         assertTrue("0".equals(db), "Redis database 必须为 0（与 access-service 共享会话存储），实际 " + db);
+    }
+
+    /**
+     * T-ACCESS-003 第三轮评审 P2 修复（2026-08-14）：日志实现回归校验。
+     * 若 spring-boot-starter-logging（Logback）再次进入 classpath（与 log4j2 双 Provider 并存时
+     * SLF4J 实际选择 Logback），log4j2-spring.xml 配置会被忽略——此断言确保 SLF4J 绑定 Log4j2。
+     */
+    @Test
+    @DisplayName("日志实现为 Log4j2（log4j2-spring.xml 生效的前提，防 Logback 回归）")
+    void loggingImplementationIsLog4j2() {
+        org.slf4j.ILoggerFactory factory = LoggerFactory.getILoggerFactory();
+        assertTrue(factory instanceof org.apache.logging.slf4j.Log4jLoggerFactory,
+            "SLF4J 必须绑定 Log4j2（若为 Logback 则 log4j2-spring.xml 被忽略），实际 " + factory.getClass().getName());
+        // Logback 已从依赖树排除（pom 排除 spring-boot-starter-logging），其类不在 classpath，无需反向断言
     }
 
     @Test

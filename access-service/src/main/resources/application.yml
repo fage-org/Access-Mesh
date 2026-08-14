@@ -27,15 +27,10 @@ spring:
       port: 6379
       password: ${REDIS_PASSWORD:}
       database: 0
-  jackson:
-    # 评审 P2 结论（2026-08-14，用户决策接受现状）：全局唯一 ObjectMapper 由 common 缓存框架
-    # cacheObjectMapper 提供（JavaTimeModule + 禁用时间戳，LocalDateTime 输出 ISO-8601），
-    # spring.jackson.* 配置当前不驱动全局实例（条件评估顺序所致）；date-time-format 仅作用
-    # java.util.Date，响应 DTO 几乎全 LocalDateTime，无实际影响。保留本配置供未来装配顺序
-    # 调整（Boot jacksonObjectMapper 全局）时生效。
-    date-time-format: yyyy-MM-dd HH:mm:ss
-    serialization:
-      write-dates-as-timestamps: false
+  # 第三轮评审 P3 修复（2026-08-14）：spring.jackson.* 配置块已删除——date-time-format 非 Boot
+  # 有效键（JacksonProperties 仅暴露 date-format），且全局 ObjectMapper 由 common cacheObjectMapper
+  # 提供（JavaTimeModule + 禁用时间戳，LocalDateTime 输出 ISO-8601），spring.jackson.* 不驱动全局，
+  # 保留无效配置误导维护。
   servlet:
     multipart:
       max-file-size: 100MB

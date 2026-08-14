@@ -26,7 +26,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-08-13
+last_updated: 2026-08-14
 ---
 
 # T-ACCESS-003 收敛单数据源、MyBatis、Redis、JSON等运行基础配置
@@ -95,6 +95,18 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 
 **P1 修复的部署语义**（评审未列但核实附带）：Gateway 迁移后 `spring.config.import: optional:nacos:gateway.yml` 与 access-service 同模式，Nacos 配置（gateway.yml 若存在）开始真正加载——**归并前 Gateway 的所有配置（含 Nacos 远端）实际从未生效**，本任务修复后首次按配置运行，生产部署需核对 Nacos 中 gateway.yml 是否存在（不存在则 optional 静默跳过，仅本地 application.yml 生效）。
 
+### 第三轮评审修复（2026-08-14，复评：1 P2 + 2 P3）
+
+复评确认前两轮核心问题已修复，新发现 3 项（无决策点，方向明确直接处理）：
+
+| # | 评审问题 | 严重度 | 核实结论 | 处理 |
+|---|---|---|---|---|
+| 1 | **Gateway 实际使用 Logback，Log4j2 配置完全未生效**（perm-gateway-spring-boot-starter → spring-boot-starter → spring-boot-starter-logging 传递引入，与显式 log4j2 双 Provider 并存，SLF4J 实际选择 Logback；log4j2-spring.xml 的 Configuration/Appenders/Loggers 被 Logback 当作未知属性忽略，JSON 日志/滚动策略/级别配置不可靠，违反 project-rules 日志规范） | P2 | 成立（dependency:tree 证实传递链） | gateway/pom.xml 对 perm-gateway-spring-boot-starter 排除 spring-boot-starter-logging（与 access-service 对 perm-client-spring-boot-starter 的处理同模式）；依赖树复核只剩 log4j2；`GatewayApplicationConfigTest` 新增日志实现回归断言（SLF4J 必须绑定 Log4j2LoggerFactory、不得为 Logback LoggerContext） |
+| 2 | 保留的 Jackson「未来配置」使用无效属性名（`spring.jackson.date-time-format` 非 Boot 3.2.4 有效键，JacksonProperties 仅暴露 `date-format`；未来切换 Boot Mapper 也不会生效，注释不成立） | P3 | 成立（且即使改为有效键 date-format 也仅作用 java.util.Date，响应 DTO 几乎全 LocalDateTime 无实际意义） | 删除 application.yml 整个 spring.jackson 配置块（含上轮注释），不留无效配置 |
+| 3 | 任务卡两处过期信息（last_updated 仍 2026-08-13；验收表「4 个新断言」未统一为 5 个） | P3 | 成立 | last_updated → 2026-08-14；验收表 → 5 个新断言 |
+
+**第三轮修复验证**：Gateway 全量 73 测试 0 失败（新增日志实现回归断言）；access-service 全量回归见提交前验证。
+
 ### 验收项落实情况
 
 | 验收项 | 结论 |
@@ -105,7 +117,7 @@ AI 评审（4 维度并行 + verify 对抗核实）发现 4 项问题，全部�
 | 删除重复配置（TenantContextHolder/MybatisFlexTenantConfig/自定义 ObjectMapper/重复序列化） | 已删除（前两者 T-ACCESS-002 已唯一化；本任务删除 RedisConfig 裸 ObjectMapper 与 RedisTemplate 序列化配置） |
 | 删除 admin Spring Cache/裸 Caffeine 与业务侧 RedisTemplate 直接操作 | Spring Cache/Caffeine 已删；业务侧 StringRedisTemplate 按用户决策保留（见决策 4） |
 | 配置不再引用 admin_db/perm_db/两套 Redis DB | 已满足（盘点零残留：代码/配置/测试均无 admin_db、perm_db；Redis 仅 gateway/access 两处 database: 0） |
-| 应用上下文测试证明 Bean 唯一且序列化、租户解析可用 | 已强化（4 个新断言，见实施 5） |
+| 应用上下文测试证明 Bean 唯一且序列化、租户解析可用 | 已强化（5 个新断言，见实施 5） |
 
 ### 范围外登记（后续任务输入）
 

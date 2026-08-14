@@ -33,6 +33,17 @@
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-gateway-spring-boot-starter</artifactId>
+            <!-- T-ACCESS-003 第三轮评审 P2 修复（2026-08-14）：排除 spring-boot-starter-logging 传递依赖。
+                 经 perm-gateway-spring-boot-starter → spring-boot-starter 引入 Logback，与显式
+                 spring-boot-starter-log4j2 并存时 SLF4J 双 Provider，实际选择 Logback 导致
+                 log4j2-spring.xml（JSON 日志/滚动策略/级别配置）全部被忽略（违反项目日志规范）。
+                 与 access-service 对 perm-client-spring-boot-starter 的处理同模式。 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
