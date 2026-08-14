@@ -123,6 +123,20 @@ class SecurityMatrixIT {
             .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("评审 P1-1：会话型认证端点 /auth/userinfo 无会话 → 401（不再匿名放行）")
+    void authSessionEndpoint_withoutLogin_rejected401() throws Exception {
+        mockMvc.perform(post("/auth/userinfo"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("评审 P3：精确路径 /actuator 匿名放行（公开契约一致）")
+    void actuatorRootPath_allowsAnonymous() throws Exception {
+        var result = mockMvc.perform(get("/actuator")).andReturn();
+        assertThat(result.getResponse().getStatus()).isNotIn(401, 403, 400);
+    }
+
     // 评审 P1-1（/error ERROR dispatch 不 401 掩蔽）由 RequestContextInterceptorTest 单测覆盖
     // （MockHttpServletRequest.setDispatcherType(ERROR) 直接验证拦截器分支）
 

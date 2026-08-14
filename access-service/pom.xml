@@ -210,6 +210,16 @@
                         <!-- 禁用 Nacos SpringApplicationRunListener 默认日志：测试不得在构建目录外写日志文件（如 ~/logs/nacos/config.log） -->
                         <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
                     </systemPropertyVariables>
+                    <!-- T-ACCESS-004 评审 P1-2（2026-08-14，用户决策 Surefire 纳入）：
+                         安全矩阵 IT（SecurityMatrixIT/SyncEndpointAuthIT）必须随默认 mvn test 执行，
+                         Surefire 默认规则排除 *IT.java，显式 include 接入。 -->
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
                 </configuration>
             </plugin>
         </plugins>

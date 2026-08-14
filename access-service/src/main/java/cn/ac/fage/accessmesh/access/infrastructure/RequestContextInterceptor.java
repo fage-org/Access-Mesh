@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -36,12 +36,12 @@ import java.util.UUID;
  * </p>
  */
 @Component
-public class RequestContextInterceptor implements HandlerInterceptor {
+public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(RequestContextInterceptor.class);
 
     /** 公开路径前缀（匿名可访问）。 */
-    private static final String[] PUBLIC_PREFIXES = {"/auth/", "/actuator/"};
+    private static final String[] PUBLIC_PREFIXES = {"/actuator"};
 
     /** 请求 ID 请求头（Gateway 注入）。 */
     private static final String HEADER_REQUEST_ID = "X-Request-Id";
@@ -77,7 +77,7 @@ public class RequestContextInterceptor implements HandlerInterceptor {
 
         String uri = request.getRequestURI();
 
-        // 1. 公开路径：匿名上下文（登录/验证码/OAuth2/actuator 健康检查）
+        // 1. 公开路径：匿名上下文（/auth/** 公开子集 + /actuator/**，评审 P1-1 精确化）
         if (isPublicPath(uri)) {
             AccessRequestContext.bind(RequestContext.anonymous());
             setMdc(request, null, null, null);
@@ -210,6 +210,21 @@ public class RequestContextInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
+        clearContextAndMdc();
+    }
+
+    /**
+     * Servlet 异步处理开始（评审 P2，2026-08-14）：原请求线程可能提前返回线程池，
+     * 立即清理上下文与 MDC，防止线程复用串扰；异步处理线程需要上下文时
+     * 必须显式 snapshot/restore（验收要求：异步路径显式建立/传递上下文）。
+     */
+    @Override
+    public void afterConcurrentHandlingStarted(HttpServletRequest request,
+                                               HttpServletResponse response, Object handler) {
+        clearContextAndMdc();
+    }
+
+    private static void clearContextAndMdc() {
         AccessRequestContext.clear();
         MDC.remove(MDC_TRACE_ID);
         MDC.remove(MDC_USER_ID);
@@ -217,13 +232,38 @@ public class RequestContextInterceptor implements HandlerInterceptor {
         MDC.remove(MDC_SERVICE_CODE);
     }
 
+    /**
+     * 公开路径判定（评审 P1-1/P3，2026-08-14）。
+     * <p>
+     * 只匿名放行明确公开端点：/actuator/**（含精确根路径 /actuator，评审 P3）与
+     * /auth/** 的公开子集（验证码/登录/令牌/撤销/登出）。其余 /auth/** 端点
+     * （userinfo/user-menu/oauth2-authorize/oauth2-userinfo）需会话，进入 USER 分支——
+     * 修复登录用户查询无租户上下文（跨租户查询风险）与 OAuth2 授权码空租户问题。
+     * </p>
+     */
     private static boolean isPublicPath(String uri) {
         for (String prefix : PUBLIC_PREFIXES) {
             if (uri.startsWith(prefix)) {
                 return true;
             }
         }
+        if (uri.startsWith("/auth/")) {
+            return isPublicAuthEndpoint(uri);
+        }
         return false;
+    }
+
+    /**
+     * /auth/** 公开子集：验证码、登录（密码/短信）、OAuth2 令牌/刷新/撤销、登出。
+     * logout 匿名放行保持未登录 200 幂等语义（无租户需求，StpUtil 自保护，用户决策）。
+     */
+    private static boolean isPublicAuthEndpoint(String uri) {
+        return uri.equals("/auth/captcha")
+            || uri.equals("/auth/login") || uri.equals("/auth/login/sms")
+            || uri.equals("/auth/oauth2/token")
+            || uri.equals("/auth/oauth2/refresh")
+            || uri.equals("/auth/oauth2/revoke")
+            || uri.equals("/auth/logout");
     }
 
     /**

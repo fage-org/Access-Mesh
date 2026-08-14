@@ -182,7 +182,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 | 入口 | 调用方要求 | 关键约束 | 实现 |
 |---|---|---|---|
-| `/auth/**` 公开子集 | 匿名 | 只开放登录、验证码、OAuth2 token 等明确接口；logout/userinfo/user-menu 由端点内部 StpUtil 自保护 | ANONYMOUS 上下文；登录会话键 tenantId + subjectTypeCode |
+| `/auth/**` 公开子集 | 匿名/会话 | 精确拆分（评审 P1-1）：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize, oauth2/userinfo} 需会话 → USER 分支（登录时绑定会话租户/操作者，防跨租户查询与空租户授权码） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
 | 用户管理接口（`/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
 | `/api/perm/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
 | `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |

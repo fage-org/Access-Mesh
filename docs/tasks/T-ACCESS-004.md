@@ -75,9 +75,16 @@ last_updated: 2026-08-14
 
 **契约变更标注（评审 P2-3）**：无会话非公开路径从"服务层 500/异常"改为拦截器显式 401（G3 修复有意为之）；前端/调用方 401 语义=触发 token 过期重登逻辑，Gateway 已拦截场景下无副作用。
 
-**验证**：access-service **408 测试 0 失败 19 跳过**（378 基线 + 30 新增）。新增：`AccessRequestContextTest`(8)、`RequestContextInterceptorTest`(17，含 mockStatic 会话分支 6 用例)、`OperatorContextTest`(4)、`SecurityMatrixIT`(8 矩阵用例，全量 Context + 真实链)。适配：`HeaderSignatureInterceptorTest`(9，G1 分支新用例)、`SyncEndpointAuthIT`(9，用例 4 断言 200→403、用例 7 断言 403→200)、6 个 sync service 测试（mock 请求头 → 绑定 SERVICE 上下文）。
+**验证**：access-service 默认 `mvn test` **433 测试 0 失败 19 跳过**（408 + 二轮评审修复 6 + IT 接入后 SecurityMatrixIT 10 / SyncEndpointAuthIT 9 随默认构建执行）。新增：`AccessRequestContextTest`(8)、`RequestContextInterceptorTest`(22，含 mockStatic 会话分支与 /auth 拆分/异步清理用例)、`OperatorContextTest`(4)、`SecurityMatrixIT`(10 矩阵用例，全量 Context + 真实链)。适配：`HeaderSignatureInterceptorTest`(9，G1 分支新用例)、`SyncEndpointAuthIT`(9，用例 4 断言 200→403、用例 7 断言 403→200)、6 个 sync service 测试（mock 请求头 → 绑定 SERVICE 上下文）。
 
 **评审**：安全评审（ecc:security-reviewer）+ 代码评审（ecc:java-reviewer）+ 对抗核实（修复复核）。评审结论：无 P0；P1×1（/error 401 掩蔽，已修）；P2 修复 4 项（actuator 签名链排除、会话头格式 400、MDC 截断、actuator 最小暴露）+ 登记 3 项；P3 修复 3 项（冗余工厂、构造校验、注释/测试补全）。
+
+**外部评审二轮（2026-08-14，2 P1 + 1 P2 + 1 P3，全部核实成立并修复）**：
+
+- **P1（/auth/** 统一匿名绑定）**：/auth/** 全匿名导致 userinfo/user-menu/oauth2-authorize 登录后无租户上下文（getUserInfo 以 null 租户查询 → MyBatis-Flex 不过滤 → 跨租户查询风险；OAuth2 授权码写入 null 租户 → JWT tenant_id 降级）。**用户决策**：/auth/** 精确拆分——公开子集 {captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名（logout 保持未登录 200 幂等语义，无租户需求）；{userinfo, user-menu, oauth2/authorize, oauth2/userinfo} 进入会话 USER 分支（登录时绑定会话租户/操作者）。注：此问题为存量（旧 TenantInterceptor 对 /auth/** 同样不设租户），T-ACCESS-004 验收"租户/主体提取端到端一致"驱动修复。
+- **P1（安全矩阵 IT 未接入默认构建）**：Surefire 默认规则排除 `*IT.java`，SecurityMatrixIT/SyncEndpointAuthIT 不随 mvn test 执行。**用户决策**：Surefire includes 显式接入 `**/*IT.java`（无新插件）；默认构建现含全部 IT。
+- **P2（Servlet 异步生命周期）**：无异步 MVC Controller（潜在缺陷）；实现 `AsyncHandlerInterceptor.afterConcurrentHandlingStarted` 清理原线程上下文与 MDC（异步线程需上下文时显式 snapshot/restore）。
+- **P3（精确 /actuator 根路径）**：`/actuator` 不匹配 `/actuator/` 前缀 → 401；公开判定补充精确根路径。
 
 **范围外登记**：
 - serviceCode-tenantId 绑定校验（查 service_config 注册，防凭证持有者任意声明服务身份/租户）→ T-ACCESS-005/010 服务白名单。

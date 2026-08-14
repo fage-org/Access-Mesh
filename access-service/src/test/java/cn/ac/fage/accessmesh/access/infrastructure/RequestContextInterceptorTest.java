@@ -90,6 +90,92 @@ class RequestContextInterceptorTest {
     }
 
     @Test
+    @DisplayName("评审 P3：精确路径 /actuator（根发现端点）→ 匿名放行")
+    void shouldBindAnonymous_whenExactActuatorRootPath() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/actuator");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(resp.getStatus()).isEqualTo(200);
+        assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.ANONYMOUS);
+    }
+
+    @Test
+    @DisplayName("评审 P1-1：/auth/userinfo 未登录 → 401（会话端点不再匿名放行）")
+    void shouldReject_whenAuthSessionEndpointWithoutLogin() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(false);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/userinfo");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
+            assertThat(AccessRequestContext.get()).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("评审 P1-1：/auth/userinfo 已登录 → USER 上下文（会话租户绑定，修复空租户查询）")
+    void shouldBindUser_whenAuthSessionEndpointWithLogin() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(true);
+            mocked.when(StpUtil::getLoginIdAsLong).thenReturn(100L);
+            SaSession session = mock(SaSession.class);
+            when(session.get("tenantId")).thenReturn(1L);
+            mocked.when(StpUtil::getSession).thenReturn(session);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/userinfo");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isTrue();
+            assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.USER);
+            assertThat(AccessRequestContext.getOperatorId()).isEqualTo(100L);
+            assertThat(AccessRequestContext.getTenantId()).isEqualTo(1L);
+        }
+    }
+
+    @Test
+    @DisplayName("评审 P1-1：/auth/logout 匿名放行（用户决策：保持未登录 200 幂等语义）")
+    void shouldBindAnonymous_whenLogoutPath() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(false);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/logout");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isTrue();
+            assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.ANONYMOUS);
+        }
+    }
+
+    @Test
+    @DisplayName("评审 P2：afterConcurrentHandlingStarted 清理上下文与 MDC（异步线程切换防串扰）")
+    void afterConcurrentHandlingStartedShouldClearContextAndMdc() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("X-Tenant-Id", "1");
+        req.addHeader("X-Service-Code", "example-service");
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        interceptor.preHandle(req, resp, new Object());
+        assertThat(AccessRequestContext.getServiceCode()).isEqualTo("example-service");
+
+        interceptor.afterConcurrentHandlingStarted(req, resp, new Object());
+
+        assertThat(AccessRequestContext.get()).isNull();
+        assertThat(MDC.get("traceId")).isNull();
+        assertThat(MDC.get("serviceCode")).isNull();
+    }
+
+    @Test
     @DisplayName("内部凭证 + X-User-Id 无 SIGNATURE_VERIFIED → 403（纵深防链序绕过）")
     void shouldReject_whenInternalWithUserIdWithoutVerifiedAttribute() throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/domain-config/list");
