@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.admin.dto.oauth2.*;
+import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
@@ -241,8 +242,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             }
 
             // 生成新的访问令牌
-            String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId, refreshTokenData.getScope());
             int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
+            String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId,
+                refreshTokenData.getScope(), accessTokenTtl);
             int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
 
             // 生成新的刷新令牌
@@ -280,7 +282,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     public void revokeToken(String accessToken) {
         if (accessToken != null && !accessToken.isBlank()) {
             // JWT 令牌：添加到 Redis 黑名单
-            String blackKey = "oauth2:blacklist:" + extractJti(accessToken);
+            String blackKey = OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + extractJti(accessToken);
             long ttl = getTokenRemainingTtl(accessToken);
             if (ttl > 0) {
                 redisTemplate.opsForValue().set(blackKey, "1", ttl, TimeUnit.SECONDS);
@@ -301,7 +303,10 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
-        SysUser user = userDomainService.selectValidById(null, userId);
+        // 评审三轮 P1 修复（2026-08-14）：原硬编码 null 租户（tenant_id = null 恒查不到，
+        // 端点从未可用）。改为读可信上下文租户（拦截器 OAuth2 JWT / 会话认证后绑定）。
+        Long tenantId = TenantContextHolder.getTenantId();
+        SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null) {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
                 AdminErrorCode.USER_NOT_FOUND.getMessage());
@@ -393,7 +398,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
         String scope = codeData.getScope();
 
-        String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope);
+        String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope, accessTokenTtl);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 存储刷新令牌
@@ -423,9 +428,10 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @param userId 用户ID
      * @param clientId 客户端ID
      * @param scope 授权范围
+     * @param accessTokenTtl 访问令牌有效期（秒，客户端配置；拦截器验签校验 EFF）
      * @return JWT访问令牌字符串
      */
-    private String generateAccessToken(long userId, String clientId, String scope) {
+    private String generateAccessToken(long userId, String clientId, String scope, int accessTokenTtl) {
         Map<String, Object> extraData = new LinkedHashMap<>();
         extraData.put("client_id", clientId);
         // 从 TenantContextHolder 获取实际的 tenantId
@@ -436,9 +442,20 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
         extraData.put("jti", UUID.randomUUID().toString().replace("-", ""));
 
-        // SaJwtUtil.createToken(key, loginId, extraData, tokenType)
-        return SaJwtUtil.createToken(jwtSecretKey, userId, extraData, "Bearer");
+        // 评审三轮 P1 修复（2026-08-14）：
+        // ① 原参数错位——createToken 签名为 (loginType, loginId, extraData, keyt)，存量把
+        //    jwtSecretKey 当 loginType、字面量 "Bearer" 当签名密钥（任何持有者可伪造 OAuth2 token，
+        //    存量安全漏洞）。修复：loginType=oauth2（与 RequestContextInterceptor 验签一致）、
+        //    keyt=jwt-secret-key。
+        // ② 4 参 createToken 不设置有效期（EFF），拦截器验签（isCheckTimeout=true）必抛"已过期"；
+        //    改 6 参（带 timeout）由 SaJwtTemplate 写入 EFF=now+ttl。
+        // 项目未部署（空库），无存量 token 兼容负担；载荷不变（loginId/tenant_id/jti/scope）。
+        return SaJwtUtil.createToken(OAuth2JwtSupport.LOGIN_TYPE, userId, DEVICE,
+            accessTokenTtl, extraData, jwtSecretKey);
     }
+
+    /** JWT device claim（不影响验签，固定标识 OAuth2 流程）。 */
+    private static final String DEVICE = "oauth2";
 
     /**
      * 验证PKCE码挑战

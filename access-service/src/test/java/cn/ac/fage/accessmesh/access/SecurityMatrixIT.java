@@ -70,6 +70,8 @@ class SecurityMatrixIT {
 
     private static final String SIGN_SECRET = "test-signature-secret-for-security-matrix";
     private static final String INTERNAL_SECRET = "test-internal-secret-for-security-matrix";
+    /** OAuth2 JWT 签发/验签密钥（= 测试属性 JWT_SECRET_KEY，拦截器 @Value 注入同值）。 */
+    private static final String JWT_SECRET = "test-jwt-secret-for-security-matrix";
 
     @Autowired
     private MockMvc mockMvc;
@@ -83,6 +85,14 @@ class SecurityMatrixIT {
     /** 认证业务层 mock（/auth/captcha 走真实服务会触达 Redis——mock 连接工厂无 connection）。 */
     @MockBean
     private cn.ac.fage.accessmesh.access.admin.service.AuthService authService;
+
+    /** OAuth2 userinfo 正向链路：mock 用户查询（评审三轮 P1 修复验证）。 */
+    @MockBean
+    private cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService userDomainService;
+
+    /** OAuth2 JWT 黑名单检查依赖（底层 mock 连接工厂无 connection，hasKey 默认 false=未撤销）。 */
+    @MockBean
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     /** sync 业务层 mock（矩阵验证目标为身份层放行）。 */
     @MockBean
@@ -135,6 +145,28 @@ class SecurityMatrixIT {
     void actuatorRootPath_allowsAnonymous() throws Exception {
         var result = mockMvc.perform(get("/actuator")).andReturn();
         assertThat(result.getResponse().getStatus()).isNotIn(401, 403, 400);
+    }
+
+    @Test
+    @DisplayName("评审三轮 P1：OAuth2 签发 JWT → /auth/oauth2/userinfo 200（正向链路修复验证）")
+    void oauth2Userinfo_withIssuedJwt_allowed() throws Exception {
+        // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
+        long ts = System.currentTimeMillis() / 1000;
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts), JWT_SECRET);
+        cn.ac.fage.accessmesh.access.admin.entity.SysUser user = new cn.ac.fage.accessmesh.access.admin.entity.SysUser();
+        user.setId(100L);
+        user.setTenantId(1L);
+        user.setUsername("oauth2-user");
+        when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
+
+        mockMvc.perform(post("/auth/oauth2/userinfo")
+                .header("Authorization", "Bearer " + jwt))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                .jsonPath("$.data.sub").value("100"));
+        // afterCompletion 清理（防泄漏断言）
+        assertThat(AccessRequestContext.get()).isNull();
     }
 
     // 评审 P1-1（/error ERROR dispatch 不 401 掩蔽）由 RequestContextInterceptorTest 单测覆盖

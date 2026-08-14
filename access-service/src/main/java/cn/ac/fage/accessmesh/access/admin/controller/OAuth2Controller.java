@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.oauth2.*;
 import cn.ac.fage.accessmesh.access.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.common.model.PermResult;
-import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -112,7 +111,10 @@ public class OAuth2Controller {
      */
     @PostMapping("/userinfo")
     public PermResult<OAuth2UserInfoResp> userinfo() {
-        Long userId = StpUtil.getLoginIdAsLong();
+        // 评审三轮 P1 修复（2026-08-14）：端点契约要求第三方携带 OAuth2 JWT 访问令牌，
+        // 平台会话（uuid 模式）不解析 JWT——改为读可信上下文操作者
+        // （RequestContextInterceptor 已对 OAuth2 JWT 验签 + 黑名单检查后绑定）。
+        Long userId = cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.getOperatorId();
         return PermResult.success(oauth2Service.getClientUserInfo(userId));
     }
 

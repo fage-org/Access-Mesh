@@ -1,11 +1,17 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.dev33.satoken.exception.SaTokenException;
+import cn.dev33.satoken.jwt.SaJwtTemplate;
+import cn.dev33.satoken.jwt.SaJwtUtil;
 import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.json.JSONObject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
@@ -21,7 +27,7 @@ import java.util.UUID;
  * 由前置 InternalApiSecretInterceptor 写入 attribute）验证后才能绑定。执行顺序：
  * </p>
  * <ol>
- *   <li>公开路径（/auth/**、/actuator/**）→ ANONYMOUS</li>
+ *   <li>公开路径（/auth/** 公开子集：验证码/登录/令牌/撤销/登出；/actuator/**）→ ANONYMOUS</li>
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
@@ -40,9 +46,6 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(RequestContextInterceptor.class);
 
-    /** 公开路径前缀（匿名可访问）。 */
-    private static final String[] PUBLIC_PREFIXES = {"/actuator"};
-
     /** 请求 ID 请求头（Gateway 注入）。 */
     private static final String HEADER_REQUEST_ID = "X-Request-Id";
     /** 服务编码请求头（perm-sdk / Gateway 注入，凭证通过后绑定）。 */
@@ -54,10 +57,21 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     private static final String MDC_TENANT_ID = "tenantId";
     private static final String MDC_SERVICE_CODE = "serviceCode";
 
-    private final SignatureVerifier signatureVerifier;
+    /** 平台用户会话请求头（Bearer 前缀）。 */
+    private static final String HEADER_AUTHORIZATION = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
 
-    public RequestContextInterceptor(SignatureVerifier signatureVerifier) {
+    private final SignatureVerifier signatureVerifier;
+    private final StringRedisTemplate stringRedisTemplate;
+
+    /** OAuth2 JWT 签发/验签密钥（sa-token.jwt-secret-key，T-ACCESS-003 权威配置）。 */
+    @Value("${sa-token.jwt-secret-key:}")
+    private String jwtSecretKey;
+
+    public RequestContextInterceptor(SignatureVerifier signatureVerifier,
+                                     StringRedisTemplate stringRedisTemplate) {
         this.signatureVerifier = signatureVerifier;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     /**
@@ -122,6 +136,14 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             AccessRequestContext.bind(RequestContext.service(tenantId, serviceCode));
             setMdc(request, null, String.valueOf(tenantId), serviceCode);
             return true;
+        }
+
+        // 2.5 OAuth2 JWT 认证（评审三轮 P1，2026-08-14 用户决策完整实现）：
+        // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
+        // 验签（HS256 + loginType）+ 撤销黑名单检查通过后绑定 USER 上下文。
+        String bearerToken = extractBearerToken(request.getHeader(HEADER_AUTHORIZATION));
+        if (bearerToken != null && bearerToken.indexOf('.') >= 0) {
+            return authenticateOAuth2Jwt(request, response, bearerToken);
         }
 
         // 3. Sa-Token 会话权威（admin 域接口 / 直连用户态）
@@ -241,11 +263,75 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * 修复登录用户查询无租户上下文（跨租户查询风险）与 OAuth2 授权码空租户问题。
      * </p>
      */
+    /**
+     * OAuth2 JWT 认证：SaJwtUtil 验签（HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 →
+     * 绑定 USER 上下文（operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
+     */
+    private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
+                                          String token) throws IOException {
+        if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
+            logSecurity(request, "oauth2 jwt auth attempted without jwt secret configured");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+        JSONObject payloads;
+        try {
+            // getPayloads 校验签名 + loginType + 超时，失败抛 SaTokenException
+            payloads = SaJwtUtil.getPayloads(token, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
+        } catch (SaTokenException e) {
+            logSecurity(request, "oauth2 jwt signature or timeout invalid");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        String loginId = payloads.getStr(SaJwtTemplate.LOGIN_ID);
+        String jti = payloads.getStr(OAuth2JwtSupport.JTI_CLAIM);
+        if (loginId == null || loginId.isBlank() || jti == null || jti.isBlank()) {
+            logSecurity(request, "oauth2 jwt missing loginId or jti");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        // 撤销检查：revoke 时写入 oauth2:blacklist:<jti>，TTL=令牌剩余有效期
+        Boolean revoked = stringRedisTemplate.hasKey(OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jti);
+        if (Boolean.TRUE.equals(revoked)) {
+            logSecurity(request, "oauth2 jwt revoked");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        Long operatorId;
+        try {
+            operatorId = Long.parseLong(loginId);
+        } catch (NumberFormatException e) {
+            logSecurity(request, "oauth2 jwt invalid loginId");
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+        Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
+
+        AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
+        setMdc(request, String.valueOf(operatorId),
+            tenantId == null ? null : String.valueOf(tenantId), null);
+        return true;
+    }
+
+    /**
+     * 提取 Bearer 令牌；无 Authorization 头或非 Bearer 前缀返回 null。
+     */
+    private static String extractBearerToken(String authorization) {
+        if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
+            return null;
+        }
+        String token = authorization.substring(BEARER_PREFIX.length()).trim();
+        return token.isEmpty() ? null : token;
+    }
+
     private static boolean isPublicPath(String uri) {
-        for (String prefix : PUBLIC_PREFIXES) {
-            if (uri.startsWith(prefix)) {
-                return true;
-            }
+        // 评审三轮 P3（2026-08-14）：精确限定 /actuator 根路径与 /actuator/ 前缀，
+        // 防止 /actuator-admin 等相邻命名空间被 startsWith 误判为匿名。
+        if (uri.equals("/actuator") || uri.startsWith("/actuator/")) {
+            return true;
         }
         if (uri.startsWith("/auth/")) {
             return isPublicAuthEndpoint(uri);

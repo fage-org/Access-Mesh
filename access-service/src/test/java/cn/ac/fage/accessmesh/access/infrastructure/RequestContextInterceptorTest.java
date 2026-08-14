@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -31,8 +32,10 @@ class RequestContextInterceptorTest {
 
     private static final String SECRET = "test-secret-key-for-interceptor-0123456789";
     private static final int VALID_SECONDS = 300;
+    private static final String JWT_SECRET = "test-jwt-secret-for-interceptor-0123456789";
 
     private RequestContextInterceptor interceptor;
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
 
     @BeforeEach
     void setUp() {
@@ -40,7 +43,10 @@ class RequestContextInterceptorTest {
         ReflectionTestUtils.setField(verifier, "signatureSecret", SECRET);
         ReflectionTestUtils.setField(verifier, "signatureValidSeconds", VALID_SECONDS);
         verifier.validateConfiguration();
-        interceptor = new RequestContextInterceptor(verifier);
+        // T-ACCESS-004 评审三轮 P1：拦截器新增 OAuth2 JWT 认证分支（注入 Redis 黑名单检查）
+        stringRedisTemplate = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
+        interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate);
+        ReflectionTestUtils.setField(interceptor, "jwtSecretKey", JWT_SECRET);
     }
 
     @AfterEach
@@ -100,6 +106,76 @@ class RequestContextInterceptorTest {
         assertThat(result).isTrue();
         assertThat(resp.getStatus()).isEqualTo(200);
         assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.ANONYMOUS);
+    }
+
+    @Test
+    @DisplayName("评审三轮 P3：相邻命名空间 /actuator-admin 不被误判为匿名（未登录 → 401）")
+    void shouldReject_whenAdjacentActuatorNamespaceWithoutLogin() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(false);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("GET", "/actuator-admin");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
+        }
+    }
+
+    @Test
+    @DisplayName("评审三轮 P1：OAuth2 JWT 有效（未撤销）→ USER 上下文绑定（验签+黑名单通过）")
+    void shouldBindUser_whenValidOAuth2Jwt() throws Exception {
+        when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.USER);
+        assertThat(AccessRequestContext.getOperatorId()).isEqualTo(100L);
+        assertThat(AccessRequestContext.getTenantId()).isEqualTo(1L);
+        org.mockito.Mockito.verify(stringRedisTemplate).hasKey("oauth2:blacklist:jti-1");
+    }
+
+    @Test
+    @DisplayName("评审三轮 P1：OAuth2 JWT 已撤销（黑名单命中）→ 401")
+    void shouldReject_whenOAuth2JwtRevoked() throws Exception {
+        when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(401);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
+    @DisplayName("评审三轮 P1：OAuth2 JWT 签名无效（错误密钥签发）→ 401")
+    void shouldReject_whenOAuth2JwtSignatureInvalid() throws Exception {
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), "wrong-secret-key");
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(401);
     }
 
     @Test

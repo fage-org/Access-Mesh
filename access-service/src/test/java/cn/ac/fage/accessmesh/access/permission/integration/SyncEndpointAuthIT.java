@@ -77,7 +77,9 @@ class SyncEndpointAuthIT {
         ReflectionTestUtils.setField(internalInterceptor, "expectedSecret", INTERNAL_SECRET);
         internalInterceptor.validateConfiguration();
 
-        RequestContextInterceptor ctxInterceptor = new RequestContextInterceptor(verifier);
+        // 评审三轮 P1：拦截器新增 OAuth2 JWT 分支（注入 Redis 黑名单检查，mock 连接工厂）
+        RequestContextInterceptor ctxInterceptor = new RequestContextInterceptor(verifier,
+            org.mockito.Mockito.mock(org.springframework.data.redis.core.StringRedisTemplate.class));
 
         // 复制 SecurityWebMvcConfig 的实际拦截器链顺序
         // order=1 InternalApi(/api/perm/**) → order=2 HeaderSignature(/api/**,/internal/**，

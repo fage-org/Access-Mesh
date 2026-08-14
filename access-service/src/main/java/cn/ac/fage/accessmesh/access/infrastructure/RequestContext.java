@@ -31,7 +31,7 @@ public record RequestContext(Long tenantId, Long operatorId, CallerType callerTy
         java.util.Objects.requireNonNull(callerType, "callerType must not be null");
     }
 
-    /** 公开路径匿名上下文（/auth/**、/actuator/**）。 */
+    /** 公开路径匿名上下文（/auth/** 公开子集 + /actuator/**，评审 P1-1 精确拆分）。 */
     public static RequestContext anonymous() {
         return new RequestContext(null, null, CallerType.ANONYMOUS, null);
     }
