@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -148,6 +149,51 @@ class OrgVisibilityQueryServiceImplTest {
 
             assertThat(result).containsExactly(50L);
             verify(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), eq(Set.of(50L)));
+        }
+
+        @Test
+        @DisplayName("缓存 get 异常旁路 DB（fail-open 至数据库层，权限判定仍经 engine，评审修复 P2-1）")
+        void cacheGetFailure_bypassesToDb() {
+            when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L)))
+                .thenThrow(new RuntimeException("redis down"));
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
+            when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+                .thenReturn(1000L);
+            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
+                Map.of(
+                    new ResourceResolveKey(AdminResourceType.ORG, "50", null, null), 5001L,
+                    new ResourceResolveKey(AdminResourceType.ORG, "60", null, null), 6001L));
+            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>(List.of(6001L))); // 60 → denied
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            // 旁路 DB 后仍按引擎过滤，且正常回填缓存
+            assertThat(result).containsExactly(50L);
+            verify(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), eq(Set.of(50L)));
+        }
+
+        @Test
+        @DisplayName("缓存 put 异常不阻断结果（DB 直查结果正常返回，评审修复 P2-1）")
+        void cachePutFailure_servesFromDb() {
+            when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L))).thenReturn(null);
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
+            when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L));
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+                .thenReturn(1000L);
+            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
+                Map.of(new ResourceResolveKey(AdminResourceType.ORG, "50", null, null), 5001L));
+            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>());
+            doThrow(new RuntimeException("redis down"))
+                .when(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), anySet());
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            assertThat(result).containsExactly(50L);
         }
     }
 }

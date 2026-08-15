@@ -99,3 +99,28 @@ last_updated: 2026-08-15
 **测试**（486 tests 0 失败 27 跳过）：`UserMenuQueryServiceImplTest` 重写为 7 个（派生公式实例匹配/scopeAll 全范围/纯展示/HIDDEN/status=0/DIR 剪枝/fail-closed/容错降级）；`QueryBoundaryArchitectureTest` 6 个。
 
 **前端影响登记**：`frontend/src/api/user-manage.ts` 的 `assignRole`/`revokeRole` 调 `/user-role/assign|revoke`（mock 阶段），Phase 3 联调（T-FE-015~022）时改调 `/api/perm/user-role/assign|revoke`。`sys_menu` DDL-实体漂移（菜单 CRUD 写路径）交由 T-ACCESS-012 收口。
+
+---
+
+## 评审修复记录（补充，2026-08-15，外部 AI 评审复评 1×P1 + 2×P2 + 2×P3 + 测试质量）
+
+复评结论「仍不建议通过」：评审认可上轮修复方向，但指出自查菜单仍会被 permission 域 `USER:VIEW` 门禁拦截（P1）、半缺失资源链接 fail-open（P2-1）、分层规则矛盾（P2-2）、菜单树 O(n²)（P3-1）、`/role/list` 上限未声明（P3-2）、测试缺口。逐项核实修复如下。
+
+**用户决策 1 项（2026-08-15）**：**USER:VIEW 门禁下放入口（P1）**——`PermissionViewAppService.buildEffectiveView` 公共 pipeline 移除 `USER:VIEW` 门禁（v1.4 时代即有，自查必抛被吞 → 空菜单，前端 mock 阶段未暴露）；permission 域独立 HTTP 入口 `/effective-permission-codes` 走新增 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用继续用 `getEffectivePermissionCodes`，入口由各自 Controller 门禁兜底（自查豁免 + `ADMIN_USER:VIEW`，P1-2）；`getEffectivePermissions` 管理员视图保留原 `USER:VIEW`/`ROLE:VIEW` 门禁不动。query 包 → `PermissionViewAppService` 依赖经用户确认登记为横向调用例外（P2-2）。
+
+**代码修复**：
+
+- `PermissionViewAppServiceImpl.buildEffectiveView` 移除门禁块；新增 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；`PermissionViewController` 的 `/effective-permission-codes` 改调该方法（P1）。
+- `UserMenuQueryServiceImpl.deriveVisibleMenuIds` 业务菜单判定收紧为 `resource_type != null`（P2-1：v3.5 §4.1 只认 `resource_type IS NULL` 为纯展示，DDL 无成对约束；`resource_code` 为空按不可解析资源 fail-closed，无 scopeAll 时不可见）。
+- `UserMenuQueryServiceImpl.buildMenuTree` 线性化（P3-1：按 parentId 预建 children 映射再递归，每节点只访问一次；visited 环保护保留）。
+- `UserRoleQueryService.listRoles` Javadoc 补「结果固定 `LIMIT 0,200`」（P3-2，用户决策「保持 + 文档声明上限」）。
+- `docs/design/project-rules.md` 横向调用例外登记 query 包只读查询（P2-2，用户确认）；`access-service-architecture.md` §3 同步补白名单说明与业务菜单定义。
+
+**测试补充**（502 tests 0 失败 27 跳过，较上轮 486 +16）：
+
+- `AdminUserControllerTest`（3，新建）：user-menus 自查豁免、查他人需 `ADMIN_USER:VIEW`、无权限传播 SecurityException。
+- `PermissionViewControllerTest`（新建）：`/effective-permission-codes` 转发 `getEffectivePermissionCodesForManage`。
+- `PermissionViewAppServiceImplTest`（+4）：`getEffectiveResourceAccess` 收集 scopeAll + 实例 ID；`getEffectivePermissionCodesForManage` 自查豁免 / 查他人拒绝 / 查他人有权限放行。
+- `UserMenuQueryServiceImplTest`（+2）：半缺失资源链接无 scopeAll fail-closed / 有 scopeAll 可见。
+- `OrgVisibilityQueryServiceImplTest`（+2）：缓存 get 异常旁路 DB / 缓存 put 异常不阻断结果（评审要求覆盖）。
+- `OrgTreeConfigServiceImplTest`（4，新建）：4 个写方法 `markVisibility` 登记 ORG_VISIBILITY 租户级失效（框架 `evictAll(ORG_VISIBILITY)` 由 `PermissionChangeAspectTest` 覆盖，本测试断言业务侧登记发生）。

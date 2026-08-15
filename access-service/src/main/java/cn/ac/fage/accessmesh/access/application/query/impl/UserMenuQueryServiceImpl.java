@@ -41,10 +41,10 @@ import java.util.stream.Collectors;
  * </p>
  * <p>
  * 菜单可见性按 adopted v3.5 §4.1 派生公式（T-ACCESS-006 评审修复）：
- * MENU(业务)（resource_type/resource_code 非空）→ 用户对关联资源有任意有效操作码（含 scopeAll
- * 全范围授权）即可见；MENU(纯展示)（resource_type IS NULL）→ 全员可见；DIR → 存在可见子节点
- * （树构建剪枝）；HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，整体不进 menus[]；
- * EXTERNAL/IFRAME → 派生同 MENU(业务)。
+ * MENU(业务)（resource_type 非空；resource_code 为空按不可解析资源 fail-closed）→ 用户对关联资源
+ * 有任意有效操作码（含 scopeAll 全范围授权）即可见；MENU(纯展示)（resource_type IS NULL）→ 全员可见；
+ * DIR → 存在可见子节点（树构建剪枝）；HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，
+ * 整体不进 menus[]；EXTERNAL/IFRAME → 派生同 MENU(业务)。
  * </p>
  * <p>
  * 菜单树构建按权威 schema（access-service.sql）：sys_menu 已收敛为 UI 路由元数据 + 资源 link
@@ -130,25 +130,28 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
         List<MenuProjection> allMenus = userMenuQueryMapper.selectMenus(tenantId);
         // v3.5 §4.1 派生公式：计算用户可见菜单 ID（DIR 由树构建剪枝，HIDDEN 不进 menus[]）
         Set<Long> visibleMenuIds = deriveVisibleMenuIds(tenantId, userId, allMenus);
-        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, visibleMenuIds, 0L, new LinkedHashSet<>());
+        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, visibleMenuIds);
         return new UserMenuResp(menus, roles, permissions);
     }
 
     /**
      * v3.5 §4.1 派生公式：判定用户可见的菜单 ID 集合。
      * <p>
-     * 业务菜单（resource_type/resource_code 非空）经 permission 域有效资源访问事实匹配：
+     * 业务菜单（resource_type 非空）经 permission 域有效资源访问事实匹配：
      * 资源类型有 scopeAll 全范围授权、或解析后的资源实例 ID 在用户有任意有效操作码的集合中。
+     * resource_code 为空的行按不可解析资源处理——无 scopeAll 时不可见（fail-closed，评审修复 P2-1）。
      * 纯展示菜单（resource_type IS NULL）全员可见；资源未解析（无投影）视为不可见（fail-closed）。
      * </p>
      */
     private Set<Long> deriveVisibleMenuIds(Long tenantId, Long userId, List<MenuProjection> allMenus) {
+        // v3.5 §4.1：仅 resource_type IS NULL 为纯展示（全员可见）；resource_type 非空即业务菜单，
+        // 即使 resource_code 为空也按不可解析资源 fail-closed（DDL 无两列成对约束，评审修复 P2-1）。
         List<MenuProjection> businessMenus = allMenus.stream()
-            .filter(m -> m.resourceType() != null && m.resourceCode() != null)
+            .filter(m -> m.resourceType() != null)
             .toList();
         Set<Long> visible = new LinkedHashSet<>();
         for (MenuProjection menu : allMenus) {
-            if (menu.resourceType() == null || menu.resourceCode() == null) {
+            if (menu.resourceType() == null) {
                 // 纯展示/目录：全员可见（DIR 由树构建剪枝决定是否渲染）
                 visible.add(menu.id());
             }
@@ -195,25 +198,34 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     /**
      * 构建菜单树（前端路由格式）。仅包含用户可见、启用的菜单，按排序字段升序。
      * <p>
+     * 线性化（评审修复 P3-1）：先按 parentId 预建 children 映射，再逐层递归构建，
+     * 避免每递归一个节点都全量扫描菜单列表（O(n²) → 每个节点只被访问一次）。
      * DIR 剪枝：无可见子节点的目录不渲染（v3.5 §4.1）；HIDDEN 不进 menus[]（响应无 hiddenRoutes，
      * 隐藏路由整体丢弃）；visited 防脏数据环（parent 链重复/成环时停止递归，避免栈溢出）。
      * schema 收敛后缺失字段统一取默认值（见类注释）。
      * </p>
      */
-    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<MenuProjection> allMenus, Set<Long> visibleIds,
-                                                           Long parentId, Set<Long> visited) {
-        List<UserMenuResp.MenuRouteItem> items = new ArrayList<>();
+    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<MenuProjection> allMenus, Set<Long> visibleIds) {
+        Map<Long, List<MenuProjection>> childrenByParent = new LinkedHashMap<>();
         for (MenuProjection menu : allMenus) {
-            Long menuParent = menu.parentId() != null ? menu.parentId() : 0L;
-            if (!parentId.equals(menuParent)
-                || MENU_TYPE_HIDDEN.equals(menu.menuType())
+            Long parent = menu.parentId() != null ? menu.parentId() : 0L;
+            childrenByParent.computeIfAbsent(parent, k -> new ArrayList<>()).add(menu);
+        }
+        return buildMenuChildren(childrenByParent, visibleIds, 0L, new LinkedHashSet<>());
+    }
+
+    private List<UserMenuResp.MenuRouteItem> buildMenuChildren(Map<Long, List<MenuProjection>> childrenByParent,
+                                                               Set<Long> visibleIds, Long parentId, Set<Long> visited) {
+        List<UserMenuResp.MenuRouteItem> items = new ArrayList<>();
+        for (MenuProjection menu : childrenByParent.getOrDefault(parentId, List.of())) {
+            if (MENU_TYPE_HIDDEN.equals(menu.menuType())
                 || !visibleIds.contains(menu.id())
                 || menu.status() == null || menu.status() != 1
                 || !visited.add(menu.id())) {
                 continue;
             }
             List<UserMenuResp.MenuRouteItem> children =
-                buildMenuTree(allMenus, visibleIds, menu.id(), visited);
+                buildMenuChildren(childrenByParent, visibleIds, menu.id(), visited);
             if (MENU_TYPE_DIR.equals(menu.menuType()) && children.isEmpty()) {
                 continue; // DIR 剪枝：无可见子节点不渲染
             }

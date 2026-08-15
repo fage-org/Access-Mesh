@@ -465,7 +465,8 @@ Mapper（数据访问层）
 
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
 - **禁止横向调用**：同层级之间禁止互相调用（如 Service A 调用 Service B 同层方法，应抽取到更低层）。
-- **授权域同层调用例外（2026-08-08 产品确认，唯一例外）**：权限中心的授权写链路中，`PermissionGrantPlanDomainServiceImpl` 组合注入 `PermissionGrantDomainService`（`checkCanGrant`/`validateSingleManualGrants`/`validateGrantAttributes`）为**明确允许的例外**，限定条件：① 仅限授权域 `PlanDomainService → GrantDomainService` 单向；② 禁止反向调用与循环依赖；③ 仅复用校验能力，不承载事务编排（**事务仅由 AppService/调度层声明，PlanDomainService 仅参与该事务**）；④ **不推广为一般规则**，其他域/其他服务仍禁止同层横向调用。
+- **授权域同层调用例外（2026-08-08 产品确认）**：权限中心的授权写链路中，`PermissionGrantPlanDomainServiceImpl` 组合注入 `PermissionGrantDomainService`（`checkCanGrant`/`validateSingleManualGrants`/`validateGrantAttributes`）为**明确允许的例外**，限定条件：① 仅限授权域 `PlanDomainService → GrantDomainService` 单向；② 禁止反向调用与循环依赖；③ 仅复用校验能力，不承载事务编排（**事务仅由 AppService/调度层声明，PlanDomainService 仅参与该事务**）；④ **不推广为一般规则**，其他域/其他服务仍禁止同层横向调用。
+- **query 包只读查询例外（2026-08-15 用户确认，T-ACCESS-006）**：`access.application.query` 包（跨域只读组合查询）允许依赖 permission 域只读入口 `PermissionViewAppService`（`getEffectivePermissionCodes`/`getEffectiveResourceAccess`），限定条件：① 仅限 `query 包 → PermissionViewAppService` 单向；② 仅复用只读权限事实查询，不承载写编排；③ 架构测试 `QueryBoundaryArchitectureTest` 固化 AppService 黑名单（其他 permission AppService 拒绝，白名单仅此一个）；④ **不推广为一般规则**，query 包以外的 application 代码仍禁止横向调用 AppService。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
 
 **permission-center Controller（补充）：**

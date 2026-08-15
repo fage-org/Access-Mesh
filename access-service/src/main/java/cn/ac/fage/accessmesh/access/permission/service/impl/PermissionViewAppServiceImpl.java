@@ -1026,6 +1026,25 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * 不分页 / 不截断：所有 entries 全量遍历，确保任何用户的所有有效权限码均被返回。
      */
     @Override
+    public UserEffectivePermissionCodesResp getEffectivePermissionCodesForManage(Long tenantId, UserEffectivePermissionCodesReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
+        // 解析目标用户
+        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        if (userId == null) {
+            return new UserEffectivePermissionCodesResp(List.of());
+        }
+
+        // 门禁（T-ACCESS-006 评审修复 P1，方案「门禁下放入口」）：自查豁免；
+        // 查他人时操作者需对被查用户有 USER:VIEW，防任意登录用户枚举 ID 越权读取他人权限码。
+        if (!Objects.equals(operatorId, userId)
+            && !engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+        }
+        return getEffectivePermissionCodes(tenantId, req);
+    }
+
+    @Override
     public UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req) {
         PermViewResult viewResult = buildEffectiveView(tenantId, req);
         if (viewResult == null) {
@@ -1083,32 +1102,31 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     /**
      * 构建用户有效权限视图（getEffectivePermissionCodes 与 getEffectiveResourceAccess 的公共管线）。
      * <p>
-     * 步骤：解析 userId → 操作者对被查用户 VIEW 门禁 → 解析有效角色 → forUserView 引擎管线 →
+     * 步骤：解析 userId → 解析有效角色 → forUserView 引擎管线 →
      * 装配器按资源类型白名单过滤（排除 API 资源、包含 scope 权限、不分页）。
      * 任一前置步骤失败返回 null（调用方按「无权限」处理）。
      * </p>
+     * <p>
+     * 本管线不设 {@code USER:VIEW} 门禁（评审修复 P1）：调用方各自负责入口门禁——
+     * permission 域独立 HTTP 入口走 {@link #getEffectivePermissionCodesForManage}
+     * （自查豁免 + 查他人需 USER:VIEW）；query 包内部调用由其入口 Controller 门禁
+     * （自查豁免 + {@code ADMIN_USER:VIEW}，P1-2 决策）兜底。
+     * </p>
      */
     private PermViewResult buildEffectiveView(Long tenantId, UserEffectivePermissionCodesReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-
         // 1. 解析 userId
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
             return null;
         }
 
-        // 2. 门禁：与 getEffectivePermissions 一致，操作者需对被查用户有 VIEW 权
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
-        }
-
-        // 3. 解析有效角色
+        // 2. 解析有效角色
         Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         if (roleIds.isEmpty()) {
             return null;
         }
 
-        // 4. 调引擎获取全量结果
+        // 3. 调引擎获取全量结果
         PermQuery query = PermQuery.forUserView(tenantId, userId);
         query.setRoleIds(roleIds);
         PermResult result = engine.query(query);
@@ -1116,7 +1134,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             return null;
         }
 
-        // 5. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
+        // 4. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
         //    - 不传 pageNum/pageSize（PermViewAssembler.paginate 注释明说「分页延迟到调用方聚合后执行」，
         //      assemble 总是返回全量已过滤 entries，故此处天然不分页）
         //    - 不需要 sourceRoles（权限码下发无需来源角色）

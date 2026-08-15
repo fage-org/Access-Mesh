@@ -239,5 +239,45 @@ class UserMenuQueryServiceImplTest {
             assertThat(result.menus()).extracting(UserMenuResp.MenuRouteItem::path)
                 .containsExactly("/plain");
         }
+
+        @Test
+        @DisplayName("半缺失资源链接（resource_type 非空、resource_code 为空）无 scopeAll → fail-closed 不可见")
+        void halfMissingResourceLink_withoutScopeAll_failClosed() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "MENU", "缺实例菜单", "/missing-instance", null, 1, 1, "ADMIN_USER", null)));
+            // 该类型无 scopeAll，且 code 为空 resolve 不到实例
+            when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
+                .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("ADMIN_USER", 1));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of());
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            // 不得按纯展示 fail-open 全员可见
+            assertThat(result.menus()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("半缺失资源链接（resource_code 为空）但该资源类型有 scopeAll → 可见")
+        void halfMissingResourceLink_withScopeAll_visible() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "MENU", "类型级菜单", "/type-level", null, 1, 1, "ADMIN_ORG", null)));
+            // ADMIN_ORG 类型 scopeAll 全范围授权（typeValue=2）
+            when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
+                .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(2), Set.of()));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("ADMIN_ORG", 2));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of());
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).extracting(UserMenuResp.MenuRouteItem::path)
+                .containsExactly("/type-level");
+        }
     }
 }

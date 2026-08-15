@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
@@ -43,11 +44,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -194,10 +197,9 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectivePermissionCodesShouldReturnInheritedEffectiveOperationCodes() {
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "10")).thenReturn(10L);
-        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 10L, OperationCodeConstants.VIEW))
-            .thenReturn(true);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        // 自查场景（operator=1, subject=1）：buildEffectiveView 无 USER:VIEW 门禁（评审修复 P1）
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
 
         RolePermEntry entry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 4L,
@@ -228,10 +230,84 @@ class PermissionViewAppServiceImplTest {
 
         UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodes(
             1L,
-            new UserEffectivePermissionCodesReq("ADMIN_USER", "10", List.of("ADMIN_USER"))
+            new UserEffectivePermissionCodesReq("ADMIN_USER", "1", List.of("ADMIN_USER"))
         );
 
         assertTrue(resp.permissions().contains("ADMIN_USER:UPDATE"));
         assertTrue(resp.permissions().contains("ADMIN_USER:VIEW"));
+    }
+
+    @Test
+    void getEffectiveResourceAccessShouldCollectScopeAllTypesAndInstanceIds() {
+        // 自查：operator=1, subject=1；buildEffectiveView 无 USER:VIEW 门禁（评审修复 P1）
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
+
+        PermResult result = PermResult.builder(true, null)
+            .effectiveOperationEntries(List.of(
+                new PermResult.EffectiveOperationEntry(
+                    501L, 20L, null, 2, 4L, "VIEW", 4L, "VIEW", 2L, "DIRECT", true),  // scopeAll → allScopeTypes=2
+                new PermResult.EffectiveOperationEntry(
+                    502L, 20L, 200L, 1, 2L, "VIEW", 2L, "VIEW", 1L, "DIRECT", false) // 实例 → resourceEntityIds=200
+            ))
+            .build();
+        when(engine.query(any(PermQuery.class))).thenReturn(result);
+        when(permViewAssembler.assemble(eq(1L), eq(result), any()))
+            .thenReturn(PermViewResult.builder()
+                .entries(List.of())
+                .effectiveOperationEntries(result.effectiveOperationEntries())
+                .resourceMap(Map.of())
+                .operationMap(Map.of())
+                .roleMap(Map.of())
+                .build());
+
+        PermissionViewAppService.EffectiveResourceAccess access = service.getEffectiveResourceAccess(
+            1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "1", List.of("ADMIN_USER", "ADMIN_ORG")));
+
+        assertTrue(access.allScopeTypes().contains(2));
+        assertTrue(access.resourceEntityIds().contains(200L));
+        assertFalse(access.allScopeTypes().contains(1));
+        assertFalse(access.resourceEntityIds().contains(501L));
+    }
+
+    @Test
+    void getEffectivePermissionCodesForManageShouldAllowSelfWithoutUserView() {
+        // 自查：operator=1, subject=1 → 豁免 USER:VIEW，不调用 engine.hasPermission
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of());
+
+        UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
+            1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "1", List.of("ADMIN_USER")));
+
+        assertNotNull(resp);
+        assertTrue(resp.permissions().isEmpty());
+        verify(engine, never()).hasPermission(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void getEffectivePermissionCodesForManageShouldDenyOthersWithoutUserView() {
+        // 查他人：operator=1, subject=2，无 USER:VIEW → SecurityException
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(2L);
+        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 2L, OperationCodeConstants.VIEW))
+            .thenReturn(false);
+
+        assertThrows(SecurityException.class, () ->
+            service.getEffectivePermissionCodesForManage(
+                1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "2", List.of("ADMIN_USER"))));
+    }
+
+    @Test
+    void getEffectivePermissionCodesForManageShouldAllowOthersWithUserView() {
+        // 查他人：operator=1, subject=2，有 USER:VIEW → 正常下发
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(2L);
+        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 2L, OperationCodeConstants.VIEW))
+            .thenReturn(true);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 2L)).thenReturn(Set.of());
+
+        UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
+            1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "2", List.of("ADMIN_USER")));
+
+        assertNotNull(resp);
+        assertTrue(resp.permissions().isEmpty());
     }
 }
