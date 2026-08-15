@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.permission.aop;
+package cn.ac.fage.accessmesh.access.infrastructure;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -22,8 +22,8 @@ import java.lang.annotation.Target;
  * afterCommit 注册由 AOP 框架统一完成。
  * </p>
  *
- * @see PermissionChangeAspect
- * @see cn.ac.fage.accessmesh.access.permission.cache.PermissionChangeContext
+ * @see cn.ac.fage.accessmesh.access.permission.aop.PermissionChangeAspect
+ * @see cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

@@ -5,18 +5,16 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.UserMenuResp;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.access.application.query.mapper.UserMenuQueryMapper;
+import cn.ac.fage.accessmesh.access.application.query.mapper.UserRoleQueryMapper;
 import cn.ac.fage.accessmesh.access.application.query.projection.MenuProjection;
 import cn.ac.fage.accessmesh.access.application.query.projection.UserOrgProjection;
+import cn.ac.fage.accessmesh.access.application.query.projection.UserRoleProjection;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleListReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
-import cn.ac.fage.accessmesh.access.permission.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import org.slf4j.Logger;
@@ -26,19 +24,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 用户菜单聚合查询实现（跨域只读）。
  * <p>
- * 聚合 admin 域（sys_user_org、sys_menu）与 permission 域（角色、有效权限码、菜单可见性判定），
- * 数据读取经 {@link UserMenuQueryMapper}，权限判定经 {@link PermQueryEngine}。
+ * 聚合 admin 域（sys_user_org、sys_menu）与 permission 域（角色、有效权限码、资源实例访问事实）。
+ * 数据读取经 {@link UserMenuQueryMapper} / {@link UserRoleQueryMapper}；
+ * 权限事实经 {@link PermissionViewAppService}（管理查询入口，引擎封装在 permission 域）。
+ * </p>
+ * <p>
+ * 菜单可见性按 adopted v3.5 §4.1 派生公式（T-ACCESS-006 评审修复）：
+ * MENU(业务)（resource_type/resource_code 非空）→ 用户对关联资源有任意有效操作码（含 scopeAll
+ * 全范围授权）即可见；MENU(纯展示)（resource_type IS NULL）→ 全员可见；DIR → 存在可见子节点
+ * （树构建剪枝）；HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，整体不进 menus[]；
+ * EXTERNAL/IFRAME → 派生同 MENU(业务)。
  * </p>
  * <p>
  * 菜单树构建按权威 schema（access-service.sql）：sys_menu 已收敛为 UI 路由元数据 + 资源 link
@@ -56,7 +62,7 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private static final String MENU_TYPE_HIDDEN = "HIDDEN";
     private static final String MENU_TYPE_EXTERNAL = "EXTERNAL";
     private static final String MENU_TYPE_IFRAME = "IFRAME";
-    private static final String OPERATION_VIEW = "VIEW";
+    private static final String RESOURCE_TYPE_KEY = "resource_type";
 
     private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
         AdminResourceType.ORG,
@@ -75,21 +81,18 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     );
 
     private final UserMenuQueryMapper userMenuQueryMapper;
-    private final UserManageAppService userManageAppService;
+    private final UserRoleQueryMapper userRoleQueryMapper;
     private final PermissionViewAppService permissionViewAppService;
     private final TypeResolutionService typeResolutionService;
-    private final PermQueryEngine engine;
 
     public UserMenuQueryServiceImpl(UserMenuQueryMapper userMenuQueryMapper,
-                                    UserManageAppService userManageAppService,
+                                    UserRoleQueryMapper userRoleQueryMapper,
                                     PermissionViewAppService permissionViewAppService,
-                                    TypeResolutionService typeResolutionService,
-                                    PermQueryEngine engine) {
+                                    TypeResolutionService typeResolutionService) {
         this.userMenuQueryMapper = userMenuQueryMapper;
-        this.userManageAppService = userManageAppService;
+        this.userRoleQueryMapper = userRoleQueryMapper;
         this.permissionViewAppService = permissionViewAppService;
         this.typeResolutionService = typeResolutionService;
-        this.engine = engine;
     }
 
     @Override
@@ -125,131 +128,117 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
             ? new ArrayList<>(rolePermInfo.permissions())
             : List.of();
         List<MenuProjection> allMenus = userMenuQueryMapper.selectMenus(tenantId);
-        Set<Long> allowedMenuIds = filterAllowedMenus(tenantId, userId, allMenus);
-        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, allowedMenuIds, 0L);
+        // v3.5 §4.1 派生公式：计算用户可见菜单 ID（DIR 由树构建剪枝，HIDDEN 不进 menus[]）
+        Set<Long> visibleMenuIds = deriveVisibleMenuIds(tenantId, userId, allMenus);
+        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, visibleMenuIds, 0L, new LinkedHashSet<>());
         return new UserMenuResp(menus, roles, permissions);
     }
 
     /**
-     * 过滤用户有 ADMIN_MENU:VIEW 的菜单 ID（登录菜单树用）。
-     * 先批量解析菜单业务键 → 资源投影 ID，denied 结果映射回菜单 ID；未解析视为不可见。
+     * v3.5 §4.1 派生公式：判定用户可见的菜单 ID 集合。
+     * <p>
+     * 业务菜单（resource_type/resource_code 非空）经 permission 域有效资源访问事实匹配：
+     * 资源类型有 scopeAll 全范围授权、或解析后的资源实例 ID 在用户有任意有效操作码的集合中。
+     * 纯展示菜单（resource_type IS NULL）全员可见；资源未解析（无投影）视为不可见（fail-closed）。
+     * </p>
      */
-    private Set<Long> filterAllowedMenuIds(Long tenantId, Long userId, java.util.Collection<Long> menuIds) {
-        if (menuIds == null || menuIds.isEmpty()) {
-            return Set.of();
+    private Set<Long> deriveVisibleMenuIds(Long tenantId, Long userId, List<MenuProjection> allMenus) {
+        List<MenuProjection> businessMenus = allMenus.stream()
+            .filter(m -> m.resourceType() != null && m.resourceCode() != null)
+            .toList();
+        Set<Long> visible = new LinkedHashSet<>();
+        for (MenuProjection menu : allMenus) {
+            if (menu.resourceType() == null || menu.resourceCode() == null) {
+                // 纯展示/目录：全员可见（DIR 由树构建剪枝决定是否渲染）
+                visible.add(menu.id());
+            }
         }
-        Long abstractUserId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId));
-        if (abstractUserId == null) {
-            return Set.of();
+        if (businessMenus.isEmpty()) {
+            return visible;
         }
-        List<ResourceResolveRequest> requests = menuIds.stream()
-            .map(menuId -> new ResourceResolveRequest(AdminResourceType.MENU, String.valueOf(menuId), null, null))
+        // 有效资源访问事实（白名单 = 菜单涉及的资源类型码，全范围/实例粒度）
+        Set<String> menuTypeCodes = businessMenus.stream()
+            .map(MenuProjection::resourceType)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        PermissionViewAppService.EffectiveResourceAccess access;
+        try {
+            access = permissionViewAppService.getEffectiveResourceAccess(tenantId,
+                new UserEffectivePermissionCodesReq(
+                    LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId), List.copyOf(menuTypeCodes)));
+        } catch (Exception e) {
+            log.warn("Failed to load effective resource access for tenant={}, userId={}", tenantId, userId, e);
+            return visible;
+        }
+        // 菜单资源类型码 → 值（scopeAll 匹配需要 int 值）
+        Map<String, Integer> typeValueByCode = typeResolutionService.batchResolveTypeValues(
+            tenantId, RESOURCE_TYPE_KEY, menuTypeCodes);
+        // 菜单资源业务键 → 资源实例 ID
+        List<ResourceResolveRequest> requests = businessMenus.stream()
+            .map(m -> new ResourceResolveRequest(m.resourceType(), m.resourceCode(), null, null))
             .toList();
         Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
-        Map<Long, Long> entityIdByMenuId = new LinkedHashMap<>();
-        for (Long menuId : menuIds) {
+        for (MenuProjection menu : businessMenus) {
+            Integer typeValue = typeValueByCode.get(menu.resourceType());
+            if (typeValue != null && access.allScopeTypes().contains(typeValue)) {
+                visible.add(menu.id());
+                continue;
+            }
             Long entityId = resolved.get(
-                new ResourceResolveKey(AdminResourceType.MENU, String.valueOf(menuId), null, null));
-            if (entityId != null) {
-                entityIdByMenuId.put(menuId, entityId);
+                new ResourceResolveKey(menu.resourceType(), menu.resourceCode(), null, null));
+            if (entityId != null && access.resourceEntityIds().contains(entityId)) {
+                visible.add(menu.id());
             }
         }
-        if (entityIdByMenuId.isEmpty()) {
-            return Set.of();
-        }
-        Set<Long> deniedEntityIds = engine.getDeniedIds(
-            tenantId, abstractUserId, AdminResourceType.MENU,
-            new LinkedHashSet<>(entityIdByMenuId.values()), OPERATION_VIEW);
-        Set<Long> allowed = new LinkedHashSet<>();
-        for (Map.Entry<Long, Long> entry : entityIdByMenuId.entrySet()) {
-            if (!deniedEntityIds.contains(entry.getValue())) {
-                allowed.add(entry.getKey());
-            }
-        }
-        return allowed;
+        return visible;
     }
 
     /**
-     * 过滤用户有权限的菜单并补充祖先链，保证子菜单有权限时父菜单也显示。
-     * 候选排除 HIDDEN（schema 枚举：隐藏路由不进 menus[]；UserMenuResp 无 hiddenRoutes 字段，
-     * 隐藏路由整体丢弃，后续如需下发 hiddenRoutes 再扩展响应结构）。
-     */
-    private Set<Long> filterAllowedMenus(Long tenantId, Long userId, List<MenuProjection> allMenus) {
-        if (allMenus.isEmpty()) {
-            return Set.of();
-        }
-        List<Long> candidateIds = allMenus.stream()
-            .filter(m -> m.menuType() != null && !MENU_TYPE_HIDDEN.equals(m.menuType()))
-            .map(MenuProjection::id)
-            .collect(Collectors.toList());
-        if (candidateIds.isEmpty()) {
-            return Set.of();
-        }
-        try {
-            Set<Long> allowed = filterAllowedMenuIds(tenantId, userId, candidateIds);
-            Set<Long> withParents = new HashSet<>(allowed);
-            for (MenuProjection menu : allMenus) {
-                if (allowed.contains(menu.id()) && menu.parentId() != null && menu.parentId() > 0) {
-                    addParentMenus(allMenus, menu.parentId(), withParents);
-                }
-            }
-            return withParents;
-        } catch (Exception e) {
-            log.warn("Failed to filter allowed menus for tenant={}, userId={}", tenantId, userId, e);
-        }
-        return Set.of();
-    }
-
-    private void addParentMenus(List<MenuProjection> allMenus, Long parentId, Set<Long> withParents) {
-        for (MenuProjection menu : allMenus) {
-            if (menu.id().equals(parentId)) {
-                // HIDDEN 不进 menus[]（权威 schema 契约）：祖先链补全同样跳过 HIDDEN 节点
-                if (MENU_TYPE_HIDDEN.equals(menu.menuType())) {
-                    break;
-                }
-                withParents.add(menu.id());
-                if (menu.parentId() != null && menu.parentId() > 0) {
-                    addParentMenus(allMenus, menu.parentId(), withParents);
-                }
-                break;
-            }
-        }
-    }
-
-    /**
-     * 构建菜单树（前端路由格式）。仅包含有权限、启用的菜单，按排序字段升序。
+     * 构建菜单树（前端路由格式）。仅包含用户可见、启用的菜单，按排序字段升序。
+     * <p>
+     * DIR 剪枝：无可见子节点的目录不渲染（v3.5 §4.1）；HIDDEN 不进 menus[]（响应无 hiddenRoutes，
+     * 隐藏路由整体丢弃）；visited 防脏数据环（parent 链重复/成环时停止递归，避免栈溢出）。
      * schema 收敛后缺失字段统一取默认值（见类注释）。
+     * </p>
      */
-    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<MenuProjection> allMenus, Set<Long> allowedIds, Long parentId) {
-        return allMenus.stream()
-            .filter(m -> parentId.equals(m.parentId() != null ? m.parentId() : 0L))
-            .filter(m -> allowedIds.contains(m.id()))
-            .filter(m -> m.status() != null && m.status() == 1)
-            .sorted(Comparator.comparingInt(m -> m.sortOrder() != null ? m.sortOrder() : 0))
-            .map(m -> {
-                List<UserMenuResp.MenuRouteItem> children = buildMenuTree(allMenus, allowedIds, m.id());
-                boolean external = MENU_TYPE_EXTERNAL.equals(m.menuType()) || MENU_TYPE_IFRAME.equals(m.menuType());
-                UserMenuResp.MetaInfo meta = new UserMenuResp.MetaInfo(
-                    m.name(),
-                    m.icon(),
-                    m.sortOrder(),
-                    true,   // showLink：schema 无 visible 列，默认显示
-                    false,  // keepAlive：schema 无 is_cache 列，默认不缓存
-                    external ? m.path() : null,
-                    null,   // roles 由前端根据用户角色判断
-                    null    // auths：schema 无 perm_code 列，默认空
-                );
-                return new UserMenuResp.MenuRouteItem(
-                    m.path(),
-                    generateRouteName(m),
-                    null,   // component：schema 无 component 列，由前端按 path 约定解析
-                    !children.isEmpty() ? children.get(0).path() : null,
-                    meta,
-                    children
-                );
-            })
-            .collect(Collectors.toList());
+    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<MenuProjection> allMenus, Set<Long> visibleIds,
+                                                           Long parentId, Set<Long> visited) {
+        List<UserMenuResp.MenuRouteItem> items = new ArrayList<>();
+        for (MenuProjection menu : allMenus) {
+            Long menuParent = menu.parentId() != null ? menu.parentId() : 0L;
+            if (!parentId.equals(menuParent)
+                || MENU_TYPE_HIDDEN.equals(menu.menuType())
+                || !visibleIds.contains(menu.id())
+                || menu.status() == null || menu.status() != 1
+                || !visited.add(menu.id())) {
+                continue;
+            }
+            List<UserMenuResp.MenuRouteItem> children =
+                buildMenuTree(allMenus, visibleIds, menu.id(), visited);
+            if (MENU_TYPE_DIR.equals(menu.menuType()) && children.isEmpty()) {
+                continue; // DIR 剪枝：无可见子节点不渲染
+            }
+            boolean external = MENU_TYPE_EXTERNAL.equals(menu.menuType()) || MENU_TYPE_IFRAME.equals(menu.menuType());
+            UserMenuResp.MetaInfo meta = new UserMenuResp.MetaInfo(
+                menu.name(),
+                menu.icon(),
+                menu.sortOrder(),
+                true,   // showLink：schema 无 visible 列，默认显示
+                false,  // keepAlive：schema 无 is_cache 列，默认不缓存
+                external ? menu.path() : null,
+                null,   // roles 由前端根据用户角色判断
+                null    // auths：schema 无 perm_code 列，默认空
+            );
+            items.add(new UserMenuResp.MenuRouteItem(
+                menu.path(),
+                generateRouteName(menu),
+                null,   // component：schema 无 component 列，由前端按 path 约定解析
+                !children.isEmpty() ? children.get(0).path() : null,
+                meta,
+                children
+            ));
+        }
+        items.sort(Comparator.comparingInt(m -> m.meta().rank() != null ? m.meta().rank() : 0));
+        return items;
     }
 
     private String generateRouteName(MenuProjection menu) {
@@ -280,13 +269,17 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
 
     private List<UserInfoResp.RoleInfo> fetchUserRoles(Long tenantId, Long userId) {
         try {
-            UserRolesResp result = userManageAppService.getUserRoles(
-                tenantId, new UserRoleListReq(LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId)));
-            if (result != null && result.roles() != null) {
-                return result.roles().stream()
-                    .map(r -> new UserInfoResp.RoleInfo(null, r.roleName()))
-                    .collect(Collectors.toList());
+            Long abstractUserId = typeResolutionService.resolveUserId(
+                tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId));
+            if (abstractUserId == null) {
+                return List.of();
             }
+            List<UserRoleProjection> projections =
+                userRoleQueryMapper.selectUserRoleProjections(tenantId, abstractUserId, java.time.LocalDateTime.now());
+            return projections.stream()
+                .filter(p -> p.roleName() != null)
+                .map(p -> new UserInfoResp.RoleInfo(null, p.roleName()))
+                .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Failed to fetch user roles for tenant={}, userId={}", tenantId, userId, e);
         }

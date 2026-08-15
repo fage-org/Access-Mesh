@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.permission.cache;
+package cn.ac.fage.accessmesh.access.infrastructure;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
@@ -180,6 +180,23 @@ public final class PermissionChangeContext {
     }
 
     /**
+     * 登记可见范围配置变更（默认组织树切换/删除、组织树配置更新 → 租户级清除 ORG_VISIBILITY）。
+     * <p>
+     * 组织可见范围缓存依赖默认树根与权限事实，操作者集合不可枚举，配置变更必须租户级失效；
+     * flush 的 evictAll(ORG_VISIBILITY) 无条件执行，本 mark 仅保证 flush 被触发。
+     * </p>
+     */
+    public static void markVisibility(Long tenantId) {
+        Accumulator acc = HOLDER.get();
+        if (acc == null) {
+            log.debug("markVisibility called without bound context (tenantId={}) — no-op", tenantId);
+            return;
+        }
+        acc.ensureTenant(tenantId);
+        acc.visibilityChanged = true;
+    }
+
+    /**
      * 累积快照（不可变视图，供 AOP flush 读取）。
      */
     public static final class Accumulator {
@@ -189,6 +206,7 @@ public final class PermissionChangeContext {
         private final Set<Long> conditionIds = new HashSet<>();
         private final Set<Long> roleSnapshotIds = new HashSet<>();
         private final Set<String> serviceCodes = new HashSet<>();
+        private boolean visibilityChanged;
 
         void ensureTenant(Long tenantId) {
             if (this.tenantId == null) {
@@ -223,7 +241,8 @@ public final class PermissionChangeContext {
         public boolean isEmpty() {
             return roleIds.isEmpty() && userIds.isEmpty()
                 && conditionIds.isEmpty() && roleSnapshotIds.isEmpty()
-                && serviceCodes.isEmpty();
+                && serviceCodes.isEmpty()
+                && !visibilityChanged;
         }
     }
 }

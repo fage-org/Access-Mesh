@@ -10,6 +10,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,8 @@ import java.util.Set;
  */
 @Service
 public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrgVisibilityQueryServiceImpl.class);
 
     private static final String OPERATION_VIEW = "VIEW";
 
@@ -94,7 +98,14 @@ public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService 
     @Override
     @Transactional(readOnly = true)
     public Set<Long> getOperatorVisibleDefaultTreeOrgIds(Long tenantId, Long operatorId) {
-        Set<Long> cached = cacheService.get(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
+        // 缓存不可用时旁路数据库（architecture §7.2：缓存仅加速，查询结果以 DB 与权限引擎为准）
+        Set<Long> cached = null;
+        try {
+            cached = cacheService.get(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
+        } catch (Exception e) {
+            log.warn("ORG_VISIBILITY cache get failed, bypassing to DB: tenantId={}, operatorId={}",
+                tenantId, operatorId, e);
+        }
         if (cached != null) {
             return cached;
         }
@@ -107,7 +118,12 @@ public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService 
             return Set.of();
         }
         Set<Long> visible = filterVisibleOrgIds(tenantId, operatorId, descendantIds);
-        cacheService.put(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId, visible);
+        try {
+            cacheService.put(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId, visible);
+        } catch (Exception e) {
+            log.warn("ORG_VISIBILITY cache put failed, result served from DB: tenantId={}, operatorId={}",
+                tenantId, operatorId, e);
+        }
         return visible;
     }
 }

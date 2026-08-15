@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.cache.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;

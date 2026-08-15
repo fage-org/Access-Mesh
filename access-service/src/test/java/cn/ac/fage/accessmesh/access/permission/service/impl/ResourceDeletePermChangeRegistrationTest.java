@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
-import cn.ac.fage.accessmesh.access.permission.cache.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;

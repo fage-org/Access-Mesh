@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
-import cn.ac.fage.accessmesh.access.permission.aop.PermissionChange;
-import cn.ac.fage.accessmesh.access.permission.cache.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigSyncResp;

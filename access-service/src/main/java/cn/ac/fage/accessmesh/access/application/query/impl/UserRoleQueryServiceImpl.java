@@ -133,7 +133,7 @@ public class UserRoleQueryServiceImpl implements UserRoleQueryService {
         // 判定以 target 角色的解析类型码为准（user_role.target_type 恒为 ROLE/GROUP_ROLE，不承载岗位语义）
         Set<Long> orgIds = projections.stream()
             .filter(p -> p.targetRoleType() != null
-                && "POSITION".equals(codeByValue.get(p.targetRoleType()))
+                && LocalProjectionOwner.ROLE_POSITION.equals(codeByValue.get(p.targetRoleType()))
                 && p.relationExternalId() != null)
             .map(p -> Long.valueOf(p.relationExternalId()))
             .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -146,7 +146,7 @@ public class UserRoleQueryServiceImpl implements UserRoleQueryService {
                 String roleTypeCode = p.targetRoleType() != null ? codeByValue.get(p.targetRoleType()) : null;
                 String relationOrgName = null;
                 // 与组织名补查过滤同判定依据：target 角色解析类型码（target_type 原始值不承载岗位语义）
-                if ("POSITION".equals(roleTypeCode) && p.relationExternalId() != null) {
+                if (LocalProjectionOwner.ROLE_POSITION.equals(roleTypeCode) && p.relationExternalId() != null) {
                     relationOrgName = orgNameById.get(Long.valueOf(p.relationExternalId()));
                 }
                 return new UserRoleItemResp(

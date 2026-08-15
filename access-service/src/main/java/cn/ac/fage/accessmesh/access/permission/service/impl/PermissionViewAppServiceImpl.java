@@ -1027,51 +1027,12 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-
-        // 1. 解析 userId
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) {
+        PermViewResult viewResult = buildEffectiveView(tenantId, req);
+        if (viewResult == null) {
             return new UserEffectivePermissionCodesResp(List.of());
         }
 
-        // 2. 门禁：与 getEffectivePermissions 一致，操作者需对被查用户有 VIEW 权
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
-        }
-
-        // 3. 解析有效角色
-        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-        if (roleIds.isEmpty()) {
-            return new UserEffectivePermissionCodesResp(List.of());
-        }
-
-        // 4. 调引擎获取全量结果
-        PermQuery query = PermQuery.forUserView(tenantId, userId);
-        query.setRoleIds(roleIds);
-        PermResult result = engine.query(query);
-        if (!result.allowed()) {
-            return new UserEffectivePermissionCodesResp(List.of());
-        }
-
-        // 5. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
-        //    - 不传 pageNum/pageSize（PermViewAssembler.paginate 注释明说「分页延迟到调用方聚合后执行」，
-        //      assemble 总是返回全量已过滤 entries，故此处天然不分页）
-        //    - 不需要 sourceRoles（权限码下发无需来源角色）
-        PermViewFilter filter = new PermViewFilter();
-        filter.setResourceTypes(req.resourceTypeCodes() == null ? null : new LinkedHashSet<>(req.resourceTypeCodes()));
-        filter.setExcludeApiResources(true);
-        filter.setIncludeScopePermissions(true);
-        filter.setIncludeSourceRoles(false);
-        filter.setSourceRoleLimit(0);
-        // pageNum/pageSize 不影响 entries 内容（只影响 buildResponseFromView 的截断），
-        // 此处显式设为 1 避免 PermViewAssembler.paginate 走 "<= 0 用默认 20" 分支
-        filter.setPageNum(1);
-        filter.setPageSize(Integer.MAX_VALUE);
-
-        PermViewResult viewResult = permViewAssembler.assemble(tenantId, result, filter);
-
-        // 6. 从 effective 操作投影全量提取 resourceTypeCode:operationCode
+        // 从 effective 操作投影全量提取 resourceTypeCode:operationCode
         //    PermViewResult.resourceTypeCodeMap 是 resourceId -> typeCode（实例级 view 用），
         //    本接口需要 resourceType(int) -> typeCode，需要直接调 typeResolutionService 重新解析。
         Set<Integer> resourceTypeValues = viewResult.getEntries().stream()
@@ -1095,6 +1056,82 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             permCodes.add(resourceTypeCode + ":" + entry.operationCode());
         }
         return new UserEffectivePermissionCodesResp(new ArrayList<>(permCodes));
+    }
+
+    @Override
+    public EffectiveResourceAccess getEffectiveResourceAccess(Long tenantId, UserEffectivePermissionCodesReq req) {
+        PermViewResult viewResult = buildEffectiveView(tenantId, req);
+        if (viewResult == null) {
+            return new EffectiveResourceAccess(Set.of(), Set.of());
+        }
+        // scopeAll 条目：resourceEntityId 为 null（全范围授权），按资源类型收集
+        Set<Integer> allScopeTypes = new LinkedHashSet<>();
+        Set<Long> resourceEntityIds = new LinkedHashSet<>();
+        for (PermResult.EffectiveOperationEntry entry : viewResult.getEffectiveOperationEntries()) {
+            if (entry.resourceType() == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(entry.scopeAll())) {
+                allScopeTypes.add(entry.resourceType());
+            } else if (entry.resourceEntityId() != null) {
+                resourceEntityIds.add(entry.resourceEntityId());
+            }
+        }
+        return new EffectiveResourceAccess(allScopeTypes, resourceEntityIds);
+    }
+
+    /**
+     * 构建用户有效权限视图（getEffectivePermissionCodes 与 getEffectiveResourceAccess 的公共管线）。
+     * <p>
+     * 步骤：解析 userId → 操作者对被查用户 VIEW 门禁 → 解析有效角色 → forUserView 引擎管线 →
+     * 装配器按资源类型白名单过滤（排除 API 资源、包含 scope 权限、不分页）。
+     * 任一前置步骤失败返回 null（调用方按「无权限」处理）。
+     * </p>
+     */
+    private PermViewResult buildEffectiveView(Long tenantId, UserEffectivePermissionCodesReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+
+        // 1. 解析 userId
+        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+        if (userId == null) {
+            return null;
+        }
+
+        // 2. 门禁：与 getEffectivePermissions 一致，操作者需对被查用户有 VIEW 权
+        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+        }
+
+        // 3. 解析有效角色
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        if (roleIds.isEmpty()) {
+            return null;
+        }
+
+        // 4. 调引擎获取全量结果
+        PermQuery query = PermQuery.forUserView(tenantId, userId);
+        query.setRoleIds(roleIds);
+        PermResult result = engine.query(query);
+        if (!result.allowed()) {
+            return null;
+        }
+
+        // 5. 通过装配器过滤（仅按资源类型白名单 + 排除 API），关键差异：
+        //    - 不传 pageNum/pageSize（PermViewAssembler.paginate 注释明说「分页延迟到调用方聚合后执行」，
+        //      assemble 总是返回全量已过滤 entries，故此处天然不分页）
+        //    - 不需要 sourceRoles（权限码下发无需来源角色）
+        PermViewFilter filter = new PermViewFilter();
+        filter.setResourceTypes(req.resourceTypeCodes() == null ? null : new LinkedHashSet<>(req.resourceTypeCodes()));
+        filter.setExcludeApiResources(true);
+        filter.setIncludeScopePermissions(true);
+        filter.setIncludeSourceRoles(false);
+        filter.setSourceRoleLimit(0);
+        // pageNum/pageSize 不影响 entries 内容（只影响 buildResponseFromView 的截断），
+        // 此处显式设为 1 避免 PermViewAssembler.paginate 走 "<= 0 用默认 20" 分支
+        filter.setPageNum(1);
+        filter.setPageSize(Integer.MAX_VALUE);
+
+        return permViewAssembler.assemble(tenantId, result, filter);
     }
 
     private Set<String> operationCodesForEntries(List<RolePermEntry> entries, PermViewResult viewResult) {

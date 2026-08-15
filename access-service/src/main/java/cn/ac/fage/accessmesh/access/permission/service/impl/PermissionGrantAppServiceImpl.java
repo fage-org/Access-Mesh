@@ -32,8 +32,8 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
-import cn.ac.fage.accessmesh.access.permission.aop.PermissionChange;
-import cn.ac.fage.accessmesh.access.permission.cache.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.util.DatabaseExceptionSupport;

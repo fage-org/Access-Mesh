@@ -22,7 +22,8 @@
 
     <select id="selectUserOrgsByUserIds"
             resultType="cn.ac.fage.accessmesh.access.application.query.projection.UserOrgProjection">
-        SELECT org_id,
+        SELECT user_id,
+               org_id,
                is_primary
         FROM sys_user_org
         WHERE tenant_id = #{tenantId}

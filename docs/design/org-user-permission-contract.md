@@ -74,7 +74,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 **收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ADMIN_ORG:CREATE")` 与后端 `engine.hasPermission(ADMIN_ORG, CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
 
-**实现（T-ACCESS-006 修订）**：`UserMenuQueryService`（`access.application.query`）经本地 `PermQueryEngine` / `PermissionViewAppService` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回；菜单投影仅 DIR/MENU 行（`menuType≠3` 的按钮不投影 `ADMIN_MENU`），由 `MenuWriteAppService` 同一事务维护。
+**实现（T-ACCESS-006 修订）**：`UserMenuQueryService`（`access.application.query`）经 `PermissionViewAppService` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回（引擎封装在 permission 域内）；菜单可见性按 v3.5 §4.1 派生公式落地（评审 P1-1 修复）：`deriveVisibleMenuIds` 经 `PermissionViewAppService.getEffectiveResourceAccess`（scopeAll 类型 + 资源实例 ID 集合）与 `TypeResolutionService.batchResolveResourceIds` 匹配业务菜单，纯展示/DIR 全员可见，DIR 剪枝、HIDDEN 不进 menus[]（详见 access-service-architecture §3）。
 
 ---
 
@@ -111,13 +111,13 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 > 列：UI 动作 → 乙层 `资源类型:操作`（= admin-service 实际门禁，括注端点）→ 甲层前端 perm 码 → 无权降级。
 > 关系动作的资源归属已钉死，见第 5 节备注 ¹²³⁴。
-> 「查看」类读接口在 Service 层**无 engine 门禁**，由菜单可见性（`ADMIN_MENU` 的 `VIEW`）+ 域过滤承担——故乙层列标注「读，无服务级门禁」。
+> 「查看」类读接口在 Service 层**无 engine 门禁**，由菜单可见性（v3.5 派生公式：用户对 menu 关联资源有任意 op 即见，见 §1 轨道 1 取代声明）+ 域过滤承担——故乙层列标注「读，无服务级门禁」。
 
 ### A. 组织树（顶部组织信息卡片 + 左树展开子组织）—— `ADMIN_ORG`（orgType≠岗位）
 
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码（甲层） | 无权降级 |
 |---|---|---|---|
-| 查看组织树 | `ADMIN_ORG:VIEW`（v1.4 由独立操作码控制，与菜单可见性 `ADMIN_MENU:VIEW` 形成双轨） | `ADMIN_ORG:VIEW` | 页面入口最小权；无则不可进 |
+| 查看组织树 | `ADMIN_ORG:VIEW`（v1.4 由独立操作码控制；菜单可见性经 v3.5 派生公式关联 `ADMIN_ORG` 资源，不再有 `ADMIN_MENU:VIEW` 双轨） | `ADMIN_ORG:VIEW` | 页面入口最小权；无则不可进 |
 | 新增根/子组织 | `ADMIN_ORG:CREATE`（`/org/create`） | `ADMIN_ORG:CREATE` | 隐藏「+新增组织」 |
 | 编辑组织 | `ADMIN_ORG:UPDATE`（`/org/update`） | `ADMIN_ORG:UPDATE` | 树只读，编辑按钮隐藏 |
 | 删除组织 | `ADMIN_ORG:DELETE`（`/org/delete`） | `ADMIN_ORG:DELETE` | 隐藏删除 |

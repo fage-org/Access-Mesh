@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourcePermissionViewRe
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionViewResp;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 权限视图应用服务接口
@@ -104,4 +105,26 @@ public interface PermissionViewAppService {
      * @return 有效权限码响应（perm 串列表）
      */
     UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req);
+
+    /**
+     * 获取用户在指定资源类型上的有效资源实例访问事实（T-ACCESS-006 菜单派生公式用）。
+     * <p>
+     * 与 {@link #getEffectivePermissionCodes} 共享同一 forUserView 管线（相同门禁与过滤），
+     * 但返回资源实例粒度：用户在哪些资源类型上有全范围（scopeAll）授权、以及有任意有效
+     * 操作码的资源实例 ID 集合。调用方（如菜单可见性派生）据此判定「用户对该资源有任意 op」。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param req      有效权限查询请求（resourceTypeCodes 白名单为资源类型码）
+     * @return 有效资源访问事实（allScopeTypes=全范围资源类型值集合；resourceEntityIds=有任意 op 的资源实例 ID 集合）
+     */
+    EffectiveResourceAccess getEffectiveResourceAccess(Long tenantId, UserEffectivePermissionCodesReq req);
+
+    /**
+     * 有效资源访问事实（resource 实例粒度）。
+     *
+     * @param allScopeTypes     用户有 scopeAll（全范围）授权的资源类型值集合
+     * @param resourceEntityIds 用户有任意有效操作码的资源实例 ID 集合（非 null）
+     */
+    record EffectiveResourceAccess(Set<Integer> allScopeTypes, Set<Long> resourceEntityIds) {}
 }

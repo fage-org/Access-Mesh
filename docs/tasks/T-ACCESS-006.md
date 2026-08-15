@@ -73,4 +73,29 @@ last_updated: 2026-08-15
 
 **设计回写**：`access-service-architecture.md` §3（query 包落地形态、依赖白名单、角色代理退役、sys_menu 漂移登记）；`admin-service-api-contract.md` §4.4（读保留/写退役）；`org-user-permission-contract.md`（C 区、备注 ³、§8 实现项、ORG_ROLE 清理完成态）；`default-org-tree-user-lifecycle.md`（ORG_ROLE P0 清理项完成态）。
 
+---
+
+## 评审修复记录（2026-08-15，外部 AI 评审 3×P1 + 4×P2 + 6 质量项）
+
+评审结论「T-ACCESS-006 暂不建议评审通过」。逐项核实后：3 个 P1 中 2 个为真实缺陷（P1-1、P1-3），1 个为安全门禁缺口需用户决策（P1-2）；4 个 P2 中 2 个为真实缺陷（P2-1 缓存故障、P2-4 递归环），2 个需用户决策（P2-2 角色数据归属、P2-3 200 条截断）；6 个质量项中 2 个确认（`POSITION` 常量替换、`roleFailure` 断言修正），4 个不采纳（记录理由）。
+
+**用户决策 4 项（2026-08-15）**：
+
+1. **菜单可见性（P1-1）**：按 v3.5 §4.1 派生公式实施——业务菜单（`resource_type`/`resource_code` 非空）→ 用户对该资源有任意有效操作码（含 scopeAll 全范围）即可见；纯展示菜单全员可见；DIR 剪枝；HIDDEN/EXTERNAL/IFRAME 派生同业务菜单。不再按 ADMIN_MENU 授权模型（v3.5 已删除 ADMIN_MENU）。
+2. **user-menus 门禁（P1-2）**：方案 1+2——`AdminUserController.getUserMenus` 查自己豁免，查他人（`req.id() != 当前登录用户`）需 `ADMIN_USER:VIEW@目标用户`（`AdminPermissionValidator.checkInstanceLevel`）。
+3. **200 条截断（P2-3）**：保持 `LIMIT 0,200` 上限 + Javadoc/文档声明（功能角色面向前端下拉，超出 200 属配置异常）。
+4. **角色数据归属（P2-2）**：角色数据走 query 服务（`UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`），权限事实保留 AppService（`PermissionViewAppService`）。
+
+**代码修复**：
+
+- `UserMenuQueryServiceImpl` 重写：`deriveVisibleMenuIds` 按 v3.5 §4.1 派生公式（P1-1）；`buildMenuTree` 加 `visited` 集合防脏数据环（P2-4）；依赖收敛为 `UserMenuQueryMapper`/`UserRoleQueryMapper`/`PermissionViewAppService`/`TypeResolutionService`（移除 `UserManageAppService`、`PermQueryEngine` 直依赖）。
+- `PermissionViewAppService` 新增 `EffectiveResourceAccess(allScopeTypes, resourceEntityIds)` + `getEffectiveResourceAccess`（提取 `buildEffectiveView` 公共 pipeline，与 `getEffectivePermissionCodes` 复用）。
+- `AdminUserController.getUserMenus` 加方案 1+2 门禁（P1-2）。
+- `PermissionChangeContext.markVisibility` + `@PermissionChange` 接入 `OrgTreeConfigServiceImpl` 4 个写方法（P1-3：默认树/配置变更 → 租户级失效 ORG_VISIBILITY）。**注意**：`PermissionChange` 注解与 `PermissionChangeContext` 已从 permission 域移至 `access.infrastructure`（跨 admin/permission 框架机制，语义同 `TenantContextHolder`；切面 `PermissionChangeAspect` 仍留在 permission 域），架构测试 `adminShouldNotDependOnPermission` 据此保持通过。
+- `OrgVisibilityQueryServiceImpl` 缓存读写 try-catch 旁路 DB（P2-1：Redis 故障降级 fail-open 至数据库层，权限判定仍经 engine fail-closed）。
+- `UserRoleQueryServiceImpl`：`POSITION` 常量替换为 `LocalProjectionOwner.ROLE_POSITION`。
+- `QueryBoundaryArchitectureTest` 新增 query 包 AppService 黑名单规则（仅 `PermissionViewAppService`；`simpleNameEndingWith("AppService")` 谓词）。
+
+**测试**（486 tests 0 失败 27 跳过）：`UserMenuQueryServiceImplTest` 重写为 7 个（派生公式实例匹配/scopeAll 全范围/纯展示/HIDDEN/status=0/DIR 剪枝/fail-closed/容错降级）；`QueryBoundaryArchitectureTest` 6 个。
+
 **前端影响登记**：`frontend/src/api/user-manage.ts` 的 `assignRole`/`revokeRole` 调 `/user-role/assign|revoke`（mock 阶段），Phase 3 联调（T-FE-015~022）时改调 `/api/perm/user-role/assign|revoke`。`sys_menu` DDL-实体漂移（菜单 CRUD 写路径）交由 T-ACCESS-012 收口。

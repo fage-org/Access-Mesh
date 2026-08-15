@@ -14,6 +14,8 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.OrgTreeConfigService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
@@ -66,7 +68,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     public Long createOrgTreeConfig(OrgTreeConfigCreateReq req) {
+        PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
 
         permissionValidator.checkTypeLevel(AdminResourceType.ORG_TREE_CONFIG, AdminOperationCode.CREATE);
@@ -97,7 +101,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     public void updateOrgTreeConfig(OrgTreeConfigUpdateReq req) {
+        PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
@@ -131,7 +137,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     public void deleteOrgTreeConfigs(IdsReq req) {
+        PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         if (req.ids() == null || req.ids().isEmpty()) {
             return;
         }
@@ -159,7 +167,9 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     public void setDefault(Long id) {
+        PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
         permissionValidator.checkInstanceLevel(AdminResourceType.ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
 

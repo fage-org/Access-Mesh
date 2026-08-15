@@ -16,7 +16,11 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
+import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -37,6 +41,7 @@ public class AdminUserController {
 
     private final UserService userService;
     private final UserMenuQueryService userMenuQueryService;
+    private final AdminPermissionValidator permissionValidator;
 
     /**
      * 构造函数注入依赖
@@ -45,9 +50,11 @@ public class AdminUserController {
      * @param userMenuQueryService  跨域用户菜单聚合查询服务（/user/user-menus）
      */
     public AdminUserController(UserService userService,
-                          UserMenuQueryService userMenuQueryService) {
+                          UserMenuQueryService userMenuQueryService,
+                          AdminPermissionValidator permissionValidator) {
         this.userService = userService;
         this.userMenuQueryService = userMenuQueryService;
+        this.permissionValidator = permissionValidator;
     }
 
     /**
@@ -189,6 +196,13 @@ public class AdminUserController {
      */
     @PostMapping("/user-menus")
     public PermResult<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
+        // 权限边界（T-ACCESS-006 评审修复）：改己豁免——当前登录用户可查自己的权限信息；
+        // 查询其他用户需 ADMIN_USER:VIEW 实例级门禁，防普通用户枚举 ID 读取他人角色/权限/组织
+        Long currentUserId = StpUtil.getLoginIdAsLong();
+        if (!java.util.Objects.equals(req.id(), currentUserId)) {
+            permissionValidator.checkInstanceLevel(AdminResourceType.USER,
+                String.valueOf(req.id()), AdminOperationCode.VIEW);
+        }
         return PermResult.success(userMenuQueryService.loadUserRolesAndPermissions(req.id()));
     }
 }
