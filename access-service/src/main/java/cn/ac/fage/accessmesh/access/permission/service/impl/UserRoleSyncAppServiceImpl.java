@@ -15,6 +15,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,15 +53,18 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private final TypeResolutionService typeResolutionService;
     private final UserRoleMapper userRoleMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final SyncTypeGuard syncTypeGuard;
 
     public UserRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                        TypeResolutionService typeResolutionService,
                                        UserRoleMapper userRoleMapper,
-                                       LocalProjectionGuard localProjectionGuard) {
+                                       LocalProjectionGuard localProjectionGuard,
+                                       SyncTypeGuard syncTypeGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.userRoleMapper = userRoleMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.syncTypeGuard = syncTypeGuard;
     }
 
     @Override
@@ -76,6 +81,13 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
         rejectReservedRelationType(req.relationKey());
+        // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明
+        // sourceType/主体/目标角色类型（relationKey 角色类型为引用，由依赖解析负责）
+        if (!syncTypeGuard.validate(tenantId, req.sourceService(),
+                SyncTypes.userRole(Set.of(req.subjectTypeCode()), Set.of(req.roleTypeCode()),
+                        Set.of(req.sourceType())))) {
+            return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
+        }
         if (!OP_BIND.equals(req.operation()) && !OP_UNBIND.equals(req.operation())) {
             return SyncResultBuilder.nonRetryable("INVALID_OPERATION");
         }
@@ -123,6 +135,17 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                             .add(rk.substring(idx + 1));
                 }
             }
+        }
+
+        // 服务-类型白名单（fail-closed）：item 主体类型去重 + scope 角色类型/sourceType 一次校验
+        if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
+                SyncTypes.userRole(subjectExternalIdsByType.keySet(),
+                        Set.of(req.scope().roleTypeCode()), Set.of(req.scope().sourceType())))) {
+            return SyncResultBuilder.fullSyncRejected(
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
+                    req.items().size(),
+                    List.of(new SyncResultResp.ItemResult("*", false, false,
+                            SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED")));
         }
 
         // ---- 阶段 B：批量解析 subject/role/relation IDs ----
@@ -174,7 +197,14 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             String businessKey = SyncKeyCodec.userRoleBusinessKey(
                     item.subjectTypeCode(), item.subjectExternalId(),
                     item.roleTypeCode(), item.roleExternalId(), item.relationKey());
-            seenBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(businessKey));
+            // 同批重复 businessKey：写入前拒绝（existingByTriKey 为循环前一次性加载，
+            // 重复项二次 INSERT 会触发 uk_user_role 唯一约束整批回滚）
+            if (!seenBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(businessKey))) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
+                        SyncResultBuilder.RETRY_NON_RETRYABLE, "DUPLICATE_BUSINESS_KEY"));
+                continue;
+            }
 
             // 守卫：item.roleTypeCode 必须等于 scope.roleTypeCode；不一致直接 NON_RETRYABLE 失败，
             // 不进入 markStatus 路径，避免污染 metadata
@@ -208,7 +238,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     preUserId, preRoleId, preRelId, preExisting, true, now);
             if (r.applied()) {
                 applied++;
-                // doSyncOneInternal 已通过 in-memory upserted 写回 backfillTargetId；不再额外查 DB。
+                // backfillTargetId 已在 doSyncOneInternal 内完成（upserted.getId()），无需额外查 DB。
             } else if (r.stale()) stale++;
             else failed++;
             itemResults.add(new SyncResultResp.ItemResult(businessKey, r.applied(), r.stale(),
@@ -328,6 +358,13 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
             // 本地投影保护：access-service 所有权的已有行不得被外部 sync 改写（20042 整体回滚）
             localProjectionGuard.rejectIfLocalUserRole(existingForUpsert);
+            // 归属校验：现有行必须由当前 sourceService+scope+businessKey 的 sync_metadata 指向
+            // （owner=NULL 同时表示人工维护与外部同步，仅靠 owner 无法区分；外部不得接管他人关系）
+            if (existingForUpsert != null
+                    && !ownedByCurrentSource(tenantId, existingForUpsert, req.sourceService(),
+                    scopeKeyHash, businessKeyHash)) {
+                return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
+            }
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
@@ -342,6 +379,12 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
             // 本地投影保护：access-service 所有权的已有行不得被外部 sync 解绑（20042 整体回滚）
             localProjectionGuard.rejectIfLocalUserRole(existing);
+            // 归属校验：人工维护或其他来源的关系不得被当前来源 UNBIND 软删
+            if (existing != null
+                    && !ownedByCurrentSource(tenantId, existing, req.sourceService(),
+                    scopeKeyHash, businessKeyHash)) {
+                return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
+            }
             if (existing != null) {
                 userRoleMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
             }
@@ -361,6 +404,19 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     }
 
     // upsertUserRoleWithExisting 由 doSyncOneInternal 直接调用
+
+    /**
+     * 现有行归属校验：目标行必须由当前 {@code sourceService + scopeKey + businessKey} 的
+     * sync_metadata 指向（target_id 匹配）。owner=NULL 同时表示人工维护与外部同步，
+     * 仅靠 owner_service_code 无法区分；未匹配视为人工维护或其他来源所有，外部同步不得接管。
+     */
+    private boolean ownedByCurrentSource(Long tenantId, UserRole row, String sourceService,
+                                         String scopeKeyHash, String businessKeyHash) {
+        return syncMetadataDomainService.resolveTargetId(
+                        tenantId, ENTITY_KIND, sourceService, scopeKeyHash, businessKeyHash)
+                .map(id -> id.equals(row.getId()))
+                .orElse(false);
+    }
 
     /**
      * relationKey 的角色类型必须为调用方自有类型（格式 {@code TYPE:externalId}；

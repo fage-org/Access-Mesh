@@ -27,6 +27,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,8 @@ class FullSyncResponseContractTest {
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @Mock
+    private SyncTypeGuard syncTypeGuard;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -86,6 +89,13 @@ class FullSyncResponseContractTest {
     }
 
     // ---- 1. AbstractUserSyncAppService.fullSync ----
+
+    @org.junit.jupiter.api.BeforeEach
+    void allowTypeWhitelist() {
+        lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+    }
 
     @Test
     void abstractUserFullSync_allSuccess_topLevelMatchesSyncContract() {
@@ -103,7 +113,7 @@ class FullSyncResponseContractTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,
@@ -129,7 +139,7 @@ class FullSyncResponseContractTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,
@@ -162,7 +172,7 @@ class FullSyncResponseContractTest {
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
@@ -191,7 +201,7 @@ class FullSyncResponseContractTest {
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",
@@ -217,7 +227,7 @@ class FullSyncResponseContractTest {
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         // scope.roleTypeCode 与 item.roleTypeCode 不一致 → item 级 NON_RETRYABLE（顶层 accepted；
         // 契约 §6.2.2.3：不进入 markStatus 路径，避免污染 metadata）
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
@@ -241,7 +251,7 @@ class FullSyncResponseContractTest {
         mockHeaderMatch();
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "SYS_USER_ORG", "ORG", "ROOT"),
                 List.of(new UserRoleSyncItem("USER", "u1", "POSITION", "pos-1",
@@ -260,7 +270,7 @@ class FullSyncResponseContractTest {
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu 1",

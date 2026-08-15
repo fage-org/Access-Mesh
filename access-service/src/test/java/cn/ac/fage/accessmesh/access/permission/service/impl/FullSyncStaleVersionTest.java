@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -76,6 +77,8 @@ class FullSyncStaleVersionTest {
     private AbstractUserMapper abstractUserMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @Mock
+    private SyncTypeGuard syncTypeGuard;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -87,7 +90,9 @@ class FullSyncStaleVersionTest {
     void setUp() {
         service = new AbstractUserSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractUserMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+        org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
         lenient().when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
     }

@@ -18,6 +18,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,19 +57,22 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final ResourceEntityMapper resourceEntityMapper;
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final SyncTypeGuard syncTypeGuard;
 
     public ResourceEntitySyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                              SyncMetadataMapper syncMetadataMapper,
                                              TypeResolutionService typeResolutionService,
                                              ResourceEntityMapper resourceEntityMapper,
                                              ObjectMapper objectMapper,
-                                             LocalProjectionGuard localProjectionGuard) {
+                                             LocalProjectionGuard localProjectionGuard,
+                                             SyncTypeGuard syncTypeGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
         this.typeResolutionService = typeResolutionService;
         this.resourceEntityMapper = resourceEntityMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.syncTypeGuard = syncTypeGuard;
     }
 
     @Override
@@ -78,6 +83,10 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
+        // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该资源类型
+        if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.resource(req.resourceTypeCode()))) {
+            return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
+        }
         if (!OP_UPSERT.equals(req.operation())
                 && !OP_DISABLE.equals(req.operation())
                 && !OP_DELETE.equals(req.operation())) {
@@ -98,6 +107,15 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedResourceType(req.scope().resourceTypeCode());
+        // 服务-类型白名单（fail-closed）：scope 资源类型须在服务声明的 resourceTypeCodes 内
+        if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
+                SyncTypes.resource(req.scope().resourceTypeCode()))) {
+            return SyncResultBuilder.fullSyncRejected(
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
+                    req.items().size(),
+                    List.of(new SyncResultResp.ItemResult("*", false, false,
+                            SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED")));
+        }
 
         String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);

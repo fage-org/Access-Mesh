@@ -16,6 +16,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,17 +53,20 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     private final AbstractUserMapper abstractUserMapper;
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final SyncTypeGuard syncTypeGuard;
 
     public AbstractUserSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractUserMapper abstractUserMapper,
                                           ObjectMapper objectMapper,
-                                          LocalProjectionGuard localProjectionGuard) {
+                                          LocalProjectionGuard localProjectionGuard,
+                                          SyncTypeGuard syncTypeGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.syncTypeGuard = syncTypeGuard;
     }
 
     @Override
@@ -73,6 +78,10 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
+        // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该主体类型
+        if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.subject(req.subjectTypeCode()))) {
+            return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
+        }
 
         // 2. 校验 operation 合法
         String op = req.operation();
@@ -144,6 +153,16 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedSubjectType(req.scope().subjectTypeCode());
+        // 服务-类型白名单（fail-closed）：scope 主体类型须在服务声明的 subjectTypeCodes 内
+        if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
+                SyncTypes.subject(req.scope().subjectTypeCode()))) {
+            SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
+                    null, false, false,
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED");
+            return SyncResultBuilder.fullSyncRejected(
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
+                    req.items().size(), List.of(denied));
+        }
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.scope().subjectTypeCode());
         if (userType == null) {

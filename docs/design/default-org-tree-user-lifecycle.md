@@ -183,7 +183,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 |------|------|------------|
 | 主体 | `POST /api/perm/abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
 | 角色 | `POST /api/perm/abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
-| 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType={sourceType}&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 | 资源实体 | `POST /api/perm/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
 
 外部业务服务发起全量校准时必须按依赖顺序编排（**类型必须为外部业务服务自有类型**）：

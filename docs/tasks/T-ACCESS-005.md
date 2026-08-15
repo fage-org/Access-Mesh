@@ -156,3 +156,14 @@ last_updated: 2026-08-15
 - **回归测试**：UserRoleSyncAppServiceTest +6、SyncKeyCodecEquivalenceTest +1、FullSyncResponseContractTest 契约更新 1；UserRoleMapper 新增 `selectValidByIds`（XML 同步）。
 
 **验证（十五轮收口）**：access-service 默认 `mvn test` **423 测试 0 失败 27 跳过**（417 + 新增 7，删旧预期 1）。
+
+**外部评审十六轮修复（2026-08-15，2 P1 + 2 P2 + 1 P3 全核实修复，1 项用户决策）**：
+
+- **P1（外部同步可接管人工或其他来源的 user_role，用户决策：extra 声明 + fail-closed，上线前补配置）**：`rejectIfLocalUserRole` 只拦 `owner=access-service`，但 owner=NULL 同时表示人工维护与外部同步——BIND 会改人工关系有效期并 backfillTargetId 指向、UNBIND 会软删人工关系、full-sync 差异删除只过滤本地 owner 仍会删他人关系。修复：BIND/UNBIND 对 existing 行加归属校验（`SyncMetadataDomainService.resolveTargetId` 按当前 sourceService+scopeKey+businessKey 查 metadata，target_id 匹配才可操作；未匹配 → `NON_RETRYABLE OWNERSHIP_CONFLICT`）。full-sync 差异删除的 targetId 天然限于当前来源 scope（BIND 不再接管后不可能指向他人行），保留 selectValidByIds 本地投影过滤为纵深。
+- **P1（"调用方自有类型"未真正校验——服务-类型白名单，用户决策：方案 1 extra 声明 + fail-closed）**：新增 `SyncTypeGuard`（service/sync 包）：按认证服务身份查 `service_config`（不信任 payload；服务不存在/已删除/禁用/extra 缺失损坏/syncTypes 或分类缺失/类型未声明 → `SECURITY_DENIED SERVICE_TYPE_NOT_ALLOWED`，内部日志记真实原因不返回白名单）；`extra.syncTypes` 约定 `{"subjectTypeCodes": [...], "roleTypeCodes": [...], "resourceTypeCodes": [...], "sourceTypes": [...]}`，去首尾空白、精确匹配、不做通配/继承/大小写转换；每请求一次 DB 查询（不引入缓存）。四个 Sync AppService single/full-sync 接入（构造加 SyncTypeGuard）：主体→subjectTypeCode、角色→roleTypeCode、资源→resourceTypeCode、用户角色→subject+role+sourceType（relationKey 角色类型为引用不校验）；full-sync 校验 scope + item 主体类型去重一次校验；保留键拒绝（LocalProjectionGuard）保留为独立纵深（声明了 ADMIN_USER 也拒绝）。上线顺序：先为各同步服务补 syncTypes 声明，再部署严格校验。
+- **P2（full-sync 重复项唯一约束）**：`existingByTriKey` 循环前一次性加载、插入后未写回——同 businessKey 第二项版本更高会二次 INSERT 触发 `uk_user_role` 整批回滚。修复：`seenBusinessKeyHashes.add` 返回值判断，重复 → item `NON_RETRYABLE DUPLICATE_BUSINESS_KEY`（写入前拒绝）；补正向 full-sync 成功用例（单 item 全链路）+ 重复项回归（INSERT 仅一次）。
+- **P2（契约回写直接矛盾）**：`default-org-tree-user-lifecycle.md` full-sync scope 示例 `sourceType=SYS_USER_ORG` → `{sourceType}`；`UserRoleSyncScope` javadoc「固定为 SYS_USER_ORG」→ 自有类型+白名单；`access-service.sql` resource_entity.owner_service_code 注释「sourceService=admin-service 经 sync 写本地 owner」→ 本地投影由 access.application 同事务写入（sync 入口已 20042 拒绝 admin-service）。
+- **P3（风格回退）**：SyncKeyCodecEquivalenceTest 轮次注释改业务不变量（不同 sourceType 隔离 scopeKey 防 full-sync 互相误清理）；UserRoleMapper.java/XML 补末尾换行；UserRoleSyncAppServiceImpl 误导性注释（「in-memory upserted 写回 backfillTargetId」）改为实际语义（backfill 在 doSyncOneInternal 内完成）。
+- **回归测试**：新增 `SyncTypeGuardTest` +12（服务未注册/已删/禁用/extra 缺失/损坏/syncTypes 缺失/分类缺失/已声明/未声明/无类型要求直通/单请求只查一次/trim+大小写敏感——covers 参数顺序倒置被测试当场捕获修复）；`UserRoleSyncAppServiceTest` 9→15（白名单拒绝、人工行 BIND/UNBIND 归属拒绝、当前来源拥有行更新、正向 full-sync、重复 businessKey）；6 个既有 sync 测试类构造接入 SyncTypeGuard（mock + lenient 放行，白名单语义由 SyncTypeGuardTest 单独覆盖）。
+
+**验证（十六轮收口）**：access-service 默认 `mvn test` **441 测试 0 失败 27 跳过**（423 + 新增 18：SyncTypeGuard 12 + UserRoleSync 6）。

@@ -48,7 +48,7 @@ class SyncKeyCodecEquivalenceTest {
 
     @Test
     void shouldProduceDifferentScopeKey_whenSourceTypeDiffers() {
-        // 防回归：不同调用方 sourceType 的成员关系不得共享 scopeKey（T-ACCESS-005 十五轮 P1）
+        // 防回归：不同调用方 sourceType 的成员关系不得共享 scopeKey（否则 full-sync 差异校准互相误清理）
         String src1 = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "TEAM_ROLE", "1");
         String src2 = SyncKeyCodec.userRoleScopeKey("PROJECT_MEMBER", "TEAM_ROLE", "1");
 

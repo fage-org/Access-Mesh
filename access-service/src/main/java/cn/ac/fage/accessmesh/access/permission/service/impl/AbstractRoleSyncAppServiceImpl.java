@@ -16,6 +16,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,17 +57,20 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final AbstractRoleMapper abstractRoleMapper;
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final SyncTypeGuard syncTypeGuard;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractRoleMapper abstractRoleMapper,
                                           ObjectMapper objectMapper,
-                                          LocalProjectionGuard localProjectionGuard) {
+                                          LocalProjectionGuard localProjectionGuard,
+                                          SyncTypeGuard syncTypeGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.syncTypeGuard = syncTypeGuard;
     }
 
     @Override
@@ -77,6 +82,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
+        // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该角色类型
+        if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.role(req.roleTypeCode()))) {
+            return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
+        }
 
         // 2. operation 合法性
         String op = req.operation();
@@ -159,6 +168,16 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedRoleType(req.scope().roleTypeCode());
+        // 服务-类型白名单（fail-closed）：scope 角色类型须在服务声明的 roleTypeCodes 内
+        if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
+                SyncTypes.role(req.scope().roleTypeCode()))) {
+            SyncResultResp.ItemResult denied = new SyncResultResp.ItemResult(
+                    null, false, false,
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED");
+            return SyncResultBuilder.fullSyncRejected(
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
+                    req.items().size(), List.of(denied));
+        }
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.scope().roleTypeCode());
         if (roleType == null) {

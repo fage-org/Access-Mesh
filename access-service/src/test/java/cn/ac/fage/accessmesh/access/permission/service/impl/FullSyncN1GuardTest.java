@@ -79,6 +79,8 @@ class FullSyncN1GuardTest {
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
     private HttpServletRequest httpRequest;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard syncTypeGuard;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -90,6 +92,9 @@ class FullSyncN1GuardTest {
         // 公共 stub：listScopeForFullSync 返回空（防止 deactivate 路径影响计数）
         lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Collections.emptyList());
+        // 公共 stub：类型白名单放行（本测试聚焦 N+1 批量化，不测白名单）
+        lenient().when(syncTypeGuard.validate(anyLong(), anyString(), any()))
+                .thenReturn(true);
     }
 
     @Test
@@ -110,7 +115,7 @@ class FullSyncN1GuardTest {
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
 
         List<AbstractUserSyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -167,7 +172,7 @@ class FullSyncN1GuardTest {
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService,
                 resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
 
         List<ResourceEntitySyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {
