@@ -266,18 +266,27 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         userOrgDomainService.deleteByUserIds(tenantId, userIdSet);
         userDomainService.softDeleteBatch(tenantId, req.ids());
 
-        // 九轮评审 P2：批量解析 abstract_user.id；十轮评审 P1：批量软删投影（替代循环 deleteAdminUser）
+        // 批量解析 abstract_user.id + 批量软删投影（替代循环 deleteAdminUser）
         java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>();
         Map<Long, Long> abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(tenantId, userIdSet);
         localProjectionDomainService.batchDeleteAdminUsers(tenantId, userIdSet);
+        // 全部变更日志一次提交（单条 insertBatch，替代每用户一次 recordChangeLog 的 N 次写）
+        java.util.List<AuditDomainService.ChangeLogEntry> deleteEntries = new java.util.ArrayList<>();
         for (SysUser user : users) {
             Long abstractUserId = abstractIdBySysId.get(user.getId());
             if (abstractUserId != null) {
                 abstractUserIds.add(abstractUserId);
             }
-            // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
-            recordProjectionChange(tenantId, "abstract_user", abstractUserId, "DELETE",
-                abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0]);
+            // entityId 用投影主键；投影缺失时记 null（不再冒用 sys_user.id）
+            deleteEntries.add(new AuditDomainService.ChangeLogEntry(
+                "abstract_user", abstractUserId, "DELETE", null, null, null,
+                abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0]));
+        }
+        if (!deleteEntries.isEmpty()) {
+            auditDomainService.recordChangeLog(
+                new AuditDomainService.ChangeLogContext(
+                    tenantId, currentOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                deleteEntries);
         }
         if (!abstractUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, abstractUserIds);
@@ -328,15 +337,24 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(tenantId, validIds);
             localProjectionDomainService.batchDisableAdminUsers(tenantId, validIds);
         }
+        // 全部变更日志一次提交（单条 insertBatch，替代每用户一次 recordChangeLog 的 N 次写）
+        java.util.List<AuditDomainService.ChangeLogEntry> statusEntries = new java.util.ArrayList<>();
         for (SysUser user : existingUsers) {
             user.setStatus(req.status());
             Long abstractUserId = abstractIdBySysId.get(user.getId());
             if (abstractUserId != null) {
                 PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
             }
-            // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
-            recordProjectionChange(tenantId, "abstract_user", abstractUserId,
-                enabled ? "UPSERT" : "DISABLE", new Long[]{}, new Long[0]);
+            // entityId 用投影主键；投影缺失时记 null（不再冒用 sys_user.id）
+            statusEntries.add(new AuditDomainService.ChangeLogEntry(
+                "abstract_user", abstractUserId, enabled ? "UPSERT" : "DISABLE", null, null, null,
+                new Long[]{}, new Long[0]));
+        }
+        if (!statusEntries.isEmpty()) {
+            auditDomainService.recordChangeLog(
+                new AuditDomainService.ChangeLogContext(
+                    tenantId, currentOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                statusEntries);
         }
     }
 

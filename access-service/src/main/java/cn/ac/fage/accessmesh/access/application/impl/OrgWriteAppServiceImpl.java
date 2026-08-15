@@ -70,12 +70,9 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     public Long createOrg(OrgCreateReq req) {
         String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
         Long tenantId = TenantContextHolder.getTenantId();
-        if (orgDomainService.findByCode(tenantId, req.code()) != null) {
-            throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
-                AdminErrorCode.ORG_CODE_EXISTS.getMessage());
-        }
-        // 十轮评审 P1：契约 §4.2.4 互斥门禁——顶级用类型级 CREATE，子级只用父节点实例级 UPDATE
-        // （不再无条件先校验类型级 CREATE，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）
+        // 契约 §4.2.4 互斥门禁——顶级用类型级 CREATE，子级只用父节点实例级 UPDATE
+        // （不再无条件先校验类型级 CREATE，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）；
+        // 编码存在性探测（findByCode）在鉴权之后执行，不向未授权调用者暴露编码是否存在
         SysOrg parent = null;
         if (req.parentOrgId() != null && req.parentOrgId() != 0L) {
             parent = orgDomainService.selectValidById(tenantId, req.parentOrgId());
@@ -91,6 +88,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         } else {
             permissionValidator.checkTypeLevel(
                 AdminResourceType.ORG, OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE));
+        }
+        // 岗位拓扑约束：岗位必须有父（非顶级）且父必须是普通组织；任何节点不能挂在岗位下
+        validatePositionTopology(orgType, req.parentOrgId(), parent);
+        if (orgDomainService.findByCode(tenantId, req.code()) != null) {
+            throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
+                AdminErrorCode.ORG_CODE_EXISTS.getMessage());
         }
         int level = parent != null && parent.getLevel() != null ? parent.getLevel() + 1 : 1;
         if (level > 10) {
@@ -168,7 +171,24 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     }
 
     /**
-     * 解析父节点实际 orgType（九轮评审 P1：ORG 父 + POSITION 子时父角色类型正确投影）。
+     * 岗位拓扑校验（创建路径）：岗位（orgType=2）必须作为普通组织（orgType=1）的直接子节点，
+     * 且岗位自身不能拥有下级节点。对齐契约：一体树中岗位作为所属组织的子节点挂入同一树，岗位无下级。
+     */
+    private void validatePositionTopology(String orgType, Long parentOrgId, SysOrg parent) {
+        if (OrgOperationCodeMapper.isPositionOrg(orgType)) {
+            if (parentOrgId == null || parentOrgId == 0L) {
+                throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                    AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+            }
+        }
+        if (parent != null && OrgOperationCodeMapper.isPositionOrg(parent.getOrgType())) {
+            throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+        }
+    }
+
+    /**
+     * 解析父节点实际 orgType（ORG 父 + POSITION 子时父角色类型正确投影）。
      */
     private String resolveParentOrgType(Long tenantId, SysOrg org) {
         if (org.getParentId() == null || org.getParentId() == 0L) {
@@ -211,6 +231,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG, String.valueOf(newParentId),
             OrgOperationCodeMapper.resolve(newParent.getOrgType(), AdminOperationCode.UPDATE));
+        // 岗位拓扑约束：岗位自身无下级——任何节点不能移动到岗位下
+        // （岗位移动到组织节点下满足"岗位必须作为组织的直接子节点"）
+        if (OrgOperationCodeMapper.isPositionOrg(newParent.getOrgType())) {
+            throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+        }
         // 用户决策：跨树移动拒绝（原树 ≠ 目标树，ORG_CROSS_TREE_MOVE 对齐契约 CROSS_TREE_MOVE_FORBIDDEN）
         String oldRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
         String newRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, newParentId);

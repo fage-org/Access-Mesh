@@ -189,4 +189,32 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
      * @return 孤儿 user_role 列表
      */
     List<UserRole> selectOrphansByCutoff(@Param("cutoff") LocalDateTime cutoff);
+
+    /**
+     * 批量刷新已有绑定行的 owner/updatedAt（batchBind 已有行路径，单条 SQL 替代循环 update）。
+     *
+     * @param tenantId  租户ID
+     * @param owner     所有者服务编码
+     * @param ids       待刷新行ID集合
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchRefreshOwner(@Param("tenantId") Long tenantId,
+                          @Param("owner") String owner,
+                          @Param("ids") List<Long> ids,
+                          @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 批量迁移成员 relation_id（岗位移动路径，单条 SQL 替代循环 update）。
+     *
+     * @param tenantId   租户ID
+     * @param relationId 新 relation_id（新所属组织角色ID）
+     * @param ids        待迁移成员行ID集合
+     * @param updatedAt  更新时间
+     * @return 影响行数
+     */
+    int batchUpdateRelationByIds(@Param("tenantId") Long tenantId,
+                                 @Param("relationId") Long relationId,
+                                 @Param("ids") List<Long> ids,
+                                 @Param("updatedAt") LocalDateTime updatedAt);
 }

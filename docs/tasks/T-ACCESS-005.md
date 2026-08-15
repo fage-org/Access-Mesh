@@ -102,3 +102,16 @@ last_updated: 2026-08-15
 - 风格：`AdminPermissionValidatorImpl` 权限拒绝消息参数顺序修正（"无法在 资源类型:资源 上执行 操作"，原为 operationCode/resourceType 颠倒误导）。
 
 **验证（十轮收口）**：access-service 默认 `mvn test` **393 测试 0 失败 22 跳过**（383 + 新增 10：LocalProjection 7 + Org 3）。
+
+**外部评审十一轮修复（2026-08-15，4 P1 + 2 P2 全核实修复，质量建议：用户决策顺带拆分）**：
+
+- **P1（批量写路径循环单条 UPDATE）**：新增 4 个批量 UPDATE SQL——`UserRoleMapper.batchRefreshOwner`（batchBind 已有行刷新 owner/updatedAt）、`UserRoleMapper.batchUpdateRelationByIds`（岗位迁移成员 relation）、`AbstractUserMapper.batchUpdateValues` / `ResourceEntityMapper.batchUpdateValues`（batchUpsert 已有行，每行值不同，PostgreSQL `UPDATE ... FROM (VALUES ...)` 惯用法——项目已 PG 方言，见递归 CTE 先例；测试用 Testcontainers PG）。`UserWriteAppServiceImpl.deleteUser/updateStatus` 循环 `recordChangeLog` 改为组装全部 entries 一次提交（单条 insertBatch）。`pendingInsertKeys.containsValue` O(N²) 改独立 `Set` 追踪。
+- **P1（父 resource_entity 缺失 fail-open）**：`resolveParentResourceId` 与父角色同语义——父资源投影缺失抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20043) 整体回滚，不再静默写 `parentId=null` 脱离父树（影响 `upsertAdminOrg`/`upsertAdminMenu`）。
+- **P1（岗位迁移 fail-closed 不完整）**：`migratePositionRelation` 的岗位角色投影缺失、旧所属组织角色投影缺失均抛 20043（原静默 `Set.of()`），与新所属组织缺失同语义。
+- **P1（岗位拓扑约束，新错误码 `ORG_POSITION_TOPOLOGY_INVALID`(10110)）**：契约「岗位作为普通组织（orgType=1）的子节点挂入同一树，岗位自身无下级」。`createOrg` 新增 `validatePositionTopology`——岗位必须有父（非顶级）、父必须是普通组织、任何节点不能挂在岗位下；`validateOrgMove` 新增——新父是岗位则拒绝（岗位移动天然满足"父必须是组织"：顶级已由 10109 拒绝、岗位父被 10110 拒绝）。
+- **P2（批量资源操作 code_type 范围）**：`batchDeleteAdminUsers`/`batchDisableAdminUsers`/`batchUpsertAdminUsers` 改 `selectByTypeAndCodesAndCodeTypes(..., Set.of("default"))`，与单条路径 `selectByTypeCodeAndCodeType` 语义一致，不再误伤外部同步其他 code_type 行。
+- **P2（鉴权前暴露编码存在性）**：`createOrg` 的 `findByCode` 移到互斥门禁（类型级 CREATE / 父节点 UPDATE）与拓扑校验之后——未授权调用者无法探测编码是否存在。
+- **质量建议（用户决策：顺带拆分）**：`LocalProjectionDomainServiceImpl` 835 行拆分——批量绑定/解绑/岗位迁移移至新组件 `UserRoleProjectionWriter`，批量用户投影移至 `BatchAdminUserProjectionWriter`（主类内部装配，构造签名不变，AppService 仅依赖接口，事务边界仍由 AppService 声明）；改动处注释改写为业务不变量语义。
+- **回归测试**：`LocalProjectionDomainServiceImplTest` +5（岗位角色缺失/旧所属缺失/父资源缺失 fail-closed、batchUpsert 批量刷新单条 SQL、batchDelete code_type 限定）+ 既有 2 用例改断言批量方法；`OrgWriteAppServiceTest` +4（顶级岗位拒绝/岗位下创建拒绝/岗位合法创建通过/移动到岗位下拒绝）。
+
+**验证（十一轮收口）**：access-service 默认 `mvn test` **402 测试 0 失败 22 跳过**（393 + 新增 9：LocalProjection 5 + Org 4）。

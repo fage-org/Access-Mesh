@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -109,6 +110,8 @@ class LocalProjectionDomainServiceImplTest {
             .when(typeResolutionService.resolveTypeValue(TENANT, "role_type", "POSITION")).thenReturn(11);
         org.mockito.Mockito.lenient()
             .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_ORG")).thenReturn(16);
+        org.mockito.Mockito.lenient()
+            .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_USER")).thenReturn(16);
     }
 
     private AbstractUser user(long id, String extId) {
@@ -146,9 +149,9 @@ class LocalProjectionDomainServiceImplTest {
 
         assertThat(result).containsEntry(new LocalProjectionDomainService.UserOrgBindKey(10L, 20L, "ORG", null), 555L);
         verify(userRoleMapper, never()).insertBatch(any());
-        ArgumentCaptor<UserRole> updateCap = ArgumentCaptor.forClass(UserRole.class);
-        verify(userRoleMapper).update(updateCap.capture());
-        assertThat(updateCap.getValue().getId()).isEqualTo(555L); // 主键保留
+        // 十一轮 P1：已有行统一批量刷新（单条 SQL），不再循环单条 update
+        verify(userRoleMapper, never()).update(any(UserRole.class));
+        verify(userRoleMapper).batchRefreshOwner(eq(TENANT), anyString(), eq(List.of(555L)), any());
     }
 
     @Test
@@ -195,7 +198,14 @@ class LocalProjectionDomainServiceImplTest {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(role(110L, "100")); // ORG:100 父角色
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "200")).thenReturn(null);              // 岗位自身无投影
-        when(resourceEntityMapper.selectByTypeCodeAndCodeType(any(), any(), any(), any())).thenReturn(null);
+        // 父 ADMIN_ORG 资源投影存在（fail-closed 前提），子资源无投影 → 走 insert
+        ResourceEntity parentRes = new ResourceEntity();
+        parentRes.setId(120L);
+        parentRes.setCode("100");
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(16), eq("100"), eq("default")))
+            .thenReturn(parentRes);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(16), eq("200"), eq("default")))
+            .thenReturn(null);
         when(abstractRoleMapper.insert(any(AbstractRole.class))).thenAnswer(inv -> {
             AbstractRole r = inv.getArgument(0);
             r.setId(300L);
@@ -224,7 +234,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("migratePositionRelation：岗位移动后成员 relation 从旧所属组织迁到新所属组织")
+    @DisplayName("migratePositionRelation：岗位移动后成员 relation 从旧所属组织迁到新所属组织（单条 SQL 批量迁移）")
     void migratePositionRelation_movesMemberRelation() {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "3001")).thenReturn(role(300L, "3001"));
@@ -241,9 +251,9 @@ class LocalProjectionDomainServiceImplTest {
         Set<Long> affected = service.migratePositionRelation(TENANT, 3001L, 2001L, 4001L);
 
         assertThat(affected).containsExactly(100L);
-        ArgumentCaptor<UserRole> updateCap = ArgumentCaptor.forClass(UserRole.class);
-        verify(userRoleMapper).update(updateCap.capture());
-        assertThat(updateCap.getValue().getRelationId()).isEqualTo(400L); // 迁到新所属组织角色
+        // 十一轮 P1：单条 SQL 批量迁移，不再循环单条 update
+        verify(userRoleMapper, never()).update(any(UserRole.class));
+        verify(userRoleMapper).batchUpdateRelationByIds(eq(TENANT), eq(400L), eq(List.of(555L)), any());
     }
 
     @Test
@@ -257,6 +267,96 @@ class LocalProjectionDomainServiceImplTest {
         assertThatThrownBy(() -> service.migratePositionRelation(TENANT, 3001L, 2001L, 4001L))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("新所属组织角色投影缺失");
-        verify(userRoleMapper, never()).update(any(UserRole.class));
+        verify(userRoleMapper, never()).batchUpdateRelationByIds(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("migratePositionRelation：岗位角色投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 Set.of()）")
+    void migratePositionRelation_missingPositionRoleFailsClosed() {
+        mockTypes();
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "3001")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.migratePositionRelation(TENANT, 3001L, 2001L, 4001L))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位角色投影缺失");
+        verify(userRoleMapper, never()).selectValidByTargetIdAndType(any(), any(), any());
+        verify(userRoleMapper, never()).batchUpdateRelationByIds(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("migratePositionRelation：旧所属组织角色投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 Set.of()）")
+    void migratePositionRelation_missingOldOrgFailsClosed() {
+        mockTypes();
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "3001")).thenReturn(role(300L, "3001"));
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "2001")).thenReturn(null); // 旧所属缺失
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "4001")).thenReturn(role(400L, "4001")); // 新所属存在
+
+        assertThatThrownBy(() -> service.migratePositionRelation(TENANT, 3001L, 2001L, 4001L))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("旧所属组织角色投影缺失");
+        verify(userRoleMapper, never()).batchUpdateRelationByIds(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("upsertAdminOrg：父 resource_entity 投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 parentId=null）")
+    void upsertAdminOrg_missingParentResourceFailsClosed() {
+        mockTypes();
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(role(110L, "100")); // ORG:100 父角色存在
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "200")).thenReturn(null);              // 岗位自身无投影
+        // 父 ADMIN_ORG 资源投影缺失（父角色存在但资源缺失的异常状态）
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(any(), any(), any(), any())).thenReturn(null);
+
+        assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1, 1, "{}"))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("父资源投影缺失");
+        // 角色侧 insert 已发生、资源侧 fail-closed 抛错——整体回滚由 AppService 事务保证（强事务投影）
+        verify(abstractRoleMapper).insert(any(AbstractRole.class));
+    }
+
+    @Test
+    @DisplayName("batchUpsert：已有行统一批量刷新（单条 SQL），不再循环单条 update")
+    void batchUpsert_updatesExistingInSingleSql() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
+        ResourceEntity res = new ResourceEntity();
+        res.setId(50L);
+        res.setCode("10");
+        res.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 16, Set.of("10"), Set.of("default")))
+            .thenReturn(List.of(res));
+
+        Map<Long, Long> result = service.batchUpsertAdminUsers(TENANT,
+            List.of(new LocalProjectionDomainService.UpsertUserKey(10L, "张三", true, null)));
+
+        assertThat(result).containsEntry(10L, 100L);
+        verify(abstractUserMapper, never()).update(any(AbstractUser.class));
+        verify(resourceEntityMapper, never()).update(any(ResourceEntity.class));
+        verify(abstractUserMapper).batchUpdateValues(eq(TENANT), anyString(),
+            org.mockito.ArgumentMatchers.argThat(users -> users.size() == 1 && users.get(0).getId() == 100L),
+            any());
+        verify(resourceEntityMapper).batchUpdateValues(eq(TENANT), anyString(),
+            org.mockito.ArgumentMatchers.argThat(resources -> resources.size() == 1 && resources.get(0).getId() == 50L),
+            any());
+    }
+
+    @Test
+    @DisplayName("batchDelete：资源行限定 code_type=default（十一轮 P2：不再匹配全部 code_type）")
+    void batchDelete_limitsToCodeTypeDefault() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
+        ResourceEntity res = new ResourceEntity();
+        res.setId(50L);
+        res.setCode("10");
+        res.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 16, Set.of("10"), Set.of("default")))
+            .thenReturn(List.of(res));
+
+        service.batchDeleteAdminUsers(TENANT, Set.of(10L));
+
+        verify(resourceEntityMapper, never()).selectByTypeAndCodes(any(), any(), any());
+        verify(resourceEntityMapper).selectByTypeAndCodesAndCodeTypes(
+            eq(TENANT), eq(16), eq(Set.of("10")), eq(Set.of("default")));
+        verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
+        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(50L)), any());
     }
 }

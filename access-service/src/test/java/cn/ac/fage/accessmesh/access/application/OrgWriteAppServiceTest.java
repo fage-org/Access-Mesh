@@ -393,4 +393,71 @@ class OrgWriteAppServiceTest {
 
         verify(orgDomainService, never()).findByCode(anyLong(), anyString());
     }
+
+    @Test
+    @DisplayName("创建顶级岗位 → 拒绝（岗位必须作为普通组织的直接子节点）")
+    void createOrgTopLevelPositionRejected() {
+        assertThatThrownBy(() -> service.createOrg(
+            new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(2, "岗位", null, "POS1", 1, 1)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位必须作为普通组织的直接子节点");
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+        // 鉴权先行：即使顶级门禁通过，拓扑校验也拒绝；编码探测不应执行
+        verify(orgDomainService, never()).findByCode(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("在岗位下创建子节点 → 拒绝（岗位自身无下级）")
+    void createOrgUnderPositionRejected() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("2"); // POSITION 父
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+
+        assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位必须作为普通组织的直接子节点");
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("创建岗位：父是普通组织 → 通过（岗位合法拓扑）")
+    void createOrgPositionUnderRegularOrgOk() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("1");
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 999L)).thenReturn("1");
+        when(orgDomainService.findByCode(TENANT, "POS1")).thenReturn(null);
+        doAnswer(inv -> {
+            SysOrg o = inv.getArgument(0);
+            o.setId(888L);
+            return null;
+        }).when(orgDomainService).insert(any(SysOrg.class));
+        when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
+            any(), any(), any(), any(), any())).thenReturn(700L);
+
+        service.createOrg(new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(2, "岗位", 999L, "POS1", 1, 1));
+
+        verify(orgDomainService).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("移动普通组织到岗位下 → 拒绝（岗位自身无下级）")
+    void moveUnderPositionRejected() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
+        SysOrg newParent = new SysOrg();
+        newParent.setId(20L);
+        newParent.setOrgType("2"); // POSITION 目标
+        newParent.setLevel(3);
+        when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+
+        assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位必须作为普通组织的直接子节点");
+        verify(orgDomainService, never()).update(any(SysOrg.class));
+    }
 }

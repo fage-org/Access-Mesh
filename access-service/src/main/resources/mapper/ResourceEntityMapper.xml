@@ -23,6 +23,22 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
+    <!-- 批量刷新已有投影行的 name/status（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
+         PostgreSQL FROM (VALUES ...) 惯用法，与 AbstractUserMapper.batchUpdateValues 同构。 -->
+    <update id="batchUpdateValues">
+        UPDATE resource_entity r
+        SET name = v.name,
+            status = v.status,
+            owner_service_code = #{owner},
+            updated_at = #{updatedAt}
+        FROM (VALUES
+        <foreach collection="resources" item="r" separator=",">
+            (#{r.id}, #{r.name}, #{r.status})
+        </foreach>
+        ) AS v(id, name, status)
+        WHERE r.id = v.id AND r.tenant_id = #{tenantId} AND r.delete_flag = 0
+    </update>
+
     <!-- CTE recursive query to get all descendant IDs for multiple resources in batch -->
     <select id="selectDescendantIdsBatch" resultType="cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper$DescendantResult">
         WITH RECURSIVE descendants AS (

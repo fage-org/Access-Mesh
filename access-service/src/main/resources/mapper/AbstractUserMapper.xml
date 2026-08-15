@@ -93,4 +93,22 @@
           AND delete_flag = 0
     </select>
 
+    <!-- 批量刷新已有投影行的 name/enabled/extra（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
+         PostgreSQL FROM (VALUES ...) 惯用法——项目为 PG 方言（如 selectDescendantIdsBatch 递归 CTE），
+         测试用 Testcontainers PG。extra 用 COALESCE 保持"仅非 null 才更新"语义（与单条路径一致）。 -->
+    <update id="batchUpdateValues">
+        UPDATE abstract_user u
+        SET name = v.name,
+            enabled = v.enabled,
+            extra = COALESCE(v.extra, u.extra),
+            owner_service_code = #{owner},
+            updated_at = #{updatedAt}
+        FROM (VALUES
+        <foreach collection="users" item="u" separator=",">
+            (#{u.id}, #{u.name}, #{u.enabled}, #{u.extra})
+        </foreach>
+        ) AS v(id, name, enabled, extra)
+        WHERE u.id = v.id AND u.tenant_id = #{tenantId} AND u.delete_flag = 0
+    </update>
+
 </mapper>

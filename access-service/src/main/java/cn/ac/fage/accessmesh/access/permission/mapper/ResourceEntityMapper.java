@@ -121,7 +121,7 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                         @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
-     * 批量停用资源实体（status=0，单条 SQL，十轮评审 P1：启停路径批量 N+1 消除）
+     * 批量停用资源实体（status=0，单条 SQL，启停路径批量 N+1 消除）
      *
      * @param tenantId  租户ID
      * @param ids       资源实体ID集合
@@ -131,6 +131,23 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
     int batchDisableStatus(@Param("tenantId") Long tenantId,
                            @Param("ids") Set<Long> ids,
                            @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 批量刷新已有投影行的 name/status（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
+     * <p>
+     * 每行值不同，使用 PostgreSQL {@code UPDATE ... FROM (VALUES ...)} 惯用法（项目为 PG 方言）。
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param owner     所有者服务编码
+     * @param resources 待刷新行（必须含主键 id）
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchUpdateValues(@Param("tenantId") Long tenantId,
+                          @Param("owner") String owner,
+                          @Param("resources") List<ResourceEntity> resources,
+                          @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
      * 使用PostgreSQL递归CTE批量查询多个资源的所有后代资源ID

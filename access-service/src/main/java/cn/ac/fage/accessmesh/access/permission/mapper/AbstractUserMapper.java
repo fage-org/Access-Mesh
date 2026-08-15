@@ -109,7 +109,7 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
                                                    @Param("externalIds") Set<String> externalIds);
 
     /**
-     * 批量停用抽象用户（enabled=false，单条 SQL，十轮评审 P1：启停路径批量 N+1 消除）
+     * 批量停用抽象用户（enabled=false，单条 SQL，启停路径批量 N+1 消除）
      *
      * @param tenantId  租户ID
      * @param ids       抽象用户ID集合
@@ -119,4 +119,22 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
     int batchDisable(@Param("tenantId") Long tenantId,
                      @Param("ids") Set<Long> ids,
                      @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 批量刷新已有投影行的 name/enabled/extra（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
+     * <p>
+     * 每行值不同，使用 PostgreSQL {@code UPDATE ... FROM (VALUES ...)} 惯用法（项目为 PG 方言）；
+     * extra 为 null 的行保留原值（与单条路径"仅非 null 才更新"语义一致）。
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param owner     所有者服务编码
+     * @param users     待刷新行（必须含主键 id）
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchUpdateValues(@Param("tenantId") Long tenantId,
+                          @Param("owner") String owner,
+                          @Param("users") List<AbstractUser> users,
+                          @Param("updatedAt") LocalDateTime updatedAt);
 }
