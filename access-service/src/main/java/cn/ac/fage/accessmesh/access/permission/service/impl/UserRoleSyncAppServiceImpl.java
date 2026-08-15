@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncReq;
+import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata;
 import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
@@ -27,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import cn.ac.fage.accessmesh.access.permission.entity.table.UserRoleTableDef;
 
@@ -40,18 +42,10 @@ import cn.ac.fage.accessmesh.access.permission.entity.table.UserRoleTableDef;
 public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
     private static final String ENTITY_KIND = "USER_ROLE";
-    private static final String SOURCE_TYPE_REQUIRED = "SYS_USER_ORG";
     private static final String OP_BIND = "BIND";
     private static final String OP_UNBIND = "UNBIND";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_UNBOUND = "UNBOUND";
-    private static final String RELATION_ROLE_TYPE_ORG = "ORG";
-    private static final String RELATION_ROLE_TYPE_POSITION = "POSITION";
-
-    /** 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE），判定本地投影的唯一依据 */
-    private static final String ADMIN_SOURCE_SERVICE = "admin-service";
-    /** 本地投影所有权标识（access-service-architecture §4.2） */
-    private static final String LOCAL_PROJECTION_OWNER = "access-service";
 
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final TypeResolutionService typeResolutionService;
@@ -76,13 +70,12 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        // 2. payload 校验：sourceType/主体/目标角色/relationKey 角色类型均为调用方自有类型，
+        // 保留键（SYS_USER_ORG/ADMIN_USER/ORG|POSITION）由 guard 拒绝（20042 整体回滚）
         localProjectionGuard.rejectReservedUserRoleSource(req.sourceType());
-        // 2. payload 校验
-        if (!SOURCE_TYPE_REQUIRED.equals(req.sourceType())
-                || !(RELATION_ROLE_TYPE_ORG.equals(req.roleTypeCode())
-                || RELATION_ROLE_TYPE_POSITION.equals(req.roleTypeCode()))) {
-            return SyncResultBuilder.nonRetryable("INVALID_USER_ROLE_SOURCE_OR_TYPE");
-        }
+        localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
+        localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
+        rejectReservedRelationType(req.relationKey());
         if (!OP_BIND.equals(req.operation()) && !OP_UNBIND.equals(req.operation())) {
             return SyncResultBuilder.nonRetryable("INVALID_OPERATION");
         }
@@ -101,17 +94,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedUserRoleSource(req.scope().sourceType());
-        if (!SOURCE_TYPE_REQUIRED.equals(req.scope().sourceType())
-                || !(RELATION_ROLE_TYPE_ORG.equals(req.scope().roleTypeCode())
-                || RELATION_ROLE_TYPE_POSITION.equals(req.scope().roleTypeCode()))) {
-            return SyncResultBuilder.fullSyncRejected(
-                    SyncResultBuilder.RETRY_NON_RETRYABLE, "INVALID_USER_ROLE_SOURCE_OR_TYPE",
-                    req.items().size(),
-                    List.of(new SyncResultResp.ItemResult("*", false, false,
-                            SyncResultBuilder.RETRY_NON_RETRYABLE, "INVALID_USER_ROLE_SOURCE_OR_TYPE")));
-        }
 
-        String scopeKey = SyncKeyCodec.userRoleScopeKey(req.scope().roleTypeCode(), req.scope().treeRootExternalId());
+        String scopeKey = SyncKeyCodec.userRoleScopeKey(
+                req.scope().sourceType(), req.scope().roleTypeCode(), req.scope().treeRootExternalId());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
 
         // ---- 阶段 A：按 typeCode 分桶收集 subject/role/relation 的 externalId ----
@@ -122,6 +107,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         // relation typeCode -> Set<externalId>（解析自 relationKey "TYPE:externalId"）
         Map<String, Set<String>> relationExternalIdsByType = new HashMap<>();
         for (UserRoleSyncItem item : req.items()) {
+            // item 级保留键拒绝：主体/目标角色/relationKey 角色类型均须为调用方自有类型
+            localProjectionGuard.rejectReservedSubjectType(item.subjectTypeCode());
+            localProjectionGuard.rejectReservedRoleType(item.roleTypeCode());
+            rejectReservedRelationType(item.relationKey());
             subjectExternalIdsByType.computeIfAbsent(item.subjectTypeCode(), k -> new HashSet<>())
                     .add(item.subjectExternalId());
             roleExternalIdsByType.computeIfAbsent(item.roleTypeCode(), k -> new HashSet<>())
@@ -197,7 +186,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             }
 
             UserRoleSyncReq oneReq = new UserRoleSyncReq(
-                    OP_BIND, SOURCE_TYPE_REQUIRED,
+                    OP_BIND, req.scope().sourceType(),
                     item.subjectTypeCode(), item.subjectExternalId(),
                     item.roleTypeCode(), req.scope().treeRootExternalId(),
                     item.roleExternalId(), item.relationKey(),
@@ -239,6 +228,15 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                 deactivateTargetIds.add(md.getTargetId());
             }
             deactivated++;
+        }
+        // 本地投影保护：scope 内出现 access-service 所有权行时仅标记 UNBOUND 不软删
+        // （防御：历史残留 metadata 指向本地行；本地投影不可被外部 full-sync 差异清理）
+        if (!deactivateTargetIds.isEmpty()) {
+            Set<Long> localOwnedIds = userRoleMapper.selectValidByIds(tenantId, deactivateTargetIds).stream()
+                    .filter(ur -> LocalProjectionOwner.isLocalOwner(ur.getOwnerServiceCode()))
+                    .map(UserRole::getId)
+                    .collect(Collectors.toSet());
+            deactivateTargetIds.removeAll(localOwnedIds);
         }
         if (!deactivateTargetIds.isEmpty()) {
             userRoleMapper.softDeleteBatch(tenantId, deactivateTargetIds, now);
@@ -284,7 +282,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         String businessKey = SyncKeyCodec.userRoleBusinessKey(
                 req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.relationKey());
-        String scopeKey = SyncKeyCodec.userRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
+        String scopeKey = SyncKeyCodec.userRoleScopeKey(
+                req.sourceType(), req.roleTypeCode(), req.treeRootExternalId());
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
         String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
@@ -327,8 +326,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             UserRole existingForUpsert = preExistingResolved
                     ? preExisting
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
+            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 改写（20042 整体回滚）
+            localProjectionGuard.rejectIfLocalUserRole(existingForUpsert);
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
-                    existingForUpsert, now, localProjectionOwner(req.sourceService()));
+                    existingForUpsert, now);
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
             // upserted 由 mapper.insert/update 内联返回（含主键），无需再查 DB
@@ -339,6 +340,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             UserRole existing = preExistingResolved
                     ? preExisting
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
+            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 解绑（20042 整体回滚）
+            localProjectionGuard.rejectIfLocalUserRole(existing);
             if (existing != null) {
                 userRoleMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
             }
@@ -360,21 +363,27 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     // upsertUserRoleWithExisting 由 doSyncOneInternal 直接调用
 
     /**
-     * 本地投影所有权判定（access-service-architecture §4.2）：
-     * 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE=admin-service）写入 'access-service'，
-     * 其余（外部业务服务同步）返回 null 保持未标记，所有权以 sync_metadata 为准。
+     * relationKey 的角色类型必须为调用方自有类型（格式 {@code TYPE:externalId}；
+     * 保留类型 ORG/POSITION 由 guard 拒绝，防止外部 sync 借 relationKey 改写本地投影语义）。
      */
-    private String localProjectionOwner(String sourceService) {
-        return ADMIN_SOURCE_SERVICE.equals(sourceService) ? LOCAL_PROJECTION_OWNER : null;
+    private void rejectReservedRelationType(String relationKey) {
+        if (relationKey == null || relationKey.isBlank()) {
+            return;
+        }
+        int idx = relationKey.indexOf(':');
+        if (idx > 0) {
+            localProjectionGuard.rejectReservedRoleType(relationKey.substring(0, idx));
+        }
     }
 
     /**
      * upsert user_role；接受调用方已加载的 {@code existing}（可为 null 表示需新建）。
+     * 外部业务服务同步写入的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）。
+     *
      * @return 写入或已更新的 UserRole 实例
      */
     private UserRole upsertUserRoleWithExisting(Long tenantId, Long userId, Long roleId, Long relationId,
-                                                 UserRoleSyncReq req, UserRole existing, LocalDateTime now,
-                                                 String ownerServiceCode) {
+                                                 UserRoleSyncReq req, UserRole existing, LocalDateTime now) {
         if (existing == null) {
             UserRole ur = new UserRole();
             ur.setTenantId(tenantId);
@@ -384,8 +393,6 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             ur.setRelationId(relationId);
             ur.setValidFrom(req.validFrom());
             ur.setValidTo(req.validTo());
-            // 本地投影（sourceService=admin-service）显式标记所有权；外部同步/人工维护保持 NULL
-            ur.setOwnerServiceCode(ownerServiceCode);
             ur.setCreatedAt(now);
             ur.setUpdatedAt(now);
             ur.setDeleteFlag(0L);

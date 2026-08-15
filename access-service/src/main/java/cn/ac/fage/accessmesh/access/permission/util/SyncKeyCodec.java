@@ -152,12 +152,13 @@ public final class SyncKeyCodec {
     }
 
     /**
-     * user-role/full-sync scopeKey：固定前缀 {@code sourceType=SYS_USER_ORG}，
-     * 拼 {@code roleTypeCode={...}&treeRootExternalId={...}}。
+     * user-role/full-sync scopeKey：{@code sourceType={...}&roleTypeCode={...}&treeRootExternalId={...}}。
+     * sourceType 为调用方自有成员关系类型（保留键 SYS_USER_ORG 由入口拒绝），
+     * 不同 sourceType 的同 roleTypeCode 树不再共享 scopeKey。
      */
-    public static String userRoleScopeKey(String roleTypeCode, String treeRootExternalId) {
+    public static String userRoleScopeKey(String sourceType, String roleTypeCode, String treeRootExternalId) {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
-        map.put("sourceType", "SYS_USER_ORG");
+        map.put("sourceType", sourceType);
         map.put("roleTypeCode", roleTypeCode);
         map.put("treeRootExternalId", treeRootExternalId);
         return encodeScopeKey(map);

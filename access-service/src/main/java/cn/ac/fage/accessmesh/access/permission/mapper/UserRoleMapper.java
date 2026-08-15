@@ -177,6 +177,16 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
                                                     @Param("targetType") String targetType);
 
     /**
+     * 批量查询指定主键集合的有效用户角色（full-sync 差异删除前过滤本地投影行，单条 SQL）。
+     *
+     * @param tenantId 租户ID
+     * @param ids      主键ID集合
+     * @return 命中且未删除的用户角色列表
+     */
+    List<UserRole> selectValidByIds(@Param("tenantId") Long tenantId,
+                                    @Param("ids") List<Long> ids);
+
+    /**
      * 批量软删指定抽象用户的全部 user_role（删除用户级联路径，单条 SQL）。
      * <p>
      * 删除用户时在同一事务内清理其全部角色关系（含功能角色），不再依赖延迟补偿。

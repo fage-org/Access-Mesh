@@ -37,7 +37,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | 非默认组织树只维护成员关系 | 非默认组织树可以添加/移除已有用户与本组织节点的关系，不能创建、禁用、删除真实用户。 |
 | 不新增 `USER_POOL` 资源类型 | 用户池概念由默认组织树承载，避免额外资源类型和额外授权面。 |
 | 候选用户不是全租户用户 | 给非默认组织增加成员时，候选集来自默认组织树中操作者可见/可管理范围内的用户，而不是所有用户。 |
-| 组织成员关系必须同步为权限角色关系 | `sys_user_org` 是权限事实来源之一，变化后必须稳定映射为 permission-center 的 `user_role`。 |
+| 组织成员关系必须投影为权限角色关系 | `sys_user_org` 是权限事实来源之一，变化后必须由 `access.application` 同事务稳定投影为本地 `user_role`。 |
 
 ---
 
@@ -111,11 +111,11 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 ---
 
-## 5. 同步契约
+## 5. 投影契约
 
-### 5.1 用户同步
+### 5.1 用户投影
 
-用户同步必须覆盖两个事实，均使用业务键定位，不回填内部 ID：
+用户投影必须覆盖两个事实，由 `access.application` 在写入 `sys_user` 的同一事务内维护（本地投影，业务键定位，不回填内部 ID）：
 
 1. `sys_user -> abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`
    - `enabled` 跟随 `sys_user.status`
@@ -124,11 +124,11 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
    - `codeType = default`
    - `name = sys_user.name`
 
-后续所有操作（user_role 写入、权限校验、缓存失效）均通过业务键引用，permission-center 内部解析。
+后续所有操作（user_role 写入、权限校验、缓存失效）均通过业务键引用，由本地权限引擎解析。
 
-### 5.2 组织同步
+### 5.2 组织投影
 
-组织同步必须同时覆盖两条线，均使用业务键定位，不回填内部 ID：
+组织投影必须同时覆盖两条线，由 `access.application` 在写入 `sys_org` 的同一事务内维护（本地投影，业务键定位，不回填内部 ID）：
 
 1. 组织作为可管理资源：`resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`
    - `codeType = default`
@@ -142,14 +142,14 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 实现上不再需要在 `sys_org` 表分别存储资源 ID 和角色 ID。
 
-### 5.3 成员关系同步
+### 5.3 成员关系投影
 
-`sys_user_org` 变更后必须同步为 permission-center 的 `user_role`：
+`sys_user_org` 变更后由 `access.application` 在同一事务内投影为本地 `user_role`：
 
 - 新增关系：通过业务键定位 `abstract_user` 和 `abstract_role`，写入 `user_role`。
-- 删除关系：回收对应 `user_role`。
-- 岗位关系如需表达所属组织上下文，使用业务关系键表达，不对外暴露 permission-center 内部 ID。
-- 分配/回收后必须失效用户有效角色缓存。
+- 删除关系：回收对应 `user_role`（投影缺失 fail-closed 整体回滚）。
+- 岗位成员 relation 指向所属组织角色（POSITION 绑定/解绑须传入所属组织上下文）。
+- 分配/回收后必须失效用户有效角色缓存（事务提交后经 `@PermissionChange` 广播）。
 
 组织/岗位成员关系由 `access.application` 在同一事务内投影为 `user_role`（`LocalProjectionDomainService.bindUserOrg/unbindUserOrg`）。外部 sync 不得再提交 `sourceType=SYS_USER_ORG`。功能角色分配（BASIC_ROLE/GROUP_ROLE/PERSONAL）走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
 
@@ -260,7 +260,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(ADMIN_USER)`，使用业务键定位。 |
 | P0 | 补齐 `sys_org -> resource_entity(ADMIN_ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
 | P0 | 删除 `sys_user.perm_user_id`、`sys_org.perm_role_id` 字段及所有引用，改为业务键调用。 |
-| P0 | 清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径：(1) `ROLE_TYPE_LABELS` 移除 `ORG_ROLE` 条目，新增 `ORG`→组织角色、`POSITION`→岗位角色；(2) `createRoleForOrg` 的 `roleTypeCode` 由硬编码 `ORG_ROLE` 改为按 `SysOrg.orgType` 动态选择 `ORG`(orgType=1) / `POSITION`(orgType=2)；(3) `grantMenuToRole` / `revokeMenuFromRole` 同理，由调用方传入而非硬编码；(4) 评估 `createRoleForOrg` 是否应废弃，改由 `OrgSyncHandlerImpl` 在同步流程中统一创建 `abstract_role(ORG/POSITION)`。迁移前提：OrgSyncHandlerImpl 已补齐 abstract_role 双同步。 |
+| P0 | 清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径：(1) `ROLE_TYPE_LABELS` 移除 `ORG_ROLE` 条目，新增 `ORG`→组织角色、`POSITION`→岗位角色；(2) `createRoleForOrg` 的 `roleTypeCode` 由硬编码 `ORG_ROLE` 改为按 `SysOrg.orgType` 动态选择 `ORG`(orgType=1) / `POSITION`(orgType=2)；(3) `grantMenuToRole` / `revokeMenuFromRole` 同理，由调用方传入而非硬编码；(4) 评估 `createRoleForOrg` 是否应废弃，改由 `access.application` 在组织写入事务内统一维护 `abstract_role(ORG/POSITION)`。 |
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |

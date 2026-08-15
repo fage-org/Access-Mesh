@@ -42,11 +42,6 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     private static final String OP_DISABLE = "DISABLE";
     private static final String OP_DELETE = "DELETE";
 
-    /** 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE），判定本地投影的唯一依据 */
-    private static final String ADMIN_SOURCE_SERVICE = "admin-service";
-    /** 本地投影所有权标识（access-service-architecture §4.2） */
-    private static final String LOCAL_PROJECTION_OWNER = "access-service";
-
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DISABLED = "DISABLED";
     private static final String STATUS_DELETED = "DELETED";
@@ -113,8 +108,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
 
         // 6. 写目标事实表 + markStatus
         Long targetId = applyToTarget(tenantId, userType, req.subjectExternalId(), op,
-                req.name(), req.enabled(), serializeExtra(req.extra()),
-                localProjectionOwner(req.sourceService()));
+                req.name(), req.enabled(), serializeExtra(req.extra()));
 
         String targetStatus = switch (op) {
             case OP_UPSERT -> STATUS_ACTIVE;
@@ -213,7 +207,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
             AbstractUser existing = existingByExternalId.get(item.subjectExternalId());
             Long itemTargetId = applyToTargetWithExisting(tenantId, userType, item.subjectExternalId(),
                     OP_UPSERT, item.name(), item.enabled(), serializeExtra(item.extra()),
-                    existing, now, localProjectionOwner(req.scope().sourceService()));
+                    existing, now);
             // 写入后更新 cache：新插入的 existing 会在 mapper.insert 中获得 id；后续 item 不会重复同 externalId
             if (existing == null && itemTargetId != null) {
                 AbstractUser fresh = new AbstractUser();
@@ -261,28 +255,20 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     // ---------------------------------------------------------------------
 
     /**
-     * 本地投影所有权判定（access-service-architecture §4.2）：
-     * 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE=admin-service）写入 'access-service'，
-     * 其余（外部业务服务同步）返回 null 保持未标记，所有权以 sync_metadata 为准。
-     */
-    private String localProjectionOwner(String sourceService) {
-        return ADMIN_SOURCE_SERVICE.equals(sourceService) ? LOCAL_PROJECTION_OWNER : null;
-    }
-
-    /**
      * 将业务变更落到 abstract_user 表。
+     * <p>
+     * 外部业务服务同步写入的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）。
+     * </p>
      *
-     * @param ownerServiceCode 所有权标识：'access-service'（本地投影）或 null（外部同步/人工维护）
      * @return 写入/已存在的 abstract_user.id；DELETE 操作或 existing 缺失时返回 {@code null}
      */
     private Long applyToTarget(Long tenantId, Integer userType, String externalId,
                                 String operation,
-                                String name, Boolean enabled, String extra,
-                                String ownerServiceCode) {
+                                String name, Boolean enabled, String extra) {
         AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, externalId);
         localProjectionGuard.rejectIfLocalUser(existing);
         return applyToTargetWithExisting(tenantId, userType, externalId, operation,
-                name, enabled, extra, existing, LocalDateTime.now(), ownerServiceCode);
+                name, enabled, extra, existing, LocalDateTime.now());
     }
 
     /**
@@ -292,8 +278,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     private Long applyToTargetWithExisting(Long tenantId, Integer userType, String externalId,
                                             String operation,
                                             String name, Boolean enabled, String extra,
-                                            AbstractUser existing, LocalDateTime now,
-                                            String ownerServiceCode) {
+                                            AbstractUser existing, LocalDateTime now) {
         if (OP_DELETE.equals(operation)) {
             if (existing != null) {
                 abstractUserMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
@@ -309,8 +294,6 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
             user.setName(name);
             user.setEnabled(OP_DISABLE.equals(operation) ? Boolean.FALSE : (enabled != null ? enabled : Boolean.TRUE));
             user.setExtra(extra);
-            // 本地投影（sourceService=admin-service）显式标记所有权；外部同步/人工维护保持 NULL
-            user.setOwnerServiceCode(ownerServiceCode);
             user.setCreatedAt(now);
             user.setUpdatedAt(now);
             user.setDeleteFlag(0L);

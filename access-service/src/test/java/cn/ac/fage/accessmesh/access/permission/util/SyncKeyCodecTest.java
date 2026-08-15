@@ -71,10 +71,10 @@ class SyncKeyCodecTest {
     }
 
     @Test
-    void userRoleScopeKey_shouldHaveSysUserOrgPrefix() {
-        String key = SyncKeyCodec.userRoleScopeKey("ORG", "root-1");
+    void userRoleScopeKey_shouldUseCallerSourceType() {
+        String key = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "root-1");
         assertEquals(
-                "sourceType=SYS_USER_ORG&roleTypeCode=ORG&treeRootExternalId=root-1",
+                "sourceType=HR_MEMBER&roleTypeCode=ORG&treeRootExternalId=root-1",
                 key);
     }
 

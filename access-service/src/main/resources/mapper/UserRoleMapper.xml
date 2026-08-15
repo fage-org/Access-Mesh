@@ -142,6 +142,16 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.UserRole">
+        SELECT * FROM user_role
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
     <!-- 批量软删指定抽象用户的全部 user_role（删除用户级联路径，单条 SQL） -->
     <update id="softDeleteByAbstractUserIds">
         UPDATE user_role

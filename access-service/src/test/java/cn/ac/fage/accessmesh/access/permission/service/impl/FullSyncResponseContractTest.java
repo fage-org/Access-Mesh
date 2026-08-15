@@ -212,25 +212,28 @@ class FullSyncResponseContractTest {
     // ---- 3. UserRoleSyncAppService.fullSync ----
 
     @Test
-    void userRoleFullSync_invalidScope_topLevelNonRetryable() {
+    void userRoleFullSync_itemRoleTypeMismatch_nonRetryableItem() {
         mockHeaderMatch();
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
-        // sourceType != SYS_USER_ORG -> non-retryable
+        // scope.roleTypeCode 与 item.roleTypeCode 不一致 → item 级 NON_RETRYABLE（顶层 accepted；
+        // 契约 §6.2.2.3：不进入 markStatus 路径，避免污染 metadata）
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
-                new UserRoleSyncScope(SOURCE_SERVICE, "INVALID_TYPE", "ORG", "ROOT"),
-                List.of(new UserRoleSyncItem("USER", "u1", "ORG", "org-1",
-                        "ORG:org-1", null, null, null, null,
+                new UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
+                List.of(new UserRoleSyncItem("EMP", "u1", "OTHER_ROLE", "org-1",
+                        "TEAM_ROLE:org-1", null, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 
-        assertThat(resp.accepted()).isFalse();
-        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.accepted()).isTrue();
+        assertThat(resp.applied()).isFalse();
         assertThat(resp.detail()).isNotNull();
         assertThat(resp.detail().failedCount()).isEqualTo(1);
+        assertThat(resp.detail().itemResults().get(0).retryClass())
+                .isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
     }
 
     @Test

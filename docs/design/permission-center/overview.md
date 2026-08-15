@@ -56,7 +56,7 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 
 在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin-service 主维护组织树和 `user-org` 关系；permission-center 保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
 
-默认组织树是 admin-service 的用户目录/身份池。permission-center 不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 admin-service 同步来的主体、资源、角色和授权事实。permission-center 的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用 permission-center 的内部主键。
+默认组织树是 admin-service 的用户目录/身份池。permission-center 不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 `access.application` 在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。permission-center 的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用 permission-center 的内部主键。
 
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 

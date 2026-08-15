@@ -49,11 +49,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private static final String STATUS_DELETED = "DELETED";
     private static final String MAINTAIN_SOURCE_SYNC = "SYNC";
 
-    /** 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE），判定本地投影的唯一依据 */
-    private static final String ADMIN_SOURCE_SERVICE = "admin-service";
-    /** 本地投影所有权标识（access-service-architecture §4.2，resource_entity 复用现有 owner_service_code） */
-    private static final String LOCAL_PROJECTION_OWNER = "access-service";
-
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final SyncMetadataMapper syncMetadataMapper;
     private final TypeResolutionService typeResolutionService;
@@ -286,9 +281,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 re.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
                 re.setMaintainSource(MAINTAIN_SOURCE_SYNC);
                 re.setSyncKey(syncKey);
-                // 本地投影（sourceService=admin-service，管理事实派生的 ADMIN_USER/ADMIN_ORG/MENU 等）
-                // 显式标记所有权；外部同步保持 NULL（所有权以 sync_metadata 为准）
-                re.setOwnerServiceCode(localProjectionOwner(req.sourceService()));
+                // 外部业务服务同步的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）
                 re.setExtra(serializeExtra(req.extra()));
                 re.setCreatedAt(now);
                 re.setUpdatedAt(now);
@@ -347,12 +340,4 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
     }
 
-    /**
-     * 本地投影所有权判定（access-service-architecture §4.2）：
-     * 内部管理域同步来源（SyncTaskBuilder.SOURCE_SERVICE=admin-service）写入 'access-service'，
-     * 其余（外部业务服务同步）返回 null 保持未标记，所有权以 sync_metadata 为准。
-     */
-    private String localProjectionOwner(String sourceService) {
-        return ADMIN_SOURCE_SERVICE.equals(sourceService) ? LOCAL_PROJECTION_OWNER : null;
-    }
 }
