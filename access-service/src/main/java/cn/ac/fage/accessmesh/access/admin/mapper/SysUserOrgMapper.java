@@ -62,13 +62,13 @@ public interface SysUserOrgMapper extends BaseMapper<SysUserOrg> {
                                @Param("orgId") Long orgId);
 
     /**
-     * 批量删除多个用户的所有组织关联（物理删除，单条 SQL，）
+     * 批量删除多个用户的所有组织关联（物理删除，单条 SQL）
      */
     int deleteByUserIds(@Param("tenantId") Long tenantId,
                         @Param("userIds") java.util.Set<Long> userIds);
 
     /**
-     * 批量删除多个用户与指定组织的关联（物理删除，单条 SQL，）
+     * 批量删除多个用户与指定组织的关联（物理删除，单条 SQL）
      */
     int deleteByUserIdsAndOrgId(@Param("tenantId") Long tenantId,
                                 @Param("userIds") java.util.Set<Long> userIds,

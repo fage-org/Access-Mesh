@@ -15,7 +15,7 @@ import java.util.Set;
  * 抽象用户包括内部用户和外部用户，是权限分配的主体。
  * 支持批量软删除操作。
  * </p>
-*/
+ */
 public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
 
     /**
@@ -25,100 +25,100 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
      * 用于批量删除场景，避免物理删除。
      * </p>
      *
-     * @param tenantId 租户ID
-     * @param ids 待删除的抽象用户ID列表
+     * @param tenantId  租户ID
+     * @param ids       待删除的抽象用户ID列表
      * @param deletedAt 删除时间戳
      * @return 更新的行数
-    */
+     */
     int softDeleteBatch(@Param("tenantId") Long tenantId,
-    @Param("ids") List<Long> ids,
-    @Param("deletedAt") LocalDateTime deletedAt);
+                        @Param("ids") List<Long> ids,
+                        @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
      * 根据ID和租户ID查询有效用户
      *
-     * @param id 用户ID
+     * @param id       用户ID
      * @param tenantId 租户ID
      * @return 用户实体，不存在或已删除返回null
-    */
+     */
     AbstractUser selectValidById(@Param("id") Long id, @Param("tenantId") Long tenantId);
 
     /**
      * 根据用户类型、外部ID和租户ID查询有效用户（用于sync/create唯一性检查）
      *
-     * @param tenantId 租户ID
-     * @param userType 用户类型值
+     * @param tenantId  租户ID
+     * @param userType  用户类型值
      * @param externalId 用户外部ID
      * @return 用户实体，不存在返回null
-    */
+     */
     AbstractUser selectByTypeAndExternalId(@Param("tenantId") Long tenantId,
-    @Param("userType") Integer userType,
-    @Param("externalId") String externalId);
+                                            @Param("userType") Integer userType,
+                                            @Param("externalId") String externalId);
 
     /**
      * 根据ID集合批量查询有效用户
      *
      * @param tenantId 租户ID
-     * @param ids 用户ID集合
+     * @param ids      用户ID集合
      * @return 用户列表
-    */
+     */
     List<AbstractUser> selectValidByIds(@Param("tenantId") Long tenantId, @Param("ids") Set<Long> ids);
 
     /**
      * 分页查询用户列表（带过滤条件）
      *
-     * @param tenantId 租户ID
-     * @param userType 用户类型值，可选
-     * @param keyword 搜索关键字，可选（LIKE匹配name或external_id）
-     * @param matchNone 是否匹配空结果（用于域过滤不匹配时）
-     * @param offset 偏移量
-     * @param limit 每页数量
+     * @param tenantId        租户ID
+     * @param userType        用户类型值，可选
+     * @param keyword         搜索关键字，可选（LIKE匹配name或external_id）
+     * @param matchNone       是否匹配空结果（用于域过滤不匹配时）
+     * @param offset          偏移量
+     * @param limit           每页数量
      * @return 用户列表
-    */
+     */
     List<AbstractUser> selectUserListPaged(@Param("tenantId") Long tenantId,
-    @Param("userType") Integer userType,
-    @Param("keyword") String keyword,
-    @Param("matchNone") boolean matchNone,
-    @Param("offset") int offset,
-    @Param("limit") int limit);
+                                            @Param("userType") Integer userType,
+                                            @Param("keyword") String keyword,
+                                            @Param("matchNone") boolean matchNone,
+                                            @Param("offset") int offset,
+                                            @Param("limit") int limit);
 
     /**
      * 统计用户数量（带过滤条件）
      *
-     * @param tenantId 租户ID
-     * @param userType 用户类型值，可选
-     * @param keyword 搜索关键字，可选
-     * @param matchNone 是否匹配空结果
+     * @param tenantId        租户ID
+     * @param userType        用户类型值，可选
+     * @param keyword         搜索关键字，可选
+     * @param matchNone       是否匹配空结果
      * @return 用户总数
-    */
+     */
     long selectUserListCount(@Param("tenantId") Long tenantId,
-    @Param("userType") Integer userType,
-    @Param("keyword") String keyword,
-    @Param("matchNone") boolean matchNone);
+                              @Param("userType") Integer userType,
+                              @Param("keyword") String keyword,
+                              @Param("matchNone") boolean matchNone);
 
     /**
      * 根据用户类型和外部ID批量查询有效用户
      *
-     * @param tenantId 租户ID
-     * @param userType 用户类型值
+     * @param tenantId    租户ID
+     * @param userType    用户类型值
      * @param externalIds 外部ID集合
      * @return 用户列表
-    */
+     */
     List<AbstractUser> selectByTypeAndExternalIds(@Param("tenantId") Long tenantId,
-    @Param("userType") Integer userType,
-    @Param("externalIds") Set<String> externalIds);
+                                                   @Param("userType") Integer userType,
+                                                   @Param("externalIds") Set<String> externalIds);
 
     /**
      * 批量停用抽象用户（enabled=false，单条 SQL，启停路径批量 N+1 消除）
      *
-     * @param tenantId 租户ID
-     * @param ids 抽象用户ID集合
+     * @param tenantId  租户ID
+     * @param ids       抽象用户ID集合
      * @param updatedAt 更新时间
      * @return 影响行数
-    */
+     */
     int batchDisable(@Param("tenantId") Long tenantId,
-    @Param("ids") Set<Long> ids,
-    @Param("updatedAt") LocalDateTime updatedAt);
+                     @Param("ids") Set<Long> ids,
+                     @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
      * 批量刷新已有投影行的 name/enabled/extra（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
@@ -127,14 +127,14 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
      * extra 为 null 的行保留原值（与单条路径"仅非 null 才更新"语义一致）。
      * </p>
      *
-     * @param tenantId 租户ID
-     * @param owner 所有者服务编码
-     * @param users 待刷新行（必须含主键 id）
+     * @param tenantId  租户ID
+     * @param owner     所有者服务编码
+     * @param users     待刷新行（必须含主键 id）
      * @param updatedAt 更新时间
      * @return 影响行数
-    */
+     */
     int batchUpdateValues(@Param("tenantId") Long tenantId,
-    @Param("owner") String owner,
-    @Param("users") List<AbstractUser> users,
-    @Param("updatedAt") LocalDateTime updatedAt);
+                          @Param("owner") String owner,
+                          @Param("users") List<AbstractUser> users,
+                          @Param("updatedAt") LocalDateTime updatedAt);
 }

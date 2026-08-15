@@ -98,7 +98,7 @@ class LocalProjectionDomainServiceImplTest {
         verify(resourceEntityMapper, never()).softDeleteBatch(any(), any(), any());
     }
 
-    // ===== 十轮评审 P2：批量绑定 / POSITION relation / 依赖缺失 / 父角色类型 / 岗位迁移 =====
+    // ===== 批量绑定 / POSITION relation / 依赖缺失 / 父角色类型 / 岗位迁移 =====
 
     /** requireType mock：按 (typeKey, typeCode) 返回稳定值（lenient——各用例只用到子集）。 */
     private void mockTypes() {
@@ -129,7 +129,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("batchBind：已有投影行更新携带主键（十轮 P1 回归：不再重建无 id 实体）")
+    @DisplayName("batchBind：已有投影行更新携带主键（回归：不再重建无 id 实体）")
     void batchBind_updatesExistingWithPrimaryKey() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
@@ -149,7 +149,7 @@ class LocalProjectionDomainServiceImplTest {
 
         assertThat(result).containsEntry(new LocalProjectionDomainService.UserOrgBindKey(10L, 20L, "ORG", null), 555L);
         verify(userRoleMapper, never()).insertBatch(any());
-        // 十一轮 P1：已有行统一批量刷新（单条 SQL），不再循环单条 update
+        // 已有行统一批量刷新（单条 SQL），不再循环单条 update
         verify(userRoleMapper, never()).update(any(UserRole.class));
         verify(userRoleMapper).batchRefreshOwner(eq(TENANT), anyString(), eq(List.of(555L)), any());
     }
@@ -177,7 +177,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("batchBind：POSITION 所属组织角色投影缺失 → 抛依赖缺失（十轮 P1：不再回退 targetRole）")
+    @DisplayName("batchBind：POSITION 所属组织角色投影缺失 → 抛依赖缺失（不再回退 targetRole）")
     void batchBind_positionMissingOwningOrgRoleFailsClosed() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
@@ -222,7 +222,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("upsertAdminOrg：父角色投影缺失 → 抛依赖缺失（十轮 P1：不再静默 parentId=null）")
+    @DisplayName("upsertAdminOrg：父角色投影缺失 → 抛依赖缺失（不再静默 parentId=null）")
     void upsertAdminOrg_missingParentRoleFailsClosed() {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(null);
@@ -251,7 +251,7 @@ class LocalProjectionDomainServiceImplTest {
         Set<Long> affected = service.migratePositionRelation(TENANT, 3001L, 2001L, 4001L);
 
         assertThat(affected).containsExactly(100L);
-        // 十一轮 P1：单条 SQL 批量迁移，不再循环单条 update
+        // 单条 SQL 批量迁移，不再循环单条 update
         verify(userRoleMapper, never()).update(any(UserRole.class));
         verify(userRoleMapper).batchUpdateRelationByIds(eq(TENANT), eq(400L), eq(List.of(555L)), any());
     }
@@ -271,7 +271,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("migratePositionRelation：岗位角色投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 Set.of()）")
+    @DisplayName("migratePositionRelation：岗位角色投影缺失 → 抛依赖缺失（不再静默 Set.of()）")
     void migratePositionRelation_missingPositionRoleFailsClosed() {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "3001")).thenReturn(null);
@@ -284,7 +284,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("migratePositionRelation：旧所属组织角色投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 Set.of()）")
+    @DisplayName("migratePositionRelation：旧所属组织角色投影缺失 → 抛依赖缺失（不再静默 Set.of()）")
     void migratePositionRelation_missingOldOrgFailsClosed() {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "3001")).thenReturn(role(300L, "3001"));
@@ -298,7 +298,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("upsertAdminOrg：父 resource_entity 投影缺失 → 抛依赖缺失（十一轮 P1：不再静默 parentId=null）")
+    @DisplayName("upsertAdminOrg：父 resource_entity 投影缺失 → 抛依赖缺失（不再静默 parentId=null）")
     void upsertAdminOrg_missingParentResourceFailsClosed() {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(role(110L, "100")); // ORG:100 父角色存在
@@ -340,7 +340,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("batchDelete：资源行限定 code_type=default（十一轮 P2：不再匹配全部 code_type）")
+    @DisplayName("batchDelete：资源行限定 code_type=default（不再匹配全部 code_type）")
     void batchDelete_limitsToCodeTypeDefault() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
@@ -356,14 +356,14 @@ class LocalProjectionDomainServiceImplTest {
         verify(resourceEntityMapper, never()).selectByTypeAndCodes(any(), any(), any());
         verify(resourceEntityMapper).selectByTypeAndCodesAndCodeTypes(
             eq(TENANT), eq(16), eq(Set.of("10")), eq(Set.of("default")));
-        // 十二轮 P1：同一事务级联软删该用户全部 user_role（含功能角色，不再依赖延迟补偿）
+        // 同一事务级联软删该用户全部 user_role（含功能角色，不再依赖延迟补偿）
         verify(userRoleMapper).softDeleteByAbstractUserIds(eq(TENANT), eq(Set.of(100L)), any());
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
         verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(50L)), any());
     }
 
     @Test
-    @DisplayName("batchBind：同一 externalId 的 ORG/POSITION 双投影并存时，按请求 roleTypeCode 精确取值（十二轮 P2）")
+    @DisplayName("batchBind：同一 externalId 的 ORG/POSITION 双投影并存时，按请求 roleTypeCode 精确取值（）")
     void batchBind_resolvesRoleByRoleTypeCode() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
@@ -389,7 +389,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("batchBind：请求类型投影缺失（仅 ORG 存在但请求 POSITION）→ fail-closed（十二轮 P2）")
+    @DisplayName("batchBind：请求类型投影缺失（仅 ORG 存在但请求 POSITION）→ fail-closed（）")
     void batchBind_missingRequestedRoleTypeFailsClosed() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
@@ -405,5 +405,58 @@ class LocalProjectionDomainServiceImplTest {
             .isInstanceOf(BizException.class)
             .hasMessageContaining("local projection missing");
         verify(userRoleMapper, never()).insertBatch(any());
+    }
+
+    @Test
+    @DisplayName("batchUnbind：请求类型角色投影缺失 → 抛依赖缺失整体回滚（不再静默跳过）")
+    void batchUnbind_missingRequestedRoleTypeFailsClosed() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
+        // 仅 ORG 投影，请求 POSITION → 角色投影缺失
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("3001")))
+            .thenReturn(List.of(role(300L, "3001")));
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 11, Set.of("3001")))
+            .thenReturn(List.of());
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("2001")))
+            .thenReturn(List.of(role(200L, "2001")));
+
+        assertThatThrownBy(() -> service.batchUnbindUserOrg(TENANT,
+            List.of(new LocalProjectionDomainService.UserOrgBindKey(10L, 3001L, "POSITION", 2001L))))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("local projection missing for user-org unbind");
+        // 管理事实删除被回滚：不执行任何软删
+        verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("batchUnbind：用户投影缺失 → 抛依赖缺失（同 fail-closed 语义）")
+    void batchUnbind_missingUserProjectionFailsClosed() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of());
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("20")))
+            .thenReturn(List.of(role(200L, "20")));
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 11, Set.of("20")))
+            .thenReturn(List.of());
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("20")))
+            .thenReturn(List.of(role(200L, "20")));
+
+        assertThatThrownBy(() -> service.batchUnbindUserOrg(TENANT,
+            List.of(new LocalProjectionDomainService.UserOrgBindKey(10L, 20L, "ORG", null))))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("local projection missing for user-org unbind");
+        verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("单条 unbind：用户投影缺失 → 抛依赖缺失（与 bind 对称，不再静默返回 null）")
+    void unbind_missingUserProjectionFailsClosed() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "10")).thenReturn(null);
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "20")).thenReturn(role(200L, "20"));
+
+        assertThatThrownBy(() -> service.unbindUserOrg(TENANT, 10L, 20L, "ORG", null))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("local projection missing for user-org unbind");
+        verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
     }
 }

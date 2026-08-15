@@ -55,7 +55,7 @@ import static org.mockito.Mockito.verify;
  * 断言管理事实表、投影表、change_log 表全部无残留，且回滚不触发 {@link PermInvalidationPublisher}。
  * Docker 不可用时由 Testcontainers 自动跳过（与既有 17 个 PG 测试一致）。
  * </p>
-*/
+ */
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
@@ -79,9 +79,9 @@ class UserWriteAppServiceFaultInjectionIT {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-    .withDatabaseName("fault_inject_test")
-    .withUsername("perm")
-    .withPassword("perm");
+        .withDatabaseName("fault_inject_test")
+        .withUsername("perm")
+        .withPassword("perm");
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
@@ -101,8 +101,8 @@ class UserWriteAppServiceFaultInjectionIT {
         // 原样执行权威 DDL + 种子数据（type_definition 等），供真实投影/审计路径落库
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (var conn = java.sql.DriverManager.getConnection(
-        postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
-        var st = conn.createStatement()) {
+            postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+             var st = conn.createStatement()) {
             st.execute(sql);
         }
     }
@@ -132,6 +132,7 @@ class UserWriteAppServiceFaultInjectionIT {
     @MockBean
     private TenantIdProvider tenantIdProvider;
 
+
     @BeforeEach
     void setUp() {
         TenantContextHolder.setTenantId(TENANT);
@@ -140,11 +141,11 @@ class UserWriteAppServiceFaultInjectionIT {
         jdbcTemplate.execute("DELETE FROM permission_change_log WHERE tenant_id = " + TENANT);
         jdbcTemplate.execute("DELETE FROM user_role WHERE tenant_id = " + TENANT);
         jdbcTemplate.execute(
-        "DELETE FROM resource_entity WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
+            "DELETE FROM resource_entity WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
         jdbcTemplate.execute(
-        "DELETE FROM abstract_user WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
+            "DELETE FROM abstract_user WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
         jdbcTemplate.execute(
-        "DELETE FROM abstract_role WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
+            "DELETE FROM abstract_role WHERE tenant_id = " + TENANT + " AND owner_service_code = 'access-service'");
         jdbcTemplate.execute("DELETE FROM sys_user_org WHERE tenant_id = " + TENANT);
         jdbcTemplate.execute("DELETE FROM sys_user WHERE tenant_id = " + TENANT);
     }
@@ -159,12 +160,12 @@ class UserWriteAppServiceFaultInjectionIT {
     @DisplayName("投影失败：管理事实回滚（sys_user 无残留）、change_log 无记录、不发布缓存失效")
     void projectionFailureRollsBackFactAndChangeLog() {
         doThrow(new SystemException(90001, "projection failed"))
-        .when(localProjectionDomainService)
-        .upsertAdminUser(anyLong(), anyLong(), anyString(), anyBoolean(), any());
+            .when(localProjectionDomainService)
+            .upsertAdminUser(anyLong(), anyLong(), anyString(), anyBoolean(), any());
 
         assertThatThrownBy(() -> userWriteAppService.createUser(createReq()))
-        .isInstanceOf(SystemException.class)
-        .hasMessageContaining("projection failed");
+            .isInstanceOf(SystemException.class)
+            .hasMessageContaining("projection failed");
 
         assertThat(countRows("sys_user")).isZero();
         assertThat(countRows("abstract_user")).isZero();
@@ -178,11 +179,11 @@ class UserWriteAppServiceFaultInjectionIT {
     @DisplayName("change_log 失败：事实与投影整体回滚，不发布缓存失效")
     void changeLogFailureRollsBackFactAndProjection() {
         doThrow(new SystemException(90001, "change log failed"))
-        .when(auditDomainService).recordChangeLog(any(), any());
+            .when(auditDomainService).recordChangeLog(any(), any());
 
         assertThatThrownBy(() -> userWriteAppService.createUser(createReq()))
-        .isInstanceOf(SystemException.class)
-        .hasMessageContaining("change log failed");
+            .isInstanceOf(SystemException.class)
+            .hasMessageContaining("change log failed");
 
         assertThat(countRows("sys_user")).isZero();
         assertThat(countRows("abstract_user")).isZero();
@@ -211,7 +212,7 @@ class UserWriteAppServiceFaultInjectionIT {
 
     private long countRows(String table) {
         Long count = jdbcTemplate.queryForObject(
-        "SELECT COUNT(*) FROM " + table + " WHERE tenant_id = " + TENANT, Long.class);
+            "SELECT COUNT(*) FROM " + table + " WHERE tenant_id = " + TENANT, Long.class);
         return count == null ? 0L : count;
     }
 }

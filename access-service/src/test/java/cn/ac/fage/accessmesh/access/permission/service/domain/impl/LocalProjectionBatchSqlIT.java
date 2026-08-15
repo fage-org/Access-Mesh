@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 本地投影批量 SQL 的真实 PostgreSQL 验证（Testcontainers，Docker 可用时执行）。
  * <p>
- * 回归十二轮 P1：批量 UPDATE VALUES 子句必须显式 CAST——全 unknown 参数的 VALUES 列表会被
+ * 回归：批量 UPDATE VALUES 子句必须显式 CAST——全 unknown 参数的 VALUES 列表会被
  * PG 推断为 text 列，text→boolean 与 COALESCE(text, jsonb) 均报 42804；stringtype=unspecified
  * 不救 VALUES 推断。本测试在真实 PG 上执行 batchUpsertAdminUsers（已有行路径走 batchUpdateValues）
  * 与 batchDeleteAdminUsers（级联软删 user_role），Docker 不可用时由 Testcontainers 跳过。
@@ -153,4 +153,3 @@ class LocalProjectionBatchSqlIT {
             Integer.class, TENANT, String.valueOf(sysUserId))).isZero();
     }
 }
-

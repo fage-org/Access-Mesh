@@ -4,7 +4,7 @@
 
 | 主题 | 文档 | 说明 |
 |------|------|------|
-| admin-service 与 permission-center 同步 | [admin-permission-sync.md](../archive/2026-08-15/admin-permission-sync.md) | `status: superseded`；旧异步同步设计，仅历史追溯。替代设计为 `access-service` 单库强事务 |
+| admin-service 与 permission-center 同步（已归档） | [admin-permission-sync.md](../../archive/2026-08-15/admin-permission-sync.md) | `status: superseded`；旧异步同步设计，仅历史追溯。替代设计为 `access-service` 单库强事务 |
 
 本目录中的 `adopted` 文档面向长期有效的契约、数据流、安全边界和一致性约束；`superseded` 文档仅为保持链接可解析和历史追溯而保留。阶段任务、迁移检查或验收清单不放在本目录；仍在推进的计划放在 `../../plans/`，已完成的过程文档归档到 `../../archive/YYYY-MM-DD/`。
 

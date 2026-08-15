@@ -161,10 +161,10 @@ class OrgWriteAppServiceTest {
         newParent.setOrgType("1");
         newParent.setLevel(4);
         when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
-        // 同树（九轮评审 P1：跨树校验）
+        // 同树（跨树校验）
         when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
         when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 20L)).thenReturn("1");
-        // 子树最深 level 2 + delta 3 = 5 ≤ 10（九轮评审 P1：深度校验）
+        // 子树最深 level 2 + delta 3 = 5 ≤ 10（深度校验）
         SysOrg subtreeOrg = new SysOrg();
         subtreeOrg.setId(30L);
         subtreeOrg.setLevel(2);
@@ -235,7 +235,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("创建子组织：父不存在 → 拒绝（九轮 P1）")
+    @DisplayName("创建子组织：父不存在 → 拒绝")
     void createOrgWithMissingParentRejected() {
         when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(null);
 
@@ -246,7 +246,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("创建子组织：校验父节点 UPDATE 门禁（九轮 P1）")
+    @DisplayName("创建子组织：校验父节点 UPDATE 门禁")
     void createOrgChecksParentPermission() {
         SysOrg parent = new SysOrg();
         parent.setId(999L);
@@ -263,7 +263,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("创建子组织：父节点游离（不属于任何树）→ 拒绝（九轮 P1）")
+    @DisplayName("创建子组织：父节点游离（不属于任何树）→ 拒绝")
     void createOrgWithFloatingParentRejected() {
         SysOrg parent = new SysOrg();
         parent.setId(999L);
@@ -279,7 +279,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("创建子组织：只走父节点 UPDATE 门禁，不再额外要求类型级 CREATE（十轮 P1）")
+    @DisplayName("创建子组织：只走父节点 UPDATE 门禁，不再额外要求类型级 CREATE")
     void createOrgChildSkipsTypeLevelCreate() {
         SysOrg parent = new SysOrg();
         parent.setId(999L);
@@ -303,7 +303,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("创建顶级组织：走类型级 CREATE（十轮 P1 门禁分支）")
+    @DisplayName("创建顶级组织：走类型级 CREATE（门禁分支）")
     void createOrgTopLevelUsesTypeLevelCreate() {
         when(orgDomainService.findByCode(TENANT, "NEW")).thenReturn(null);
         doAnswer(inv -> {
@@ -321,7 +321,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("岗位移动：迁移成员 relation 并登记受影响用户（十轮 P1）")
+    @DisplayName("岗位移动：迁移成员 relation 并登记受影响用户")
     void movePositionMigratesMemberRelation() {
         SysOrg org = org("A", "2", 2); // POSITION
         when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org);

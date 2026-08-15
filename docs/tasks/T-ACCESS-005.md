@@ -126,3 +126,13 @@ last_updated: 2026-08-15
 - **回归测试**：`LocalProjectionDomainServiceImplTest` +2（双投影按 roleTypeCode 精确取值 / 请求类型缺失 fail-closed）+ batchDelete 用例追加级联软删断言；`OrgWriteAppServiceTest` +3（orgType=3 拒绝 / 岗位挂未知类型父拒绝 / 移动至未知类型父拒绝）；新增 `LocalProjectionBatchSqlIT`（2 用例，Testcontainers PG）。
 
 **验证（十二轮收口）**：access-service 默认 `mvn test` **409 测试 0 失败 24 跳过**（402 + 新增 7：LocalProjection 2 + Org 3 + BatchSqlIT 2）。
+
+**外部评审十三轮修复（2026-08-15，1 P1 + 2 P2 + 1 P3 全核实修复，1 项用户决策）**：
+
+- **P1（UNBIND 精确投影缺失 fail-open）**：`batchUnbindUserOrg` 原对用户/角色投影缺失 `continue` 静默跳过、单条 `unbindUserOrg` 返回 null——调用方随后删除 `sys_user_org`/`sys_org` 管理事实，错类型/残留 `user_role` 继续存活（用户删除级联无法覆盖"用户仍存在、仅成员关系被删"场景）。修复：两处均抛 `USER_ROLE_RELATION_NOT_FOUND`（与 bind 对称）整体回滚；关系不存在（用户/角色投影都在、三元组无匹配）仍为幂等 no-op。补 3 用例（批量角色缺失/批量用户缺失/单条用户缺失）。
+- **P2（adopted 文档仍描述已删除同步链路，用户决策：回写为当前链路）**：`core-flows.md` §5 场景三管理端段落（sync API + 4 类 `PERM_*_SYNC` 任务）改写为「`access.application` 同一事务维护本地投影、级联清理、fail-closed，外部业务服务 sync 保留」；`org-user-permission-contract.md` 三处（`OrgSyncHandler`/Feign `/checkAuth` 调用链/`SyncTaskBuilder`+`enqueueIfPresent` 实现段）改写为本地 `PermQueryEngine`/`WriteAppService` 链路；`access-service.sql` 种子注释去除 `SyncTaskBuilder` 理由。
+- **P2（归档链接失效）**：`cross-service/README.md`/`services/admin-service.md` 的 `../archive` 少一层（指向不存在的 `docs/design/archive`），修正为 `../../archive`；`docs/README.md` 目录树删除已归档文件行、历史追溯链接改指 `archive/2026-08-15/`。
+- **P3（注释清理风格回归，全量收口）**：22 处 `（：`/`// ：` 残句修复为完整语义、`*/` 列首对齐、未使用 import 删除、测试 DisplayName 与行注释中全部轮次标记（八/九/十/十一/十二轮）清零（保留 T-ACCESS-003/004 带日期确认记录）；9 个纯注释文件与 4 个功能文件从十一轮提交恢复规范格式后重做后续修改（`git diff` 从 +1086/-955 收窄至 +179/-126）。
+- **回归测试**：`LocalProjectionDomainServiceImplTest` +3（UNBIND 投影缺失 fail-closed 三场景）。
+
+**验证（十三轮收口）**：access-service 默认 `mvn test` **412 测试 0 失败 24 跳过**（409 + 新增 3）。

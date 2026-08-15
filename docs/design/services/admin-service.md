@@ -70,7 +70,7 @@ last_reviewed: 2026-08-15
 
 > **T-ACCESS-005**：内部 admin→permission 同步任务模型已退役。管理事实写入改由 `access.application` 同事务维护本地权限投影，见 [`../access-service-architecture.md`](../access-service-architecture.md) §4 与 `admin-service-api-contract.md` §3。以下段落仅描述已删除的历史模型，不得再实施。
 
-admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放（参见 `../archive/2026-08-15/admin-permission-sync.md`，已 superseded）。
+admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放（参见 `../../archive/2026-08-15/admin-permission-sync.md`，已 superseded）。
 
 同步动作收敛为 4 类领域级 action，具体行为由 payload 中的 `operation` 区分：
 

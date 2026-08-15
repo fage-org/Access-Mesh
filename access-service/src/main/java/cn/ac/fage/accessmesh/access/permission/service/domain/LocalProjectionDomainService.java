@@ -78,7 +78,7 @@ public interface LocalProjectionDomainService {
     Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode, Long relationSysOrgId);
 
     /**
-     * 批量 BIND（：批量成员分配不再循环单条 bindUserOrg 的 N+1）。
+     * 批量 BIND（批量成员分配不再循环单条 bindUserOrg 的 N+1）。
      * 一次批量加载 abstract_user / abstract_role / relationRole / user_role 候选，
      * 按 (sysUserId, sysOrgId, roleTypeCode, relationSysOrgId) 匹配后批量 insert/update。
      * 任一 key 缺少 abstract_user / abstract_role / POSITION 所属组织角色投影 → 抛 BizException
@@ -128,7 +128,7 @@ public interface LocalProjectionDomainService {
     record UpsertUserKey(Long sysUserId, String name, boolean enabled, String extraJson) {}
 
     /**
-     * 批量 UNBIND（：删除路径循环单条 unbind 的 N+1）。
+     * 批量 UNBIND（删除路径循环单条 unbind 的 N+1）。
      * 一次批量加载 abstract_user / abstract_role / relationRole / user_role，
      * 按 (sysUserId, sysOrgId, roleTypeCode, relationSysOrgId) 内存匹配后批量软删。
      */
@@ -145,7 +145,7 @@ public interface LocalProjectionDomainService {
     Long findAdminUserId(Long tenantId, Long sysUserId);
 
     /**
-     * 批量按 sys_user.id 定位 abstract_user.id（：消除删除/启停路径循环 find 的 N+1）。
+     * 批量按 sys_user.id 定位 abstract_user.id（消除删除/启停路径循环 find 的 N+1）。
      *
      * @return sysUserId → abstractUserId 映射（无投影的 sysUserId 不在结果中）
      */

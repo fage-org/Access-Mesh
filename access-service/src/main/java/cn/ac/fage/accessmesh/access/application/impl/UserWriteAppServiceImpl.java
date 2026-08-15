@@ -140,7 +140,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
 
             SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
-            // 九轮评审 P1：POSITION 绑定 relation 指向所属组织（岗位的 parentId）
+            // POSITION 绑定 relation 指向所属组织（岗位的 parentId）
             Long userRoleId = localProjectionDomainService.bindUserOrg(
                 tenantId, user.getId(), req.orgId(), roleTypeCode,
                 targetOrg != null ? targetOrg.getParentId() : null);
@@ -246,8 +246,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             ? Map.of()
             : orgDomainService.batchSelectValidByIdsMap(tenantId, orgIds);
 
-        // 八轮评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
-        // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+        // 批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
+        // POSITION 成员 relation 指向所属组织（岗位的 parentId）
         List<LocalProjectionDomainService.UserOrgBindKey> unbindKeys = new java.util.ArrayList<>();
         for (SysUserOrg uo : allUserOrgs) {
             SysOrg org = orgMap.get(uo.getOrgId());
@@ -261,7 +261,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
 
-        // 十轮评审 P1：批量删除用户组织关系 + 批量软删用户（单条 SQL，替代循环单条删除）
+        // 批量删除用户组织关系 + 批量软删用户（单条 SQL，替代循环单条删除）
         java.util.Set<Long> userIdSet = users.stream().map(SysUser::getId).collect(Collectors.toSet());
         userOrgDomainService.deleteByUserIds(tenantId, userIdSet);
         userDomainService.softDeleteBatch(tenantId, req.ids());
@@ -325,7 +325,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
         boolean enabled = req.status() == 1;
-        // 十轮评审 P1：批量投影 upsert/disable（单条 SQL 级），替代循环单条 upsertAdminUser/disableAdminUser
+        // 批量投影 upsert/disable（单条 SQL 级），替代循环单条 upsertAdminUser/disableAdminUser
         Map<Long, Long> abstractIdBySysId;
         if (enabled) {
             List<LocalProjectionDomainService.UpsertUserKey> upsertKeys = existingUsers.stream()

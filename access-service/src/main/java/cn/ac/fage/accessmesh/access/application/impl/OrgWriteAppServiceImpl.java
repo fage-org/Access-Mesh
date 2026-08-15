@@ -142,7 +142,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         Long oldParentId = org.getParentId();
         if (newParentId != null && !Objects.equals(newParentId, oldParentId)) {
             validateOrgMove(tenantId, req.id(), org, newParentId);
-            // ：岗位（POSITION）移动后迁移已有成员 user_role.relation_id
+            // 岗位（POSITION）移动后迁移已有成员 user_role.relation_id
             // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留
             if (OrgOperationCodeMapper.isPositionOrg(org.getOrgType())) {
                 java.util.Set<Long> affectedUsers = localProjectionDomainService.migratePositionRelation(
@@ -265,7 +265,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         int oldLevel = org.getLevel() != null ? org.getLevel() : 1;
         int delta = newLevel - oldLevel;
-        // ：移动后子树最深节点不得超过 10 层（仅检查移动节点会漏检深子树）
+        // 移动后子树最深节点不得超过 10 层（仅检查移动节点会漏检深子树）
         if (delta > 0 && !descendants.isEmpty()) {
             List<SysOrg> subtreeOrgs = orgDomainService.selectValidByIds(
                 tenantId, new java.util.HashSet<>(descendants));
@@ -305,20 +305,20 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         List<SysUserOrg> members = userOrgDomainService.findByOrgIds(tenantId, List.of(id));
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-        // ：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
-        // ：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+        // 批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
+        // POSITION 成员 relation 指向所属组织（岗位的 parentId）
         List<LocalProjectionDomainService.UserOrgBindKey> unbindKeys = new java.util.ArrayList<>();
         for (SysUserOrg member : members) {
             unbindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
                 member.getUserId(), id, roleTypeCode, org.getParentId()));
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
-        // ：批量解析 abstract_user.id，替代循环单条 find
+        // 批量解析 abstract_user.id，替代循环单条 find
         java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>(
             localProjectionDomainService.batchFindAdminUserIds(
                 tenantId, members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()))
                 .values());
-        // ：批量删除成员关系（单条 SQL），替代循环单条 deleteByUserIdAndOrgId
+        // 批量删除成员关系（单条 SQL），替代循环单条 deleteByUserIdAndOrgId
         if (!members.isEmpty()) {
             userOrgDomainService.deleteByUserIdsAndOrgId(tenantId,
                 members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()), id);
@@ -329,7 +329,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
         Long roleId = localProjectionDomainService.findAdminOrgRoleId(tenantId, id, org.getOrgType());
         localProjectionDomainService.deleteAdminOrg(tenantId, id, org.getOrgType());
-        // ：entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
+        // entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),

@@ -95,10 +95,10 @@ flowchart LR
 关键逻辑：
 
 - 用户同步以 `subjectTypeCode + subjectExternalId` 幂等定位。调用方全程使用业务键引用主体和资源，permission-center 内部解析为内部 ID，调用方无需回填或存储内部 ID。
-- 在 AccessMesh 管理端场景中，`sys_user` 至少需要同步为 `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`；同时通过 `POST /api/perm/resource-entity/sync` 同步为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位。
+- 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由 `access.application` 同一事务维护：`abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。admin-service 应把 `sys_org` 通过 `resource-entity/sync` 同步为 `resource_entity(ADMIN_ORG)`，并通过 `abstract-role/sync` 同步为 `abstract_role(ORG/POSITION)`，均使用业务键定位，不回填内部 ID；维护 `user-org` 后，应通过 `PERM_USER_ROLE_SYNC` / `POST /api/perm/user-role/sync` 把组织/岗位成员关系稳定落成 permission-center 的 `user_role` 事实。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
-- admin-service 的同步任务收敛为 4 类：`PERM_ABSTRACT_USER_SYNC`、`PERM_ABSTRACT_ROLE_SYNC`、`PERM_USER_ROLE_SYNC`、`PERM_RESOURCE_ENTITY_SYNC`；具体 `UPSERT/DISABLE/BIND/UNBIND/DELETE` 放在 payload 的 `operation` 中。`role_resource_permission` 属于 permission-center 授权管理域，不进入 admin-service 同步任务。
+- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。`access.application` 同一事务维护本地投影：`sys_org` → `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
+- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键；`ADMIN_USER`/`ORG`/`POSITION`/`ADMIN_ORG`/`ADMIN_MENU`/`SYS_USER_ORG` 保留键拒绝）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。

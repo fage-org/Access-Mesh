@@ -50,19 +50,19 @@ import java.util.stream.Collectors;
  * 用户管理服务实现类
  * <p>
  * 提供用户的CRUD操作、批量操作、密码重置、状态管理等功能。
- * 写操作委托 {@code UserWriteAppService} 同事务维护本地权限投影（管理事实、投影与
+ * 写操作委托 {@code UserWriteAppService} 同一事务维护本地权限投影（管理事实、投影与
  * permission_change_log 同一事务，不再有跨服务同步任务）。
  * 用户修改自己的信息无需权限校验，其他操作需要相应权限。
  * 使用BCrypt进行密码哈希，SecureRandom生成随机密码。
  *
  * @implNote v1.4 起所有读接口（{@link #getUser}、{@link #pageUsers}）必须经过
- * {@code permissionValidator.checkTypeLevel(USER, VIEW)} 门禁。
- * 前端隐藏不是安全边界，禁止在新增读接口时省略。
- * 契约依据：{@code docs/design/org-user-permission-contract.md} v1.4 §4 B 区。
+ *           {@code permissionValidator.checkTypeLevel(USER, VIEW)} 门禁。
+ *           前端隐藏不是安全边界，禁止在新增读接口时省略。
+ *           契约依据：{@code docs/design/org-user-permission-contract.md} v1.4 §4 B 区。
  *
  * @see docs/design/default-org-tree-user-lifecycle.md
  * </p>
-*/
+ */
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -89,15 +89,15 @@ public class UserServiceImpl implements UserService {
      * @param orgTreeConfigDomainService 组织树配置领域服务，校验默认树归属
      * @param orgDomainService 组织领域服务，校验组织是否属于默认树
      * @param permissionValidator 权限校验器，校验用户操作权限
-    */
+     */
     public UserServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
-    UserDomainService userDomainService,
-    UserOrgDomainService userOrgDomainService,
-    OrgTreeConfigDomainService orgTreeConfigDomainService,
-    OrgDomainService orgDomainService,
-    UserWriteAppService userWriteAppService,
-    AdminPermissionValidator permissionValidator,
-    OrgVisibilityService orgVisibilityService) {
+                           UserDomainService userDomainService,
+                           UserOrgDomainService userOrgDomainService,
+                           OrgTreeConfigDomainService orgTreeConfigDomainService,
+                           OrgDomainService orgDomainService,
+                           UserWriteAppService userWriteAppService,
+                           AdminPermissionValidator permissionValidator,
+                           OrgVisibilityService orgVisibilityService) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
@@ -121,7 +121,7 @@ public class UserServiceImpl implements UserService {
      * @param req 用户创建请求，包含用户名、姓名、手机号、邮箱、可选orgId等
      * @return 用户创建响应，包含用户ID和初始密码
      * @throws BizException 用户名已存在、手机号已存在等
-    */
+     */
     @Override
     public UserCreateResp createUser(UserCreateReq req) {
         return userWriteAppService.createUser(req);
@@ -138,7 +138,7 @@ public class UserServiceImpl implements UserService {
      *
      * @param req 用户更新请求，包含用户ID和新属性值
      * @throws BizException 用户不存在、手机号已存在、同步任务记录失败等
-    */
+     */
     @Override
     public void updateUser(UserUpdateReq req) {
         userWriteAppService.updateUser(req);
@@ -155,7 +155,7 @@ public class UserServiceImpl implements UserService {
      *
      * @param req ID集合请求，包含待删除的用户ID列表
      * @throws BizException 不能删除自己、不在默认树可管范围、同步任务记录失败等
-    */
+     */
     @Override
     public void deleteUser(IdsReq req) {
         userWriteAppService.deleteUser(req);
@@ -173,7 +173,7 @@ public class UserServiceImpl implements UserService {
      *
      * @param req 用户状态变更请求，包含用户ID列表和目标状态
      * @throws BizException 状态参数无效、不能禁用自己、不在默认树范围、同步任务记录失败等
-    */
+     */
     @Override
     public void updateStatus(UserUpdateStatusReq req) {
         userWriteAppService.updateStatus(req);
@@ -188,7 +188,7 @@ public class UserServiceImpl implements UserService {
      * @param id 用户ID
      * @return 用户详情响应
      * @throws BizException 用户不存在
-    */
+     */
     @Override
     public UserResp getUser(Long id) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
@@ -209,8 +209,8 @@ public class UserServiceImpl implements UserService {
 
         List<UserResp.OrgBrief> orgs = getUserOrgs(id);
         return new UserResp(
-        user.getId(), user.getUsername(), user.getName(), user.getPhone(),
-        user.getEmail(), user.getStatus(), orgs, user.getCreatedAt(), user.getUpdatedAt()
+            user.getId(), user.getUsername(), user.getName(), user.getPhone(),
+            user.getEmail(), user.getStatus(), orgs, user.getCreatedAt(), user.getUpdatedAt()
         );
     }
 
@@ -223,14 +223,14 @@ public class UserServiceImpl implements UserService {
      * <p>
      * v1.4 契约对齐：
      * <ul>
-     * <li>语义收敛为"默认组织树身份目录查询"；组织成员列表和添加成员候选集需独立接口</li>
-     * <li>{@code orgId} 非空时必须属于默认组织树，否则抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}</li>
-     * <li>OrgBrief 填充 orgName/orgType（便于前端区分组织与岗位）</li>
+     *   <li>语义收敛为"默认组织树身份目录查询"；组织成员列表和添加成员候选集需独立接口</li>
+     *   <li>{@code orgId} 非空时必须属于默认组织树，否则抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}</li>
+     *   <li>OrgBrief 填充 orgName/orgType（便于前端区分组织与岗位）</li>
      * </ul>
      *
      * @param req 分页查询请求，包含分页参数和过滤条件
      * @return 分页用户列表结果
-    */
+     */
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
@@ -250,18 +250,18 @@ public class UserServiceImpl implements UserService {
             Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (!visibleOrgIds.contains(req.orgId())) {
                 throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+                    AdminErrorCode.ORG_NOT_FOUND.getMessage());
             }
 
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
             // 裁剪子树到操作者可见范围
             Set<Long> visibleSubtree = subtreeIds.stream()
-            .filter(visibleOrgIds::contains)
-            .collect(Collectors.toSet());
+                .filter(visibleOrgIds::contains)
+                .collect(Collectors.toSet());
             if (visibleSubtree.isEmpty()) {
                 return new PaginatedResult<>(
-                List.of(),
-                new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                    List.of(),
+                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
                 );
             }
             orgIds = visibleSubtree;
@@ -271,8 +271,8 @@ public class UserServiceImpl implements UserService {
             Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (visibleOrgIds.isEmpty()) {
                 return new PaginatedResult<>(
-                List.of(),
-                new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                    List.of(),
+                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
                 );
             }
             orgIds = visibleOrgIds;
@@ -280,16 +280,16 @@ public class UserServiceImpl implements UserService {
 
         Page<SysUser> page = Page.of(pageNum, pageSize);
         Page<SysUser> result = userMapper.paginateUsers(page, tenantId,
-        req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds);
+            req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds);
 
         // 批量获取用户组织关联，避免 N+1
         Set<Long> userIds = result.getRecords().stream()
-        .map(SysUser::getId)
-        .collect(Collectors.toSet());
+            .map(SysUser::getId)
+            .collect(Collectors.toSet());
         if (userIds.isEmpty()) {
             return new PaginatedResult<>(
-            List.of(),
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, 0)
+                List.of(),
+                new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, 0)
             );
         }
 
@@ -298,41 +298,41 @@ public class UserServiceImpl implements UserService {
 
         // 收集所有 orgId，批量查询 org 信息以填充 orgName/orgType
         Set<Long> allOrgIds = allUserOrgs.stream()
-        .map(SysUserOrg::getOrgId)
-        .collect(Collectors.toSet());
+            .map(SysUserOrg::getOrgId)
+            .collect(Collectors.toSet());
         Map<Long, SysOrg> orgMap = allOrgIds.isEmpty()
-        ? Map.of()
-        : orgDomainService.batchSelectValidByIdsMap(tenantId, allOrgIds);
+            ? Map.of()
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, allOrgIds);
 
         // 按 userId 分组
         Map<Long, List<SysUserOrg>> userOrgMap = allUserOrgs.stream()
-        .collect(Collectors.groupingBy(SysUserOrg::getUserId));
+            .collect(Collectors.groupingBy(SysUserOrg::getUserId));
 
         List<UserPageItemResp> items = result.getRecords().stream()
-        .map(u -> {
-            List<SysUserOrg> userOrgs = userOrgMap.getOrDefault(u.getId(), List.of());
-            List<UserPageItemResp.OrgBrief> orgs = userOrgs.stream()
-            .map(uo -> {
-                SysOrg org = orgMap.get(uo.getOrgId());
-                return new UserPageItemResp.OrgBrief(
-                uo.getOrgId(),
-                org != null ? org.getName() : null,
-                org != null ? org.getOrgType() : null,
-                Boolean.TRUE.equals(uo.getIsPrimary())
+            .map(u -> {
+                List<SysUserOrg> userOrgs = userOrgMap.getOrDefault(u.getId(), List.of());
+                List<UserPageItemResp.OrgBrief> orgs = userOrgs.stream()
+                    .map(uo -> {
+                        SysOrg org = orgMap.get(uo.getOrgId());
+                        return new UserPageItemResp.OrgBrief(
+                            uo.getOrgId(),
+                            org != null ? org.getName() : null,
+                            org != null ? org.getOrgType() : null,
+                            Boolean.TRUE.equals(uo.getIsPrimary())
+                        );
+                    })
+                    .collect(Collectors.toList());
+                return new UserPageItemResp(
+                    u.getId(), u.getUsername(), u.getName(), u.getPhone(),
+                    u.getEmail(), u.getStatus(), orgs, u.getCreatedAt()
                 );
             })
             .collect(Collectors.toList());
-            return new UserPageItemResp(
-            u.getId(), u.getUsername(), u.getName(), u.getPhone(),
-            u.getEmail(), u.getStatus(), orgs, u.getCreatedAt()
-            );
-        })
-        .collect(Collectors.toList());
 
         long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
         return new PaginatedResult<>(
-        items,
-        new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
+            items,
+            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
         );
     }
 
@@ -346,11 +346,11 @@ public class UserServiceImpl implements UserService {
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.7
      *
-     * @param userId 用户ID
+     * @param userId      用户ID
      * @param newPassword 新密码（可为空，空时自动生成）
      * @return 重置密码响应，包含生效的密码
      * @throws BizException 用户不存在、不在默认树范围
-    */
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResetPasswordResp resetPassword(Long userId, String newPassword) {
@@ -359,9 +359,9 @@ public class UserServiceImpl implements UserService {
         // 自我修改豁免：用户可重置自己的密码无需权限检查
         if (!userId.equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
-            AdminResourceType.USER,
-            String.valueOf(userId),
-            AdminOperationCode.RESET_PASSWORD
+                AdminResourceType.USER,
+                String.valueOf(userId),
+                AdminOperationCode.RESET_PASSWORD
             );
 
             // 默认树边界二次校验（非自我修改时）
@@ -379,8 +379,8 @@ public class UserServiceImpl implements UserService {
 
         // 如果未指定新密码，自动生成随机密码
         String effectivePassword = (newPassword != null && !newPassword.isBlank())
-        ? newPassword
-        : generateRandomPassword();
+            ? newPassword
+            : generateRandomPassword();
 
         user.setPassword(BCrypt.hashpw(effectivePassword));
         user.setUpdatedAt(LocalDateTime.now());
@@ -397,12 +397,12 @@ public class UserServiceImpl implements UserService {
      *
      * @param userId 用户ID
      * @return 组织简要信息列表
-    */
+     */
     private List<UserResp.OrgBrief> getUserOrgs(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgMapper.selectByUserIdAndTenant(tenantId, userId).stream()
-        .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
-        .collect(Collectors.toList());
+            .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -413,7 +413,7 @@ public class UserServiceImpl implements UserService {
      * </p>
      *
      * @return 随机密码字符串
-    */
+     */
     private String generateRandomPassword() {
         String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         String lower = "abcdefghijklmnopqrstuvwxyz";
@@ -446,23 +446,23 @@ public class UserServiceImpl implements UserService {
      *
      * @param req 候选用户查询请求（含 targetOrgId）
      * @return 分页候选用户列表
-    */
+     */
     @Override
     public PaginatedResult<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
         permissionValidator.checkInstanceLevel(
-        AdminResourceType.ORG,
-        String.valueOf(req.targetOrgId()),
-        AdminOperationCode.UPDATE
+            AdminResourceType.ORG,
+            String.valueOf(req.targetOrgId()),
+            AdminOperationCode.UPDATE
         );
 
         // 校验目标组织存在
         SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.targetOrgId());
         if (targetOrg == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-            AdminErrorCode.ORG_NOT_FOUND.getMessage());
+                AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
         // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ADMIN_ORG:VIEW 裁剪）
@@ -475,20 +475,20 @@ public class UserServiceImpl implements UserService {
         // 2. 收集默认树可见范围内的用户 ID
         Set<Long> defaultTreeOrgIdSet = visibleOrgIds;
         List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
-        tenantId, List.copyOf(defaultTreeOrgIdSet));
+            tenantId, List.copyOf(defaultTreeOrgIdSet));
         Set<Long> candidateUserIds = defaultTreeUserOrgs.stream()
-        .map(SysUserOrg::getUserId)
-        .collect(Collectors.toSet());
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
         if (candidateUserIds.isEmpty()) {
             return emptyMemberCandidates(req);
         }
 
         // 3. 排除目标组织已有成员
         List<SysUserOrg> targetOrgUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
-        tenantId, List.of(req.targetOrgId()));
+            tenantId, List.of(req.targetOrgId()));
         Set<Long> existingMemberIds = targetOrgUserOrgs.stream()
-        .map(SysUserOrg::getUserId)
-        .collect(Collectors.toSet());
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
         candidateUserIds.removeAll(existingMemberIds);
         if (candidateUserIds.isEmpty()) {
             return emptyMemberCandidates(req);
@@ -499,12 +499,12 @@ public class UserServiceImpl implements UserService {
         int pageSize = req.getPageSize();
         Page<SysUser> page = Page.of(pageNum, pageSize);
         Page<SysUser> result = userMapper.paginateUsersByIdsAndKeyword(
-        page, tenantId, List.copyOf(candidateUserIds), req.keyword());
+            page, tenantId, List.copyOf(candidateUserIds), req.keyword());
 
         // 5. 批量获取用户的主组织名（默认树主归属）
         Set<Long> resultUserIds = result.getRecords().stream()
-        .map(SysUser::getId)
-        .collect(Collectors.toSet());
+            .map(SysUser::getId)
+            .collect(Collectors.toSet());
         if (resultUserIds.isEmpty()) {
             return emptyMemberCandidates(req);
         }
@@ -513,39 +513,39 @@ public class UserServiceImpl implements UserService {
         List<SysUserOrg> primaryOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(resultUserIds));
         // 过滤主组织 & 在默认树范围内
         Map<Long, Long> userPrimaryOrgIdMap = primaryOrgs.stream()
-        .filter(uo -> Boolean.TRUE.equals(uo.getIsPrimary()) && defaultTreeOrgIdSet.contains(uo.getOrgId()))
-        .collect(Collectors.toMap(SysUserOrg::getUserId, SysUserOrg::getOrgId, (a, b) -> a));
+            .filter(uo -> Boolean.TRUE.equals(uo.getIsPrimary()) && defaultTreeOrgIdSet.contains(uo.getOrgId()))
+            .collect(Collectors.toMap(SysUserOrg::getUserId, SysUserOrg::getOrgId, (a, b) -> a));
         // 批量查组织名
         Map<Long, SysOrg> primaryOrgMap = userPrimaryOrgIdMap.isEmpty()
-        ? Map.of()
-        : orgDomainService.batchSelectValidByIdsMap(tenantId, new java.util.HashSet<>(userPrimaryOrgIdMap.values()));
+            ? Map.of()
+            : orgDomainService.batchSelectValidByIdsMap(tenantId, new java.util.HashSet<>(userPrimaryOrgIdMap.values()));
 
         List<MemberCandidateItemResp> items = result.getRecords().stream()
-        .map(u -> {
-            Long primaryOrgId = userPrimaryOrgIdMap.get(u.getId());
-            SysOrg primaryOrg = primaryOrgId != null ? primaryOrgMap.get(primaryOrgId) : null;
-            return new MemberCandidateItemResp(
-            u.getId(),
-            u.getUsername(),
-            u.getName(),
-            null, // avatar 暂不填充
-            primaryOrg != null ? primaryOrg.getName() : null,
-            false // 服务端已过滤，固定 false
-            );
-        })
-        .collect(Collectors.toList());
+            .map(u -> {
+                Long primaryOrgId = userPrimaryOrgIdMap.get(u.getId());
+                SysOrg primaryOrg = primaryOrgId != null ? primaryOrgMap.get(primaryOrgId) : null;
+                return new MemberCandidateItemResp(
+                    u.getId(),
+                    u.getUsername(),
+                    u.getName(),
+                    null, // avatar 暂不填充
+                    primaryOrg != null ? primaryOrg.getName() : null,
+                    false // 服务端已过滤，固定 false
+                );
+            })
+            .collect(Collectors.toList());
 
         long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
         return new PaginatedResult<>(
-        items,
-        new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
+            items,
+            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
         );
     }
 
     private PaginatedResult<MemberCandidateItemResp> emptyMemberCandidates(MemberCandidatesReq req) {
         return new PaginatedResult<>(
-        List.of(),
-        new PaginatedResult.PaginationMeta(0, req.getPageNum(), req.getPageSize(), 0)
+            List.of(),
+            new PaginatedResult.PaginationMeta(0, req.getPageNum(), req.getPageSize(), 0)
         );
     }
 
@@ -553,25 +553,25 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 校验组织是否属于默认组织树。不属于时抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}。
-    */
+     */
     private void validateOrgInDefaultTree(Long tenantId, Long orgId) {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
             throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-            AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
         Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
         List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
         if (!subtreeIds.contains(orgId)) {
             throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-            AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
     }
 
     /**
      * 从 SysOrg.orgType 推导权限中心角色类型码（ORG / POSITION）。
      * 与 {@code RoleProxyServiceImpl#resolveOrgRoleTypeCode} 同语义。
-    */
+     */
     private String resolveOrgRoleTypeCode(SysOrg org) {
         if (org == null) return "ORG";
         String orgType = org.getOrgType();
@@ -587,10 +587,10 @@ public class UserServiceImpl implements UserService {
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §2 门禁规范
      *
-     * @param tenantId 租户 ID
-     * @param userIds 目标用户 ID 集合
+     * @param tenantId   租户 ID
+     * @param userIds    目标用户 ID 集合
      * @throws BizException 任一用户不在操作者可见范围
-    */
+     */
     private void validateUsersInDefaultTreeScope(Long tenantId, Set<Long> userIds) {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
@@ -603,21 +603,21 @@ public class UserServiceImpl implements UserService {
         Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
             throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-            AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+                AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
         }
 
         // 查操作者可见范围内的用户组织关系
         List<SysUserOrg> visibleUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
-        tenantId, List.copyOf(visibleOrgIds));
+            tenantId, List.copyOf(visibleOrgIds));
         Set<Long> usersInVisibleScope = visibleUserOrgs.stream()
-        .map(SysUserOrg::getUserId)
-        .collect(Collectors.toSet());
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
 
         // 任一目标用户不在操作者可见范围内则拒绝
         for (Long userId : userIds) {
             if (!usersInVisibleScope.contains(userId)) {
                 throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-                AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+                    AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
             }
         }
     }

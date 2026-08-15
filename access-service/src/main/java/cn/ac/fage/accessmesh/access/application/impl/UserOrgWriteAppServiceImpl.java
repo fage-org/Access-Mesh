@@ -125,8 +125,8 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         if (!toInsert.isEmpty()) {
             userOrgDomainService.insertBatch(toInsert);
             Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, req.userId());
-            // ：批量 BIND（一次批量加载 + 一次批量写），替代循环单条 bindUserOrg N+1；
-            // ：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+            // 批量 BIND（一次批量加载 + 一次批量写），替代循环单条 bindUserOrg N+1；
+            // POSITION 成员 relation 指向所属组织（岗位的 parentId）
             List<LocalProjectionDomainService.UserOrgBindKey> bindKeys = new ArrayList<>();
             for (SysUserOrg assoc : toInsert) {
                 SysOrg org = orgMap.get(assoc.getOrgId());
@@ -134,7 +134,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
                 bindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
                     assoc.getUserId(), assoc.getOrgId(), roleTypeCode, org.getParentId()));
             }
-            // ：批量 BIND 返回 key → user_role.id（插入后批量回查），
+            // 批量 BIND 返回 key → user_role.id（插入后批量回查），
             // 变更日志 entityId 保持八轮决策（投影主键），不再写 null
             Map<LocalProjectionDomainService.UserOrgBindKey, Long> roleIdByKey =
                 localProjectionDomainService.batchBindUserOrg(tenantId, bindKeys);
@@ -193,8 +193,8 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
         Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, userId);
-        // ：entityId 用 user_role.id（投影主键，软删前取得），不再混用 sys_user.id；
-        // ：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+        // entityId 用 user_role.id（投影主键，软删前取得），不再混用 sys_user.id；
+        // POSITION 成员 relation 指向所属组织（岗位的 parentId）
         Long userRoleId = localProjectionDomainService.unbindUserOrg(
             tenantId, userId, orgId, roleTypeCode, org.getParentId());
         auditDomainService.recordChangeLog(

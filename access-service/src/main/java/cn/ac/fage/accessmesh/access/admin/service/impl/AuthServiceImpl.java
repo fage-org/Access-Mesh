@@ -639,7 +639,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        // 2+3. 一次加载角色与权限（：原 getUserRoles/getUserPermissions 各调一次
+        // 2+3. 一次加载角色与权限（原 getUserRoles/getUserPermissions 各调一次
         // loadUserRolesAndPermissions 导致重复查询且可能跨两次查询时间不一致）
         UserInfoResp rolePermInfo = loadUserRolesAndPermissionsOnce(tenantId, userId);
         List<String> roles = rolePermInfo != null && rolePermInfo.roles() != null
@@ -664,7 +664,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 一次加载用户角色与权限（：getUserMenu 共用一次查询，保证同一权限快照）。
+     * 一次加载用户角色与权限（getUserMenu 共用一次查询，保证同一权限快照）。
      * 登录态自查，不走管理门禁 {@code listUserRoles}。
      */
     private UserInfoResp loadUserRolesAndPermissionsOnce(Long tenantId, Long userId) {

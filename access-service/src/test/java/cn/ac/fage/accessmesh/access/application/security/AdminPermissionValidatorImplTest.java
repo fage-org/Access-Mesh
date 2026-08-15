@@ -62,7 +62,7 @@ class AdminPermissionValidatorImplTest {
     void batchCheckUsesSingleBatchQuery() {
         when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
             .thenReturn(501L);
-        // 九轮评审 P1：getDeniedIds 按 resource_entity.id 查询，先解析业务键
+        // getDeniedIds 按 resource_entity.id 查询，先解析业务键
         when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList())).thenReturn(
             Map.of(
                 new ResourceResolveKey("ADMIN_ORG", "1", null, null), 1001L,

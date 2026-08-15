@@ -60,7 +60,7 @@ public class OrgVisibilityServiceImpl implements OrgVisibilityService {
         if (userId == null) {
             return Set.of();
         }
-        // ：一次 engine.getDeniedIds 批量查询，替代切片内逐组织单查。
+        // 一次 engine.getDeniedIds 批量查询，替代切片内逐组织单查。
         //  修复：getDeniedIds 按 resource_entity.id 查询，先批量解析业务键 → 投影 ID，
         // denied 结果映射回组织 ID；未解析（无投影）的组织视为不可见（与单条 query deny 语义一致）
         List<Long> candidateList = new ArrayList<>(orgIds);

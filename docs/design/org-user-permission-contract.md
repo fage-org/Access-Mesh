@@ -28,7 +28,7 @@ last_reviewed: 2026-06-20
 ### 核心抽象（核对后确立）
 
 - **默认组织树 = 用户目录/身份池**：`sys_org_tree_config.is_default=true` 的组织树负责用户生命周期。创建用户、禁用/启用、删除、重置密码等账号级操作只属于 `ADMIN_USER`；非默认组织树不能创建或删除真实用户，只能添加/移除已有用户与本组织节点的关系。
-- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 `OrgSyncHandler` 同步至 permission-center。故岗位的增删改与"分配用户"全部归**组织管理**（`ADMIN_ORG`），不是独立角色面。
+- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 `access.application` 同一事务维护本地投影（`abstract_role(ORG/POSITION)` + `resource_entity(ADMIN_ORG)`，业务键定位；岗位必须作为普通组织的直接子节点且自身无下级）。故岗位的增删改与"分配用户"全部归**组织管理**（`ADMIN_ORG`），不是独立角色面。
 - **成员 = 组织成员关系**：用户与组织（含岗位）的归属是 `user-org` 关系，归"**组织成员管理**"，门禁锚定**组织实例**。
 - **功能角色 = 真正的角色**：用户详情面板里分配的 BASIC_ROLE 等功能角色，才走 `ROLE` 资源类型与 `user-role` 关系。
 
@@ -38,18 +38,19 @@ last_reviewed: 2026-06-20
 融合页（前端 hasPerms 门控）
    │  POST /org/* /user/* /user-org/* /user-role/*
    ▼
-admin-service（甲层后端门禁）
+access-service（甲层后端门禁）
    │  AdminPermissionValidator.check{Type|Instance|BatchInstance}Level(
    │      AdminResourceType, [resourceCode], AdminOperationCode)
-   │  └─ Feign → permission-center /checkAuth（subjectTypeCode=ADMIN_USER）
+   │  └─ 本地 PermQueryEngine（同库同进程，不再经 Feign /checkAuth）
    ▼
-permission-center（乙层：被管理的权限模型）
+permission-center 域（被管理的权限模型，同库）
    按 资源类型 × 操作码 判定；
-   用户同步为 abstract_user + ADMIN_USER resource_entity（均使用业务键，不回填内部 ID）；
-   组织/岗位同步为 ADMIN_ORG resource_entity + 内部角色（RoleType.ORG/POSITION）（均使用业务键，不回填内部 ID）
+   管理事实与投影由 access.application 同一事务维护：
+   用户 → abstract_user + ADMIN_USER resource_entity（业务键，不回填内部 ID）；
+   组织/岗位 → ADMIN_ORG resource_entity + abstract_role(ORG/POSITION)（业务键，不回填内部 ID）
 ```
 
-> 实证：`admin-service/.../security/AdminPermissionValidatorImpl` 经 `PermissionFeignClient.checkAuth/batchCheckAuth` 调权限中心；各 `*ServiceImpl` 在写操作前调用 `permissionValidator.check*Level(...)`。
+> 实证：`AdminPermissionValidatorImpl` 调用本地 `PermQueryEngine`（同库，T-ACCESS-005 起不再经 Feign）；各 `*WriteAppService` 在写操作前调用 `permissionValidator.check*Level(...)`，并在同一事务内维护投影与 `permission_change_log`。
 
 ### 两层「权限」定义（全文沿用）
 
@@ -73,7 +74,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 **收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ADMIN_ORG:CREATE")` 与后端 `engine.hasPermission(ADMIN_ORG, CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
 
-**实现**：`AuthServiceImpl.getUserPermissions` / `RoleProxyServiceImpl.fetchUserPermissions` 通过 Feign `getEffectivePermissionCodes` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回；`SyncTaskBuilder.menuUpsert/menuDisable/menuDelete` 在 BUTTON 行（`menuType="3"`）返回 null，调用方 `MenuServiceImpl` 用 `enqueueIfPresent` 跳过。
+**实现**：`AuthServiceImpl.getUserPermissions` / `RoleProxyServiceImpl.fetchUserPermissions` 通过本地 `PermQueryEngine` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回；菜单投影仅 DIR/MENU 行（`menuType≠3` 的按钮不投影 `ADMIN_MENU`），由 `MenuWriteAppService` 同一事务维护。
 
 ---
 

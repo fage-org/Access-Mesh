@@ -64,7 +64,7 @@ class OrgVisibilityServiceImplTest {
         void allowedOrgs_kept() {
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            // 九轮评审 P1：批量解析业务键 → resource_entity.id，denied 结果映射回 orgId
+            // 批量解析业务键 → resource_entity.id，denied 结果映射回 orgId
             when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
                 Map.of(
                     new ResourceResolveKey(AdminResourceType.ORG, "100", null, null), 1001L,

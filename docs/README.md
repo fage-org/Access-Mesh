@@ -12,8 +12,7 @@ docs/
 │   ├── access-service-architecture.md # access-service 目标架构与归并约束
 │   ├── default-org-tree-user-lifecycle.md # 默认组织树与用户生命周期
 │   ├── cross-service/                 # 跨服务设计
-│   │   ├── README.md
-│   │   └── admin-permission-sync.md   # 已取代的旧异步同步设计（历史追溯）
+│   │   └── README.md
 │   ├── permission-center/             # 权限中心设计
 │   │   ├── overview.md                # 概念模型
 │   │   ├── api-contract.md            # API契约
@@ -79,7 +78,7 @@ docs/
 3. 开发权限中心前，按顺序读 [design/permission-center/overview.md](design/permission-center/overview.md)、[design/permission-center/api-contract.md](design/permission-center/api-contract.md)、[design/permission-center/core-flows.md](design/permission-center/core-flows.md)、[design/permission-center/implementation.md](design/permission-center/implementation.md)。了解重构历史可读 [archive/2026-05-30/service-layer-review.md](archive/2026-05-30/service-layer-review.md)。
 4. 开发具体服务时，读取 [design/services/](design/services/) 下对应服务设计；涉及组织与用户页 admin 接口契约时, 读取 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md)。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)。
-6. 原 admin→permission 异步同步设计已被取代；实现归并读取 [design/access-service-architecture.md](design/access-service-architecture.md) §4，历史追溯才读取 [design/cross-service/admin-permission-sync.md](design/cross-service/admin-permission-sync.md)。
+6. 原 admin→permission 异步同步设计已被取代；实现归并读取 [design/access-service-architecture.md](design/access-service-architecture.md) §4，历史追溯才读取 [archive/2026-08-15/admin-permission-sync.md](archive/2026-08-15/admin-permission-sync.md)。
 7. 跟进仍在推进的任务时，读取 [plans/README.md](plans/README.md)。
 8. 涉及表字段、索引、约束时，以 [design/schema/](design/schema/) 下 SQL 为准。
 

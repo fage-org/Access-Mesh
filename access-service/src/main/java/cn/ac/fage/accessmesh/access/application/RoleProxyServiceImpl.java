@@ -356,7 +356,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         if (abstractUserId == null) {
             return Set.of();
         }
-        // ：一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次。
+        // 一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次。
         //  修复：先批量解析菜单业务键 → resource_entity.id，denied 结果映射回菜单 ID
         List<ResourceResolveRequest> requests = menuIds.stream()
             .map(menuId -> new ResourceResolveRequest(AdminResourceType.MENU, String.valueOf(menuId), null, null))

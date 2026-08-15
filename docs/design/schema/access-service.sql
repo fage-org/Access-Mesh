@@ -614,7 +614,7 @@ COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，�
 -- 预置类型种子（tenant 1；type_value 为权威数值，详见文件头说明）
 INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
     -- user_type（USER=外部人员 / SERVICE=外部服务 / ADMIN_USER=本地管理用户，
-    --   admin 域 SyncTaskBuilder 以 ADMIN_USER 作为 subjectTypeCode 同步 abstract_user，必须可解析）
+    --   access.application 本地投影以 ADMIN_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
     (1, 'user_type', 'USER',       1, '人员', true, 1, 0, now(), now()),
     (1, 'user_type', 'SERVICE',    2, '服务', true, 2, 0, now(), now()),
     (1, 'user_type', 'ADMIN_USER', 3, '本地管理用户', true, 3, 0, now(), now()),
