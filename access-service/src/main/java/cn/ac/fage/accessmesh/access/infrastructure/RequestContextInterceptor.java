@@ -31,8 +31,8 @@ import java.util.UUID;
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
- *   <li>OAuth2 JWT（Bearer 三段式，仅 /auth/oauth2/**）→ 验签 + 撤销黑名单检查 → USER
- *       （委托令牌不触达管理接口；业务 API 开放见 T-ACCESS-013）</li>
+ *   <li>OAuth2 JWT（Bearer 三段式，仅 /auth/oauth2/userinfo 端点）→ 验签 + 撤销黑名单检查 → USER
+ *       （委托令牌不触达管理接口或其他端点；业务 API 开放见 T-ACCESS-013）</li>
  *   <li>Sa-Token 会话 → USER（会话权威：operatorId=loginId、tenantId=session 租户；
  *       X-Tenant-Id / X-User-Id 头存在必须与会话一致，否则 403 拒绝伪造头）</li>
  *   <li>签名用户态（/api/** 路径，HeaderSignatureInterceptor 验签通过的 X-User-Id）→ USER</li>
@@ -297,8 +297,9 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：SaJwtUtil 验签
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
-     * 仅在 /auth/oauth2/** 路径生效（唯一消费方 userinfo）；委托令牌不得触达
-     * 管理接口，业务 API 的显式开放（scope 授权模型）见 T-ACCESS-013。
+     * 仅对 /auth/oauth2/userinfo 端点生效（唯一消费方，精确匹配防前缀覆盖
+     * authorize 等非资源端点）；委托令牌不得触达管理接口或其他端点，业务 API 的
+     * 显式逐项开放（scope 授权模型）见 T-ACCESS-013，不得默认放开 /auth/oauth2/**。
      */
     private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
                                           String token) throws IOException {

@@ -26,11 +26,11 @@ last_updated: 2026-08-15
 
 ## 背景
 
-T-ACCESS-004 将 OAuth2 JWT 认证分支限定为 `/auth/oauth2/**`（唯一消费方 userinfo），委托令牌不得触达管理接口。若未来需要"OAuth2 令牌访问业务 API"（如第三方应用按 scope 调接口），必须显式实现资源服务器能力，避免以"全路径 USER"方式放开。
+T-ACCESS-004 将 OAuth2 JWT 认证分支精确限定为 `/auth/oauth2/userinfo` 单一端点（唯一消费方），委托令牌不得触达管理接口或其他端点。若未来需要"OAuth2 令牌访问业务 API"（如第三方应用按 scope 调接口），必须显式实现资源服务器能力，避免以"全路径 USER"或通配路径方式放开。
 
 ## 范围
 
-- 将 JWT 认证分支的路径白名单配置化（默认仅 `/auth/oauth2/**`）。
+- 将 JWT 认证分支的路径白名单配置化（默认仅 `/auth/oauth2/userinfo`；**不得默认放开 `/auth/oauth2/**` 通配**——前缀匹配会覆盖 authorize 等非资源端点，开放路径必须逐项显式配置并经 scope/audience 校验）。
 - JWT 载荷 `client_id`/`scope`/`audience` 参与授权判定。
 - scope → 权限映射（与 PermQueryEngine 平台权限语义一致或独立映射）。
 - 黑名单（撤销）对开放路径持续生效。

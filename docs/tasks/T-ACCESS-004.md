@@ -93,16 +93,16 @@ last_updated: 2026-08-14
 
 
 - **P1（匿名 revoke 可制造任意 Redis 黑名单键）**：`revokeToken` 验签前解析 jti（失败返回原 token 作键）+ `getTokenRemainingTtl` 读不存在的 `exp`（签发写 `eff`，恒回退 86400）→ 匿名调用者可持续制造 `oauth2:blacklist:*` 键（Redis 内存 DoS）。修复：先 `SaJwtUtil.getPayloads` 验签（签名+loginType+有效期），非法令牌不写 Redis；TTL 改 `SaJwtUtil.getTimeout`（从 eff 计算实际剩余）；删除废弃 `extractJti`/`getTokenRemainingTtl`。
-- **P1（OAuth2 JWT 无条件提升为平台 USER）**：JWT 分支曾对所有非公开路径生效，`client_id`/`scope` 不参与授权——OAuth2 委托令牌可访问 `/user/**` 等管理接口（权限提升）。经用户复决，当前口径为**限定 `/auth/oauth2/**` 路径**（见下方 P1 限定路径条目）。
+- **P1（OAuth2 JWT 无条件提升为平台 USER）**：JWT 分支曾对所有非公开路径生效，`client_id`/`scope` 不参与授权——OAuth2 委托令牌可访问 `/user/**` 等管理接口（权限提升）。经用户复决，当前口径为**限定 OAuth2 JWT 认证路径**（见下方 P1 限定路径条目：精确 `/auth/oauth2/userinfo`）。
 - **P2（业务代码使用被禁 Hutool）**：AGENTS.md:23 / project-rules:336 禁止 Hutool；`SaJwtUtil.getPayloads` 返回 hutool JSONObject（LinkedHashMap 子类）——业务代码一律以 `Map<String, Object>` 接收，hutool 类型不进入业务代码。
 - **P3（权威文档与实现冲突）**：架构文档操作者绑定规则与 §6.2 /auth 行补 OAuth2 JWT 来源与适用端点；拦截器 isPublicPath javadoc 更新（oauth2/userinfo 走 JWT 分支）+ 类注释决策树补 JWT 条目。
 
-- **P1（OAuth2 JWT 越权面，用户决策限定路径）**：OAuth2 JWT 认证分支曾对所有非公开路径生效（委托令牌可访问管理接口，scope 不参与授权）。**用户决策：限定 `/auth/oauth2/**` 路径**（唯一消费方 userinfo）——委托令牌不得触达管理接口；未来开放业务 API 由 T-ACCESS-013（OAuth2 资源服务器 + scope 授权模型）显式放开。已补负向测试（有效 JWT 访问 /user/page → 401）。
+- **P1（OAuth2 JWT 越权面，用户决策限定路径）**：OAuth2 JWT 认证分支曾对所有非公开路径生效（委托令牌可访问管理接口，scope 不参与授权）。**用户决策：限定 OAuth2 JWT 认证路径**——实现精确限定 `/auth/oauth2/userinfo` 单一端点（唯一消费方；精确匹配防前缀覆盖 authorize 等非资源端点致 500）——委托令牌不得触达管理接口或其他端点；未来开放业务 API 由 T-ACCESS-013（OAuth2 资源服务器 + scope 授权模型）显式逐项放开，不得默认放开 `/auth/oauth2/**` 通配。已补负向测试（有效 JWT 访问 /user/page → 401、/auth/oauth2/authorize → 401）。
 - **P2（延期安全事项建卡）**：T-ACCESS-013 任务卡已建立（docs/tasks/T-ACCESS-013.md + 看板条目），含范围/依赖/状态。
 - **P2（活跃文档轮次记录整改）**：按 project-rules 文档治理，任务卡/架构文档/代码注释中的"第 N 轮评审"标记全部改写为当前结论（保留问题编号与日期）；存量 T-FE-038 等未触达文档不主动改动。
 
 **范围外登记**：
-- **OAuth2 委托令牌访问业务 API（已建卡 T-ACCESS-013）**：JWT 认证分支限定 /auth/oauth2/**；业务 API 的显式开放（scope 授权模型 + audience 校验 + 路径白名单）由 T-ACCESS-013 实现。
+- **OAuth2 委托令牌访问业务 API（已建卡 T-ACCESS-013）**：JWT 认证分支精确限定 /auth/oauth2/userinfo；业务 API 的显式开放（scope 授权模型 + audience 校验 + 路径白名单逐项配置，不默认放开通配）由 T-ACCESS-013 实现。
 - serviceCode-tenantId 绑定校验（查 service_config 注册，防凭证持有者任意声明服务身份/租户）→ T-ACCESS-005/010 服务白名单。
 - 签名重放防御（300s 窗口内跨端点重放，payload 不含 method/path）→ Gateway 侧收紧（登记）。
 - /auth/** 公开子集端点自保护（logout 匿名放行、端点内部 StpUtil 幂等无操作）→ 既有设计，登记观察（评审 P3 口径修正：仅公开子集匿名，会话端点已进 USER 分支）。
