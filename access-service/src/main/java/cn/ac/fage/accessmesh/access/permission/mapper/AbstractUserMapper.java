@@ -107,4 +107,16 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
     List<AbstractUser> selectByTypeAndExternalIds(@Param("tenantId") Long tenantId,
                                                    @Param("userType") Integer userType,
                                                    @Param("externalIds") Set<String> externalIds);
+
+    /**
+     * 批量停用抽象用户（enabled=false，单条 SQL，十轮评审 P1：启停路径批量 N+1 消除）
+     *
+     * @param tenantId  租户ID
+     * @param ids       抽象用户ID集合
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchDisable(@Param("tenantId") Long tenantId,
+                     @Param("ids") Set<Long> ids,
+                     @Param("updatedAt") LocalDateTime updatedAt);
 }

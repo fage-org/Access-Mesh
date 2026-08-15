@@ -118,6 +118,30 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
     }
 
     /**
+     * 批量删除多个用户的所有组织关联（单条 SQL）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByUserIds(Long tenantId, java.util.Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        userOrgMapper.deleteByUserIds(tenantId, userIds);
+    }
+
+    /**
+     * 批量删除多个用户与指定组织的关联（单条 SQL）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByUserIdsAndOrgId(Long tenantId, java.util.Set<Long> userIds, Long orgId) {
+        if (userIds == null || userIds.isEmpty() || orgId == null) {
+            return;
+        }
+        userOrgMapper.deleteByUserIdsAndOrgId(tenantId, userIds, orgId);
+    }
+
+    /**
      * 批量插入用户组织关联
      * <p>
      * 用于批量分配用户到组织场景，使用单条批量SQL优化性能。

@@ -261,21 +261,20 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
 
-        for (SysUser user : users) {
-            userOrgDomainService.deleteByUserId(tenantId, user.getId());
-        }
+        // 十轮评审 P1：批量删除用户组织关系 + 批量软删用户（单条 SQL，替代循环单条删除）
+        java.util.Set<Long> userIdSet = users.stream().map(SysUser::getId).collect(Collectors.toSet());
+        userOrgDomainService.deleteByUserIds(tenantId, userIdSet);
         userDomainService.softDeleteBatch(tenantId, req.ids());
 
-        // 九轮评审 P2：批量解析 abstract_user.id，替代循环单条 find
+        // 九轮评审 P2：批量解析 abstract_user.id；十轮评审 P1：批量软删投影（替代循环 deleteAdminUser）
         java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>();
-        Map<Long, Long> abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(
-            tenantId, users.stream().map(SysUser::getId).collect(Collectors.toSet()));
+        Map<Long, Long> abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(tenantId, userIdSet);
+        localProjectionDomainService.batchDeleteAdminUsers(tenantId, userIdSet);
         for (SysUser user : users) {
             Long abstractUserId = abstractIdBySysId.get(user.getId());
             if (abstractUserId != null) {
                 abstractUserIds.add(abstractUserId);
             }
-            localProjectionDomainService.deleteAdminUser(tenantId, user.getId());
             // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
             recordProjectionChange(tenantId, "abstract_user", abstractUserId, "DELETE",
                 abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0]);
@@ -317,25 +316,23 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
         boolean enabled = req.status() == 1;
-        // 九轮评审 P2：预批量解析 abstract_user.id（禁用分支复用），消除循环单条 find
-        Map<Long, Long> abstractIdBySysId = enabled
-            ? Map.of()
-            : localProjectionDomainService.batchFindAdminUserIds(tenantId, validIds);
+        // 十轮评审 P1：批量投影 upsert/disable（单条 SQL 级），替代循环单条 upsertAdminUser/disableAdminUser
+        Map<Long, Long> abstractIdBySysId;
+        if (enabled) {
+            List<LocalProjectionDomainService.UpsertUserKey> upsertKeys = existingUsers.stream()
+                .map(u -> new LocalProjectionDomainService.UpsertUserKey(
+                    u.getId(), u.getName(), true, extraUsername(u.getUsername())))
+                .collect(Collectors.toList());
+            abstractIdBySysId = localProjectionDomainService.batchUpsertAdminUsers(tenantId, upsertKeys);
+        } else {
+            abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(tenantId, validIds);
+            localProjectionDomainService.batchDisableAdminUsers(tenantId, validIds);
+        }
         for (SysUser user : existingUsers) {
             user.setStatus(req.status());
-            Long abstractUserId;
-            if (enabled) {
-                abstractUserId = localProjectionDomainService.upsertAdminUser(
-                    tenantId, user.getId(), user.getName(), true, extraUsername(user.getUsername()));
-                if (abstractUserId != null) {
-                    PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
-                }
-            } else {
-                abstractUserId = abstractIdBySysId.get(user.getId());
-                localProjectionDomainService.disableAdminUser(tenantId, user.getId());
-                if (abstractUserId != null) {
-                    PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
-                }
+            Long abstractUserId = abstractIdBySysId.get(user.getId());
+            if (abstractUserId != null) {
+                PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
             }
             // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
             recordProjectionChange(tenantId, "abstract_user", abstractUserId,

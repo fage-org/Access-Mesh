@@ -88,3 +88,17 @@ last_updated: 2026-08-15
 - **P3（登录菜单重复加载）**：`AuthServiceImpl.getUserMenu` 一次 `loadUserRolesAndPermissionsOnce` 拆分 roles/permissions（原两次调用可能跨查询不一致），删除重复私有方法。
 
 **验证（九轮收口）**：access-service 默认 `mvn test` **383 测试 0 失败 22 跳过**（376 + 新增 7：Org 移动/创建门禁 6 + Validator 无投影拒绝 1）。架构测试 `permissionShouldNotDependOnAdmin` 通过（catalog 迁移后 permission 域不再依赖 admin 域）。
+
+**外部评审十轮修复（2026-08-15，按主题记录当前结论；用户决策 1 项）**：
+
+- **P1（POSITION 移动成员 relation_id 迁移）**：`OrgWriteAppServiceImpl.updateOrg` 岗位移动后调用 `migratePositionRelation`（同事务批量迁移该岗位成员 `user_role.relation_id` 旧所属组织 → 新所属组织，返回受影响用户登记缓存失效）；否则后续解绑按新三元组匹配不到旧记录导致投影残留。
+- **P1（batchBind 已有行更新缺主键）**：`batchBindUserOrg` 保留三元组 → 完整实体（含主键）映射，已有行直接更新（不再重建无 id 实体触发 MyBatis-Flex 主键校验失败）；同批重复三元组幂等跳过。
+- **P1（投影依赖缺失 fail-closed）**：`resolveRelationRoleId`（POSITION 所属组织角色缺失）/`resolveParentRoleId`（父角色缺失）/`migratePositionRelation`（新所属组织角色缺失）均抛新错误码 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20043) 整体回滚——不再回退 targetRole 制造 `target_id == relation_id`，也不再静默写 `parentId=null` 脱离父树；batchBind/batchUnbind 同语义。
+- **P1（ORG_VISIBILITY 跨实例失效，用户决策：L2_ONLY）**：目录改 `CacheMode.L2_ONLY`（纯 Redis 共享存储，无本地 Caffeine 旧窗口）——权限变更租户级 `evictAll` 即全实例一致，不再依赖 perm:invalidate 广播（access-service 无订阅者）。
+- **P1（子级创建门禁分支）**：`createOrg` 按 parentOrgId 分支——子级只走父节点 `UPDATE` 实例级门禁，顶级走类型级 `CREATE`（契约 §4.2.4 互斥门禁；不再无条件先校验类型级，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）。
+- **P1（批量写路径循环 DB 调用）**：新增 `deleteByUserIds`/`deleteByUserIdsAndOrgId`（单条 SQL 批量删事实关系）、`batchDeleteAdminUsers`/`batchDisableAdminUsers`/`batchUpsertAdminUsers`（批量加载 + insertBatch/批量状态 SQL + 回查主键）；`deleteUser`/`updateStatus`/`deleteOrg` 改批量投影，消除循环单条数据库调用。
+- **P2（批量 BIND 审计主键统一）**：`batchBindUserOrg` 返回 key → `user_role.id`（插入后按三元组批量回查），批量路径 change_log 恢复记真实投影主键（八轮用户决策保持，不再写 null）；同批重复三元组后续 key 记 null（罕见）。
+- **P2（投影核心回归测试）**：`LocalProjectionDomainServiceImplTest` +7 用例（batchBind 幂等主键保留 / POSITION relation 指向所属组织 / 依赖缺失 fail-closed / 父角色按父 orgType 解析 / 父角色缺失 / 岗位迁移 / 迁移新组织缺失）；`PermissionChangeAspectTest` 断言 `evictAll(ORG_VISIBILITY)`；`OrgWriteAppServiceTest` +3 用例（子级创建跳过类型级 / 顶级走类型级 / 岗位移动迁移调用）。
+- 风格：`AdminPermissionValidatorImpl` 权限拒绝消息参数顺序修正（"无法在 资源类型:资源 上执行 操作"，原为 operationCode/resourceType 颠倒误导）。
+
+**验证（十轮收口）**：access-service 默认 `mvn test` **393 测试 0 失败 22 跳过**（383 + 新增 10：LocalProjection 7 + Org 3）。

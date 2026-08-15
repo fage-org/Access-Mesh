@@ -134,16 +134,17 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
                 bindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
                     assoc.getUserId(), assoc.getOrgId(), roleTypeCode, org.getParentId()));
             }
-            localProjectionDomainService.batchBindUserOrg(tenantId, bindKeys);
-            // 八轮评审 P2：变更日志 entityId 用投影主键——批量路径 JDBC batch 无法回填 generated keys，
-            // entityId 记 null（九轮评审 P2-8：null 合法，不伪造主键），一次调用批量记录全部 entries
+            // 十轮评审 P2：批量 BIND 返回 key → user_role.id（插入后批量回查），
+            // 变更日志 entityId 保持八轮决策（投影主键），不再写 null
+            Map<LocalProjectionDomainService.UserOrgBindKey, Long> roleIdByKey =
+                localProjectionDomainService.batchBindUserOrg(tenantId, bindKeys);
             Long[] affected = abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId};
             auditDomainService.recordChangeLog(
                 new AuditDomainService.ChangeLogContext(
                     tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
-                toInsert.stream()
-                    .map(assoc -> new AuditDomainService.ChangeLogEntry(
-                        "user_role", null, "BIND", null, null, null, affected, new Long[0]))
+                bindKeys.stream()
+                    .map(key -> new AuditDomainService.ChangeLogEntry(
+                        "user_role", roleIdByKey.get(key), "BIND", null, null, null, affected, new Long[0]))
                     .collect(Collectors.toList()));
             if (abstractUserId != null) {
                 PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));

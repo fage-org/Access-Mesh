@@ -62,6 +62,19 @@ public interface SysUserOrgMapper extends BaseMapper<SysUserOrg> {
                                @Param("orgId") Long orgId);
 
     /**
+     * 批量删除多个用户的所有组织关联（物理删除，单条 SQL，十轮评审 P1）
+     */
+    int deleteByUserIds(@Param("tenantId") Long tenantId,
+                        @Param("userIds") java.util.Set<Long> userIds);
+
+    /**
+     * 批量删除多个用户与指定组织的关联（物理删除，单条 SQL，十轮评审 P1）
+     */
+    int deleteByUserIdsAndOrgId(@Param("tenantId") Long tenantId,
+                                @Param("userIds") java.util.Set<Long> userIds,
+                                @Param("orgId") Long orgId);
+
+    /**
      * 将指定组织设为用户的主组织（租户隔离 + 未删除）
      *
      * @param tenantId  租户ID

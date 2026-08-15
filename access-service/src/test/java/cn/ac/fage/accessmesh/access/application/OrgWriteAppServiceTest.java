@@ -34,10 +34,13 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Set;
 
 /**
  * T-ACCESS-005 评审 P1 修复：组织移动安全门禁（新父级存在性 + UPDATE 权限 + 循环检测 + level 子树同步）
@@ -273,6 +276,70 @@ class OrgWriteAppServiceTest {
         assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
             .isInstanceOf(BizException.class);
         verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("创建子组织：只走父节点 UPDATE 门禁，不再额外要求类型级 CREATE（十轮 P1）")
+    void createOrgChildSkipsTypeLevelCreate() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("1");
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 999L)).thenReturn("1");
+        when(orgDomainService.findByCode(TENANT, "NEW")).thenReturn(null);
+        doAnswer(inv -> {
+            SysOrg o = inv.getArgument(0);
+            o.setId(888L);
+            return null;
+        }).when(orgDomainService).insert(any(SysOrg.class));
+        when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
+            anyLong(), any(), any(), any(), any())).thenReturn(700L);
+
+        service.createOrg(orgCreateReq(999L));
+
+        verify(permissionValidator, never()).checkTypeLevel(anyString(), anyString());
+        verify(permissionValidator).checkInstanceLevel(eq(AdminResourceType.ORG), eq("999"), anyString());
+    }
+
+    @Test
+    @DisplayName("创建顶级组织：走类型级 CREATE（十轮 P1 门禁分支）")
+    void createOrgTopLevelUsesTypeLevelCreate() {
+        when(orgDomainService.findByCode(TENANT, "NEW")).thenReturn(null);
+        doAnswer(inv -> {
+            SysOrg o = inv.getArgument(0);
+            o.setId(888L);
+            return null;
+        }).when(orgDomainService).insert(any(SysOrg.class));
+        when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
+            any(), any(), any(), any(), any())).thenReturn(700L);
+
+        service.createOrg(new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(1, "新组织", null, "NEW", 1, 1));
+
+        verify(permissionValidator).checkTypeLevel(eq(AdminResourceType.ORG), anyString());
+        verify(permissionValidator, never()).checkInstanceLevel(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("岗位移动：迁移成员 relation 并登记受影响用户（十轮 P1）")
+    void movePositionMigratesMemberRelation() {
+        SysOrg org = org("A", "2", 2); // POSITION
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org);
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
+        SysOrg newParent = new SysOrg();
+        newParent.setId(20L);
+        newParent.setOrgType("1");
+        newParent.setLevel(4);
+        when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 20L)).thenReturn("1");
+        when(localProjectionDomainService.migratePositionRelation(TENANT, ORG_ID, 1L, 20L))
+            .thenReturn(Set.of(501L, 502L));
+
+        service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null));
+
+        verify(localProjectionDomainService).migratePositionRelation(TENANT, ORG_ID, 1L, 20L);
+        verify(orgDomainService).update(any(SysOrg.class));
     }
 
     private static cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq orgCreateReq(Long parentId) {

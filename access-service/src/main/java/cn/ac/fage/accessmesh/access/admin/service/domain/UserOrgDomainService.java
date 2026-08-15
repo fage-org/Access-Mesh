@@ -65,6 +65,16 @@ public interface UserOrgDomainService {
     void deleteByUserIdAndOrgId(Long tenantId, Long userId, Long orgId);
 
     /**
+     * 批量删除用户的所有组织关联（十轮评审 P1：删除用户路径批量 N+1 消除，单条 SQL）。
+     */
+    void deleteByUserIds(Long tenantId, java.util.Set<Long> userIds);
+
+    /**
+     * 批量删除多个用户与指定组织的关联（十轮评审 P1：删除组织路径批量 N+1 消除，单条 SQL）。
+     */
+    void deleteByUserIdsAndOrgId(Long tenantId, java.util.Set<Long> userIds, Long orgId);
+
+    /**
      * 批量插入用户组织关联
      * <p>
      * 批量创建用户与组织的关联记录。

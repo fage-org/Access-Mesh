@@ -69,16 +69,15 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         targetId = "#result", summary = "'create org ' + #req.code()")
     public Long createOrg(OrgCreateReq req) {
         String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
-        permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG, OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE));
         Long tenantId = TenantContextHolder.getTenantId();
         if (orgDomainService.findByCode(tenantId, req.code()) != null) {
             throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
                 AdminErrorCode.ORG_CODE_EXISTS.getMessage());
         }
+        // 十轮评审 P1：契约 §4.2.4 互斥门禁——顶级用类型级 CREATE，子级只用父节点实例级 UPDATE
+        // （不再无条件先校验类型级 CREATE，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）
         SysOrg parent = null;
         if (req.parentOrgId() != null && req.parentOrgId() != 0L) {
-            // 九轮评审 P1：子级创建校验父节点存在性 + UPDATE 门禁 + 树归属（游离拒绝）
             parent = orgDomainService.selectValidById(tenantId, req.parentOrgId());
             if (parent == null) {
                 throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
@@ -87,7 +86,11 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             permissionValidator.checkInstanceLevel(
                 AdminResourceType.ORG, String.valueOf(req.parentOrgId()),
                 OrgOperationCodeMapper.resolve(parent.getOrgType(), AdminOperationCode.UPDATE));
+            // 父节点必须可解析到树（游离拒绝）
             orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, req.parentOrgId());
+        } else {
+            permissionValidator.checkTypeLevel(
+                AdminResourceType.ORG, OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE));
         }
         int level = parent != null && parent.getLevel() != null ? parent.getLevel() + 1 : 1;
         if (level > 10) {
@@ -128,8 +131,18 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE));
         // T-ACCESS-005 评审 P1：组织移动安全门禁与树结构校验
         Long newParentId = req.parentOrgId();
-        if (newParentId != null && !Objects.equals(newParentId, org.getParentId())) {
+        Long oldParentId = org.getParentId();
+        if (newParentId != null && !Objects.equals(newParentId, oldParentId)) {
             validateOrgMove(tenantId, req.id(), org, newParentId);
+            // 十轮评审 P1：岗位（POSITION）移动后迁移已有成员 user_role.relation_id
+            // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留
+            if (OrgOperationCodeMapper.isPositionOrg(org.getOrgType())) {
+                java.util.Set<Long> affectedUsers = localProjectionDomainService.migratePositionRelation(
+                    tenantId, org.getId(), oldParentId, newParentId);
+                if (!affectedUsers.isEmpty()) {
+                    PermissionChangeContext.markUsers(tenantId, affectedUsers);
+                }
+            }
         }
         if (req.code() != null && !req.code().equals(org.getCode())
             && orgDomainService.findByCode(tenantId, req.code()) != null) {
@@ -265,8 +278,10 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             localProjectionDomainService.batchFindAdminUserIds(
                 tenantId, members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()))
                 .values());
-        for (SysUserOrg member : members) {
-            userOrgDomainService.deleteByUserIdAndOrgId(tenantId, member.getUserId(), id);
+        // 十轮评审 P1：批量删除成员关系（单条 SQL），替代循环单条 deleteByUserIdAndOrgId
+        if (!members.isEmpty()) {
+            userOrgDomainService.deleteByUserIdsAndOrgId(tenantId,
+                members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()), id);
         }
         if (!abstractUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, abstractUserIds);

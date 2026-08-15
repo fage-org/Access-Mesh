@@ -81,9 +81,51 @@ public interface LocalProjectionDomainService {
      * 批量 BIND（九轮评审 P2：批量成员分配不再循环单条 bindUserOrg 的 N+1）。
      * 一次批量加载 abstract_user / abstract_role / relationRole / user_role 候选，
      * 按 (sysUserId, sysOrgId, roleTypeCode, relationSysOrgId) 匹配后批量 insert/update。
-     * 任一 key 缺少 abstract_user 或 abstract_role 投影 → 抛 BizException（与单条 bind 语义一致）。
+     * 任一 key 缺少 abstract_user / abstract_role / POSITION 所属组织角色投影 → 抛 BizException
+     * （强事务投影 fail-closed，整体回滚）。
+     *
+     * @return key → user_role.id（同批重复三元组的后续 key 为 null——JDBC batch 无法回填，
+     *         新插入行经一次批量回查取得；同批重复仅首个 key 有 id）
      */
-    void batchBindUserOrg(Long tenantId, List<UserOrgBindKey> keys);
+    Map<UserOrgBindKey, Long> batchBindUserOrg(Long tenantId, List<UserOrgBindKey> keys);
+
+    /**
+     * POSITION 移动后迁移成员 user_role.relation_id（旧所属组织角色 → 新所属组织角色）。
+     * <p>
+     * 十轮评审 P1：岗位在同一树内移动后，已有成员的 relation 仍指向旧组织，
+     * 后续解绑按新三元组匹配不到旧记录导致投影残留；同一事务内批量迁移并返回受影响用户。
+     * </p>
+     *
+     * @return 受影响 abstract_user.id 集合（供缓存失效）
+     */
+    Set<Long> migratePositionRelation(Long tenantId, Long sysPositionId,
+                                      Long oldRelationOrgId, Long newRelationOrgId);
+
+    /**
+     * 批量软删 abstract_user 与 ADMIN_USER 资源（按 sys_user.id 定位）。
+     * 一次批量加载 + 一次批量软删，消除删除路径循环单条 deleteAdminUser 的 N+1。
+     */
+    void batchDeleteAdminUsers(Long tenantId, Set<Long> sysUserIds);
+
+    /**
+     * 批量停用 abstract_user 与 ADMIN_USER 资源（按 sys_user.id 定位）。
+     * 批量加载 + 批量状态更新（2 条 SQL），消除启停路径循环单条 disable 的 N+1。
+     */
+    void batchDisableAdminUsers(Long tenantId, Set<Long> sysUserIds);
+
+    /**
+     * 批量 UPSERT abstract_user(ADMIN_USER) + resource_entity(ADMIN_USER)。
+     * 批量加载已有投影，新行 insertBatch（插入后批量回查主键），已有行更新；
+     * 消除启用路径循环单条 upsert 的 N+1。
+     *
+     * @return sysUserId → abstractUserId 映射（供缓存失效与变更日志）
+     */
+    Map<Long, Long> batchUpsertAdminUsers(Long tenantId, List<UpsertUserKey> keys);
+
+    /**
+     * 批量 upsert 键：管理事实侧 (sys_user.id, name, enabled, extraJson)。
+     */
+    record UpsertUserKey(Long sysUserId, String name, boolean enabled, String extraJson) {}
 
     /**
      * 批量 UNBIND（八轮评审 P2：删除路径循环单条 unbind 的 N+1）。

@@ -32,6 +32,24 @@
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND org_id = #{orgId}
     </delete>
 
+    <!-- 批量删除多个用户的所有组织关联（十轮评审 P1：单条 SQL 消除循环单条删除） -->
+    <delete id="deleteByUserIds">
+        DELETE FROM sys_user_org
+        WHERE tenant_id = #{tenantId} AND user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </delete>
+
+    <!-- 批量删除多个用户与指定组织的关联（十轮评审 P1：单条 SQL 消除循环单条删除） -->
+    <delete id="deleteByUserIdsAndOrgId">
+        DELETE FROM sys_user_org
+        WHERE tenant_id = #{tenantId} AND org_id = #{orgId} AND user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </delete>
+
     <update id="updatePrimaryByUserIdAndOrgId">
         UPDATE sys_user_org
         SET is_primary = #{isPrimary}, updated_at = #{updatedAt}

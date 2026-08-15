@@ -98,9 +98,10 @@ class PermissionChangeAspectTest {
             aspect.around(joinPoint, pc);
         }
 
-        // flush 执行：批量失效角色缓存 + 失效 ROLE_PERM_SNAPSHOT + 广播（含 serviceCodes）
+        // flush 执行：批量失效角色缓存 + 失效 ROLE_PERM_SNAPSHOT + 租户级清除 ORG_VISIBILITY + 广播
         verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
         verify(cacheService).evictBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
+        verify(cacheService).evictAll(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L));
         verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
         // clear 执行
         assertNull(PermissionChangeContext.snapshot());

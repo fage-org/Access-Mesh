@@ -204,7 +204,8 @@ public enum PermissionErrorCode {
     /**
      * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影
      */
-    LOCAL_PROJECTION_IMMUTABLE(20042, "禁止直接修改 access-service 本地权限投影");
+    LOCAL_PROJECTION_IMMUTABLE(20042, "禁止直接修改 access-service 本地权限投影"),
+    LOCAL_PROJECTION_DEPENDENCY_MISSING(20043, "本地投影依赖缺失（父组织角色/所属组织角色不存在）");
 
     private final int code;
     private final String message;

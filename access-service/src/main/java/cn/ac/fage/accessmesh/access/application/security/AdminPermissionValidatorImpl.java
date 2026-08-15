@@ -100,7 +100,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, deniedCodes, operationCode);
             throw new SecurityException(
                 String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
-                    operationCode, resourceTypeCode, deniedCodes, "NO_PERMISSION"));
+                    resourceTypeCode, deniedCodes, operationCode, "NO_PERMISSION"));
         }
     }
 
@@ -122,7 +122,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCode, operationCode, reason);
             throw new SecurityException(
                 String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
-                    operationCode, resourceTypeCode, resourceCode, reason));
+                    resourceTypeCode, resourceCode, operationCode, reason));
         }
     }
 
