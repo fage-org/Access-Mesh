@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
+import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -35,18 +36,18 @@ import org.springframework.web.bind.annotation.*;
 public class AdminUserController {
 
     private final UserService userService;
-    private final cn.ac.fage.accessmesh.access.admin.service.RoleProxyService roleProxyService;
+    private final UserMenuQueryService userMenuQueryService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param userService       用户管理服务
-     * @param roleProxyService  角色代理服务，用于查询用户角色和权限
+     * @param userService           用户管理服务
+     * @param userMenuQueryService  跨域用户菜单聚合查询服务（/user/user-menus）
      */
     public AdminUserController(UserService userService,
-                          cn.ac.fage.accessmesh.access.admin.service.RoleProxyService roleProxyService) {
+                          UserMenuQueryService userMenuQueryService) {
         this.userService = userService;
-        this.roleProxyService = roleProxyService;
+        this.userMenuQueryService = userMenuQueryService;
     }
 
     /**
@@ -188,6 +189,6 @@ public class AdminUserController {
      */
     @PostMapping("/user-menus")
     public PermResult<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
-        return PermResult.success(roleProxyService.loadUserRolesAndPermissions(req.id()));
+        return PermResult.success(userMenuQueryService.loadUserRolesAndPermissions(req.id()));
     }
 }

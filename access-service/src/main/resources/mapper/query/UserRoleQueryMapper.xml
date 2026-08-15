@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.application.query.mapper.UserRoleQueryMapper">
+
+    <select id="selectFunctionalRoles"
+            resultType="cn.ac.fage.accessmesh.access.application.query.projection.FunctionalRoleProjection">
+        SELECT role_type AS roleType,
+               external_id AS externalId,
+               name
+        FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="roleTypes != null and roleTypes.size() > 0">
+          AND role_type IN
+          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
+              #{roleType}
+          </foreach>
+        </if>
+        <if test="keyword != null and keyword != ''">
+          AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectUserRoleProjections"
+            resultType="cn.ac.fage.accessmesh.access.application.query.projection.UserRoleProjection">
+        SELECT ur.relation_id AS relationId,
+               ur.target_type AS targetType,
+               ar.role_type AS targetRoleType,
+               ar.external_id AS roleExternalId,
+               ar.name AS roleName,
+               ar_rel.external_id AS relationExternalId,
+               ur.valid_from AS validFrom,
+               ur.valid_to AS validTo
+        FROM user_role ur
+        LEFT JOIN abstract_role ar ON ur.target_id = ar.id
+            AND ar.tenant_id = ur.tenant_id
+            AND ar.delete_flag = 0
+        LEFT JOIN abstract_role ar_rel ON ur.relation_id = ar_rel.id
+            AND ar_rel.tenant_id = ur.tenant_id
+            AND ar_rel.delete_flag = 0
+        WHERE ur.tenant_id = #{tenantId}
+          AND ur.abstract_user_id = #{abstractUserId}
+          AND ur.delete_flag = 0
+          AND (ur.valid_from &lt;= #{now} OR ur.valid_from IS NULL)
+          AND (ur.valid_to &gt;= #{now} OR ur.valid_to IS NULL)
+    </select>
+
+    <select id="selectOrgBriefsByIds"
+            resultType="cn.ac.fage.accessmesh.access.application.query.projection.OrgBriefProjection">
+        SELECT id,
+               name
+        FROM sys_org
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="orgIds != null and orgIds.size() > 0">
+          AND id IN
+          <foreach collection="orgIds" item="oid" open="(" separator="," close=")">
+              #{oid}
+          </foreach>
+        </if>
+        <if test="orgIds == null or orgIds.size() == 0">
+          AND id = -1
+        </if>
+    </select>
+
+</mapper>

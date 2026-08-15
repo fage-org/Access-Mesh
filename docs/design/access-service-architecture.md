@@ -89,6 +89,21 @@ flowchart LR
 - 重名 Spring Bean 使用清晰的域前缀类名消除冲突，不依赖模糊的 Bean 覆盖。
 - 架构测试应将上述依赖白名单固化。
 
+`access.application.query` 落地形态（T-ACCESS-006）：
+
+- 查询服务（接口 + `impl/` 同包实现，方法标注 `@Transactional(readOnly = true)`）：
+  - `UserMenuQueryService`：`/auth/user-menu`、`/user/user-menus`、`/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
+  - `UserRoleQueryService`：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
+  - `OrgVisibilityQueryService`：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
+- 专用 QueryMapper（`query/mapper`，XML 在 `resources/mapper/query/`）：只 SELECT、显式 `tenant_id` 条件、返回 `query/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
+- 依赖白名单（架构测试固化）：`admin`/`permission` 域互不使用对方 Mapper；`application` 非 query 包（写编排/门禁）不使用两域 Mapper；query 包不依赖两域实体/Mapper；组合查询数据读取只发生在 query 包。
+
+角色代理退役（T-ACCESS-006，用户决策「角色直接由 permission 管理」）：
+
+- `RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现代理形态）已删除，admin 域直接依赖 `application.query` 查询服务。
+- admin 侧角色写代理端点保留映射但恒拒绝：`/role/create` 恒 `20045`（LOCAL_PROJECTION_IMMUTABLE，语义不变）；`/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke` 恒 `10111`（ROLE_API_RETIRED）。角色与授权管理由 permission 域直接提供（`/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission`）。
+- 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移（菜单 CRUD 写路径仍使用旧实体字段 `name`/`visible`/`perm_code`，真实库写入会失败）登记于 T-ACCESS-006 完成记录，由 T-ACCESS-012 统一收口。
+
 ## 4. 管理事实与权限投影
 
 ### 4.1 所有权

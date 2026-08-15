@@ -1,10 +1,8 @@
-package cn.ac.fage.accessmesh.access.application.security;
+package cn.ac.fage.accessmesh.access.application.query.impl;
 
-import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
-import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.security.OrgVisibilityService;
+import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
+import cn.ac.fage.accessmesh.access.application.query.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
@@ -12,8 +10,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,33 +22,36 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 组织可见性：本地 PermQueryEngine 批量校验，结果按操作者缓存。
+ * 组织可见性查询实现（跨域只读）。
+ * <p>
+ * 组织树与组织树配置读取经 {@link OrgVisibilityQueryMapper}，操作者主体解析与
+ * ADMIN_ORG:VIEW 判定经 {@link TypeResolutionService} / {@link PermQueryEngine}；
+ * 默认树可见范围按操作者缓存（ORG_VISIBILITY 目录，L2_ONLY，租户级失效由
+ * PermissionChangeAspect 统一执行）。
+ * </p>
  */
 @Service
-@Primary
-public class OrgVisibilityServiceImpl implements OrgVisibilityService {
+public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService {
 
     private static final String OPERATION_VIEW = "VIEW";
 
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
-    private final OrgTreeConfigDomainService orgTreeConfigDomainService;
-    private final OrgDomainService orgDomainService;
+    private final OrgVisibilityQueryMapper orgVisibilityQueryMapper;
     private final CacheService cacheService;
 
-    public OrgVisibilityServiceImpl(TypeResolutionService typeResolutionService,
-                                    PermQueryEngine engine,
-                                    OrgTreeConfigDomainService orgTreeConfigDomainService,
-                                    OrgDomainService orgDomainService,
-                                    CacheService cacheService) {
+    public OrgVisibilityQueryServiceImpl(TypeResolutionService typeResolutionService,
+                                         PermQueryEngine engine,
+                                         OrgVisibilityQueryMapper orgVisibilityQueryMapper,
+                                         CacheService cacheService) {
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
-        this.orgTreeConfigDomainService = orgTreeConfigDomainService;
-        this.orgDomainService = orgDomainService;
+        this.orgVisibilityQueryMapper = orgVisibilityQueryMapper;
         this.cacheService = cacheService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Set<Long> filterVisibleOrgIds(Long tenantId, Long operatorId, Collection<Long> orgIds) {
         if (orgIds == null || orgIds.isEmpty()) {
             return Set.of();
@@ -60,8 +61,7 @@ public class OrgVisibilityServiceImpl implements OrgVisibilityService {
         if (userId == null) {
             return Set.of();
         }
-        // 一次 engine.getDeniedIds 批量查询，替代切片内逐组织单查。
-        //  修复：getDeniedIds 按 resource_entity.id 查询，先批量解析业务键 → 投影 ID，
+        // 一次 engine.getDeniedIds 批量查询：先批量解析业务键 → 投影 ID，
         // denied 结果映射回组织 ID；未解析（无投影）的组织视为不可见（与单条 query deny 语义一致）
         List<Long> candidateList = new ArrayList<>(orgIds);
         List<ResourceResolveRequest> requests = candidateList.stream()
@@ -92,17 +92,17 @@ public class OrgVisibilityServiceImpl implements OrgVisibilityService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Set<Long> getOperatorVisibleDefaultTreeOrgIds(Long tenantId, Long operatorId) {
         Set<Long> cached = cacheService.get(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
         if (cached != null) {
             return cached;
         }
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        if (defaultConfigs.isEmpty()) {
+        List<Long> rootOrgIds = orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(tenantId);
+        if (rootOrgIds.isEmpty()) {
             return Set.of();
         }
-        Long defaultRootOrgId = defaultConfigs.get(0).getRootOrgId();
-        List<Long> descendantIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, defaultRootOrgId);
+        List<Long> descendantIds = orgVisibilityQueryMapper.selectDescendantOrgIds(tenantId, rootOrgIds.get(0));
         if (descendantIds.isEmpty()) {
             return Set.of();
         }

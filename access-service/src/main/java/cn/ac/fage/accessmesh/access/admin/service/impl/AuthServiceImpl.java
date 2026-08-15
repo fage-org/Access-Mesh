@@ -6,22 +6,19 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserMenuResp;
-import cn.ac.fage.accessmesh.access.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.AuthService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.RoleProxyService;
 import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
+import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.secure.BCrypt;
@@ -35,14 +32,9 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -58,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * 用户信息获取、用户菜单获取等。
  * 实现了登录失败次数限制、账号锁定、验证码一次性使用等安全机制。
  * 使用Redis Lua脚本确保原子性操作，避免竞态条件。
- * 用户菜单和权限通过 RoleProxyService 本地查询权限域获取。
+ * 用户菜单和权限通过 UserMenuQueryService 跨域聚合查询获取（T-ACCESS-006）。
  * </p>
  */
 @Service
@@ -103,8 +95,7 @@ public class AuthServiceImpl implements AuthService {
     private final OAuth2ClientDomainService oauth2ClientDomainService;
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
-    private final MenuDomainService menuDomainService;
-    private final RoleProxyService roleProxyService;
+    private final UserMenuQueryService userMenuQueryService;
     private final UserWriteAppService userWriteAppService;
 
     /**
@@ -122,31 +113,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
-    private static final String OPERATION_VIEW = "VIEW";
-
-    /**
-     * 「有效权限码下发」查询的资源类型白名单（v1.4 双轨并行）。
-     * <p>
-     * 包含所有产生前端 hasPerms 校验串的资源类型，不含 ADMIN_MENU
-     * （菜单可见性由 {@code filterAllowedMenus} 独立处理）。
-     * 新增需要下发权限码的资源类型时在此追加。
-     */
-    private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
-        AdminResourceType.ORG,
-        AdminResourceType.USER,
-        AdminResourceType.ROLE,
-        AdminResourceType.NOTICE,
-        AdminResourceType.JOB,
-        AdminResourceType.DICT,
-        AdminResourceType.DICT_DATA,
-        AdminResourceType.CONFIG,
-        AdminResourceType.OAUTH2_CLIENT,
-        AdminResourceType.FILE,
-        AdminResourceType.ORG_TREE_CONFIG,
-        AdminResourceType.SYNC_TASK,
-        // permission-center 内部 ROLE 资源类型，承载 C 区「分配功能角色给用户」 → ROLE:MANAGE
-        "ROLE"
-    );
 
     /**
      * 构造函数注入依赖
@@ -156,24 +122,21 @@ public class AuthServiceImpl implements AuthService {
      * @param oauth2ClientDomainService OAuth2客户端领域服务
      * @param loginLogDomainService 登录日志领域服务，记录登录成功/失败
      * @param redisTemplate Redis操作模板，用于验证码和登录失败计数
-     * @param menuDomainService 菜单领域服务，获取菜单数据
-     * @param roleProxyService 角色代理，本地查询角色/权限码/菜单可见性
+     * @param userMenuQueryService 跨域用户菜单聚合查询服务（/auth/user-menu）
      */
     public AuthServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
                            OAuth2ClientDomainService oauth2ClientDomainService,
                            LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate,
-                           MenuDomainService menuDomainService,
-                           RoleProxyService roleProxyService,
+                           UserMenuQueryService userMenuQueryService,
                            UserWriteAppService userWriteAppService) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
-        this.menuDomainService = menuDomainService;
-        this.roleProxyService = roleProxyService;
+        this.userMenuQueryService = userMenuQueryService;
         this.userWriteAppService = userWriteAppService;
     }
 
@@ -620,9 +583,9 @@ public class AuthServiceImpl implements AuthService {
      * 获取用户菜单
      * <p>
      * 获取用户可访问的菜单树、角色列表和按钮级权限列表。
-     * 通过 RoleProxyService 本地查询用户角色和权限（T-ACCESS-005 起不再 Feign），
-     * 批量校验菜单访问权限。
-     * 构建前端路由格式的菜单树，包含子菜单自动继承父菜单可见性。
+     * 跨域组合逻辑（菜单树构建 + 角色/权限聚合 + 菜单可见性判定）集中在
+     * {@link UserMenuQueryService#buildUserMenuTree}（T-ACCESS-006）。
+     * 本方法仅保留用户存在性校验（登录链路 admin 域职责）。
      * </p>
      *
      * @param userId 用户ID
@@ -639,187 +602,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        // 2+3. 一次加载角色与权限（原 getUserRoles/getUserPermissions 各调一次
-        // loadUserRolesAndPermissions 导致重复查询且可能跨两次查询时间不一致）
-        UserInfoResp rolePermInfo = loadUserRolesAndPermissionsOnce(tenantId, userId);
-        List<String> roles = rolePermInfo != null && rolePermInfo.roles() != null
-            ? rolePermInfo.roles().stream()
-                .map(UserInfoResp.RoleInfo::roleName)
-                .collect(Collectors.toList())
-            : List.of();
-        List<String> permissions = rolePermInfo != null && rolePermInfo.permissions() != null
-            ? new ArrayList<>(rolePermInfo.permissions())
-            : List.of();
-
-        // 4. 获取所有菜单
-        List<SysMenu> allMenus = menuDomainService.selectAllValid(tenantId);
-
-        // 5. 过滤用户有权限的菜单
-        Set<Long> allowedMenuIds = filterAllowedMenus(tenantId, userId, allMenus);
-
-        // 6. 构建菜单树
-        List<UserMenuResp.MenuRouteItem> menus = buildMenuTree(allMenus, allowedMenuIds, 0L);
-
-        return new UserMenuResp(menus, roles, permissions);
-    }
-
-    /**
-     * 一次加载用户角色与权限（getUserMenu 共用一次查询，保证同一权限快照）。
-     * 登录态自查，不走管理门禁 {@code listUserRoles}。
-     */
-    private UserInfoResp loadUserRolesAndPermissionsOnce(Long tenantId, Long userId) {
-        try {
-            return roleProxyService.loadUserRolesAndPermissions(userId);
-        } catch (Exception e) {
-            log.warn("Failed to load user roles/permissions for tenant={}, userId={}", tenantId, userId, e);
-            return null;
-        }
-    }
-
-    /**
-     * 过滤用户有权限访问的菜单
-     * <p>
-     * 通过批量权限校验获取用户可访问的菜单ID集合。
-     * 自动补充父菜单ID，确保菜单树完整性（子菜单有权限时父菜单也显示）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId 用户ID
-     * @param allMenus 所有菜单列表
-     * @return 用户有权限访问的菜单ID集合
-     */
-    private Set<Long> filterAllowedMenus(Long tenantId, Long userId, List<SysMenu> allMenus) {
-        if (allMenus.isEmpty()) {
-            return Set.of();
-        }
-
-        List<Long> candidateIds = allMenus.stream()
-            .filter(m -> m.getMenuType() != null && !"3".equals(m.getMenuType()))
-            .map(SysMenu::getId)
-            .collect(Collectors.toList());
-        if (candidateIds.isEmpty()) {
-            return Set.of();
-        }
-        try {
-            Set<Long> allowed = roleProxyService.filterAllowedMenuIds(userId, candidateIds);
-            Set<Long> withParents = new HashSet<>(allowed);
-            for (SysMenu menu : allMenus) {
-                if (allowed.contains(menu.getId()) && menu.getParentId() != null && menu.getParentId() > 0) {
-                    addParentMenus(allMenus, menu.getParentId(), withParents);
-                }
-            }
-            return withParents;
-        } catch (Exception e) {
-            log.warn("Failed to filter allowed menus for tenant={}, userId={}", tenantId, userId, e);
-        }
-        return Set.of();
-    }
-
-    /**
-     * 递归添加父菜单
-     * <p>
-     * 从子菜单向上递归，将所有祖先菜单ID添加到集合中。
-     * 确保菜单树的层级结构完整。
-     * </p>
-     *
-     * @param allMenus 所有菜单列表
-     * @param parentId 当前要添加的父菜单ID
-     * @param withParents 菜单ID集合（会被修改）
-     */
-    private void addParentMenus(List<SysMenu> allMenus, Long parentId, Set<Long> withParents) {
-        for (SysMenu menu : allMenus) {
-            if (menu.getId().equals(parentId)) {
-                withParents.add(menu.getId());
-                if (menu.getParentId() != null && menu.getParentId() > 0) {
-                    addParentMenus(allMenus, menu.getParentId(), withParents);
-                }
-                break;
-            }
-        }
-    }
-
-    /**
-     * 构建菜单树
-     * <p>
-     * 将菜单列表转换为前端路由格式的树形结构。
-     * 只包含用户有权限、可见、启用状态的菜单，按排序字段排序。
-     * </p>
-     *
-     * @param allMenus 所有菜单列表
-     * @param allowedIds 用户有权限的菜单ID集合
-     * @param parentId 当前层级父菜单ID（0表示根级）
-     * @return 菜单路由项列表
-     */
-    private List<UserMenuResp.MenuRouteItem> buildMenuTree(List<SysMenu> allMenus, Set<Long> allowedIds, Long parentId) {
-        return allMenus.stream()
-            .filter(m -> parentId.equals(m.getParentId() != null ? m.getParentId() : 0L))
-            .filter(m -> allowedIds.contains(m.getId()))
-            .filter(m -> m.getVisible() != null && m.getVisible()) // 只显示可见菜单
-            .filter(m -> m.getStatus() != null && m.getStatus() == 1) // 只显示启用菜单
-            .sorted((a, b) -> {
-                int orderA = a.getSortOrder() != null ? a.getSortOrder() : 0;
-                int orderB = b.getSortOrder() != null ? b.getSortOrder() : 0;
-                return Integer.compare(orderA, orderB);
-            })
-            .map(m -> {
-                List<UserMenuResp.MenuRouteItem> children = buildMenuTree(allMenus, allowedIds, m.getId());
-                UserMenuResp.MetaInfo meta = new UserMenuResp.MetaInfo(
-                    m.getName(),
-                    m.getIcon(),
-                    m.getSortOrder(),
-                    m.getVisible(),
-                    m.getIsCache() != null ? m.getIsCache() : false,
-                    m.getIsExternal() != null && m.getIsExternal() ? m.getPath() : null,
-                    null, // roles 由前端根据用户角色判断
-                    m.getPermCode() != null ? List.of(m.getPermCode()) : null
-                );
-                return new UserMenuResp.MenuRouteItem(
-                    m.getPath(),
-                    generateRouteName(m),
-                    m.getComponent(),
-                    !children.isEmpty() ? children.get(0).path() : null,
-                    meta,
-                    children
-                );
-            })
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * 生成路由名称
-     * <p>
-     * 根据菜单类型和路径生成前端路由的name属性。
-     * 目录类型自动添加"Parent"后缀，菜单类型使用路径转换为驼峰命名。
-     * </p>
-     *
-     * @param menu 菜单实体
-     * @return 路由名称字符串
-     */
-    private String generateRouteName(SysMenu menu) {
-        if (menu.getMenuType() != null && "1".equals(menu.getMenuType())) {
-            // 目录类型：自动生成名称
-            return menu.getPath().replace("/", "_").replaceAll("^_", "") + "Parent";
-        }
-        // 菜单类型：使用路径生成名称
-        String path = menu.getPath();
-        if (path == null || path.isBlank()) {
-            return "Menu" + menu.getId();
-        }
-        // 将路径转换为驼峰命名
-        String[] parts = path.split("/");
-        StringBuilder name = new StringBuilder();
-        for (String part : parts) {
-            if (!part.isBlank()) {
-                if (name.isEmpty()) {
-                    name.append(part);
-                } else {
-                    name.append(Character.toUpperCase(part.charAt(0)));
-                    if (part.length() > 1) {
-                        name.append(part.substring(1));
-                    }
-                }
-            }
-        }
-        return name.toString();
+        // 2. 跨域聚合：菜单树 + 角色 + 权限码（一次加载保证同一权限快照）
+        return userMenuQueryService.buildUserMenuTree(userId);
     }
 }

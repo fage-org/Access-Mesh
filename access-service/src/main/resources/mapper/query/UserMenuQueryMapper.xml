@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.application.query.mapper.UserMenuQueryMapper">
+
+    <select id="selectMenus" resultType="cn.ac.fage.accessmesh.access.application.query.projection.MenuProjection">
+        SELECT id,
+               parent_id,
+               menu_type,
+               display_name AS name,
+               path,
+               icon,
+               sort_order,
+               status,
+               resource_type,
+               resource_code
+        FROM sys_menu
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        ORDER BY sort_order ASC
+    </select>
+
+    <select id="selectUserOrgsByUserIds"
+            resultType="cn.ac.fage.accessmesh.access.application.query.projection.UserOrgProjection">
+        SELECT org_id,
+               is_primary
+        FROM sys_user_org
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="userIds != null and userIds.size() > 0">
+          AND user_id IN
+          <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+              #{uid}
+          </foreach>
+        </if>
+        <if test="userIds == null or userIds.size() == 0">
+          AND id = -1
+        </if>
+    </select>
+
+</mapper>

@@ -706,9 +706,10 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ---
 
-### 4.4 用户-角色代理 (`/user-role`)
+### 4.4 用户-角色 (`/user-role`)
 
-> **核心决策**: admin-service 新增 `UserRoleController` 代理 permission-center `/api/perm/user-role/*`. 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色, 前端直接传业务键. 门禁统一使用 `ROLE:MANAGE@roleExternalId`. 仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*).
+> **核心决策（T-ACCESS-006 修订）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；`/user-role/assign`、`/user-role/revoke` 退役——保留映射但恒抛 `10111`（`ROLE_API_RETIRED`），前端请改用 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。
+> 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
 #### 4.4.1 `POST /user-role/list` 🔧
 
@@ -739,7 +740,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
 
-**代理动作**: `RoleProxyService` 本地调用 `UserManageAppService.getUserRoles`（业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`），再查 `sys_org` 补 `relationOrgName`。返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId。
+**代理动作（T-ACCESS-006 修订）**: `UserRoleQueryService`（`access.application.query`）经专用 QueryMapper 读取 `user_role ⨝ abstract_role`（有效期窗口过滤），再批量查 `sys_org` 补 `relationOrgName`。返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId。
 
 **错误码段**: 10500-10519
 
@@ -751,9 +752,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ---
 
-#### 4.4.2 `POST /user-role/assign` 🔧
+#### 4.4.2 `POST /user-role/assign` ⛔ 退役
 
-**目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL). admin 代理本地调用 `UserManageAppService.assignRole`.
+> **T-ACCESS-006 退役**: 保留映射但恒抛 `10111`（`ROLE_API_RETIRED`）。角色分配由 permission 域 `/api/perm/user-role/assign` 直接提供（`ROLE:MANAGE` 门禁由 permission 域 `UserManageAppServiceImpl.assignRole` 经 `getDeniedIds(ROLE, MANAGE)` 强制）。
+
+**目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL).（退役前语义：admin 代理本地调用 `UserManageAppService.assignRole`）
 
 **请求 DTO**: `UserRoleAssignReq`
 
@@ -784,9 +787,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ---
 
-#### 4.4.3 `POST /user-role/revoke` 🔧
+#### 4.4.3 `POST /user-role/revoke` ⛔ 退役
 
-**目的**: 回收用户的功能角色.
+> **T-ACCESS-006 退役**: 保留映射但恒抛 `10111`（`ROLE_API_RETIRED`）。角色回收由 permission 域 `/api/perm/user-role/revoke` 直接提供（`ROLE:MANAGE` 门禁由 permission 域 enforce）。
+
+**目的**: 回收用户的功能角色.（退役前语义：admin 代理本地调用 `UserManageAppService.revokeRolesBatch`）
 
 **请求 DTO**: `UserRoleRevokeReq`
 

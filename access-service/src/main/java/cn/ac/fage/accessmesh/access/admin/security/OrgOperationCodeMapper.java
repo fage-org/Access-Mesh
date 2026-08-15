@@ -121,7 +121,7 @@ public final class OrgOperationCodeMapper {
      * 判断 orgType 是否为岗位类型。
      * <p>
      * 历史上 orgType 字段同时使用过数值字符串（"1"/"2"）和语义字符串（"ORG"/"POSITION"），
-     * 与 RoleProxyServiceImpl#mapOrgTypeToRoleType 保持兼容。
+     * 组织/岗位角色类型映射与跨域查询服务（UserRoleQueryServiceImpl）保持一致。
      *
      * @param orgType sys_org.orgType 值
      * @return true 表示岗位

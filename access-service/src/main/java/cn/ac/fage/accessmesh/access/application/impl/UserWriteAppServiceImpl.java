@@ -18,7 +18,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.security.OrgVisibilityService;
+import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
@@ -60,7 +60,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
-    private final OrgVisibilityService orgVisibilityService;
+    private final OrgVisibilityQueryService orgVisibilityQueryService;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
     private final ObjectMapper objectMapper;
@@ -70,7 +70,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                                    OrgTreeConfigDomainService orgTreeConfigDomainService,
                                    OrgDomainService orgDomainService,
                                    AdminPermissionValidator permissionValidator,
-                                   OrgVisibilityService orgVisibilityService,
+                                   OrgVisibilityQueryService orgVisibilityQueryService,
                                    LocalProjectionDomainService localProjectionDomainService,
                                    AuditDomainService auditDomainService,
                                    ObjectMapper objectMapper) {
@@ -79,7 +79,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
-        this.orgVisibilityService = orgVisibilityService;
+        this.orgVisibilityQueryService = orgVisibilityQueryService;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
         this.objectMapper = objectMapper;
@@ -387,7 +387,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             return;
         }
         Long operatorId = currentOperatorId();
-        Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+        Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
             throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
                 AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());

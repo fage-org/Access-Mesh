@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.security.OrgVisibilityService;
+import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.application.impl.UserWriteAppServiceImpl;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
@@ -51,7 +51,7 @@ class UserWriteAppServiceFaultInjectionTest {
     @Mock private OrgTreeConfigDomainService orgTreeConfigDomainService;
     @Mock private OrgDomainService orgDomainService;
     @Mock private AdminPermissionValidator permissionValidator;
-    @Mock private OrgVisibilityService orgVisibilityService;
+    @Mock private OrgVisibilityQueryService orgVisibilityQueryService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
 
@@ -65,7 +65,7 @@ class UserWriteAppServiceFaultInjectionTest {
             orgTreeConfigDomainService,
             orgDomainService,
             permissionValidator,
-            orgVisibilityService,
+            orgVisibilityQueryService,
             localProjectionDomainService,
             auditDomainService,
             new ObjectMapper()

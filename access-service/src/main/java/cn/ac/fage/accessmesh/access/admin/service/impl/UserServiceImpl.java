@@ -25,7 +25,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
 import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.security.OrgVisibilityService;
+import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
@@ -77,7 +77,7 @@ public class UserServiceImpl implements UserService {
     private final OrgDomainService orgDomainService;
     private final UserWriteAppService userWriteAppService;
     private final AdminPermissionValidator permissionValidator;
-    private final OrgVisibilityService orgVisibilityService;
+    private final OrgVisibilityQueryService orgVisibilityQueryService;
 
     /**
      * 构造函数注入依赖
@@ -97,7 +97,7 @@ public class UserServiceImpl implements UserService {
                            OrgDomainService orgDomainService,
                            UserWriteAppService userWriteAppService,
                            AdminPermissionValidator permissionValidator,
-                           OrgVisibilityService orgVisibilityService) {
+                           OrgVisibilityQueryService orgVisibilityQueryService) {
         this.userMapper = userMapper;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
@@ -106,7 +106,7 @@ public class UserServiceImpl implements UserService {
         this.orgDomainService = orgDomainService;
         this.userWriteAppService = userWriteAppService;
         this.permissionValidator = permissionValidator;
-        this.orgVisibilityService = orgVisibilityService;
+        this.orgVisibilityQueryService = orgVisibilityQueryService;
     }
 
     /**
@@ -196,7 +196,7 @@ public class UserServiceImpl implements UserService {
 
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // P1-2 修复：组织可见性裁剪。pageUsers 已按 OrgVisibilityService 限制可见用户，
+        // P1-2 修复：组织可见性裁剪。pageUsers 已按 OrgVisibilityQueryService 限制可见用户，
         // getUser 须复用同等范围校验，否则知道 ID 即可读列表不可见范围内的用户（越权读取）。
         // 决策：拒绝读取无组织关系的用户（正常不会有此类用户）。
         validateUsersInDefaultTreeScope(tenantId, Set.of(id));
@@ -247,7 +247,7 @@ public class UserServiceImpl implements UserService {
 
             // EXT-3 修复：验证操作者对该 orgId 有 ADMIN_ORG:VIEW 权限
             Long operatorId = StpUtil.getLoginIdAsLong();
-            Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+            Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (!visibleOrgIds.contains(req.orgId())) {
                 throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
                     AdminErrorCode.ORG_NOT_FOUND.getMessage());
@@ -268,7 +268,7 @@ public class UserServiceImpl implements UserService {
         } else {
             // EXT-3 修复：orgId 为空时也按操作者可见默认树裁剪，不再返回全量
             Long operatorId = StpUtil.getLoginIdAsLong();
-            Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+            Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (visibleOrgIds.isEmpty()) {
                 return new PaginatedResult<>(
                     List.of(),
@@ -467,7 +467,7 @@ public class UserServiceImpl implements UserService {
 
         // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ADMIN_ORG:VIEW 裁剪）
         Long operatorId = StpUtil.getLoginIdAsLong();
-        Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+        Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
             return emptyMemberCandidates(req);
         }
@@ -570,7 +570,7 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 从 SysOrg.orgType 推导权限中心角色类型码（ORG / POSITION）。
-     * 与 {@code RoleProxyServiceImpl#resolveOrgRoleTypeCode} 同语义。
+     * 与跨域查询服务（UserRoleQueryServiceImpl）的组织/岗位角色类型映射同语义。
      */
     private String resolveOrgRoleTypeCode(SysOrg org) {
         if (org == null) return "ORG";
@@ -600,7 +600,7 @@ public class UserServiceImpl implements UserService {
 
         // EXT-4 修复：使用操作者可见范围替代全量默认树后代
         Long operatorId = StpUtil.getLoginIdAsLong();
-        Set<Long> visibleOrgIds = orgVisibilityService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
+        Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
             throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
                 AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
