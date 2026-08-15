@@ -281,7 +281,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     @Override
     public void revokeToken(String accessToken) {
-        // 评审四轮 P1 修复（2026-08-14）：撤销前必须验签（签名 + loginType + 有效期），
+        // 评审 P1 修复（2026-08-14）：撤销前必须验签（签名 + loginType + 有效期），
         // 非法令牌不得写 Redis——原实现对任意字符串直接写 oauth2:blacklist:* 键
         // （extractJti 失败返回原 token 作键、getTokenRemainingTtl 读不存在的 exp 恒回退 86400），
         // 匿名调用者可制造任意黑名单键造成 Redis 内存型 DoS。
@@ -322,7 +322,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
-        // 评审三轮 P1 修复（2026-08-14）：原硬编码 null 租户（tenant_id = null 恒查不到，
+        // 评审 P1 修复（2026-08-14）：原硬编码 null 租户（tenant_id = null 恒查不到，
         // 端点从未可用）。改为读可信上下文租户（拦截器 OAuth2 JWT / 会话认证后绑定）。
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, userId);
@@ -461,7 +461,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
         extraData.put("jti", UUID.randomUUID().toString().replace("-", ""));
 
-        // 评审三轮 P1 修复（2026-08-14）：
+        // 评审 P1 修复（2026-08-14）：
         // ① 原参数错位——createToken 签名为 (loginType, loginId, extraData, keyt)，存量把
         //    jwtSecretKey 当 loginType、字面量 "Bearer" 当签名密钥（任何持有者可伪造 OAuth2 token，
         //    存量安全漏洞）。修复：loginType=oauth2（与 RequestContextInterceptor 验签一致）、
@@ -661,16 +661,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
         return false;
     }
-
-    /**
-     * 从JWT令牌提取jti
-     * <p>
-     * 解析JWT payload获取jti（JWT ID），用于撤销令牌黑名单。
-     * </p>
-     *
-     * @param token JWT令牌
-     * @return jti字符串，解析失败返回原令牌
-     */
 
     /**
      * 授权码数据类

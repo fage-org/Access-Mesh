@@ -3,9 +3,9 @@ package cn.ac.fage.accessmesh.access.infrastructure;
 import java.util.Map;
 
 /**
- * OAuth2 JWT 认证共享常量与载荷提取（评审三轮 P1，2026-08-14 用户决策完整实现）。
+ * OAuth2 JWT 认证共享常量与载荷提取（评审 P1，2026-08-14 用户决策完整实现）。
  * <p>
- * 评审四轮 P2：SaJwtUtil.getPayloads 返回 hutool JSONObject（LinkedHashMap 子类），
+ * 评审 P2：SaJwtUtil.getPayloads 返回 hutool JSONObject（LinkedHashMap 子类），
  * 业务代码一律以 {@code Map<String, Object>} 接收，禁止 hutool 类型进入业务代码
  * （AGENTS.md / project-rules 禁止 Hutool）。
  * </p>

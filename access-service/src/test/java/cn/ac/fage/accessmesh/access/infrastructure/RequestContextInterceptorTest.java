@@ -43,7 +43,7 @@ class RequestContextInterceptorTest {
         ReflectionTestUtils.setField(verifier, "signatureSecret", SECRET);
         ReflectionTestUtils.setField(verifier, "signatureValidSeconds", VALID_SECONDS);
         verifier.validateConfiguration();
-        // T-ACCESS-004 评审三轮 P1：拦截器新增 OAuth2 JWT 认证分支（注入 Redis 黑名单检查）
+        // T-ACCESS-004 评审 P1：拦截器新增 OAuth2 JWT 认证分支（注入 Redis 黑名单检查）
         stringRedisTemplate = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
         interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate);
         ReflectionTestUtils.setField(interceptor, "jwtSecretKey", JWT_SECRET);
@@ -109,7 +109,7 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("评审三轮 P3：相邻命名空间 /actuator-admin 不被误判为匿名（未登录 → 401）")
+    @DisplayName("评审 P3：相邻命名空间 /actuator-admin 不被误判为匿名（未登录 → 401）")
     void shouldReject_whenAdjacentActuatorNamespaceWithoutLogin() throws Exception {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
@@ -125,7 +125,7 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("评审三轮 P1：OAuth2 JWT 有效（未撤销）→ USER 上下文绑定（验签+黑名单通过）")
+    @DisplayName("评审 P1：OAuth2 JWT 有效（未撤销）→ USER 上下文绑定（验签+黑名单通过）")
     void shouldBindUser_whenValidOAuth2Jwt() throws Exception {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
@@ -145,7 +145,7 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("评审三轮 P1：OAuth2 JWT 已撤销（黑名单命中）→ 401")
+    @DisplayName("评审 P1：OAuth2 JWT 已撤销（黑名单命中）→ 401")
     void shouldReject_whenOAuth2JwtRevoked() throws Exception {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
@@ -163,7 +163,7 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("评审三轮 P1：OAuth2 JWT 签名无效（错误密钥签发）→ 401")
+    @DisplayName("评审 P1：OAuth2 JWT 签名无效（错误密钥签发）→ 401")
     void shouldReject_whenOAuth2JwtSignatureInvalid() throws Exception {
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
             java.util.Map.of("tenant_id", "1", "jti", "jti-1"), "wrong-secret-key");
@@ -176,6 +176,26 @@ class RequestContextInterceptorTest {
 
         assertThat(result).isFalse();
         assertThat(resp.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("P1 路径限定：有效 OAuth2 JWT 访问非 OAuth2 路径（/user/page）→ 不认证 → 无会话 401")
+    void shouldReject_whenOAuth2JwtOnNonOAuth2Path() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(false);
+            String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+                java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+            req.addHeader("Authorization", "Bearer " + jwt);
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
+            assertThat(AccessRequestContext.get()).isNull();
+        }
     }
 
     @Test

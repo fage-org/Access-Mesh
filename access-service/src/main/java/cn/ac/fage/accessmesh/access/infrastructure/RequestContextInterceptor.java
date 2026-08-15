@@ -31,8 +31,8 @@ import java.util.UUID;
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
- *   <li>OAuth2 JWT（Bearer 三段式）→ 验签 + 撤销黑名单检查 → USER
- *       （评审三轮 P1；全路径生效为用户决策，范围外登记独立任务）</li>
+ *   <li>OAuth2 JWT（Bearer 三段式，仅 /auth/oauth2/**）→ 验签 + 撤销黑名单检查 → USER
+ *       （委托令牌不触达管理接口；业务 API 开放见 T-ACCESS-013）</li>
  *   <li>Sa-Token 会话 → USER（会话权威：operatorId=loginId、tenantId=session 租户；
  *       X-Tenant-Id / X-User-Id 头存在必须与会话一致，否则 403 拒绝伪造头）</li>
  *   <li>签名用户态（/api/** 路径，HeaderSignatureInterceptor 验签通过的 X-User-Id）→ USER</li>
@@ -140,11 +140,14 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return true;
         }
 
-        // 2.5 OAuth2 JWT 认证（评审三轮 P1，2026-08-14 用户决策完整实现）：
+        // 2.5 OAuth2 JWT 认证（2026-08-14 实现，用户决策限定路径）：
         // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
         // 验签（HS256 + loginType）+ 撤销黑名单检查通过后绑定 USER 上下文。
+        // 路径限定 /auth/oauth2/**（当前唯一消费方 userinfo）：委托令牌不得触达管理接口；
+        // 未来开放业务 API 由 T-ACCESS-013（OAuth2 资源服务器 + scope 授权模型）显式放开。
         String bearerToken = extractBearerToken(request.getHeader(HEADER_AUTHORIZATION));
-        if (bearerToken != null && bearerToken.indexOf('.') >= 0) {
+        if (bearerToken != null && bearerToken.indexOf('.') >= 0
+            && uri.startsWith("/auth/oauth2/")) {
             return authenticateOAuth2Jwt(request, response, bearerToken);
         }
 
@@ -262,12 +265,12 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * 只匿名放行明确公开端点：/actuator/**（含精确根路径 /actuator，评审 P3）与
      * /auth/** 的公开子集（验证码/登录/令牌/撤销/登出）。其余 /auth/** 端点
      * （userinfo/user-menu/oauth2-authorize 需会话 → USER 分支；oauth2/userinfo
-     * 需 OAuth2 JWT → JWT 认证分支，评审三轮 P1）——修复登录用户查询无租户上下文
+     * 需 OAuth2 JWT → JWT 认证分支，评审 P1）——修复登录用户查询无租户上下文
      * 与 OAuth2 授权码空租户问题。
      * </p>
      */
     private static boolean isPublicPath(String uri) {
-        // 评审三轮 P3（2026-08-14）：精确限定 /actuator 根路径与 /actuator/ 前缀，
+        // 评审 P3（2026-08-14）：精确限定 /actuator 根路径与 /actuator/ 前缀，
         // 防止 /actuator-admin 等相邻命名空间被 startsWith 误判为匿名。
         if (uri.equals("/actuator") || uri.startsWith("/actuator/")) {
             return true;
@@ -290,11 +293,11 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     }
 
     /**
-     * OAuth2 JWT 认证（评审三轮 P1 实现，四轮 P2 Map 化）：SaJwtUtil 验签
+     * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：SaJwtUtil 验签
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
-     * 注（评审四轮用户决策）：本分支对所有非公开路径生效——OAuth2 委托令牌与
-     * 平台会话同为 USER 身份（client_id/scope 不参与授权），范围外登记独立任务。
+     * 仅在 /auth/oauth2/** 路径生效（唯一消费方 userinfo）；委托令牌不得触达
+     * 管理接口，业务 API 的显式开放（scope 授权模型）见 T-ACCESS-013。
      */
     private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
                                           String token) throws IOException {
@@ -303,7 +306,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
         }
-        // 评审四轮 P2：SaJwtUtil 返回 hutool JSONObject（LinkedHashMap 子类），
+        // 评审 P2：SaJwtUtil 返回 hutool JSONObject（LinkedHashMap 子类），
         // 一律以 Map 接收，hutool 类型不进入业务代码（AGENTS.md 禁止 Hutool）。
         Map<String, Object> payloads;
         try {

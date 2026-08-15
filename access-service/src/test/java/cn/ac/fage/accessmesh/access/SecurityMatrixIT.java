@@ -86,7 +86,7 @@ class SecurityMatrixIT {
     @MockBean
     private cn.ac.fage.accessmesh.access.admin.service.AuthService authService;
 
-    /** OAuth2 userinfo 正向链路：mock 用户查询（评审三轮 P1 修复验证）。 */
+    /** OAuth2 userinfo 正向链路：mock 用户查询（评审 P1 修复验证）。 */
     @MockBean
     private cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService userDomainService;
 
@@ -148,7 +148,7 @@ class SecurityMatrixIT {
     }
 
     @Test
-    @DisplayName("评审三轮 P1：OAuth2 签发 JWT → /auth/oauth2/userinfo 200（正向链路修复验证）")
+    @DisplayName("评审 P1：OAuth2 签发 JWT → /auth/oauth2/userinfo 200（正向链路修复验证）")
     void oauth2Userinfo_withIssuedJwt_allowed() throws Exception {
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
