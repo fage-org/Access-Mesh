@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGua
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;

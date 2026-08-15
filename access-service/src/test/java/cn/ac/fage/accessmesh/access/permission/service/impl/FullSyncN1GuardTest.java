@@ -11,9 +11,13 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntityFullSyncReq
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncItem;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncScope;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
+import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncScope;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.permission.service.impl.UserRoleSyncAppServiceImpl;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -37,6 +41,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -78,9 +85,11 @@ class FullSyncN1GuardTest {
     @Mock
     private ResourceEntityMapper resourceEntityMapper;
     @Mock
+    private UserRoleMapper userRoleMapper;
+    @Mock
     private HttpServletRequest httpRequest;
     @Mock
-    private cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard syncTypeGuard;
+    private cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard syncTypeGuard;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -215,6 +224,82 @@ class FullSyncN1GuardTest {
         assertThat(typeResolutionCalls)
                 .as("类型解析必须批量（仅顶层 resolveTypeValue 1 次）")
                 .isLessThan(5);
+    }
+
+    @Test
+    void userRoleFullSync_shouldNotResolveOwnershipPerItem_whenExistingRows() {
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(LocalDateTime.class), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        // 批量解析：100 个用户/角色/关联角色
+        java.util.Map<String, Long> userResolved = new java.util.HashMap<>();
+        java.util.Map<String, Long> roleResolved = new java.util.HashMap<>();
+        java.util.Map<String, Long> relationResolved = new java.util.HashMap<>();
+        java.util.Set<String> userExt = new java.util.HashSet<>();
+        java.util.Set<String> roleExt = new java.util.HashSet<>();
+        java.util.Set<String> relExt = new java.util.HashSet<>();
+        List<cn.ac.fage.accessmesh.access.permission.entity.UserRole> existingRows = new ArrayList<>();
+        List<cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata> scopeMetadata = new ArrayList<>();
+        List<cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem> items = new ArrayList<>();
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            String ue = "e-" + i;
+            String re = "team-" + i;
+            String rke = "rel-" + i;
+            userExt.add(ue);
+            roleExt.add(re);
+            relExt.add(rke);
+            userResolved.put(ue, 100L + i);
+            roleResolved.put(re, 200L + i);
+            relationResolved.put(rke, 300L + i);
+            // 存量 user_role 行（owner=NULL：外部来源之前写入）
+            cn.ac.fage.accessmesh.access.permission.entity.UserRole row =
+                    new cn.ac.fage.accessmesh.access.permission.entity.UserRole();
+            row.setId(1000L + i);
+            row.setAbstractUserId(100L + i);
+            row.setTargetId(200L + i);
+            row.setRelationId(300L + i);
+            existingRows.add(row);
+            // 当前 scope metadata：businessKeyHash -> targetId 与行一致（归属预加载命中）
+            String bk = cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec.userRoleBusinessKey(
+                    "EMP", ue, "TEAM_ROLE", re, "TEAM_ROLE:" + rke);
+            cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata md =
+                    new cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata();
+            md.setBusinessKeyHash(cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec.sha256Hex(bk));
+            md.setTargetId(1000L + i);
+            md.setTargetStatus("ACTIVE");
+            scopeMetadata.add(md);
+            items.add(new cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem(
+                    "EMP", ue, "TEAM_ROLE", re, "TEAM_ROLE:" + rke,
+                    null, null, null, null, new SyncVersionRef(OCCURRED_AT, (long) i + 1)));
+        }
+        when(typeResolutionService.batchResolveUserIds(TENANT_ID, "EMP", userExt)).thenReturn(userResolved);
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", roleExt, null))
+                .thenReturn(roleResolved);
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", relExt, null))
+                .thenReturn(relationResolved);
+        when(userRoleMapper.selectValidByUserTargetRelation(anyLong(), any(), any(), any(), any()))
+                .thenReturn(existingRows);
+        when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
+                .thenReturn(scopeMetadata);
+
+        UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isTrue();
+        assertThat(resp.detail().appliedCount()).isEqualTo(ITEM_COUNT);
+        // N+1 防护：归属校验走预加载 Map，100 存量行不得产生 per-item resolveTargetId 查询
+        verify(syncMetadataDomainService, never())
+                .resolveTargetId(anyLong(), anyString(), anyString(), anyString(), anyString());
+        // scope metadata 只加载一次（归属 Map + 差异校准复用）
+        verify(syncMetadataDomainService, times(1))
+                .listScopeForFullSync(anyLong(), anyString(), anyString(), anyString());
     }
 
     /**

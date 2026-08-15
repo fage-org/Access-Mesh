@@ -15,8 +15,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -187,6 +187,17 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             }
         }
 
+        // 归属预加载：当前 scope 全部 metadata 一次加载（businessKeyHash -> target_id），
+        // 供阶段 C 归属校验复用（避免每个存量行一次 resolveTargetId 的 N+1），差异校准同源复用
+        List<SyncMetadata> scopeMetadata = syncMetadataDomainService.listScopeForFullSync(
+                tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
+        Map<String, Long> ownedTargetIdsByBusinessKeyHash = new HashMap<>();
+        for (SyncMetadata md : scopeMetadata) {
+            if (md.getTargetId() != null) {
+                ownedTargetIdsByBusinessKeyHash.put(md.getBusinessKeyHash(), md.getTargetId());
+            }
+        }
+
         // ---- 阶段 C：逐项 applyVersion + upsert ----
         int applied = 0, stale = 0, failed = 0, deactivated = 0;
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
@@ -235,7 +246,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     : null;
 
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq,
-                    preUserId, preRoleId, preRelId, preExisting, true, now);
+                    preUserId, preRoleId, preRelId, preExisting, true, now,
+                    ownedTargetIdsByBusinessKeyHash);
             if (r.applied()) {
                 applied++;
                 // backfillTargetId 已在 doSyncOneInternal 内完成（upserted.getId()），无需额外查 DB。
@@ -245,11 +257,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     r.retryClass(), r.reason()));
         }
 
-        // 差异校准（批量软删 targetIds）
-        List<SyncMetadata> existingScope = syncMetadataDomainService.listScopeForFullSync(
-                tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
+        // 差异校准（批量软删 targetIds；复用阶段 C 前的归属预加载结果，不再二次查询）
         List<Long> deactivateTargetIds = new ArrayList<>();
-        for (SyncMetadata md : existingScope) {
+        for (SyncMetadata md : scopeMetadata) {
             if (seenBusinessKeyHashes.contains(md.getBusinessKeyHash())) continue;
             if (!STATUS_ACTIVE.equals(md.getTargetStatus())) continue;
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND,
@@ -295,7 +305,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * 执行单次 sync 写入（不做身份/payload 预检，调用方负责）。
      */
     private SyncResultResp doSyncOne(Long tenantId, UserRoleSyncReq req) {
-        return doSyncOneInternal(tenantId, req, null, null, null, null, false, LocalDateTime.now());
+        return doSyncOneInternal(tenantId, req, null, null, null, null, false, LocalDateTime.now(), null);
     }
 
     /**
@@ -304,11 +314,14 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      *
      * @param preExistingResolved 调用方是否已完成 existing 的解析（true=即使 preExisting=null 也直接走 INSERT 分支，
      *                            不再查 DB；false=单条 sync 路径需在 BIND 分支内 fallback 查询）
+     * @param ownedTargetIdsByBusinessKeyHash full-sync 预加载的当前 scope 归属 Map（businessKeyHash -> target_id），
+     *                                       归属校验直接命中不查 DB；null 时单条 sync 回退 resolveTargetId
      */
     private SyncResultResp doSyncOneInternal(Long tenantId, UserRoleSyncReq req,
                                               Long preAbstractUserId, Long preRoleId, Long preRelationId,
                                               UserRole preExisting, boolean preExistingResolved,
-                                              LocalDateTime now) {
+                                              LocalDateTime now,
+                                              Map<String, Long> ownedTargetIdsByBusinessKeyHash) {
         String businessKey = SyncKeyCodec.userRoleBusinessKey(
                 req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.relationKey());
@@ -362,7 +375,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             // （owner=NULL 同时表示人工维护与外部同步，仅靠 owner 无法区分；外部不得接管他人关系）
             if (existingForUpsert != null
                     && !ownedByCurrentSource(tenantId, existingForUpsert, req.sourceService(),
-                    scopeKeyHash, businessKeyHash)) {
+                    scopeKeyHash, businessKeyHash, ownedTargetIdsByBusinessKeyHash)) {
                 return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
             }
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
@@ -382,7 +395,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             // 归属校验：人工维护或其他来源的关系不得被当前来源 UNBIND 软删
             if (existing != null
                     && !ownedByCurrentSource(tenantId, existing, req.sourceService(),
-                    scopeKeyHash, businessKeyHash)) {
+                    scopeKeyHash, businessKeyHash, ownedTargetIdsByBusinessKeyHash)) {
                 return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
             }
             if (existing != null) {
@@ -409,9 +422,15 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * 现有行归属校验：目标行必须由当前 {@code sourceService + scopeKey + businessKey} 的
      * sync_metadata 指向（target_id 匹配）。owner=NULL 同时表示人工维护与外部同步，
      * 仅靠 owner_service_code 无法区分；未匹配视为人工维护或其他来源所有，外部同步不得接管。
+     * full-sync 传入预加载 Map 直接命中（N+1 防护），single-sync 走单条 resolveTargetId。
      */
     private boolean ownedByCurrentSource(Long tenantId, UserRole row, String sourceService,
-                                         String scopeKeyHash, String businessKeyHash) {
+                                         String scopeKeyHash, String businessKeyHash,
+                                         Map<String, Long> ownedTargetIdsByBusinessKeyHash) {
+        if (ownedTargetIdsByBusinessKeyHash != null) {
+            Long targetId = ownedTargetIdsByBusinessKeyHash.get(businessKeyHash);
+            return targetId != null && targetId.equals(row.getId());
+        }
         return syncMetadataDomainService.resolveTargetId(
                         tenantId, ENTITY_KIND, sourceService, scopeKeyHash, businessKeyHash)
                 .map(id -> id.equals(row.getId()))

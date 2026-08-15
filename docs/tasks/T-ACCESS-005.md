@@ -167,3 +167,13 @@ last_updated: 2026-08-15
 - **回归测试**：新增 `SyncTypeGuardTest` +12（服务未注册/已删/禁用/extra 缺失/损坏/syncTypes 缺失/分类缺失/已声明/未声明/无类型要求直通/单请求只查一次/trim+大小写敏感——covers 参数顺序倒置被测试当场捕获修复）；`UserRoleSyncAppServiceTest` 9→15（白名单拒绝、人工行 BIND/UNBIND 归属拒绝、当前来源拥有行更新、正向 full-sync、重复 businessKey）；6 个既有 sync 测试类构造接入 SyncTypeGuard（mock + lenient 放行，白名单语义由 SyncTypeGuardTest 单独覆盖）。
 
 **验证（十六轮收口）**：access-service 默认 `mvn test` **441 测试 0 失败 27 跳过**（423 + 新增 18：SyncTypeGuard 12 + UserRoleSync 6）。
+
+**外部评审十七轮修复（2026-08-15，1 P1 + 2 P2 + 1 P3 全核实修复，0 项新决策）**：
+
+- **P1（user-role full-sync 归属校验 N+1）**：`doSyncOneInternal` 在 full-sync items 循环内对每个存量 user_role 经 `ownedByCurrentSource` 执行一次 `resolveTargetId` 单条 sync_metadata 查询（1000 存量 = 1000 次，违反 project-rules N+1 禁令）。修复：full-sync 阶段 C 前一次 `listScopeForFullSync` 加载当前 scope metadata 构建 `businessKeyHash -> target_id` Map，`doSyncOneInternal` 加预加载参数（非 null 时归属校验直接命中 Map，不查 DB；single-sync 传 null 回退单条 resolveTargetId）；差异校准复用同一加载（原二次查询消除）。补 `FullSyncN1GuardTest` UserRole 存量场景用例（100 items 全命中：`resolveTargetId` 0 次 + `listScopeForFullSync` 1 次）。
+- **P2（service-config/save 未校验 syncTypes 结构）**：extra 任意 JSON 保存——`{"syncTypes":{"subjectTypeCodes":"EMP"}}` 保存成功但运行时被解释为空白名单导致全部 SECURITY_DENIED。修复：`SyncTypeGuard.validateSyncTypesExtra`（保存边界校验：syncTypes 必须为对象、四分类如存在必须为非空白字符串数组，结构非法抛 IllegalArgumentException）；`ServiceConfigAppServiceImpl.saveServiceConfig` 写入前调用（失败转 `BizException`，新增错误码 `PermissionErrorCode.INVALID_PARAM(20044)`——permission 模块不得依赖 admin 的 AdminErrorCode，架构测试当场捕获违规）；运行时 fail-closed 校验保留。
+- **P2（权威契约缺 syncTypes 配置协议）**：api-contract.md 新增 §6.3.1「同步类型白名单配置（service-config/save 的 extra.syncTypes）」——JSON 结构/最小示例、四分类语义（缺失=无权限）、四条链路映射、status!=1 拒绝、校验顺序（认证服务身份查询、不返回白名单明细）、保留键纵深、保存结构校验、fail-closed 上线准备；access-service.sql service_config 表/extra 列/status 列注释同步（停用=接口不参与授权 + sync/full-sync 全部拒绝）。
+- **P3（SyncTypeGuard 包归属 + 生产注释）**：`service.sync` → `service.domain`（与 LocalProjectionGuard 同包，领域组件归属）；生产 Javadoc 删除评审轮次/用户决策过程信息，只保留业务不变量与配置约定；4 个 AppService、7 个测试类 import 与 SyncTypeGuardTest 同步移包。
+- **回归测试**：`SyncTypeGuardTest` +5（validateSyncTypesExtra：无 syncTypes 通过/非对象拒绝/分类非数组拒绝/空白项与非法元素拒绝/合法通过）；`ServiceConfigAppServiceImplTest` +5（同结构校验经保存路径，20044）；`FullSyncN1GuardTest` +1（UserRole 存量归属不查 DB）。
+
+**验证（十七轮收口）**：access-service 默认 `mvn test` **452 测试 0 失败 27 跳过**（441 + 新增 11：SyncTypeGuard 5 + ServiceConfig 5 + N1Guard 1）。

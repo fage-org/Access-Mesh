@@ -16,8 +16,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomain
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

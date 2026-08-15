@@ -952,6 +952,31 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - FULL diff 只能软删除同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 范围内本次缺失的 API 映射和自动创建资源。
 - 已不存在接口软删除映射和自动创建的 API 资源，不删除 `maintainSource=MANUAL` 或其他维护来源的资源。
 
+#### 6.3.1 同步类型白名单配置（service-config/save 的 extra.syncTypes）
+
+外部 sync/full-sync 只能写入本服务声明的类型命名空间（服务-类型白名单，fail-closed）。白名单存放于 `service-config/save` 的 `extra` 字段：
+
+```json
+{
+  "syncTypes": {
+    "subjectTypeCodes": ["EMP"],
+    "roleTypeCodes": ["TEAM_ROLE"],
+    "resourceTypeCodes": ["HR_ORG"],
+    "sourceTypes": ["HR_MEMBER"]
+  }
+}
+```
+
+语义（与 `SyncTypeGuard` 实现一致）：
+
+- **四个分类均可选**；某分类缺失或为空数组 = 该分类无任何权限（对应链路同步全部 `SECURITY_DENIED`）。
+- **四条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；资源同步校验 `resourceTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）。
+- **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝。
+- **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
+- **保留键纵深**：即使白名单错误声明 `ADMIN_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20042 拒绝。
+- **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、四分类（如存在）必须为非空白字符串数组；结构非法保存失败（10008）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
+- **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
+
 ### 6.4 角色权限配置查询（list）
 
 > **写入入口（2026-08-08 落地）**：授权页面的全部写操作统一走 §6.5.1 `apply-grant-plan`（记录级 creates/updates/removes + 单事务原子 + 受影响行数断言；**砍 expectedRevision CAS / grant_revision 列 / 幂等表 / 20037/20039 / clientRequestId / @Idempotent**）。`save`/`revoke` 因 admin-service 存量调用**仅迁移期保留**、`children`/`add-child`/`remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用，**T-PERM-034 迁移 admin-service 完成后统一删除（2026-08-08 八轮复审确认，终态=删除）**。计划中的 `update-child`/`children-save`/`rebuild` 不实现。以下 §6.4/§6.5 规则已并入 §6.5.1 统一预检。

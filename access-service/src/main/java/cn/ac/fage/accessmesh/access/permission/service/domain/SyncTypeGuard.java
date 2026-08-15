@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.access.permission.service.sync;
+package cn.ac.fage.accessmesh.access.permission.service.domain;
 
 import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
@@ -12,7 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 服务-类型同步白名单守卫（T-ACCESS-005 十六轮 P1-2，用户决策：service_config.extra.syncTypes + fail-closed）。
+ * 服务-类型同步白名单守卫。
  * <p>
  * 外部 sync/full-sync 只能写入本服务在 {@code service_config.extra.syncTypes} 中声明的类型命名空间，
  * 任意已认证服务不得使用其他服务的类型空间。校验使用经过认证的服务身份查询配置（不重新信任 payload）；
@@ -25,7 +25,9 @@ import java.util.Set;
  * 不做大小写转换、不支持通配/正则/前缀/继承；保留键拒绝（LocalProjectionGuard）作为独立纵深防护继续生效。
  * </p>
  * <p>
- * 配置约定：上线前先为各同步服务补齐 syncTypes 声明，再部署严格校验（发布顺序，无长期宽松分支）。
+ * 配置约定：上线前先为各同步服务补齐 syncTypes 声明，再部署严格校验（fail-closed 发布顺序，
+ * 无长期宽松分支）。保存边界由 {@link #validateSyncTypesExtra} 校验结构，防止合法 JSON 但错误结构
+ * 被保存后在运行时表现为空白名单。
  * </p>
  */
 @Component
@@ -81,6 +83,55 @@ public class SyncTypeGuard {
                     tenantId, authenticatedServiceCode, requested);
         }
         return allowed;
+    }
+
+    /**
+     * 保存边界校验（service-config/save 写入入口）：extra 含 {@code syncTypes} 时必须为对象，
+     * 四个分类如存在必须为字符串数组，拒绝 null、空白项与非字符串元素。
+     * <p>
+     * 配置结构损坏虽不构成安全风险，但会在运行时被解释为空白名单导致同步全部 SECURITY_DENIED，
+     * 属难排查的运行故障，应在配置写入时尽早暴露。
+     * </p>
+     *
+     * @throws IllegalArgumentException 结构不合法（调用方转为 BizException 返回）
+     */
+    public void validateSyncTypesExtra(String extraJson) {
+        if (extraJson == null || extraJson.isBlank()) {
+            return;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(extraJson);
+            JsonNode syncTypes = root.get(SYNC_TYPES_KEY);
+            if (syncTypes == null) {
+                return;
+            }
+            if (!syncTypes.isObject()) {
+                throw new IllegalArgumentException("extra.syncTypes 必须为对象");
+            }
+            requireStringArray(syncTypes, KEY_SUBJECT_TYPES);
+            requireStringArray(syncTypes, KEY_ROLE_TYPES);
+            requireStringArray(syncTypes, KEY_RESOURCE_TYPES);
+            requireStringArray(syncTypes, KEY_SOURCE_TYPES);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("extra 不是合法 JSON", e);
+        }
+    }
+
+    private void requireStringArray(JsonNode syncTypes, String field) {
+        JsonNode arr = syncTypes.get(field);
+        if (arr == null) {
+            return;
+        }
+        if (!arr.isArray()) {
+            throw new IllegalArgumentException("extra.syncTypes." + field + " 必须为字符串数组");
+        }
+        for (JsonNode v : arr) {
+            if (!v.isTextual() || v.asText().isBlank()) {
+                throw new IllegalArgumentException("extra.syncTypes." + field + " 只允许非空白字符串元素");
+            }
+        }
     }
 
     /** 解析 extra.syncTypes；缺失/损坏/分类缺失一律按无权限（NONE）处理。 */

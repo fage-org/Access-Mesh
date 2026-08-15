@@ -3,14 +3,17 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigResp;
 import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
+import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ServiceConfigAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -35,6 +38,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private final ServiceConfigMapper serviceConfigMapper;
     private final PermQueryEngine engine;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
+    private final SyncTypeGuard syncTypeGuard;
 
     /**
      * 构造函数注入依赖
@@ -42,13 +46,16 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * @param serviceConfigMapper      服务配置数据访问层
      * @param engine                   权限查询引擎
      * @param resourceApiMappingMapper 资源API映射数据访问层
+     * @param syncTypeGuard            同步类型白名单守卫（保存边界校验 extra.syncTypes 结构）
      */
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
                                         PermQueryEngine engine,
-                                        ResourceApiMappingMapper resourceApiMappingMapper) {
+                                        ResourceApiMappingMapper resourceApiMappingMapper,
+                                        SyncTypeGuard syncTypeGuard) {
         this.serviceConfigMapper = serviceConfigMapper;
         this.engine = engine;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
+        this.syncTypeGuard = syncTypeGuard;
     }
 
     /**
@@ -73,6 +80,15 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
+        }
+
+        // 保存边界校验：extra.syncTypes 结构不合法会在运行时被解释为空白名单导致全部同步 SECURITY_DENIED
+        // （fail-closed 的必要运行配置，写入时尽早暴露；运行时校验仍保留，防止绕过接口改库）
+        try {
+            syncTypeGuard.validateSyncTypesExtra(req.extra());
+        } catch (IllegalArgumentException e) {
+            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
 
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());

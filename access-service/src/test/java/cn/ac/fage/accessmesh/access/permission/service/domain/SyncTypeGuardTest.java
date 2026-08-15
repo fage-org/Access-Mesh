@@ -1,8 +1,8 @@
-package cn.ac.fage.accessmesh.access.permission.service.sync;
+package cn.ac.fage.accessmesh.access.permission.service.domain;
 
 import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
-import cn.ac.fage.accessmesh.access.permission.service.sync.SyncTypeGuard.SyncTypes;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard.SyncTypes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -169,5 +169,47 @@ class SyncTypeGuardTest {
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isTrue();
         // 大小写敏感：声明 "EMP" 不匹配 "emp"
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("emp"))).isFalse();
+    }
+
+    // ---- 保存边界结构校验（validateSyncTypesExtra） ----
+
+    @Test
+    @DisplayName("保存校验：无 extra 或无 syncTypes → 通过")
+    void validateExtra_shouldAccept_whenNoSyncTypes() {
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> guard.validateSyncTypesExtra(null));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> guard.validateSyncTypesExtra("{\"region\": \"CN\"}"));
+    }
+
+    @Test
+    @DisplayName("保存校验：syncTypes 非对象 → 拒绝")
+    void validateExtra_shouldReject_whenSyncTypesNotObject() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra("{\"syncTypes\": \"EMP\"}"));
+    }
+
+    @Test
+    @DisplayName("保存校验：分类为字符串而非数组 → 拒绝（避免运行时空白名单）")
+    void validateExtra_shouldReject_whenCategoryNotArray() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra("{\"syncTypes\": {\"subjectTypeCodes\": \"EMP\"}}"));
+    }
+
+    @Test
+    @DisplayName("保存校验：空白项/非字符串元素 → 拒绝")
+    void validateExtra_shouldReject_whenEntryInvalid() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra("{\"syncTypes\": {\"subjectTypeCodes\": [\"  \"]}}"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra("{\"syncTypes\": {\"roleTypeCodes\": [123]}}"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra("not-json"));
+    }
+
+    @Test
+    @DisplayName("保存校验：结构合法 → 通过")
+    void validateExtra_shouldAccept_whenWellFormed() {
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> guard.validateSyncTypesExtra(
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
+                        + " \"resourceTypeCodes\": [\"HR_ORG\"], \"sourceTypes\": [\"HR_MEMBER\"]}}"));
     }
 }
