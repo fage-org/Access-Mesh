@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ConditionAppService;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,7 +85,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @OperationLog(module = "perm", action = "permission-condition-create", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONDITION");
         }
 
@@ -148,7 +150,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.conditionId());
         }
 
@@ -216,7 +219,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONDITION:" + conditionId);
         }
 
@@ -258,6 +262,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (ids == null || ids.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -270,7 +275,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
+        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
 
         List<PermissionCondition> entities = conditionMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {

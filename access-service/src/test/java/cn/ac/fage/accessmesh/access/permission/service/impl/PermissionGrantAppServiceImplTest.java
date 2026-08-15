@@ -37,8 +37,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -88,6 +90,9 @@ class PermissionGrantAppServiceImplTest {
      */
     @BeforeEach
     void setUp() {
+        // 测试简化：投影主体 = 传入 operatorId（两套 ID 真实差异由 PermissionViewAppServiceImplTest 覆盖）
+        lenient().when(engine.resolveOperatorSubjectId(anyLong(), anyLong()))
+            .thenAnswer(inv -> inv.getArgument(1));
         service = new PermissionGrantAppServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper, domainConfigMapper, permissionConditionMapper,
             rolePermMapper, permissionGrantDomainService, permissionGrantPlanDomainService,

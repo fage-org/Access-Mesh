@@ -19,7 +19,7 @@ public interface UserRoleQueryService {
      * 查询功能角色列表（/role/list）。
      * <p>
      * 默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），显式传入 ORG/POSITION 时拒绝；
-     * 门禁 ADMIN_ROLE:VIEW。结果固定 {@code LIMIT 0,200}（评审 P2-3，用户决策「保持 + 文档声明上限」）：
+     * 门禁 ADMIN_ROLE:VIEW。结果固定 {@code LIMIT 0,200}（用户决策：保持 + 文档声明上限）：
      * 功能角色面向前端下拉，超出 200 条属配置异常，由组织治理收敛；调用方不得假定全量返回。
      * </p>
      *

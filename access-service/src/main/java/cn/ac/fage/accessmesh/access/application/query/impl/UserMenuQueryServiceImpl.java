@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * 权限事实经 {@link PermissionViewAppService}（管理查询入口，引擎封装在 permission 域）。
  * </p>
  * <p>
- * 菜单可见性按 adopted v3.5 §4.1 派生公式（T-ACCESS-006 评审修复）：
+ * 菜单可见性按 adopted v3.5 §4.1 派生公式：
  * MENU(业务)（resource_type 非空；resource_code 为空按不可解析资源 fail-closed）→ 用户对关联资源
  * 有任意有效操作码（含 scopeAll 全范围授权）即可见；MENU(纯展示)（resource_type IS NULL）→ 全员可见；
  * DIR → 存在可见子节点（树构建剪枝）；HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，
@@ -59,6 +59,7 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private static final Logger log = LoggerFactory.getLogger(UserMenuQueryServiceImpl.class);
 
     private static final String MENU_TYPE_DIR = "DIR";
+    private static final String MENU_TYPE_MENU = "MENU";
     private static final String MENU_TYPE_HIDDEN = "HIDDEN";
     private static final String MENU_TYPE_EXTERNAL = "EXTERNAL";
     private static final String MENU_TYPE_IFRAME = "IFRAME";
@@ -137,24 +138,30 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     /**
      * v3.5 §4.1 派生公式：判定用户可见的菜单 ID 集合。
      * <p>
-     * 业务菜单（resource_type 非空）经 permission 域有效资源访问事实匹配：
-     * 资源类型有 scopeAll 全范围授权、或解析后的资源实例 ID 在用户有任意有效操作码的集合中。
-     * resource_code 为空的行按不可解析资源处理——无 scopeAll 时不可见（fail-closed，评审修复 P2-1）。
-     * 纯展示菜单（resource_type IS NULL）全员可见；资源未解析（无投影）视为不可见（fail-closed）。
+     * 先按 {@code menu_type} 分支（见实现）：DIR 恒候选可见；MENU(纯展示) 全员可见；
+     * 业务菜单（MENU/HIDDEN/EXTERNAL/IFRAME 且 resource_type 非空）经 permission 域有效资源访问事实匹配：
+     * 资源类型有 scopeAll 全范围授权、或解析后的资源实例 ID 在用户有任意有效操作码的集合中；
+     * resource_code 为空按不可解析资源 fail-closed；资源未解析（无投影）视为不可见（fail-closed）。
      * </p>
      */
     private Set<Long> deriveVisibleMenuIds(Long tenantId, Long userId, List<MenuProjection> allMenus) {
-        // v3.5 §4.1：仅 resource_type IS NULL 为纯展示（全员可见）；resource_type 非空即业务菜单，
-        // 即使 resource_code 为空也按不可解析资源 fail-closed（DDL 无两列成对约束，评审修复 P2-1）。
-        List<MenuProjection> businessMenus = allMenus.stream()
-            .filter(m -> m.resourceType() != null)
-            .toList();
+        // v3.5 §4.1 按 menu_type 分支：
+        //   DIR               → 恒候选可见（是否渲染由树构建剪枝决定：有可见子节点才渲染），不参与资源判定；
+        //   MENU(纯展示)      → resource_type IS NULL → 全员可见；
+        //   MENU(业务)        → resource_type 非空 → 有效资源访问事实匹配（resource_code 为空按不可解析
+        //                        fail-closed，DDL 无两列成对约束）；
+        //   HIDDEN/EXTERNAL/IFRAME → 派生同 MENU(业务)；resource_type 为空时无匹配条件 → fail-closed 不可见。
         Set<Long> visible = new LinkedHashSet<>();
+        List<MenuProjection> businessMenus = new ArrayList<>();
         for (MenuProjection menu : allMenus) {
-            if (menu.resourceType() == null) {
-                // 纯展示/目录：全员可见（DIR 由树构建剪枝决定是否渲染）
+            if (MENU_TYPE_DIR.equals(menu.menuType())) {
                 visible.add(menu.id());
+            } else if (MENU_TYPE_MENU.equals(menu.menuType()) && menu.resourceType() == null) {
+                visible.add(menu.id());
+            } else if (menu.resourceType() != null) {
+                businessMenus.add(menu);
             }
+            // 其余（HIDDEN/EXTERNAL/IFRAME 且 resource_type 为空）不入 visible → fail-closed
         }
         if (businessMenus.isEmpty()) {
             return visible;
@@ -198,8 +205,8 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     /**
      * 构建菜单树（前端路由格式）。仅包含用户可见、启用的菜单，按排序字段升序。
      * <p>
-     * 线性化（评审修复 P3-1）：先按 parentId 预建 children 映射，再逐层递归构建，
-     * 避免每递归一个节点都全量扫描菜单列表（O(n²) → 每个节点只被访问一次）。
+     * 线性化实现：先按 parentId 预建 children 映射，再逐层递归构建，
+     * 避免每递归一个节点都全量扫描菜单列表（每个节点只被访问一次）。
      * DIR 剪枝：无可见子节点的目录不渲染（v3.5 §4.1）；HIDDEN 不进 menus[]（响应无 hiddenRoutes，
      * 隐藏路由整体丢弃）；visited 防脏数据环（parent 链重复/成环时停止递归，避免栈溢出）。
      * schema 收敛后缺失字段统一取默认值（见类注释）。
@@ -214,6 +221,14 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
         return buildMenuChildren(childrenByParent, visibleIds, 0L, new LinkedHashSet<>());
     }
 
+    /**
+     * 递归构建某一父节点下的可见菜单子节点。
+     * <p>
+     * 已知限制（登记，接受风险）：递归深度等于菜单层级（parent 链长度）。sys_menu 权威 schema
+     * 未对层级设置上限，极端深度（超线程栈深）存在 {@link StackOverflowError} 风险；{@code visited}
+     * 仅防护脏数据环，不改变深度本身。菜单配置为受控管理数据，此风险接受，不做迭代改写。
+     * </p>
+     */
     private List<UserMenuResp.MenuRouteItem> buildMenuChildren(Map<Long, List<MenuProjection>> childrenByParent,
                                                                Set<Long> visibleIds, Long parentId, Set<Long> visited) {
         List<UserMenuResp.MenuRouteItem> items = new ArrayList<>();

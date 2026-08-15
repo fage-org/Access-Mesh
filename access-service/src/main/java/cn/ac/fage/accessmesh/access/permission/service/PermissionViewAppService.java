@@ -107,12 +107,12 @@ public interface PermissionViewAppService {
     UserEffectivePermissionCodesResp getEffectivePermissionCodes(Long tenantId, UserEffectivePermissionCodesReq req);
 
     /**
-     * 获取用户有效权限码（permission 域独立 HTTP 入口，带实例级门禁，T-ACCESS-006 评审修复 P1）。
+     * 获取用户有效权限码（permission 域独立 HTTP 入口，带实例级门禁）。
      * <p>
      * 与 {@link #getEffectivePermissionCodes} 的数据逻辑相同，但本方法承担「管理面/外部入口」门禁：
      * 自查（操作者 = 被查用户）豁免；查他人时操作者需对被查用户有 {@code USER:VIEW}，
      * 防任意登录用户枚举 ID 越权读取他人权限码。query 包内部调用应使用
-     * {@link #getEffectivePermissionCodes}（其入口 Controller 已按 P1-2 决策门禁）。
+     * {@link #getEffectivePermissionCodes}（其 HTTP 入口统一走 {@link #getEffectivePermissionCodesForManage} 门禁）。
      * </p>
      *
      * @param tenantId 租户ID

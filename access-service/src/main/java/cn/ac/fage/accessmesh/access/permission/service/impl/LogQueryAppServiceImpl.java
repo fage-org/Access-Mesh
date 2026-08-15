@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -83,8 +84,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -107,8 +109,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -137,8 +140,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     public List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                                        LocalDateTime since, LocalDateTime until,
                                                        List<String> eventTypes, int offset, int limit) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -166,8 +170,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     public long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                          LocalDateTime since, LocalDateTime until,
                                          List<String> eventTypes) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -191,8 +196,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -241,8 +247,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -265,8 +272,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      */
     @Override
     public long countOperationLogs(Long tenantId, String module, String action) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 

@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.service.DependencyAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,7 +96,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "perm", action = "resource-dependency-create", targetType = "resource_dependency", targetId = "#result.id()", summary = "'create resource dependency'")
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.CREATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on DEPENDENCY");
         }
 
@@ -200,7 +202,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "perm", action = "resource-dependency-update", targetType = "resource_dependency", targetId = "#req.id()", summary = "'update resource dependency ' + #req.id()")
     public ResourceDependencyResp updateDependency(Long tenantId, ResourceDependencyUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, req.id(), OperationCodeConstants.UPDATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.DEPENDENCY, req.id(), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on DEPENDENCY:" + req.id());
         }
 
@@ -305,6 +308,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "perm", action = "resource-dependency-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resource dependencies'")
     public void deleteDependencies(Long tenantId, List<Long> dependencyIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (dependencyIds == null || dependencyIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -317,7 +321,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, validInputIds, OperationCodeConstants.DELETE);
+        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.DEPENDENCY, validInputIds, OperationCodeConstants.DELETE);
 
         List<ResourceDependency> entities = dependencyMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {
@@ -352,7 +356,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "perm", action = "resource-dependency-sync", targetType = "resource_dependency", targetId = "#req.serviceCode()", summary = "'sync resource dependencies for service ' + #req.serviceCode()")
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.SYNC)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.SYNC)) {
             throw new SecurityException("Permission denied: SYNC on DEPENDENCY");
         }
 

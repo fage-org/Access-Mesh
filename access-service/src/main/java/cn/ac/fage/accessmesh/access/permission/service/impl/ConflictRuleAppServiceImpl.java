@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ConflictRuleAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import com.mybatisflex.core.update.UpdateChain;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -193,7 +194,8 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "perm", action = "conflict-rule-create", targetType = "permission_conflict_rule", targetId = "#result.id()", summary = "'create conflict rule'")
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONFLICT_RULE");
         }
 
@@ -287,7 +289,8 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "perm", action = "conflict-rule-update", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
         }
 
@@ -395,7 +398,8 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "perm", action = "conflict-rule-remove", targetType = "permission_conflict_rule", targetId = "#ruleId", summary = "'remove conflict rule ' + #ruleId")
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + ruleId);
         }
 
@@ -428,6 +432,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "perm", action = "conflict-rule-remove", targetType = "BATCH", targetId = "", summary = "'batch remove conflict rules'")
     public void deleteConflictRulesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (ids == null || ids.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -440,7 +445,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
+        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
 
         List<PermissionConflictRule> entities = conflictRuleMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {

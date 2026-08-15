@@ -124,3 +124,32 @@ last_updated: 2026-08-15
 - `UserMenuQueryServiceImplTest`（+2）：半缺失资源链接无 scopeAll fail-closed / 有 scopeAll 可见。
 - `OrgVisibilityQueryServiceImplTest`（+2）：缓存 get 异常旁路 DB / 缓存 put 异常不阻断结果（评审要求覆盖）。
 - `OrgTreeConfigServiceImplTest`（4，新建）：4 个写方法 `markVisibility` 登记 ORG_VISIBILITY 租户级失效（框架 `evictAll(ORG_VISIBILITY)` 由 `PermissionChangeAspectTest` 覆盖，本测试断言业务侧登记发生）。
+
+---
+
+## 评审修复记录（第三轮，2026-08-15，外部 AI 评审复评 1×P1 + 1×P2 + 2×P3 + 4 条 Javadoc 注释）
+
+第三轮结论「仍不建议通过」（本轮评审未修改代码）。核实后：1 个 P1（两套 ID 空间混用）、1 个 P2（菜单未按 menu_type 分支）、2 个 P3（递归栈溢出、生产 Javadoc 混评审轮次信息）。逐项修复如下。
+
+**用户决策 2 项（2026-08-15）**：
+
+1. **P1 门禁主体改造范围**：一并修存量门禁——全部 85 处存量 permission 域 gate（`hasPermission` / `validateBatch` / `getDeniedIds`）统一改用投影主体 `abstract_user.id`，不留隔离带。
+2. **菜单树递归栈溢出（P3-1）**：不修，接受风险。`sys_menu` 权威 schema 未设层级上限，极端深度存在 `StackOverflowError` 风险；菜单为受控管理数据，限制登记于 `UserMenuQueryServiceImpl.buildMenuChildren` Javadoc（`visited` 仅防护脏数据环，不改变深度）。
+
+**P1 修复（两套 ID 空间）**：
+
+- 新增 `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)`：登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 `sys_user.id`，权限引擎按 `abstract_user.id` 匹配 `user_role.abstract_user_id`。所有 engine 门禁与投影空间自查逻辑先经此转换；转换失败（投影不存在）fail-closed 抛 `SecurityException`。
+- `PermQueryEngine.resolveOperatorSubjectId` 提供转换（`external_id = sys_user.id` → `abstract_user.id`）；全部 AppServiceImpl 均已注入 engine，无需为存量文件新增依赖。
+- 16 个 permission AppService 存量 gate 主体改用 `operatorSubjectId`；`UserManageAppServiceImpl` 改己豁免 / 批量自删自查比较同用投影主体。
+- `PermissionGrantAppServiceImpl` 委托链（`checkCanGrant` / `canGrantPermission` / `prevalidate` / `verifyChildDelegation`）改传投影主体——内部命中 `subjectDomainService.resolveEffectiveRoles`（投影空间查找）。
+- 非 gate 用途保留 sys 空间：createdBy 戳记、SyncContext 上下文、audit `ChangeLogContext`、日志消息。
+
+**P2 修复（菜单 menu_type 分支）**：`UserMenuQueryServiceImpl.deriveVisibleMenuIds` 按 v3.5 §4.1 收口——EXTERNAL/IFRAME 派生同业务 MENU（`resource_type` 非空 → 资源实例 / scopeAll 匹配；`resource_type` 为空 → fail-closed 不可见）；DIR 恒候选可见（自身携带 `resource_type` 也不参与资源判定，避免误按业务菜单丢整棵子树），是否渲染由树构建剪枝决定。
+
+**P3-2 清理**：生产 Javadoc 移除评审轮次 / 修复标记，保留当前结论（`OperatorSubjectResolver`、`PermissionViewController`、`PermissionViewAppService`、`UserRoleQueryService`、`AdminUserController`）。
+
+**测试**（507 tests 0 失败 27 跳过，较上轮 502 +5）：
+
+- `PermissionViewAppServiceImplTest` 覆盖两套 ID 空间真实差异（OperatorContext sys=1 → 投影主体 1001 / 1002）：自查豁免、查他人拒绝 / 放行、操作者投影缺失 fail-closed。
+- 11 个存量 AppService 测试类 + `OperationLogRuntimeContextAppServiceTest` 统一 lenient stub（`resolveOperatorSubjectId → 传入 operatorId` 的测试简化；两套 ID 差异由上述专项覆盖）。
+- `UserMenuQueryServiceImplTest` +4：EXTERNAL/IFRAME 无资源 fail-closed、EXTERNAL/IFRAME 资源匹配可见（frameSrc=path）、DIR 带资源由子节点决定、DIR 带资源无子剪枝。

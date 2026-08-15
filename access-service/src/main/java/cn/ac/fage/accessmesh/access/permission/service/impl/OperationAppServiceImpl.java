@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,9 +78,10 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "perm", action = "operation-permission-create", targetType = "operation_permission", targetId = "#result.id()", summary = "'create operation permission ' + #resourceTypeCode + ':' + #code")
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
 
@@ -163,9 +165,10 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "perm", action = "operation-permission-update", targetType = "operation_permission", targetId = "#operationId", summary = "'update operation permission ' + #operationId")
     public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
 
@@ -199,9 +202,10 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "perm", action = "operation-permission-remove", targetType = "BATCH", targetId = "", summary = "'batch remove operation permissions'")
     public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 

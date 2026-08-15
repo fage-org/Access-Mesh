@@ -279,5 +279,86 @@ class UserMenuQueryServiceImplTest {
             assertThat(result.menus()).extracting(UserMenuResp.MenuRouteItem::path)
                 .containsExactly("/type-level");
         }
+
+        @Test
+        @DisplayName("EXTERNAL/IFRAME 且 resource_type 为空 → fail-closed 不可见（不按纯展示放行）")
+        void externalIframe_withoutResource_failClosed() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "EXTERNAL", "外链", "https://x", null, 1, 1, null, null),
+                new MenuProjection(2L, null, "IFRAME", "内嵌", "/iframe", null, 2, 1, null, null)));
+            // 两个菜单 resource_type 均空 → 不进业务匹配、不入 visible（fail-closed）；
+            // businessMenus 为空 → 提前返回，不触发 getEffectiveResourceAccess / 类型解析
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("EXTERNAL/IFRAME 派生同业务 MENU：资源实例匹配即可见，frameSrc 取 path")
+        void externalIframe_withResourceMatch_visible() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "EXTERNAL", "外链", "https://x", null, 1, 1, "ADMIN_USER", "100"),
+                new MenuProjection(2L, null, "IFRAME", "内嵌", "/iframe", null, 2, 1, "ADMIN_USER", "100")));
+            when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
+                .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of(9001L)));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("ADMIN_USER", 1));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of(new ResourceResolveKey("ADMIN_USER", "100", null, null), 9001L));
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).hasSize(2);
+            assertThat(result.menus()).extracting(UserMenuResp.MenuRouteItem::path)
+                .containsExactly("https://x", "/iframe");
+            // external/iframe 时 frameSrc = path（外链跳转 / iframe 嵌入地址）
+            assertThat(result.menus()).extracting(m -> m.meta().frameSrc())
+                .containsExactly("https://x", "/iframe");
+        }
+
+        @Test
+        @DisplayName("DIR 带 resource_type 仍由子节点决定：自身资源不匹配不丢子树")
+        void dirWithResourceType_keptWhenChildVisible() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                // DIR 自身带 ADMIN_USER:999（无可访问资源），不得按业务菜单 fail-closed 丢整棵子树
+                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "ADMIN_USER", "999"),
+                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "ADMIN_USER", "100")));
+            when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
+                .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of(9001L)));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("ADMIN_USER", 1));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of(new ResourceResolveKey("ADMIN_USER", "100", null, null), 9001L));
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).hasSize(1);
+            assertThat(result.menus().get(0).path()).isEqualTo("/dir");
+            assertThat(result.menus().get(0).children()).extracting(UserMenuResp.MenuRouteItem::path)
+                .containsExactly("/dir/child");
+        }
+
+        @Test
+        @DisplayName("DIR 带 resource_type 但无可见子节点 → 仍剪枝（不因自身资源渲染空目录）")
+        void dirWithResourceType_noVisibleChild_pruned() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "ADMIN_USER", "999"),
+                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "ADMIN_USER", "999")));
+            when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
+                .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("ADMIN_USER", 1));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of());
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).isEmpty();
+        }
     }
 }

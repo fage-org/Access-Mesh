@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -78,6 +79,10 @@ class PermissionViewAppServiceImplTest {
     void setUp() {
         operatorContextMock = mockStatic(OperatorContext.class);
         operatorContextMock.when(OperatorContext::getOperatorId).thenReturn(1L);
+
+        // 两套 ID 空间：登录上下文 sys_user.id=1 → 权限投影主体 abstract_user.id=1001（P1 修复）
+        // lenient：getEffectivePermissionCodes / getEffectiveResourceAccess 不走门禁，不会触发解析
+        lenient().when(engine.resolveOperatorSubjectId(1L, 1L)).thenReturn(1001L);
 
         service = new PermissionViewAppServiceImpl(
             abstractRoleMapper, resourceEntityMapper, operationPermissionMapper,
@@ -197,9 +202,9 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectivePermissionCodesShouldReturnInheritedEffectiveOperationCodes() {
-        // 自查场景（operator=1, subject=1）：buildEffectiveView 无 USER:VIEW 门禁（评审修复 P1）
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
+        // 自查场景：operator 投影主体=1001，subject "1" 投影=1001；buildEffectiveView 无 USER:VIEW 门禁
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1001L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1001L)).thenReturn(Set.of(20L));
 
         RolePermEntry entry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 4L,
@@ -239,9 +244,9 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectiveResourceAccessShouldCollectScopeAllTypesAndInstanceIds() {
-        // 自查：operator=1, subject=1；buildEffectiveView 无 USER:VIEW 门禁（评审修复 P1）
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
+        // 自查：operator 投影主体=1001，subject "1" 投影=1001；buildEffectiveView 无 USER:VIEW 门禁
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1001L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1001L)).thenReturn(Set.of(20L));
 
         PermResult result = PermResult.builder(true, null)
             .effectiveOperationEntries(List.of(
@@ -272,9 +277,9 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectivePermissionCodesForManageShouldAllowSelfWithoutUserView() {
-        // 自查：operator=1, subject=1 → 豁免 USER:VIEW，不调用 engine.hasPermission
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of());
+        // 自查：operator 投影主体=1001（sys=1 转换），subject "1" 投影=1001 → 豁免 USER:VIEW，不调用 engine.hasPermission
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "1")).thenReturn(1001L);
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1001L)).thenReturn(Set.of());
 
         UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
             1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "1", List.of("ADMIN_USER")));
@@ -286,9 +291,9 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectivePermissionCodesForManageShouldDenyOthersWithoutUserView() {
-        // 查他人：operator=1, subject=2，无 USER:VIEW → SecurityException
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(2L);
-        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 2L, OperationCodeConstants.VIEW))
+        // 查他人：operator 投影主体=1001，subject "2" 投影=1002，无 USER:VIEW → SecurityException（门禁用 abstract 主体，非 sys id）
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(1002L);
+        when(engine.hasPermission(1L, 1001L, ResourceTypeCode.USER, 1002L, OperationCodeConstants.VIEW))
             .thenReturn(false);
 
         assertThrows(SecurityException.class, () ->
@@ -298,16 +303,26 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void getEffectivePermissionCodesForManageShouldAllowOthersWithUserView() {
-        // 查他人：operator=1, subject=2，有 USER:VIEW → 正常下发
-        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(2L);
-        when(engine.hasPermission(1L, 1L, ResourceTypeCode.USER, 2L, OperationCodeConstants.VIEW))
+        // 查他人：operator 投影主体=1001，subject "2" 投影=1002，有 USER:VIEW → 正常下发
+        when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(1002L);
+        when(engine.hasPermission(1L, 1001L, ResourceTypeCode.USER, 1002L, OperationCodeConstants.VIEW))
             .thenReturn(true);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 2L)).thenReturn(Set.of());
+        when(subjectDomainService.resolveEffectiveRoles(1L, 1002L)).thenReturn(Set.of());
 
         UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
             1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "2", List.of("ADMIN_USER")));
 
         assertNotNull(resp);
         assertTrue(resp.permissions().isEmpty());
+    }
+
+    @Test
+    void shouldFailClosedWhenOperatorSubjectMissing() {
+        // fail-closed：操作者 sys 用户在权限投影中不存在 → requireSubjectId 抛 SecurityException，不执行任何门禁
+        when(engine.resolveOperatorSubjectId(1L, 1L)).thenReturn(null);
+
+        assertThrows(SecurityException.class, () ->
+            service.getEffectivePermissionCodesForManage(
+                1L, new UserEffectivePermissionCodesReq("ADMIN_USER", "1", List.of("ADMIN_USER"))));
     }
 }

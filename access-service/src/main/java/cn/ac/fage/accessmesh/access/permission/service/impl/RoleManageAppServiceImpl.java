@@ -25,6 +25,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.TreeBuilder;
@@ -116,8 +117,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "perm", action = "abstract-role-create", targetType = "abstract_role", targetId = "#result.id()", summary = "'create role ' + #req.externalId()")
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -146,6 +148,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "perm", action = "abstract-role-update", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
@@ -153,7 +156,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -173,6 +176,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "perm", action = "abstract-role-move", targetType = "abstract_role", targetId = "#roleId", summary = "'move role ' + #roleId + ' to ' + #parentId")
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
@@ -180,7 +184,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -202,6 +206,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @PermissionChange
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -228,7 +233,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         Map<Long, AbstractRole> existingRoles = roles.stream()
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
-        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationCodeConstants.MANAGE);
+        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationCodeConstants.MANAGE);
 
         Set<Long> permittedIds = new LinkedHashSet<>();
         for (Long roleId : existingRoles.keySet()) {
@@ -259,7 +264,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, groupRoleIds);
 
             Set<Long> descendantSet = new HashSet<>(descendantIds);
-            Set<Long> deniedDescendantIds = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.ROLE, descendantSet, OperationCodeConstants.MANAGE);
+            Set<Long> deniedDescendantIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, descendantSet, OperationCodeConstants.MANAGE);
             for (Long descId : descendantIds) {
                 if (!deniedDescendantIds.contains(descId)) {
                     allIdsToDelete.add(descId);

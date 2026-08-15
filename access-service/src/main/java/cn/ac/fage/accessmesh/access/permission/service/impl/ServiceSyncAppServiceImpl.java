@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.sync.SyncModeStrat
 import cn.ac.fage.accessmesh.access.permission.service.domain.sync.SyncModeStrategyFactory;
 import cn.ac.fage.accessmesh.access.permission.service.domain.sync.SyncResult;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,8 +88,9 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     @OperationLog(module = "perm", action = "service-interface-sync", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
     public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
         Long operatorId = OperatorContext.getOperatorId();
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        validatePermission(tenantId, operatorId, req);
+        validatePermission(tenantId, operatorSubjectId, req);
 
         ServiceConfig config = prepareServiceConfig(tenantId, req, operatorId);
 
@@ -116,13 +118,13 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     /**
      * 验证同步权限
      *
-     * @param tenantId   租户ID
-     * @param operatorId 操作者ID
-     * @param req        同步请求
+     * @param tenantId 租户ID
+     * @param operatorSubjectId 操作者权限域投影主体 ID（abstract_user.id）
+     * @param req 同步请求
      * @throws SecurityException 无权限时抛出
      */
-    private void validatePermission(Long tenantId, Long operatorId, ServiceConfigSyncReq req) {
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
+    private void validatePermission(Long tenantId, Long operatorSubjectId, ServiceConfigSyncReq req) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
     }

@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.service.SystemConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,8 +61,9 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "perm", action = "system-config-upsert", targetType = "system_config", targetId = "#req.configKey()", summary = "'upsert system config ' + #req.configKey()")
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
         }
 
@@ -105,8 +107,9 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -128,8 +131,9 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 

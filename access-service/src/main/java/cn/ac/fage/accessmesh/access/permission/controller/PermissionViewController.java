@@ -65,7 +65,7 @@ public class PermissionViewController {
      * 不分页、扁平 perm 串列表，可供前端 hasPerms、功能开关、客户端能力下发等场景使用。
      * 与 effective-permissions 解耦，
      * 杜绝大权限用户被分页截断（原 page=1, size=500 模式）。
-     * 门禁（T-ACCESS-006 评审修复 P1）：自查豁免；查他人需操作者对被查用户有 {@code USER:VIEW}。
+     * 门禁：自查豁免；查他人需操作者对被查用户有 {@code USER:VIEW}。
      */
     @PostMapping("/effective-permission-codes")
     public PermResult<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(

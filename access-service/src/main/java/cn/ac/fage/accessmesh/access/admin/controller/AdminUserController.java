@@ -196,7 +196,7 @@ public class AdminUserController {
      */
     @PostMapping("/user-menus")
     public PermResult<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
-        // 权限边界（T-ACCESS-006 评审修复）：改己豁免——当前登录用户可查自己的权限信息；
+        // 权限边界：改己豁免——当前登录用户可查自己的权限信息；
         // 查询其他用户需 ADMIN_USER:VIEW 实例级门禁，防普通用户枚举 ID 读取他人角色/权限/组织
         Long currentUserId = StpUtil.getLoginIdAsLong();
         if (!java.util.Objects.equals(req.id(), currentUserId)) {

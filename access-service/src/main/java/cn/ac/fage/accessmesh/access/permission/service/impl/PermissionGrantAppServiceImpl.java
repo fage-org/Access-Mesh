@@ -39,6 +39,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyServ
 import cn.ac.fage.accessmesh.access.permission.util.DatabaseExceptionSupport;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
 import org.slf4j.Logger;
@@ -134,7 +135,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE,
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
             roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
@@ -148,7 +150,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
             permissionGrantPlanDomainService.prevalidate(
-                tenantId, operatorId, roleId, req.domainCode(), req.plan());
+                tenantId, operatorSubjectId, roleId, req.domainCode(), req.plan());
 
         permissionGrantPlanDomainService.apply(prepared);
         PermissionChangeContext.markRoles(tenantId, roleId);
@@ -193,7 +195,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验 - 对角色拥有MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -230,7 +233,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 .collect(Collectors.toSet());
 
             Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
-                permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, req.domainCode());
+                permissionGrantDomainService.checkCanGrant(tenantId, operatorSubjectId, grantKeys, req.domainCode());
 
             // 校验每个新增项
             for (RoleGrantReq.GrantAddItem item : addItems) {
@@ -309,7 +312,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
                 // 校验操作者是否可以授权该权限
                 boolean canGrant = permissionGrantDomainService.canGrantPermission(
-                    tenantId, operatorId, resourceTypeCode,
+                    tenantId, operatorSubjectId, resourceTypeCode,
                     resource == null ? null : resource.getCode(),
                     resource == null ? null : resource.getCodeType(),
                     operation == null ? null : operation.getCode(),
@@ -534,7 +537,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -572,7 +576,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
@@ -629,7 +634,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
@@ -667,7 +673,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + parent.getAbstractRoleId());
         }
 
@@ -694,7 +701,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
 
         // 兼容写入口仍必须执行与 apply-grant-plan 一致的授权传递校验。
-        verifyChildDelegation(tenantId, operatorId, children);
+        verifyChildDelegation(tenantId, operatorSubjectId, children);
 
         // 1. 批量解析资源类型值
         Set<String> resourceTypeCodes = children.stream()
@@ -840,7 +847,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + child.getAbstractRoleId());
         }
 
@@ -1012,7 +1020,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
     private void verifyChildDelegation(
             Long tenantId,
-            Long operatorId,
+            Long operatorSubjectId,
             List<RolePermissionAddChildReq.ChildItem> children) {
         Set<PermissionGrantDomainService.GrantCheckKey> grantKeys = children.stream()
             .map(child -> new PermissionGrantDomainService.GrantCheckKey(
@@ -1021,7 +1029,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                     child.scopeMode(), child.resourceCode(), child.codeType())))
             .collect(Collectors.toSet());
         Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
-            permissionGrantDomainService.checkCanGrant(tenantId, operatorId, grantKeys, null);
+            permissionGrantDomainService.checkCanGrant(tenantId, operatorSubjectId, grantKeys, null);
         for (PermissionGrantDomainService.GrantCheckKey key : grantKeys) {
             PermissionGrantDomainService.GrantCheckResult result = grantResults.get(grantCheckKey(key));
             if (result == null || !result.canGrant()) {

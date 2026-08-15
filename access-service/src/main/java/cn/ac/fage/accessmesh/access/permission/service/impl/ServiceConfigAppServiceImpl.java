@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.service.ServiceConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,8 +78,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @OperationLog(module = "perm", action = "service-config-save", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -134,8 +136,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
 
@@ -157,8 +160,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
 
@@ -183,8 +187,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @OperationLog(module = "perm", action = "service-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove service configs'")
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -234,8 +239,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
         return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode).stream().map(mapping -> new ApiMappingResp(

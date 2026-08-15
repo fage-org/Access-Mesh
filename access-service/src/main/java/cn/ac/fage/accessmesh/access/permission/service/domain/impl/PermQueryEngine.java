@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.permission.util.RolePermEntryMapper;
@@ -102,6 +103,24 @@ public class PermQueryEngine {
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
         this.operationPermissionMapper = operationPermissionMapper;
+    }
+
+    /**
+     * 解析操作者在权限域的投影主体 ID（{@code abstract_user.id}）。
+     * <p>
+     * 登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 {@code sys_user.id}
+     * （{@code abstract_user.external_id}）；本引擎内部按 {@code abstract_user.id}
+     * 匹配 {@code user_role.abstract_user_id}。所有调用方传入的操作者 ID 必须先经
+     * 本方法转换，再作为主体参与权限判定。投影中不存在时返回 null（调用方 fail-closed）。
+     * </p>
+     *
+     * @param tenantId 租户 ID
+     * @param operatorId 操作者 sys_user.id
+     * @return 抽象用户主体 ID；权限投影中不存在时返回 null
+     */
+    public Long resolveOperatorSubjectId(Long tenantId, Long operatorId) {
+        return typeResolutionService.resolveUserId(
+            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(operatorId));
     }
 
     /**

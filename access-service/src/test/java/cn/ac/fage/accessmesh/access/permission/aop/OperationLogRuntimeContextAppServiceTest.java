@@ -27,6 +27,7 @@ import cn.ac.fage.accessmesh.access.permission.service.impl.UserManageAppService
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -42,8 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,6 +93,13 @@ class OperationLogRuntimeContextAppServiceTest {
 
     @Mock
     private PermQueryEngine engine;
+
+    @BeforeEach
+    void setUp() {
+        // 测试简化：投影主体 = 传入 operatorId（两套 ID 真实差异由 PermissionViewAppServiceImplTest 覆盖）
+        lenient().when(engine.resolveOperatorSubjectId(anyLong(), anyLong()))
+            .thenAnswer(inv -> inv.getArgument(1));
+    }
 
     @AfterEach
     void tearDown() {
