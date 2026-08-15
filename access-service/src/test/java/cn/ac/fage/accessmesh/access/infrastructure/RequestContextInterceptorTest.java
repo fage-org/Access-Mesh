@@ -179,6 +179,26 @@ class RequestContextInterceptorTest {
     }
 
     @Test
+    @DisplayName("P2 路径精确匹配：有效 OAuth2 JWT 访问 /auth/oauth2/authorize → 不认证 → 无会话 401")
+    void shouldReject_whenOAuth2JwtOnAuthorizePath() throws Exception {
+        try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
+            mocked.when(StpUtil::isLogin).thenReturn(false);
+            String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+                java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/authorize");
+            MockHttpServletResponse resp = new MockHttpServletResponse();
+            req.addHeader("Authorization", "Bearer " + jwt);
+
+            boolean result = interceptor.preHandle(req, resp, new Object());
+
+            assertThat(result).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
+            assertThat(AccessRequestContext.get()).isNull();
+        }
+    }
+
+    @Test
     @DisplayName("P1 路径限定：有效 OAuth2 JWT 访问非 OAuth2 路径（/user/page）→ 不认证 → 无会话 401")
     void shouldReject_whenOAuth2JwtOnNonOAuth2Path() throws Exception {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {

@@ -143,11 +143,12 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         // 2.5 OAuth2 JWT 认证（2026-08-14 实现，用户决策限定路径）：
         // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
         // 验签（HS256 + loginType）+ 撤销黑名单检查通过后绑定 USER 上下文。
-        // 路径限定 /auth/oauth2/**（当前唯一消费方 userinfo）：委托令牌不得触达管理接口；
-        // 未来开放业务 API 由 T-ACCESS-013（OAuth2 资源服务器 + scope 授权模型）显式放开。
+        // 精确匹配 /auth/oauth2/userinfo（唯一 OAuth2 资源端点）：前缀匹配会覆盖
+        // authorize（其内部要求平台会话，JWT 认证后 NotLoginException 落为 500）；
+        // 委托令牌不得触达其他端点，业务 API 开放由 T-ACCESS-013 显式放开。
         String bearerToken = extractBearerToken(request.getHeader(HEADER_AUTHORIZATION));
         if (bearerToken != null && bearerToken.indexOf('.') >= 0
-            && uri.startsWith("/auth/oauth2/")) {
+            && "/auth/oauth2/userinfo".equals(uri)) {
             return authenticateOAuth2Jwt(request, response, bearerToken);
         }
 
