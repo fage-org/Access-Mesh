@@ -234,6 +234,22 @@ public class UserDomainServiceImpl implements UserDomainService {
      * @param users 用户实体列表
      */
     @Override
+    public void insert(SysUser user) {
+        if (user == null) {
+            return;
+        }
+        userMapper.insert(user);
+    }
+
+    @Override
+    public void update(SysUser user) {
+        if (user == null) {
+            return;
+        }
+        userMapper.update(user);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void insertBatch(List<SysUser> users) {
         if (users == null || users.isEmpty()) {

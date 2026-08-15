@@ -10,11 +10,9 @@ import java.util.List;
 /**
  * 角色代理服务接口
  * <p>
- * 提供admin-service与permission-center之间的角色操作代理方法。
- * 用于在admin-service中创建和管理permission-center的角色，
- * 实现跨服务的角色权限管理功能。
- * 接口使用业务键（roleTypeCode + roleExternalId）标识角色，
- * 不暴露 permission-center 内部 ID。
+ * 功能角色代理：admin HTTP 入口本地调用权限域 AppService。
+ * 组织/岗位角色只能由组织写入投影产生，本接口拒绝创建或对其授权。
+ * 使用业务键（roleTypeCode + roleExternalId）标识角色。
  * </p>
  */
 public interface RoleProxyService {
@@ -132,4 +130,9 @@ public interface RoleProxyService {
      * @param roleExternalId 角色外部标识（permission-center 业务键）
      */
     void revokeRole(Long userId, String roleTypeCode, String roleExternalId);
+
+    /**
+     * 过滤用户有 ADMIN_MENU:VIEW 的菜单 ID（登录菜单树用）。
+     */
+    java.util.Set<Long> filterAllowedMenuIds(Long userId, java.util.Collection<Long> menuIds);
 }

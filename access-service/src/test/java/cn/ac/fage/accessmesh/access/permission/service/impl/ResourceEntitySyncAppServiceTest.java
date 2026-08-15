@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 class ResourceEntitySyncAppServiceTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
 
     @Mock
@@ -63,7 +63,8 @@ class ResourceEntitySyncAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new ResourceEntitySyncAppServiceImpl(syncMetadataDomainService, syncMetadataMapper,
-                typeResolutionService, resourceEntityMapper, new ObjectMapper());
+                typeResolutionService, resourceEntityMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
     }
 
     private ResourceEntitySyncReq upsertReq() {
@@ -94,10 +95,9 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.applied()).isTrue();
         assertThat(resp.stale()).isFalse();
 
-        // 本地投影（sourceService=admin-service）插入时显式标记所有权（T-ACCESS-002）
         ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
         verify(resourceEntityMapper).insert(captor.capture());
-        assertThat(captor.getValue().getOwnerServiceCode()).isEqualTo("access-service");
+        assertThat(captor.getValue().getOwnerServiceCode()).isNull();
     }
 
     @Test

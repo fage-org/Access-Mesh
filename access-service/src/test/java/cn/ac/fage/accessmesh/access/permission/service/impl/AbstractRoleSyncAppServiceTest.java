@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 class AbstractRoleSyncAppServiceTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
 
     @Mock
@@ -58,14 +58,15 @@ class AbstractRoleSyncAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new AbstractRoleSyncAppServiceImpl(syncMetadataDomainService,
-                typeResolutionService, abstractRoleMapper, new ObjectMapper());
+                typeResolutionService, abstractRoleMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
     }
 
     /**
      * UPSERT 请求，无 parent。
      */
     private AbstractRoleSyncReq upsertReqNoParent() {
-        return new AbstractRoleSyncReq("UPSERT", "ORG", "org-100",
+        return new AbstractRoleSyncReq("UPSERT", "BASIC_ROLE", "org-100",
                 "Org 100", null, null, "ROOT",
                 1, 0, null,
                 SOURCE_SERVICE, "org", "100",
@@ -76,8 +77,8 @@ class AbstractRoleSyncAppServiceTest {
      * UPSERT 请求，带 parent。
      */
     private AbstractRoleSyncReq upsertReqWithParent() {
-        return new AbstractRoleSyncReq("UPSERT", "ORG", "org-200",
-                "Org 200", "ORG", "org-100", "ROOT",
+        return new AbstractRoleSyncReq("UPSERT", "BASIC_ROLE", "org-200",
+                "Org 200", "BASIC_ROLE", "org-100", "ROOT",
                 1, 0, null,
                 SOURCE_SERVICE, "org", "200",
                 new SyncVersionRef(OCCURRED_AT, 1L));
@@ -90,7 +91,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnApplied_whenUpsertNewVersion() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))
@@ -109,7 +110,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnStale_whenVersionStale() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
@@ -126,8 +127,8 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldReturnDependencyMissing_whenParentRoleNotFound() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(2);
-        when(typeResolutionService.resolveRoleId(TENANT_ID, "ORG", "org-100", null)).thenReturn(null);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveRoleId(TENANT_ID, "BASIC_ROLE", "org-100", null)).thenReturn(null);
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReqWithParent(), httpRequest);
 
@@ -135,6 +136,18 @@ class AbstractRoleSyncAppServiceTest {
         assertThat(resp.applied()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_DEPENDENCY_MISSING);
         assertThat(resp.reason()).contains("PARENT_ROLE_NOT_FOUND");
+    }
+
+    @Test
+    void shouldRejectReservedOrgRoleType() {
+        mockHeaderMatch();
+        AbstractRoleSyncReq req = new AbstractRoleSyncReq("UPSERT", "ORG", "org-100",
+                "Org 100", null, null, "ROOT",
+                1, 0, null,
+                SOURCE_SERVICE, "org", "100",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
     }
 
     @Test
@@ -151,7 +164,7 @@ class AbstractRoleSyncAppServiceTest {
     @Test
     void shouldBackfillTargetId_whenUpsertCreatesNewAbstractRole() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(2);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))

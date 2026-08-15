@@ -377,6 +377,22 @@ public class MenuDomainServiceImpl implements MenuDomainService {
      * @param menus 菜单列表
      */
     @Override
+    public void insert(SysMenu menu) {
+        if (menu == null) {
+            return;
+        }
+        menuMapper.insert(menu);
+    }
+
+    @Override
+    public void update(SysMenu menu) {
+        if (menu == null) {
+            return;
+        }
+        menuMapper.update(menu);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void insertBatch(List<SysMenu> menus) {
         if (menus == null || menus.isEmpty()) {

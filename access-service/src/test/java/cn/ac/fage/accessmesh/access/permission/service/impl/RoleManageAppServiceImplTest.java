@@ -42,6 +42,7 @@ class RoleManageAppServiceImplTest {
             domainClassifyService,
             new ObjectMapper(),
             auditDomainService,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             engine
         );
     }

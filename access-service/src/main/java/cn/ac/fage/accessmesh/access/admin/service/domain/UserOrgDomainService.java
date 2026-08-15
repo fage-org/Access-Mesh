@@ -30,6 +30,16 @@ public interface UserOrgDomainService {
     List<SysUserOrg> findByUserId(Long tenantId, Long userId);
 
     /**
+     * 按用户 ID 集合批量查询组织关联，禁止循环单条查询。
+     */
+    List<SysUserOrg> findByUserIds(Long tenantId, List<Long> userIds);
+
+    /**
+     * 按组织 ID 集合批量查询成员关联。
+     */
+    List<SysUserOrg> findByOrgIds(Long tenantId, List<Long> orgIds);
+
+    /**
      * 删除用户的所有组织关联
      * <p>
      * 删除用户与所有组织的关联记录。

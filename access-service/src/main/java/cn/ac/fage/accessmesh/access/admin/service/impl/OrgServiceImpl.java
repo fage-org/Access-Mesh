@@ -18,10 +18,9 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.admin.service.OrgService;
-import cn.ac.fage.accessmesh.access.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
-import cn.ac.fage.accessmesh.access.admin.sync.SyncTaskBuilder;
+import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
@@ -57,156 +56,36 @@ public class OrgServiceImpl implements OrgService {
     private final SysOrgMapper orgMapper;
     private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
-    private final SyncTaskDomainService syncTaskDomainService;
-    private final SyncTaskBuilder syncTaskBuilder;
+    private final OrgWriteAppService orgWriteAppService;
     private final SysUserOrgMapper userOrgMapper;
     private final UserDomainService userDomainService;
 
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
                           AdminPermissionValidator permissionValidator,
-                          SyncTaskDomainService syncTaskDomainService,
-                          SyncTaskBuilder syncTaskBuilder,
+                          OrgWriteAppService orgWriteAppService,
                           SysUserOrgMapper userOrgMapper,
                           UserDomainService userDomainService) {
         this.orgMapper = orgMapper;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
-        this.syncTaskDomainService = syncTaskDomainService;
-        this.syncTaskBuilder = syncTaskBuilder;
+        this.orgWriteAppService = orgWriteAppService;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Long createOrg(OrgCreateReq req) {
-        // 按 orgType 分发操作码（声明式映射，见 OrgOperationCodeMapper）
-        String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
-        permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG,
-            OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE)
-        );
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        SysOrg existing = orgDomainService.findByCode(tenantId, req.code());
-        if (existing != null) {
-            throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(), AdminErrorCode.ORG_CODE_EXISTS.getMessage());
-        }
-
-        int level = 1;
-        if (req.parentOrgId() != null) {
-            Long parentId = req.parentOrgId();
-            SysOrg parent = orgDomainService.selectValidById(tenantId, parentId);
-            if (parent != null) {
-                level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
-            }
-        }
-        if (level > 10) {
-            throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(), AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
-        }
-
-        SysOrg org = new SysOrg();
-        org.setTenantId(tenantId);
-        org.setParentId(req.parentOrgId() != null ? req.parentOrgId() : 0L);
-        org.setOrgType(String.valueOf(req.orgType()));
-        org.setCode(req.code());
-        org.setName(req.orgName());
-        org.setStatus(req.status() != null ? req.status() : 1);
-        org.setSortOrder(req.sort());
-        org.setLevel(level);
-        org.setCreatedAt(LocalDateTime.now());
-        org.setUpdatedAt(LocalDateTime.now());
-        org.setDeleteFlag(0L);
-
-        orgMapper.insert(org);
-
-        // Outbox: enqueue abstract_role + ADMIN_ORG resource_entity envelopes within same tx
-        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.orgUpsert(org));
-        log.info("Enqueued org upsert sync envelopes: orgId={}", org.getId());
-
-        return org.getId();
+        return orgWriteAppService.createOrg(req);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateOrg(OrgUpdateReq req) {
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 先加载实例确定 orgType，再按类型分发操作码（声明式映射，见 OrgOperationCodeMapper）
-        SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
-        if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
-        }
-
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(req.id()),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE)
-        );
-
-        // 注：OrgUpdateReq 不含 orgType 字段，orgType 由 API 契约保证不可变（普通组织/岗位互转），
-        // 操作码门禁始终基于已存实例类型 org.getOrgType() 决策。
-
-        if (req.parentOrgId() != null) {
-            long newParentId = req.parentOrgId();
-            if (newParentId != org.getParentId()) {
-                SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
-                int newLevel = newParent != null ? (newParent.getLevel() != null ? newParent.getLevel() + 1 : 1) : 1;
-                if (newLevel > 10) {
-                    throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(), AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
-                }
-            }
-        }
-
-        if (!req.code().equals(org.getCode())) {
-            SysOrg codeExisting = orgDomainService.findByCode(tenantId, req.code());
-            if (codeExisting != null) {
-                throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(), AdminErrorCode.ORG_CODE_EXISTS.getMessage());
-            }
-        }
-
-        org.setName(req.orgName());
-        org.setParentId(req.parentOrgId() != null ? req.parentOrgId() : org.getParentId());
-        org.setCode(req.code());
-        org.setStatus(req.status());
-        org.setUpdatedAt(LocalDateTime.now());
-        orgMapper.update(org);
-
-        // Outbox: enqueue abstract_role + ADMIN_ORG resource_entity envelopes within same tx
-        if (org.getId() != null) {
-            syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.orgUpsert(org));
-            log.info("Enqueued org update sync envelopes: orgId={}", org.getId());
-        }
+        orgWriteAppService.updateOrg(req);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteOrg(Long id) {
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 先加载快照确定 orgType，再按类型分发操作码（声明式映射，见 OrgOperationCodeMapper）
-        SysOrg org = orgDomainService.selectValidById(tenantId, id);
-        if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
-        }
-
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(id),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.DELETE)
-        );
-
-        if (orgDomainService.hasChildren(tenantId, id)) {
-            throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(), AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
-        }
-
-        orgDomainService.softDeleteBatch(tenantId, List.of(id));
-
-        // Outbox: enqueue abstract_role DELETE + ADMIN_ORG resource_entity DELETE envelopes
-        // 传入删除前快照 orgType，确保 abstract_role business_key 与创建时一致（POSITION 类型 org 删除路径不再错配为 ORG）
-        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.orgDelete(id, String.valueOf(id), org.getOrgType()));
-        log.info("Enqueued org delete sync envelopes: orgId={}", id);
+        orgWriteAppService.deleteOrg(id);
     }
 
     @Override

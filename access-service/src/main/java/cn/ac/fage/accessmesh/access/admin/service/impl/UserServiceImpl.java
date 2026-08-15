@@ -22,15 +22,13 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
-import cn.ac.fage.accessmesh.access.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
+import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.security.OrgVisibilityService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.admin.support.UserOrgKeys;
-import cn.ac.fage.accessmesh.access.admin.sync.SyncTaskBuilder;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.dev33.satoken.secure.BCrypt;
@@ -76,8 +74,7 @@ public class UserServiceImpl implements UserService {
     private final UserOrgDomainService userOrgDomainService;
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final OrgDomainService orgDomainService;
-    private final SyncTaskDomainService syncTaskDomainService;
-    private final SyncTaskBuilder syncTaskBuilder;
+    private final UserWriteAppService userWriteAppService;
     private final AdminPermissionValidator permissionValidator;
     private final OrgVisibilityService orgVisibilityService;
 
@@ -99,8 +96,7 @@ public class UserServiceImpl implements UserService {
                            UserOrgDomainService userOrgDomainService,
                            OrgTreeConfigDomainService orgTreeConfigDomainService,
                            OrgDomainService orgDomainService,
-                           SyncTaskDomainService syncTaskDomainService,
-                           SyncTaskBuilder syncTaskBuilder,
+                           UserWriteAppService userWriteAppService,
                            AdminPermissionValidator permissionValidator,
                            OrgVisibilityService orgVisibilityService) {
         this.userMapper = userMapper;
@@ -109,8 +105,7 @@ public class UserServiceImpl implements UserService {
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
-        this.syncTaskDomainService = syncTaskDomainService;
-        this.syncTaskBuilder = syncTaskBuilder;
+        this.userWriteAppService = userWriteAppService;
         this.permissionValidator = permissionValidator;
         this.orgVisibilityService = orgVisibilityService;
     }
@@ -131,98 +126,8 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 用户名已存在、手机号已存在、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public UserCreateResp createUser(UserCreateReq req) {
-        // 权限检查 — 类型级 CREATE
-        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用 DomainService 检查用户名重复
-        if (userDomainService.existsByUsername(tenantId, req.username())) {
-            throw new BizException(AdminErrorCode.USER_ALREADY_EXISTS.getCode(), AdminErrorCode.USER_ALREADY_EXISTS.getMessage());
-        }
-
-        // 使用 DomainService 检查手机号重复
-        if (req.phone() != null && userDomainService.existsByPhone(tenantId, req.phone())) {
-            throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(), AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
-        }
-
-        SysUser user = new SysUser();
-        user.setTenantId(tenantId);
-        user.setUsername(req.username());
-        user.setName(req.name());
-        user.setPhone(req.phone());
-        user.setEmail(req.email());
-        String initialPassword = generateRandomPassword();
-        user.setPassword(BCrypt.hashpw(initialPassword));
-        log.info("Generated initial password for user: username={}, userId={}", req.username(), user.getId());
-        user.setStatus(req.status() != null ? req.status() : 1);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
-        user.setDeleteFlag(0L);
-
-        // 事务内：插入用户 + 记录同步任务（原子性，Outbox Pattern）
-        userMapper.insert(user);
-
-        // 同一事务内入队同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
-        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.userUpsert(user));
-        log.info("Enqueued user upsert sync envelopes: userId={}", user.getId());
-
-        // 创建用户是身份目录操作，orgId 必须属于默认组织树。
-        if (req.orgId() != null) {
-            // 校验组织是否属于默认组织树
-            List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-            boolean belongsToDefaultTree = false;
-            if (!defaultConfigs.isEmpty()) {
-                Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
-                List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
-                belongsToDefaultTree = subtreeIds.contains(req.orgId());
-            }
-            if (!belongsToDefaultTree) {
-                throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                    AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
-            }
-
-            // 带 orgId 时还需 ADMIN_ORG:UPDATE@orgId 门禁
-            permissionValidator.checkInstanceLevel(
-                AdminResourceType.ORG,
-                String.valueOf(req.orgId()),
-                AdminOperationCode.UPDATE
-            );
-
-            SysUserOrg userOrg = new SysUserOrg();
-            userOrg.setTenantId(tenantId);
-            userOrg.setUserId(user.getId());
-            userOrg.setOrgId(req.orgId());
-            userOrg.setIsPrimary(req.primaryOrg() != null ? req.primaryOrg() : true);
-            userOrg.setCreatedAt(LocalDateTime.now());
-            userOrg.setUpdatedAt(LocalDateTime.now());
-            userOrg.setDeleteFlag(0L);
-            userOrgDomainService.insertBatch(List.of(userOrg));
-            log.info("Assigned user to org on creation: userId={}, orgId={}, isPrimary={}",
-                user.getId(), req.orgId(), userOrg.getIsPrimary());
-
-            // 契约 §4.1.3 同步动作 4：带 orgId 时入队 PERM_USER_ROLE_SYNC (BIND)
-            SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
-            String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
-            String relationKey = UserOrgKeys.relationKey(req.orgId());
-            // 组织树根 externalId：通过 resolver 精确解析，避免多默认树 / 岗位场景错配
-            String treeRootExternalId = orgTreeConfigDomainService.resolveTreeRootExternalId(
-                tenantId, req.orgId());
-            syncTaskDomainService.enqueueAll(tenantId,
-                List.of(syncTaskBuilder.userOrgBind(
-                    user.getId(),
-                    req.orgId(),
-                    roleTypeCode,
-                    relationKey,
-                    treeRootExternalId
-                )));
-            log.info("Enqueued user-org bind sync: userId={}, orgId={}, roleTypeCode={}",
-                user.getId(), req.orgId(), roleTypeCode);
-        }
-
-        return new UserCreateResp(user.getId(), initialPassword);
+        return userWriteAppService.createUser(req);
     }
 
     /**
@@ -238,44 +143,8 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 用户不存在、手机号已存在、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateUser(UserUpdateReq req) {
-        Long currentUserId = StpUtil.getLoginIdAsLong();
-
-        // 自我修改豁免：用户可更新自己的信息无需权限检查
-        if (!req.id().equals(currentUserId)) {
-            permissionValidator.checkInstanceLevel(
-                AdminResourceType.USER,
-                String.valueOf(req.id()),
-                AdminOperationCode.UPDATE
-            );
-        }
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用 DomainService 获取用户
-        SysUser user = userDomainService.selectValidById(tenantId, req.id());
-        if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
-        }
-
-        // 如果修改了手机号，检查新手机号是否重复
-        if (req.phone() != null && !req.phone().equals(user.getPhone())) {
-            if (userDomainService.existsByPhone(tenantId, req.phone())) {
-                throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(), AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
-            }
-        }
-
-        user.setName(req.name());
-        user.setPhone(req.phone());
-        user.setEmail(req.email());
-        user.setStatus(req.status());
-        user.setUpdatedAt(LocalDateTime.now());
-        userMapper.update(user);
-
-        // 同步更新到权限中心 — 事务内入队 abstract_user + ADMIN_USER resource_entity 双 envelope
-        syncTaskDomainService.enqueueAll(tenantId, syncTaskBuilder.userUpsert(user));
-        log.info("Enqueued user update sync envelopes: userId={}", user.getId());
+        userWriteAppService.updateUser(req);
     }
 
     /**
@@ -291,70 +160,8 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 不能删除自己、不在默认树可管范围、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteUser(IdsReq req) {
-        Long tenantId = TenantContextHolder.getTenantId();
-        long currentUserId = StpUtil.getLoginIdAsLong();
-
-        // 检查不能删除自己（业务规则）
-        for (Long id : req.ids()) {
-            if (id.equals(currentUserId)) {
-                throw new BizException(AdminErrorCode.CANNOT_DELETE_SELF.getCode(), AdminErrorCode.CANNOT_DELETE_SELF.getMessage());
-            }
-        }
-
-        // 权限检查 — 批量实例级 DELETE
-        List<String> resourceCodes = req.ids().stream()
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, AdminOperationCode.DELETE);
-
-        // 默认树边界二次校验：每个目标用户必须在操作者默认树可管范围内
-        validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
-
-        // 批量获取用户
-        List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
-
-        // 1. 先入队每条 user-org 的 UNBIND 同步任务（必须在软删前查，否则关系被清）
-        List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, req.ids());
-        // 批量解析 treeRootExternalId（避免循环单条调用，EXT-5 修复）
-        Set<Long> orgIds = allUserOrgs.stream()
-            .map(SysUserOrg::getOrgId)
-            .collect(Collectors.toSet());
-        Map<Long, String> rootExternalIdMap = orgIds.isEmpty()
-            ? Map.of()
-            : orgTreeConfigDomainService.resolveTreeRootExternalIds(tenantId, orgIds);
-        // P2-2 修复：批量加载 orgMap，消除循环内逐条 selectValidById 的 N+1（缺失组织显式 warn 并跳过）
-        Map<Long, SysOrg> orgMap = orgIds.isEmpty()
-            ? Map.of()
-            : orgDomainService.batchSelectValidByIdsMap(tenantId, orgIds);
-
-        for (SysUserOrg uo : allUserOrgs) {
-            SysOrg org = orgMap.get(uo.getOrgId());
-            if (org == null) {
-                // 组织已不存在（被并发删除或数据不一致），跳过该条 UNBIND 并记录，避免阻塞批量删除
-                log.warn("Org not found when deleting user, skip UNBIND envelope: userId={}, orgId={}",
-                    uo.getUserId(), uo.getOrgId());
-                continue;
-            }
-            String roleTypeCode = resolveOrgRoleTypeCode(org);
-            String relationKey = UserOrgKeys.relationKey(uo.getOrgId());
-            String treeRootExternalId = rootExternalIdMap.get(uo.getOrgId());
-            syncTaskDomainService.enqueueAll(tenantId,
-                List.of(syncTaskBuilder.userOrgUnbind(
-                    uo.getUserId(), uo.getOrgId(), roleTypeCode, relationKey, treeRootExternalId)));
-        }
-        log.info("Enqueued {} user-org unbind sync envelopes for delete batch", allUserOrgs.size());
-
-        // 2. 执行本地软删除（含级联清理 sys_user_org）
-        userDomainService.softDeleteBatch(tenantId, req.ids());
-
-        // 3. 入队删除同步任务（abstract_user + ADMIN_USER resource_entity 双 envelope）
-        for (SysUser user : users) {
-            syncTaskDomainService.enqueueAll(tenantId,
-                syncTaskBuilder.userDelete(user.getId(), String.valueOf(user.getId())));
-            log.info("Enqueued user delete sync envelopes: userId={}", user.getId());
-        }
+        userWriteAppService.deleteUser(req);
     }
 
     /**
@@ -371,55 +178,8 @@ public class UserServiceImpl implements UserService {
      * @throws BizException 状态参数无效、不能禁用自己、不在默认树范围、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateStatus(UserUpdateStatusReq req) {
-        // 状态参数校验
-        if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(禁用)或1(启用)");
-        }
-
-        // 禁用时不允许禁用自己
-        if (req.status() == 0) {
-            long currentUserId = StpUtil.getLoginIdAsLong();
-            for (Long id : req.ids()) {
-                if (id.equals(currentUserId)) {
-                    throw new BizException(AdminErrorCode.CANNOT_DISABLE_SELF.getCode(),
-                        AdminErrorCode.CANNOT_DISABLE_SELF.getMessage());
-                }
-            }
-        }
-
-        // 权限检查 — 批量实例级，启用与禁用共用 ENABLE（toggle 语义，v1.4 合并）
-        String operationCode = AdminOperationCode.ENABLE;
-        List<String> resourceCodes = req.ids().stream()
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.USER, resourceCodes, operationCode);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 默认树边界二次校验
-        validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
-
-        // 使用批量查询验证有效ID（避免N+1问题）
-        List<SysUser> existingUsers = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
-        Set<Long> validIds = existingUsers.stream().map(SysUser::getId).collect(Collectors.toSet());
-
-        if (!validIds.isEmpty()) {
-            userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
-
-            // 同步状态变更到权限中心 — 事务内入队双 envelope
-            boolean enabled = req.status() == 1;
-            for (SysUser user : existingUsers) {
-                // 反映最新 status 给 builder
-                user.setStatus(req.status());
-                List<cn.ac.fage.accessmesh.access.admin.sync.model.SyncTaskEnvelope> envelopes =
-                    enabled ? syncTaskBuilder.userEnable(user) : syncTaskBuilder.userDisable(user);
-                syncTaskDomainService.enqueueAll(tenantId, envelopes);
-                log.info("Enqueued user {} sync envelopes: userId={}",
-                    enabled ? "enable" : "disable", user.getId());
-            }
-        }
+        userWriteAppService.updateStatus(req);
     }
 
     /**

@@ -56,6 +56,7 @@ class UserManageAppServiceImplTest {
             typeResolutionService,
             domainClassifyService,
             auditDomainService,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             new ObjectMapper(),
             engine
         );

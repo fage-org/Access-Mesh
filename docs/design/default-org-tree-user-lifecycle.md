@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-15
 ---
 
 # 默认组织树与用户生命周期设计
@@ -151,30 +151,31 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 - 岗位关系如需表达所属组织上下文，使用业务关系键表达，不对外暴露 permission-center 内部 ID。
 - 分配/回收后必须失效用户有效角色缓存。
 
-`PERM_USER_ROLE_SYNC` 仅用于 `sys_user_org` 派生的组织/岗位关系，payload 必须满足 `sourceType=SYS_USER_ORG` 且 `roleTypeCode in (ORG, POSITION)`。功能角色分配（BASIC_ROLE/GROUP_ROLE/PERSONAL）不进入同步任务，必须走 permission-center 正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+组织/岗位成员关系由 `access.application` 在同一事务内投影为 `user_role`（`LocalProjectionDomainService.bindUserOrg/unbindUserOrg`）。外部 sync 不得再提交 `sourceType=SYS_USER_ORG`。功能角色分配（BASIC_ROLE/GROUP_ROLE/PERSONAL）走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
 
 非默认组织树的成员关系变更不得触发用户禁用、删除或 `abstract_user` 删除。
 
-### 5.4 同步任务与重发
+### 5.4 同事务本地投影
 
-admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入 `sys_user`、`sys_org`、`sys_user_org` 等事实表和对应同步任务，事务外由调度器重放任务；不得在主业务事务内直接发起 Feign 同步。
+`sys_user`、`sys_org`、`sys_user_org`、`sys_menu` 的写入与对应权限投影在同一 PostgreSQL 事务内完成，不再写 `sys_sync_task`，也不再 Feign 自调用。见 [`access-service-architecture.md`](access-service-architecture.md) §4。
 
-同步任务只保留 4 类领域级 `syncAction`，具体动作放入 payload 的 `operation`：
+| 管理事实 | 投影动作 |
+|----------|----------|
+| `sys_user` | `upsertAdminUser` / `disableAdminUser` / `deleteAdminUser` |
+| `sys_org` | `upsertAdminOrg` / `deleteAdminOrg` |
+| `sys_user_org` | `bindUserOrg` / `unbindUserOrg` |
+| `sys_menu`（非按钮） | `upsertAdminMenu` / `deleteAdminMenu` |
 
-| syncAction | payload.operation | 同步含义 |
-|------------|-------------------|----------|
-| `PERM_ABSTRACT_USER_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user -> abstract_user` |
-| `PERM_ABSTRACT_ROLE_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_org -> abstract_role(ORG/POSITION)` |
-| `PERM_USER_ROLE_SYNC` | `BIND` / `UNBIND` | `sys_user_org -> user_role` |
-| `PERM_RESOURCE_ENTITY_SYNC` | `UPSERT` / `DISABLE` / `DELETE` | `sys_user/sys_org/sys_menu -> resource_entity` |
+本地投影 `owner_service_code=access-service`，不写 `sync_metadata`。外部业务服务仍使用 `/api/perm/**/sync` 与 `sync_metadata`。`role_resource_permission` 属于权限管理域，不由管理事实投影产生。
 
-`displayAttrs.operationType` 仅可作为审计展示字段，不参与执行路由。重发时必须按 `syncAction -> Handler -> 具体 Feign/API` 分发，禁止拼接旧全局万能 replay 入口（参见 `cross-service/admin-permission-sync.md`）。
+### 5.5 全量校准同步（仅外部业务服务）
 
-`resource_entity` 同步走 permission-center 的专用幂等入口 `POST /api/perm/resource-entity/sync`，不提供跨实体的万能 replay 入口。`role_resource_permission` 属于 permission-center 授权管理域，不纳入 admin-service 同步任务。
+> T-ACCESS-005（2026-08-15）整改：内部同步子系统（`sys_sync_task`、Feign、调度重试）已删除，
+> access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的写入由 `access.application`
+> 在同一事务内直接维护本地权限投影（见 §5.4），**不再需要也不应发起 full-sync 校准**。
+> 本节的 full-sync 语义仅适用于仍通过 `/api/perm/**/sync` + `sync_metadata` 同步的外部业务服务。
 
-### 5.5 全量校准同步
-
-全量同步用于修复单次任务漏发、重试耗尽、权限中心数据误删或多余同步事实残留，不替代单次同步。全量同步采用 permission-center 分领域校准接口：admin-service 按强制 scope 上报该范围内完整事实，permission-center 在同一 source/scope 下对比自身同步事实，补齐缺失并清理多余数据。全量校准可以生成或执行 `UPSERT/BIND/DISABLE/DELETE/UNBIND`。
+全量同步用于修复外部业务服务单次同步漏发、重试耗尽、权限中心数据误删或多余同步事实残留，不替代单次同步。全量同步采用 permission-center 分领域校准接口：外部业务服务按强制 scope 上报该范围内完整事实，permission-center 在同一 source/scope 下对比自身同步事实，补齐缺失并清理多余数据。全量校准可以生成或执行 `UPSERT/BIND/DISABLE/DELETE/UNBIND`。
 
 全量校准采用单请求全量接口，不做 begin/upload/commit 批次协议；因此 scope 必须足够小且明确，禁止默认按全租户清理。建议 scope：
 
@@ -185,7 +186,7 @@ admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表。主�
 | 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 | 资源实体 | `POST /api/perm/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
 
-admin-service 发起全量校准时必须按依赖顺序编排：
+外部业务服务发起全量校准时必须按依赖顺序编排：
 
 1. `abstract_user/full-sync`：同步有效用户主体。
 2. `resource-entity/full-sync(resourceTypeCode=ADMIN_USER)`：同步用户管理资源。
@@ -194,7 +195,7 @@ admin-service 发起全量校准时必须按依赖顺序编排：
 5. `user-role/full-sync(sourceType=SYS_USER_ORG)`：同步组织/岗位成员关系。
 6. 菜单、按钮等资源按资源类型调用 `resource-entity/full-sync`。
 
-单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` 任务；全量校准是最终一致性兜底，不是跳过单次任务的理由。
+外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 
 `businessKey` 与 `scopeKey` 编码格式统一以 `permission-center/api-contract.md` §6.2.2.4 为准；本文档只描述领域顺序，不维护另一套拼接规则。
 
@@ -237,7 +238,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
   - 该 org 自身 `id ∈ rootOrgId 集合`；或
   - 该 org 的某个祖先 `id ∈ rootOrgId 集合`。
 - 不能反查命中的 org 视为**游离 org**，禁止参与 user-org / user_role 同步，必须以业务异常 `ORG_TREE_ROOT_NOT_RESOLVED` 中断。
-- 增量（`UserOrgServiceImpl.assignUserToOrgs` / `removeUserFromOrg`）与全量（`SyncFullSyncOrchestrator.startFullSyncRun`）必须使用同一 resolver 入口：
+- 增量（`UserOrgWriteAppServiceImpl.assignUserToOrgs` / `removeUserFromOrg`）与外部业务服务的全量同步必须使用同一 resolver 入口：
   - 增量：`OrgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId)` —— 单条解析；
   - 全量：`OrgTreeConfigDomainService.resolveTreeRootExternalIds(tenantId, orgIds)` —— **批量解析**：一次加载租户全部 `SysOrgTreeConfig` 与全部相关 `SysOrg` 路径，内存内交集匹配，避免循环单条调用导致的 N+1。
 - **批量 resolver 语义**：任一 `orgId` 不命中（org 不存在、游离、或租户无任何 tree config）即抛 `BizException(ORG_TREE_ROOT_NOT_RESOLVED)`，message 含全部缺失项以便排障；**禁止部分返回**，**禁止 fallback `"1"`**。空入参 → 返回空 Map，不调任何 mapper。
@@ -262,7 +263,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
-| P1 | 同步任务表按 4 类 `syncAction` + payload `operation` 改造，删除旧全局万能 replay 入口（详见 `cross-service/admin-permission-sync.md`）；补齐单次任务、失败重发和分领域全量校准同步。 |
+| P1 | 内部同步任务模型已由 T-ACCESS-005 退役；管理事实与权限投影同事务维护。外部业务服务仍走 `/api/perm/**/sync|full-sync`。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 
 ---

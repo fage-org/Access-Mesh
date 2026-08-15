@@ -126,7 +126,8 @@ class OperationLogRuntimeContextAppServiceTest {
             typeResolutionService,
             domainClassifyService,
             engine,
-            roleResourcePermissionMapper
+            roleResourcePermissionMapper,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard()
         );
 
         ResourceEntity first = new ResourceEntity();
@@ -156,6 +157,7 @@ class OperationLogRuntimeContextAppServiceTest {
             typeResolutionService,
             domainClassifyService,
             auditDomainService,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             new ObjectMapper(),
             engine
         );

@@ -11,10 +11,8 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.MenuService;
-import cn.ac.fage.accessmesh.access.admin.service.SyncTaskDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
-import cn.ac.fage.accessmesh.access.admin.sync.SyncTaskBuilder;
-import cn.ac.fage.accessmesh.access.admin.sync.model.SyncTaskEnvelope;
+import cn.ac.fage.accessmesh.access.application.MenuWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,8 +40,7 @@ public class MenuServiceImpl implements MenuService {
     private final SysMenuMapper menuMapper;
     private final MenuDomainService menuDomainService;
     private final AdminPermissionValidator permissionValidator;
-    private final SyncTaskDomainService syncTaskDomainService;
-    private final SyncTaskBuilder syncTaskBuilder;
+    private final MenuWriteAppService menuWriteAppService;
 
     /**
      * 构造函数注入依赖
@@ -57,13 +54,11 @@ public class MenuServiceImpl implements MenuService {
     public MenuServiceImpl(SysMenuMapper menuMapper,
                            MenuDomainService menuDomainService,
                            AdminPermissionValidator permissionValidator,
-                           SyncTaskDomainService syncTaskDomainService,
-                           SyncTaskBuilder syncTaskBuilder) {
+                           MenuWriteAppService menuWriteAppService) {
         this.menuMapper = menuMapper;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
-        this.syncTaskDomainService = syncTaskDomainService;
-        this.syncTaskBuilder = syncTaskBuilder;
+        this.menuWriteAppService = menuWriteAppService;
     }
 
     /**
@@ -78,51 +73,8 @@ public class MenuServiceImpl implements MenuService {
      * @throws BizException 权限标识已存在、菜单层级超限、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Long createMenu(MenuCreateReq req) {
-        // 权限检查 — 类型级 CREATE
-        permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用 DomainService 检查权限标识重复
-        if (req.perms() != null && !req.perms().isBlank()) {
-            SysMenu existing = menuDomainService.findByPermCode(tenantId, req.perms());
-            if (existing != null) {
-                throw new BizException(AdminErrorCode.MENU_PERM_CODE_EXISTS.getCode(),
-                    AdminErrorCode.MENU_PERM_CODE_EXISTS.getMessage());
-            }
-        }
-
-        // 使用 DomainService 计算深度
-        int depth = menuDomainService.calculateDepth(tenantId, req.parentId());
-        if (depth > 5) {
-            throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
-                AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
-        }
-
-        SysMenu menu = new SysMenu();
-        menu.setTenantId(tenantId);
-        menu.setParentId(req.parentId() != null ? req.parentId() : 0L);
-        menu.setMenuType(String.valueOf(req.menuType()));
-        menu.setName(req.menuName());
-        menu.setPath(req.path());
-        menu.setComponent(req.component());
-        menu.setPermCode(req.perms());
-        menu.setIcon(req.icon());
-        menu.setSortOrder(req.sort());
-        menu.setVisible(req.visible() != null && req.visible() == 1);
-        menu.setStatus(req.status() != null ? req.status() : 1);
-        menu.setCreatedAt(LocalDateTime.now());
-        menu.setUpdatedAt(LocalDateTime.now());
-        menu.setDeleteFlag(0L);
-        menuMapper.insert(menu);
-
-        // Outbox: enqueue resource_entity(ADMIN_MENU) UPSERT envelope（v1.4 BUTTON 行不再同步，envelope 可能为 null）
-        enqueueIfPresent(tenantId, syncTaskBuilder.menuUpsert(menu));
-        log.info("Enqueued menu upsert sync envelope: menuId={}, menuType={}", menu.getId(), menu.getMenuType());
-
-        return menu.getId();
+        return menuWriteAppService.createMenu(req);
     }
 
     /**
@@ -137,56 +89,8 @@ public class MenuServiceImpl implements MenuService {
      * @throws BizException 菜单不存在、权限标识已存在、菜单层级超限等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateMenu(MenuUpdateReq req) {
-        // 权限检查 — 实例级 UPDATE
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.MENU,
-            String.valueOf(req.id()),
-            AdminOperationCode.UPDATE
-        );
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用 DomainService 获取菜单
-        SysMenu menu = menuDomainService.selectValidById(tenantId, req.id());
-        if (menu == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
-        }
-
-        // 使用 DomainService 检查权限标识重复
-        if (req.perms() != null && !req.perms().isBlank() && !req.perms().equals(menu.getPermCode())) {
-            SysMenu existing = menuDomainService.findByPermCode(tenantId, req.perms());
-            if (existing != null) {
-                throw new BizException(AdminErrorCode.MENU_PERM_CODE_EXISTS.getCode(),
-                    AdminErrorCode.MENU_PERM_CODE_EXISTS.getMessage());
-            }
-        }
-
-        // 使用 DomainService 检查新父菜单深度
-        if (req.parentId() != null && !req.parentId().equals(menu.getParentId())) {
-            int depth = menuDomainService.calculateDepth(tenantId, req.parentId());
-            if (depth > 5) {
-                throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
-                    AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
-            }
-        }
-
-        menu.setMenuType(req.menuType() != null ? String.valueOf(req.menuType()) : menu.getMenuType());
-        menu.setName(req.menuName());
-        menu.setParentId(req.parentId() != null ? req.parentId() : menu.getParentId());
-        menu.setPath(req.path());
-        menu.setComponent(req.component());
-        menu.setPermCode(req.perms());
-        menu.setIcon(req.icon());
-        menu.setSortOrder(req.sort());
-        menu.setVisible(req.visible() != null && req.visible() == 1);
-        menu.setStatus(req.status() != null ? req.status() : menu.getStatus());
-        menu.setUpdatedAt(LocalDateTime.now());
-        menuMapper.update(menu);
-
-        // 事务内入队菜单更新同步任务（v1.4 BUTTON 行不再同步，envelope 可能为 null）
-        enqueueIfPresent(tenantId, syncTaskBuilder.menuUpsert(menu));
+        menuWriteAppService.updateMenu(req);
     }
 
     /**
@@ -200,35 +104,8 @@ public class MenuServiceImpl implements MenuService {
      * @throws BizException 菜单不存在、有子菜单、同步任务记录失败等
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteMenu(Long id) {
-        // 权限检查 — 实例级 DELETE
-        permissionValidator.checkInstanceLevel(
-            AdminResourceType.MENU,
-            String.valueOf(id),
-            AdminOperationCode.DELETE
-        );
-
-        Long tenantId = TenantContextHolder.getTenantId();
-
-        // 使用 DomainService 获取菜单
-        SysMenu menu = menuDomainService.selectValidById(tenantId, id);
-        if (menu == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
-        }
-
-        // 使用 DomainService 检查是否有子菜单
-        if (menuDomainService.hasChildren(tenantId, id)) {
-            throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(), AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
-        }
-
-        // 1. 先执行本地软删除
-        menuDomainService.softDeleteBatch(tenantId, List.of(id));
-
-        // 2. Outbox: enqueue resource_entity(ADMIN_MENU) DELETE envelope（v1.4 BUTTON 行不再同步）
-        // 传入 menuType 让 builder 短路 BUTTON 行；menu 在删除前已加载（前置校验路径），此处复用其 menuType
-        enqueueIfPresent(tenantId, syncTaskBuilder.menuDelete(id, String.valueOf(id), menu.getMenuType()));
-        log.info("Enqueued menu delete sync envelope: menuId={}, menuType={}", id, menu.getMenuType());
+        menuWriteAppService.deleteMenu(id);
     }
 
     /**
@@ -314,10 +191,4 @@ public class MenuServiceImpl implements MenuService {
     /**
      * 入队同步信封，envelope 为 null 时跳过（v1.4：BUTTON 行不再同步到权限中心）。
      */
-    private void enqueueIfPresent(Long tenantId, SyncTaskEnvelope envelope) {
-        if (envelope == null) {
-            return;
-        }
-        syncTaskDomainService.enqueue(tenantId, envelope);
-    }
 }

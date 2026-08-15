@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/design/cross-service/admin-permission-sync.md
-last_reviewed: 2026-08-12
+last_reviewed: 2026-08-15
 ---
 
 # access-service 目标架构与归并约束
@@ -57,8 +57,8 @@ last_reviewed: 2026-08-12
 ```text
 cn.ac.fage.accessmesh.access
 ├── AccessServiceApplication
-├── application
-│   └── query
+├── application          # 跨域写编排（User/Org/Menu/UserOrgWrite + RoleProxy/门禁）
+│   └── query            # 跨域只读模型（T-ACCESS-006）
 ├── admin
 ├── permission
 └── infrastructure
@@ -110,12 +110,12 @@ flowchart LR
 
 以下内部 admin→permission 机制全部退役：
 
-- `sys_sync_task` 表及管理 API（Gateway 对外路径 `/admin/sync-task/*`，服务内路径 `/sync-task/*`）。`sys_sync_task` 表以过渡表保留在最终 DDL 中（T-ACCESS-002 起），同步链路代码删除（T-ACCESS-005）时与过渡表删除原子完成，防止中间态 admin 域写操作回滚。
+- `sys_sync_task` 表及管理 API（Gateway 对外路径 `/admin/sync-task/*`，服务内路径 `/sync-task/*`）。T-ACCESS-005 已将过渡表与内部同步代码一并删除，最终 DDL 不再包含该表。
 - 同步任务 builder、handler、scheduler、重试、乱序版本、人工补偿和内部 full-sync 编排。
-- admin 到 permission 的 Feign 调用及 `SyncTaskFeignClient`。
+- access 内部 `PermissionFeignClient` / `SyncTaskFeignClient` 及 `@EnableFeignClients`。
 - 为旧同步链路存在的配置、测试和运行手册。
 
-面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。
+面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（`ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`）。本地投影只能由 `access.application` 经 `LocalProjectionDomainService` 写入。
 
 ## 5. 数据库与共享表
 

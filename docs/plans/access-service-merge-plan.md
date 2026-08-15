@@ -21,7 +21,7 @@ tasks:
   - T-ACCESS-011
   - T-ACCESS-012
 acceptance: "T-ACCESS-001~012 全部 done 或经确认 cancelled；access-service 成为唯一部署单元；空库、契约、事务、安全、双实例与架构门禁通过；设计与存量任务完成回写和重基线"
-last_updated: 2026-08-11
+last_updated: 2026-08-15
 ---
 
 # admin-service 与 permission-center 归并为 access-service
@@ -69,7 +69,7 @@ last_updated: 2026-08-11
 | [T-ACCESS-002](../tasks/T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | ✅ | T-ACCESS-001 |
 | [T-ACCESS-003](../tasks/T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | ✅ | T-ACCESS-001, T-ACCESS-002 |
 | [T-ACCESS-004](../tasks/T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | ✅ | T-ACCESS-003 |
-| [T-ACCESS-005](../tasks/T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
+| [T-ACCESS-005](../tasks/T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | ✅ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-006](../tasks/T-ACCESS-006.md) | 建立跨域只读查询模型 | ⚙️ | T-ACCESS-002, T-ACCESS-005 |
 | [T-ACCESS-007](../tasks/T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-008](../tasks/T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | ⚙️ | T-ACCESS-003, T-ACCESS-005 |
@@ -93,6 +93,7 @@ last_updated: 2026-08-11
 - 2026-08-13：T-ACCESS-002 done（权威 DDL `schema/access-service.sql` 34 表 + 139 条操作种子 + 持久层收敛 + 空库测试双轨，四轮评审收口，372 测试基线）。
 - 2026-08-13：T-ACCESS-003 done（Sa-Token 两端统一 + 删除重复缓存/序列化配置 + expiresIn 配置化，ultracode 评审 4 项问题修复含 P1 token-prefix，377 测试基线；阶段 1 出口达成：单模块、单库和单运行基础设施可编译启动）。
 - 2026-08-14：T-ACCESS-004 done（唯一可信上下文 AccessRequestContext + 统一安全链 + 安全策略矩阵，4 项用户决策 + 双评审 1 P1 修复 + 对抗核实，408 测试基线；修复 G1~G4：内部凭证不隐式获全权限 / sourceService 可信化 / admin 显式门禁 / actuator 匿名契约）。
+- 2026-08-15：T-ACCESS-005 done（同事务本地权限投影 + 删除内部同步/Feign/sys_sync_task；权限管理与外部 sync 拒绝本地投影；设计 §3/§4/§6/§7 回写完成）。
 
 ## 归档条件
 

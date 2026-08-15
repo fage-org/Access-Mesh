@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
 class FullSyncN1GuardTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
     private static final int ITEM_COUNT = 100;
 
@@ -109,7 +109,8 @@ class FullSyncN1GuardTest {
         });
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper());
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
 
         List<AbstractUserSyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -165,7 +166,8 @@ class FullSyncN1GuardTest {
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService,
-                resourceEntityMapper, new ObjectMapper());
+                resourceEntityMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
 
         List<ResourceEntitySyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {

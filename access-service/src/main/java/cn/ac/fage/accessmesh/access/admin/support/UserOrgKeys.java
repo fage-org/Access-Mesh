@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.admin.support;
 /**
  * 用户-组织关联同步的统一键拼装工具。
  * <p>
- * 将分散在 UserServiceImpl / UserOrgServiceImpl / SyncTaskBuilder 中的
+ * 将分散在 UserServiceImpl / UserOrgServiceImpl 中的
  * relationKey 拼装逻辑收敛到一处，防止前缀硬编码不一致。
  * <p>
  * <b>契约约束</b>：permission-center api-contract.md §6.2.2.4 明确规定

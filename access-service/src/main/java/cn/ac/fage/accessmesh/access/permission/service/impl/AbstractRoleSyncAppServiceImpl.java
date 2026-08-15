@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.AbstractRoleSyncAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -58,15 +59,18 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final TypeResolutionService typeResolutionService;
     private final AbstractRoleMapper abstractRoleMapper;
     private final ObjectMapper objectMapper;
+    private final LocalProjectionGuard localProjectionGuard;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractRoleMapper abstractRoleMapper,
-                                          ObjectMapper objectMapper) {
+                                          ObjectMapper objectMapper,
+                                          LocalProjectionGuard localProjectionGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
         this.objectMapper = objectMapper;
+        this.localProjectionGuard = localProjectionGuard;
     }
 
     @Override
@@ -76,6 +80,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("sourceService mismatch with X-Service-Code");
         }
+        localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
 
         // 2. operation 合法性
         String op = req.operation();
@@ -157,6 +163,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     "sourceService mismatch with X-Service-Code",
                     req.items().size(), List.of(denied));
         }
+        localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
+        localProjectionGuard.rejectReservedRoleType(req.scope().roleTypeCode());
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.scope().roleTypeCode());
         if (roleType == null) {

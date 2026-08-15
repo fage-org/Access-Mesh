@@ -55,7 +55,7 @@ import static org.mockito.Mockito.when;
 class FullSyncStaleVersionTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final String ENTITY_KIND = "ABSTRACT_USER";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DELETED = "DELETED";
@@ -86,7 +86,8 @@ class FullSyncStaleVersionTest {
     @BeforeEach
     void setUp() {
         service = new AbstractUserSyncAppServiceImpl(syncMetadataDomainService,
-                typeResolutionService, abstractUserMapper, new ObjectMapper());
+                typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
         lenient().when(typeResolutionService.resolveTypeValue(TENANT_ID, "user_type", "USER")).thenReturn(0);
     }

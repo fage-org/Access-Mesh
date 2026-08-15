@@ -44,6 +44,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 
 import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
 
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -115,6 +116,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     private final PermQueryEngine engine;
 
     private final RoleResourcePermissionMapper rolePermMapper;
+    private final LocalProjectionGuard localProjectionGuard;
 
     /**
      * 构造函数注入依赖
@@ -133,7 +135,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      TypeResolutionService typeResolutionService,
                                      DomainClassifyService domainClassifyService,
                                      PermQueryEngine engine,
-                                     RoleResourcePermissionMapper rolePermMapper) {
+                                     RoleResourcePermissionMapper rolePermMapper,
+                                     LocalProjectionGuard localProjectionGuard) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
@@ -141,6 +144,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
         this.rolePermMapper = rolePermMapper;
+        this.localProjectionGuard = localProjectionGuard;
     }
 
     /**
@@ -165,6 +169,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建资源的权限");
         }
+        localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
 
         Long parentId = resolveParentId(tenantId, req);
 
@@ -205,6 +210,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (reqs == null || reqs.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return List.of();
+        }
+        for (ResourceCreateReq req : reqs) {
+            localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
         }
 
         Set<Long> allParentIds = reqs.stream()
@@ -313,6 +321,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (entity == null) {
             throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.id());
         }
+        localProjectionGuard.rejectIfLocalResource(entity);
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + req.id());
@@ -340,6 +349,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (entity == null) {
             throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + resourceId);
         }
+        localProjectionGuard.rejectIfLocalResource(entity);
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + resourceId);
@@ -382,6 +392,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             OperationLogRuntimeContext.markSkip();
             return;
         }
+        entities.forEach(localProjectionGuard::rejectIfLocalResource);
 
         Set<Long> existingResourceIds = entities.stream()
             .map(ResourceEntity::getId)

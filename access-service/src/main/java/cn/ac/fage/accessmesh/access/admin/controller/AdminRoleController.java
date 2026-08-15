@@ -63,14 +63,15 @@ public class AdminRoleController {
     }
 
     /**
-     * 创建组织关联角色
+     * 创建组织关联角色【退役接口】
      * <p>
-     * 创建与组织关联的角色，用于组织级别的权限管理。
-     * 角色创建后会自动关联到指定的组织。
+     * T-ACCESS-005 起组织/岗位角色（ORG/POSITION）由组织写入投影自动产生
+     * （LocalProjectionDomainService.upsertAdminOrg），本接口必然以 20042
+     * （LOCAL_PROJECTION_IMMUTABLE）拒绝——保留映射仅为向后兼容，调用方不得依赖其成功。
      * </p>
      *
      * @param req 角色创建请求，包含角色名称和组织ID
-     * @return 创建成功的角色ID
+     * @return 创建成功的角色ID（实际恒抛 20042，不会返回）
      */
     @PostMapping("/create")
     @AuditLog(module = "角色管理", action = "创建", targetType = "ROLE")

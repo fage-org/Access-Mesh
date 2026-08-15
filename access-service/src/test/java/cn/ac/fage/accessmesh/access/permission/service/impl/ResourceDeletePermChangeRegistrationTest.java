@@ -54,7 +54,8 @@ class ResourceDeletePermChangeRegistrationTest {
     void setUp() {
         service = new ResourceManageAppServiceImpl(
             resourceEntityMapper, apiMappingMapper, resourceEntityDomainService,
-            typeResolutionService, domainClassifyService, engine, rolePermMapper);
+            typeResolutionService, domainClassifyService, engine, rolePermMapper,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         // 模拟 @PermissionChange AOP 绑定 context（owner）
         PermissionChangeContext.bindIfAbsent();
     }

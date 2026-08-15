@@ -199,7 +199,12 @@ public enum PermissionErrorCode {
     /**
      * 条件权限不可设置为可转授
      */
-    CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授");
+    CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授"),
+
+    /**
+     * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影
+     */
+    LOCAL_PROJECTION_IMMUTABLE(20042, "禁止直接修改 access-service 本地权限投影");
 
     private final int code;
     private final String message;

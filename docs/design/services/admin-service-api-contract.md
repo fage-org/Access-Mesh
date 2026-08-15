@@ -3,14 +3,14 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-12
+last_reviewed: 2026-08-15
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
 
 > 状态：`adopted`。本文整体仍是「组织与用户」融合页 HTTP 路径、DTO、错误码和业务行为的兼容基线。
 >
-> **目标架构提示（2026-08-12）**：仅 §3、§4 各接口的“同步动作/当前差距”以及 §6/§7 中依赖 `sys_sync_task`、Feign、调度重试的内部实现契约，已被 [`../access-service-architecture.md`](../access-service-architecture.md) §4 的同事务本地权限投影取代，禁止继续实施。T-ACCESS-005 负责逐接口回写这些位置；文件其余外部 API 契约继续有效，因此本文件不整体降级为 `superseded`。
+> **目标架构（T-ACCESS-005，2026-08-15）**：§3、§4 各写接口的投影动作以及 §6/§7 的内部一致性契约已改为同事务本地权限投影。HTTP 路径、DTO 与错误码继续有效。access 内部不再写 `sys_sync_task`、不再 Feign 自调用。
 >
 > 关联文档:
 > - `../project-rules.md` (强约束: 报文/接口/异常/错误码段)
@@ -42,7 +42,7 @@ last_reviewed: 2026-08-12
 
 ## 2. 门禁规范
 
-admin-service 通过 `AdminPermissionValidator` 调用 permission-center 的 `auth/check`/`auth/batch-check` 完成门禁. 接口形态:
+admin 门禁通过 `AdminPermissionValidator` 本地调用 `PermQueryEngine` 完成，不再 Feign 自调用。接口形态:
 
 ```java
 void checkTypeLevel(String resourceTypeCode, String operationCode);
@@ -91,41 +91,39 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ---
 
-## 3. 与 permission-center 的同步动作
+## 3. 与权限域的本地投影
 
-写操作必须在主事务内写 `sys_sync_task` (本地消息表). 见 `admin-service.md` §同步任务模型 与 `cross-service/admin-permission-sync.md`.
+用户、组织、菜单及成员关系写入由 `access.application` 编排，在同一 PostgreSQL 事务内维护管理事实、本地权限投影和 `permission_change_log`。不再写 `sys_sync_task`，不再 Feign 自调用。见 [`../access-service-architecture.md`](../access-service-architecture.md) §4。
 
-`syncAction` 收敛为 4 类:
+投影定位（稳定外部键，独立主键；`owner_service_code=access-service`；不写 `sync_metadata`）：
 
-| syncAction | 来源表 | 目标事实 | 业务键格式 (api-contract.md §6.2.2.4) |
-|------------|--------|----------|---------------------------------------|
-| `PERM_ABSTRACT_USER_SYNC` | `sys_user` | `abstract_user` | `subjectTypeCode=ADMIN_USER&subjectExternalId={sys_user.id}` |
-| `PERM_ABSTRACT_ROLE_SYNC` | `sys_org` | `abstract_role(ORG/POSITION)` | `roleTypeCode={ORG\|POSITION}&roleExternalId={sys_org.id}` |
-| `PERM_USER_ROLE_SYNC` | `sys_user_org` | `user_role` | `subjectTypeCode=ADMIN_USER&subjectExternalId={sys_user.id}&roleTypeCode={ORG\|POSITION}&roleExternalId={sys_org.id}&relationKey=ORG%3A{父组织sys_org.id}` |
-| `PERM_RESOURCE_ENTITY_SYNC` | `sys_user / sys_org / sys_menu` | `resource_entity` | `resourceTypeCode={ADMIN_USER\|ADMIN_ORG}&resourceCode={sys_user.id\|sys_org.id}&codeType=default` |
+| 管理事实 | 投影 | 外部键 |
+|----------|------|--------|
+| `sys_user` | `abstract_user(ADMIN_USER)` + `resource_entity(ADMIN_USER)` | `external_id` / `code` = `sys_user.id.toString()` |
+| `sys_org` | `abstract_role(ORG\|POSITION)` + `resource_entity(ADMIN_ORG)` | `external_id` / `code` = `sys_org.id.toString()` |
+| `sys_menu`（`menuType≠3` 按钮不投影） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
+| `sys_user_org` | `user_role` | 主体 `ADMIN_USER` + 角色 `ORG/POSITION` |
 
-> `PERM_USER_ROLE_SYNC` 的 `relationKey` 仅在 `roleTypeCode=POSITION` 时有意义 (岗位需要绑定所属组织); `roleTypeCode=ORG` 时, 实现可省略 `relationKey` 参数项.
+保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20042)`。
 
-> 写操作必须为每条事实变更产生独立的同步任务 (按 `tenantId + syncAction + businessKeyHash` 合并 `PENDING` 任务). `messageKey` 与 `payload` 由 admin-service Handler 生成; payload schema 与目标 sync 接口请求体一致.
+本契约接口的投影动作：
 
-本契约接口产生的同步动作清单:
+| 接口 | 主事务 | 投影 |
+|------|--------|------|
+| `/user/create` | INSERT `sys_user` (+ 可选 `sys_user_org`) | `upsertAdminUser`；若带 orgId：`bindUserOrg` |
+| `/user/update` | UPDATE `sys_user` | `upsertAdminUser` |
+| `/user/delete` | 软删 `sys_user`，级联清理 `sys_user_org` | 每条关系 `unbindUserOrg`；`deleteAdminUser` |
+| `/user/enable` | UPDATE `sys_user.status` | 启用 `upsertAdminUser`；禁用 `disableAdminUser` |
+| `/user/reset-password` | UPDATE `sys_user.password` | 无（密码不进入权限投影） |
+| `/org/create` | INSERT `sys_org` | `upsertAdminOrg` |
+| `/org/update` | UPDATE `sys_org` | `upsertAdminOrg` |
+| `/org/delete` | 软删 `sys_org`，级联清理 `sys_user_org` | 每条关系 `unbindUserOrg`；`deleteAdminOrg` |
+| `/user-org/assign` | INSERT/UPDATE `sys_user_org` | 每个新增关系 `bindUserOrg` |
+| `/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
+| `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
+| `/user-role/assign`, `/user-role/revoke` | 本地调用 `UserManageAppService` | 仅功能角色；`ORG/POSITION` 拒绝 |
 
-| 接口 | 主事务 | 同步动作 |
-|------|--------|----------|
-| `/user/create` | INSERT `sys_user` (+ INSERT `sys_user_org` 若带 orgId) | 1. `PERM_ABSTRACT_USER_SYNC` (UPSERT) <br> 2. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` UPSERT) <br> 3. 若带 orgId: `PERM_USER_ROLE_SYNC` (BIND) |
-| `/user/update` | UPDATE `sys_user` | 1. `PERM_ABSTRACT_USER_SYNC` (UPSERT) <br> 2. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` UPSERT, 仅当 name 等展示属性变化) |
-| `/user/delete` | 软删除 `sys_user` (delete_flag=1, status=1), 级联清理 `sys_user_org` | 1. 每条被清理的 user-org → `PERM_USER_ROLE_SYNC` (UNBIND) <br> 2. `PERM_ABSTRACT_USER_SYNC` (DELETE) <br> 3. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` DELETE) |
-| `/user/enable` | UPDATE `sys_user.status` | 1. `PERM_ABSTRACT_USER_SYNC` (UPSERT, payload `enabled` 跟随 status; `operation=DISABLE` 时使用 DISABLE) <br> 2. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` UPSERT 或 DISABLE) |
-| `/user/reset-password` | UPDATE `sys_user.password` | 不产生同步任务 (密码不进入 permission-center) |
-| `/org/create` | INSERT `sys_org` | 1. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` UPSERT) <br> 2. `PERM_ABSTRACT_ROLE_SYNC` (UPSERT, `roleTypeCode=ORG` 或 `POSITION` 视 `orgType`) |
-| `/org/update` | UPDATE `sys_org` | 1. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` UPSERT) <br> 2. `PERM_ABSTRACT_ROLE_SYNC` (UPSERT) |
-| `/org/delete` | 软删除 `sys_org`, 级联清理 `sys_user_org` | 1. 每条被清理的 user-org → `PERM_USER_ROLE_SYNC` (UNBIND) <br> 2. `PERM_ABSTRACT_ROLE_SYNC` (DELETE) <br> 3. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` DELETE) |
-| `/user-org/assign` | INSERT/UPDATE `sys_user_org` (按关系级追加; 同时设置 `is_primary` 当 `primaryOrgId` 命中) | 每个新增/变化关系 → `PERM_USER_ROLE_SYNC` (BIND); 同步 envelope 必须按 `roleTypeCode∈{ORG,POSITION}` 拆分 (api-contract §6.10 约束) |
-| `/user-org/remove` | DELETE `sys_user_org` (单条) | `PERM_USER_ROLE_SYNC` (UNBIND) |
-| `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 不产生 `user_role` 拓扑变化, 不进入 sys_sync_task; admin-service 内自管 `is_primary` 字段 |
-| `/user-role/assign`, `/user-role/revoke` | **不写 sys_sync_task** | admin 代理直调 permission-center `/api/perm/user-role/assign\|revoke` (功能角色走正式管理 API, 见 admin-service.md §同步任务模型) |
-
-> 关键边界: `PERM_USER_ROLE_SYNC` 仅承载 `sourceType=SYS_USER_ORG` 且 `roleTypeCode∈{ORG, POSITION}` 的关系. 功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL) 经 /user-role/* 代理走正式接口, 不进入 sys_sync_task.
+> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）继续走 `/user-role/*` 正式管理 API。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
 ---
 
@@ -256,21 +254,21 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:CREATE` 类型级 (+ 若带 `orgId` 还需 `ADMIN_ORG:UPDATE@orgId`).
 
-**同步动作**:
+**投影动作**:
 1. 主事务: INSERT `sys_user` (+ 可选 INSERT `sys_user_org`)
-2. `PERM_ABSTRACT_USER_SYNC` (operation=`UPSERT`, businessKey=`subjectTypeCode=ADMIN_USER&subjectExternalId={id}`)
-3. `PERM_RESOURCE_ENTITY_SYNC` (operation=`UPSERT`, resourceTypeCode=`ADMIN_USER`, resourceCode=`{id}`)
-4. 若带 `orgId`: `PERM_USER_ROLE_SYNC` (operation=`BIND`)
+2. `LocalProjectionDomainService.upsertAdminUser`
+3. 若带 `orgId`: `bindUserOrg`
+4. 同事务写 `permission_change_log`；缓存失效仅在提交后发生
 
 **错误码段**: 10120-10149
 
-**当前差距**: 现有实现已支持 `orgId/primaryOrg` 字段与 `initialPassword` 返回. 待补: ① 默认树校验 (`orgId` 必须在默认树); ② `sys_sync_task` 写入收敛为 4 类 syncAction; ③ 不再回填 permission-center 内部 ID.
+**当前差距**: 默认树校验与初始密码返回已由实现覆盖；内部 ID 不再回填前端。
 
 **验收要点**:
 - `username` 在租户内重复时抛 `BizException(USERNAME_DUPLICATED)`.
 - `orgId` 非默认树时抛 `BizException(ORG_NOT_IN_DEFAULT_TREE)`.
 - `initialPassword` 必须非空且强度满足策略 (8-32 位, 可配置).
-- 同步任务必须与主事务原子写入; 任一失败整体回滚.
+- 管理事实、投影与 `permission_change_log` 必须同事务；任一失败整体回滚.
 
 ---
 
@@ -292,13 +290,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:UPDATE@id` (实例级). 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
 
-**同步动作**:
-- `PERM_ABSTRACT_USER_SYNC` (UPSERT) — 同步 `enabled` (若 status 变化)
-- `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` UPSERT) — 仅当 `name` 变化 (展示属性)
+**投影动作**: 同事务 `upsertAdminUser`（名称/状态变化一并投影）。
 
 **错误码段**: 10150-10169
 
-**验收要点**: 字段未变化时不应产生同步任务 (避免无效消息).
+**验收要点**: 投影与管理事实同事务提交；回滚不发布缓存失效。
 
 ---
 
@@ -316,15 +312,14 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:DELETE` 实例级批量 (`checkBatchInstanceLevel(USER, ids, DELETE)`) + 默认树边界二次校验 (操作者必须在每个目标用户的默认树主归属子树下具备 `ADMIN_ORG:UPDATE`).
 
-**同步动作** (每个 id):
+**投影动作** (每个 id):
 1. 主事务: 软删 `sys_user`, 级联软删 `sys_user_org`
-2. 每条 user-org 关系 → `PERM_USER_ROLE_SYNC` (UNBIND)
-3. `PERM_ABSTRACT_USER_SYNC` (DELETE)
-4. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` DELETE)
+2. 每条 user-org 关系 → `unbindUserOrg`
+3. `deleteAdminUser`
 
 **错误码段**: 10170-10189
 
-**当前差距**: 现有实现仅做软删 + 关系清理; 需补默认树边界校验, 同步任务收敛为 4 类 syncAction.
+**当前差距**: 默认树边界校验由 `UserWriteAppService` 执行。
 
 **验收要点**:
 - 批量中任一用户不在操作者默认树可管范围抛 `BizException(NOT_IN_DEFAULT_TREE_SCOPE)`, 整批回滚.
@@ -353,14 +348,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 - `status=0`: `ADMIN_USER:DISABLE` 实例级批量
 - 加默认树边界二次校验 (与 §4.1.5 同).
 
-**同步动作** (每个 id):
+**投影动作** (每个 id):
 1. 主事务: UPDATE `sys_user.status`
-2. `PERM_ABSTRACT_USER_SYNC` (operation=`UPSERT` 时 payload `enabled` 跟随; 或 operation=`DISABLE` 直发 DISABLE)
-3. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_USER` UPSERT 或 DISABLE)
+2. 启用 → `upsertAdminUser`；禁用 → `disableAdminUser`
 
 **错误码段**: 10190-10209
 
-**当前差距**: 现有 `UserController.updateStatus` 已支持 `UserUpdateStatusReq`; 需补: ① 按 status 派发 ENABLE/DISABLE 门禁码; ② 默认树边界二次校验; ③ 同步任务收敛.
+**当前差距**: 门禁码按 status 派发与默认树二次校验由 `UserWriteAppService` 执行。
 
 **验收要点**:
 - 不允许禁用操作者本人 → `BizException(CANNOT_DISABLE_SELF)`.
@@ -520,14 +514,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 - 顶级 (`parentOrgId=null`): `ADMIN_ORG:CREATE` 类型级
 - 子级: `ADMIN_ORG:UPDATE@parentOrgId` 实例级 (在父级下添加子节点等价于"修改父级结构")
 
-**同步动作**:
+**投影动作**:
 1. 主事务: INSERT `sys_org`
-2. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` UPSERT, `extra` 含 `orgType`, `treeConfigId`, `rootOrgId`, `isDefaultTree`, `level`)
-3. `PERM_ABSTRACT_ROLE_SYNC` (UPSERT, `roleTypeCode=ORG` 或 `POSITION` 视 `orgType`)
+2. `upsertAdminOrg`（`roleTypeCode=ORG` 或 `POSITION` 视 `orgType`）
 
 **错误码段**: 10300-10329
 
-**当前差距**: 接口存在但未连接 permission-center 同步; 需新建 sys_sync_task 写入逻辑.
+**当前差距**: 组织写入已由 `OrgWriteAppService` 同事务投影。
 
 **验收要点**:
 - `code` 重复抛 `BizException(ORG_CODE_DUPLICATED)`.
@@ -557,11 +550,10 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_ORG:UPDATE@id` 实例级. 若 `parentOrgId` 变化, 还需 `ADMIN_ORG:UPDATE@新parentOrgId`.
 
-**同步动作**:
+**投影动作**:
 1. 主事务: UPDATE `sys_org`
-2. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` UPSERT)
-3. `PERM_ABSTRACT_ROLE_SYNC` (UPSERT)
-4. 若 `parentOrgId` 变化: 影响子树 user_role 的 `relationKey` (POSITION 关系), 需对该组织 + 其子岗位下的所有 `sys_user_org` 重新生成 `PERM_USER_ROLE_SYNC` (UNBIND 旧 relationKey + BIND 新 relationKey). Phase 2 实现可暂仅记录 TODO, 后续按全量校准兜底.
+2. `upsertAdminOrg`
+3. 若 `parentOrgId` 变化：由组织投影更新父子关系；成员 `user_role` 的 relationKey 随本地投影维护，不再拆外部 envelope。
 
 **错误码段**: 10330-10359
 
@@ -585,11 +577,10 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_ORG:DELETE@id` 实例级.
 
-**同步动作**:
+**投影动作**:
 1. 主事务: 软删 `sys_org` (delete_flag=1), 级联软删 `sys_user_org`
-2. 每条被清理的 user-org → `PERM_USER_ROLE_SYNC` (UNBIND)
-3. `PERM_ABSTRACT_ROLE_SYNC` (DELETE)
-4. `PERM_RESOURCE_ENTITY_SYNC` (`ADMIN_ORG` DELETE)
+2. 每条被清理的 user-org → `unbindUserOrg`
+3. `deleteAdminOrg`
 
 **错误码段**: 10360-10389
 
@@ -641,13 +632,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 - **禁止**"先 wipe 再 batch insert"模式; 必须按 `(userId, orgId)` 对增量比较.
 - 如果 `primaryOrgId` 非空: 仅在 `primaryOrgId` 所属组织树内将其设为主, **不**清除用户在其他树的 `is_primary` 标记 (首期仅默认树主归属生效, 见 §4.3.4).
 
-**同步动作**:
-- 每个**新增**关系 → `PERM_USER_ROLE_SYNC` (BIND)
-- 已存在关系 → 不产生同步任务
+**投影动作**:
+- 每个**新增**关系 → `bindUserOrg`
+- 已存在关系 → 不重复投影
 
 **错误码段**: 10400-10429
 
-**当前差距**: 现有实现需明确"关系级追加而非全量替换"; 同步必须按 `roleTypeCode∈{ORG,POSITION}` 拆分多个 envelope (api-contract §6.10 约束).
+**当前差距**: 关系级追加由 `UserOrgWriteAppService` 执行；不再拆外部 sync envelope。
 
 **验收要点**:
 - `userId` 在默认树有归属时方可追加非默认树关系; 未在默认树时抛 `BizException(USER_NOT_IN_DEFAULT_TREE)`.
@@ -673,8 +664,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 - 非默认树关系: `ADMIN_ORG:UPDATE@orgId`
 - 默认树关系: `ADMIN_USER:UPDATE@userId` (按身份目录边界, 等同"移动用户默认归属")
 
-**同步动作**:
-- DELETE `sys_user_org` (单条) → `PERM_USER_ROLE_SYNC` (UNBIND)
+**投影动作**:
+- DELETE `sys_user_org` (单条) → `unbindUserOrg`
 
 **错误码段**: 10430-10459
 
@@ -705,7 +696,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 - 仅在默认树内将 `(userId, orgId)` 的 `is_primary=true`, 同时把该用户在默认树的其他关系置 `is_primary=false`.
 - **禁止**清除其他组织树的 `is_primary` 标记 (即便是历史脏数据, 也由专门 `is_primary` 修复迁移负责, 不通过本接口).
 
-**同步动作**: 不写 `sys_sync_task` (`is_primary` 是 admin 内自管字段, 不映射到 permission-center user_role 拓扑).
+**投影动作**: 无（`is_primary` 是 admin 内自管字段，不映射 `user_role` 拓扑）。
 
 **错误码段**: 10460-10479
 
@@ -750,11 +741,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `ADMIN_USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
 
-**代理动作**: admin 调 `permission-center /api/perm/user-role/list` (业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`); permission-center 响应含 `relationExternalId`（关联组织角色业务键），admin 据此查 `sys_org` 补 `relationOrgName`. 返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId.
+**代理动作**: `RoleProxyService` 本地调用 `UserManageAppService.getUserRoles`（业务键 `subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`），再查 `sys_org` 补 `relationOrgName`。返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId。
 
 **错误码段**: 10500-10519
 
-**当前差距**: 接口未实现.
+**当前差距**: 接口已由本地代理实现。
 
 **验收要点**:
 - `userId` 不存在 → `BizException(USER_NOT_FOUND)`.
@@ -764,7 +755,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 #### 4.4.2 `POST /user-role/assign` 🔧
 
-**目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL). admin 代理直调 permission-center `/api/perm/user-role/assign`.
+**目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL). admin 代理本地调用 `UserManageAppService.assignRole`.
 
 **请求 DTO**: `UserRoleAssignReq`
 
@@ -781,14 +772,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission-center 兜底**（admin 层不做预检，P1-1 修复：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位会误拒；permission-center `UserManageAppServiceImpl.assignRole` 用正确 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
 
 **代理动作**:
-1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED, 应走 /user-org/*)`).
+1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException`，应走 /user-org/*).
 2. 翻译 `userId → subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`; 直接用入参 `(roleTypeCode, roleExternalId)`.
-3. 调 permission-center `/api/perm/user-role/assign` (`items[]` 单元素); 透传 `validFrom/validTo`.
-4. **不**写 sys_sync_task.
+3. 本地调用 `UserManageAppService.assignRole`.
 
 **错误码段**: 10520-10549
 
-**当前差距**: 接口未实现.
+**当前差距**: 接口已由本地代理实现；保留角色类型拒绝。
 
 **验收要点**:
 - `roleTypeCode` 为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED)`.
@@ -814,12 +804,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **代理动作**:
 1. 校验 `roleTypeCode` (同 assign).
-2. 调 permission-center `/api/perm/user-role/revoke` (`items[]` 含 `roleTypeCode + roleExternalId + subjectTypeCode + subjectExternalId`, `relationId=null`).
-3. 不写 sys_sync_task.
+2. 本地调用 `UserManageAppService.revokeRolesBatch`.
 
 **错误码段**: 10550-10579
 
-**当前差距**: 接口未实现.
+**当前差距**: 接口已由本地代理实现；保留角色类型拒绝。
 
 ---
 
@@ -870,13 +859,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
-2. **门禁**: 所有写操作经 `AdminPermissionValidator` 调用 permission-center `auth/check`/`auth/batch-check`; `AdminPermissionValidatorImpl` 不在本地短路判断 (除自我修改豁免).
-3. **同步任务**: 所有写操作 (除 /user/reset-password, /user-org/set-primary, /user-role/assign|revoke) 在主事务内写入 `sys_sync_task`, syncAction 严格收敛为 4 类, businessKey 严格遵守 api-contract §6.2.2.4.
+2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
+3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。`/user-role/assign|revoke` 只处理功能角色。
 4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
 5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); 现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`) 列入 Phase 2 修正项.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **同步幂等**: 同一 `tenantId + syncAction + businessKeyHash` 下未发送任务可合并为最新 payload; 已 PROCESSING/SUCCESS 的任务不可改, 且旧版本到达 permission-center 后 no-op.
+8. **投影所有权**: 权限管理入口与外部 sync/full-sync 不得改写 `owner=access-service` 或保留业务键；失败抛 `BizException(20042)`。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ---
 
@@ -891,8 +880,8 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 5 | `/user-org/set-primary` 首期只允许默认树主归属 | 不能全局清除其他组织树主标记 (api-gap-analysis §3，已归档) |
 | 6 | 岗位 = 特殊组织 (`orgType=2`), 走 `/org/*` + `/user-org/*` | org-user-permission-contract.md v1.2 决策; `/user-role/*` 仅服务功能角色 |
 | 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2（已归档）; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
-| 8 | 写操作必须在主事务内写 sys_sync_task, 收敛为 4 类 syncAction | admin-service.md §同步任务模型; 通过本地消息表 + 调度器重发保障最终一致 |
-| 9 | `/user-role/assign|revoke` 不写 sys_sync_task | 功能角色走 permission-center 正式管理 API; sys_sync_task 仅承载 SYS_USER_ORG 派生关系 (admin-service.md §同步任务模型) |
+| 8 | 写操作必须在同一事务内维护管理事实、本地权限投影和 permission_change_log | access-service-architecture §4；任一步失败整体回滚；缓存失效仅提交后发生 |
+| 9 | `/user-role/assign|revoke` 只处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝 |
 | 10 | admin-service 不存储 permission-center 内部 ID | 跨服务统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, 第八轮 P1-3**) |

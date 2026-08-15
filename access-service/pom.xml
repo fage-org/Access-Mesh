@@ -23,16 +23,6 @@
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>perm-common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>cn.ac.fage.accessmesh</groupId>
-            <artifactId>perm-client-spring-boot-starter</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
 
         <!-- Spring Boot -->
         <dependency>
@@ -59,10 +49,6 @@
         </dependency>
 
         <!-- Spring Cloud -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-openfeign</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>

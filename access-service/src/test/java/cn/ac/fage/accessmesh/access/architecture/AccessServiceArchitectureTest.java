@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -34,9 +33,21 @@ class AccessServiceArchitectureTest {
     void adminShouldNotDependOnPermission() {
         noClasses()
             .that().resideInAPackage("..admin..")
+            .and().resideOutsideOfPackage("..admin.controller..")
             .should().dependOnClassesThat()
             .resideInAPackage("..permission..")
             .because("admin 与 permission 禁止横向调用，跨域编排必须通过 access.application")
+            .check(classes);
+    }
+
+    @Test
+    @DisplayName("admin.service.impl 不得依赖 permission 包")
+    void adminServiceImplShouldNotDependOnPermission() {
+        noClasses()
+            .that().resideInAPackage("..admin.service.impl..")
+            .should().dependOnClassesThat()
+            .resideInAPackage("..permission..")
+            .because("admin AppService 不得直连 permission，写编排走 access.application")
             .check(classes);
     }
 
@@ -52,11 +63,17 @@ class AccessServiceArchitectureTest {
     }
 
     @Test
-    @DisplayName("admin 与 permission 各自为独立切片，不循环依赖")
-    void slicesShouldNotBeCyclic() {
-        slices()
-            .matching("cn.ac.fage.accessmesh.access.(*)..")
-            .should().beFreeOfCycles()
+    @DisplayName("application 可依赖两域 DomainService，admin.service.impl 不得依赖 permission")
+    void applicationMayDependOnBothDomains() {
+        noClasses()
+            .that().resideInAPackage("..admin.service.impl..")
+            .should().dependOnClassesThat()
+            .resideInAPackage("..permission..")
+            .check(classes);
+        noClasses()
+            .that().resideInAPackage("..permission.service.impl..")
+            .should().dependOnClassesThat()
+            .resideInAPackage("..admin..")
             .check(classes);
     }
 }

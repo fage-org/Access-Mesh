@@ -28,6 +28,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
@@ -78,6 +79,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
     private final AuditDomainService auditDomainService;
+    private final LocalProjectionGuard localProjectionGuard;
     private final ObjectMapper objectMapper;
     private final PermQueryEngine engine;
 
@@ -108,6 +110,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
                                  AuditDomainService auditDomainService,
+                                 LocalProjectionGuard localProjectionGuard,
                                  ObjectMapper objectMapper,
                                  PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
@@ -117,6 +120,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.auditDomainService = auditDomainService;
+        this.localProjectionGuard = localProjectionGuard;
         this.objectMapper = objectMapper;
         this.engine = engine;
     }
@@ -143,6 +147,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
+        localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
@@ -177,6 +182,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (existing == null) {
             throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + req.userId());
         }
+        localProjectionGuard.rejectIfLocalUser(existing);
 
         if (!operatorId.equals(req.userId())) {
             if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
@@ -224,6 +230,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             OperationLogRuntimeContext.markSkip();
             return;
         }
+        users.forEach(localProjectionGuard::rejectIfLocalUser);
 
         Set<Long> existingUserIds = users.stream().map(AbstractUser::getId).collect(Collectors.toSet());
 
@@ -266,6 +273,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
         for (UserAssignRoleReq.AssignItem item : req.items()) {
+            localProjectionGuard.rejectReservedRoleType(item.roleTypeCode());
             validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
 
@@ -406,6 +414,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             return;
         }
 
+        localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
         // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
         validateDomainCodeForOrgPosition(req.roleTypeCode(), req.domainCode());
 
@@ -516,6 +525,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
+            localProjectionGuard.rejectReservedRoleType(item.roleTypeCode());
             validateDomainCodeForOrgPosition(item.roleTypeCode(), item.domainCode());
         }
 

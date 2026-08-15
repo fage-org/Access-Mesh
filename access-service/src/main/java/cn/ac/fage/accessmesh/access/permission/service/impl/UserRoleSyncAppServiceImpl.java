@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.UserRoleSyncAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -55,13 +56,16 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final TypeResolutionService typeResolutionService;
     private final UserRoleMapper userRoleMapper;
+    private final LocalProjectionGuard localProjectionGuard;
 
     public UserRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                        TypeResolutionService typeResolutionService,
-                                       UserRoleMapper userRoleMapper) {
+                                       UserRoleMapper userRoleMapper,
+                                       LocalProjectionGuard localProjectionGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.userRoleMapper = userRoleMapper;
+        this.localProjectionGuard = localProjectionGuard;
     }
 
     @Override
@@ -71,6 +75,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
+        localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        localProjectionGuard.rejectReservedUserRoleSource(req.sourceType());
         // 2. payload 校验
         if (!SOURCE_TYPE_REQUIRED.equals(req.sourceType())
                 || !(RELATION_ROLE_TYPE_ORG.equals(req.roleTypeCode())
@@ -93,6 +99,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     List.of(new SyncResultResp.ItemResult("*", false, false,
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
+        localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
+        localProjectionGuard.rejectReservedUserRoleSource(req.scope().sourceType());
         if (!SOURCE_TYPE_REQUIRED.equals(req.scope().sourceType())
                 || !(RELATION_ROLE_TYPE_ORG.equals(req.scope().roleTypeCode())
                 || RELATION_ROLE_TYPE_POSITION.equals(req.scope().roleTypeCode()))) {

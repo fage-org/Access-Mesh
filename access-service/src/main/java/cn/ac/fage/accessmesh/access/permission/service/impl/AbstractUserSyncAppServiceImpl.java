@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.service.AbstractUserSyncAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -54,15 +55,18 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
     private final ObjectMapper objectMapper;
+    private final LocalProjectionGuard localProjectionGuard;
 
     public AbstractUserSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractUserMapper abstractUserMapper,
-                                          ObjectMapper objectMapper) {
+                                          ObjectMapper objectMapper,
+                                          LocalProjectionGuard localProjectionGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.objectMapper = objectMapper;
+        this.localProjectionGuard = localProjectionGuard;
     }
 
     @Override
@@ -72,6 +76,8 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("sourceService mismatch with X-Service-Code");
         }
+        localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
 
         // 2. 校验 operation 合法
         String op = req.operation();
@@ -142,6 +148,8 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
                     "sourceService mismatch with X-Service-Code",
                     req.items().size(), List.of(denied));
         }
+        localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
+        localProjectionGuard.rejectReservedSubjectType(req.scope().subjectTypeCode());
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.scope().subjectTypeCode());
         if (userType == null) {
@@ -272,6 +280,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
                                 String name, Boolean enabled, String extra,
                                 String ownerServiceCode) {
         AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, externalId);
+        localProjectionGuard.rejectIfLocalUser(existing);
         return applyToTargetWithExisting(tenantId, userType, externalId, operation,
                 name, enabled, extra, existing, LocalDateTime.now(), ownerServiceCode);
     }

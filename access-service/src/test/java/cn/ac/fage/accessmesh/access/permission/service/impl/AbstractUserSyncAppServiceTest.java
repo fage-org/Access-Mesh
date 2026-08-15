@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 class AbstractUserSyncAppServiceTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
 
     @Mock
@@ -58,7 +58,7 @@ class AbstractUserSyncAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new AbstractUserSyncAppServiceImpl(syncMetadataDomainService,
-                typeResolutionService, abstractUserMapper, new ObjectMapper());
+                typeResolutionService, abstractUserMapper, new ObjectMapper(), new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
     }
 
     private AbstractUserSyncReq upsertReq() {
@@ -107,6 +107,17 @@ class AbstractUserSyncAppServiceTest {
         assertThat(resp.stale()).isTrue();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_STALE_VERSION);
         assertThat(resp.reason()).isEqualTo(SyncResultBuilder.REASON_STALE);
+    }
+
+    @Test
+    void shouldRejectInternalSourceService() {
+        AbstractUserSyncReq req = new AbstractUserSyncReq("UPSERT", "USER", "u1",
+                "User One", Boolean.TRUE, null,
+                "admin-service", "user", "u1",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        AccessRequestContext.bind(RequestContext.service(TENANT_ID, "admin-service"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
     }
 
     @Test

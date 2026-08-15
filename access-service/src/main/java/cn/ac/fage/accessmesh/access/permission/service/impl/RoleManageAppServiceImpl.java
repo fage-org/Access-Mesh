@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.permission.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
@@ -64,6 +65,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final DomainClassifyService domainClassifyService;
     private final ObjectMapper objectMapper;
     private final AuditDomainService auditDomainService;
+    private final LocalProjectionGuard localProjectionGuard;
     private final PermQueryEngine engine;
 
     /**
@@ -83,6 +85,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  DomainClassifyService domainClassifyService,
                                  ObjectMapper objectMapper,
                                  AuditDomainService auditDomainService,
+                                 LocalProjectionGuard localProjectionGuard,
                                  PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
@@ -90,6 +93,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.domainClassifyService = domainClassifyService;
         this.objectMapper = objectMapper;
         this.auditDomainService = auditDomainService;
+        this.localProjectionGuard = localProjectionGuard;
         this.engine = engine;
     }
 
@@ -116,6 +120,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
+        localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
@@ -146,6 +151,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (role == null) {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
+        localProjectionGuard.rejectIfLocalRole(role);
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
@@ -172,6 +178,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (role == null) {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
+        localProjectionGuard.rejectIfLocalRole(role);
 
         if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
@@ -216,6 +223,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             OperationLogRuntimeContext.markSkip();
             return;
         }
+        roles.forEach(localProjectionGuard::rejectIfLocalRole);
 
         Map<Long, AbstractRole> existingRoles = roles.stream()
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));

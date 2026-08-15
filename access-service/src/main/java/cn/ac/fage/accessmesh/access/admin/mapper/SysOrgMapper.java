@@ -182,4 +182,21 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
      */
     List<SysOrg> selectExistingByCodes(@Param("tenantId") Long tenantId,
                                        @Param("codes") Set<String> codes);
+
+    /**
+     * 批量调整组织层级（组织移动后子树 level 同步）
+     * <p>
+     * 单条 SQL 增量更新：level = level + delta。租户隔离 + 未删除过滤。
+     * </p>
+     *
+     * @param tenantId  租户ID
+     * @param ids       待调整的组织ID列表
+     * @param delta     层级增量（可正可负）
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchUpdateLevel(@Param("tenantId") Long tenantId,
+                         @Param("ids") List<Long> ids,
+                         @Param("delta") int delta,
+                         @Param("updatedAt") LocalDateTime updatedAt);
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 设计
 status: adopted
 domain: admin-service
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-15
 ---
 
 # Admin Service 设计
@@ -68,7 +68,9 @@ last_reviewed: 2026-06-20
 
 ### 同步任务模型
 
-admin-service 使用本地消息表 `sys_sync_task` 作为同步任务表，而不是仅在失败后记录重试。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放，不再拼接旧全局万能 replay 入口（参见 `../cross-service/admin-permission-sync.md`）。
+> **T-ACCESS-005**：内部 admin→permission 同步任务模型已退役。管理事实写入改由 `access.application` 同事务维护本地权限投影，见 [`../access-service-architecture.md`](../access-service-architecture.md) §4 与 `admin-service-api-contract.md` §3。以下段落仅描述已删除的历史模型，不得再实施。
+
+admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放（参见 `../cross-service/admin-permission-sync.md`，已 superseded）。
 
 同步动作收敛为 4 类领域级 action，具体行为由 payload 中的 `operation` 区分：
 

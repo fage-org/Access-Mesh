@@ -10,16 +10,15 @@ import java.util.Set;
  * 用于 memberCandidates / pageUsers / validateUsersInDefaultTreeScope 等场景的可见性裁剪，
  * 消除默认树后代全量暴露的越权风险（P1-D / EXT-3 / EXT-4）。
  * <p>
- * 内部通过 {@code PermissionFeignClient.batchCheckAuth} 批量校验，
- * 结果按 {@code (tenantId, operatorId)} 缓存 60 秒，减少 Feign 调用频次。
+ * 内部通过本地 {@code PermQueryEngine} 校验 ADMIN_ORG:VIEW，
+ * 默认树可见范围按 {@code (tenantId, operatorId)} 缓存。
  */
 public interface OrgVisibilityService {
 
     /**
      * 过滤出操作者通过 ADMIN_ORG:VIEW 可见的组织子集。
      * <p>
-     * 对候选 orgIds 分批（每批 500）调用 {@code batchCheckAuth}，
-     * 返回 {@code allowed=true} 的 orgId 子集。
+     * 对候选 orgIds 做本地权限查询，返回 {@code allowed=true} 的 orgId 子集。
      *
      * @param tenantId   租户 ID
      * @param operatorId 操作者用户 ID

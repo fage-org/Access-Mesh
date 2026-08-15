@@ -183,6 +183,20 @@ public interface OrgDomainService {
     Map<Long, SysOrg> batchSelectValidByIdsMap(Long tenantId, Set<Long> ids);
 
     /**
+     * 插入单个组织并回填主键。
+     *
+     * @param org 组织实体
+     */
+    void insert(SysOrg org);
+
+    /**
+     * 更新组织可变字段。
+     *
+     * @param org 组织实体
+     */
+    void update(SysOrg org);
+
+    /**
      * 批量插入组织
      * <p>
      * 批量插入多条组织记录，用于组织批量导入场景。
@@ -191,4 +205,16 @@ public interface OrgDomainService {
      * @param orgs 组织列表
      */
     void insertBatch(List<SysOrg> orgs);
+
+    /**
+     * 批量调整组织层级（移动组织后同步子树 level）。
+     * <p>
+     * 单条 SQL 按 ID 集合增量更新（level = level + delta），避免循环单条更新。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param orgIds   待调整的组织ID列表
+     * @param delta    层级增量（可正可负）
+     */
+    void batchUpdateLevel(Long tenantId, List<Long> orgIds, int delta);
 }

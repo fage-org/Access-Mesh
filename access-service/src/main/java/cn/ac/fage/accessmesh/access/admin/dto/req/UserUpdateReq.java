@@ -38,7 +38,7 @@ public record UserUpdateReq(
     String email,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=正常，2=锁定——锁定由登录失败自动触发，不走本接口）
      */
     Integer status
 ) {}

@@ -79,7 +79,7 @@ public final class AdminResourceType {
      */
     public static final String ORG_TREE_CONFIG = "ADMIN_ORG_TREE_CONFIG";
     /**
-     * 同步任务资源（对应 sys_sync_task 表）
+     * 历史同步任务资源码。sys_sync_task 已随 T-ACCESS-005 退役，常量仅保留给存量授权查询。
      */
     public static final String SYNC_TASK = "ADMIN_SYNC_TASK";
 

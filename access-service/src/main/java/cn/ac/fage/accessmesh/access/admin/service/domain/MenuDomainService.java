@@ -210,6 +210,20 @@ public interface MenuDomainService {
     Map<Long, Integer> batchCalculateDepth(Long tenantId, Set<Long> parentIds);
 
     /**
+     * 插入单个菜单并回填主键。
+     *
+     * @param menu 菜单实体
+     */
+    void insert(SysMenu menu);
+
+    /**
+     * 更新菜单可变字段。
+     *
+     * @param menu 菜单实体
+     */
+    void update(SysMenu menu);
+
+    /**
      * 批量插入菜单
      * <p>
      * 批量插入多条菜单记录，用于菜单批量导入场景。

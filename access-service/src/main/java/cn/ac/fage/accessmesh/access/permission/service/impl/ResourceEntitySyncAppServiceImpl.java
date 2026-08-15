@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceEntitySyncAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -58,17 +59,20 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final TypeResolutionService typeResolutionService;
     private final ResourceEntityMapper resourceEntityMapper;
     private final ObjectMapper objectMapper;
+    private final LocalProjectionGuard localProjectionGuard;
 
     public ResourceEntitySyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                              SyncMetadataMapper syncMetadataMapper,
                                              TypeResolutionService typeResolutionService,
                                              ResourceEntityMapper resourceEntityMapper,
-                                             ObjectMapper objectMapper) {
+                                             ObjectMapper objectMapper,
+                                             LocalProjectionGuard localProjectionGuard) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
         this.typeResolutionService = typeResolutionService;
         this.resourceEntityMapper = resourceEntityMapper;
         this.objectMapper = objectMapper;
+        this.localProjectionGuard = localProjectionGuard;
     }
 
     @Override
@@ -77,6 +81,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
+        localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
         if (!OP_UPSERT.equals(req.operation())
                 && !OP_DISABLE.equals(req.operation())
                 && !OP_DELETE.equals(req.operation())) {
@@ -95,6 +101,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     List.of(new SyncResultResp.ItemResult("*", false, false,
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
+        localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
+        localProjectionGuard.rejectReservedResourceType(req.scope().resourceTypeCode());
 
         String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);

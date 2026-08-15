@@ -100,20 +100,20 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("原样 DDL 可执行：34 张表")
-    void shouldHave34Tables() throws SQLException {
+    @DisplayName("原样 DDL 可执行：33 张表")
+    void shouldHave33Tables() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")) {
             rs.next();
-            assertEquals(34, rs.getLong(1));
+            assertEquals(33, rs.getLong(1));
         }
     }
 
     @Test
-    @DisplayName("sys_sync_task 以过渡表保留（T-ACCESS-005 退役）")
-    void shouldHaveSysSyncTaskTransitionTable() throws SQLException {
-        assertTrue(tableExists("sys_sync_task"), "sys_sync_task 为过渡表，T-ACCESS-005 删除同步链路代码前必须保留");
+    @DisplayName("sys_sync_task 已随内部同步子系统删除")
+    void shouldNotHaveSysSyncTaskTable() throws SQLException {
+        assertFalse(tableExists("sys_sync_task"), "T-ACCESS-005 删除同步链路后 sys_sync_task 不得再出现在最终 DDL");
     }
 
     @Test

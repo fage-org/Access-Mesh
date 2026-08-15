@@ -354,11 +354,39 @@ public class OrgDomainServiceImpl implements OrgDomainService {
      * @param orgs 组织实体列表
      */
     @Override
+    public void insert(SysOrg org) {
+        if (org == null) {
+            return;
+        }
+        orgMapper.insert(org);
+    }
+
+    @Override
+    public void update(SysOrg org) {
+        if (org == null) {
+            return;
+        }
+        orgMapper.update(org);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void insertBatch(List<SysOrg> orgs) {
         if (orgs == null || orgs.isEmpty()) {
             return;
         }
         orgMapper.insertBatch(orgs);
+    }
+
+    /**
+     * 批量调整组织层级（组织移动后子树 level 同步）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchUpdateLevel(Long tenantId, List<Long> orgIds, int delta) {
+        if (orgIds == null || orgIds.isEmpty() || delta == 0) {
+            return;
+        }
+        orgMapper.batchUpdateLevel(tenantId, orgIds, delta, LocalDateTime.now());
     }
 }

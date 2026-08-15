@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 class FullSyncResponseContractTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 1, 1, 0, 0);
 
     @Mock
@@ -102,7 +102,8 @@ class FullSyncResponseContractTest {
                 .thenReturn(Collections.emptyList());
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper());
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,
@@ -127,7 +128,8 @@ class FullSyncResponseContractTest {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         AbstractUserSyncAppServiceImpl service = new AbstractUserSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper());
+                syncMetadataDomainService, typeResolutionService, abstractUserMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         AbstractUserFullSyncReq req = new AbstractUserFullSyncReq(
                 new AbstractUserSyncScope(SOURCE_SERVICE, "USER"),
                 List.of(new AbstractUserSyncItem("u1", "User One", true, null,
@@ -147,7 +149,7 @@ class FullSyncResponseContractTest {
     @Test
     void abstractRoleFullSync_allSuccess_topLevelMatchesSyncContract() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(LocalDateTime.class), anyLong()))
@@ -159,9 +161,10 @@ class FullSyncResponseContractTest {
                 .thenReturn(Collections.emptyList());
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper());
+                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
-                new AbstractRoleSyncScope(SOURCE_SERVICE, "ORG", "ROOT"),
+                new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
                         1, 0, null, null, null, new SyncVersionRef(OCCURRED_AT, 1L))));
 
@@ -178,19 +181,20 @@ class FullSyncResponseContractTest {
     @Test
     void abstractRoleFullSync_partialFailure_topLevelRetryable() {
         mockHeaderMatch();
-        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "ORG")).thenReturn(1);
-        when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("ORG"), any(), eq(null)))
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(1);
+        when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), eq(null)))
                 .thenReturn(java.util.Collections.emptyMap());
-        lenient().when(typeResolutionService.resolveRoleId(eq(TENANT_ID), eq("ORG"), eq("missing-parent"), eq(null)))
+        lenient().when(typeResolutionService.resolveRoleId(eq(TENANT_ID), eq("BASIC_ROLE"), eq("missing-parent"), eq(null)))
                 .thenReturn(null);
         lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Collections.emptyList());
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper());
+                syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
-                new AbstractRoleSyncScope(SOURCE_SERVICE, "ORG", "ROOT"),
-                List.of(new AbstractRoleSyncItem("org-1", "Org 1", "ORG", "missing-parent",
+                new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
+                List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",
                         1, 0, null, null, null, new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
@@ -212,7 +216,8 @@ class FullSyncResponseContractTest {
         mockHeaderMatch();
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, userRoleMapper);
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         // sourceType != SYS_USER_ORG -> non-retryable
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "INVALID_TYPE", "ORG", "ROOT"),
@@ -229,30 +234,19 @@ class FullSyncResponseContractTest {
     }
 
     @Test
-    void userRoleFullSync_itemRoleTypeCodeMismatch_yieldsNonRetryableItem() {
+    void userRoleFullSync_reservedSysUserOrg_throwsImmutable() {
         mockHeaderMatch();
-        // 当 item.roleTypeCode 与 scope.roleTypeCode 不一致时，应把该 item 标记为
-        // NON_RETRYABLE，并且不进入 markStatus 路径污染 metadata。
-        lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
-                .thenReturn(Collections.emptyList());
-
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
-                syncMetadataDomainService, typeResolutionService, userRoleMapper);
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "SYS_USER_ORG", "ORG", "ROOT"),
                 List.of(new UserRoleSyncItem("USER", "u1", "POSITION", "pos-1",
                         "POSITION:pos-1", null, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
-        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
-
-        assertThat(resp.accepted()).isTrue();
-        assertThat(resp.applied()).isFalse();
-        assertThat(resp.detail()).isNotNull();
-        assertThat(resp.detail().failedCount()).isEqualTo(1);
-        SyncResultResp.ItemResult itemResult = resp.detail().itemResults().get(0);
-        assertThat(itemResult.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
-        assertThat(itemResult.reason()).contains("MISMATCH");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.fullSync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
     }
 
     // ---- 4. ResourceEntitySyncAppService.fullSync ----
@@ -262,7 +256,8 @@ class FullSyncResponseContractTest {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
-                syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper());
+                syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper(),
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu 1",

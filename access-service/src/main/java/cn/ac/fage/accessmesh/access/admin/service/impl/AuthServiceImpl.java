@@ -20,13 +20,9 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.RoleProxyService;
+import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
-import cn.ac.fage.accessmesh.perm.client.feign.PermissionFeignClient;
-import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.session.SaSession;
@@ -62,7 +58,7 @@ import org.slf4j.LoggerFactory;
  * 用户信息获取、用户菜单获取等。
  * 实现了登录失败次数限制、账号锁定、验证码一次性使用等安全机制。
  * 使用Redis Lua脚本确保原子性操作，避免竞态条件。
- * 用户菜单和权限通过Feign调用permission-center服务获取。
+ * 用户菜单和权限通过 RoleProxyService 本地查询权限域获取。
  * </p>
  */
 @Service
@@ -108,7 +104,8 @@ public class AuthServiceImpl implements AuthService {
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final MenuDomainService menuDomainService;
-    private final PermissionFeignClient permissionFeignClient;
+    private final RoleProxyService roleProxyService;
+    private final UserWriteAppService userWriteAppService;
 
     /**
      * 平台用户会话过期展示口径（秒）。
@@ -160,7 +157,7 @@ public class AuthServiceImpl implements AuthService {
      * @param loginLogDomainService 登录日志领域服务，记录登录成功/失败
      * @param redisTemplate Redis操作模板，用于验证码和登录失败计数
      * @param menuDomainService 菜单领域服务，获取菜单数据
-     * @param permissionFeignClient 权限中心Feign客户端，获取用户角色和权限
+     * @param roleProxyService 角色代理，本地查询角色/权限码/菜单可见性
      */
     public AuthServiceImpl(UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
@@ -168,14 +165,16 @@ public class AuthServiceImpl implements AuthService {
                            LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate,
                            MenuDomainService menuDomainService,
-                           PermissionFeignClient permissionFeignClient) {
+                           RoleProxyService roleProxyService,
+                           UserWriteAppService userWriteAppService) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.menuDomainService = menuDomainService;
-        this.permissionFeignClient = permissionFeignClient;
+        this.roleProxyService = roleProxyService;
+        this.userWriteAppService = userWriteAppService;
     }
 
     /**
@@ -465,10 +464,12 @@ public class AuthServiceImpl implements AuthService {
         );
 
         if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
-            // 在数据库中标记用户状态为锁定
+            // T-ACCESS-005 评审 P1（用户决策：同步禁用投影）：锁定走 UserWriteAppService 内部编排，
+            // 同一事务更新 sys_user.status=2 + 禁用权限投影 + change_log + 缓存失效，
+            // 不再直写 DomainService（旧实现绕过投影，锁定用户已登录会话权限持续有效）
             SysUser user = userDomainService.findByUsername(tenantId, username);
             if (user != null) {
-                userDomainService.batchUpdateStatus(tenantId, List.of(user.getId()), 2);
+                userWriteAppService.lockUser(tenantId, user.getId());
             }
         }
     }
@@ -619,7 +620,8 @@ public class AuthServiceImpl implements AuthService {
      * 获取用户菜单
      * <p>
      * 获取用户可访问的菜单树、角色列表和按钮级权限列表。
-     * 通过permission-center获取用户角色和权限，批量校验菜单访问权限。
+     * 通过 RoleProxyService 本地查询用户角色和权限（T-ACCESS-005 起不再 Feign），
+     * 批量校验菜单访问权限。
      * 构建前端路由格式的菜单树，包含子菜单自动继承父菜单可见性。
      * </p>
      *
@@ -658,26 +660,14 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 获取用户角色列表
      * <p>
-     * 通过Feign调用permission-center获取用户关联的角色列表。
-     * 失败时返回空列表并记录警告日志。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param userId 用户ID
-     * @return 角色名称列表
+     * 登录态自查角色，不走管理门禁 {@code listUserRoles}。
      */
     private List<String> getUserRoles(Long tenantId, Long userId) {
         try {
-            cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq req =
-                new cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq(
-                    SUBJECT_TYPE_ADMIN_USER,
-                    String.valueOf(userId)
-                );
-            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp> result =
-                permissionFeignClient.getUserRoles(req);
-            if (result != null && result.getData() != null && result.getData().roles() != null) {
-                return result.getData().roles().stream()
-                    .map(cn.ac.fage.accessmesh.perm.common.dto.resp.UserRolesResp.RoleSummary::roleName)
+            UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
+            if (info != null && info.roles() != null) {
+                return info.roles().stream()
+                    .map(UserInfoResp.RoleInfo::roleName)
                     .collect(Collectors.toList());
             }
         } catch (Exception e) {
@@ -689,9 +679,10 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 获取用户有效权限码列表（v1.4「双轨并行」权限码下发轨道）。
      * <p>
-     * 通过 Feign 查询 permission-center 上用户在「真实资源类型」（ADMIN_ORG / ADMIN_USER /
-     * ADMIN_ROLE / ROLE 等）上的有效操作权限，拼成 {@code resourceTypeCode:operationCode}
-     * 格式（如 {@code "ADMIN_ORG:CREATE_POSITION"}）作为前端 hasPerms 的 perm 串。
+     * 通过 RoleProxyService 本地查询（T-ACCESS-005 起不再 Feign）用户在「真实资源类型」
+     * （ADMIN_ORG / ADMIN_USER / ADMIN_ROLE / ROLE 等）上的有效操作权限，拼成
+     * {@code resourceTypeCode:operationCode} 格式（如 {@code "ADMIN_ORG:CREATE_POSITION"}）
+     * 作为前端 hasPerms 的 perm 串。
      * <p>
      * 与 {@link #filterAllowedMenus} 的 ADMIN_MENU:VIEW（菜单可见性轨道）独立工作：
      * <ul>
@@ -706,18 +697,9 @@ public class AuthServiceImpl implements AuthService {
      */
     private List<String> getUserPermissions(Long tenantId, Long userId) {
         try {
-            // v1.4：切换到 /effective-permission-codes 专用聚合接口（不分页、扁平 perm 串），
-            // 避免 effective-permissions 的 page=1, size=500 模式在大权限用户上被截断。
-            cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq req =
-                new cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq(
-                    SUBJECT_TYPE_ADMIN_USER,
-                    String.valueOf(userId),
-                    EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES
-                );
-            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp> result =
-                permissionFeignClient.getEffectivePermissionCodes(req);
-            if (result != null && result.getData() != null && result.getData().permissions() != null) {
-                return new ArrayList<>(result.getData().permissions());
+            UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
+            if (info != null && info.permissions() != null) {
+                return new ArrayList<>(info.permissions());
             }
         } catch (Exception e) {
             log.warn("Failed to get user permissions for tenant={}, userId={}", tenantId, userId, e);
@@ -742,53 +724,22 @@ public class AuthServiceImpl implements AuthService {
             return Set.of();
         }
 
-        // 构建批量权限检查请求
-        List<cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem> items = allMenus.stream()
-            .filter(m -> m.getMenuType() != null && !"3".equals(m.getMenuType())) // 排除按钮类型
-            .map(m -> new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                AdminResourceType.MENU,
-                String.valueOf(m.getId()),
-                OPERATION_VIEW,
-                null,
-                null,
-                null
-            ))
+        List<Long> candidateIds = allMenus.stream()
+            .filter(m -> m.getMenuType() != null && !"3".equals(m.getMenuType()))
+            .map(SysMenu::getId)
             .collect(Collectors.toList());
-
-        if (items.isEmpty()) {
+        if (candidateIds.isEmpty()) {
             return Set.of();
         }
-
         try {
-            cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq req =
-                new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq(
-                    SUBJECT_TYPE_ADMIN_USER,
-                    String.valueOf(userId),
-                    items,
-                    null
-                );
-            PermResult<cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp> result =
-                permissionFeignClient.batchCheckAuth(req);
-            if (result != null && result.getData() != null && result.getData().items() != null) {
-                Set<Long> allowed = new HashSet<>();
-                for (cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult check : result.getData().items()) {
-                    if (check.allowed()) {
-                        try {
-                            allowed.add(Long.valueOf(check.resourceCode()));
-                        } catch (NumberFormatException e) {
-                            // 忽略无效的 resourceCode
-                        }
-                    }
+            Set<Long> allowed = roleProxyService.filterAllowedMenuIds(userId, candidateIds);
+            Set<Long> withParents = new HashSet<>(allowed);
+            for (SysMenu menu : allMenus) {
+                if (allowed.contains(menu.getId()) && menu.getParentId() != null && menu.getParentId() > 0) {
+                    addParentMenus(allMenus, menu.getParentId(), withParents);
                 }
-                // 补充父菜单（即使父菜单没有权限，只要子菜单有权限就显示）
-                Set<Long> withParents = new HashSet<>(allowed);
-                for (SysMenu menu : allMenus) {
-                    if (allowed.contains(menu.getId()) && menu.getParentId() != null && menu.getParentId() > 0) {
-                        addParentMenus(allMenus, menu.getParentId(), withParents);
-                    }
-                }
-                return withParents;
             }
+            return withParents;
         } catch (Exception e) {
             log.warn("Failed to filter allowed menus for tenant={}, userId={}", tenantId, userId, e);
         }

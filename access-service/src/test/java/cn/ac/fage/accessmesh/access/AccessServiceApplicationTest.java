@@ -22,7 +22,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.cloud.openfeign.EnableFeignClients;
+
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -58,8 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    // 定时任务隔离：关闭 SyncTaskScheduler（5s 间隔查库），避免污染后续测试
-    "accessmesh.sync.scheduler.enabled=false",
+    // 定时任务隔离：关闭会查空库的调度器，避免污染后续测试
     // 排除 Redis/Nacos 自动配置
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
@@ -81,8 +80,6 @@ class AccessServiceApplicationTest {
 
     /**
      * Mock 无开关的孤儿清理定时任务（5 分钟间隔），避免测试期间查询空库 H2 抛异常。
-     * SyncTaskScheduler 通过 accessmesh.sync.scheduler.enabled=false 属性关闭；
-     * SyncFullSyncTrigger 默认（cron-enabled 未配置）不启用。
      */
     @MockBean
     private UserRoleOrphanCleanupTask userRoleOrphanCleanupTask;
@@ -141,7 +138,6 @@ class AccessServiceApplicationTest {
             org.springframework.boot.autoconfigure.SpringBootApplication.class));
         assertNotNull(AccessServiceApplication.class.getAnnotation(
             org.mybatis.spring.annotation.MapperScan.class));
-        assertNotNull(AccessServiceApplication.class.getAnnotation(EnableFeignClients.class));
         assertNotNull(AccessServiceApplication.class.getAnnotation(EnableAsync.class));
         assertNotNull(AccessServiceApplication.class.getAnnotation(EnableScheduling.class));
     }

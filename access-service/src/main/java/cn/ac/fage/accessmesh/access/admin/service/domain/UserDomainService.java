@@ -141,6 +141,20 @@ public interface UserDomainService {
     Set<String> findExistingPhones(Long tenantId, Set<String> phones);
 
     /**
+     * 插入单个用户并回填主键。
+     *
+     * @param user 用户实体
+     */
+    void insert(SysUser user);
+
+    /**
+     * 更新用户可变字段。
+     *
+     * @param user 用户实体
+     */
+    void update(SysUser user);
+
+    /**
      * 批量插入用户
      * <p>
      * 批量插入多条用户记录，用于用户批量导入场景。

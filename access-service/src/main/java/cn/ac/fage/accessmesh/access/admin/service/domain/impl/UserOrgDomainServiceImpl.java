@@ -59,6 +59,22 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
         return userOrgMapper.selectByUserIdAndTenant(tenantId, userId);
     }
 
+    @Override
+    public List<SysUserOrg> findByUserIds(Long tenantId, List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        return userOrgMapper.selectByUserIdsAndTenant(tenantId, userIds);
+    }
+
+    @Override
+    public List<SysUserOrg> findByOrgIds(Long tenantId, List<Long> orgIds) {
+        if (orgIds == null || orgIds.isEmpty()) {
+            return List.of();
+        }
+        return userOrgMapper.selectByOrgIdsAndTenant(tenantId, orgIds);
+    }
+
     /**
      * 删除用户的所有组织关联
      * <p>

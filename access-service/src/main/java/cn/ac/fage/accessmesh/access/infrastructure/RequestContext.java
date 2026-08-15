@@ -53,7 +53,7 @@ public record RequestContext(Long tenantId, Long operatorId, CallerType callerTy
 
     /**
      * 替换租户 ID，保留其余字段（供 TenantContextHolder 兼容门面的
-     * 本地租户切换语义——SyncTaskScheduler 的保存/还原模式）。
+     * 本地租户切换语义——保存/还原模式）。
      */
     public RequestContext withTenantId(Long newTenantId) {
         return new RequestContext(newTenantId, operatorId, callerType, serviceCode);
