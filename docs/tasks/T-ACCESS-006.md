@@ -23,7 +23,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-08-15
+last_updated: 2026-08-16
 ---
 
 # T-ACCESS-006 建立跨域只读查询模型
@@ -153,3 +153,33 @@ last_updated: 2026-08-15
 - `PermissionViewAppServiceImplTest` 覆盖两套 ID 空间真实差异（OperatorContext sys=1 → 投影主体 1001 / 1002）：自查豁免、查他人拒绝 / 放行、操作者投影缺失 fail-closed。
 - 11 个存量 AppService 测试类 + `OperationLogRuntimeContextAppServiceTest` 统一 lenient stub（`resolveOperatorSubjectId → 传入 operatorId` 的测试简化；两套 ID 差异由上述专项覆盖）。
 - `UserMenuQueryServiceImplTest` +4：EXTERNAL/IFRAME 无资源 fail-closed、EXTERNAL/IFRAME 资源匹配可见（frameSrc=path）、DIR 带资源由子节点决定、DIR 带资源无子剪枝。
+
+---
+
+## 评审修复记录（第四轮，2026-08-16，外部 AI 评审复评 1×P2 + 3×P3）
+
+第四轮结论「仍不建议最终通过」：认可上轮核心问题已修复（无 P0/P1），剩余异常值 fail-closed 与代码契约质量问题。核实后 4 个问题全部属实，修复如下。
+
+**用户决策 1 项（2026-08-16）**：
+
+1. **P3-2 门禁 API 两套 ID 混淆修复范围**：方案 1「契约闭环版」——仅做改名 + 文档契约，不引入集中门禁入口 / 静态规则。理由（用户采纳）：85 处存量调用已统一经 `OperatorSubjectResolver.requireSubjectId` 转换，投影主体还被自查比较 / 授权委托链复用；集中入口会让转换路径分裂（`ForSysOperator` 包装方法无法覆盖非门禁用途，还会形成重复转换），ArchUnit 无法在字节码层区分 `Long` 来源（形参同为 Long），只能产生虚假安全感。未来若再犯，升级方向是类型隔离（如 `record PermissionSubjectId(Long value)`），不在本次 P3 范围。
+
+**P2 修复（未知 menu_type fail-closed）**：`UserMenuQueryServiceImpl.deriveVisibleMenuIds` 业务分支显式限定 MENU/HIDDEN/EXTERNAL/IFRAME（新增 `isBusinessMenuType` 枚举），未知 `menu_type` 默认 fail-closed（不入 visible、不参与业务匹配）。DB 中 `menu_type` 为 VARCHAR 无 CHECK 约束，显式枚举防脏数据被误放行。
+
+**P3-2 修复（门禁 API 契约闭环）**：
+
+- `PermQueryEngine.hasPermission / validateBatch / getDeniedIds` 参数 `operatorId → subjectId`，Javadoc 明确「权限域投影主体 `abstract_user.id`，禁止直接传 admin 域 `sys_user.id`（先经 `OperatorSubjectResolver.requireSubjectId`）」。
+- `PermQuery.forValidate` 参数同步改 `subjectId`。
+- `PermissionGrantDomainService.canGrantPermission / checkCanGrant`（接口 + 实现类 + Javadoc）参数改 `subjectId`——内部命中 `subjectDomainService.resolveEffectiveRoles`（投影空间查找）。
+- `OperationCodeConstants` Javadoc 示例改为「先 `requireSubjectId` 转换、再传投影主体」。
+- `permission-query-pipeline` 技能（`.claude` + `.agents` 两份 SKILL.md）门禁示例统一为 `subjectId` + 转换契约，并移除过时的 `engine.validate`（不存在的方法）示例。
+- 非门禁用途（createdBy 戳记、审计 `ChangeLogContext`、日志消息）与 `OperatorSubjectResolver.requireSubjectId` 输入参数保留 `operatorId`（`sys_user.id` 语义）。
+
+**P3-3 修复**：`UserRoleQueryService.listRoles` Javadoc 移除「用户决策」过程信息，只保留固定 `LIMIT 0,200` 上限与「调用方不得假定全量返回」约束。
+
+**P3-4 修复**：`UserMenuQueryServiceImpl` 类 Javadoc + `deriveVisibleMenuIds` Javadoc / 内联注释统一为「无 scopeAll 且资源实例无法解析时 fail-closed」（与实现先判断 scopeAll 再解析实例一致）。
+
+**测试**（509 tests 0 失败 27 跳过，较上轮 507 +2）：
+
+- `UserMenuQueryServiceImplTest` +2：未知 menu_type 带可访问资源仍不可见（fail-closed）、未知 menu_type resource_type 为空不可见（不按纯展示放行）。
+- 完整 `mvn -pl access-service clean test`：509 tests 0 failures 0 errors 27 skipped（27 = Testcontainers/Docker）。

@@ -8,12 +8,14 @@ package cn.ac.fage.accessmesh.access.permission.constant;
  * 这些操作码存储在 operation_permission 表中。
  * </p>
  *
- * <p>使用示例：
+ * <p>使用示例（门禁主体必须先转换为权限域投影主体，禁止直接传 {@code sys_user.id}）：
  * <pre>
- * if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+ * // operatorId 为 admin 域 sys_user.id（登录会话/签名代理），须先转换：
+ * Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+ * if (!engine.hasPermission(tenantId, subjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
  *     throw new SecurityException("Permission denied");
  * }
- * engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
+ * engine.hasPermission(tenantId, subjectId, ResourceTypeCode.USER, userId, OperationCodeConstants.VIEW);
  * </pre>
  * </p>
  */

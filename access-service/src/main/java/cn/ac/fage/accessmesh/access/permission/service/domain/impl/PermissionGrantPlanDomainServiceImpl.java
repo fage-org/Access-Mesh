@@ -81,7 +81,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     }
 
     @Override
-    public PreparedGrantPlan prevalidate(Long tenantId, Long operatorId, Long roleId, String domainCode,
+    public PreparedGrantPlan prevalidate(Long tenantId, Long subjectId, Long roleId, String domainCode,
                                          ApplyGrantPlanReq.GrantPlan plan) {
         List<ApplyGrantPlanReq.CreateItem> createItems = plan.createItems();
         List<ApplyGrantPlanReq.UpdateItem> updateItems = plan.updateItems();
@@ -273,7 +273,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             ));
         }
 
-        verifyDelegation(tenantId, operatorId, domainCode, delegationKeys);
+        verifyDelegation(tenantId, subjectId, domainCode, delegationKeys);
         return new PreparedGrantPlan(tenantId, roleId, preparedCreates,
             preparedUpdates, List.copyOf(removeIds), Set.copyOf(delegationKeys));
     }
@@ -531,14 +531,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
 
     private void verifyDelegation(
             Long tenantId,
-            Long operatorId,
+            Long subjectId,
             String domainCode,
             Set<PermissionGrantDomainService.GrantCheckKey> keys) {
         if (keys.isEmpty()) {
             return;
         }
         Map<String, PermissionGrantDomainService.GrantCheckResult> results =
-            permissionGrantDomainService.checkCanGrant(tenantId, operatorId, keys, domainCode);
+            permissionGrantDomainService.checkCanGrant(tenantId, subjectId, keys, domainCode);
         for (PermissionGrantDomainService.GrantCheckKey key : keys) {
             PermissionGrantDomainService.GrantCheckResult result = results.get(grantCheckKey(key));
             if (result == null || !result.canGrant()) {

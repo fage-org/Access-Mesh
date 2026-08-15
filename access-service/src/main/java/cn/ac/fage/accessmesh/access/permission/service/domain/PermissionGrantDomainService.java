@@ -24,10 +24,12 @@ public interface PermissionGrantDomainService {
      * 1. 拥有相同权限（资源类型+资源编码+编码类型/范围全部+操作）
      * 2. 该权限配置的canGrant=true
      * 用于权限授予流程中的委托验证。
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
      * </p>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者用户ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码（scopeAll=true时为null）
      * @param codeType         编码类型（scopeAll=true时为null）
@@ -36,7 +38,7 @@ public interface PermissionGrantDomainService {
      * @param domainCode       业务域编码，可选
      * @return 是否有权限且canGrant=true
      */
-    boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+    boolean canGrantPermission(Long tenantId, Long subjectId, String resourceTypeCode,
                                String resourceCode, String codeType, String operationCode,
                                boolean scopeAll, String domainCode);
 
@@ -50,15 +52,17 @@ public interface PermissionGrantDomainService {
      * 3. 批量解析资源实体ID
      * 4. 批量查询角色资源权限
      * 5. 构建查找映射并逐个评估
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
      * </p>
      *
      * @param tenantId    租户ID
-     * @param operatorId  操作者用户ID
+     * @param subjectId   权限域投影主体ID（abstract_user.id）
      * @param permissions 待检查的权限集合
      * @param domainCode  业务域编码，可选
      * @return 权限键到检查结果的映射
      */
-    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+    Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
                                                  Set<GrantCheckKey> permissions, String domainCode);
 
     /**

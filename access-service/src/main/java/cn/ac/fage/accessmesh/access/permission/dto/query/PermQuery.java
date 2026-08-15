@@ -329,20 +329,22 @@ public class PermQuery {
      * 创建管理操作验证查询
      * <p>
      * 类型+实例查询，全范围匹配时提前返回，不评估，最小输出。
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
      * </p>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码
      * @param operationCode    操作编码
      * @return 权限查询实例
      */
-    public static PermQuery forValidate(Long tenantId, Long operatorId,
+    public static PermQuery forValidate(Long tenantId, Long subjectId,
                                          String resourceTypeCode, String resourceCode,
                                          String operationCode) {
         PermQuery q = new PermQuery(tenantId);
-        q.userId = operatorId;
+        q.userId = subjectId;
         q.resourceTypeCodes = resourceTypeCode == null ? Set.of() : Set.of(resourceTypeCode);
         q.resourceCodes = resourceCode == null ? null : Set.of(resourceCode);
         q.operationCodes = operationCode == null ? Set.of() : Set.of(operationCode);

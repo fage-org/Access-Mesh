@@ -72,9 +72,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
     /**
      * 检查是否有权限授予指定权限
+     * <p>
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * </p>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型编码
      * @param resourceCode     资源编码
      * @param codeType         编码类型
@@ -84,11 +88,11 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * @return 是否有权限授予
      */
     @Override
-    public boolean canGrantPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+    public boolean canGrantPermission(Long tenantId, Long subjectId, String resourceTypeCode,
                                        String resourceCode, String codeType, String operationCode,
                                        boolean scopeAll, String domainCode) {
         Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
-        Map<String, GrantCheckResult> results = checkCanGrant(tenantId, operatorId, keys, domainCode);
+        Map<String, GrantCheckResult> results = checkCanGrant(tenantId, subjectId, keys, domainCode);
         String key = buildPermissionKey(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
         GrantCheckResult result = results.get(key);
         return result != null && result.canGrant();
@@ -103,18 +107,20 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 3. 批量解析资源实体ID
      * 4. 批量查询角色资源权限
      * 5. 构建查找映射并逐个评估
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
      * </p>
      *
      * @param tenantId    租户ID
-     * @param operatorId  操作者ID
+     * @param subjectId   权限域投影主体ID（abstract_user.id）
      * @param permissions 待检查的权限键集合
      * @param domainCode  业务域编码，可选
      * @return 权限键到检查结果的映射
      */
     @Override
-    public Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
+    public Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long subjectId,
                                                         Set<GrantCheckKey> permissions, String domainCode) {
-        if (tenantId == null || operatorId == null || permissions == null || permissions.isEmpty()) {
+        if (tenantId == null || subjectId == null || permissions == null || permissions.isEmpty()) {
             return Map.of();
         }
 
@@ -134,7 +140,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, operatorId);
+        Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
         if (operatorRoleIds.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
                 String permKey = buildPermissionKey(key);

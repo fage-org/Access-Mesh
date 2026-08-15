@@ -217,34 +217,44 @@ public class PermQueryEngine {
     
     /**
      * 检查是否有权限
+     * <p>
+     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
+     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
+     * </p>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
      * @param resourceId       资源ID（可为null）
      * @param operationCode    操作码
      * @return 是否有权限
      */
-    public boolean hasPermission(Long tenantId, Long operatorId, String resourceTypeCode,
+    public boolean hasPermission(Long tenantId, Long subjectId, String resourceTypeCode,
                                   Object resourceId, String operationCode) {
-        PermQuery q = PermQuery.forValidate(tenantId, operatorId,
+        PermQuery q = PermQuery.forValidate(tenantId, subjectId,
             resourceTypeCode, resourceId != null ? String.valueOf(resourceId) : null, operationCode);
         return query(q).allowed();
     }
 
     /**
      * 批量校验权限（有拒绝ID时抛异常）
+     * <p>
+     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
+     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
+     * </p>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
      * @param resourceIds      资源ID集合
      * @param operationCode    操作码
      * @throws SecurityException 有拒绝ID时抛出异常
      */
-    public <ID> void validateBatch(Long tenantId, Long operatorId, String resourceTypeCode,
+    public <ID> void validateBatch(Long tenantId, Long subjectId, String resourceTypeCode,
                                     Set<ID> resourceIds, String operationCode) {
-        Set<ID> denied = getDeniedIds(tenantId, operatorId, resourceTypeCode, resourceIds, operationCode);
+        Set<ID> denied = getDeniedIds(tenantId, subjectId, resourceTypeCode, resourceIds, operationCode);
         if (!denied.isEmpty())
             throw new SecurityException("Permission denied: " + operationCode + " on " + resourceTypeCode + ":" + denied);
     }
@@ -252,6 +262,9 @@ public class PermQueryEngine {
     /**
      * 批量权限检查 -- 优化版，最小化数据库查询。
      * <p>
+     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
+     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
      * 相比N次单独查询，此方法：
      * <ol>
      *   <li>一次查询解析用户角色</li>
@@ -262,20 +275,20 @@ public class PermQueryEngine {
      * </ol>
      *
      * @param tenantId         租户ID
-     * @param operatorId       操作者ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
      * @param resourceIds      资源ID集合
      * @param operationCode    操作码
      * @return 被拒绝的资源ID集合
      */
-    public <ID> Set<ID> getDeniedIds(Long tenantId, Long operatorId, String resourceTypeCode,
+    public <ID> Set<ID> getDeniedIds(Long tenantId, Long subjectId, String resourceTypeCode,
                                       Set<ID> resourceIds, String operationCode) {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return Set.of();
         }
 
         // 1. 解析用户角色（1次查询）
-        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, operatorId);
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
         if (roleIds.isEmpty()) {
             return new LinkedHashSet<>(resourceIds); // 无角色 = 全部拒绝
         }

@@ -296,6 +296,32 @@ class UserMenuQueryServiceImplTest {
         }
 
         @Test
+        @DisplayName("未知 menu_type + 关联可访问资源 → 仍不可见（fail-closed，不按业务菜单误放行）")
+        void unknownMenuType_withAccessibleResource_failClosed() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "GADGET", "未知类型", "/gadget", null, 1, 1, "ADMIN_USER", "100")));
+            // 即便 ADMIN_USER:100 是用户可访问的资源实例，未知 menu_type 也不得进入业务匹配
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("未知 menu_type + resource_type 为空 → 不可见（fail-closed，不按纯展示放行）")
+        void unknownMenuType_withoutResource_failClosed() {
+            mockUserContext();
+            when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
+                new MenuProjection(1L, null, "GADGET", "未知类型", "/gadget", null, 1, 1, null, null)));
+            // 未知类型既非纯展示 MENU 也非 DIR，不得全员可见
+
+            UserMenuResp result = service.buildUserMenuTree(USER);
+
+            assertThat(result.menus()).isEmpty();
+        }
+
+        @Test
         @DisplayName("EXTERNAL/IFRAME 派生同业务 MENU：资源实例匹配即可见，frameSrc 取 path")
         void externalIframe_withResourceMatch_visible() {
             mockUserContext();

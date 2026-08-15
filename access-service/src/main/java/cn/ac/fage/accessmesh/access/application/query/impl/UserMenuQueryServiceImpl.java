@@ -41,10 +41,11 @@ import java.util.stream.Collectors;
  * </p>
  * <p>
  * 菜单可见性按 adopted v3.5 §4.1 派生公式：
- * MENU(业务)（resource_type 非空；resource_code 为空按不可解析资源 fail-closed）→ 用户对关联资源
- * 有任意有效操作码（含 scopeAll 全范围授权）即可见；MENU(纯展示)（resource_type IS NULL）→ 全员可见；
- * DIR → 存在可见子节点（树构建剪枝）；HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，
- * 整体不进 menus[]；EXTERNAL/IFRAME → 派生同 MENU(业务)。
+ * MENU(业务)（resource_type 非空）→ 用户对关联资源有任意有效操作码（含 scopeAll 全范围授权）即可见，
+ * 无 scopeAll 时 resource_code 为空或资源实例无法解析则不可见（fail-closed）；
+ * MENU(纯展示)（resource_type IS NULL）→ 全员可见；DIR → 存在可见子节点（树构建剪枝）；
+ * HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，整体不进 menus[]；
+ * EXTERNAL/IFRAME → 派生同 MENU(业务)。
  * </p>
  * <p>
  * 菜单树构建按权威 schema（access-service.sql）：sys_menu 已收敛为 UI 路由元数据 + 资源 link
@@ -139,18 +140,21 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
      * v3.5 §4.1 派生公式：判定用户可见的菜单 ID 集合。
      * <p>
      * 先按 {@code menu_type} 分支（见实现）：DIR 恒候选可见；MENU(纯展示) 全员可见；
-     * 业务菜单（MENU/HIDDEN/EXTERNAL/IFRAME 且 resource_type 非空）经 permission 域有效资源访问事实匹配：
-     * 资源类型有 scopeAll 全范围授权、或解析后的资源实例 ID 在用户有任意有效操作码的集合中；
-     * resource_code 为空按不可解析资源 fail-closed；资源未解析（无投影）视为不可见（fail-closed）。
+     * 业务菜单类型显式限定为 MENU/HIDDEN/EXTERNAL/IFRAME（未知类型默认 fail-closed 不可见），
+     * 且 resource_type 非空时经 permission 域有效资源访问事实匹配：资源类型有 scopeAll 全范围授权、
+     * 或解析后的资源实例 ID 在用户有任意有效操作码的集合中；无 scopeAll 时 resource_code 为空或
+     * 资源实例无法解析（无投影）视为不可见（fail-closed）。
      * </p>
      */
     private Set<Long> deriveVisibleMenuIds(Long tenantId, Long userId, List<MenuProjection> allMenus) {
         // v3.5 §4.1 按 menu_type 分支：
         //   DIR               → 恒候选可见（是否渲染由树构建剪枝决定：有可见子节点才渲染），不参与资源判定；
         //   MENU(纯展示)      → resource_type IS NULL → 全员可见；
-        //   MENU(业务)        → resource_type 非空 → 有效资源访问事实匹配（resource_code 为空按不可解析
-        //                        fail-closed，DDL 无两列成对约束）；
-        //   HIDDEN/EXTERNAL/IFRAME → 派生同 MENU(业务)；resource_type 为空时无匹配条件 → fail-closed 不可见。
+        //   MENU/HIDDEN/EXTERNAL/IFRAME(业务) → resource_type 非空 → 有效资源访问事实匹配
+        //                        （先 scopeAll 全范围授权；无 scopeAll 时 resource_code 为空或
+        //                          资源实例解析失败 fail-closed，DDL 无两列成对约束）；
+        //   resource_type 为空 → 无匹配条件 → fail-closed 不可见；
+        //   未知 menu_type     → fail-closed 不可见（DDL 无 CHECK 约束，显式枚举防脏数据误放行）。
         Set<Long> visible = new LinkedHashSet<>();
         List<MenuProjection> businessMenus = new ArrayList<>();
         for (MenuProjection menu : allMenus) {
@@ -158,10 +162,10 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
                 visible.add(menu.id());
             } else if (MENU_TYPE_MENU.equals(menu.menuType()) && menu.resourceType() == null) {
                 visible.add(menu.id());
-            } else if (menu.resourceType() != null) {
+            } else if (isBusinessMenuType(menu.menuType()) && menu.resourceType() != null) {
                 businessMenus.add(menu);
             }
-            // 其余（HIDDEN/EXTERNAL/IFRAME 且 resource_type 为空）不入 visible → fail-closed
+            // 其余（HIDDEN/EXTERNAL/IFRAME 且 resource_type 为空、未知 menu_type）不入 visible → fail-closed
         }
         if (businessMenus.isEmpty()) {
             return visible;
@@ -200,6 +204,18 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
             }
         }
         return visible;
+    }
+
+    /**
+     * 业务菜单类型显式枚举（v3.5 §4.1：MENU/HIDDEN/EXTERNAL/IFRAME 派生方式一致）。
+     * <p>未知 {@code menu_type} 一律返回 false，由调用方按 fail-closed 处理（不入可见集合）。
+     * DB 中 menu_type 为 VARCHAR 无 CHECK 约束，显式枚举防脏数据被误放行。</p>
+     */
+    private boolean isBusinessMenuType(String menuType) {
+        return MENU_TYPE_MENU.equals(menuType)
+            || MENU_TYPE_HIDDEN.equals(menuType)
+            || MENU_TYPE_EXTERNAL.equals(menuType)
+            || MENU_TYPE_IFRAME.equals(menuType);
     }
 
     /**

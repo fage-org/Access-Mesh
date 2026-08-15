@@ -24,26 +24,34 @@ metadata:
 
 ## 业务层 API（Service Impl 使用）
 
+> **门禁主体契约**：engine 门禁主体必须是权限域投影主体（`abstract_user.id`）。
+> 登录会话/签名代理持有的操作者 ID 是 admin 域 `sys_user.id`，必须先经
+> `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)` 转换
+> （转换失败 fail-closed 抛 SecurityException），禁止把 `sys_user.id` 直接传给门禁。
+
 ```java
 // 注入 PermQueryEngine
 private final PermQueryEngine engine;
 
-// 单实例校验（无权限抛 SecurityException）
-engine.validate(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+// 操作者 sys_user.id → 权限域投影主体 abstract_user.id（一次转换，可同时用于门禁/自查/委托链）
+Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
 // 批量校验（任意一个无权限抛 SecurityException）
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+engine.validateBatch(tenantId, subjectId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
 
 // 非抛出检查（返回 boolean）
-boolean allowed = engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.MANAGE);
+boolean allowed = engine.hasPermission(tenantId, subjectId, ResourceTypeCode.USER, userId, OperationCodeConstants.MANAGE);
 
 // 获取被拒绝的 ID（批量非抛出）
-Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
+Set<Long> denied = engine.getDeniedIds(tenantId, subjectId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
 ```
 
 ## Domain 层 API（复杂查询场景）
 
-复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`：
+复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`。
+
+> **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forResourceQuery/forScopeQuery/forValidate）与
+> canGrant 委托链的 `userId`/`subjectId` 均指权限域投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
 
 ```java
 // check — 权限判定
@@ -68,7 +76,7 @@ PermQuery q = PermQuery.forResourceQuery(tenantId, userId, resourceTypeCodes, op
 return PermResultUtils.toQueryResourcesResp(engine.query(q), cacheTtl);
 
 // validate — 管理操作校验
-PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);
+PermQuery q = PermQuery.forValidate(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
 PermResultUtils.validateOrThrow(engine.query(q));
 
 // scopeQuery — 范围查询
@@ -77,11 +85,11 @@ PermResult r = engine.query(q);
 
 // grant check — 授权传递检查（canGrant 校验）
 boolean canGrant = permissionGrantDomainService.canGrantPermission(
-  tenantId, operatorId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
+  tenantId, subjectId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
 );
 
 Map<String, PermissionGrantDomainService.GrantCheckResult> results =
-  permissionGrantDomainService.checkCanGrant(tenantId, operatorId, permissions, domainCode);
+  permissionGrantDomainService.checkCanGrant(tenantId, subjectId, permissions, domainCode);
 ```
 
 ## 工厂方法预设
