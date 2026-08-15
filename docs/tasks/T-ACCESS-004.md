@@ -25,7 +25,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-08-14
+last_updated: 2026-08-15
 ---
 
 # T-ACCESS-004 实现可信请求上下文和统一安全策略矩阵
