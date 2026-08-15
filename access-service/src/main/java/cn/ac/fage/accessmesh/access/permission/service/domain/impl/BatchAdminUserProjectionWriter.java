@@ -3,9 +3,11 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
  * 资源行统一限定 {@code code_type = 'default'}（与单条路径 selectByTypeCodeAndCodeType 语义一致），
  * 避免误伤外部同步以其他 code_type 创建的 ADMIN_USER 资源行。
  * </p>
- */
+*/
 public class BatchAdminUserProjectionWriter {
 
     private static final String CODE_TYPE_DEFAULT = "default";
@@ -38,13 +40,16 @@ public class BatchAdminUserProjectionWriter {
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
+    private final UserRoleMapper userRoleMapper;
 
     public BatchAdminUserProjectionWriter(TypeResolutionService typeResolutionService,
-                                          AbstractUserMapper abstractUserMapper,
-                                          ResourceEntityMapper resourceEntityMapper) {
+    AbstractUserMapper abstractUserMapper,
+    ResourceEntityMapper resourceEntityMapper,
+    UserRoleMapper userRoleMapper) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.resourceEntityMapper = resourceEntityMapper;
+        this.userRoleMapper = userRoleMapper;
     }
 
     public void batchDeleteAdminUsers(Long tenantId, Set<Long> sysUserIds) {
@@ -57,14 +62,17 @@ public class BatchAdminUserProjectionWriter {
         LocalDateTime now = LocalDateTime.now();
         List<AbstractUser> users = abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds);
         if (!users.isEmpty()) {
-            abstractUserMapper.softDeleteBatch(tenantId,
-                users.stream().map(AbstractUser::getId).collect(Collectors.toList()), now);
+            List<Long> userIds = users.stream().map(AbstractUser::getId).collect(Collectors.toList());
+            // 同一事务级联软删该用户的全部 user_role（含功能角色，不再依赖延迟补偿）
+            userRoleMapper.softDeleteByAbstractUserIds(tenantId,
+            new java.util.HashSet<>(userIds), now);
+            abstractUserMapper.softDeleteBatch(tenantId, userIds, now);
         }
         List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
+        tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
         if (!resources.isEmpty()) {
             resourceEntityMapper.softDeleteBatch(tenantId,
-                resources.stream().map(ResourceEntity::getId).collect(Collectors.toList()), now);
+            resources.stream().map(ResourceEntity::getId).collect(Collectors.toList()), now);
         }
     }
 
@@ -79,13 +87,13 @@ public class BatchAdminUserProjectionWriter {
         List<AbstractUser> users = abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds);
         if (!users.isEmpty()) {
             abstractUserMapper.batchDisable(tenantId,
-                users.stream().map(AbstractUser::getId).collect(Collectors.toSet()), now);
+            users.stream().map(AbstractUser::getId).collect(Collectors.toSet()), now);
         }
         List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
+        tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
         if (!resources.isEmpty()) {
             resourceEntityMapper.batchDisableStatus(tenantId,
-                resources.stream().map(ResourceEntity::getId).collect(Collectors.toSet()), now);
+            resources.stream().map(ResourceEntity::getId).collect(Collectors.toSet()), now);
         }
     }
 
@@ -96,17 +104,17 @@ public class BatchAdminUserProjectionWriter {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
         Set<String> extIds = keys.stream()
-            .map(k -> String.valueOf(k.sysUserId())).collect(Collectors.toSet());
+        .map(k -> String.valueOf(k.sysUserId())).collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();
 
         // 批量加载已有投影（资源行限定 code_type=default，与单条路径语义一致）
         Map<String, AbstractUser> usersByExt = abstractUserMapper
-            .selectByTypeAndExternalIds(tenantId, userType, extIds)
-            .stream().collect(Collectors.toMap(AbstractUser::getExternalId, u -> u, (a, b) -> a));
+        .selectByTypeAndExternalIds(tenantId, userType, extIds)
+        .stream().collect(Collectors.toMap(AbstractUser::getExternalId, u -> u, (a, b) -> a));
         Map<String, ResourceEntity> resourcesByCode = resourceEntityMapper
-            .selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT))
-            .stream()
-            .collect(Collectors.toMap(ResourceEntity::getCode, r -> r, (a, b) -> a));
+        .selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT))
+        .stream()
+        .collect(Collectors.toMap(ResourceEntity::getCode, r -> r, (a, b) -> a));
 
         // 逐 key 计算，新行 insertBatch / 已有行批量刷新（一次 UPDATE）
         List<AbstractUser> toInsertUsers = new ArrayList<>();
@@ -209,7 +217,7 @@ public class BatchAdminUserProjectionWriter {
         Integer value = typeResolutionService.resolveTypeValue(tenantId, typeKey, typeCode);
         if (value == null) {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
-                "Unknown " + typeKey + ": " + typeCode);
+            "Unknown " + typeKey + ": " + typeCode);
         }
         return value;
     }

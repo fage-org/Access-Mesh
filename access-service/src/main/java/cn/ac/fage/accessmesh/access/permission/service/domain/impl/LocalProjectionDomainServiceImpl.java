@@ -25,7 +25,7 @@ import java.util.Set;
  * 单条投影（用户/组织/菜单）与依赖解析在本类；user_role 绑定/迁移委托
  * {@link UserRoleProjectionWriter}，批量用户投影委托 {@link BatchAdminUserProjectionWriter}。
  * </p>
- */
+*/
 @Service
 public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainService {
 
@@ -41,18 +41,18 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private final BatchAdminUserProjectionWriter batchAdminUserProjectionWriter;
 
     public LocalProjectionDomainServiceImpl(TypeResolutionService typeResolutionService,
-                                            AbstractUserMapper abstractUserMapper,
-                                            AbstractRoleMapper abstractRoleMapper,
-                                            ResourceEntityMapper resourceEntityMapper,
-                                            UserRoleMapper userRoleMapper) {
+    AbstractUserMapper abstractUserMapper,
+    AbstractRoleMapper abstractRoleMapper,
+    ResourceEntityMapper resourceEntityMapper,
+    UserRoleMapper userRoleMapper) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.userRoleProjectionWriter = new UserRoleProjectionWriter(
-            typeResolutionService, abstractUserMapper, abstractRoleMapper, userRoleMapper);
+        typeResolutionService, abstractUserMapper, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
-            typeResolutionService, abstractUserMapper, resourceEntityMapper);
+        typeResolutionService, abstractUserMapper, resourceEntityMapper, userRoleMapper);
     }
 
     @Override
@@ -105,7 +105,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             abstractUserMapper.update(user);
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
+        tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
         if (resource != null) {
             resource.setStatus(STATUS_DISABLED);
             resource.setUpdatedAt(now);
@@ -125,7 +125,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             abstractUserMapper.softDeleteBatch(tenantId, List.of(user.getId()), now);
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
+        tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
         if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
@@ -133,8 +133,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminOrg(Long tenantId, Long sysOrgId, String orgType, String name,
-                               Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder,
-                               String extraJson) {
+    Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder,
+    String extraJson) {
         String roleTypeCode = resolveOrgRoleType(orgType);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_ORG);
@@ -194,7 +194,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             abstractRoleMapper.softDeleteBatch(tenantId, List.of(role.getId()), now);
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
+        tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
         if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
@@ -202,7 +202,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminMenu(Long tenantId, Long sysMenuId, String name, Long parentMenuId,
-                                Integer status, Integer sortOrder) {
+    Integer status, Integer sortOrder) {
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
         String externalId = String.valueOf(sysMenuId);
         LocalDateTime now = LocalDateTime.now();
@@ -216,7 +216,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
         String externalId = String.valueOf(sysMenuId);
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
+        tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
         if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), LocalDateTime.now());
         }
@@ -224,13 +224,13 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
-                            Long relationSysOrgId) {
+    Long relationSysOrgId) {
         return userRoleProjectionWriter.bindUserOrg(tenantId, sysUserId, sysOrgId, roleTypeCode, relationSysOrgId);
     }
 
     @Override
     public Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
-                              Long relationSysOrgId) {
+    Long relationSysOrgId) {
         return userRoleProjectionWriter.unbindUserOrg(tenantId, sysUserId, sysOrgId, roleTypeCode, relationSysOrgId);
     }
 
@@ -246,7 +246,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Set<Long> migratePositionRelation(Long tenantId, Long sysPositionId,
-                                             Long oldRelationOrgId, Long newRelationOrgId) {
+    Long oldRelationOrgId, Long newRelationOrgId) {
         return userRoleProjectionWriter.migratePositionRelation(tenantId, sysPositionId, oldRelationOrgId, newRelationOrgId);
     }
 
@@ -274,7 +274,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     public Long findAdminUserId(Long tenantId, Long sysUserId) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
-            tenantId, userType, String.valueOf(sysUserId));
+        tenantId, userType, String.valueOf(sysUserId));
         return user == null ? null : user.getId();
     }
 
@@ -282,7 +282,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     public Long findAdminOrgRoleId(Long tenantId, Long sysOrgId, String orgType) {
         Integer roleType = requireType(tenantId, "role_type", resolveOrgRoleType(orgType));
         AbstractRole role = abstractRoleMapper.selectByTypeAndExternalId(
-            tenantId, roleType, String.valueOf(sysOrgId));
+        tenantId, roleType, String.valueOf(sysOrgId));
         return role == null ? null : role.getId();
     }
 
@@ -290,14 +290,14 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     public Long findAdminMenuResourceId(Long tenantId, Long sysMenuId) {
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, String.valueOf(sysMenuId), CODE_TYPE_DEFAULT);
+        tenantId, resourceType, String.valueOf(sysMenuId), CODE_TYPE_DEFAULT);
         return resource == null ? null : resource.getId();
     }
 
     private Long upsertResource(Long tenantId, Integer resourceType, String code, String name,
-                                Long parentId, int status, LocalDateTime now) {
+    Long parentId, int status, LocalDateTime now) {
         ResourceEntity existing = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, code, CODE_TYPE_DEFAULT);
+        tenantId, resourceType, code, CODE_TYPE_DEFAULT);
         if (existing == null) {
             ResourceEntity resource = new ResourceEntity();
             resource.setTenantId(tenantId);
@@ -324,7 +324,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     private Long resolveParentRoleId(Long tenantId, Integer childRoleType, Long parentOrgId,
-                                     String parentOrgType) {
+    String parentOrgType) {
         if (parentOrgId == null || parentOrgId == 0L) {
             return null;
         }
@@ -335,11 +335,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             parentRoleType = requireType(tenantId, "role_type", resolveOrgRoleType(parentOrgType));
         }
         AbstractRole parent = abstractRoleMapper.selectByTypeAndExternalId(
-            tenantId, parentRoleType, String.valueOf(parentOrgId));
+        tenantId, parentRoleType, String.valueOf(parentOrgId));
         if (parent == null) {
             // 父角色投影缺失 = 依赖缺失，抛错回滚（不再静默写 parentId=null 脱离父树）
             throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
-                "父组织角色投影缺失: parentOrgId=" + parentOrgId);
+            "父组织角色投影缺失: parentOrgId=" + parentOrgId);
         }
         return parent.getId();
     }
@@ -349,11 +349,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             return null;
         }
         ResourceEntity parent = resourceEntityMapper.selectByTypeCodeAndCodeType(
-            tenantId, resourceType, String.valueOf(parentExternalId), CODE_TYPE_DEFAULT);
+        tenantId, resourceType, String.valueOf(parentExternalId), CODE_TYPE_DEFAULT);
         if (parent == null) {
             // 父资源投影缺失 = 依赖缺失，抛错回滚（与父角色同语义，不再静默写 parentId=null 脱离父树）
             throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
-                "父资源投影缺失: parentId=" + parentExternalId);
+            "父资源投影缺失: parentId=" + parentExternalId);
         }
         return parent.getId();
     }
@@ -362,7 +362,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         Integer value = typeResolutionService.resolveTypeValue(tenantId, typeKey, typeCode);
         if (value == null) {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
-                "Unknown " + typeKey + ": " + typeCode);
+            "Unknown " + typeKey + ": " + typeCode);
         }
         return value;
     }

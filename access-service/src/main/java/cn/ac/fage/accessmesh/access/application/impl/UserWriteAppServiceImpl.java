@@ -174,7 +174,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(),
                 AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
         }
-        // T-ACCESS-005 评审 P1：可选字段仅更新提供的字段（null 跳过，保留原值）。
+        // 可选字段仅更新提供的字段（null 跳过，保留原值）。
         // 内存对象保持旧值 → 投影 upsert 使用事实最新值，管理事实与投影一致。
         if (req.name() != null) {
             user.setName(req.name());

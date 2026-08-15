@@ -27,11 +27,11 @@ import java.util.stream.Collectors;
  * 菜单管理服务实现类
  * <p>
  * 提供菜单的CRUD操作、树形查询功能。
- * 实现跨服务数据同步机制，通过记录同步任务模式确保菜单变更同步到permission-center。
+ * 写操作委托 {@code MenuWriteAppService} 同事务维护 ADMIN_MENU 权限投影。
  * 支持菜单层级深度限制（最多5级）、权限标识唯一性校验。
  * 使用MenuDomainService处理菜单数据查询。
  * </p>
- */
+*/
 @Service
 public class MenuServiceImpl implements MenuService {
 
@@ -48,13 +48,12 @@ public class MenuServiceImpl implements MenuService {
      * @param menuMapper 菜单数据访问Mapper
      * @param menuDomainService 菜单领域服务，处理菜单数据查询
      * @param permissionValidator 权限校验器，校验菜单操作权限
-     * @param syncTaskDomainService 同步任务领域服务，事务内入队 sync envelope
-     * @param syncTaskBuilder 同步任务信封构造器
-     */
+     * @param menuWriteAppService 菜单写编排，同事务维护 ADMIN_MENU 投影
+    */
     public MenuServiceImpl(SysMenuMapper menuMapper,
-                           MenuDomainService menuDomainService,
-                           AdminPermissionValidator permissionValidator,
-                           MenuWriteAppService menuWriteAppService) {
+    MenuDomainService menuDomainService,
+    AdminPermissionValidator permissionValidator,
+    MenuWriteAppService menuWriteAppService) {
         this.menuMapper = menuMapper;
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
@@ -65,13 +64,13 @@ public class MenuServiceImpl implements MenuService {
      * 创建菜单
      * <p>
      * 创建新菜单，校验权限标识唯一性和菜单层级深度（不超过5级）。
-     * 创建成功后记录同步任务，异步同步到permission-center。
+     * ADMIN_MENU 投影由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
      * @param req 菜单创建请求，包含菜单名称、路径、组件、权限标识等
      * @return 新菜单ID
-     * @throws BizException 权限标识已存在、菜单层级超限、同步任务记录失败等
-     */
+     * @throws BizException 权限标识已存在、菜单层级超限等
+    */
     @Override
     public Long createMenu(MenuCreateReq req) {
         return menuWriteAppService.createMenu(req);
@@ -81,13 +80,12 @@ public class MenuServiceImpl implements MenuService {
      * 更新菜单
      * <p>
      * 更新菜单的各项属性，校验权限标识唯一性和菜单层级深度。
-     * 执行实例级权限校验。
-     * 如果菜单已关联permission-center或设置了权限标识，同步更新到permission-center。
+     * 执行实例级权限校验；投影由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
      * @param req 菜单更新请求，包含菜单ID和新属性值
      * @throws BizException 菜单不存在、权限标识已存在、菜单层级超限等
-     */
+    */
     @Override
     public void updateMenu(MenuUpdateReq req) {
         menuWriteAppService.updateMenu(req);
@@ -97,12 +95,12 @@ public class MenuServiceImpl implements MenuService {
      * 删除菜单
      * <p>
      * 软删除菜单，不允许删除有子菜单的菜单。
-     * 执行实例级权限校验，先本地软删除再记录同步任务。
+     * 执行实例级权限校验；投影清理由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
      * @param id 菜单ID
-     * @throws BizException 菜单不存在、有子菜单、同步任务记录失败等
-     */
+     * @throws BizException 菜单不存在、有子菜单等
+    */
     @Override
     public void deleteMenu(Long id) {
         menuWriteAppService.deleteMenu(id);
@@ -117,7 +115,7 @@ public class MenuServiceImpl implements MenuService {
      * @param id 菜单ID
      * @return 菜单详情响应
      * @throws BizException 菜单不存在
-     */
+    */
     @Override
     public MenuResp getMenu(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -138,7 +136,7 @@ public class MenuServiceImpl implements MenuService {
      * </p>
      *
      * @return 菜单树列表
-     */
+    */
     @Override
     public List<MenuResp> treeMenu() {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -155,13 +153,13 @@ public class MenuServiceImpl implements MenuService {
      * @param menu 菜单实体
      * @param children 子菜单响应列表
      * @return 菜单响应对象
-     */
+    */
     private MenuResp toResp(SysMenu menu, List<MenuResp> children) {
         return new MenuResp(
-            menu.getId(), Integer.parseInt(menu.getMenuType()), menu.getName(),
-            menu.getParentId(), menu.getPath(), menu.getComponent(), menu.getPermCode(),
-            menu.getIcon(), menu.getSortOrder(), menu.getVisible() ? 1 : 0,
-            menu.getStatus(), menu.getCreatedAt(), menu.getUpdatedAt(), children
+        menu.getId(), Integer.parseInt(menu.getMenuType()), menu.getName(),
+        menu.getParentId(), menu.getPath(), menu.getComponent(), menu.getPermCode(),
+        menu.getIcon(), menu.getSortOrder(), menu.getVisible() ? 1 : 0,
+        menu.getStatus(), menu.getCreatedAt(), menu.getUpdatedAt(), children
         );
     }
 
@@ -174,21 +172,18 @@ public class MenuServiceImpl implements MenuService {
      * @param all 所有菜单列表
      * @param parentId 当前层级父菜单ID（0表示根级）
      * @return 菜单树列表
-     */
+    */
     private List<MenuResp> buildTree(List<SysMenu> all, Long parentId) {
         return all.stream()
-            .filter(m -> parentId.equals(m.getParentId()))
-            .map(m -> new MenuResp(
-                m.getId(), Integer.parseInt(m.getMenuType()), m.getName(),
-                m.getParentId(), m.getPath(), m.getComponent(), m.getPermCode(),
-                m.getIcon(), m.getSortOrder(), m.getVisible() ? 1 : 0,
-                m.getStatus(), m.getCreatedAt(), m.getUpdatedAt(),
-                buildTree(all, m.getId())
-            ))
-            .collect(Collectors.toList());
+        .filter(m -> parentId.equals(m.getParentId()))
+        .map(m -> new MenuResp(
+        m.getId(), Integer.parseInt(m.getMenuType()), m.getName(),
+        m.getParentId(), m.getPath(), m.getComponent(), m.getPermCode(),
+        m.getIcon(), m.getSortOrder(), m.getVisible() ? 1 : 0,
+        m.getStatus(), m.getCreatedAt(), m.getUpdatedAt(),
+        buildTree(all, m.getId())
+        ))
+        .collect(Collectors.toList());
     }
 
-    /**
-     * 入队同步信封，envelope 为 null 时跳过（v1.4：BUTTON 行不再同步到权限中心）。
-     */
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
-supersedes: docs/design/cross-service/admin-permission-sync.md
+supersedes: docs/archive/2026-08-15/admin-permission-sync.md
 last_reviewed: 2026-08-15
 ---
 

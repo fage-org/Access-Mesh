@@ -57,8 +57,8 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (resourceCodes == null || resourceCodes.isEmpty()) {
             return;
         }
-        // 八轮评审 P2：批量校验走 engine.getDeniedIds（一次解析操作者 + 一次角色解析 + 批量实例级查询）。
-        // 九轮评审 P1 修复：getDeniedIds 按 resource_entity.id（投影主键）查询，
+        // ：批量校验走 engine.getDeniedIds（一次解析操作者 + 一次角色解析 + 批量实例级查询）。
+        //  修复：getDeniedIds 按 resource_entity.id（投影主键）查询，
         // 必须先批量解析业务键 → 投影 ID，denied 结果再映射回业务键；
         // 未解析（无投影实体）→ fail-closed 拒绝（与单条 forAuthCheck 内部解析语义一致）。
         Long tenantId = TenantContextHolder.getTenantId();

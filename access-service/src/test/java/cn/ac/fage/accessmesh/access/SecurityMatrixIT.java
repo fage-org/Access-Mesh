@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
-import cn.ac.fage.accessmesh.access.permission.scheduler.UserRoleOrphanCleanupTask;
 import cn.ac.fage.accessmesh.access.permission.service.AbstractUserSyncAppService;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
 import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
@@ -46,11 +45,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <tr><td>权限管理</td><td>内部凭证 + X-User-Id 有效签名</td><td>200 USER（验签才绑定操作者）</td></tr>
  *   <tr><td>跨请求</td><td>租户串扰</td><td>请求间上下文隔离</td></tr>
  * </table>
- */
+*/
 @SpringBootTest(
-    classes = {AccessServiceApplication.class, AccessServiceApplicationTest.TestDataSourceConfig.class},
-    // MOCK：模拟 Servlet Web 环境（不启动真实端口），@AutoConfigureMockMvc 依赖 WebApplicationContext
-    webEnvironment = SpringBootTest.WebEnvironment.MOCK
+classes = {AccessServiceApplication.class, AccessServiceApplicationTest.TestDataSourceConfig.class},
+// MOCK：模拟 Servlet Web 环境（不启动真实端口），@AutoConfigureMockMvc 依赖 WebApplicationContext
+webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -78,9 +77,6 @@ class SecurityMatrixIT {
 
     @MockBean
     private TenantIdProvider tenantIdProvider;
-
-    @MockBean
-    private UserRoleOrphanCleanupTask userRoleOrphanCleanupTask;
 
     /** 认证业务层 mock（/auth/captcha 走真实服务会触达 Redis——mock 连接工厂无 connection）。 */
     @MockBean
@@ -111,7 +107,7 @@ class SecurityMatrixIT {
     @DisplayName("公开认证：/auth/** 匿名可访问（ANONYMOUS 上下文）")
     void authPublicPath_allowsAnonymous() throws Exception {
         mockMvc.perform(post("/auth/captcha"))
-            .andExpect(status().isOk());
+        .andExpect(status().isOk());
         assertThat(AccessRequestContext.getCallerType()).isNull();
     }
 
@@ -128,16 +124,16 @@ class SecurityMatrixIT {
     @DisplayName("用户管理：无会话 /user/** → 401 显式门禁（G3 修复：不依赖服务层隐式异常）")
     void userAdmin_withoutSession_rejected401() throws Exception {
         mockMvc.perform(post("/user/page")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-            .andExpect(status().isUnauthorized());
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{}"))
+        .andExpect(status().isUnauthorized());
     }
 
     @Test
     @DisplayName("评审 P1-1：会话型认证端点 /auth/userinfo 无会话 → 401（不再匿名放行）")
     void authSessionEndpoint_withoutLogin_rejected401() throws Exception {
         mockMvc.perform(post("/auth/userinfo"))
-            .andExpect(status().isUnauthorized());
+        .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -153,7 +149,7 @@ class SecurityMatrixIT {
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts), JWT_SECRET);
+        java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts), JWT_SECRET);
         cn.ac.fage.accessmesh.access.admin.entity.SysUser user = new cn.ac.fage.accessmesh.access.admin.entity.SysUser();
         user.setId(100L);
         user.setTenantId(1L);
@@ -161,10 +157,10 @@ class SecurityMatrixIT {
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
 
         mockMvc.perform(post("/auth/oauth2/userinfo")
-                .header("Authorization", "Bearer " + jwt))
-            .andExpect(status().isOk())
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                .jsonPath("$.data.sub").value("100"));
+        .header("Authorization", "Bearer " + jwt))
+        .andExpect(status().isOk())
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+        .jsonPath("$.data.sub").value("100"));
         // afterCompletion 清理（防泄漏断言）
         assertThat(AccessRequestContext.get()).isNull();
     }
@@ -176,16 +172,16 @@ class SecurityMatrixIT {
     @DisplayName("外部 sync：内部凭证 + sourceService 与 X-Service-Code 一致 → 身份层放行（G2）")
     void sync_withInternalSecret_bindsServiceContext() throws Exception {
         mockMvc.perform(post("/api/perm/abstract-user/sync")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", "example-service")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
-                    + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
-                    + "\"sourceService\":\"example-service\",\"sourceEntityType\":\"user\","
-                    + "\"sourceEntityId\":\"u1\","
-                    + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
-            .andExpect(status().isOk());
+        .header("X-Tenant-Id", "1")
+        .header("X-Internal-Secret", INTERNAL_SECRET)
+        .header("X-Service-Code", "example-service")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
+        + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
+        + "\"sourceService\":\"example-service\",\"sourceEntityType\":\"user\","
+        + "\"sourceEntityId\":\"u1\","
+        + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
+        .andExpect(status().isOk());
         // afterCompletion 已清理：此断言为泄漏检测；SERVICE 上下文绑定与 serviceCode 语义
         // 由 RequestContextInterceptorTest 单元覆盖（职责划分）
         assertThat(AccessRequestContext.get()).isNull();
@@ -195,22 +191,22 @@ class SecurityMatrixIT {
     @DisplayName("外部 sync：无内部凭证 → 403（服务身份认证强制）")
     void sync_withoutInternalSecret_rejected403() throws Exception {
         mockMvc.perform(post("/api/perm/abstract-user/sync")
-                .header("X-Tenant-Id", "1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-            .andExpect(status().isForbidden());
+        .header("X-Tenant-Id", "1")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{}"))
+        .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("权限管理：内部凭证 + 伪造 X-User-Id 无签名 → 403（G1：验签才绑定操作者）")
     void permManage_withInternalSecretAndForgedUserId_rejected403() throws Exception {
         mockMvc.perform(post("/api/perm/domain-config/list")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-User-Id", "999")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"domainCode\":\"HR\"}"))
-            .andExpect(status().isForbidden());
+        .header("X-Tenant-Id", "1")
+        .header("X-Internal-Secret", INTERNAL_SECRET)
+        .header("X-User-Id", "999")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"domainCode\":\"HR\"}"))
+        .andExpect(status().isForbidden());
         assertThat(AccessRequestContext.get()).isNull();
     }
 
@@ -220,14 +216,14 @@ class SecurityMatrixIT {
         long ts = System.currentTimeMillis() / 1000;
         String sig = hmac("100", "1", ts);
         mockMvc.perform(post("/api/perm/domain-config/list")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-User-Id", "100")
-                .header("X-User-Signature", sig)
-                .header("X-Signature-Timestamp", String.valueOf(ts))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"domainCode\":\"HR\"}"))
-            .andExpect(status().isOk());
+        .header("X-Tenant-Id", "1")
+        .header("X-Internal-Secret", INTERNAL_SECRET)
+        .header("X-User-Id", "100")
+        .header("X-User-Signature", sig)
+        .header("X-Signature-Timestamp", String.valueOf(ts))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"domainCode\":\"HR\"}"))
+        .andExpect(status().isOk());
         // 上下文绑定语义（验签才绑定操作者）由 RequestContextInterceptorTest 单元覆盖；
         // perform 返回后 afterCompletion 已清理
         assertThat(AccessRequestContext.get()).isNull();
@@ -238,31 +234,31 @@ class SecurityMatrixIT {
     void requestIsolation_preventsTenantCrosstalk() throws Exception {
         // 请求 A：租户 1（SERVICE 上下文）
         mockMvc.perform(post("/api/perm/abstract-user/sync")
-                .header("X-Tenant-Id", "1")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", "svc-a")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
-                    + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
-                    + "\"sourceService\":\"svc-a\",\"sourceEntityType\":\"user\","
-                    + "\"sourceEntityId\":\"u1\","
-                    + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
-            .andExpect(status().isOk());
+        .header("X-Tenant-Id", "1")
+        .header("X-Internal-Secret", INTERNAL_SECRET)
+        .header("X-Service-Code", "svc-a")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
+        + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
+        + "\"sourceService\":\"svc-a\",\"sourceEntityType\":\"user\","
+        + "\"sourceEntityId\":\"u1\","
+        + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
+        .andExpect(status().isOk());
         // afterCompletion 已清理：同一线程上下文不得残留租户 1（防租户串扰的关键断言）
         assertThat(AccessRequestContext.getTenantId()).isNull();
 
         // 请求 B：租户 2（SERVICE 上下文）
         mockMvc.perform(post("/api/perm/abstract-user/sync")
-                .header("X-Tenant-Id", "2")
-                .header("X-Internal-Secret", INTERNAL_SECRET)
-                .header("X-Service-Code", "svc-b")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
-                    + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
-                    + "\"sourceService\":\"svc-b\",\"sourceEntityType\":\"user\","
-                    + "\"sourceEntityId\":\"u1\","
-                    + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
-            .andExpect(status().isOk());
+        .header("X-Tenant-Id", "2")
+        .header("X-Internal-Secret", INTERNAL_SECRET)
+        .header("X-Service-Code", "svc-b")
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"operation\":\"UPSERT\",\"subjectTypeCode\":\"USER\","
+        + "\"subjectExternalId\":\"u1\",\"name\":\"U1\",\"enabled\":true,"
+        + "\"sourceService\":\"svc-b\",\"sourceEntityType\":\"user\","
+        + "\"sourceEntityId\":\"u1\","
+        + "\"syncVersion\":{\"occurredAt\":\"2026-01-01T00:00:00\",\"sequenceNo\":1}}"))
+        .andExpect(status().isOk());
         // 请求 B 后上下文同样已清理（两次请求间无残留）
         assertThat(AccessRequestContext.get()).isNull();
     }

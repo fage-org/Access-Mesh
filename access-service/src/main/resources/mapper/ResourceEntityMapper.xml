@@ -24,7 +24,9 @@
     </update>
 
     <!-- 批量刷新已有投影行的 name/status（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
-         PostgreSQL FROM (VALUES ...) 惯用法，与 AbstractUserMapper.batchUpdateValues 同构。 -->
+         PostgreSQL FROM (VALUES ...) 惯用法，与 AbstractUserMapper.batchUpdateValues 同构。
+         status 必须显式 CAST：全 unknown 参数的 VALUES 列表被 PG 推断为 text 列，text→int 无赋值 cast
+         会报 42804。 -->
     <update id="batchUpdateValues">
         UPDATE resource_entity r
         SET name = v.name,
@@ -33,7 +35,7 @@
             updated_at = #{updatedAt}
         FROM (VALUES
         <foreach collection="resources" item="r" separator=",">
-            (#{r.id}, #{r.name}, #{r.status})
+            (CAST(#{r.id} AS BIGINT), CAST(#{r.name} AS VARCHAR), CAST(#{r.status} AS INT))
         </foreach>
         ) AS v(id, name, status)
         WHERE r.id = v.id AND r.tenant_id = #{tenantId} AND r.delete_flag = 0

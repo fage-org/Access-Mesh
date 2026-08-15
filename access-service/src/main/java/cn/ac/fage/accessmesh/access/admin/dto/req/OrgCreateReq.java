@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotNull;
  * 用于创建新组织的请求参数。
  * 包含组织类型、名称、父级组织、编码等。
  * 注：原 DTO 中的 phone/email 字段已移除——sys_org 实体不含联系方式字段
- * （T-ACCESS-005 评审 P1：声明的字段必须生效，不生效的字段不得声明）。
+ * （声明的字段必须生效，不生效的字段不得声明）。
  * </p>
  *
  * @param orgType     组织类型（必填）

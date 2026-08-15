@@ -460,4 +460,50 @@ class OrgWriteAppServiceTest {
             .hasMessageContaining("岗位必须作为普通组织的直接子节点");
         verify(orgDomainService, never()).update(any(SysOrg.class));
     }
+
+    @Test
+    @DisplayName("创建 orgType=3 未知类型 → 拒绝（契约仅允许 1=组织 / 2=岗位）")
+    void createOrgUnknownOrgTypeRejected() {
+        assertThatThrownBy(() -> service.createOrg(
+            new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(3, "未知类型", null, "X1", 1, 1)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("orgType 必须为 1（组织）或 2（岗位）");
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+        // 类型校验在门禁与编码探测之前
+        verify(permissionValidator, never()).checkTypeLevel(anyString(), anyString());
+        verify(orgDomainService, never()).findByCode(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("岗位挂在 orgType=3 未知类型父下 → 拒绝（父必须是普通组织）")
+    void createOrgPositionUnderUnknownTypeRejected() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("3"); // 未知类型
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+
+        assertThatThrownBy(() -> service.createOrg(
+            new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(2, "岗位", 999L, "POS1", 1, 1)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位必须作为普通组织的直接子节点");
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("移动节点到 orgType=3 未知类型父下 → 拒绝（父必须是普通组织）")
+    void moveUnderUnknownTypeRejected() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
+        SysOrg newParent = new SysOrg();
+        newParent.setId(20L);
+        newParent.setOrgType("3"); // 未知类型
+        newParent.setLevel(3);
+        when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+
+        assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("岗位必须作为普通组织的直接子节点");
+        verify(orgDomainService, never()).update(any(SysOrg.class));
+    }
 }

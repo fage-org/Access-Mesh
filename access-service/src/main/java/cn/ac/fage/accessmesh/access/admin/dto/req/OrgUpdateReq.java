@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotNull;
  * 用于更新组织信息的请求参数。
  * 所有字段均为可选，仅更新提供的字段（null 跳过，保留原值）。
  * 注：原 DTO 中的 phone/email 字段已移除——sys_org 实体不含联系方式字段
- * （T-ACCESS-005 评审 P1：声明的字段必须生效，不生效的字段不得声明）。
+ * （声明的字段必须生效，不生效的字段不得声明）。
  * </p>
  *
  * @param id          组织ID（必填，用于定位组织）

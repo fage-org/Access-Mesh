@@ -464,7 +464,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
-            // T-ACCESS-005 评审 P1（用户决策：同步禁用投影）：锁定走 UserWriteAppService 内部编排，
+            // （用户决策：同步禁用投影）:锁定走 UserWriteAppService 内部编排，
             // 同一事务更新 sys_user.status=2 + 禁用权限投影 + change_log + 缓存失效，
             // 不再直写 DomainService（旧实现绕过投影，锁定用户已登录会话权限持续有效）
             SysUser user = userDomainService.findByUsername(tenantId, username);
@@ -639,7 +639,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        // 2+3. 一次加载角色与权限（九轮评审 P3：原 getUserRoles/getUserPermissions 各调一次
+        // 2+3. 一次加载角色与权限（：原 getUserRoles/getUserPermissions 各调一次
         // loadUserRolesAndPermissions 导致重复查询且可能跨两次查询时间不一致）
         UserInfoResp rolePermInfo = loadUserRolesAndPermissionsOnce(tenantId, userId);
         List<String> roles = rolePermInfo != null && rolePermInfo.roles() != null
@@ -664,7 +664,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 一次加载用户角色与权限（九轮评审 P3：getUserMenu 共用一次查询，保证同一权限快照）。
+     * 一次加载用户角色与权限（：getUserMenu 共用一次查询，保证同一权限快照）。
      * 登录态自查，不走管理门禁 {@code listUserRoles}。
      */
     private UserInfoResp loadUserRolesAndPermissionsOnce(Long tenantId, Long userId) {

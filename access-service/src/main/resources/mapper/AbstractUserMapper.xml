@@ -95,7 +95,9 @@
 
     <!-- 批量刷新已有投影行的 name/enabled/extra（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
          PostgreSQL FROM (VALUES ...) 惯用法——项目为 PG 方言（如 selectDescendantIdsBatch 递归 CTE），
-         测试用 Testcontainers PG。extra 用 COALESCE 保持"仅非 null 才更新"语义（与单条路径一致）。 -->
+         测试用 Testcontainers PG。extra 用 COALESCE 保持"仅非 null 才更新"语义（与单条路径一致）。
+         每列必须显式 CAST：全 unknown 参数的 VALUES 列表会被 PG 推断为 text 列，text→boolean /
+         COALESCE(text, jsonb) 均无隐式/赋值 cast，会报 42804（stringtype=unspecified 不救 VALUES 推断）。 -->
     <update id="batchUpdateValues">
         UPDATE abstract_user u
         SET name = v.name,
@@ -105,7 +107,7 @@
             updated_at = #{updatedAt}
         FROM (VALUES
         <foreach collection="users" item="u" separator=",">
-            (#{u.id}, #{u.name}, #{u.enabled}, #{u.extra})
+            (CAST(#{u.id} AS BIGINT), CAST(#{u.name} AS VARCHAR), CAST(#{u.enabled} AS BOOLEAN), CAST(#{u.extra} AS JSONB))
         </foreach>
         ) AS v(id, name, enabled, extra)
         WHERE u.id = v.id AND u.tenant_id = #{tenantId} AND u.delete_flag = 0

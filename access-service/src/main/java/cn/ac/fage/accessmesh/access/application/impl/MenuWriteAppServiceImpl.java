@@ -107,7 +107,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         }
         String oldMenuType = menu.getMenuType();
         menu.setMenuType(req.menuType() != null ? String.valueOf(req.menuType()) : menu.getMenuType());
-        // T-ACCESS-005 评审 P1：可选字段仅更新提供的字段（null 跳过，保留原值）
+        // 可选字段仅更新提供的字段（null 跳过，保留原值）
         if (req.menuName() != null) {
             menu.setName(req.menuName());
         }
@@ -135,7 +135,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         }
         menu.setUpdatedAt(LocalDateTime.now());
         menuDomainService.update(menu);
-        // T-ACCESS-005 评审 P1：非按钮 → 按钮时删除旧 ADMIN_MENU 投影，避免旧授权残留
+        // 非按钮 → 按钮时删除旧 ADMIN_MENU 投影，避免旧授权残留
         if (!MENU_TYPE_BUTTON.equals(oldMenuType) && MENU_TYPE_BUTTON.equals(menu.getMenuType())) {
             Long resourceId = localProjectionDomainService.findAdminMenuResourceId(tenantId, menu.getId());
             localProjectionDomainService.deleteAdminMenu(tenantId, menu.getId());
@@ -169,7 +169,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         }
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
         if (!MENU_TYPE_BUTTON.equals(menu.getMenuType())) {
-            // T-ACCESS-005 评审 P2：entityId 用 ADMIN_MENU 投影主键（resource_entity.id），不再用 sys_menu.id
+            // entityId 用 ADMIN_MENU 投影主键（resource_entity.id），不再用 sys_menu.id
             Long resourceId = localProjectionDomainService.findAdminMenuResourceId(tenantId, id);
             localProjectionDomainService.deleteAdminMenu(tenantId, id);
             auditDomainService.recordChangeLog(

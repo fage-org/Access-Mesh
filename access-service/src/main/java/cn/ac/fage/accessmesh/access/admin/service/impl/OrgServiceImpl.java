@@ -38,16 +38,16 @@ import java.util.stream.Collectors;
 /**
  * Org management service implementation.
  * <p>
- * Provides CRUD and tree query for orgs/positions. Cross-service sync uses Outbox pattern:
- * each org change writes 2 sync envelopes (ABSTRACT_ROLE + ADMIN_ORG resource_entity) into
- * sys_sync_task within the same business transaction. Both use business keys, no internal IDs.
+ * Provides CRUD and tree query for orgs/positions. Writes delegate to
+ * {@code OrgWriteAppService} which maintains the ORG/POSITION projection (abstract_role +
+ * ADMIN_ORG resource_entity) in the same transaction, keyed by business keys.
  *
  * @implNote v1.4 起所有读接口（{@link #getOrg}、{@link #pageOrgs}、{@link #treeOrgs}、{@link #listOrgUsers}）
- *           必须经过 {@code permissionValidator} 门禁；按 orgType 分发 VIEW / VIEW_POSITION，
- *           普通组织成员列表归属 USER:VIEW。前端隐藏不是安全边界，禁止在新增读接口时省略。
- *           契约依据：{@code docs/design/org-user-permission-contract.md} v1.4 §4。
+ * 必须经过 {@code permissionValidator} 门禁；按 orgType 分发 VIEW / VIEW_POSITION，
+ * 普通组织成员列表归属 USER:VIEW。前端隐藏不是安全边界，禁止在新增读接口时省略。
+ * 契约依据：{@code docs/design/org-user-permission-contract.md} v1.4 §4。
  * </p>
- */
+*/
 @Service
 public class OrgServiceImpl implements OrgService {
 
@@ -61,10 +61,10 @@ public class OrgServiceImpl implements OrgService {
     private final UserDomainService userDomainService;
 
     public OrgServiceImpl(SysOrgMapper orgMapper, OrgDomainService orgDomainService,
-                          AdminPermissionValidator permissionValidator,
-                          OrgWriteAppService orgWriteAppService,
-                          SysUserOrgMapper userOrgMapper,
-                          UserDomainService userDomainService) {
+    AdminPermissionValidator permissionValidator,
+    OrgWriteAppService orgWriteAppService,
+    SysUserOrgMapper userOrgMapper,
+    UserDomainService userDomainService) {
         this.orgMapper = orgMapper;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
@@ -101,9 +101,9 @@ public class OrgServiceImpl implements OrgService {
 
         // D1=A 实例级 VIEW，按 orgType 分发到 VIEW / VIEW_POSITION
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
-            String.valueOf(id),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.VIEW)
+        AdminResourceType.ORG,
+        String.valueOf(id),
+        OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.VIEW)
         );
 
         return toResp(org, List.of());
@@ -120,8 +120,8 @@ public class OrgServiceImpl implements OrgService {
 
         // 类型级 VIEW，按 orgType 分发
         permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG,
-            OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
+        AdminResourceType.ORG,
+        OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
         );
 
         int pageNum = req.getPageNum();
@@ -131,8 +131,8 @@ public class OrgServiceImpl implements OrgService {
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
             if (subtreeIds.isEmpty()) {
                 return new PaginatedResult<>(
-                    List.of(),
-                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
+                List.of(),
+                new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
                 );
             }
             orgIds = Set.copyOf(subtreeIds);
@@ -143,13 +143,13 @@ public class OrgServiceImpl implements OrgService {
         List<SysOrg> records = result.getRecords();
 
         List<OrgResp> items = records.stream()
-            .map(o -> toResp(o, List.of()))
-            .collect(Collectors.toList());
+        .map(o -> toResp(o, List.of()))
+        .collect(Collectors.toList());
 
         long total = result.getTotalRow();
         long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages));
+        new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages));
     }
 
     @Override
@@ -164,8 +164,8 @@ public class OrgServiceImpl implements OrgService {
 
         // 类型级 VIEW，按 orgType 分发
         permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG,
-            OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
+        AdminResourceType.ORG,
+        OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
         );
 
         List<SysOrg> all = orgMapper.selectOrgsForTree(tenantId, orgType, status);
@@ -182,9 +182,9 @@ public class OrgServiceImpl implements OrgService {
 
         cn.ac.fage.accessmesh.access.admin.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.access.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
         com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()
-            .where(suo.TENANT_ID.eq(tenantId))
-            .where(suo.ORG_ID.eq(orgId))
-            .where(suo.DELETE_FLAG.eq(0L));
+        .where(suo.TENANT_ID.eq(tenantId))
+        .where(suo.ORG_ID.eq(orgId))
+        .where(suo.DELETE_FLAG.eq(0L));
         List<SysUserOrg> userOrgs = userOrgMapper.selectListByQuery(qw);
 
         if (userOrgs.isEmpty()) {
@@ -192,45 +192,45 @@ public class OrgServiceImpl implements OrgService {
         }
 
         Set<Long> userIds = userOrgs.stream()
-            .map(SysUserOrg::getUserId)
-            .collect(Collectors.toSet());
+        .map(SysUserOrg::getUserId)
+        .collect(Collectors.toSet());
         Map<Long, SysUser> userMap = userDomainService.selectValidByIds(tenantId, userIds).stream()
-            .collect(Collectors.toMap(SysUser::getId, u -> u));
+        .collect(Collectors.toMap(SysUser::getId, u -> u));
 
         return userOrgs.stream()
-            .map(uo -> {
-                SysUser user = userMap.get(uo.getUserId());
-                if (user == null) return null;
-                return new OrgUserItemResp(
-                    user.getId(),
-                    user.getUsername(),
-                    user.getName(),
-                    user.getAvatar(),
-                    Boolean.TRUE.equals(uo.getIsPrimary())
-                );
-            })
-            .filter(java.util.Objects::nonNull)
-            .collect(Collectors.toList());
+        .map(uo -> {
+            SysUser user = userMap.get(uo.getUserId());
+            if (user == null) return null;
+            return new OrgUserItemResp(
+            user.getId(),
+            user.getUsername(),
+            user.getName(),
+            user.getAvatar(),
+            Boolean.TRUE.equals(uo.getIsPrimary())
+            );
+        })
+        .filter(java.util.Objects::nonNull)
+        .collect(Collectors.toList());
     }
 
     private OrgResp toResp(SysOrg org, List<OrgResp> children) {
         return new OrgResp(
-            org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
-            org.getParentId(), org.getCode(),
-            org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
+        org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
+        org.getParentId(), org.getCode(),
+        org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );
     }
 
     private List<OrgResp> buildTree(List<SysOrg> all, Long parentId) {
         return all.stream()
-            .filter(o -> parentId.equals(o.getParentId()))
-            .map(o -> new OrgResp(
-                o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
-                o.getParentId(), o.getCode(),
-                o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
-                buildTree(all, o.getId())
-            ))
-            .collect(Collectors.toList());
+        .filter(o -> parentId.equals(o.getParentId()))
+        .map(o -> new OrgResp(
+        o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
+        o.getParentId(), o.getCode(),
+        o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
+        buildTree(all, o.getId())
+        ))
+        .collect(Collectors.toList());
     }
 
     /**
@@ -238,7 +238,7 @@ public class OrgServiceImpl implements OrgService {
      * <p>
      * 委托 {@link OrgOperationCodeMapper#isPositionOrg}。
      * </p>
-     */
+    */
     private static boolean isPositionOrg(String orgType) {
         return OrgOperationCodeMapper.isPositionOrg(orgType);
     }

@@ -98,11 +98,6 @@ file:
   storage:
     path: ${user.home}/accessmesh-files
 
-permission:
-  orphan-cleanup:
-    interval: 300000
-    window-minutes: 5
-
 logging:
   config: classpath:log4j2-spring.xml
   level:

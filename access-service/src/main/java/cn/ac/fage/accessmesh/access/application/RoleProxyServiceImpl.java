@@ -122,7 +122,7 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
             ? roleTypeCodes
             : FUNCTIONAL_ROLE_TYPES;
-        // T-ACCESS-005 评审 P2（用户决策：显式拒绝）：显式传入 ORG/POSITION 时拒绝，
+        // （用户决策：显式拒绝）:显式传入 ORG/POSITION 时拒绝，
         // 防止通过 /role/list 绕过"仅功能角色"约束暴露本地投影角色
         for (String typeCode : typeCodes) {
             if (!FUNCTIONAL_ROLE_TYPES.contains(typeCode)) {
@@ -356,8 +356,8 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         if (abstractUserId == null) {
             return Set.of();
         }
-        // 八轮评审 P2：一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次。
-        // 九轮评审 P1 修复：先批量解析菜单业务键 → resource_entity.id，denied 结果映射回菜单 ID
+        // ：一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次。
+        //  修复：先批量解析菜单业务键 → resource_entity.id，denied 结果映射回菜单 ID
         List<ResourceResolveRequest> requests = menuIds.stream()
             .map(menuId -> new ResourceResolveRequest(AdminResourceType.MENU, String.valueOf(menuId), null, null))
             .toList();

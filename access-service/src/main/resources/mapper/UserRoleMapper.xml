@@ -142,15 +142,17 @@
           AND delete_flag = 0
     </select>
 
-    <!-- 孤儿 user_role 查询：用户已软删但 user_role 仍存活（全租户，延迟补偿用） -->
-    <select id="selectOrphansByCutoff" resultType="cn.ac.fage.accessmesh.access.permission.entity.UserRole">
-        SELECT ur.*
-        FROM user_role ur
-        JOIN abstract_user au ON ur.abstract_user_id = au.id AND au.tenant_id = ur.tenant_id
-        WHERE ur.delete_flag = 0
-          AND au.delete_flag != 0
-          AND ur.updated_at &lt; #{cutoff}
-    </select>
+    <!-- 批量软删指定抽象用户的全部 user_role（删除用户级联路径，单条 SQL） -->
+    <update id="softDeleteByAbstractUserIds">
+        UPDATE user_role
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE tenant_id = #{tenantId}
+          AND abstract_user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+          AND delete_flag = 0
+    </update>
 
     <!-- 批量刷新已存在绑定行的 owner/updatedAt（batchBind 已有行路径，单条 SQL 替代循环 update） -->
     <update id="batchRefreshOwner">

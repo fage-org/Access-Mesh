@@ -29,7 +29,7 @@
 3. 开发权限能力前，按顺序读 [permission-center/overview.md](permission-center/overview.md)、[permission-center/api-contract.md](permission-center/api-contract.md)、[permission-center/core-flows.md](permission-center/core-flows.md)、[permission-center/implementation.md](permission-center/implementation.md)。
 4. 开发具体服务时，读取 [services/](services/) 下对应服务设计；涉及组织与用户页 admin 接口契约时, 读取 [services/admin-service-api-contract.md](services/admin-service-api-contract.md)。
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)，再读 [org-user-permission-contract.md](org-user-permission-contract.md)。
-6. 原 admin→permission 异步同步设计已被取代；归并实现读取 [access-service-architecture.md](access-service-architecture.md) §4，历史追溯才读取 [cross-service/admin-permission-sync.md](cross-service/admin-permission-sync.md)。
+6. 原 admin→permission 异步同步设计已被取代；归并实现读取 [access-service-architecture.md](access-service-architecture.md) §4，历史追溯才读取 [cross-service/admin-permission-sync.md](../archive/2026-08-15/admin-permission-sync.md)。
 7. 需要跟进执行计划、API 核对清单或阶段路线图时，读取 [../plans/](../plans/)。
 8. 涉及表字段、索引、约束时，以 [schema/](schema/) 下当前有效 SQL 为准；最终 `access-service.sql` 由 T-ACCESS-002 产出。
 

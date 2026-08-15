@@ -68,7 +68,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     @OperationLog(module = "ADMIN", action = "ORG_CREATE", targetType = "sys_org",
         targetId = "#result", summary = "'create org ' + #req.code()")
     public Long createOrg(OrgCreateReq req) {
-        String orgType = req.orgType() != null ? String.valueOf(req.orgType()) : null;
+        // orgType 仅允许 1=组织 / 2=岗位（契约 §4.2.4；未知类型会被操作码/投影按普通组织处理，必须拒绝）
+        if (req.orgType() == null || (req.orgType() != 1 && req.orgType() != 2)) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                "orgType 必须为 1（组织）或 2（岗位）");
+        }
+        String orgType = String.valueOf(req.orgType());
         Long tenantId = TenantContextHolder.getTenantId();
         // 契约 §4.2.4 互斥门禁——顶级用类型级 CREATE，子级只用父节点实例级 UPDATE
         // （不再无条件先校验类型级 CREATE，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）；
@@ -132,12 +137,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG, String.valueOf(req.id()),
             OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE));
-        // T-ACCESS-005 评审 P1：组织移动安全门禁与树结构校验
+        // 组织移动安全门禁与树结构校验
         Long newParentId = req.parentOrgId();
         Long oldParentId = org.getParentId();
         if (newParentId != null && !Objects.equals(newParentId, oldParentId)) {
             validateOrgMove(tenantId, req.id(), org, newParentId);
-            // 十轮评审 P1：岗位（POSITION）移动后迁移已有成员 user_role.relation_id
+            // ：岗位（POSITION）移动后迁移已有成员 user_role.relation_id
             // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留
             if (OrgOperationCodeMapper.isPositionOrg(org.getOrgType())) {
                 java.util.Set<Long> affectedUsers = localProjectionDomainService.migratePositionRelation(
@@ -152,7 +157,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
                 AdminErrorCode.ORG_CODE_EXISTS.getMessage());
         }
-        // T-ACCESS-005 评审 P1：可选字段仅更新提供的字段（null 跳过，保留原值）
+        // 可选字段仅更新提供的字段（null 跳过，保留原值）
         if (req.orgName() != null) {
             org.setName(req.orgName());
         }
@@ -173,6 +178,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     /**
      * 岗位拓扑校验（创建路径）：岗位（orgType=2）必须作为普通组织（orgType=1）的直接子节点，
      * 且岗位自身不能拥有下级节点。对齐契约：一体树中岗位作为所属组织的子节点挂入同一树，岗位无下级。
+     * 父节点必须是普通组织（orgType=1/ORG/存量 null），岗位与未知类型（如 orgType=3）均拒绝。
      */
     private void validatePositionTopology(String orgType, Long parentOrgId, SysOrg parent) {
         if (OrgOperationCodeMapper.isPositionOrg(orgType)) {
@@ -181,10 +187,18 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
                     AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
             }
         }
-        if (parent != null && OrgOperationCodeMapper.isPositionOrg(parent.getOrgType())) {
+        if (parent != null && !isRegularOrgType(parent.getOrgType())) {
             throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
                 AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
         }
+    }
+
+    /** 父节点必须是普通组织（orgType=1 或历史语义 ORG；岗位与未知类型均拒绝）。 */
+    private static boolean isRegularOrgType(String orgType) {
+        if (orgType == null || orgType.isBlank()) {
+            return true; // 存量 null 按普通组织
+        }
+        return "1".equals(orgType) || "ORG".equalsIgnoreCase(orgType);
     }
 
     /**
@@ -201,8 +215,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     /**
      * 组织移动校验：新父级存在性 + UPDATE 门禁 + 循环检测 + 跨树校验 + 深度校验 + level 更新（含子树同步）。
      * <p>
-     * 八轮评审 P1：新父级门禁/循环检测/level 子树同步。
-     * 九轮评审 P1（用户决策：严格跨树+禁顶级移动）：跨树比较（resolveTreeRootExternalId）、
+     * ：新父级门禁/循环检测/level 子树同步。
+     * （用户决策：严格跨树+禁顶级移动）：跨树比较（resolveTreeRootExternalId）、
      * 移动到顶级拒绝（树根由组织树配置管理）、子树最深节点移动后不超过 10 层。
      * </p>
      */
@@ -231,9 +245,9 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         permissionValidator.checkInstanceLevel(
             AdminResourceType.ORG, String.valueOf(newParentId),
             OrgOperationCodeMapper.resolve(newParent.getOrgType(), AdminOperationCode.UPDATE));
-        // 岗位拓扑约束：岗位自身无下级——任何节点不能移动到岗位下
-        // （岗位移动到组织节点下满足"岗位必须作为组织的直接子节点"）
-        if (OrgOperationCodeMapper.isPositionOrg(newParent.getOrgType())) {
+        // 岗位拓扑约束：新父必须是普通组织（岗位自身无下级——岗位下挂节点拒绝；
+        // 未知类型（如 orgType=3）也不能作为父节点；岗位移动到组织下满足"岗位必须作为组织的直接子节点"）
+        if (!isRegularOrgType(newParent.getOrgType())) {
             throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
                 AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
         }
@@ -251,7 +265,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         int oldLevel = org.getLevel() != null ? org.getLevel() : 1;
         int delta = newLevel - oldLevel;
-        // 九轮评审 P1：移动后子树最深节点不得超过 10 层（仅检查移动节点会漏检深子树）
+        // ：移动后子树最深节点不得超过 10 层（仅检查移动节点会漏检深子树）
         if (delta > 0 && !descendants.isEmpty()) {
             List<SysOrg> subtreeOrgs = orgDomainService.selectValidByIds(
                 tenantId, new java.util.HashSet<>(descendants));
@@ -291,20 +305,20 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         List<SysUserOrg> members = userOrgDomainService.findByOrgIds(tenantId, List.of(id));
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-        // 八轮评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
-        // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+        // ：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
+        // ：POSITION 成员 relation 指向所属组织（岗位的 parentId）
         List<LocalProjectionDomainService.UserOrgBindKey> unbindKeys = new java.util.ArrayList<>();
         for (SysUserOrg member : members) {
             unbindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
                 member.getUserId(), id, roleTypeCode, org.getParentId()));
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
-        // 九轮评审 P2：批量解析 abstract_user.id，替代循环单条 find
+        // ：批量解析 abstract_user.id，替代循环单条 find
         java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>(
             localProjectionDomainService.batchFindAdminUserIds(
                 tenantId, members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()))
                 .values());
-        // 十轮评审 P1：批量删除成员关系（单条 SQL），替代循环单条 deleteByUserIdAndOrgId
+        // ：批量删除成员关系（单条 SQL），替代循环单条 deleteByUserIdAndOrgId
         if (!members.isEmpty()) {
             userOrgDomainService.deleteByUserIdsAndOrgId(tenantId,
                 members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()), id);
@@ -315,7 +329,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
         Long roleId = localProjectionDomainService.findAdminOrgRoleId(tenantId, id, org.getOrgType());
         localProjectionDomainService.deleteAdminOrg(tenantId, id, org.getOrgType());
-        // 九轮评审 P2：entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
+        // ：entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),

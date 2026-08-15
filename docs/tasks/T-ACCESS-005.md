@@ -115,3 +115,14 @@ last_updated: 2026-08-15
 - **回归测试**：`LocalProjectionDomainServiceImplTest` +5（岗位角色缺失/旧所属缺失/父资源缺失 fail-closed、batchUpsert 批量刷新单条 SQL、batchDelete code_type 限定）+ 既有 2 用例改断言批量方法；`OrgWriteAppServiceTest` +4（顶级岗位拒绝/岗位下创建拒绝/岗位合法创建通过/移动到岗位下拒绝）。
 
 **验证（十一轮收口）**：access-service 默认 `mvn test` **402 测试 0 失败 22 跳过**（393 + 新增 9：LocalProjection 5 + Org 4）。
+
+**外部评审十二轮修复（2026-08-15，2 P1 + 2 P2 全核实修复，2 项用户决策）**：
+
+- **P1（批量 UPDATE VALUES 子句 JSONB/boolean 类型错误）**：`AbstractUserMapper.batchUpdateValues` 的 `extra`（JSONB 列）与 `enabled`（boolean 列）在 PostgreSQL 上会 42804——全 unknown 参数的 VALUES 列表被 PG 推断为 text 列，`COALESCE(text, jsonb)` 无公共类型、`text→boolean` 无赋值 cast（`stringtype=unspecified` 只救 INSERT 直接赋值，不救 VALUES 推断；`ResourceEntityMapper.batchUpdateValues` 的 `status` 同理）。修复：VALUES 每列显式 `CAST(... AS BIGINT/VARCHAR/BOOLEAN/JSONB/INT)`。新增 `LocalProjectionBatchSqlIT`（Testcontainers 真实 PG：batchUpsert 已有行路径 + JSONB extra 更新断言 + batchDelete 级联落库断言；Docker 不可用时跳过）。
+- **P1（删除用户未级联软删全部 user_role，用户决策：级联软删 + 删除孤儿任务）**：`batchDeleteAdminUsers` 原只软删 `abstract_user` + ADMIN_USER 资源，功能角色 `user_role` 存活并依赖 `UserRoleOrphanCleanupTask` 延迟补偿（其 javadoc 自述为已删除的内部 envelope 机制兜底，EXT-9）。修复：新增 `UserRoleMapper.softDeleteByAbstractUserIds`（单条 SQL），`batchDeleteAdminUsers` 同一事务级联软删该用户全部 `user_role`（与 permission-center `UserManageAppServiceImpl.deleteUsers` 的级联语义对齐）；**删除 `UserRoleOrphanCleanupTask` 及 `selectOrphansByCutoff` mapper/XML、`orphan-cleanup` 配置、3 处测试 mockBean 引用**（两条删除路径均强事务覆盖，补偿调度属旧同步链路残留）。
+- **P2（岗位拓扑校验未真正限定父为普通组织）**：`validatePositionTopology` 原仅排除岗位父，orgType=3 等未知类型仍可作岗位父且 `OrgCreateReq.orgType` 仅 @NotNull。修复：`createOrg` 校验 orgType ∈ {1,2}（INVALID_PARAM）；新增 `isRegularOrgType`（orgType=1/ORG/存量 null），创建与移动路径（`validateOrgMove`）的新父统一要求普通组织，未知类型拒绝。
+- **P2（批量绑定/解绑 rolesByExt 缺 roleTypeCode 维度）**：`UserRoleProjectionWriter` 的角色索引原以 externalId 为键且 ORG 优先（putIfAbsent），同一 externalId 的 ORG/POSITION 双投影并存时 POSITION 请求会错误命中 ORG 角色、请求类型缺失时不会 fail-closed。修复：索引键改为 `roleTypeCode + "|" + externalId`（batchBind/batchUnbind 均按 `key.roleTypeCode()` 精确取值，与单条路径精确类型查询语义一致）。
+- **质量建议（用户决策：全量清理）**：生产代码 40 处「X轮评审 P1/P2」历史注释 + 6 个文件 `sys_sync_task`/envelope/Outbox 失效注释（UserServiceImpl/MenuServiceImpl/OrgServiceImpl javadoc、UserOrgKeys 类）全部改写为业务不变量语义；无使用方的 `UserOrgKeys`（旧同步 relationKey 拼装残留）删除；`cross-service/admin-permission-sync.md` 归档至 `docs/archive/2026-08-15/`（4 个活跃设计文档导航引用同步更新；任务卡引用由 T-ACCESS-012 统一重基线，tasks/README 已登记）。
+- **回归测试**：`LocalProjectionDomainServiceImplTest` +2（双投影按 roleTypeCode 精确取值 / 请求类型缺失 fail-closed）+ batchDelete 用例追加级联软删断言；`OrgWriteAppServiceTest` +3（orgType=3 拒绝 / 岗位挂未知类型父拒绝 / 移动至未知类型父拒绝）；新增 `LocalProjectionBatchSqlIT`（2 用例，Testcontainers PG）。
+
+**验证（十二轮收口）**：access-service 默认 `mvn test` **409 测试 0 失败 24 跳过**（402 + 新增 7：LocalProjection 2 + Org 3 + BatchSqlIT 2）。

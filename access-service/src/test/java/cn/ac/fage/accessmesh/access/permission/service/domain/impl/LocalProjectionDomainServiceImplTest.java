@@ -356,7 +356,54 @@ class LocalProjectionDomainServiceImplTest {
         verify(resourceEntityMapper, never()).selectByTypeAndCodes(any(), any(), any());
         verify(resourceEntityMapper).selectByTypeAndCodesAndCodeTypes(
             eq(TENANT), eq(16), eq(Set.of("10")), eq(Set.of("default")));
+        // 十二轮 P1：同一事务级联软删该用户全部 user_role（含功能角色，不再依赖延迟补偿）
+        verify(userRoleMapper).softDeleteByAbstractUserIds(eq(TENANT), eq(Set.of(100L)), any());
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
         verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(50L)), any());
+    }
+
+    @Test
+    @DisplayName("batchBind：同一 externalId 的 ORG/POSITION 双投影并存时，按请求 roleTypeCode 精确取值（十二轮 P2）")
+    void batchBind_resolvesRoleByRoleTypeCode() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
+        // 同一 externalId=3001 同时存在 ORG 与 POSITION 投影（存量漂移场景）
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("3001")))
+            .thenReturn(List.of(role(300L, "3001")));   // ORG:3001
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 11, Set.of("3001")))
+            .thenReturn(List.of(role(301L, "3001")));   // POSITION:3001
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("2001")))
+            .thenReturn(List.of(role(200L, "2001")));   // 所属组织 ORG:2001
+        when(userRoleMapper.selectValidByUserTargetRelation(TENANT, Set.of(100L), Set.of(300L, 301L),
+            Set.of(200L, 300L, 301L), ResourceTypeCode.ROLE)).thenReturn(List.of());
+
+        service.batchBindUserOrg(TENANT,
+            List.of(new LocalProjectionDomainService.UserOrgBindKey(10L, 3001L, "POSITION", 2001L)));
+
+        // POSITION 请求必须命中 POSITION:3001（id=301），而非 ORG:3001（id=300）
+        ArgumentCaptor<List<UserRole>> insertCap = ArgumentCaptor.forClass(List.class);
+        verify(userRoleMapper).insertBatch(insertCap.capture());
+        UserRole inserted = insertCap.getValue().get(0);
+        assertThat(inserted.getTargetId()).isEqualTo(301L);
+        assertThat(inserted.getRelationId()).isEqualTo(200L); // 所属组织 ORG:2001
+    }
+
+    @Test
+    @DisplayName("batchBind：请求类型投影缺失（仅 ORG 存在但请求 POSITION）→ fail-closed（十二轮 P2）")
+    void batchBind_missingRequestedRoleTypeFailsClosed() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("10"))).thenReturn(List.of(user(100L, "10")));
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("3001")))
+            .thenReturn(List.of(role(300L, "3001")));   // 仅 ORG 投影
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 11, Set.of("3001")))
+            .thenReturn(List.of());
+        when(abstractRoleMapper.selectByTypeAndExternalIds(TENANT, 10, Set.of("2001")))
+            .thenReturn(List.of(role(200L, "2001")));
+
+        assertThatThrownBy(() -> service.batchBindUserOrg(TENANT,
+            List.of(new LocalProjectionDomainService.UserOrgBindKey(10L, 3001L, "POSITION", 2001L))))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("local projection missing");
+        verify(userRoleMapper, never()).insertBatch(any());
     }
 }
