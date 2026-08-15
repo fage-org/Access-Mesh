@@ -532,7 +532,7 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发。
 - 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
-- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 内部管理域类型（`ADMIN_USER`/`ADMIN_ORG`/`ADMIN_MENU` 等保留键）由 `access.application` 同事务维护本地投影，本接口对其返回 20042 拒绝。
+- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 内部管理域类型（`ADMIN_USER`/`ADMIN_ORG`/`ADMIN_MENU` 等保留键）由 `access.application` 同事务维护本地投影，本接口对其返回 20045 拒绝。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 
 #### 6.2.2.1 资源实体分领域全量校准
@@ -624,7 +624,7 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 
 #### 6.2.2.3 主体、角色、用户角色同步接口
 
-外部业务服务的主体/角色/成员关系同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。请求中的 `subjectTypeCode`/`roleTypeCode`/`sourceType` 均为调用方自有类型，禁止使用 AccessMesh 内部保留键（`ADMIN_USER`/`ORG|POSITION`/`SYS_USER_ORG`，20042 拒绝）——内部管理事实由 `access.application` 同事务维护本地投影，不经过 sync 链路。
+外部业务服务的主体/角色/成员关系同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。请求中的 `subjectTypeCode`/`roleTypeCode`/`sourceType` 均为调用方自有类型，禁止使用 AccessMesh 内部保留键（`ADMIN_USER`/`ORG|POSITION`/`SYS_USER_ORG`，20045 拒绝）——内部管理事实由 `access.application` 同事务维护本地投影，不经过 sync 链路。
 
 | 接口 | 用途 | scopeKey / businessKey |
 |------|------|------------|
@@ -637,7 +637,7 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 
 约束：
 
-- 成员关系 sync/full-sync 仅接受调用方自有 `sourceType` 与 `roleTypeCode` 组合（服务身份 + 类型白名单校验）；`SYS_USER_ORG`/`ORG`/`POSITION` 为 AccessMesh 内部保留键，20042 拒绝。功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+- 成员关系 sync/full-sync 仅接受调用方自有 `sourceType` 与 `roleTypeCode` 组合（服务身份 + 类型白名单校验）；`SYS_USER_ORG`/`ORG`/`POSITION` 为 AccessMesh 内部保留键，20045 拒绝。功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
 - `relationKey` 为成员关系的关联角色业务键。写入 `businessKey` 时必须按 §6.2.2.4 编码。permission-center 按调用方声明的角色类型 + 外部 ID 解析关联 `abstract_role.id`，写入 `user_role.relation_id`。`relation_id` 表示关联角色 ID，不对外暴露为 API 入参。
 - 单次 sync 接口的 `operation` 使用混合严格语义：禁用为 `DISABLE`，删除为 `DELETE`，成员移除为 `UNBIND`。
 - full-sync 接口均为单请求全量校准接口，必须携带强制 scope，只在 scope 内补齐缺失并清理多余同步事实。
@@ -973,8 +973,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **四条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；资源同步校验 `resourceTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）。
 - **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝。
 - **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
-- **保留键纵深**：即使白名单错误声明 `ADMIN_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20042 拒绝。
-- **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、四分类（如存在）必须为非空白字符串数组；结构非法保存失败（10008）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
+- **保留键纵深**：即使白名单错误声明 `ADMIN_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
+- **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、四分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
 ### 6.4 角色权限配置查询（list）

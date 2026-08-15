@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * </p>
  * <p>
  * relation 语义：POSITION 成员绑定到所属组织角色（relationSysOrgId），普通 ORG 沿用自身角色。
- * 所属组织角色 / 父角色等依赖投影缺失 = 依赖缺失（20043），整体回滚（强事务投影 fail-closed）。
+ * 所属组织角色 / 父角色等依赖投影缺失 = 依赖缺失（20046），整体回滚（强事务投影 fail-closed）。
  * </p>
  */
 public class UserRoleProjectionWriter {

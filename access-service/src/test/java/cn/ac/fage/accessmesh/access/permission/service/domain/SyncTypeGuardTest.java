@@ -212,4 +212,17 @@ class SyncTypeGuardTest {
                 "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
                         + " \"resourceTypeCodes\": [\"HR_ORG\"], \"sourceTypes\": [\"HR_MEMBER\"]}}"));
     }
+
+    @Test
+    @DisplayName("保存校验：syncTypes 内部未知字段（拼写错误）→ 拒绝")
+    void validateExtra_shouldReject_whenUnknownField() {
+        // 拼写错误：subjectTypeCodes → subjectTypesCode
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra(
+                        "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}"));
+        // 多余字段
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra(
+                        "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}"));
+    }
 }

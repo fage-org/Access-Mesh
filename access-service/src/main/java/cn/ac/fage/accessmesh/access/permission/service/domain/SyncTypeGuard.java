@@ -40,6 +40,9 @@ public class SyncTypeGuard {
     private static final String KEY_ROLE_TYPES = "roleTypeCodes";
     private static final String KEY_RESOURCE_TYPES = "resourceTypeCodes";
     private static final String KEY_SOURCE_TYPES = "sourceTypes";
+    /** syncTypes 内部字段白名单：未知字段（拼写错误/多余字段）直接拒绝保存，防止合法 JSON 但错误结构被解释为空白名单。 */
+    private static final Set<String> SYNC_TYPES_FIELD_WHITELIST = Set.of(
+            KEY_SUBJECT_TYPES, KEY_ROLE_TYPES, KEY_RESOURCE_TYPES, KEY_SOURCE_TYPES);
 
     private final ServiceConfigMapper serviceConfigMapper;
     private final ObjectMapper objectMapper;
@@ -87,10 +90,11 @@ public class SyncTypeGuard {
 
     /**
      * 保存边界校验（service-config/save 写入入口）：extra 含 {@code syncTypes} 时必须为对象，
-     * 四个分类如存在必须为字符串数组，拒绝 null、空白项与非字符串元素。
+     * 内部仅允许 subjectTypeCodes/roleTypeCodes/resourceTypeCodes/sourceTypes 四个字段（未知字段拒绝），
+     * 四分类如存在必须为字符串数组，拒绝 null、空白项与非字符串元素。
      * <p>
-     * 配置结构损坏虽不构成安全风险，但会在运行时被解释为空白名单导致同步全部 SECURITY_DENIED，
-     * 属难排查的运行故障，应在配置写入时尽早暴露。
+     * 配置结构损坏（含字段拼写错误）虽不构成安全风险，但会在运行时被解释为空白名单导致同步全部
+     * SECURITY_DENIED，属难排查的运行故障，应在配置写入时尽早暴露。
      * </p>
      *
      * @throws IllegalArgumentException 结构不合法（调用方转为 BizException 返回）
@@ -108,6 +112,11 @@ public class SyncTypeGuard {
             if (!syncTypes.isObject()) {
                 throw new IllegalArgumentException("extra.syncTypes 必须为对象");
             }
+            syncTypes.fieldNames().forEachRemaining(field -> {
+                if (!SYNC_TYPES_FIELD_WHITELIST.contains(field)) {
+                    throw new IllegalArgumentException("extra.syncTypes 存在未知字段: " + field);
+                }
+            });
             requireStringArray(syncTypes, KEY_SUBJECT_TYPES);
             requireStringArray(syncTypes, KEY_ROLE_TYPES);
             requireStringArray(syncTypes, KEY_RESOURCE_TYPES);

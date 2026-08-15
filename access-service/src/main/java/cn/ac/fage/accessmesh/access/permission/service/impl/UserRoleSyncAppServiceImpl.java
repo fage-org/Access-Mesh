@@ -76,7 +76,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         // 2. payload 校验：sourceType/主体/目标角色/relationKey 角色类型均为调用方自有类型，
-        // 保留键（SYS_USER_ORG/ADMIN_USER/ORG|POSITION）由 guard 拒绝（20042 整体回滚）
+        // 保留键（SYS_USER_ORG/ADMIN_USER/ORG|POSITION）由 guard 拒绝（20045 整体回滚）
         localProjectionGuard.rejectReservedUserRoleSource(req.sourceType());
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -369,7 +369,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             UserRole existingForUpsert = preExistingResolved
                     ? preExisting
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
-            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 改写（20042 整体回滚）
+            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 改写（20045 整体回滚）
             localProjectionGuard.rejectIfLocalUserRole(existingForUpsert);
             // 归属校验：现有行必须由当前 sourceService+scope+businessKey 的 sync_metadata 指向
             // （owner=NULL 同时表示人工维护与外部同步，仅靠 owner 无法区分；外部不得接管他人关系）
@@ -390,7 +390,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             UserRole existing = preExistingResolved
                     ? preExisting
                     : findUserRole(tenantId, abstractUserId, roleId, relationId);
-            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 解绑（20042 整体回滚）
+            // 本地投影保护：access-service 所有权的已有行不得被外部 sync 解绑（20045 整体回滚）
             localProjectionGuard.rejectIfLocalUserRole(existing);
             // 归属校验：人工维护或其他来源的关系不得被当前来源 UNBIND 软删
             if (existing != null

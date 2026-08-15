@@ -104,7 +104,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `sys_menu`（`menuType≠3` 按钮不投影） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
 | `sys_user_org` | `user_role` | 主体 `ADMIN_USER` + 角色 `ORG/POSITION` |
 
-保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20042)`。
+保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20045)`。
 
 本契约接口的投影动作：
 
@@ -863,7 +863,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); 现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`) 列入 Phase 2 修正项.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **投影所有权**: 权限管理入口与外部 sync/full-sync 不得改写 `owner=access-service` 或保留业务键；失败抛 `BizException(20042)`。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
+8. **投影所有权**: 权限管理入口与外部 sync/full-sync 不得改写 `owner=access-service` 或保留业务键；失败抛 `BizException(20045)`。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ---
 

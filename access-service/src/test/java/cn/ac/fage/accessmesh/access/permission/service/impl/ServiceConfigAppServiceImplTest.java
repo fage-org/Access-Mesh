@@ -111,6 +111,20 @@ class ServiceConfigAppServiceImplTest {
     }
 
     @Test
+    void shouldReject_whenSyncTypeUnknownField() {
+        mockManagePermission();
+
+        // 拼写错误字段（subjectTypesCode）与多余字段必须拒绝，防止错误结构保存后解释为空白名单
+        assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
+            new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
+                "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}"), 100L));
+        assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
+            new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}"), 100L));
+        verify(serviceConfigMapper, never()).insert(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldAccept_whenSyncTypesWellFormed() {
         mockManagePermission();
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);

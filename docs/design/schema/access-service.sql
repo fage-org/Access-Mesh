@@ -909,7 +909,7 @@ COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';
 COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
-COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝 admin-service，20042）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
+COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
 COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；新外部事实同步不依赖本字段做 full-sync 清理';
 COMMENT ON COLUMN resource_entity.sync_key IS '既有同步源内稳定键，用于 service-config/sync 等 FULL diff 判断；新 resource-entity/sync/full-sync 的 syncKey 以 sync_metadata 为准';
 

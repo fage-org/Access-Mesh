@@ -194,7 +194,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 4. `user-role/full-sync(sourceType=<外部 sourceType>&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId})`：同步外部成员关系。
 5. 其他资源按资源类型调用 `resource-entity/full-sync`。
 
-> **九轮评审 P2（2026-08-15）**：禁止使用 `ADMIN_USER`/`ADMIN_ORG`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键——外部 sync/full-sync 携带保留键会被 `LocalProjectionGuard` 以 20042（`LOCAL_PROJECTION_IMMUTABLE`）拒绝；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
+> **九轮评审 P2（2026-08-15）**：禁止使用 `ADMIN_USER`/`ADMIN_ORG`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键——外部 sync/full-sync 携带保留键会被 `LocalProjectionGuard` 以 20045（`LOCAL_PROJECTION_IMMUTABLE`）拒绝；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
 
 外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 
