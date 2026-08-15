@@ -52,7 +52,7 @@ last_updated: 2026-08-15
 - 新增 `LocalProjectionOwner` / `LocalProjectionGuard` / `LocalProjectionDomainService`：本地投影 `owner=access-service`，稳定外部键 `sys_*.id.toString()`，不写 `sync_metadata`。
 - `access.application` 写编排：`UserWrite` / `OrgWrite` / `MenuWrite` / `UserOrgWrite` 标注 `@Transactional` + `@PermissionChange` + `@OperationLog`，同事务写管理事实、投影与 `permission_change_log`。
 - 内部 Feign 全部替换：`AdminPermissionValidatorImpl`、`OrgVisibilityServiceImpl`、`RoleProxyServiceImpl` 改本地 `PermQueryEngine` / permission AppService。`createRoleForOrg` 与针对 `ORG/POSITION` 的菜单授权拒绝。
-- 权限管理与外部 sync/full-sync 拒绝内部 `sourceService` 与保留业务键，错误码 `20042`。
+- 权限管理与外部 sync/full-sync 拒绝内部 `sourceService` 与保留业务键，错误码 `20045`。
 - 删除 `sys_sync_task` 及内部同步子系统；`access-service.sql` 表数 33；去掉 `@EnableFeignClients` 与 Feign 依赖。
 - 故障注入：`UserWriteAppServiceFaultInjectionTest` 覆盖管理事实 / 投影 / change_log 任一步失败即中止；缓存失效仍只走提交后 `@PermissionChange`。
 - 设计回写：architecture §3/§4、admin-service-api-contract §3/§4/§6/§7、default-org-tree §5.3/§5.4、admin-service 同步任务模型退役说明。
@@ -93,7 +93,7 @@ last_updated: 2026-08-15
 
 - **P1（POSITION 移动成员 relation_id 迁移）**：`OrgWriteAppServiceImpl.updateOrg` 岗位移动后调用 `migratePositionRelation`（同事务批量迁移该岗位成员 `user_role.relation_id` 旧所属组织 → 新所属组织，返回受影响用户登记缓存失效）；否则后续解绑按新三元组匹配不到旧记录导致投影残留。
 - **P1（batchBind 已有行更新缺主键）**：`batchBindUserOrg` 保留三元组 → 完整实体（含主键）映射，已有行直接更新（不再重建无 id 实体触发 MyBatis-Flex 主键校验失败）；同批重复三元组幂等跳过。
-- **P1（投影依赖缺失 fail-closed）**：`resolveRelationRoleId`（POSITION 所属组织角色缺失）/`resolveParentRoleId`（父角色缺失）/`migratePositionRelation`（新所属组织角色缺失）均抛新错误码 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20043) 整体回滚——不再回退 targetRole 制造 `target_id == relation_id`，也不再静默写 `parentId=null` 脱离父树；batchBind/batchUnbind 同语义。
+- **P1（投影依赖缺失 fail-closed）**：`resolveRelationRoleId`（POSITION 所属组织角色缺失）/`resolveParentRoleId`（父角色缺失）/`migratePositionRelation`（新所属组织角色缺失）均抛新错误码 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20046) 整体回滚——不再回退 targetRole 制造 `target_id == relation_id`，也不再静默写 `parentId=null` 脱离父树；batchBind/batchUnbind 同语义。
 - **P1（ORG_VISIBILITY 跨实例失效，用户决策：L2_ONLY）**：目录改 `CacheMode.L2_ONLY`（纯 Redis 共享存储，无本地 Caffeine 旧窗口）——权限变更租户级 `evictAll` 即全实例一致，不再依赖 perm:invalidate 广播（access-service 无订阅者）。
 - **P1（子级创建门禁分支）**：`createOrg` 按 parentOrgId 分支——子级只走父节点 `UPDATE` 实例级门禁，顶级走类型级 `CREATE`（契约 §4.2.4 互斥门禁；不再无条件先校验类型级，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）。
 - **P1（批量写路径循环 DB 调用）**：新增 `deleteByUserIds`/`deleteByUserIdsAndOrgId`（单条 SQL 批量删事实关系）、`batchDeleteAdminUsers`/`batchDisableAdminUsers`/`batchUpsertAdminUsers`（批量加载 + insertBatch/批量状态 SQL + 回查主键）；`deleteUser`/`updateStatus`/`deleteOrg` 改批量投影，消除循环单条数据库调用。
@@ -106,8 +106,8 @@ last_updated: 2026-08-15
 **外部评审十一轮修复（2026-08-15，4 P1 + 2 P2 全核实修复，质量建议：用户决策顺带拆分）**：
 
 - **P1（批量写路径循环单条 UPDATE）**：新增 4 个批量 UPDATE SQL——`UserRoleMapper.batchRefreshOwner`（batchBind 已有行刷新 owner/updatedAt）、`UserRoleMapper.batchUpdateRelationByIds`（岗位迁移成员 relation）、`AbstractUserMapper.batchUpdateValues` / `ResourceEntityMapper.batchUpdateValues`（batchUpsert 已有行，每行值不同，PostgreSQL `UPDATE ... FROM (VALUES ...)` 惯用法——项目已 PG 方言，见递归 CTE 先例；测试用 Testcontainers PG）。`UserWriteAppServiceImpl.deleteUser/updateStatus` 循环 `recordChangeLog` 改为组装全部 entries 一次提交（单条 insertBatch）。`pendingInsertKeys.containsValue` O(N²) 改独立 `Set` 追踪。
-- **P1（父 resource_entity 缺失 fail-open）**：`resolveParentResourceId` 与父角色同语义——父资源投影缺失抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20043) 整体回滚，不再静默写 `parentId=null` 脱离父树（影响 `upsertAdminOrg`/`upsertAdminMenu`）。
-- **P1（岗位迁移 fail-closed 不完整）**：`migratePositionRelation` 的岗位角色投影缺失、旧所属组织角色投影缺失均抛 20043（原静默 `Set.of()`），与新所属组织缺失同语义。
+- **P1（父 resource_entity 缺失 fail-open）**：`resolveParentResourceId` 与父角色同语义——父资源投影缺失抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`(20046) 整体回滚，不再静默写 `parentId=null` 脱离父树（影响 `upsertAdminOrg`/`upsertAdminMenu`）。
+- **P1（岗位迁移 fail-closed 不完整）**：`migratePositionRelation` 的岗位角色投影缺失、旧所属组织角色投影缺失均抛 20046（原静默 `Set.of()`），与新所属组织缺失同语义。
 - **P1（岗位拓扑约束，新错误码 `ORG_POSITION_TOPOLOGY_INVALID`(10110)）**：契约「岗位作为普通组织（orgType=1）的子节点挂入同一树，岗位自身无下级」。`createOrg` 新增 `validatePositionTopology`——岗位必须有父（非顶级）、父必须是普通组织、任何节点不能挂在岗位下；`validateOrgMove` 新增——新父是岗位则拒绝（岗位移动天然满足"父必须是组织"：顶级已由 10109 拒绝、岗位父被 10110 拒绝）。
 - **P2（批量资源操作 code_type 范围）**：`batchDeleteAdminUsers`/`batchDisableAdminUsers`/`batchUpsertAdminUsers` 改 `selectByTypeAndCodesAndCodeTypes(..., Set.of("default"))`，与单条路径 `selectByTypeCodeAndCodeType` 语义一致，不再误伤外部同步其他 code_type 行。
 - **P2（鉴权前暴露编码存在性）**：`createOrg` 的 `findByCode` 移到互斥门禁（类型级 CREATE / 父节点 UPDATE）与拓扑校验之后——未授权调用者无法探测编码是否存在。
@@ -139,7 +139,7 @@ last_updated: 2026-08-15
 
 **外部评审十四轮修复（2026-08-15，1 P1 + 3 P2 + 1 P3 全核实修复，1 项用户决策）**：
 
-- **P1（批量 POSITION 路径仍可绕过 fail-closed）**：`UserRoleProjectionWriter.resolveRelationOrgId` 对 POSITION + `relationSysOrgId==null` 回退岗位自身 id——同 externalId 的 ORG/POSITION 双投影并存时，批量 BIND/UNBIND 命中 `ORG:<positionId>` 写入错误 relation_id（单条 `resolveRelationRoleId` 同输入直接抛错，二者语义不一致）。修复：批量预处理阶段（relationOrgExtIds 收集）对 POSITION 缺所属组织上下文抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`（20043，消息与单条一致），写入前抛错整体回滚。补 bind/unbind 双路径用例（2 个）。
+- **P1（批量 POSITION 路径仍可绕过 fail-closed）**：`UserRoleProjectionWriter.resolveRelationOrgId` 对 POSITION + `relationSysOrgId==null` 回退岗位自身 id——同 externalId 的 ORG/POSITION 双投影并存时，批量 BIND/UNBIND 命中 `ORG:<positionId>` 写入错误 relation_id（单条 `resolveRelationRoleId` 同输入直接抛错，二者语义不一致）。修复：批量预处理阶段（relationOrgExtIds 收集）对 POSITION 缺所属组织上下文抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`（20046，消息与单条一致），写入前抛错整体回滚。补 bind/unbind 双路径用例（2 个）。
 - **P2（adopted 文档回写仍未收口，延续十三轮「回写为当前链路」决策）**：`api-contract.md` §6.2.2.1 规则/示例、§6.2.2.3 整节（表格 syncAction 列改用途、`PERM_*_SYNC`/`SYS_USER_ORG`/`ORG|POSITION`/`ADMIN_*` 全部改外部业务服务自有类型契约，示例改 `hr-service` + `EMP`/`TEAM_ROLE`/`HR_ORG`/`HR_MEMBER` 自有类型）、§6.2.2.5 整节重写（内部 Feign 调度认证 → 外部服务身份认证，`SyncAuthVerifier` + §6.2 安全策略矩阵引用，内部凭证链路标注 T-ACCESS-005 已删除）、scopeKey 表 `sourceType={sourceType}`、service-config/sync 示例 serviceCode 改 access-service、§3.1 可信边界 Feign 透传改凭证绑定。`org-user-permission-contract.md` 4 处（甲层 Feign `/checkAuth`→本地 `PermQueryEngine`、备注 ⁴ `OrgSyncHandler`→同事务本地投影、§8 核对 3 `OrgSyncHandlerImpl`→同事务投影、【同步闭环】剩余实现项→【本地投影闭环（T-ACCESS-005 已落地）】）。`services/admin-service.md` §组织与角色容器约束 3 处 + §与权限中心的交互整节（同步时态→本地投影时态 + 运行时查询，标注不再有跨服务同步链路）。`architecture.md` §1.4 表格 :91/:93 行级加注「已随 T-ACCESS-005 删除」（**用户决策：行级加注**，表格保持基线语义、正文留 T-ACCESS-012 统一回写）。
 - **P2（新测试未证明管理事实整体回滚）**：十三轮新增用例直接调用 DomainService（无 Spring 事务代理、无管理事实 Mapper），`never().softDeleteBatch` 只证明投影软删未执行。新增 `UserOrgWriteAppServiceFaultInjectionIT`（Testcontainers+@SpyBean，与 `UserWriteAppServiceFaultInjectionIT` 同模式）：`removeUserFromOrg`/`deleteOrg` 经真实 Spring 事务路径注入 `unbindUserOrg`/`batchUnbindUserOrg` 投影缺失异常，真实断言 `sys_user_org`/`sys_org` 行仍存在（delete_flag=0）、`permission_change_log` 无新增、`user_role` 零残留、回滚不发布 `PermInvalidateEvent`；另加成功路径对照用例（投影齐全时事实删除 + change_log + 提交后发布）。Docker 不可用跳过（3 用例）。
 - **P2（公共接口注释仍声明旧 fail-open 行为）**：`LocalProjectionDomainService.unbindUserOrg` javadoc「投影缺失返回 null」过时（实现已对用户/角色投影缺失抛 `USER_ROLE_RELATION_NOT_FOUND`）。改为明确幂等 no-op 与依赖缺失异常边界及错误码。
@@ -150,7 +150,7 @@ last_updated: 2026-08-15
 
 **外部评审十五轮修复（2026-08-15，1 P1 + 1 P2 + 1 P3 全核实修复，0 项新决策）**：
 
-- **P1（外部 user-role 同步接口实际不可用）**：`UserRoleSyncAppServiceImpl.sync/fullSync` 先 `rejectReservedUserRoleSource` 拒 SYS_USER_ORG（20042），又只允许 `SYS_USER_ORG + ORG/POSITION`——任何输入都无法成功（文档 HR_MEMBER/TEAM_ROLE 示例必被拒），测试反而固化错误预期。修复：①删除 `SOURCE_TYPE_REQUIRED` 硬编码校验（INVALID_USER_ROLE_SOURCE_OR_TYPE 响应路径删除），改为 guard 拒绝保留键：`rejectReservedUserRoleSource`（sourceType）+ `rejectReservedSubjectType`（ADMIN_USER）+ `rejectReservedRoleType`（目标角色 + relationKey 前缀类型，新增 `rejectReservedRelationType`）——保留键 20042 整体回滚；②本地所有权守卫：BIND/UNBIND 分支对 `existing` 加 `rejectIfLocalUserRole`（外部不得改写/解绑 access-service 所有权行），full-sync 差异删除前批量查 `selectValidByIds`（新增 mapper 方法+XML）过滤本地 owner 行——仅标记 UNBOUND 不软删；③`SyncKeyCodec.userRoleScopeKey` 加 sourceType 参数（scopeKey=`sourceType={...}&roleTypeCode={...}&treeRootExternalId={...}`，不同调用方成员关系类型不再 scope 冲突），fullSync oneReq 用 scope.sourceType() 替代硬编码；④外部同步写入行所有权保持 NULL（owner 由本地投影独占）。测试：UserRoleSyncAppServiceTest 3→9（外部自有类型 BIND 成功+插入行 owner null、保留 subject/role/relationKey 类型拒绝 ×3、本地 owner 行 BIND/UNBIND 拒绝 ×2）、SyncKeyCodecEquivalenceTest +1（不同 sourceType 不同 scopeKey）、FullSyncResponseContractTest 旧 NON_RETRYABLE 预期改 item 级 ROLE_TYPE_CODE_MISMATCH 契约。
+- **P1（外部 user-role 同步接口实际不可用）**：`UserRoleSyncAppServiceImpl.sync/fullSync` 先 `rejectReservedUserRoleSource` 拒 SYS_USER_ORG（20045），又只允许 `SYS_USER_ORG + ORG/POSITION`——任何输入都无法成功（文档 HR_MEMBER/TEAM_ROLE 示例必被拒），测试反而固化错误预期。修复：①删除 `SOURCE_TYPE_REQUIRED` 硬编码校验（INVALID_USER_ROLE_SOURCE_OR_TYPE 响应路径删除），改为 guard 拒绝保留键：`rejectReservedUserRoleSource`（sourceType）+ `rejectReservedSubjectType`（ADMIN_USER）+ `rejectReservedRoleType`（目标角色 + relationKey 前缀类型，新增 `rejectReservedRelationType`）——保留键 20045 整体回滚；②本地所有权守卫：BIND/UNBIND 分支对 `existing` 加 `rejectIfLocalUserRole`（外部不得改写/解绑 access-service 所有权行），full-sync 差异删除前批量查 `selectValidByIds`（新增 mapper 方法+XML）过滤本地 owner 行——仅标记 UNBOUND 不软删；③`SyncKeyCodec.userRoleScopeKey` 加 sourceType 参数（scopeKey=`sourceType={...}&roleTypeCode={...}&treeRootExternalId={...}`，不同调用方成员关系类型不再 scope 冲突），fullSync oneReq 用 scope.sourceType() 替代硬编码；④外部同步写入行所有权保持 NULL（owner 由本地投影独占）。测试：UserRoleSyncAppServiceTest 3→9（外部自有类型 BIND 成功+插入行 owner null、保留 subject/role/relationKey 类型拒绝 ×3、本地 owner 行 BIND/UNBIND 拒绝 ×2）、SyncKeyCodecEquivalenceTest +1（不同 sourceType 不同 scopeKey）、FullSyncResponseContractTest 旧 NON_RETRYABLE 预期改 item 级 ROLE_TYPE_CODE_MISMATCH 契约。
 - **P2（adopted 文档仍混用已删除同步链路，延续「回写为当前链路」决策）**：`default-org-tree-user-lifecycle.md` §5 标题「同步契约」→「投影契约」、§5.1~5.3（用户/组织/成员关系同步 → `access.application` 同事务本地投影，§5.3 补 fail-closed/relation 所属组织/@PermissionChange 广播语义）、§1 规则表 1 处、§8 遗留清单 `OrgSyncHandlerImpl` 引用改 `access.application` 组织写入事务；`core-flows.md` §10.1「先同步或创建为权限中心资源」→ 本地投影+运行时查询；`overview.md` 「只保存 admin-service 同步来的事实」→ 同事务本地投影（外部 sync 仅自有类型）。
 - **P3（四个外部同步实现保留不可达内部 owner 分支）**：`AbstractUserSyncAppServiceImpl`/`AbstractRoleSyncAppServiceImpl`/`ResourceEntitySyncAppServiceImpl`/`UserRoleSyncAppServiceImpl` 入口均已 `rejectInternalSourceService` 拒绝 admin-service，`localProjectionOwner()` 恒返回 null、`ADMIN_SOURCE_SERVICE`/`LOCAL_PROJECTION_OWNER` 常量与 `ownerServiceCode` 参数（applyToTarget/applyToTargetWithExisting/upsertUserRoleWithExisting）均为死代码——全部删除，插入行不再 setOwnerServiceCode（外部同步保持 NULL），SyncTaskBuilder 注释改业务语义（owner 由本地投影独占）。
 - **回归测试**：UserRoleSyncAppServiceTest +6、SyncKeyCodecEquivalenceTest +1、FullSyncResponseContractTest 契约更新 1；UserRoleMapper 新增 `selectValidByIds`（XML 同步）。
@@ -186,3 +186,10 @@ last_updated: 2026-08-15
 - **回归测试**：`SyncTypeGuardTest` +1（未知字段拒绝：拼写错误/多余字段）；`ServiceConfigAppServiceImplTest` +1（同结构校验经保存路径 20044）。
 
 **验证（十八轮收口）**：access-service 默认 `mvn test` **454 测试 0 失败 27 跳过**（452 + 新增 2：SyncTypeGuard 1 + ServiceConfig 1）。
+
+**外部评审十九轮修复（2026-08-15，2 P3 全核实修复，1 项用户决策）**：
+
+- **P3（任务卡仍混用旧错误码，用户决策：历史段落直接更新为当前值）**：完成记录当前状态（:55）保留键错误码 `20042` → `20045`；历史轮次段落中的 `LOCAL_PROJECTION_DEPENDENCY_MISSING(20043)`（:96/:109/:110/:142）→ `20046`；十五轮修复结果两处 `20042`（:153）→ `20045`；:183 重编号说明本身保留旧值（解释修复前冲突）。
+- **P3（生产 Javadoc 混入评审过程信息）**：`PermissionErrorCode` 原注释含「2026-08-15 十八轮评审重编号」过程信息且同时描述两个错误码却只附着于 `LOCAL_PROJECTION_IMMUTABLE`。修复：去掉轮次信息，只保留编号唯一性约束（20042/20043 被授权链路占用、同一编号不得承载两种业务含义）与业务语义；注释拆分为两个枚举各自独立说明。
+
+**验证（十九轮收口）**：access-service 默认 `mvn test` **454 测试 0 失败 27 跳过**（无代码逻辑变更，注释/文档更新）。

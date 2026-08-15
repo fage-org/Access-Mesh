@@ -202,14 +202,18 @@ public enum PermissionErrorCode {
     CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授"),
 
     /**
-     * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影
+     * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影。
      * <p>
-     * 编号 20045/20046（2026-08-15 十八轮评审重编号）：20042/20043 已被授权链路
-     * CONDITION_DISABLED / SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED 占用（api-contract §6.5.1），
+     * 编号 20045/20046 段：20042/20043 已被授权链路 CONDITION_DISABLED /
+     * SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED 占用（api-contract §6.5.1），
      * 统一响应只暴露数字码，同一编号不得承载两种业务含义。
      * </p>
      */
     LOCAL_PROJECTION_IMMUTABLE(20045, "禁止直接修改 access-service 本地权限投影"),
+
+    /**
+     * 本地投影依赖缺失（父组织角色/所属组织角色等不存在），fail-closed 整体回滚。
+     */
     LOCAL_PROJECTION_DEPENDENCY_MISSING(20046, "本地投影依赖缺失（父组织角色/所属组织角色不存在）"),
     INVALID_PARAM(20044, "参数格式错误");
 
