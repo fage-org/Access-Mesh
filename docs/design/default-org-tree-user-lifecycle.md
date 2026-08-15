@@ -186,14 +186,15 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 | 资源实体 | `POST /api/perm/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
 
-外部业务服务发起全量校准时必须按依赖顺序编排：
+外部业务服务发起全量校准时必须按依赖顺序编排（**类型必须为外部业务服务自有类型**）：
 
-1. `abstract_user/full-sync`：同步有效用户主体。
-2. `resource-entity/full-sync(resourceTypeCode=ADMIN_USER)`：同步用户管理资源。
-3. `resource-entity/full-sync(resourceTypeCode=ADMIN_ORG)`：同步组织/岗位管理资源，按 permission-center 内部规则处理父子关系。
-4. `abstract-role/full-sync(roleTypeCode=ORG/POSITION)`：同步组织/岗位角色容器。
-5. `user-role/full-sync(sourceType=SYS_USER_ORG)`：同步组织/岗位成员关系。
-6. 菜单、按钮等资源按资源类型调用 `resource-entity/full-sync`。
+1. `abstract_user/full-sync`：同步有效用户主体（`subjectTypeCode` 为外部服务自有用户类型）。
+2. `resource-entity/full-sync(resourceTypeCode=<外部资源类型>)`：同步外部资源实体。
+3. `abstract-role/full-sync(roleTypeCode=<外部角色类型>&treeRootExternalId={treeRootExternalId})`：同步外部角色容器。
+4. `user-role/full-sync(sourceType=<外部 sourceType>&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId})`：同步外部成员关系。
+5. 其他资源按资源类型调用 `resource-entity/full-sync`。
+
+> **九轮评审 P2（2026-08-15）**：禁止使用 `ADMIN_USER`/`ADMIN_ORG`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键——外部 sync/full-sync 携带保留键会被 `LocalProjectionGuard` 以 20042（`LOCAL_PROJECTION_IMMUTABLE`）拒绝；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
 
 外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 

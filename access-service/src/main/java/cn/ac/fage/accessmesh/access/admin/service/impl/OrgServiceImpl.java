@@ -216,7 +216,7 @@ public class OrgServiceImpl implements OrgService {
     private OrgResp toResp(SysOrg org, List<OrgResp> children) {
         return new OrgResp(
             org.getId(), Integer.parseInt(org.getOrgType()), org.getName(),
-            org.getParentId(), org.getCode(), null, null,
+            org.getParentId(), org.getCode(),
             org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );
     }
@@ -226,7 +226,7 @@ public class OrgServiceImpl implements OrgService {
             .filter(o -> parentId.equals(o.getParentId()))
             .map(o -> new OrgResp(
                 o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
-                o.getParentId(), o.getCode(), null, null,
+                o.getParentId(), o.getCode(),
                 o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
                 buildTree(all, o.getId())
             ))

@@ -503,10 +503,10 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgName` | `String` | 是 | |
 | `parentOrgId` | `Long` | 否 | null=顶级; 顶级仅允许在默认树根 (业务策略) |
 | `code` | `String` | 否 | 租户内唯一 (有值时) |
-| `phone` | `String` | 否 | |
-| `email` | `String` | 否 | |
 | `status` | `Integer` | 否 | 默认 0 |
 | `sort` | `Integer` | 否 | |
+
+> 九轮评审 P2（2026-08-15）：组织 `phone`/`email` 字段已从契约/请求 DTO/响应模型删除——`sys_org` 实体与表不含联系方式字段（声明必须生效）。
 
 **响应**: `PermResult<Long>` (新组织 ID)
 
@@ -541,8 +541,6 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgName` | `String` | 否 | |
 | `parentOrgId` | `Long` | 否 | 改动等价于移动 |
 | `code` | `String` | 否 | |
-| `phone` | `String` | 否 | |
-| `email` | `String` | 否 | |
 | `status` | `Integer` | 否 | |
 | `sort` | `Integer` | 否 | |
 

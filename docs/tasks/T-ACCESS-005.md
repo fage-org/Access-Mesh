@@ -72,3 +72,19 @@ last_updated: 2026-08-15
 - **P3（接口/注释清理）**：`AdminRoleController` `/role/create` 标注退役接口（恒 20042 拒绝）；`AuthServiceImpl` 注释删除 Feign 描述改本地 `RoleProxyService`；`UserUpdateReq` status 注释修正（0=停用/1=正常/2=锁定）。
 
 **验证（八轮收口）**：access-service 默认 `mvn test` **376 测试 0 失败 22 跳过**（评审基线 353 + 新增 23 单测：Lock 3/Org 8/Menu 5/Validator 4 + FaultInjectionTest 3 保持；跳过 = 17 Testcontainers + 2 历史 @Disabled + 3 故障注入 IT Docker 不可用）。新增 `UserWriteAppServiceFaultInjectionIT`（3，真实事务回滚，Docker 可用时执行）。
+
+**外部评审九轮修复（2026-08-15，按主题记录当前结论；用户决策 3 项）**：
+
+- **P1（批量权限校验业务键/投影主键混用）**：`getDeniedIds` 按 `resource_entity.id`（投影主键）查询，上轮批量优化直接把 `sys_*.id` 业务键当投影 ID 传入（实例级授权误拒绝/误放行）。修复：`AdminPermissionValidator.checkBatchInstanceLevel` / `OrgVisibilityService.filterVisibleOrgIds` / `RoleProxyService.filterAllowedMenuIds` 先 `batchResolveResourceIds` 解析业务键 → 投影 ID，denied 结果映射回业务键；未解析（无投影）→ fail-closed 拒绝（与单条 `forAuthCheck` 内部解析语义一致）。
+- **P1（父角色类型取错）**：`upsertAdminOrg` 原按子节点 roleType 查父角色（ORG 父 + POSITION 子查不到 → parentId 静默 null）。修复：签名加 `parentOrgType`（调用方 `OrgWriteAppServiceImpl` 经 `resolveParentOrgType` 提供），按父节点实际 orgType 解析。
+- **P1（POSITION relation_id 投影错误）**：原用岗位 id 查 ORG 角色（查不到回退岗位自身 → `target_id == relation_id`）。修复：`bindUserOrg`/`unbindUserOrg`/`batchBind/UnbindUserOrg` 签名加 `relationSysOrgId`（POSITION 传所属组织 = 岗位 parentId），relation 指向所属组织角色；ORG 沿用自身语义。
+- **P1（创建子组织缺父门禁）**：`createOrg` 带 parentOrgId 时新增：父存在性（不存在 → ORG_NOT_FOUND）、父节点 `ADMIN_ORG:UPDATE` 门禁、父必须可解析到树（游离 → ORG_TREE_ROOT_NOT_RESOLVED）。对齐契约 §4.2.4。
+- **P1（组织移动跨树+深度，用户决策：严格跨树+禁顶级移动）**：`validateOrgMove` 新增：移动到顶级（parentOrgId=0）拒绝（新错误码 `ORG_MOVE_TOP_LEVEL_FORBIDDEN` 10109）；`resolveTreeRootExternalId` 比较原/目标树，不同 → `ORG_CROSS_TREE_MOVE` 10105（对齐契约 CROSS_TREE_MOVE_FORBIDDEN）；移动后子树最深节点（`selectValidByIds` 内存取 max level + delta）不得超过 10 层。
+- **P1（ORG_VISIBILITY 缓存无失效，用户决策：租户级失效）**：catalog 从 `AdminCacheCatalog` 迁移至 `PermCacheCatalog`（permission 域不得依赖 admin 域的架构规则）；`PermissionChangeAspect.flush` 增加 `evictAll(ORG_VISIBILITY, tenantId)`——任何权限/角色/成员变更后租户级清除，权限回收后旧可见范围不再最长存活 5 分钟。
+- **P2（批量写 N+1）**：`UserOrgWriteAppServiceImpl.assignUserToOrgs` 循环 bindUserOrg 改 `batchBindUserOrg`（一次批量加载 + 批量 insert/update）；`deleteUser`/`deleteOrg`/`updateStatus` 的循环 `findAdminUserId` 改 `batchFindAdminUserIds`（一次批量解析）。批量路径 change_log entityId 记 null（JDBC batch 无法回填 generated keys；九轮 P2-8 null 语义），单条路径仍记真实 user_role.id。
+- **P2（审计 entity_id 不再回退事实表 ID）**：`abstractUserId`/`roleId` 投影缺失时 entity_id 记 null（`permission_change_log.entity_id` 可空），不再冒用 `sys_user.id`/`sys_org.id`。
+- **P2（组织 phone/email 契约三方一致，用户决策：删除契约+响应字段）**：`admin-service-api-contract` §4.2.4/4.2.5 请求表删除 phone/email 行，`OrgResp` 删除字段（DTO 八轮已删，实体/表无字段）。
+- **P2（外部 full-sync 示例用保留键）**：`default-org-tree-user-lifecycle` §5.5 编排步骤改为外部业务服务自有类型（占位 `<外部资源类型>` 等），明确禁止 `ADMIN_USER`/`ADMIN_ORG`/`ORG`/`POSITION`/`SYS_USER_ORG` 保留键（LocalProjectionGuard 20042 拒绝）。
+- **P3（登录菜单重复加载）**：`AuthServiceImpl.getUserMenu` 一次 `loadUserRolesAndPermissionsOnce` 拆分 roles/permissions（原两次调用可能跨查询不一致），删除重复私有方法。
+
+**验证（九轮收口）**：access-service 默认 `mvn test` **383 测试 0 失败 22 跳过**（376 + 新增 7：Org 移动/创建门禁 6 + Validator 无投影拒绝 1）。架构测试 `permissionShouldNotDependOnAdmin` 通过（catalog 迁移后 permission 域不再依赖 admin 域）。

@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import org.junit.jupiter.api.AfterEach;
@@ -16,11 +17,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,12 +58,18 @@ class AdminPermissionValidatorImplTest {
     }
 
     @Test
-    @DisplayName("批量校验：一次 resolveUserId + 一次 getDeniedIds，不循环单条 query")
+    @DisplayName("批量校验：批量解析业务键 → 投影 ID + 一次 getDeniedIds，不循环单条 query")
     void batchCheckUsesSingleBatchQuery() {
         when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
             .thenReturn(501L);
+        // 九轮评审 P1：getDeniedIds 按 resource_entity.id 查询，先解析业务键
+        when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList())).thenReturn(
+            Map.of(
+                new ResourceResolveKey("ADMIN_ORG", "1", null, null), 1001L,
+                new ResourceResolveKey("ADMIN_ORG", "2", null, null), 1002L,
+                new ResourceResolveKey("ADMIN_ORG", "3", null, null), 1003L));
         when(engine.getDeniedIds(eq(TENANT), eq(501L), eq("ADMIN_ORG"),
-            eq(new LinkedHashSet<>(List.of("1", "2", "3"))), eq("VIEW")))
+            eq(new LinkedHashSet<>(List.of(1001L, 1002L, 1003L))), eq("VIEW")))
             .thenReturn(Set.of());
 
         assertThatCode(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2", "3"), "VIEW"))
@@ -71,16 +80,34 @@ class AdminPermissionValidatorImplTest {
     }
 
     @Test
-    @DisplayName("批量校验：存在被拒绝 ID 时抛 SecurityException")
+    @DisplayName("批量校验：denied 投影 ID 映射回业务键后抛 SecurityException")
     void batchCheckRejectsDeniedIds() {
         when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
             .thenReturn(501L);
+        when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList())).thenReturn(
+            Map.of(
+                new ResourceResolveKey("ADMIN_ORG", "1", null, null), 1001L,
+                new ResourceResolveKey("ADMIN_ORG", "2", null, null), 1002L));
         when(engine.getDeniedIds(eq(TENANT), eq(501L), eq("ADMIN_ORG"), any(), eq("VIEW")))
-            .thenReturn(new LinkedHashSet<>(List.of("2")));
+            .thenReturn(new LinkedHashSet<>(List.of(1002L))); // 业务键 "2" 被拒绝
 
         assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2"), "VIEW"))
             .isInstanceOf(SecurityException.class)
-            .hasMessageContaining("ADMIN_ORG");
+            .hasMessageContaining("[2]");
+    }
+
+    @Test
+    @DisplayName("批量校验：业务键无投影实体 → fail-closed 拒绝")
+    void batchCheckMissingProjectionRejected() {
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+            .thenReturn(501L);
+        when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+            .thenReturn(Map.of(new ResourceResolveKey("ADMIN_ORG", "1", null, null), 1001L));
+
+        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2"), "VIEW"))
+            .isInstanceOf(SecurityException.class)
+            .hasMessageContaining("资源投影不存在");
+        verify(engine, never()).getDeniedIds(any(), any(), any(), any(), any());
     }
 
     @Test

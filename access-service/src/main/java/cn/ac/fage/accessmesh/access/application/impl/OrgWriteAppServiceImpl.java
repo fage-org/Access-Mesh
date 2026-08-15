@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -39,6 +40,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
 
     private final OrgDomainService orgDomainService;
     private final UserOrgDomainService userOrgDomainService;
+    private final OrgTreeConfigDomainService orgTreeConfigDomainService;
     private final AdminPermissionValidator permissionValidator;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
@@ -46,12 +48,14 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
 
     public OrgWriteAppServiceImpl(OrgDomainService orgDomainService,
                                   UserOrgDomainService userOrgDomainService,
+                                  OrgTreeConfigDomainService orgTreeConfigDomainService,
                                   AdminPermissionValidator permissionValidator,
                                   LocalProjectionDomainService localProjectionDomainService,
                                   AuditDomainService auditDomainService,
                                   ObjectMapper objectMapper) {
         this.orgDomainService = orgDomainService;
         this.userOrgDomainService = userOrgDomainService;
+        this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.permissionValidator = permissionValidator;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
@@ -72,13 +76,20 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
                 AdminErrorCode.ORG_CODE_EXISTS.getMessage());
         }
-        int level = 1;
-        if (req.parentOrgId() != null) {
-            SysOrg parent = orgDomainService.selectValidById(tenantId, req.parentOrgId());
-            if (parent != null) {
-                level = parent.getLevel() != null ? parent.getLevel() + 1 : 1;
+        SysOrg parent = null;
+        if (req.parentOrgId() != null && req.parentOrgId() != 0L) {
+            // 九轮评审 P1：子级创建校验父节点存在性 + UPDATE 门禁 + 树归属（游离拒绝）
+            parent = orgDomainService.selectValidById(tenantId, req.parentOrgId());
+            if (parent == null) {
+                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                    "父组织不存在: orgId=" + req.parentOrgId());
             }
+            permissionValidator.checkInstanceLevel(
+                AdminResourceType.ORG, String.valueOf(req.parentOrgId()),
+                OrgOperationCodeMapper.resolve(parent.getOrgType(), AdminOperationCode.UPDATE));
+            orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, req.parentOrgId());
         }
+        int level = parent != null && parent.getLevel() != null ? parent.getLevel() + 1 : 1;
         if (level > 10) {
             throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
                 AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
@@ -96,7 +107,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         org.setUpdatedAt(LocalDateTime.now());
         org.setDeleteFlag(0L);
         orgDomainService.insert(org);
-        projectOrg(tenantId, org, "UPSERT");
+        projectOrg(tenantId, org, "UPSERT", parent != null ? parent.getOrgType() : null);
         return org.getId();
     }
 
@@ -140,14 +151,26 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         org.setUpdatedAt(LocalDateTime.now());
         orgDomainService.update(org);
-        projectOrg(tenantId, org, "UPSERT");
+        projectOrg(tenantId, org, "UPSERT", resolveParentOrgType(tenantId, org));
     }
 
     /**
-     * 组织移动校验：新父级存在性 + UPDATE 门禁 + 循环检测 + level 更新（含子树同步）。
+     * 解析父节点实际 orgType（九轮评审 P1：ORG 父 + POSITION 子时父角色类型正确投影）。
+     */
+    private String resolveParentOrgType(Long tenantId, SysOrg org) {
+        if (org.getParentId() == null || org.getParentId() == 0L) {
+            return null;
+        }
+        SysOrg parent = orgDomainService.selectValidById(tenantId, org.getParentId());
+        return parent != null ? parent.getOrgType() : null;
+    }
+
+    /**
+     * 组织移动校验：新父级存在性 + UPDATE 门禁 + 循环检测 + 跨树校验 + 深度校验 + level 更新（含子树同步）。
      * <p>
-     * T-ACCESS-005 评审 P1 修复：原实现只校验深度、无新父级门禁、无循环检测、
-     * Long 引用比较、且移动后不更新 level（子树 level 陈旧）。
+     * 八轮评审 P1：新父级门禁/循环检测/level 子树同步。
+     * 九轮评审 P1（用户决策：严格跨树+禁顶级移动）：跨树比较（resolveTreeRootExternalId）、
+     * 移动到顶级拒绝（树根由组织树配置管理）、子树最深节点移动后不超过 10 层。
      * </p>
      */
     private void validateOrgMove(Long tenantId, Long orgId, SysOrg org, Long newParentId) {
@@ -160,25 +183,47 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             throw new BizException(AdminErrorCode.ORG_PARENT_CYCLE.getCode(),
                 AdminErrorCode.ORG_PARENT_CYCLE.getMessage());
         }
-        int newLevel = 1;
-        if (newParentId != 0L) {
-            SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
-            if (newParent == null) {
-                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                    "父组织不存在: orgId=" + newParentId);
-            }
-            // 新父级 UPDATE 门禁：防止把组织移动到调用者无权管理的节点下
-            permissionValidator.checkInstanceLevel(
-                AdminResourceType.ORG, String.valueOf(newParentId),
-                OrgOperationCodeMapper.resolve(newParent.getOrgType(), AdminOperationCode.UPDATE));
-            newLevel = newParent.getLevel() != null ? newParent.getLevel() + 1 : 1;
+        // 用户决策：移动到顶级（parentOrgId=0）拒绝——树根由 SysOrgTreeConfig 管理，
+        // 移动为游离根会破坏树归属（原实现静默 level=1）
+        if (newParentId == 0L) {
+            throw new BizException(AdminErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getCode(),
+                AdminErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getMessage());
         }
+        SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
+        if (newParent == null) {
+            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                "父组织不存在: orgId=" + newParentId);
+        }
+        // 新父级 UPDATE 门禁：防止把组织移动到调用者无权管理的节点下
+        permissionValidator.checkInstanceLevel(
+            AdminResourceType.ORG, String.valueOf(newParentId),
+            OrgOperationCodeMapper.resolve(newParent.getOrgType(), AdminOperationCode.UPDATE));
+        // 用户决策：跨树移动拒绝（原树 ≠ 目标树，ORG_CROSS_TREE_MOVE 对齐契约 CROSS_TREE_MOVE_FORBIDDEN）
+        String oldRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
+        String newRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, newParentId);
+        if (!oldRoot.equals(newRoot)) {
+            throw new BizException(AdminErrorCode.ORG_CROSS_TREE_MOVE.getCode(),
+                AdminErrorCode.ORG_CROSS_TREE_MOVE.getMessage());
+        }
+        int newLevel = newParent.getLevel() != null ? newParent.getLevel() + 1 : 1;
         if (newLevel > 10) {
             throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
                 AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
         }
         int oldLevel = org.getLevel() != null ? org.getLevel() : 1;
         int delta = newLevel - oldLevel;
+        // 九轮评审 P1：移动后子树最深节点不得超过 10 层（仅检查移动节点会漏检深子树）
+        if (delta > 0 && !descendants.isEmpty()) {
+            List<SysOrg> subtreeOrgs = orgDomainService.selectValidByIds(
+                tenantId, new java.util.HashSet<>(descendants));
+            int maxSubLevel = subtreeOrgs.stream()
+                .mapToInt(o -> o.getLevel() != null ? o.getLevel() : 1)
+                .max().orElse(0);
+            if (maxSubLevel + delta > 10) {
+                throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
+                    AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+            }
+        }
         org.setLevel(newLevel);
         org.setParentId(newParentId);
         if (delta != 0 && !descendants.isEmpty()) {
@@ -207,20 +252,21 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         List<SysUserOrg> members = userOrgDomainService.findByOrgIds(tenantId, List.of(id));
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-        // T-ACCESS-005 评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1
+        // 八轮评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
+        // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
         List<LocalProjectionDomainService.UserOrgBindKey> unbindKeys = new java.util.ArrayList<>();
         for (SysUserOrg member : members) {
             unbindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
-                member.getUserId(), id, roleTypeCode));
+                member.getUserId(), id, roleTypeCode, org.getParentId()));
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
-        java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>();
+        // 九轮评审 P2：批量解析 abstract_user.id，替代循环单条 find
+        java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>(
+            localProjectionDomainService.batchFindAdminUserIds(
+                tenantId, members.stream().map(SysUserOrg::getUserId).collect(java.util.stream.Collectors.toSet()))
+                .values());
         for (SysUserOrg member : members) {
-            Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, member.getUserId());
             userOrgDomainService.deleteByUserIdAndOrgId(tenantId, member.getUserId(), id);
-            if (abstractUserId != null) {
-                abstractUserIds.add(abstractUserId);
-            }
         }
         if (!abstractUserIds.isEmpty()) {
             PermissionChangeContext.markUsers(tenantId, abstractUserIds);
@@ -228,11 +274,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
         Long roleId = localProjectionDomainService.findAdminOrgRoleId(tenantId, id, org.getOrgType());
         localProjectionDomainService.deleteAdminOrg(tenantId, id, org.getOrgType());
+        // 九轮评审 P2：entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
-                "abstract_role", roleId == null ? id : roleId, "DELETE", null, null, null,
+                "abstract_role", roleId, "DELETE", null, null, null,
                 new Long[0], roleId == null ? new Long[]{} : new Long[]{roleId})));
         if (roleId != null) {
             PermissionChangeContext.markRoles(tenantId, roleId);
@@ -240,10 +287,10 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
     }
 
-    private void projectOrg(Long tenantId, SysOrg org, String operation) {
+    private void projectOrg(Long tenantId, SysOrg org, String operation, String parentOrgType) {
         Long roleId = localProjectionDomainService.upsertAdminOrg(
             tenantId, org.getId(), org.getOrgType(), org.getName(), org.getParentId(),
-            org.getStatus(), org.getSortOrder(), extraOrgType(org.getOrgType()));
+            parentOrgType, org.getStatus(), org.getSortOrder(), extraOrgType(org.getOrgType()));
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),

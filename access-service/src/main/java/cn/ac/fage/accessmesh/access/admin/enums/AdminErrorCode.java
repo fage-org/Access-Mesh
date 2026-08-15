@@ -115,6 +115,7 @@ public enum AdminErrorCode {
      */
     ORG_TYPE_REQUIRED(10107, "请显式指定 orgType（1=普通组织 / 2=岗位）"),
     ORG_PARENT_CYCLE(10108, "不能将组织移动到自身的子孙节点下"),
+    ORG_MOVE_TOP_LEVEL_FORBIDDEN(10109, "不能将组织移动到顶级（树根由组织树配置管理）"),
 
     // ===== 菜单相关错误（10201-10299） =====
 

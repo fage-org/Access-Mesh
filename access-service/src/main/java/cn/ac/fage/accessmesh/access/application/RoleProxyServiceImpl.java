@@ -25,6 +25,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
@@ -42,6 +44,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -353,11 +356,32 @@ public class RoleProxyServiceImpl implements RoleProxyService {
         if (abstractUserId == null) {
             return Set.of();
         }
-        // T-ACCESS-005 评审 P2：一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次
-        Set<Long> denied = engine.getDeniedIds(
-            tenantId, abstractUserId, AdminResourceType.MENU, new LinkedHashSet<>(menuIds), "VIEW");
-        Set<Long> allowed = new LinkedHashSet<>(menuIds);
-        allowed.removeAll(denied);
+        // 八轮评审 P2：一次 engine.getDeniedIds 批量查询，替代逐菜单单查 N 次。
+        // 九轮评审 P1 修复：先批量解析菜单业务键 → resource_entity.id，denied 结果映射回菜单 ID
+        List<ResourceResolveRequest> requests = menuIds.stream()
+            .map(menuId -> new ResourceResolveRequest(AdminResourceType.MENU, String.valueOf(menuId), null, null))
+            .toList();
+        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
+        Map<Long, Long> entityIdByMenuId = new LinkedHashMap<>();
+        for (Long menuId : menuIds) {
+            Long entityId = resolved.get(
+                new ResourceResolveKey(AdminResourceType.MENU, String.valueOf(menuId), null, null));
+            if (entityId != null) {
+                entityIdByMenuId.put(menuId, entityId);
+            }
+        }
+        if (entityIdByMenuId.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> deniedEntityIds = engine.getDeniedIds(
+            tenantId, abstractUserId, AdminResourceType.MENU,
+            new LinkedHashSet<>(entityIdByMenuId.values()), "VIEW");
+        Set<Long> allowed = new LinkedHashSet<>();
+        for (Map.Entry<Long, Long> entry : entityIdByMenuId.entrySet()) {
+            if (!deniedEntityIds.contains(entry.getValue())) {
+                allowed.add(entry.getKey());
+            }
+        }
         return allowed;
     }
 

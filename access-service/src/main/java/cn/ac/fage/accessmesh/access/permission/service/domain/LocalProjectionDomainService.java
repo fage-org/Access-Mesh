@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 管理事实对应的本地权限投影。
@@ -31,10 +33,13 @@ public interface LocalProjectionDomainService {
     /**
      * UPSERT abstract_role(ORG|POSITION) + resource_entity(ADMIN_ORG)。
      *
+     * @param parentOrgType 父节点实际 orgType（POSITION 子节点的父通常为 ORG，九轮评审 P1 修复：
+     *                      按父节点实际类型解析父角色，避免 POSITION 子节点查 ORG 父角色失败；
+     *                      null 时回退用子节点 roleType，兼容历史调用）
      * @return abstract_role.id
      */
     Long upsertAdminOrg(Long tenantId, Long sysOrgId, String orgType, String name,
-                        Long parentOrgId, Integer status, Integer sortOrder, String extraJson);
+                        Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder, String extraJson);
 
     /**
      * 软删除组织角色与 ADMIN_ORG 资源。
@@ -57,33 +62,52 @@ public interface LocalProjectionDomainService {
     /**
      * BIND sys_user_org 对应的 user_role。
      *
+     * @param relationSysOrgId POSITION 时为其所属组织 sys_org.id（九轮评审 P1 修复：
+     *                         relation 指向岗位所属组织角色，不再回退到岗位角色自身）；
+     *                         ORG 或 null 时沿用自身语义
      * @return user_role.id（投影主键，供变更日志 entityId 使用）
      */
-    Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode);
+    Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode, Long relationSysOrgId);
 
     /**
      * UNBIND sys_user_org 对应的 user_role。
      *
+     * @param relationSysOrgId 同 {@link #bindUserOrg} 的 relation 语义
      * @return user_role.id（软删前取得；投影缺失返回 null）
      */
-    Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode);
+    Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode, Long relationSysOrgId);
 
     /**
-     * 批量 UNBIND（T-ACCESS-005 评审 P2：消除删除路径循环单条 unbind 的 N+1）。
+     * 批量 BIND（九轮评审 P2：批量成员分配不再循环单条 bindUserOrg 的 N+1）。
+     * 一次批量加载 abstract_user / abstract_role / relationRole / user_role 候选，
+     * 按 (sysUserId, sysOrgId, roleTypeCode, relationSysOrgId) 匹配后批量 insert/update。
+     * 任一 key 缺少 abstract_user 或 abstract_role 投影 → 抛 BizException（与单条 bind 语义一致）。
+     */
+    void batchBindUserOrg(Long tenantId, List<UserOrgBindKey> keys);
+
+    /**
+     * 批量 UNBIND（八轮评审 P2：删除路径循环单条 unbind 的 N+1）。
      * 一次批量加载 abstract_user / abstract_role / relationRole / user_role，
-     * 按 (sysUserId, sysOrgId, roleTypeCode) 三元组内存匹配后批量软删。
+     * 按 (sysUserId, sysOrgId, roleTypeCode, relationSysOrgId) 内存匹配后批量软删。
      */
     void batchUnbindUserOrg(Long tenantId, List<UserOrgBindKey> keys);
 
     /**
-     * 批量解绑键：管理事实侧 (sys_user.id, sys_org.id, 角色类型码)。
+     * 批量解绑/绑定键：管理事实侧 (sys_user.id, sys_org.id, 角色类型码, relation 所属组织 id)。
      */
-    record UserOrgBindKey(Long sysUserId, Long sysOrgId, String roleTypeCode) {}
+    record UserOrgBindKey(Long sysUserId, Long sysOrgId, String roleTypeCode, Long relationSysOrgId) {}
 
     /**
      * 按 sys_user.id 定位 abstract_user.id，供缓存失效使用。
      */
     Long findAdminUserId(Long tenantId, Long sysUserId);
+
+    /**
+     * 批量按 sys_user.id 定位 abstract_user.id（九轮评审 P2：消除删除/启停路径循环 find 的 N+1）。
+     *
+     * @return sysUserId → abstractUserId 映射（无投影的 sysUserId 不在结果中）
+     */
+    Map<Long, Long> batchFindAdminUserIds(Long tenantId, Set<Long> sysUserIds);
 
     /**
      * 按 sys_org.id 定位 abstract_role.id，供缓存失效使用。

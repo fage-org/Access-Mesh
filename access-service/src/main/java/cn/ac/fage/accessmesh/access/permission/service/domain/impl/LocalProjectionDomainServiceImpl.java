@@ -19,6 +19,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -132,7 +133,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminOrg(Long tenantId, Long sysOrgId, String orgType, String name,
-                               Long parentOrgId, Integer status, Integer sortOrder, String extraJson) {
+                               Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder,
+                               String extraJson) {
         String roleTypeCode = resolveOrgRoleType(orgType);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_ORG);
@@ -140,7 +142,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         LocalDateTime now = LocalDateTime.now();
         int statusVal = status != null ? status : STATUS_ENABLED;
 
-        Long parentRoleId = resolveParentRoleId(tenantId, roleType, parentOrgId);
+        // 九轮评审 P1：按父节点实际 orgType 解析父角色类型（ORG 父 + POSITION 子不再查不到）
+        Long parentRoleId = resolveParentRoleId(tenantId, roleType, parentOrgId, parentOrgType);
 
         AbstractRole role = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, externalId);
         if (role == null) {
@@ -220,7 +223,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
-    public Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode) {
+    public Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
+                            Long relationSysOrgId) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
@@ -231,10 +235,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                 "local projection missing for user-org bind: userId=" + sysUserId + ", orgId=" + sysOrgId);
         }
-        Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
-        AbstractRole relationRole = abstractRoleMapper.selectByTypeAndExternalId(
-            tenantId, orgRoleType, String.valueOf(sysOrgId));
-        Long relationId = relationRole != null ? relationRole.getId() : role.getId();
+        // 九轮评审 P1：POSITION 的 relation = 所属组织角色（relationSysOrgId），ORG 沿用自身语义
+        Long relationId = resolveRelationRoleId(tenantId, role, roleTypeCode, sysOrgId, relationSysOrgId);
 
         LocalDateTime now = LocalDateTime.now();
         UserRole existing = findUserRole(tenantId, user.getId(), role.getId(), relationId);
@@ -259,7 +261,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
-    public Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode) {
+    public Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
+                              Long relationSysOrgId) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
@@ -269,16 +272,131 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         if (user == null || role == null) {
             return null;
         }
-        Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
-        AbstractRole relationRole = abstractRoleMapper.selectByTypeAndExternalId(
-            tenantId, orgRoleType, String.valueOf(sysOrgId));
-        Long relationId = relationRole != null ? relationRole.getId() : role.getId();
+        Long relationId = resolveRelationRoleId(tenantId, role, roleTypeCode, sysOrgId, relationSysOrgId);
         UserRole existing = findUserRole(tenantId, user.getId(), role.getId(), relationId);
         if (existing != null) {
             userRoleMapper.softDeleteBatch(tenantId, List.of(existing.getId()), LocalDateTime.now());
             return existing.getId();
         }
         return null;
+    }
+
+    /**
+     * 解析 user_role.relation_id：POSITION 成员绑定到所属组织角色（ORG:relationSysOrgId），
+     * 普通 ORG 沿用自身角色；找不到所属组织角色时回退到 target role（防御，不破坏绑定）。
+     */
+    private Long resolveRelationRoleId(Long tenantId, AbstractRole targetRole, String roleTypeCode,
+                                       Long sysOrgId, Long relationSysOrgId) {
+        Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
+        Long relationOrgId = LocalProjectionOwner.ROLE_POSITION.equals(roleTypeCode) && relationSysOrgId != null
+            ? relationSysOrgId
+            : sysOrgId;
+        AbstractRole relationRole = abstractRoleMapper.selectByTypeAndExternalId(
+            tenantId, orgRoleType, String.valueOf(relationOrgId));
+        return relationRole != null ? relationRole.getId() : targetRole.getId();
+    }
+
+    @Override
+    public void batchBindUserOrg(Long tenantId, List<UserOrgBindKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
+        Integer roleTypeOrg = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
+        Integer roleTypePosition = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_POSITION);
+
+        Set<String> userExtIds = keys.stream()
+            .map(k -> String.valueOf(k.sysUserId())).collect(Collectors.toSet());
+        Set<String> orgExtIds = keys.stream()
+            .map(k -> String.valueOf(k.sysOrgId())).collect(Collectors.toSet());
+
+        // 1. 批量加载 abstract_user / abstract_role（ORG+POSITION）/ relationRole（ORG，含 POSITION 所属组织）
+        Map<String, AbstractUser> usersByExt = abstractUserMapper
+            .selectByTypeAndExternalIds(tenantId, userType, userExtIds)
+            .stream().collect(Collectors.toMap(AbstractUser::getExternalId, u -> u, (a, b) -> a));
+        Map<String, AbstractRole> rolesByExt = new HashMap<>();
+        if (!orgExtIds.isEmpty()) {
+            abstractRoleMapper.selectByTypeAndExternalIds(tenantId, roleTypeOrg, orgExtIds)
+                .forEach(r -> rolesByExt.put(r.getExternalId(), r));
+            abstractRoleMapper.selectByTypeAndExternalIds(tenantId, roleTypePosition, orgExtIds)
+                .forEach(r -> rolesByExt.putIfAbsent(r.getExternalId(), r));
+        }
+        Set<String> relationOrgExtIds = keys.stream()
+            .map(k -> String.valueOf(resolveRelationOrgId(k)))
+            .collect(Collectors.toSet());
+        Map<String, AbstractRole> relationsByExt = abstractRoleMapper
+            .selectByTypeAndExternalIds(tenantId, orgRoleType, relationOrgExtIds)
+            .stream().collect(Collectors.toMap(AbstractRole::getExternalId, r -> r, (a, b) -> a));
+
+        // 2. 批量加载候选 user_role（三元组收窄一次查询）
+        Set<Long> userIds = usersByExt.values().stream().map(AbstractUser::getId).collect(Collectors.toSet());
+        Set<Long> roleIds = rolesByExt.values().stream().map(AbstractRole::getId).collect(Collectors.toSet());
+        Set<Long> relationIds = relationsByExt.values().stream().map(AbstractRole::getId).collect(Collectors.toSet());
+        relationIds.addAll(roleIds);
+        List<UserRole> candidates = userIds.isEmpty() || roleIds.isEmpty()
+            ? List.of()
+            : userRoleMapper.selectValidByUserTargetRelation(
+                tenantId, userIds, roleIds, relationIds, ResourceTypeCode.ROLE);
+        Set<String> candidateKeys = candidates.stream()
+            .map(ur -> ur.getAbstractUserId() + "|" + ur.getTargetId() + "|" + ur.getRelationId())
+            .collect(Collectors.toSet());
+
+        // 3. 逐 key 计算三元组，批量 insert（新）或 update（已存在，刷新 owner/updatedAt）
+        LocalDateTime now = LocalDateTime.now();
+        List<UserRole> toInsert = new ArrayList<>();
+        List<UserRole> toUpdate = new ArrayList<>();
+        Set<String> matchedKeys = new HashSet<>();
+        for (UserOrgBindKey key : keys) {
+            AbstractUser user = usersByExt.get(String.valueOf(key.sysUserId()));
+            AbstractRole role = rolesByExt.get(String.valueOf(key.sysOrgId()));
+            if (user == null || role == null) {
+                throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+                    "local projection missing for user-org bind: userId=" + key.sysUserId()
+                        + ", orgId=" + key.sysOrgId());
+            }
+            AbstractRole relationRole = relationsByExt.get(String.valueOf(resolveRelationOrgId(key)));
+            Long relationId = relationRole != null ? relationRole.getId() : role.getId();
+            String tripleKey = user.getId() + "|" + role.getId() + "|" + relationId;
+            if (candidateKeys.contains(tripleKey) || matchedKeys.contains(tripleKey)) {
+                // 已存在（本批先插入的也命中）：仅刷新更新字段
+                UserRole ur = new UserRole();
+                ur.setAbstractUserId(user.getId());
+                ur.setTargetId(role.getId());
+                ur.setRelationId(relationId);
+                ur.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+                ur.setUpdatedAt(now);
+                toUpdate.add(ur);
+            } else {
+                UserRole ur = new UserRole();
+                ur.setTenantId(tenantId);
+                ur.setAbstractUserId(user.getId());
+                ur.setTargetType(ResourceTypeCode.ROLE);
+                ur.setTargetId(role.getId());
+                ur.setRelationId(relationId);
+                ur.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+                ur.setCreatedAt(now);
+                ur.setUpdatedAt(now);
+                ur.setDeleteFlag(0L);
+                toInsert.add(ur);
+                matchedKeys.add(tripleKey);
+            }
+        }
+        if (!toInsert.isEmpty()) {
+            userRoleMapper.insertBatch(toInsert);
+        }
+        // MyBatis-Flex BaseMapper 无 updateBatch；toUpdate 仅覆盖已存在行的 owner/updatedAt 刷新，
+        // 重复绑定场景数量有限，循环单条更新可接受
+        for (UserRole ur : toUpdate) {
+            userRoleMapper.update(ur);
+        }
+    }
+
+    /** 批量键的 relation 所属组织 id（POSITION 用 relationSysOrgId，ORG 用自身）。 */
+    private static Long resolveRelationOrgId(UserOrgBindKey key) {
+        return LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode()) && key.relationSysOrgId() != null
+            ? key.relationSysOrgId()
+            : key.sysOrgId();
     }
 
     @Override
@@ -296,7 +414,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         Set<String> orgExtIds = keys.stream()
             .map(k -> String.valueOf(k.sysOrgId())).collect(Collectors.toSet());
 
-        // 1. 批量加载 abstract_user / abstract_role（ORG+POSITION）/ relationRole（ORG）
+        // 1. 批量加载 abstract_user / abstract_role（ORG+POSITION）/ relationRole（ORG，含 POSITION 所属组织）
         Map<String, AbstractUser> usersByExt = abstractUserMapper
             .selectByTypeAndExternalIds(tenantId, userType, userExtIds)
             .stream().collect(Collectors.toMap(AbstractUser::getExternalId, u -> u, (a, b) -> a));
@@ -307,8 +425,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             abstractRoleMapper.selectByTypeAndExternalIds(tenantId, roleTypePosition, orgExtIds)
                 .forEach(r -> rolesByExt.putIfAbsent(r.getExternalId(), r));
         }
+        Set<String> relationOrgExtIds = keys.stream()
+            .map(k -> String.valueOf(resolveRelationOrgId(k)))
+            .collect(Collectors.toSet());
         Map<String, AbstractRole> relationsByExt = abstractRoleMapper
-            .selectByTypeAndExternalIds(tenantId, orgRoleType, orgExtIds)
+            .selectByTypeAndExternalIds(tenantId, orgRoleType, relationOrgExtIds)
             .stream().collect(Collectors.toMap(AbstractRole::getExternalId, r -> r, (a, b) -> a));
 
         // 2. 批量加载候选 user_role（三元组收窄一次查询）
@@ -329,7 +450,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             if (user == null || role == null) {
                 continue;
             }
-            AbstractRole relationRole = relationsByExt.get(String.valueOf(key.sysOrgId()));
+            AbstractRole relationRole = relationsByExt.get(String.valueOf(resolveRelationOrgId(key)));
             Long relationId = relationRole != null ? relationRole.getId() : role.getId();
             keysToMatch.add(user.getId() + "|" + role.getId() + "|" + relationId);
         }
@@ -342,6 +463,24 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         if (!toDelete.isEmpty()) {
             userRoleMapper.softDeleteBatch(tenantId, toDelete, LocalDateTime.now());
         }
+    }
+
+    @Override
+    public Map<Long, Long> batchFindAdminUserIds(Long tenantId, Set<Long> sysUserIds) {
+        if (sysUserIds == null || sysUserIds.isEmpty()) {
+            return Map.of();
+        }
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Set<String> extIds = sysUserIds.stream().map(String::valueOf).collect(Collectors.toSet());
+        Map<Long, Long> result = new HashMap<>();
+        for (AbstractUser user : abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds)) {
+            try {
+                result.put(Long.valueOf(user.getExternalId()), user.getId());
+            } catch (NumberFormatException ignored) {
+                // 本地投影 externalId 恒为 sys_*.id 数字串；非数字串（外部同步）不映射
+            }
+        }
+        return result;
     }
 
     @Override
@@ -397,12 +536,19 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         return existing.getId();
     }
 
-    private Long resolveParentRoleId(Long tenantId, Integer roleType, Long parentOrgId) {
+    private Long resolveParentRoleId(Long tenantId, Integer childRoleType, Long parentOrgId,
+                                     String parentOrgType) {
         if (parentOrgId == null || parentOrgId == 0L) {
             return null;
         }
+        // 九轮评审 P1：父角色类型按父节点实际 orgType 解析（ORG 父 + POSITION 子不再查不到）；
+        // parentOrgType 缺失时回退用子节点 roleType，兼容未提供父类型的调用
+        Integer parentRoleType = childRoleType;
+        if (parentOrgType != null && !parentOrgType.isBlank()) {
+            parentRoleType = requireType(tenantId, "role_type", resolveOrgRoleType(parentOrgType));
+        }
         AbstractRole parent = abstractRoleMapper.selectByTypeAndExternalId(
-            tenantId, roleType, String.valueOf(parentOrgId));
+            tenantId, parentRoleType, String.valueOf(parentOrgId));
         return parent == null ? null : parent.getId();
     }
 

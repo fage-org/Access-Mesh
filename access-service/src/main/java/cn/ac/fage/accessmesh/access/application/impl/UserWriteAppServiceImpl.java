@@ -140,8 +140,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
 
             SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.orgId());
             String roleTypeCode = resolveOrgRoleTypeCode(targetOrg);
+            // 九轮评审 P1：POSITION 绑定 relation 指向所属组织（岗位的 parentId）
             Long userRoleId = localProjectionDomainService.bindUserOrg(
-                tenantId, user.getId(), req.orgId(), roleTypeCode);
+                tenantId, user.getId(), req.orgId(), roleTypeCode,
+                targetOrg != null ? targetOrg.getParentId() : null);
             recordProjectionChange(tenantId, "user_role", userRoleId, "BIND",
                 new Long[]{abstractUserId}, new Long[0]);
         }
@@ -244,7 +246,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             ? Map.of()
             : orgDomainService.batchSelectValidByIdsMap(tenantId, orgIds);
 
-        // T-ACCESS-005 评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1
+        // 八轮评审 P2：批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；
+        // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
         List<LocalProjectionDomainService.UserOrgBindKey> unbindKeys = new java.util.ArrayList<>();
         for (SysUserOrg uo : allUserOrgs) {
             SysOrg org = orgMap.get(uo.getOrgId());
@@ -254,7 +257,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                 continue;
             }
             unbindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
-                uo.getUserId(), uo.getOrgId(), resolveOrgRoleTypeCode(org)));
+                uo.getUserId(), uo.getOrgId(), resolveOrgRoleTypeCode(org), org.getParentId()));
         }
         localProjectionDomainService.batchUnbindUserOrg(tenantId, unbindKeys);
 
@@ -263,16 +266,18 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         userDomainService.softDeleteBatch(tenantId, req.ids());
 
+        // 九轮评审 P2：批量解析 abstract_user.id，替代循环单条 find
         java.util.LinkedHashSet<Long> abstractUserIds = new java.util.LinkedHashSet<>();
+        Map<Long, Long> abstractIdBySysId = localProjectionDomainService.batchFindAdminUserIds(
+            tenantId, users.stream().map(SysUser::getId).collect(Collectors.toSet()));
         for (SysUser user : users) {
-            Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, user.getId());
+            Long abstractUserId = abstractIdBySysId.get(user.getId());
             if (abstractUserId != null) {
                 abstractUserIds.add(abstractUserId);
             }
             localProjectionDomainService.deleteAdminUser(tenantId, user.getId());
-            // T-ACCESS-005 评审 P2：entityType=abstract_user 时 entityId 必须用投影主键（abstractUserId）
-            recordProjectionChange(tenantId, "abstract_user",
-                abstractUserId != null ? abstractUserId : user.getId(), "DELETE",
+            // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
+            recordProjectionChange(tenantId, "abstract_user", abstractUserId, "DELETE",
                 abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0]);
         }
         if (!abstractUserIds.isEmpty()) {
@@ -312,6 +317,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
         userDomainService.batchUpdateStatus(tenantId, List.copyOf(validIds), req.status());
         boolean enabled = req.status() == 1;
+        // 九轮评审 P2：预批量解析 abstract_user.id（禁用分支复用），消除循环单条 find
+        Map<Long, Long> abstractIdBySysId = enabled
+            ? Map.of()
+            : localProjectionDomainService.batchFindAdminUserIds(tenantId, validIds);
         for (SysUser user : existingUsers) {
             user.setStatus(req.status());
             Long abstractUserId;
@@ -322,15 +331,14 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                     PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
                 }
             } else {
-                abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, user.getId());
+                abstractUserId = abstractIdBySysId.get(user.getId());
                 localProjectionDomainService.disableAdminUser(tenantId, user.getId());
                 if (abstractUserId != null) {
                     PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
                 }
             }
-            // T-ACCESS-005 评审 P2：entityType=abstract_user 时 entityId 必须用投影主键（abstractUserId）
-            recordProjectionChange(tenantId, "abstract_user",
-                abstractUserId != null ? abstractUserId : user.getId(),
+            // 八轮评审 P2：entityId 用投影主键；九轮评审 P2：投影缺失时记 null（不再冒用 sys_user.id）
+            recordProjectionChange(tenantId, "abstract_user", abstractUserId,
                 enabled ? "UPSERT" : "DISABLE", new Long[]{}, new Long[0]);
         }
     }

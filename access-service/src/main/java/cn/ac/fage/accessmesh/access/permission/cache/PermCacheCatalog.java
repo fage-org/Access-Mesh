@@ -153,4 +153,24 @@ public final class PermCacheCatalog {
             .l2TtlMinutes(120)
             .valueType(new TypeRef<Map<Long, cn.ac.fage.accessmesh.access.permission.entity.OperationPermission>>() {})
             .build();
+
+    /**
+     * 操作者可见组织范围缓存（九轮评审 P1：从 AdminCacheCatalog 迁移至 permission 域——
+     * 失效由 {@code PermissionChangeAspect.flush} 统一执行（租户级 evictAll），
+     * permission 域不得依赖 admin 域（架构规则）。）
+     * <p>
+     * Key: operatorId（操作者用户 ID）
+     * Value: Set<Long> 操作者通过 ADMIN_ORG:VIEW 可见的默认树组织 ID 集合
+     * <p>
+     * 60 秒 TTL 吸收高频查询；任何权限/角色/成员变更后租户级清除（afterCommit）。
+     */
+    public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY =
+        CacheCatalogEntry.<Set<Long>>builder()
+            .code("admin:org-visibility")
+            .mode(CacheMode.L1_L2)
+            .l1TtlMinutes(1)
+            .l1MaxSize(500)
+            .l2TtlMinutes(5)
+            .valueType(new TypeRef<Set<Long>>() {})
+            .build();
 }

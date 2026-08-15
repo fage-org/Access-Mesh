@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.application.impl.OrgWriteAppServiceImpl;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -51,6 +52,7 @@ class OrgWriteAppServiceTest {
 
     @Mock private OrgDomainService orgDomainService;
     @Mock private UserOrgDomainService userOrgDomainService;
+    @Mock private OrgTreeConfigDomainService orgTreeConfigDomainService;
     @Mock private AdminPermissionValidator permissionValidator;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
@@ -62,6 +64,7 @@ class OrgWriteAppServiceTest {
         service = new OrgWriteAppServiceImpl(
             orgDomainService,
             userOrgDomainService,
+            orgTreeConfigDomainService,
             permissionValidator,
             localProjectionDomainService,
             auditDomainService,
@@ -146,7 +149,7 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("移动成功：更新自身 level + 子树 level 增量同步")
+    @DisplayName("移动成功：同树校验通过，更新自身 level + 子树 level 增量同步")
     void moveUpdatesLevelAndSubtree() {
         when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
         when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of(30L));
@@ -155,6 +158,14 @@ class OrgWriteAppServiceTest {
         newParent.setOrgType("1");
         newParent.setLevel(4);
         when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+        // 同树（九轮评审 P1：跨树校验）
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 20L)).thenReturn("1");
+        // 子树最深 level 2 + delta 3 = 5 ≤ 10（九轮评审 P1：深度校验）
+        SysOrg subtreeOrg = new SysOrg();
+        subtreeOrg.setId(30L);
+        subtreeOrg.setLevel(2);
+        when(orgDomainService.selectValidByIds(eq(TENANT), any())).thenReturn(List.of(subtreeOrg));
 
         service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null));
 
@@ -163,6 +174,109 @@ class OrgWriteAppServiceTest {
         assertThat(captor.getValue().getLevel()).isEqualTo(5); // 新父级 level 4 + 1
         assertThat(captor.getValue().getParentId()).isEqualTo(20L);
         verify(orgDomainService).batchUpdateLevel(TENANT, List.of(30L), 3); // 5 - 2
+    }
+
+    @Test
+    @DisplayName("移动到顶级 → 拒绝（九轮决策：树根由配置管理）")
+    void moveToTopLevelRejected() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
+
+        assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 0L, null, null, null)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("顶级");
+        verify(orgDomainService, never()).update(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("跨树移动 → 拒绝（ORG_CROSS_TREE_MOVE）")
+    void moveAcrossTreesRejected() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
+        SysOrg newParent = new SysOrg();
+        newParent.setId(20L);
+        newParent.setOrgType("1");
+        newParent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 20L)).thenReturn("2");
+
+        assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("跨树");
+        verify(orgDomainService, never()).update(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("移动后子树最深节点超过 10 层 → 拒绝")
+    void moveWithDeepSubtreeRejected() {
+        // org level 4，子树最深 10；移动到 level 4 父（newLevel 5，delta 1）→ 最深 11 > 10 拒绝
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 4));
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of(30L));
+        SysOrg newParent = new SysOrg();
+        newParent.setId(20L);
+        newParent.setOrgType("1");
+        newParent.setLevel(4);
+        when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 20L)).thenReturn("1");
+        SysOrg deepOrg = new SysOrg();
+        deepOrg.setId(30L);
+        deepOrg.setLevel(10);
+        when(orgDomainService.selectValidByIds(eq(TENANT), any())).thenReturn(List.of(deepOrg));
+
+        assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("10层");
+        verify(orgDomainService, never()).update(any(SysOrg.class));
+        verify(orgDomainService, never()).batchUpdateLevel(anyLong(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("创建子组织：父不存在 → 拒绝（九轮 P1）")
+    void createOrgWithMissingParentRejected() {
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("父组织不存在");
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("创建子组织：校验父节点 UPDATE 门禁（九轮 P1）")
+    void createOrgChecksParentPermission() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("1");
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+        // lenient：自身 CREATE 校验（类型级）先执行；父 UPDATE 门禁在树校验前抛异常（tree stub 无需）
+        org.mockito.Mockito.lenient().doThrow(new SecurityException("denied"))
+            .when(permissionValidator).checkInstanceLevel(eq(AdminResourceType.ORG), eq("999"), anyString());
+
+        assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
+            .isInstanceOf(SecurityException.class);
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("创建子组织：父节点游离（不属于任何树）→ 拒绝（九轮 P1）")
+    void createOrgWithFloatingParentRejected() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("1");
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 999L))
+            .thenThrow(new BizException(11002, "组织树根无法解析"));
+
+        assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
+            .isInstanceOf(BizException.class);
+        verify(orgDomainService, never()).insert(any(SysOrg.class));
+    }
+
+    private static cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq orgCreateReq(Long parentId) {
+        return new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(1, "新组织", parentId, "NEW", 1, 1);
     }
 
     @Test
@@ -181,9 +295,9 @@ class OrgWriteAppServiceTest {
         assertThat(updated.getSortOrder()).isEqualTo(5);    // 省略 sort → 保留
         assertThat(updated.getParentId()).isEqualTo(1L);    // 省略 parentOrgId → 不移动
         assertThat(updated.getLevel()).isEqualTo(2);        // 不移动 → level 不变
-        // 投影按更新后事实同步（名称保持旧值）
+        // 投影按更新后事实同步（名称保持旧值）；parentOrgType 由 resolveParentOrgType 解析（父查询 null → null）
         verify(localProjectionDomainService).upsertAdminOrg(
-            eq(TENANT), eq(ORG_ID), eq("1"), eq("旧名称"), eq(1L), eq(1), eq(5), any());
+            eq(TENANT), eq(ORG_ID), eq("1"), eq("旧名称"), eq(1L), eq(null), eq(1), eq(5), any());
     }
 
     @Test

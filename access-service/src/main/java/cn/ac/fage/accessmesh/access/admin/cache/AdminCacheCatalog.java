@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.common.cache.TypeRef;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Admin 服务缓存目录
@@ -54,21 +53,4 @@ public final class AdminCacheCatalog {
             .valueType(new TypeRef<Map<String, Long>>() {})
             .build();
 
-    /**
-     * 操作者可见组织范围缓存
-     * <p>
-     * Key: operatorId（操作者用户 ID）
-     * Value: Set<Long> 操作者通过 ADMIN_ORG:VIEW 可见的默认树组织 ID 集合
-     * <p>
-     * 60 秒 TTL，吸收高频查询（memberCandidates / pageUsers / validateUsersInDefaultTreeScope）
-     */
-    public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY =
-        CacheCatalogEntry.<Set<Long>>builder()
-            .code("admin:org-visibility")
-            .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(1)
-            .l1MaxSize(500)
-            .l2TtlMinutes(5)
-            .valueType(new TypeRef<Set<Long>>() {})
-            .build();
 }

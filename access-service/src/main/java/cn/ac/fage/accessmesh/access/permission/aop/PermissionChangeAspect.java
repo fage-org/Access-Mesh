@@ -136,6 +136,10 @@ public class PermissionChangeAspect {
             if (!roleSnapshotIds.isEmpty()) {
                 cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds);
             }
+            // 4.5 九轮评审 P1（用户决策：租户级失效）：任何权限/角色/成员变更后清除
+            // 操作者可见组织范围缓存（ORG_VISIBILITY）——可见范围依赖全部权限，操作者集合不可枚举，
+            // 租户级目录清除保证权限回收/组织树变更后旧范围不继续暴露
+            cacheService.evictAll(PermCacheCatalog.ORG_VISIBILITY, tenantId);
             // 5. 广播失效事件（含 serviceCodes：API mapping/资源/sync 变更触发 Gateway 清本地快照，T-PERM-006 实现）
             publisher.publish(tenantId, roleIds, userIds, serviceCodes);
         } catch (Exception e) {

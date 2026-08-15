@@ -639,11 +639,17 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
 
-        // 2. 获取用户角色（通过 permission-center）
-        List<String> roles = getUserRoles(tenantId, userId);
-
-        // 3. 获取用户按钮级权限（通过 permission-center）
-        List<String> permissions = getUserPermissions(tenantId, userId);
+        // 2+3. 一次加载角色与权限（九轮评审 P3：原 getUserRoles/getUserPermissions 各调一次
+        // loadUserRolesAndPermissions 导致重复查询且可能跨两次查询时间不一致）
+        UserInfoResp rolePermInfo = loadUserRolesAndPermissionsOnce(tenantId, userId);
+        List<String> roles = rolePermInfo != null && rolePermInfo.roles() != null
+            ? rolePermInfo.roles().stream()
+                .map(UserInfoResp.RoleInfo::roleName)
+                .collect(Collectors.toList())
+            : List.of();
+        List<String> permissions = rolePermInfo != null && rolePermInfo.permissions() != null
+            ? new ArrayList<>(rolePermInfo.permissions())
+            : List.of();
 
         // 4. 获取所有菜单
         List<SysMenu> allMenus = menuDomainService.selectAllValid(tenantId);
@@ -658,53 +664,16 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 获取用户角色列表
-     * <p>
-     * 登录态自查角色，不走管理门禁 {@code listUserRoles}。
+     * 一次加载用户角色与权限（九轮评审 P3：getUserMenu 共用一次查询，保证同一权限快照）。
+     * 登录态自查，不走管理门禁 {@code listUserRoles}。
      */
-    private List<String> getUserRoles(Long tenantId, Long userId) {
+    private UserInfoResp loadUserRolesAndPermissionsOnce(Long tenantId, Long userId) {
         try {
-            UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
-            if (info != null && info.roles() != null) {
-                return info.roles().stream()
-                    .map(UserInfoResp.RoleInfo::roleName)
-                    .collect(Collectors.toList());
-            }
+            return roleProxyService.loadUserRolesAndPermissions(userId);
         } catch (Exception e) {
-            log.warn("Failed to get user roles for tenant={}, userId={}", tenantId, userId, e);
+            log.warn("Failed to load user roles/permissions for tenant={}, userId={}", tenantId, userId, e);
+            return null;
         }
-        return List.of();
-    }
-
-    /**
-     * 获取用户有效权限码列表（v1.4「双轨并行」权限码下发轨道）。
-     * <p>
-     * 通过 RoleProxyService 本地查询（T-ACCESS-005 起不再 Feign）用户在「真实资源类型」
-     * （ADMIN_ORG / ADMIN_USER / ADMIN_ROLE / ROLE 等）上的有效操作权限，拼成
-     * {@code resourceTypeCode:operationCode} 格式（如 {@code "ADMIN_ORG:CREATE_POSITION"}）
-     * 作为前端 hasPerms 的 perm 串。
-     * <p>
-     * 与 {@link #filterAllowedMenus} 的 ADMIN_MENU:VIEW（菜单可见性轨道）独立工作：
-     * <ul>
-     *   <li>菜单可见性 → 决定哪些路由可达（ADMIN_MENU 资源类型）</li>
-     *   <li>有效权限码 → 决定页面内操作、功能开关等能力是否可用（真实资源类型 × 操作码，本方法）</li>
-     * </ul>
-     * 前后端共用同一套词法（资源类型:操作码），不再经 sys_menu 中转翻译。
-     *
-     * @param tenantId 租户 ID
-     * @param userId   用户 ID
-     * @return 形如 {@code "ADMIN_ORG:CREATE"} 的 perm 串列表
-     */
-    private List<String> getUserPermissions(Long tenantId, Long userId) {
-        try {
-            UserInfoResp info = roleProxyService.loadUserRolesAndPermissions(userId);
-            if (info != null && info.permissions() != null) {
-                return new ArrayList<>(info.permissions());
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get user permissions for tenant={}, userId={}", tenantId, userId, e);
-        }
-        return List.of();
     }
 
     /**

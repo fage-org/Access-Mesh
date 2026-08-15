@@ -125,19 +125,26 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         if (!toInsert.isEmpty()) {
             userOrgDomainService.insertBatch(toInsert);
             Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, req.userId());
+            // 九轮评审 P2：批量 BIND（一次批量加载 + 一次批量写），替代循环单条 bindUserOrg N+1；
+            // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+            List<LocalProjectionDomainService.UserOrgBindKey> bindKeys = new ArrayList<>();
             for (SysUserOrg assoc : toInsert) {
                 SysOrg org = orgMap.get(assoc.getOrgId());
                 String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
-                // T-ACCESS-005 评审 P2：entityId 用 user_role.id（投影主键），不再混用 sys_user.id
-                Long userRoleId = localProjectionDomainService.bindUserOrg(
-                    tenantId, assoc.getUserId(), assoc.getOrgId(), roleTypeCode);
-                auditDomainService.recordChangeLog(
-                    new AuditDomainService.ChangeLogContext(
-                        tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
-                    List.of(new AuditDomainService.ChangeLogEntry(
-                        "user_role", userRoleId, "BIND", null, null, null,
-                        abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0])));
+                bindKeys.add(new LocalProjectionDomainService.UserOrgBindKey(
+                    assoc.getUserId(), assoc.getOrgId(), roleTypeCode, org.getParentId()));
             }
+            localProjectionDomainService.batchBindUserOrg(tenantId, bindKeys);
+            // 八轮评审 P2：变更日志 entityId 用投影主键——批量路径 JDBC batch 无法回填 generated keys，
+            // entityId 记 null（九轮评审 P2-8：null 合法，不伪造主键），一次调用批量记录全部 entries
+            Long[] affected = abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId};
+            auditDomainService.recordChangeLog(
+                new AuditDomainService.ChangeLogContext(
+                    tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                toInsert.stream()
+                    .map(assoc -> new AuditDomainService.ChangeLogEntry(
+                        "user_role", null, "BIND", null, null, null, affected, new Long[0]))
+                    .collect(Collectors.toList()));
             if (abstractUserId != null) {
                 PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
             }
@@ -185,8 +192,10 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
         Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, userId);
-        // T-ACCESS-005 评审 P2：entityId 用 user_role.id（投影主键，软删前取得），不再混用 sys_user.id
-        Long userRoleId = localProjectionDomainService.unbindUserOrg(tenantId, userId, orgId, roleTypeCode);
+        // 八轮评审 P2：entityId 用 user_role.id（投影主键，软删前取得），不再混用 sys_user.id；
+        // 九轮评审 P1：POSITION 成员 relation 指向所属组织（岗位的 parentId）
+        Long userRoleId = localProjectionDomainService.unbindUserOrg(
+            tenantId, userId, orgId, roleTypeCode, org.getParentId());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
