@@ -47,24 +47,26 @@ last_reviewed: 2026-08-15
 - 默认组织树是用户目录/身份池。`sys_org_tree_config.is_default=true` 表示身份目录树，不只是 UI 默认展示树；用户创建、禁用、删除、重置密码等生命周期操作只归默认组织树和 `ADMIN_USER` 权限管控。
 - 非默认组织树只能管理“已有用户与本组织节点的关系”。添加成员时，候选用户必须来自默认组织树中操作者可见/可管理范围，不能默认暴露全租户用户。
 - 组织由 admin-service 主维护，承担业务树语义；同时组织也是角色容器，用于承载组织默认角色、组织内岗位角色映射等管理规则。
-- `user-org` 关系不是纯展示数据，必须稳定映射到 permission-center 的 `user-role` 事实。
-- 用户加入组织时，admin-service 负责根据组织默认角色和岗位映射规则编排角色分配；permission-center 负责记录最终的用户角色关系和后续授权计算。
-- 组织同步到 permission-center 时，`ADMIN_ORG` 资源镜像与组织角色容器语义并存：前者服务资源权限控制，后者服务角色分配与授权主链。
+- `user-org` 关系不是纯展示数据，必须稳定投影为本地 `user_role` 事实（`access.application` 同一事务维护）。
+- 用户加入组织时，`access.application` 负责根据组织默认角色和岗位映射规则编排角色分配，同事务投影用户角色关系并完成后续授权计算。
+- 组织投影为权限事实时，`ADMIN_ORG` 资源镜像与组织角色容器语义并存：前者服务资源权限控制，后者服务角色分配与授权主链。
 - `user-org` 写操作必须按树或按关系精确变更，禁止非默认组织树操作删除用户在默认组织树或其他组织树下的关系。
 
-## 与权限中心的交互
+## 与权限中心的交互（本地投影 + 运行时查询）
 
-- 主体同步：将用户同步为权限中心 `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`。
-- 用户管理资源同步：将用户同步为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，支撑实例级 `ADMIN_USER` 权限。不存储 resource_entity 内部 ID。
-- 组织资源同步：将组织同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`，支撑实例级 `ADMIN_ORG` 权限和可管理组织查询。不存储内部 ID。
-- 组织角色同步：将组织/岗位同步为 `abstract_role(roleTypeCode=ORG/POSITION, roleExternalId=sys_org.id)`。不存储内部 ID。
-- 成员关系同步：将 `sys_user_org` 关系同步为权限中心 `user_role`，用于组织/岗位角色生效。
-- 其他资源同步：将菜单、按钮、可管理角色等同步为 `resource_entity`。
-- 角色与授权：角色资源权限 `role_resource_permission` 属于 permission-center 的权限管理域，admin-service 不把它纳入同步重试模块；只有在 admin-service 明确承接默认授权编排时，才通过权限中心正式授权接口发起操作。
-- 运行时查询：使用 `auth/query-resources` 查询可管理组织、可分配角色、可见菜单等资源集合。
-- 前端聚合：permission-center 提供权限事实与运行时查询结果，admin-service 负责把这些结果组装为管理端前端可直接消费的聚合响应。
+> 管理事实写入由 `access.application` 同一事务维护本地权限投影（T-ACCESS-005），不再有跨服务同步链路；以下「投影」即该同事务写入，不经过 sync 接口、不写 sync_metadata（owner=access-service）。
 
-所有同步和权限校验操作使用业务键定位，admin-service 不存储 permission-center 的任何内部主键 ID。
+- 主体投影：用户写入同事务投影为 `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`。
+- 用户管理资源投影：投影为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，支撑实例级 `ADMIN_USER` 权限。不存储 resource_entity 内部 ID。
+- 组织资源投影：投影为 `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`，支撑实例级 `ADMIN_ORG` 权限和可管理组织查询。不存储内部 ID。
+- 组织角色投影：组织/岗位投影为 `abstract_role(roleTypeCode=ORG/POSITION, roleExternalId=sys_org.id)`。不存储内部 ID。
+- 成员关系投影：`sys_user_org` 关系同事务投影为 `user_role`，用于组织/岗位角色生效（POSITION 成员 relation 指向所属组织角色）。
+- 其他资源投影：菜单、按钮、可管理角色等投影为 `resource_entity`。
+- 角色与授权：角色资源权限 `role_resource_permission` 属于权限管理域，通过正式授权接口操作；`access.application` 承接默认授权编排时按该接口发起。
+- 运行时查询：本地 `PermQueryEngine` 提供权限事实与运行时查询（可管理组织、可分配角色、可见菜单等资源集合）。
+- 前端聚合：本地权限引擎提供权限事实与运行时查询结果，admin-service 负责把这些结果组装为管理端前端可直接消费的聚合响应。
+
+所有投影和权限校验操作使用业务键定位，admin-service 不存储权限中心的任何内部主键 ID。
 
 ### 同步任务模型
 

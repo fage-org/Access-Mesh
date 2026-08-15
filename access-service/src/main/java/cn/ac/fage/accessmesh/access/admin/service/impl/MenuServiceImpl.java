@@ -185,8 +185,4 @@ public class MenuServiceImpl implements MenuService {
             ))
             .collect(Collectors.toList());
     }
-
-    /**
-     * 入队同步信封，envelope 为 null 时跳过（v1.4：BUTTON 行不再同步到权限中心）。
-     */
 }

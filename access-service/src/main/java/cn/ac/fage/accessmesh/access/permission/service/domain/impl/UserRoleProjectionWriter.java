@@ -396,9 +396,17 @@ public class UserRoleProjectionWriter {
         return relationRole.getId();
     }
 
-    /** 批量键的 relation 所属组织 id（POSITION 用 relationSysOrgId，ORG 用自身）。 */
+    /**
+     * 批量键的 relation 所属组织 id（POSITION 用 relationSysOrgId，ORG 用自身）。
+     * POSITION 缺所属组织上下文 = 依赖缺失，与单条路径一致抛错，不再回退岗位自身
+     * （同 externalId 的 ORG/POSITION 投影并存时，回退会命中错误 relation 绕过 fail-closed）。
+     */
     private static Long resolveRelationOrgId(LocalProjectionDomainService.UserOrgBindKey key) {
-        return LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode()) && key.relationSysOrgId() != null
+        if (LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode()) && key.relationSysOrgId() == null) {
+            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+                "POSITION 成员缺少所属组织上下文: positionId=" + key.sysOrgId());
+        }
+        return LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode())
             ? key.relationSysOrgId()
             : key.sysOrgId();
     }

@@ -215,7 +215,6 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     /**
      * 组织移动校验：新父级存在性 + UPDATE 门禁 + 循环检测 + 跨树校验 + 深度校验 + level 更新（含子树同步）。
      * <p>
-     * ：新父级门禁/循环检测/level 子树同步。
      * （用户决策：严格跨树+禁顶级移动）：跨树比较（resolveTreeRootExternalId）、
      * 移动到顶级拒绝（树根由组织树配置管理）、子树最深节点移动后不超过 10 层。
      * </p>

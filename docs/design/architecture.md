@@ -88,9 +88,9 @@ last_reviewed: 2026-08-12
 | gateway           | admin-service     | HTTP (转发)    | 登录请求透传、管理接口转发                                                                   |
 | gateway           | permission-center | OpenFeign/HTTP | 调用 `POST /api/perm/auth/check-interface` 做接口级鉴权；`interface-snapshot` 仅作为可选优化 |
 | gateway           | example-service   | HTTP (转发)    | 演示服务接口转发                                                                             |
-| admin-service     | permission-center | OpenFeign      | 用户主体与用户管理资源同步、组织资源与组织角色同步、user-org 到 user-role 映射、角色查询/复用、菜单资源同步、鉴权查询 |
+| admin-service     | permission-center | OpenFeign      | 用户主体与用户管理资源同步、组织资源与组织角色同步、user-org 到 user-role 映射、角色查询/复用、菜单资源同步、鉴权查询（**已随 T-ACCESS-005 删除**：管理事实改由 `access.application` 同事务维护本地投影，见 access-service-architecture.md §4） |
 | example-service   | permission-center | OpenFeign      | 鉴权查询、权限数据查询                                                                       |
-| permission-center | admin-service     | OpenFeign      | 权限变更通知（可选，如角色变更通知管理端刷新缓存）                                           |
+| permission-center | admin-service     | OpenFeign      | 权限变更通知（可选，如角色变更通知管理端刷新缓存）（**已随 T-ACCESS-005 删除**：同进程内失效广播替代） |
 
 ### 1.5 管理端前后端交互原则
 

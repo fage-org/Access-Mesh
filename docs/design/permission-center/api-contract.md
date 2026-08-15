@@ -50,7 +50,7 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 
 - 外部客户端传入的 `X-Tenant-Id/X-User-Id/X-Service-Code` 必须由 Gateway 清洗，不允许原样透传。
 - Gateway 从 Token claim 解析租户和主体后重新注入标准 Header。
-- 服务间调用通过 Feign 拦截器透传可信 Header；permission-center 需校验服务身份与 Header 一致性。
+- 服务间调用由调用方凭证绑定可信服务身份（`SyncAuthVerifier` 从上下文比对）；access-service 需校验服务身份与 Header 一致性。
 
 ### 3.2 统一响应
 
@@ -496,28 +496,27 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 
 用于外部事实源把业务对象幂等同步为 permission-center 的 `resource_entity`。该接口只处理资源实体，不是跨实体万能 replay 入口；不接受 `entityType + operationType + payload` 形式。
 
-> 服务间认证：现有文档仅定义内部 Feign 携带 `X-Service-Code`，尚未固化 Sa-Token 服务间认证、签名、nonce 和防重放契约。同步写接口实现前必须补充服务间认证设计；在该设计完成前，permission-center 不得只信任请求体 `sourceService`，至少必须校验可信 Header 中的服务身份与 `sourceService` 一致。
+> 服务间认证：sync/full-sync 接口必须由已验证服务身份调用——凭证通过后绑定 `X-Service-Code`，`SyncAuthVerifier` 从上下文比对（见 `access-service-architecture.md` §6.2 安全策略矩阵）。`sourceService` 必须等于已验证服务身份，不匹配返回 `SECURITY_DENIED`；仅信任请求体 `sourceService` 而不校验服务身份的行为已被禁止。
 
 请求：
 
 ```json
 {
   "operation": "UPSERT",
-  "resourceTypeCode": "ADMIN_ORG",
+  "resourceTypeCode": "HR_ORG",
   "resourceCode": "2001",
   "codeType": "default",
   "name": "研发部",
-  "parentResourceTypeCode": "ADMIN_ORG",
+  "parentResourceTypeCode": "HR_ORG",
   "parentResourceCode": "1000",
   "path": null,
   "status": 1,
   "sortOrder": 10,
   "extra": {
-    "orgType": "ORG",
-    "source": "admin-service"
+    "region": "CN"
   },
-  "sourceService": "admin-service",
-  "sourceEntityType": "sys_org",
+  "sourceService": "hr-service",
+  "sourceEntityType": "hr_org",
   "sourceEntityId": "2001",
   "syncVersion": {
     "occurredAt": "2026-06-12T10:00:00.123",
@@ -533,8 +532,8 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发。
 - 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
-- admin-service 的 `PERM_RESOURCE_ENTITY_SYNC` 同步任务统一调用本接口；用户、角色、用户角色关系不走本接口。
-- admin-service 的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
+- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 内部管理域类型（`ADMIN_USER`/`ADMIN_ORG`/`ADMIN_MENU` 等保留键）由 `access.application` 同事务维护本地投影，本接口对其返回 20042 拒绝。
+- 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 
 #### 6.2.2.1 资源实体分领域全量校准
 
@@ -545,23 +544,23 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 ```json
 {
   "scope": {
-    "sourceService": "admin-service",
-    "resourceTypeCode": "ADMIN_ORG"
+    "sourceService": "hr-service",
+    "resourceTypeCode": "HR_ORG"
   },
   "items": [
     {
       "resourceCode": "2001",
       "codeType": "default",
       "name": "研发部",
-      "parentResourceTypeCode": "ADMIN_ORG",
+      "parentResourceTypeCode": "HR_ORG",
       "parentResourceCode": "1000",
       "parentCodeType": "default",
       "status": 1,
       "sortOrder": 10,
       "extra": {
-        "orgType": "ORG"
+        "region": "CN"
       },
-      "sourceEntityType": "sys_org",
+      "sourceEntityType": "hr_org",
       "sourceEntityId": "2001",
       "syncVersion": {
         "occurredAt": "2026-06-12T10:00:00.123",
@@ -625,21 +624,21 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 
 #### 6.2.2.3 主体、角色、用户角色同步接口
 
-admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。
+外部业务服务的主体/角色/成员关系同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。请求中的 `subjectTypeCode`/`roleTypeCode`/`sourceType` 均为调用方自有类型，禁止使用 AccessMesh 内部保留键（`ADMIN_USER`/`ORG|POSITION`/`SYS_USER_ORG`，20042 拒绝）——内部管理事实由 `access.application` 同事务维护本地投影，不经过 sync 链路。
 
-| 接口 | syncAction | scopeKey / businessKey |
-|------|------------|----------------|
-| `POST /api/perm/abstract-user/sync` | `PERM_ABSTRACT_USER_SYNC` | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}` |
+| 接口 | 用途 | scopeKey / businessKey |
+|------|------|------------|
+| `POST /api/perm/abstract-user/sync` | 主体 UPSERT/DISABLE/DELETE | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}` |
 | `POST /api/perm/abstract-user/full-sync` | 全量主体校准 | scopeKey：`subjectTypeCode={subjectTypeCode}` |
-| `POST /api/perm/abstract-role/sync` | `PERM_ABSTRACT_ROLE_SYNC` | businessKey：`roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}` |
+| `POST /api/perm/abstract-role/sync` | 角色 UPSERT/DISABLE/DELETE | businessKey：`roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}` |
 | `POST /api/perm/abstract-role/full-sync` | 全量角色校准 | scopeKey：`roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
-| `POST /api/perm/user-role/sync` | `PERM_USER_ROLE_SYNC` | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}&roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}&relationKey={relationKey}` |
-| `POST /api/perm/user-role/full-sync` | 全量组织/岗位成员校准 | scopeKey：`sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| `POST /api/perm/user-role/sync` | 成员关系 BIND/UNBIND | businessKey：`subjectTypeCode={subjectTypeCode}&subjectExternalId={subjectExternalId}&roleTypeCode={roleTypeCode}&roleExternalId={roleExternalId}&relationKey={relationKey}` |
+| `POST /api/perm/user-role/full-sync` | 全量成员关系校准 | scopeKey：`sourceType={sourceType}&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 
 约束：
 
-- `PERM_USER_ROLE_SYNC` 仅允许 `sourceType=SYS_USER_ORG` 且 `roleTypeCode in (ORG, POSITION)`；BASIC_ROLE/GROUP_ROLE/PERSONAL 等功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
-- `PERM_USER_ROLE_SYNC` 的 `relationKey` 使用所属组织角色业务键，固定格式为 `ORG:{orgExternalId}`。写入 `businessKey` 时必须按 §6.2.2.4 编码为 `relationKey=ORG%3A{orgExternalId}`。permission-center 通过 `roleTypeCode=ORG + roleExternalId=orgExternalId` 解析为所属组织 `abstract_role.id`，写入 `user_role.relation_id`。`relation_id` 因此表示关联组织角色 ID，不表示 `ADMIN_ORG resource_entity.id`，也不对外暴露为 API 入参。
+- 成员关系 sync/full-sync 仅接受调用方自有 `sourceType` 与 `roleTypeCode` 组合（服务身份 + 类型白名单校验）；`SYS_USER_ORG`/`ORG`/`POSITION` 为 AccessMesh 内部保留键，20042 拒绝。功能角色分配走正式用户角色管理接口和 `ROLE:MANAGE` 门禁。
+- `relationKey` 为成员关系的关联角色业务键。写入 `businessKey` 时必须按 §6.2.2.4 编码。permission-center 按调用方声明的角色类型 + 外部 ID 解析关联 `abstract_role.id`，写入 `user_role.relation_id`。`relation_id` 表示关联角色 ID，不对外暴露为 API 入参。
 - 单次 sync 接口的 `operation` 使用混合严格语义：禁用为 `DISABLE`，删除为 `DELETE`，成员移除为 `UNBIND`。
 - full-sync 接口均为单请求全量校准接口，必须携带强制 scope，只在 scope 内补齐缺失并清理多余同步事实。
 - 所有 sync/full-sync 接口的调度分类以 §6.2.2.2 为准；错误响应返回 `RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`，旧版本 no-op 使用成功响应并返回 `STALE_VERSION`。
@@ -649,15 +648,15 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "operation": "UPSERT",
-  "subjectTypeCode": "ADMIN_USER",
+  "subjectTypeCode": "EMP",
   "subjectExternalId": "10001",
   "name": "张三",
   "enabled": true,
   "extra": {
-    "username": "zhangsan"
+    "employeeNo": "zhangsan"
   },
-  "sourceService": "admin-service",
-  "sourceEntityType": "sys_user",
+  "sourceService": "hr-service",
+  "sourceEntityType": "hr_employee",
   "sourceEntityId": "10001",
   "syncVersion": {
     "occurredAt": "2026-06-12T10:00:00.123",
@@ -671,8 +670,8 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "scope": {
-    "sourceService": "admin-service",
-    "subjectTypeCode": "ADMIN_USER"
+    "sourceService": "hr-service",
+    "subjectTypeCode": "EMP"
   },
   "items": [
     {
@@ -680,9 +679,9 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
       "name": "张三",
       "enabled": true,
       "extra": {
-        "username": "zhangsan"
+        "employeeNo": "zhangsan"
       },
-      "sourceEntityType": "sys_user",
+      "sourceEntityType": "hr_employee",
       "sourceEntityId": "10001",
       "syncVersion": {
         "occurredAt": "2026-06-12T10:00:00.123",
@@ -698,19 +697,19 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "operation": "UPSERT",
-  "roleTypeCode": "ORG",
+  "roleTypeCode": "TEAM_ROLE",
   "roleExternalId": "2001",
   "name": "研发部",
-  "parentRoleTypeCode": "ORG",
+  "parentRoleTypeCode": "TEAM_ROLE",
   "parentRoleExternalId": "1000",
   "treeRootExternalId": "1",
   "status": 1,
   "sortOrder": 10,
   "extra": {
-    "orgType": "ORG"
+    "teamCode": "RND"
   },
-  "sourceService": "admin-service",
-  "sourceEntityType": "sys_org",
+  "sourceService": "hr-service",
+  "sourceEntityType": "hr_team",
   "sourceEntityId": "2001",
   "syncVersion": {
     "occurredAt": "2026-06-12T10:00:00.123",
@@ -724,8 +723,8 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "scope": {
-    "sourceService": "admin-service",
-    "roleTypeCode": "ORG",
+    "sourceService": "hr-service",
+    "roleTypeCode": "TEAM_ROLE",
     "treeRootExternalId": "1"
   },
   "items": [
@@ -736,9 +735,9 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
       "status": 1,
       "sortOrder": 10,
       "extra": {
-        "orgType": "ORG"
+        "teamCode": "RND"
       },
-      "sourceEntityType": "sys_org",
+      "sourceEntityType": "hr_team",
       "sourceEntityId": "2001",
       "syncVersion": {
         "occurredAt": "2026-06-12T10:00:00.123",
@@ -754,16 +753,16 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "operation": "BIND",
-  "sourceType": "SYS_USER_ORG",
-  "subjectTypeCode": "ADMIN_USER",
+  "sourceType": "HR_MEMBER",
+  "subjectTypeCode": "EMP",
   "subjectExternalId": "10001",
-  "roleTypeCode": "POSITION",
+  "roleTypeCode": "TEAM_ROLE",
   "roleExternalId": "3001",
-  "relationKey": "ORG:2001",
+  "relationKey": "TEAM_ROLE:2001",
   "validFrom": null,
   "validTo": null,
-  "sourceService": "admin-service",
-  "sourceEntityType": "sys_user_org",
+  "sourceService": "hr-service",
+  "sourceEntityType": "hr_member",
   "sourceEntityId": "10001:3001",
   "syncVersion": {
     "occurredAt": "2026-06-12T10:00:00.123",
@@ -777,21 +776,21 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 ```json
 {
   "scope": {
-    "sourceService": "admin-service",
-    "sourceType": "SYS_USER_ORG",
-    "roleTypeCode": "POSITION",
+    "sourceService": "hr-service",
+    "sourceType": "HR_MEMBER",
+    "roleTypeCode": "TEAM_ROLE",
     "treeRootExternalId": "1"
   },
   "items": [
     {
-      "subjectTypeCode": "ADMIN_USER",
+      "subjectTypeCode": "EMP",
       "subjectExternalId": "10001",
-      "roleTypeCode": "POSITION",
+      "roleTypeCode": "TEAM_ROLE",
       "roleExternalId": "3001",
-      "relationKey": "ORG:2001",
+      "relationKey": "TEAM_ROLE:2001",
       "validFrom": null,
       "validTo": null,
-      "sourceEntityType": "sys_user_org",
+      "sourceEntityType": "hr_member",
       "sourceEntityId": "10001:3001",
       "syncVersion": {
         "occurredAt": "2026-06-12T10:00:00.123",
@@ -802,7 +801,7 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 }
 ```
 
-> `items[].roleTypeCode` 为必填字段，且必须与 `scope.roleTypeCode` 严格相等；不一致时该 item 返回 `NON_RETRYABLE`（`reason=ROLE_TYPE_CODE_MISMATCH_WITH_SCOPE`），不进入 `markStatus` 路径。admin-service 必须按 binding 对应组织的 `orgType`（ORG/POSITION）拆分为多个 envelope，每个 envelope 内 item.roleTypeCode 与 scope.roleTypeCode 对齐。
+> `items[].roleTypeCode` 为必填字段，且必须与 `scope.roleTypeCode` 严格相等；不一致时该 item 返回 `NON_RETRYABLE`（`reason=ROLE_TYPE_CODE_MISMATCH_WITH_SCOPE`），不进入 `markStatus` 路径。调用方必须按 binding 对应的角色类型拆分为多个 envelope，每个 envelope 内 item.roleTypeCode 与 scope.roleTypeCode 对齐。
 
 非资源实体 full-sync 规则：
 
@@ -811,43 +810,17 @@ admin-service 的非资源实体同步使用专用 sync/full-sync 接口，不�
 - `user-role/full-sync` 对比 `sync_metadata(entityKind=USER_ROLE, sourceService, scopeKey)`；请求缺失的旧关系按 `UNBOUND` 处理，不删除正式功能角色分配。
 - 所有 full-sync 接口只清理命中 `sync_metadata` 的同步事实，不扫描删除人工维护或正式管理 API 创建的事实。
 
-#### 6.2.2.5 服务间内部调用认证（sync/full-sync 专用）
+#### 6.2.2.5 服务间认证（sync/full-sync 专用）
 
-admin-service 调度器通过 Feign 调用 permission-center 的 8 个 sync/full-sync 接口属于无 HTTP 上下文的服务间内部调用，不走前端会话与 Gateway 鉴权。请求必须同时携带以下三个 Header：
+外部业务服务通过服务身份凭证建立 SERVICE 上下文后调用 sync/full-sync 接口（无前端会话与 Gateway 鉴权）。访问控制语义见 `access-service-architecture.md` §6.2 安全策略矩阵：
 
-| Header | 注入方 | 说明 |
-|--------|--------|------|
-| `X-Tenant-Id` | 调用方业务侧拦截器（如 admin-service `FeignTenantInterceptor`） | 调度端 `processOne` 按任务 `tenantId` 设置 `TenantContextHolder` 后由拦截器从 ThreadLocal 读取并注入 |
-| `X-Service-Code` | `perm-sdk` 的 `FeignInternalSyncInterceptor` | 默认值取自 `perm.service-code`（admin-service 固定 `admin-service`）；调用方已显式声明的值不被覆盖 |
-| `X-Internal-Secret` | `perm-sdk` 的 `FeignInternalSyncInterceptor` | 取自 `perm.internal-secret`，与 permission-center 端配置共享同一密钥 |
+| 入口 | 调用方要求 | 关键约束 | 实现 |
+|---|---|---|---|
+| `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
 
-permission-center 端拦截器执行顺序与决策语义（自 S5fix2 起）：
-
-| order | 拦截器 | 路径 | 决策语义 |
-|-------|--------|------|----------|
-| 1 | `InternalApiSecretInterceptor` | `/api/perm/**` | 校验 `X-Internal-Secret`，通过则在 request 写 `INTERNAL_AUTHENTICATED=true` attribute；失败直接 403 终止链。 |
-| 2 | `HeaderSignatureInterceptor` | `/api/**`, `/internal/**`, `/actuator/**` | 4 路径决策树（见下）。 |
-| 3 | `PermTenantInterceptor` | `/api/**`, `/internal/**`, `/actuator/**` | 提取并设置租户上下文。 |
-
-`HeaderSignatureInterceptor` 4 路径决策树：
-
-1. **路径 1（服务间内部调用）**：`request.getAttribute(INTERNAL_AUTHENTICATED) == true` → 直接放行。该 attribute 仅由 order=1 拦截器在密钥校验通过后写入，请求方无法伪造。
-2. **路径 2（完全匿名）**：`X-User-Id` 与 `X-Tenant-Id` 均缺失 → 放行（actuator 健康检查、未登录探活）。
-3. **路径 3（异常请求）**：仅有 `X-Tenant-Id` 而无 `X-User-Id`，且未通过路径 1（无 INTERNAL_AUTHENTICATED）→ 记录 `BLOCKED_REQUEST` 安全事件后 403。这是 P0 修复前调度 Feign 同步请求被误拒的场景，现在仅在 InternalApiSecret 未通过时才会触发。
-4. **路径 4（用户态调用）**：`X-User-Id` 存在 → 必须存在合法 `X-User-Signature` + `X-Signature-Timestamp`，按 HMAC-SHA256(`userId|tenantId|timestamp`) 校验；时间戳超过 `perm.signature.valid-seconds` 或签名错误均 403。
-
-**安全决策原则**：基于已验证的 attribute（仅前置拦截器可写）而非未验证的请求头。任何拦截器对外暴露的“信任决策”都不允许直接读未经验证的 `X-*` 请求头；这是 P0 防御 — 否则攻击方只需带 `X-Tenant-Id` 就能绕过 HMAC 校验，或者反之让合法 Feign 调用被误判为篡改。
-
-密钥管理：
-
-- 通过 `PERM_INTERNAL_SECRET` 环境变量注入；K8s 部署使用 Secret，本地开发使用 `.env` 或 Vault；密钥不进 git。
-- 密钥轮换通过双密钥窗口期实现：在过渡期允许新旧两个密钥同时通过校验，所有调用方滚动更新后再下线旧密钥。
-
-调用方契约：
-
-- **MUST NOT** 在 `SyncTaskFeignClient` 等内部调用 Feign 接口的方法签名声明 `@RequestHeader("X-Service-Code")` —— 由拦截器统一注入。
-- 调度器 `@Scheduled` 触发时无 HTTP 上下文，**MUST** 在 `processOne` 入口按任务 `tenantId` 设置 `TenantContextHolder`，并在 finally 中恢复或清理，避免线程池租户串味。
-- 仅当配置了 `perm.internal-secret` 时 `FeignInternalSyncInterceptor` 才生效；前端服务依赖 perm-sdk 但未配置该密钥时不会启动失败、也不会注入相关 Header。
+- 服务身份由 `access-service` 统一校验（内部凭证验证通过后绑定 `X-Service-Code` 为凭证持有者声明的服务身份，防无凭证外部伪造），调用方**不得**自行声明或伪造服务身份。
+- 内部同步子系统（`sys_sync_task` 调度、`SyncTaskFeignClient`/`FeignInternalSyncInterceptor`、`X-Internal-Secret` 调度链路）已随 T-ACCESS-005 删除；管理事实由 `access.application` 同事务维护本地投影，不再经 sync 接口进入。
+- 仅当配置了服务凭证时服务身份校验才生效；未配置的部署不会启动失败，但对应接口按矩阵 fail-closed。
 
 #### 6.2.2.6 FullSyncDetail 结构
 
@@ -930,7 +903,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | `abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
 | `abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 | `resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
-| `user-role/full-sync` | `sourceType=SYS_USER_ORG&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| `user-role/full-sync` | `sourceType={sourceType}&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
 
 `targetStatus` 固定映射：
 
@@ -948,7 +921,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ```json
 {
-  "serviceCode": "admin-service",
+  "serviceCode": "access-service",
   "basePath": "/admin",
   "syncMode": "FULL",
   "groups": [

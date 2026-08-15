@@ -136,3 +136,14 @@ last_updated: 2026-08-15
 - **回归测试**：`LocalProjectionDomainServiceImplTest` +3（UNBIND 投影缺失 fail-closed 三场景）。
 
 **验证（十三轮收口）**：access-service 默认 `mvn test` **412 测试 0 失败 24 跳过**（409 + 新增 3）。
+
+**外部评审十四轮修复（2026-08-15，1 P1 + 3 P2 + 1 P3 全核实修复，1 项用户决策）**：
+
+- **P1（批量 POSITION 路径仍可绕过 fail-closed）**：`UserRoleProjectionWriter.resolveRelationOrgId` 对 POSITION + `relationSysOrgId==null` 回退岗位自身 id——同 externalId 的 ORG/POSITION 双投影并存时，批量 BIND/UNBIND 命中 `ORG:<positionId>` 写入错误 relation_id（单条 `resolveRelationRoleId` 同输入直接抛错，二者语义不一致）。修复：批量预处理阶段（relationOrgExtIds 收集）对 POSITION 缺所属组织上下文抛 `LOCAL_PROJECTION_DEPENDENCY_MISSING`（20043，消息与单条一致），写入前抛错整体回滚。补 bind/unbind 双路径用例（2 个）。
+- **P2（adopted 文档回写仍未收口，延续十三轮「回写为当前链路」决策）**：`api-contract.md` §6.2.2.1 规则/示例、§6.2.2.3 整节（表格 syncAction 列改用途、`PERM_*_SYNC`/`SYS_USER_ORG`/`ORG|POSITION`/`ADMIN_*` 全部改外部业务服务自有类型契约，示例改 `hr-service` + `EMP`/`TEAM_ROLE`/`HR_ORG`/`HR_MEMBER` 自有类型）、§6.2.2.5 整节重写（内部 Feign 调度认证 → 外部服务身份认证，`SyncAuthVerifier` + §6.2 安全策略矩阵引用，内部凭证链路标注 T-ACCESS-005 已删除）、scopeKey 表 `sourceType={sourceType}`、service-config/sync 示例 serviceCode 改 access-service、§3.1 可信边界 Feign 透传改凭证绑定。`org-user-permission-contract.md` 4 处（甲层 Feign `/checkAuth`→本地 `PermQueryEngine`、备注 ⁴ `OrgSyncHandler`→同事务本地投影、§8 核对 3 `OrgSyncHandlerImpl`→同事务投影、【同步闭环】剩余实现项→【本地投影闭环（T-ACCESS-005 已落地）】）。`services/admin-service.md` §组织与角色容器约束 3 处 + §与权限中心的交互整节（同步时态→本地投影时态 + 运行时查询，标注不再有跨服务同步链路）。`architecture.md` §1.4 表格 :91/:93 行级加注「已随 T-ACCESS-005 删除」（**用户决策：行级加注**，表格保持基线语义、正文留 T-ACCESS-012 统一回写）。
+- **P2（新测试未证明管理事实整体回滚）**：十三轮新增用例直接调用 DomainService（无 Spring 事务代理、无管理事实 Mapper），`never().softDeleteBatch` 只证明投影软删未执行。新增 `UserOrgWriteAppServiceFaultInjectionIT`（Testcontainers+@SpyBean，与 `UserWriteAppServiceFaultInjectionIT` 同模式）：`removeUserFromOrg`/`deleteOrg` 经真实 Spring 事务路径注入 `unbindUserOrg`/`batchUnbindUserOrg` 投影缺失异常，真实断言 `sys_user_org`/`sys_org` 行仍存在（delete_flag=0）、`permission_change_log` 无新增、`user_role` 零残留、回滚不发布 `PermInvalidateEvent`；另加成功路径对照用例（投影齐全时事实删除 + change_log + 提交后发布）。Docker 不可用跳过（3 用例）。
+- **P2（公共接口注释仍声明旧 fail-open 行为）**：`LocalProjectionDomainService.unbindUserOrg` javadoc「投影缺失返回 null」过时（实现已对用户/角色投影缺失抛 `USER_ROLE_RELATION_NOT_FOUND`）。改为明确幂等 no-op 与依赖缺失异常边界及错误码。
+- **P3（注释与格式残留收口）**：`MenuServiceImpl` 删除描述已删除入队方法的悬空 Javadoc + 补末尾换行；`OrgWriteAppServiceImpl`/`LocalProjectionDomainService` `* ：` 残句清零；测试 DisplayName `（）` 空括号 2 处、重复 Mockito stub（同一 key stub 两次）清理；扫描确认连续空行 0、文件末尾多余换行 0、孤立 GBK 字节 0（存量文件缺末尾换行为历史问题，非本轮引入，不扩大 diff）。
+- **回归测试**：`LocalProjectionDomainServiceImplTest` +2（批量 BIND/UNBIND POSITION 缺 relationSysOrgId fail-closed）；新增 `UserOrgWriteAppServiceFaultInjectionIT` +3（事务路径回滚 ×2 + 成功对照 ×1，Testcontainers）。
+
+**验证（十四轮收口）**：access-service 默认 `mvn test` **417 测试 0 失败 27 跳过**（412 + 新增 5：LocalProjection 2 + 新 IT 3，Docker 跳过 +3）。

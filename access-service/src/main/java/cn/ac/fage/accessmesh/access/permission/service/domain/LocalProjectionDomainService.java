@@ -73,7 +73,8 @@ public interface LocalProjectionDomainService {
      * UNBIND sys_user_org 对应的 user_role。
      *
      * @param relationSysOrgId 同 {@link #bindUserOrg} 的 relation 语义
-     * @return user_role.id（软删前取得；投影缺失返回 null）
+     * @return user_role.id（软删前取得）；用户/角色投影缺失抛 USER_ROLE_RELATION_NOT_FOUND
+     *         （fail-closed，与 bind 对称），仅依赖投影完整但目标三元组不存在时返回 null（幂等 no-op）
      */
     Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode, Long relationSysOrgId);
 
@@ -92,7 +93,7 @@ public interface LocalProjectionDomainService {
     /**
      * POSITION 移动后迁移成员 user_role.relation_id（旧所属组织角色 → 新所属组织角色）。
      * <p>
-     * ：岗位在同一树内移动后，已有成员的 relation 仍指向旧组织，
+     * 岗位在同一树内移动后，已有成员的 relation 仍指向旧组织，
      * 后续解绑按新三元组匹配不到旧记录导致投影残留；同一事务内批量迁移并返回受影响用户。
      * </p>
      *
