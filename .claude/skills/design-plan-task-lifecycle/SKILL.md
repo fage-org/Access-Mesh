@@ -30,7 +30,7 @@ metadata:
 |---|---|---|---|
 | 设计 Design | `docs/design/` | 权威契约 + 演进方向：架构、数据模型、接口签名、原则、长期决策 | 一主题一文件（或一组文件） |
 | 计划 Plan | `docs/plans/` | 编排：目标/非目标/准入/归档 + **任务清单（仅引用 ID）** | 一组为同一目标协同的任务 |
-| 任务 Task | `docs/tasks/` | 原子执行单元：决策/验收/进度/回写设计/依赖 | 一个可独立验收的改动 |
+| 任务 Task | `docs/tasks/` | 原子执行单元：验收、当前口径、回写设计、依赖 | 一个可独立验收的改动 |
 
 **铁律：**
 - 设计**只住** `docs/design/`。计划与任务**禁止**在自身文件内重定义契约；只能链接设计。
@@ -148,6 +148,20 @@ last_updated: 2026-06-20
 ---
 ```
 
+复杂任务正文只允许这些标题（当前口径 = 已采纳规则的终态，禁止用轮次定位）：
+
+```
+## 背景
+## 范围
+## 当前口径
+## 验收对照
+## 非目标 / 遗留
+```
+
+禁止「完成记录」「评审修复记录」「第 N 轮」「用户决策清单」等过程标题。拍板后的规则回写 `design_refs` 指向的设计；任务卡只写终态或链到设计。轮次词扫描、任务卡与设计同等适用、已采纳「用户决策」写成当前口径：见 `docs/design/project-rules.md` §文档治理（本技能不复制禁令与词表）。
+
+遗留工作必须新开未占用任务 ID：从看板领域计数器取号并 +1，主题与已有卡不得混用（禁止把新债写进主题不同的已占用 ID）。
+
 简单任务：仅在看板表占一行，不开独立文件。看板行字段：
 
 | ID | 标题 | 计划 | 领域 | 设计引用 | 依赖 | 状态 | 回写 |
@@ -214,7 +228,8 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - `review → done` 硬条件：
   1. `acceptance` 全部勾选；
   2. `design_writeback.required=true` 时 `design_writeback.status=done`（即 `design_refs` 指向的设计章节已更新）；
-  3. 无下游 `depends_on` 本任务且仍 `in-progress` 的任务存在未处理的 dangling（若本任务被依赖，需先确认下游已重连或接受阻断）。
+  3. 无下游 `depends_on` 本任务且仍 `in-progress` 的任务存在未处理的 dangling（若本任务被依赖，需先确认下游已重连或接受阻断）；
+  4. 任务卡与其 `design_refs` 通过 `project-rules` §文档治理的轮次词扫描（无「第 N 轮 / 评审修复 / 复评」等过程标记）；未完成项若另开任务，ID 必须是计数器新分配且主题一致的未占用号。
 - `cancelled`：触发**依赖重连扫描**（见 §4.1），下游任务标 dangling，由人/AI 决定重连到谁。
 
 ---
@@ -262,6 +277,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
    - 已定 → `docs/design/` `status: adopted`
    - 探索中 → `docs/design/` `status: draft`
    - 前瞻方向 → `docs/design/` `status: evolution`（独立文件）或 adopted 文件内标注章节
+   - 会话中刚拍板的规则：终态写入 design；任务卡不记讨论轮次，只写当前口径或链接设计
 2. 是**为一组任务编排目标、非目标、准入、顺序、归档**？→ `docs/plans/` 新建/更新 plan，任务清单只引用 ID
 3. 是**原子可执行改动，有明确验收 + 回写设计点**？→ `docs/tasks/` 看板登记（复杂则开文件）
 4. 一份产物**同时含多层**？→ **拆成多份**，分别落层，互相用链接关联。**绝不**把设计+计划+任务写进同一文件。
@@ -282,8 +298,8 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 1. 在 `tasks/README.md` 顶部分配 `T-<DOMAIN>-<NNN>`（领域计数器 +1，ID 冻结）；
 2. 看板总表加行；
-3. 若任务复杂（多步/有独立决策/验收条目多）→ 开 `docs/tasks/<ID>.md` 独立文件，套任务 frontmatter；
-4. 填 `plan`（所属计划）、`design_refs`（将改动的设计章节）、`depends_on`（防循环）、`acceptance`；
+3. 若任务复杂（多步/有独立口径/验收条目多）→ 开 `docs/tasks/<ID>.md` 独立文件，套任务 frontmatter与允许的正文标题；
+4. 填 `plan`（所属计划）、`design_refs`（将改动的设计章节）、`depends_on`（防循环）、`acceptance`；正文只写当前口径，不写评审轮次；
 5. 在所属 plan 的 `tasks:[]` 加该 ID，同步计划正文任务清单快照；
 6. 触发 §4 依赖/设计扫描。
 
@@ -291,10 +307,11 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 1. 核对 `acceptance` 全勾；
 2. 对每个 `design_refs`：打开设计文件，确认章节已反映本任务实现；未反映则**先更新设计**；
-3. 设 `design_writeback.status: done`，bump 设计 `last_reviewed`；
-4. 若设计因此新增契约，可能需 `draft → adopted` 转换（§3.1）；
-5. 设任务 `status: done`；
-6. 检查所属 plan 是否满足 `completed` 条件（§3.2）。
+3. 按 `project-rules` §文档治理对任务卡与 `design_refs` 跑轮次词扫描；命中则先改写成当前口径，不得标 `done`；
+4. 设 `design_writeback.status: done`，bump 设计 `last_reviewed`；
+5. 若设计因此新增契约，可能需 `draft → adopted` 转换（§3.1）；
+6. 设任务 `status: done`；
+7. 检查所属 plan 是否满足 `completed` 条件（§3.2）。
 
 ### 6.4 设计变更
 
@@ -387,6 +404,8 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 ### 生命周期
 - [ ] 任务 `done` 前 `design_writeback.status=done`（已回写设计）？
+- [ ] 任务卡与 `design_refs` 无轮次词（扫描见 `project-rules` §文档治理）？
+- [ ] 新建遗留任务的 ID 由看板计数器新分配且主题与已有卡一致（未占用）？
 - [ ] 计划 `completed` 前所有任务 `done`/`cancelled`？
 - [ ] `depends_on` 改动后无循环？
 - [ ] 任务 `cancelled` / 设计 `superseded` 后已触发 §4 扫描并在看板登记？
