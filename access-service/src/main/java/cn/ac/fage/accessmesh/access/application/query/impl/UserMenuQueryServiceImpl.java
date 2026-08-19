@@ -183,14 +183,21 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
             log.warn("Failed to load effective resource access for tenant={}, userId={}", tenantId, userId, e);
             return visible;
         }
-        // 菜单资源类型码 → 值（scopeAll 匹配需要 int 值）
-        Map<String, Integer> typeValueByCode = typeResolutionService.batchResolveTypeValues(
-            tenantId, RESOURCE_TYPE_KEY, menuTypeCodes);
-        // 菜单资源业务键 → 资源实例 ID
-        List<ResourceResolveRequest> requests = businessMenus.stream()
-            .map(m -> new ResourceResolveRequest(m.resourceType(), m.resourceCode(), null, null))
-            .toList();
-        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
+        // 菜单资源类型码 → 值（scopeAll 匹配需要 int 值）；资源业务键 → 资源实例 ID。
+        // 解析失败降级为业务菜单不可见（fail-closed），仅保留 DIR/纯展示菜单，不中断登录（评审 P2 修复）。
+        Map<String, Integer> typeValueByCode;
+        Map<ResourceResolveKey, Long> resolved;
+        try {
+            typeValueByCode = typeResolutionService.batchResolveTypeValues(
+                tenantId, RESOURCE_TYPE_KEY, menuTypeCodes);
+            List<ResourceResolveRequest> requests = businessMenus.stream()
+                .map(m -> new ResourceResolveRequest(m.resourceType(), m.resourceCode(), null, null))
+                .toList();
+            resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
+        } catch (Exception e) {
+            log.warn("Failed to resolve menu resource types/ids for tenant={}, userId={}", tenantId, userId, e);
+            return visible;
+        }
         for (MenuProjection menu : businessMenus) {
             Integer typeValue = typeValueByCode.get(menu.resourceType());
             if (typeValue != null && access.allScopeTypes().contains(typeValue)) {

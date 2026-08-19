@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
@@ -88,7 +88,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_CREATE", targetType = "sys_user",
+    @OperationLog(module = "ACCESS", action = "USER_CREATE", targetType = "sys_user",
         targetId = "#result.id()", summary = "'create user ' + #req.username()")
     public UserCreateResp createUser(UserCreateReq req) {
         permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
@@ -155,7 +155,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_UPDATE", targetType = "sys_user",
+    @OperationLog(module = "ACCESS", action = "USER_UPDATE", targetType = "sys_user",
         targetId = "#req.id()", summary = "'update user ' + #req.id()")
     public void updateUser(UserUpdateReq req) {
         Long currentUserId = currentOperatorId();
@@ -201,7 +201,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_LOCK", targetType = "sys_user",
+    @OperationLog(module = "ACCESS", action = "USER_LOCK", targetType = "sys_user",
         targetId = "#userId", summary = "'lock user ' + #userId")
     public void lockUser(Long tenantId, Long userId) {
         // 无权限门禁：登录失败自动锁定（匿名上下文无操作者）；写事实 + 投影同一事务
@@ -222,7 +222,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_DELETE", targetType = "sys_user",
+    @OperationLog(module = "ACCESS", action = "USER_DELETE", targetType = "sys_user",
         targetId = "", summary = "'batch delete users'")
     public void deleteUser(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -296,7 +296,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_ENABLE", targetType = "sys_user",
+    @OperationLog(module = "ACCESS", action = "USER_ENABLE", targetType = "sys_user",
         targetId = "", summary = "'enable/disable users'")
     public void updateStatus(UserUpdateStatusReq req) {
         if (req.status() == null || (req.status() != 0 && req.status() != 1)) {

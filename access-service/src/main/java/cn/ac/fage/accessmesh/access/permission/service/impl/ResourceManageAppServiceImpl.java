@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -164,7 +164,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-entity-create", targetType = "resource_entity", targetId = "#result.id()", summary = "'create resource ' + #req.code()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_CREATE", targetType = "resource_entity", targetId = "#result.id()", summary = "'create resource ' + #req.code()")
     public ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -202,7 +202,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-entity-batch-create", targetType = "BATCH", targetId = "", summary = "'batch create resources, created=' + #result.size()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_BATCH_CREATE", targetType = "resource_entity", targetId = "", summary = "'batch create resources, created=' + #result.size()")
     public List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -317,7 +317,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-entity-update", targetType = "resource_entity", targetId = "#req.id()", summary = "'update resource ' + #req.id()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_UPDATE", targetType = "resource_entity", targetId = "#req.id()", summary = "'update resource ' + #req.id()")
     public ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -346,7 +346,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-entity-move", targetType = "resource_entity", targetId = "#resourceId", summary = "'move resource ' + #resourceId + ' to ' + #parentId")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_MOVE", targetType = "resource_entity", targetId = "#resourceId", summary = "'move resource ' + #resourceId + ' to ' + #parentId")
     public void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -376,7 +376,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "perm", action = "resource-entity-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resources'")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_REMOVE", targetType = "resource_entity", targetId = "", summary = "'batch remove resources'")
     public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -523,7 +523,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "perm", action = "resource-api-mapping-add", targetType = "resource_api_mapping", targetId = "#result.id()", summary = "'add api mapping for service ' + #req.serviceCode()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_API_MAPPING_ADD", targetType = "resource_api_mapping", targetId = "#result.id()", summary = "'add api mapping for service ' + #req.serviceCode()")
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -558,7 +558,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "perm", action = "resource-api-mapping-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resource api mappings'")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_API_MAPPING_REMOVE", targetType = "resource_api_mapping", targetId = "", summary = "'batch remove resource api mappings'")
     public void removeApiMappingsByIds(Long tenantId, List<Long> mappingIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -617,7 +617,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "perm", action = "resource-api-mapping-update", targetType = "resource_api_mapping", targetId = "#req.mappingId()", summary = "'update api mapping ' + #req.mappingId()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_API_MAPPING_UPDATE", targetType = "resource_api_mapping", targetId = "#req.mappingId()", summary = "'update api mapping ' + #req.mappingId()")
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

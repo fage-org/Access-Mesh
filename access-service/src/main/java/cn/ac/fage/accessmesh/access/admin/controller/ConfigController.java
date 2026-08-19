@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.ConfigUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp;
@@ -78,7 +77,6 @@ public class ConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "配置管理", action = "修改", targetType = "CONFIG")
     public PermResult<Void> updateConfig(@Valid @RequestBody ConfigUpdateReq req) {
         configService.updateConfig(req);
         return PermResult.success();
@@ -94,7 +92,6 @@ public class ConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "配置管理", action = "删除", targetType = "CONFIG")
     public PermResult<Void> deleteConfig(@Valid @RequestBody IdsReq req) {
         configService.deleteConfig(req);
         return PermResult.success();

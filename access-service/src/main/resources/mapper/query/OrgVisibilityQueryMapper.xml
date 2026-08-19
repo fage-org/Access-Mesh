@@ -11,17 +11,20 @@
           AND is_default = true
     </select>
 
+    <!-- 递归下钻组织后代；depth 上限防脏数据成环时无限递归（PostgreSQL 递归 CTE 默认
+         1000 次迭代上限会在成环时直接报错中断，显式 depth 保护先于该上限稳定终止） -->
     <select id="selectDescendantOrgIds" resultType="java.lang.Long">
         WITH RECURSIVE descendants AS (
-            SELECT id, parent_id FROM sys_org
+            SELECT id, parent_id, 0 AS depth FROM sys_org
             WHERE id = #{orgId}
               AND tenant_id = #{tenantId}
               AND delete_flag = 0
             UNION ALL
-            SELECT o.id, o.parent_id FROM sys_org o
+            SELECT o.id, o.parent_id, d.depth + 1 FROM sys_org o
             INNER JOIN descendants d ON o.parent_id = d.id
             WHERE o.tenant_id = #{tenantId}
               AND o.delete_flag = 0
+              AND d.depth &lt; 100
         )
         SELECT id FROM descendants
     </select>

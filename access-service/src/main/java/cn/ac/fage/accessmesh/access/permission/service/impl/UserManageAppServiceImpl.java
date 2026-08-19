@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -141,7 +141,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-user-create", targetType = "abstract_user", targetId = "#result.id()", summary = "'create user ' + #req.externalId()")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_CREATE", targetType = "abstract_user", targetId = "#result.id()", summary = "'create user ' + #req.externalId()")
     public UserResp createUser(Long tenantId, UserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -176,7 +176,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-user-update", targetType = "abstract_user", targetId = "#req.userId()", summary = "'update user ' + #req.userId()")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_UPDATE", targetType = "abstract_user", targetId = "#req.userId()", summary = "'update user ' + #req.userId()")
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -215,7 +215,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-user-remove", targetType = "abstract_user", targetId = "", summary = "'batch delete users'")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_REMOVE", targetType = "abstract_user", targetId = "", summary = "'batch delete users'")
     @PermissionChange
     public void deleteUsers(Long tenantId, List<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
@@ -266,7 +266,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "user-role-assign", targetType = "user_role", targetId = "", summary = "'assign user roles'")
+    @OperationLog(module = "PERMISSION", action = "USER_ROLE_ASSIGN", targetType = "user_role", targetId = "", summary = "'assign user roles'")
     @PermissionChange
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -411,7 +411,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "user-role-batch-assign", targetType = "abstract_role", targetId = "#req.roleExternalId()", summary = "'batch assign role ' + #req.roleExternalId()")
+    @OperationLog(module = "PERMISSION", action = "USER_ROLE_BATCH_ASSIGN", targetType = "abstract_role", targetId = "#req.roleExternalId()", summary = "'batch assign role ' + #req.roleExternalId()")
     @PermissionChange
     public void assignRolesBatch(Long tenantId, UserRoleBatchAssignReq req) {
         if (req.subjectExternalIds() == null || req.subjectExternalIds().isEmpty()) {
@@ -519,7 +519,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "user-role-revoke", targetType = "BATCH", targetId = "", summary = "'batch revoke user-role relations'")
+    @OperationLog(module = "PERMISSION", action = "USER_ROLE_REVOKE", targetType = "user_role", targetId = "", summary = "'batch revoke user-role relations'")
     @PermissionChange
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
         Long operatorId = OperatorContext.getOperatorId();

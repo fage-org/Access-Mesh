@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.application.MenuWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
@@ -47,7 +47,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "MENU_CREATE", targetType = "sys_menu",
+    @OperationLog(module = "ACCESS", action = "MENU_CREATE", targetType = "sys_menu",
         targetId = "#result", summary = "'create menu ' + #req.menuName()")
     public Long createMenu(MenuCreateReq req) {
         permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
@@ -84,7 +84,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "MENU_UPDATE", targetType = "sys_menu",
+    @OperationLog(module = "ACCESS", action = "MENU_UPDATE", targetType = "sys_menu",
         targetId = "#req.id()", summary = "'update menu ' + #req.id()")
     public void updateMenu(MenuUpdateReq req) {
         permissionValidator.checkInstanceLevel(
@@ -152,7 +152,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "MENU_DELETE", targetType = "sys_menu",
+    @OperationLog(module = "ACCESS", action = "MENU_DELETE", targetType = "sys_menu",
         targetId = "#id", summary = "'delete menu ' + #id")
     public void deleteMenu(Long id) {
         permissionValidator.checkInstanceLevel(

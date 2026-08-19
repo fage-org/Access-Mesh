@@ -16,7 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.service.DependencyAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -93,7 +93,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-dependency-create", targetType = "resource_dependency", targetId = "#result.id()", summary = "'create resource dependency'")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_CREATE", targetType = "resource_dependency", targetId = "#result.id()", summary = "'create resource dependency'")
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -199,7 +199,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-dependency-update", targetType = "resource_dependency", targetId = "#req.id()", summary = "'update resource dependency ' + #req.id()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_UPDATE", targetType = "resource_dependency", targetId = "#req.id()", summary = "'update resource dependency ' + #req.id()")
     public ResourceDependencyResp updateDependency(Long tenantId, ResourceDependencyUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -305,7 +305,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-dependency-remove", targetType = "BATCH", targetId = "", summary = "'batch remove resource dependencies'")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_REMOVE", targetType = "resource_dependency", targetId = "", summary = "'batch remove resource dependencies'")
     public void deleteDependencies(Long tenantId, List<Long> dependencyIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -353,7 +353,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "resource-dependency-sync", targetType = "resource_dependency", targetId = "#req.serviceCode()", summary = "'sync resource dependencies for service ' + #req.serviceCode()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_SYNC", targetType = "resource_dependency", targetId = "#req.serviceCode()", summary = "'sync resource dependencies for service ' + #req.serviceCode()")
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

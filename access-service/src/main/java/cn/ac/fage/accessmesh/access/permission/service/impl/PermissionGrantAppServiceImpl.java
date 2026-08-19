@@ -31,7 +31,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
@@ -124,9 +124,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "role-resource-permission-apply-plan",
+    @OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_APPLY_PLAN",
         targetType = "abstract_role", targetId = "#req.roleExternalId",
-        summary = "apply role permission grant plan")
+        summary = "'apply role permission grant plan'")
     @PermissionChange
     public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
         Long roleId = typeResolutionService.resolveRoleId(
@@ -182,8 +182,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "role-resource-permission-grant", targetType = "abstract_role",
-        targetId = "#req.roleExternalId", summary = "save granted role perms")
+    @OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_GRANT", targetType = "abstract_role",
+        targetId = "#req.roleExternalId", summary = "'save granted role perms'")
     @PermissionChange
     public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
         Long roleId = typeResolutionService.resolveRoleId(
@@ -524,8 +524,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "role-resource-permission-revoke", targetType = "abstract_role",
-        targetId = "#req.roleExternalId", summary = "revoke perms from role")
+    @OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_REVOKE", targetType = "abstract_role",
+        targetId = "#req.roleExternalId", summary = "'revoke perms from role'")
     @PermissionChange
     public void batchRevoke(Long tenantId, BatchRevokeReq req) {
         Long roleId = typeResolutionService.resolveRoleId(
@@ -662,8 +662,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "role-resource-permission-child-add", targetType = "role_resource_permission",
-        targetId = "#req.parentPermissionId", summary = "add child perms")
+    @OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_CHILD_ADD", targetType = "role_resource_permission",
+        targetId = "#req.parentPermissionId", summary = "'add child perms'")
     @PermissionChange
     public List<RolePermissionItemResp> addChildren(Long tenantId, RolePermissionAddChildReq req) {
         RoleResourcePermission parent = rolePermMapper.selectValidById(tenantId, null, req.parentPermissionId());
@@ -836,8 +836,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "role-resource-permission-child-remove", targetType = "role_resource_permission",
-        targetId = "#req.permissionId", summary = "remove child perm")
+    @OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_CHILD_REMOVE", targetType = "role_resource_permission",
+        targetId = "#req.permissionId", summary = "'remove child perm'")
     @PermissionChange
     public void removeChild(Long tenantId, RolePermissionRemoveChildReq req) {
         RoleResourcePermission child = rolePermMapper.selectValidById(tenantId, null, req.permissionId());

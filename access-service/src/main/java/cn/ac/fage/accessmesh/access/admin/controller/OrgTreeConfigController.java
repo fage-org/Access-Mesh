@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
@@ -51,7 +50,6 @@ public class OrgTreeConfigController {
      * @return 创建成功的配置ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "组织树配置", action = "创建")
     public PermResult<Long> createOrgTreeConfig(@Valid @RequestBody OrgTreeConfigCreateReq req) {
         return PermResult.success(orgTreeConfigService.createOrgTreeConfig(req));
     }
@@ -66,7 +64,6 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "组织树配置", action = "更新")
     public PermResult<Void> updateOrgTreeConfig(@Valid @RequestBody OrgTreeConfigUpdateReq req) {
         orgTreeConfigService.updateOrgTreeConfig(req);
         return PermResult.success();
@@ -82,7 +79,6 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "组织树配置", action = "删除")
     public PermResult<Void> deleteOrgTreeConfigs(@Valid @RequestBody IdsReq req) {
         orgTreeConfigService.deleteOrgTreeConfigs(req);
         return PermResult.success();
@@ -100,7 +96,6 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/set-default")
-    @AuditLog(module = "组织树配置", action = "设置默认")
     public PermResult<Void> setDefault(@Valid @RequestBody IdReq req) {
         orgTreeConfigService.setDefault(req.id());
         return PermResult.success();

@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.application.UserOrgWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
@@ -61,7 +61,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_ORG_ASSIGN", targetType = "sys_user_org",
+    @OperationLog(module = "ACCESS", action = "USER_ORG_ASSIGN", targetType = "sys_user_org",
         targetId = "#req.userId()", summary = "'assign user orgs'")
     public void assignUserToOrgs(UserOrgAssignReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -163,7 +163,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "USER_ORG_REMOVE", targetType = "sys_user_org",
+    @OperationLog(module = "ACCESS", action = "USER_ORG_REMOVE", targetType = "sys_user_org",
         targetId = "#userId", summary = "'remove user org'")
     public void removeUserFromOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();

@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.DictDataCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.DictDataUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.DictTypeCreateReq;
@@ -54,7 +53,6 @@ public class DictController {
      * @return 创建成功的字典类型ID
      */
     @PostMapping("/type/create")
-    @AuditLog(module = "字典管理", action = "创建类型", targetType = "DICT_TYPE")
     public PermResult<Long> createDictType(@Valid @RequestBody DictTypeCreateReq req) {
         return PermResult.success(dictService.createDictType(req));
     }
@@ -69,7 +67,6 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/type/delete")
-    @AuditLog(module = "字典管理", action = "删除类型", targetType = "DICT_TYPE")
     public PermResult<Void> deleteDictType(@Valid @RequestBody IdsReq req) {
         dictService.deleteDictType(req);
         return PermResult.success();
@@ -112,7 +109,6 @@ public class DictController {
      * @return 创建成功的字典数据ID
      */
     @PostMapping("/data/create")
-    @AuditLog(module = "字典管理", action = "创建数据", targetType = "DICT_DATA")
     public PermResult<Long> createDictData(@Valid @RequestBody DictDataCreateReq req) {
         return PermResult.success(dictService.createDictData(req));
     }
@@ -127,7 +123,6 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/data/update")
-    @AuditLog(module = "字典管理", action = "修改数据", targetType = "DICT_DATA")
     public PermResult<Void> updateDictData(@Valid @RequestBody DictDataUpdateReq req) {
         dictService.updateDictData(req);
         return PermResult.success();
@@ -143,7 +138,6 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/data/delete")
-    @AuditLog(module = "字典管理", action = "删除数据", targetType = "DICT_DATA")
     public PermResult<Void> deleteDictData(@Valid @RequestBody IdReq req) {
         dictService.deleteDictData(req);
         return PermResult.success();

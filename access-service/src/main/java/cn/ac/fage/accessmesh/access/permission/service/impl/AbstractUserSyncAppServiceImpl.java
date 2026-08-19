@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractUserFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractUserSyncItem;
@@ -71,6 +72,9 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_SYNC", targetType = "abstract_user",
+        targetId = "#req.subjectExternalId()",
+        summary = "'sync abstract_user from ' + #req.sourceService()")
     public SyncResultResp sync(Long tenantId, AbstractUserSyncReq req, HttpServletRequest httpRequest) {
         // 1. 服务身份校验
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
@@ -140,6 +144,9 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_FULL_SYNC", targetType = "abstract_user",
+        targetId = "",
+        summary = "'full sync abstract_user from ' + #req.scope().sourceService()")
     public SyncResultResp fullSync(Long tenantId, AbstractUserFullSyncReq req, HttpServletRequest httpRequest) {
         // 1. 服务身份校验
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {

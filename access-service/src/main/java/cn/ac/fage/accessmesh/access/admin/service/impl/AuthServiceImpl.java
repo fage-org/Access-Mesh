@@ -11,9 +11,11 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.service.AuthService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService.LoginLogEntry;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
@@ -39,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +66,10 @@ public class AuthServiceImpl implements AuthService {
     private static final String SMS_CODE_PREFIX = "sms:code:";
     private static final int MAX_LOGIN_FAIL_COUNT = 5;
     private static final long LOCK_DURATION_MINUTES = 30;
+
+    /** 登录方式（对齐 sys_login_log.login_type 列注释：PASSWORD/SMS/OAUTH2） */
+    private static final String LOGIN_TYPE_PASSWORD = "PASSWORD";
+    private static final String LOGIN_TYPE_SMS = "SMS";
 
     /**
      * Lua脚本：INCR + EXPIRE 合并为原子操作
@@ -101,7 +108,7 @@ public class AuthServiceImpl implements AuthService {
     /**
      * 平台用户会话过期展示口径（秒）。
      * <p>
-     * T-ACCESS-003 评审 P2 修复（2026-08-14）：单一权威来源 = {@link SaManager#getConfig()}
+     * 单一权威来源 = {@link SaManager#getConfig()}
      * 的 sa-token.timeout（真实会话 TTL，配置驱动）。原独立配置键
      * access.session.expires-in-seconds 与 sa-token.timeout 双源耦合，Nacos 只覆盖
      * 其中一项时 LoginResp.expiresIn 与实际会话漂移。OAuth2 /oauth2/token 的
@@ -180,20 +187,20 @@ public class AuthServiceImpl implements AuthService {
         checkAccountLocked(tenantId, req.username());
         if (user == null) {
             recordLoginFail(tenantId, req.username());
-            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户不存在");
+            safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
         if (user.getStatus() != null && user.getStatus() == 0) {
-            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "用户已停用");
+            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
         }
         if (user.getStatus() != null && user.getStatus() == 2) {
-            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "账号已锁定");
+            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "账号已锁定");
             throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), AdminErrorCode.USER_LOCKED.getMessage());
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
-            loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 0, "密码错误");
+            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "密码错误");
             throw new BizException(AdminErrorCode.PASSWORD_INCORRECT.getCode(), AdminErrorCode.PASSWORD_INCORRECT.getMessage());
         }
 
@@ -203,9 +210,11 @@ public class AuthServiceImpl implements AuthService {
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
         session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
+        // 操作者名称供 @OperationLog AOP 会话回填（评审修复：operator_name 不再永久为空）
+        session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
 
-        loginLogDomainService.recordLoginLog(tenantId, req.username(), req.clientId(), 1, null);
+        safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 1, null);
 
         return new LoginResp(
             token,
@@ -217,6 +226,30 @@ public class AuthServiceImpl implements AuthService {
             user.getTenantId(),
             user.getForceResetPwd() != null && user.getForceResetPwd()
         );
+    }
+
+    /**
+     * 记录登录日志（失败隔离，调用方兜底）
+     * <p>
+     * 日志写入经 REQUIRES_NEW 独立短事务；方法体不吞异常，异常（含 Spring 代理层
+     * commit 阶段的连接中断/rollback-only）自然传播到本方法，由本方法 try-catch 兜底：
+     * 日志失败仅告警，不阻断登录主流程（失败分支的 BizException 不被日志异常覆盖）。
+     * 客户端 IP/User-Agent 从当前请求上下文提取（无请求上下文时为空）。
+     * </p>
+     */
+    private void safeRecordLoginLog(Long tenantId, Long userId, String username, String loginType,
+                                    String clientId, Integer status, String failReason) {
+        HttpServletRequest request = HttpRequestUtils.currentRequest();
+        try {
+            loginLogDomainService.recordLoginLog(new LoginLogEntry(
+                tenantId, userId, username, loginType, clientId,
+                HttpRequestUtils.getClientIp(request),
+                HttpRequestUtils.getUserAgent(request),
+                status, failReason));
+        } catch (Exception e) {
+            log.warn("记录登录日志失败（已隔离，不影响登录流程）: tenantId={}, username={}, status={}, error={}",
+                tenantId, username, status, e.getMessage());
+        }
     }
 
     /**
@@ -239,11 +272,11 @@ public class AuthServiceImpl implements AuthService {
 
         SysUser user = userDomainService.findByPhone(tenantId, req.phone());
         if (user == null) {
-            loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户不存在");
+            safeRecordLoginLog(tenantId, null, req.phone(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
         if (user.getStatus() != null && user.getStatus() == 0) {
-            loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 0, "用户已停用");
+            safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
         }
 
@@ -252,9 +285,11 @@ public class AuthServiceImpl implements AuthService {
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
         session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
+        // 操作者名称供 @OperationLog AOP 会话回填（评审修复：operator_name 不再永久为空）
+        session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
 
-        loginLogDomainService.recordLoginLog(tenantId, req.phone(), req.clientId(), 1, null);
+        safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 1, null);
 
         return new LoginResp(
             token,

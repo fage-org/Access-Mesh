@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgBatchCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq;
@@ -55,7 +54,6 @@ public class OrgController {
      * @return 创建成功的组织ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "组织管理", action = "创建", targetType = "ORG")
     public PermResult<Long> createOrg(@Valid @RequestBody OrgCreateReq req) {
         return PermResult.success(orgService.createOrg(req));
     }
@@ -70,7 +68,6 @@ public class OrgController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "组织管理", action = "修改", targetType = "ORG")
     public PermResult<Void> updateOrg(@Valid @RequestBody OrgUpdateReq req) {
         orgService.updateOrg(req);
         return PermResult.success();
@@ -86,7 +83,6 @@ public class OrgController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "组织管理", action = "删除", targetType = "ORG")
     public PermResult<Void> deleteOrg(@Valid @RequestBody IdReq req) {
         orgService.deleteOrg(req.id());
         return PermResult.success();

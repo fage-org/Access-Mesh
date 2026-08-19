@@ -4,6 +4,8 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysLoginLogMapper;
 import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +15,13 @@ import java.time.LocalDateTime;
  * 封装登录日志的数据访问逻辑，提供日志插入和快捷记录方法。
  * 登录日志用于记录用户的登录行为，包括登录时间、方式、状态、失败原因等。
  * 用于安全审计和登录失败追踪。
+ * </p>
+ * <p>
+ * 独立短事务（T-ACCESS-007 §8.2）：{@link #recordLoginLog} 使用 REQUIRES_NEW
+ * 在独立事务写入登录日志，登录主流程（认证/失败分支）的异常或回滚不影响日志落库。
+ * 方法体不吞异常：REQUIRES_NEW 异常（含 Spring 代理层 commit 阶段的
+ * 连接中断/rollback-only）自然传播到调用方，由调用方（AuthServiceImpl.safeRecordLoginLog）
+ * 统一 try-catch 兜底隔离，日志失败不影响登录主流程。
  * </p>
  */
 @Service
@@ -30,28 +39,28 @@ public class LoginLogDomainServiceImpl implements LoginLogDomainService {
     }
 
     /**
-     * 快捷记录登录日志
+     * 记录登录日志
      * <p>
-     * 创建并插入一条登录日志，记录登录行为。
-     * 默认登录方式为密码登录（password）。
-     * 用于登录成功/失败时的快捷日志记录。
+     * 完整回填 userId/loginType/IP/User-Agent（T-ACCESS-007 评审修复）：
+     * 由 AuthServiceImpl 从请求上下文提取 IP/UA 后随条目传入，loginType 按登录方式
+     * 写入 PASSWORD/SMS/OAUTH2（与 DDL 列注释对齐），不再硬编码小写 password。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param username   登录用户名
-     * @param clientId   客户端ID（OAuth2客户端标识）
-     * @param status     登录状态（1成功，0失败）
-     * @param failReason 失败原因，成功时为null
+     * @param entry 登录日志条目
      */
     @Override
-    public void recordLoginLog(Long tenantId, String username, String clientId, Integer status, String failReason) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordLoginLog(LoginLogEntry entry) {
         SysLoginLog log = new SysLoginLog();
-        log.setTenantId(tenantId);
-        log.setUsername(username);
-        log.setLoginType("password");
-        log.setClientId(clientId);
-        log.setStatus(status);
-        log.setFailReason(failReason);
+        log.setTenantId(entry.tenantId());
+        log.setUserId(entry.userId());
+        log.setUsername(entry.username());
+        log.setLoginType(entry.loginType());
+        log.setClientId(entry.clientId());
+        log.setIpAddress(entry.ipAddress());
+        log.setUserAgent(entry.userAgent());
+        log.setStatus(entry.status());
+        log.setFailReason(entry.failReason());
         log.setLoginAt(LocalDateTime.now());
         loginLogMapper.insert(log);
     }

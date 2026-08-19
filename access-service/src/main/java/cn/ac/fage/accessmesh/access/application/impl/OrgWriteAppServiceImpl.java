@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
@@ -65,7 +65,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "ORG_CREATE", targetType = "sys_org",
+    @OperationLog(module = "ACCESS", action = "ORG_CREATE", targetType = "sys_org",
         targetId = "#result", summary = "'create org ' + #req.code()")
     public Long createOrg(OrgCreateReq req) {
         // orgType 仅允许 1=组织 / 2=岗位（契约 §4.2.4；未知类型会被操作码/投影按普通组织处理，必须拒绝）
@@ -125,7 +125,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "ORG_UPDATE", targetType = "sys_org",
+    @OperationLog(module = "ACCESS", action = "ORG_UPDATE", targetType = "sys_org",
         targetId = "#req.id()", summary = "'update org ' + #req.id()")
     public void updateOrg(OrgUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
@@ -286,7 +286,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "ADMIN", action = "ORG_DELETE", targetType = "sys_org",
+    @OperationLog(module = "ACCESS", action = "ORG_DELETE", targetType = "sys_org",
         targetId = "#id", summary = "'delete org ' + #id")
     public void deleteOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();

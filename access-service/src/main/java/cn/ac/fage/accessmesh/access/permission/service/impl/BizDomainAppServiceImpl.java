@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainCreateReq;
@@ -65,7 +65,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "biz-domain-create", targetType = "biz_domain", targetId = "#result.id()", summary = "'create biz domain ' + #req.code()")
+    @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_CREATE", targetType = "biz_domain", targetId = "#result.id()", summary = "'create biz domain ' + #req.code()")
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -152,7 +152,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "biz-domain-update", targetType = "biz_domain", targetId = "#req.domainId()", summary = "'update biz domain ' + #req.domainId()")
+    @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_UPDATE", targetType = "biz_domain", targetId = "#req.domainId()", summary = "'update biz domain ' + #req.domainId()")
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -185,7 +185,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "biz-domain-remove", targetType = "BATCH", targetId = "", summary = "'batch remove biz domains'")
+    @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_REMOVE", targetType = "biz_domain", targetId = "", summary = "'batch remove biz domains'")
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

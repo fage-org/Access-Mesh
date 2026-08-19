@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.NoticeCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.NoticeUpdateReq;
@@ -52,7 +51,6 @@ public class NoticeController {
      * @return 创建成功的公告ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "公告管理", action = "创建", targetType = "NOTICE")
     public PermResult<Long> createNotice(@Valid @RequestBody NoticeCreateReq req) {
         return PermResult.success(noticeService.createNotice(req));
     }
@@ -67,7 +65,6 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "公告管理", action = "修改", targetType = "NOTICE")
     public PermResult<Void> updateNotice(@Valid @RequestBody NoticeUpdateReq req) {
         noticeService.updateNotice(req);
         return PermResult.success();
@@ -83,7 +80,6 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "公告管理", action = "删除", targetType = "NOTICE")
     public PermResult<Void> deleteNotice(@Valid @RequestBody IdsReq req) {
         noticeService.deleteNotice(req);
         return PermResult.success();
@@ -127,7 +123,6 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/publish")
-    @AuditLog(module = "公告管理", action = "发布", targetType = "NOTICE")
     public PermResult<Void> publishNotice(@Valid @RequestBody IdReq req) {
         noticeService.publishNotice(req.id());
         return PermResult.success();

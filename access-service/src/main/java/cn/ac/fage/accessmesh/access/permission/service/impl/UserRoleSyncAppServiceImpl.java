@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncReq;
@@ -69,6 +70,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "USER_ROLE_SYNC", targetType = "user_role",
+        targetId = "#req.subjectExternalId()",
+        summary = "'sync user_role op=' + #req.operation() + ' role=' + #req.roleExternalId() + ' from ' + #req.sourceService()")
     public SyncResultResp sync(Long tenantId, UserRoleSyncReq req, HttpServletRequest httpRequest) {
         // 1. 身份校验
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
@@ -96,6 +100,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "USER_ROLE_FULL_SYNC", targetType = "user_role",
+        targetId = "",
+        summary = "'full sync user_role from ' + #req.scope().sourceService()")
     public SyncResultResp fullSync(Long tenantId, UserRoleFullSyncReq req, HttpServletRequest httpRequest) {
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {
             return SyncResultBuilder.fullSyncRejected(

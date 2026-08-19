@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
@@ -85,7 +85,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
-    @OperationLog(module = "perm", action = "service-interface-sync", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
+    @OperationLog(module = "PERMISSION", action = "SERVICE_INTERFACE_SYNC", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'sync result: createdResources=' + #result.createdResources() + ', createdMappings=' + #result.createdMappings() + ', updatedMappings=' + #result.updatedMappings() + ', deletedResources=' + #result.deletedResources() + ', deletedMappings=' + #result.deletedMappings()")
     public ServiceConfigSyncResp syncInterfaces(Long tenantId, ServiceConfigSyncReq req) {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

@@ -479,8 +479,9 @@ COMMENT ON COLUMN sys_job_log.cost_time IS '耗时（毫秒）';
 
 -- -----------------------------------------------------------------------------
 -- 15. system_config - 系统配置（合并 sys_config + 原 system_config，字段取超集）
---     键使用 admin.* / permission.* / access.* 命名空间；存量种子键保持现状，
---     命名空间约定约束新增键（access-service-architecture §5.2）
+--     键使用 admin.* / permission.* / access.* 命名空间；存量种子键迁移至
+--     admin.* 前缀（T-ACCESS-007），新增键经 upsert 入口校验前缀
+--     （access-service-architecture §5.2）
 -- -----------------------------------------------------------------------------
 CREATE TABLE system_config (
     id           BIGSERIAL PRIMARY KEY,
@@ -510,28 +511,28 @@ COMMENT ON COLUMN system_config.config_name IS '配置名称（admin 侧语义�
 COMMENT ON COLUMN system_config.is_system IS '是否系统内置（不可删除）';
 COMMENT ON COLUMN system_config.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
--- 预置配置项（原 sys_config 种子，键名保持不变）
+-- 预置配置项（原 sys_config 种子，T-ACCESS-007 迁移至 admin.* 命名空间）
 INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system, created_by, created_at, updated_at)
 VALUES
-    (1, 'LOGIN_CAPTCHA_ENABLED',   'true',      '是否开启图形验证码',       true, 0, now(), now()),
-    (1, 'LOGIN_SMS_ENABLED',       'false',     '是否开启短信验证码',       true, 0, now(), now()),
-    (1, 'LOGIN_FAIL_LOCK_COUNT',   '5',         '密码错误锁定次数',         true, 0, now(), now()),
-    (1, 'LOGIN_FAIL_LOCK_MINUTES', '30',        '锁定时长（分钟）',         true, 0, now(), now()),
-    (1, 'LOGIN_SINGLE_DEVICE',     'false',     '单设备登录',               true, 0, now(), now()),
-    (1, 'LOGIN_REMOTE_ALERT',      'false',     '异地登录提醒',             true, 0, now(), now()),
-    (1, 'MENU_MAX_DEPTH',          '7',         '菜单树最大深度',           true, 0, now(), now()),
-    (1, 'FILE_UPLOAD_MAX_SIZE',    '10485760',  '文件上传大小限制（字节）', true, 0, now(), now()),
-    (1, 'FILE_ALLOWED_TYPES',      '["image/jpeg","image/png","image/gif","application/pdf","application/zip","text/plain"]', '允许的文件类型列表', true, 0, now(), now());
+    (1, 'admin.LOGIN_CAPTCHA_ENABLED',   'true',      '是否开启图形验证码',       true, 0, now(), now()),
+    (1, 'admin.LOGIN_SMS_ENABLED',       'false',     '是否开启短信验证码',       true, 0, now(), now()),
+    (1, 'admin.LOGIN_FAIL_LOCK_COUNT',   '5',         '密码错误锁定次数',         true, 0, now(), now()),
+    (1, 'admin.LOGIN_FAIL_LOCK_MINUTES', '30',        '锁定时长（分钟）',         true, 0, now(), now()),
+    (1, 'admin.LOGIN_SINGLE_DEVICE',     'false',     '单设备登录',               true, 0, now(), now()),
+    (1, 'admin.LOGIN_REMOTE_ALERT',      'false',     '异地登录提醒',             true, 0, now(), now()),
+    (1, 'admin.MENU_MAX_DEPTH',          '7',         '菜单树最大深度',           true, 0, now(), now()),
+    (1, 'admin.FILE_UPLOAD_MAX_SIZE',    '10485760',  '文件上传大小限制（字节）', true, 0, now(), now()),
+    (1, 'admin.FILE_ALLOWED_TYPES',      '["image/jpeg","image/png","image/gif","application/pdf","application/zip","text/plain"]', '允许的文件类型列表', true, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
 -- 16. operation_log - 操作日志（合并 sys_audit_log + 原 operation_log，字段取超集；
 --     不做软删除；target_id 使用字符串；request_body 敏感内容脱敏并限长；
---     模块标识约定 ADMIN/PERMISSION/ACCESS）
+--     module 三值枚举 ADMIN/PERMISSION/ACCESS，T-ACCESS-007 收敛）
 -- -----------------------------------------------------------------------------
 CREATE TABLE operation_log (
     id             BIGSERIAL PRIMARY KEY,
     tenant_id      BIGINT NOT NULL,
-    module         VARCHAR(64) NOT NULL,   -- 模块标识：ADMIN/PERMISSION/ACCESS 前缀约定
+    module         VARCHAR(64) NOT NULL,   -- 模块标识三值枚举：ADMIN/PERMISSION/ACCESS（按事务边界判定）
     action         VARCHAR(64) NOT NULL,
     target_type    VARCHAR(64),
     target_id      VARCHAR(256),           -- 字符串（合并口径，原 permission 为 BIGINT；256 覆盖 configKey 128 / roleExternalId 256 等业务键上限）
@@ -552,6 +553,7 @@ CREATE TABLE operation_log (
 CREATE INDEX idx_operation_log_tenant_time ON operation_log (tenant_id, created_at DESC);    -- 原 permission idx_operation_log_tenant_time = 原 admin idx_audit_log_tenant_time，合并
 CREATE INDEX idx_operation_log_operator ON operation_log (tenant_id, operator_id, created_at DESC);  -- 原 permission
 CREATE INDEX idx_operation_log_target ON operation_log (tenant_id, target_type, target_id);   -- 原 permission
+CREATE INDEX idx_operation_log_tenant_module_time ON operation_log (tenant_id, module, created_at DESC);  -- T-ACCESS-007：module 三值化后按模块边界分页过滤
 CREATE INDEX idx_operation_log_user ON operation_log (tenant_id, user_id);                    -- 原 admin idx_audit_log_user，更名并入
 CREATE INDEX idx_operation_log_request ON operation_log (request_id) WHERE request_id IS NOT NULL;  -- 原 permission
 

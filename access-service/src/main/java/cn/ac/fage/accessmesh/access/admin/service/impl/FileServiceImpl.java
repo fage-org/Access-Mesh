@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.FileResp;
@@ -166,6 +167,8 @@ public class FileServiceImpl implements FileService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "FILE_UPLOAD", targetType = "sys_file",
+        targetId = "#result", summary = "'upload file'")
     public Long uploadFile(MultipartFile file, String bizType) {
         // 权限检查 — FILE 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.FILE, AdminOperationCode.CREATE);
@@ -279,6 +282,8 @@ public class FileServiceImpl implements FileService {
      */
     @Override
     @Transactional
+    @OperationLog(module = "ADMIN", action = "FILE_DELETE", targetType = "sys_file",
+        targetId = "", summary = "'batch delete files'")
     public void deleteFiles(IdsReq req) {
         // 权限检查 — FILE 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigReq;
@@ -69,7 +69,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "domain-config-upsert", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
+    @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_UPSERT", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
@@ -181,7 +181,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "domain-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove domain configs'")
+    @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_REMOVE", targetType = "domain_config", targetId = "", summary = "'batch remove domain configs'")
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

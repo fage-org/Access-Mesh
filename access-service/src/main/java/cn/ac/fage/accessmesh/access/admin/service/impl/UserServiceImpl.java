@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MemberCandidatesReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserCreateReq;
@@ -353,6 +354,8 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "USER_PASSWORD_RESET", targetType = "sys_user",
+        targetId = "#userId", summary = "'reset password for user ' + #userId")
     public ResetPasswordResp resetPassword(Long userId, String newPassword) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 

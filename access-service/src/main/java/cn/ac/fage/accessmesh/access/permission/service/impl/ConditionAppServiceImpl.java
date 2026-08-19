@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -82,7 +82,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "permission-condition-create", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_CREATE", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -146,7 +146,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "permission-condition-update", targetType = "permission_condition", targetId = "#req.conditionId()", summary = "'update permission condition ' + #req.conditionId()")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_UPDATE", targetType = "permission_condition", targetId = "#req.conditionId()", summary = "'update permission condition ' + #req.conditionId()")
     @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -215,7 +215,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "permission-condition-remove", targetType = "permission_condition", targetId = "#conditionId", summary = "'remove permission condition ' + #conditionId")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_REMOVE", targetType = "permission_condition", targetId = "#conditionId", summary = "'remove permission condition ' + #conditionId")
     @PermissionChange
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -258,7 +258,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "permission-condition-remove", targetType = "BATCH", targetId = "", summary = "'batch remove permission conditions'")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_REMOVE", targetType = "permission_condition", targetId = "", summary = "'batch remove permission conditions'")
     @PermissionChange
     public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);

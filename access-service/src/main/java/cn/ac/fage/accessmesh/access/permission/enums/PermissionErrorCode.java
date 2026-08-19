@@ -215,7 +215,12 @@ public enum PermissionErrorCode {
      * 本地投影依赖缺失（父组织角色/所属组织角色等不存在），fail-closed 整体回滚。
      */
     LOCAL_PROJECTION_DEPENDENCY_MISSING(20046, "本地投影依赖缺失（父组织角色/所属组织角色不存在）"),
-    INVALID_PARAM(20044, "参数格式错误");
+    INVALID_PARAM(20044, "参数格式错误"),
+
+    /**
+     * 配置键必须使用 admin./permission./access. 命名空间前缀（T-ACCESS-007 §5.2）。
+     */
+    CONFIG_KEY_NAMESPACE_INVALID(20047, "配置键必须使用 admin./permission./access. 命名空间前缀");
 
     private final int code;
     private final String message;

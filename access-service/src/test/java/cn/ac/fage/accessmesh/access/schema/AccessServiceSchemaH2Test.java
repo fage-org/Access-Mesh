@@ -207,8 +207,22 @@ class AccessServiceSchemaH2Test {
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(36, countRows("type_definition"), "type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28）");
         assertEquals(139, countRows("operation_permission"), "operation_permission 种子 139 行（静态类型 CRUD 112 + 非预置扩展 15 + 权限中心运行时必需 12）");
-        assertEquals(9, countRows("system_config"), "system_config 种子 9 条（原 sys_config 键名不变）");
+        assertEquals(9, countRows("system_config"), "system_config 种子 9 条（T-ACCESS-007 迁移至 admin.* 前缀）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
+    }
+
+    @Test
+    @DisplayName("system_config 种子键均符合命名空间前缀 admin./permission./access.（T-ACCESS-007）")
+    void shouldHaveNamespacedSeedKeys() throws SQLException {
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT config_key FROM system_config WHERE tenant_id = 1 AND delete_flag = 0")) {
+            while (rs.next()) {
+                String key = rs.getString(1);
+                assertTrue(key.startsWith("admin.") || key.startsWith("permission.") || key.startsWith("access."),
+                    "种子键应带合法命名空间前缀（admin./permission./access.），实际：" + key);
+            }
+        }
     }
 
     @Test
@@ -364,7 +378,7 @@ class AccessServiceSchemaH2Test {
         assertThrows(SQLException.class, () -> {
             try (Statement s = conn.createStatement()) {
                 s.execute("INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) " +
-                    "VALUES (1, 'LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
+                    "VALUES (1, 'admin.LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
             }
         }, "uk_system_config (tenant_id, config_key) 应拒绝重复插入");
     }

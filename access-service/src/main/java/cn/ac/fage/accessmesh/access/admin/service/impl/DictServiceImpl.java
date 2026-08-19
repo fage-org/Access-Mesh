@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.admin.cache.AdminCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
@@ -78,6 +79,8 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "DICT_TYPE_CREATE", targetType = "sys_dict_type",
+        targetId = "#req.dictType()", summary = "'create dict type'")
     public Long createDictType(DictTypeCreateReq req) {
         // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.DICT, AdminOperationCode.CREATE);
@@ -113,6 +116,8 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "DICT_TYPE_DELETE", targetType = "sys_dict_type",
+        targetId = "", summary = "'batch delete dict types'")
     public void deleteDictType(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -243,6 +248,8 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "DICT_DATA_CREATE", targetType = "sys_dict_data",
+        targetId = "#result", summary = "'create dict data'")
     public Long createDictData(DictDataCreateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -285,6 +292,8 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "DICT_DATA_UPDATE", targetType = "sys_dict_data",
+        targetId = "#req.id()", summary = "'update dict data ' + #req.id()")
     public void updateDictData(DictDataUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -333,6 +342,8 @@ public class DictServiceImpl implements DictService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "DICT_DATA_DELETE", targetType = "sys_dict_data",
+        targetId = "#req.id()", summary = "'delete dict data ' + #req.id()")
     public void deleteDictData(IdReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 

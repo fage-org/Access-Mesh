@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntityFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncItem;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncReq;
@@ -77,6 +78,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_SYNC", targetType = "resource_entity",
+        targetId = "#req.resourceCode()",
+        summary = "'sync resource_entity from ' + #req.sourceService()")
     public SyncResultResp sync(Long tenantId, ResourceEntitySyncReq req, HttpServletRequest httpRequest) {
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
@@ -97,6 +101,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_FULL_SYNC", targetType = "resource_entity",
+        targetId = "",
+        summary = "'full sync resource_entity from ' + #req.scope().sourceService()")
     public SyncResultResp fullSync(Long tenantId, ResourceEntityFullSyncReq req, HttpServletRequest httpRequest) {
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {
             return SyncResultBuilder.fullSyncRejected(

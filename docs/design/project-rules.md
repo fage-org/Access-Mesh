@@ -1169,7 +1169,7 @@ Closes #123
 | 文档 | 职责 | 禁止 |
 |---|---|---|
 | `api-contract.md` | 字段/错误码/请求响应结构（唯一详细来源） | - |
-| 任务卡 `T-*.md` | 该任务详细范围/验收/背景（唯一详细来源） | - |
+| 任务卡 `T-*.md` | 该任务详细范围/验收/背景/当前口径（唯一详细来源） | 评审轮次日记、「用户决策」过程清单 |
 | `implementation.md`/`core-flows.md` | 实现设计/核心流程（引用 api-contract，不重复字段定义） | 重复字段表 |
 | `phase*-plan.md`/`tasks/README.md` | 任务清单（标题/状态/直接依赖/链接）+ 计数器 + 依赖图 | 复制"七项/八项/第几轮/完整字段清单/🔧 详细范围" |
 
@@ -1177,15 +1177,17 @@ phase plan / README 任务行只保留：标题（简短）、状态、直接依
 
 ### 禁止记录讨论轮次
 
-- 设计、计划、任务、索引和项目规则中**禁止记录“第 N 轮讨论/评审/复审”**，不得把讨论轮次写入标题、状态、验收项、正文注释、frontmatter 注释或变更摘要。
-- 文档只保留**当前有效结论**及必要的确认日期、责任任务、适用范围和取代关系；需要说明变化时，直接写“原口径已废弃 / 当前口径为 …”，不得用轮次定位。
+- 设计、计划、任务、索引和项目规则中**禁止记录“第 N 轮讨论/评审/复审”**，不得把讨论轮次写入标题、状态、验收项、正文注释、frontmatter 注释或变更摘要。**任务卡正文与设计同等适用。**
+- 文档只保留**当前有效结论**（当前口径）及必要的确认日期、责任任务、适用范围和取代关系；需要说明变化时，直接写“原口径已废弃 / 当前口径为 …”，不得用轮次定位。
+- 已采纳的「用户决策」写成当前口径并回写对应 design；任务卡不保留「某日用户决定」过程句。
 - 讨论过程留在会话、Git 历史或归档材料中；正式决策需要长期追溯时使用 ADR/确认记录，并按**主题/决策编号**组织，不按讨论先后轮次组织。
 - 触达含轮次标记的存量活跃文档时，应在不改变已确认语义的前提下改写为当前结论；不得继续复制轮次标记到新的权威文档或任务卡。
+- `review → done` 须跑本节轮次词扫描（步骤见 `design-plan-task-lifecycle` skill）；遗留另开任务时必须使用看板计数器新分配、主题一致的未占用 ID。
 
 ### 写入口通用清单（适用影响权限计算或缓存的写入口）
 
 1. `@Transactional(rollbackFor=Exception.class)` 单事务原子
-2. `@OperationLog` 入口级操作日志
+2. `@OperationLog` 入口级操作日志（必填 `module`/`action`/`targetType`/`targetId`/`summary`；`module` 三值 `ADMIN/PERMISSION/ACCESS`，`action` 大写事件码 `{业务对象}_{动作}`，`targetType` 用小写表名、批量操作 `targetId=""`；判定与脱敏细节见 access-service-architecture §8.2）
 3. `@PermissionChange` 缓存失效 AOP（afterCommit flush mark\*）--**按影响范围适用**：仅影响权限计算/缓存的写入口标注；普通配置写操作不强制
 4. 契约要求的审计记录（如 `auditDomainService.recordChangeLog`，按写入口语义写合适的 change_log）
 5. 按影响范围调用适当的 `PermissionChangeContext.mark*`（角色权限事实写入口用 `markRoles`；条件变更用 `markConditions`；服务/API 变更用 `markServiceCodes`）
@@ -1194,10 +1196,18 @@ phase plan / README 任务行只保留：标题（简短）、状态、直接依
 
 ### 定稿前关键词扫描
 
-方案收窄后、提交前，对活跃文档（排除 `docs/archive/`）执行关键词扫描，清除正向残留（描述性引用如"已砍/移除/无"可保留）：
+方案收窄后、提交前，对活跃文档（排除 `docs/archive/`）执行关键词扫描，清除正向残留（描述性引用如"已砍/移除/无"可保留）。
+
+授权契约残留（触达授权/grant 文档时）：
 
 ```
 grep -rn "expectedRevision\|grant_revision\|grant_plan_idempotency\|20037\|20039\|@Idempotent\|clientRequestId\|perm-grant.schema" docs/ --include="*.md" --include="*.sql" | grep -v "docs/archive/"
+```
+
+轮次标记（任务 `review → done` 与文档定稿均须跑；命中则先改写成当前口径。存量 005/006 等历史卡不在本次清扫范围，不作为全库变绿门槛）：
+
+```
+grep -rn "第[一二三四五六七八九十0-9]\\+轮\\|评审修复\\|复评\\|评审修复记录" docs/ --include="*.md" --include="*.sql" | grep -v "docs/archive/"
 ```
 
 ### 测试适用性覆盖

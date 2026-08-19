@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -114,7 +114,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-role-create", targetType = "abstract_role", targetId = "#result.id()", summary = "'create role ' + #req.externalId()")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_CREATE", targetType = "abstract_role", targetId = "#result.id()", summary = "'create role ' + #req.externalId()")
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -145,7 +145,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-role-update", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_UPDATE", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -173,7 +173,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-role-move", targetType = "abstract_role", targetId = "#roleId", summary = "'move role ' + #roleId + ' to ' + #parentId")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_MOVE", targetType = "abstract_role", targetId = "#roleId", summary = "'move role ' + #roleId + ' to ' + #parentId")
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -202,7 +202,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "abstract-role-remove", targetType = "BATCH", targetId = "", summary = "'batch remove roles'")
+    @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_REMOVE", targetType = "abstract_role", targetId = "", summary = "'batch remove roles'")
     @PermissionChange
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);

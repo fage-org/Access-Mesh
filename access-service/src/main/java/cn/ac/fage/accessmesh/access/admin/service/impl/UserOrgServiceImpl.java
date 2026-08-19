@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgAssignReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
@@ -75,6 +76,8 @@ public class UserOrgServiceImpl implements UserOrgService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "USER_ORG_SET_PRIMARY", targetType = "sys_user_org",
+        targetId = "#userId", summary = "'set primary org ' + #orgId + ' for user ' + #userId")
     public void setPrimaryOrg(Long userId, Long orgId) {
         Long tenantId = TenantContextHolder.getTenantId();
 

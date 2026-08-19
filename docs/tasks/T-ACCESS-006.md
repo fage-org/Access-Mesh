@@ -183,3 +183,13 @@ last_updated: 2026-08-16
 
 - `UserMenuQueryServiceImplTest` +2：未知 menu_type 带可访问资源仍不可见（fail-closed）、未知 menu_type resource_type 为空不可见（不按纯展示放行）。
 - 完整 `mvn -pl access-service clean test`：509 tests 0 failures 0 errors 27 skipped（27 = Testcontainers/Docker）。
+
+## 评审修复记录（第五轮，2026-08-16，T-ACCESS-007 外部评审复核 T-ACCESS-006 交付物）
+
+复核核实 3 个问题全部属实并修复：
+
+- **菜单降级范围补全（P2，仅捕获有效权限查询异常）**：`UserMenuQueryServiceImpl.deriveVisibleMenuIds` 在 `getEffectiveResourceAccess` 降级后，类型值/资源 ID 解析（`batchResolveTypeValues`/`batchResolveResourceIds`）异常仍会中断登录——现一并 try-catch 降级为业务菜单不可见（fail-closed），仅保留 DIR/纯展示菜单，不中断登录。
+- **组织递归环保护**：`OrgVisibilityQueryMapper.selectDescendantOrgIds` 递归 CTE 显式 depth 上限（100），先于 MySQL 默认 1000 次迭代上限稳定终止，防脏数据成环时查询报错/长跑。
+- **菜单排序稳定**：`UserMenuQueryMapper.selectMenus` 排序由 `sort_order ASC` 补 `id ASC` 次键，同排序值顺序确定。
+
+测试：上述修复由 T-ACCESS-007 全量回归覆盖（详见 T-ACCESS-007 完成记录）。

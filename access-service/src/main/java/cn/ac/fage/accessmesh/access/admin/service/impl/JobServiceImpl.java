@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobResp;
@@ -19,6 +20,7 @@ import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.admin.service.JobService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.JobLogDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
@@ -60,6 +62,7 @@ public class JobServiceImpl implements JobService {
     private final TaskScheduler taskScheduler;
     private final AdminPermissionValidator permissionValidator;
     private final TenantIdProvider tenantIdProvider;
+    private final JobLogDomainService jobLogDomainService;
     private final Map<Long, ScheduledFuture<?>> scheduledTasks = new ConcurrentHashMap<>();
 
     /**
@@ -78,14 +81,17 @@ public class JobServiceImpl implements JobService {
      * @param jobLogMapper 任务日志数据访问Mapper
      * @param taskScheduler Spring任务调度器
      * @param permissionValidator 权限校验器
+     * @param jobLogDomainService 任务执行日志独立短事务领域服务
      */
     public JobServiceImpl(SysJobMapper jobMapper, SysJobLogMapper jobLogMapper, TaskScheduler taskScheduler,
-                          AdminPermissionValidator permissionValidator, TenantIdProvider tenantIdProvider) {
+                          AdminPermissionValidator permissionValidator, TenantIdProvider tenantIdProvider,
+                          JobLogDomainService jobLogDomainService) {
         this.jobMapper = jobMapper;
         this.jobLogMapper = jobLogMapper;
         this.taskScheduler = taskScheduler;
         this.permissionValidator = permissionValidator;
         this.tenantIdProvider = tenantIdProvider;
+        this.jobLogDomainService = jobLogDomainService;
     }
 
     /**
@@ -148,6 +154,8 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "JOB_CREATE", targetType = "sys_job",
+        targetId = "#result", summary = "'create job'")
     public Long createJob(JobCreateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -186,6 +194,8 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "JOB_UPDATE", targetType = "sys_job",
+        targetId = "#req.id()", summary = "'update job ' + #req.id()")
     public void updateJob(JobUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob existing = jobMapper.selectValidById(tenantId, req.id());
@@ -228,6 +238,8 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "JOB_DELETE", targetType = "sys_job",
+        targetId = "", summary = "'batch delete jobs'")
     public void deleteJobs(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -265,6 +277,8 @@ public class JobServiceImpl implements JobService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "JOB_TOGGLE", targetType = "sys_job",
+        targetId = "#id", summary = "'toggle job ' + #id")
     public void toggleJobStatus(Long id, Integer status) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectValidById(tenantId, id);
@@ -296,6 +310,8 @@ public class JobServiceImpl implements JobService {
      * @throws BizException 任务不存在
      */
     @Override
+    @OperationLog(module = "ADMIN", action = "JOB_TRIGGER", targetType = "sys_job",
+        targetId = "#id", summary = "'trigger job ' + #id")
     public void triggerJob(Long id) {
         // 权限检查 — 实例级 TRIGGER
         permissionValidator.checkInstanceLevel(AdminResourceType.JOB, id.toString(), AdminOperationCode.TRIGGER);
@@ -451,12 +467,8 @@ public class JobServiceImpl implements JobService {
      */
     void executeJob(SysJob job) {
         long start = System.currentTimeMillis();
-        SysJobLog jobLog = new SysJobLog();
-        jobLog.setTenantId(job.getTenantId());
-        jobLog.setJobId(job.getId());
-        jobLog.setJobName(job.getJobName());
-        jobLog.setInvokeTarget(job.getInvokeTarget());
-        jobLog.setCreatedAt(LocalDateTime.now());
+        Integer status = 1;
+        String message = null;
 
         try {
             // ARCH-DEBT-001: Job执行机制待完善 - 当前仅记录日志，未实际调用invokeTarget
@@ -465,15 +477,23 @@ public class JobServiceImpl implements JobService {
             // 状态: 待后续迭代处理
             // 影响: Job任务不执行，仅记录日志
             log.info("Executing job: id={}, target={}", job.getId(), job.getInvokeTarget());
-            jobLog.setStatus(1);
-            jobLog.setMessage("Executed successfully");
+            status = 1;
+            message = "Executed successfully";
         } catch (Exception e) {
-            jobLog.setStatus(0);
-            jobLog.setMessage(e.getMessage());
+            status = 0;
+            message = e.getMessage();
             log.error("Job execution failed: id={}", job.getId(), e);
         } finally {
-            jobLog.setCostTime((int) (System.currentTimeMillis() - start));
-            jobLogMapper.insert(jobLog);
+            // 独立短事务写入执行日志（T-ACCESS-007 §8.2），失败隔离不影响任务执行。
+            // recordJobLog 方法体不吞异常（REQUIRES_NEW 异常含代理层
+            // commit 阶段异常自然传播），由本 finally 统一 try-catch 兜底，日志失败仅告警。
+            try {
+                jobLogDomainService.recordJobLog(job.getTenantId(), job.getId(), job.getJobName(),
+                    job.getInvokeTarget(), status, message, (int) (System.currentTimeMillis() - start));
+            } catch (Exception e) {
+                log.warn("记录任务执行日志失败（已隔离，不影响任务执行）: jobId={}, status={}, error={}",
+                    job.getId(), status, e.getMessage());
+            }
         }
     }
 }

@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MemberCandidatesReq;
@@ -69,7 +68,6 @@ public class AdminUserController {
      * @return 创建成功的用户ID和初始密码
      */
     @PostMapping("/create")
-    @AuditLog(module = "用户管理", action = "创建", targetType = "USER")
     public PermResult<UserCreateResp> createUser(@Valid @RequestBody UserCreateReq req) {
         return PermResult.success(userService.createUser(req));
     }
@@ -84,7 +82,6 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "用户管理", action = "修改", targetType = "USER")
     public PermResult<Void> updateUser(@Valid @RequestBody UserUpdateReq req) {
         userService.updateUser(req);
         return PermResult.success();
@@ -100,7 +97,6 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "用户管理", action = "删除", targetType = "USER")
     public PermResult<Void> deleteUser(@Valid @RequestBody IdsReq req) {
         userService.deleteUser(req);
         return PermResult.success();
@@ -117,7 +113,6 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/enable")
-    @AuditLog(module = "用户管理", action = "启用/禁用", targetType = "USER")
     public PermResult<Void> updateStatus(@Valid @RequestBody UserUpdateStatusReq req) {
         userService.updateStatus(req);
         return PermResult.success();
@@ -179,7 +174,6 @@ public class AdminUserController {
      * @return 重置密码响应，包含生效的密码
      */
     @PostMapping("/reset-password")
-    @AuditLog(module = "用户管理", action = "重置密码", targetType = "USER")
     public PermResult<ResetPasswordResp> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
         return PermResult.success(userService.resetPassword(req.userId(), req.newPassword()));
     }

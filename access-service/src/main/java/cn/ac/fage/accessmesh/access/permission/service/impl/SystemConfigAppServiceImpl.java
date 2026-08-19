@@ -1,10 +1,11 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
+import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.SystemConfigAppService;
@@ -12,6 +13,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,12 @@ import java.util.stream.Collectors;
  */
 @Service
 public class SystemConfigAppServiceImpl implements SystemConfigAppService {
+
+    /**
+     * 配置键合法命名空间前缀（access-service-architecture §5.2）。
+     * 存量种子键已迁移至 admin.*；新增键必须携带三前缀之一，防止无命名空间键扩散。
+     */
+    private static final String[] ALLOWED_CONFIG_KEY_PREFIXES = {"admin.", "permission.", "access."};
 
     private final SystemConfigMapper systemConfigMapper;
     private final PermQueryEngine engine;
@@ -59,7 +67,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "system-config-upsert", targetType = "system_config", targetId = "#req.configKey()", summary = "'upsert system config ' + #req.configKey()")
+    @OperationLog(module = "PERMISSION", action = "SYSTEM_CONFIG_UPSERT", targetType = "system_config", targetId = "#req.configKey()", summary = "'upsert system config ' + #req.configKey()")
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
@@ -67,6 +75,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
             throw new SecurityException("No permission to manage system config");
         }
 
+        validateConfigKeyNamespace(req.configKey());
         JsonValidationUtils.validateJson(req.configValue());
 
         SystemConfig existing = systemConfigMapper.selectByConfigKey(tenantId, req.configKey());
@@ -138,6 +147,30 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
         }
 
         return systemConfigMapper.selectByTenantId(tenantId).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
+    }
+
+    /**
+     * 校验配置键命名空间前缀合法（T-ACCESS-007 §5.2）。
+     * <p>
+     * 配置键必须携带 admin./permission./access. 三前缀之一；存量种子键已迁移至 admin.*，
+     * 此校验约束新增键与显式创建路径，防止无命名空间键在 system_config 中扩散。
+     * </p>
+     *
+     * @param configKey 配置键
+     * @throws BizException 键为 null/空或不以合法前缀开头时抛出
+     */
+    private void validateConfigKeyNamespace(String configKey) {
+        if (configKey == null || configKey.isBlank()) {
+            throw new BizException(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
+                PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
+        }
+        for (String prefix : ALLOWED_CONFIG_KEY_PREFIXES) {
+            if (configKey.startsWith(prefix)) {
+                return;
+            }
+        }
+        throw new BizException(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
+            PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
     }
 
     /**

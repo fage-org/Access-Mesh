@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleDetectReq;
@@ -191,7 +191,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "conflict-rule-create", targetType = "permission_conflict_rule", targetId = "#result.id()", summary = "'create conflict rule'")
+    @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_CREATE", targetType = "permission_conflict_rule", targetId = "#result.id()", summary = "'create conflict rule'")
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -286,7 +286,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "conflict-rule-update", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
+    @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_UPDATE", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -395,7 +395,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "conflict-rule-remove", targetType = "permission_conflict_rule", targetId = "#ruleId", summary = "'remove conflict rule ' + #ruleId")
+    @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_REMOVE", targetType = "permission_conflict_rule", targetId = "#ruleId", summary = "'remove conflict rule ' + #ruleId")
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -429,7 +429,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "conflict-rule-remove", targetType = "BATCH", targetId = "", summary = "'batch remove conflict rules'")
+    @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_REMOVE", targetType = "permission_conflict_rule", targetId = "", summary = "'batch remove conflict rules'")
     public void deleteConflictRulesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

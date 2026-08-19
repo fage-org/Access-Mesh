@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.service.Oauth2ClientService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.dev33.satoken.secure.BCrypt;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,8 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "OAUTH2_CLIENT_CREATE", targetType = "sys_oauth2_client",
+        targetId = "#req.clientId()", summary = "'create oauth2 client ' + #req.clientId()")
     public Long createClient(Oauth2ClientCreateReq req) {
         // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.OAUTH2_CLIENT, AdminOperationCode.CREATE);
@@ -108,6 +111,8 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "OAUTH2_CLIENT_UPDATE", targetType = "sys_oauth2_client",
+        targetId = "#req.id()", summary = "'update oauth2 client ' + #req.id()")
     public void updateClient(Oauth2ClientUpdateReq req) {
         // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
@@ -162,6 +167,8 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "OAUTH2_CLIENT_DELETE", targetType = "sys_oauth2_client",
+        targetId = "", summary = "'batch delete oauth2 clients'")
     public void deleteClients(IdsReq req) {
         // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()

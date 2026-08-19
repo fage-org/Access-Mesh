@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.oauth2.*;
 import cn.ac.fage.accessmesh.access.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.common.model.PermResult;
@@ -46,7 +45,6 @@ public class OAuth2Controller {
      * @return 授权响应，包含授权码
      */
     @PostMapping("/authorize")
-    @AuditLog(module = "OAuth2", action = "授权")
     public PermResult<AuthorizeResp> authorize(@Valid @RequestBody AuthorizeReq req) {
         return PermResult.success(oauth2Service.authorize(req));
     }
@@ -94,7 +92,6 @@ public class OAuth2Controller {
      * @return 操作成功结果
      */
     @PostMapping("/revoke")
-    @AuditLog(module = "OAuth2", action = "撤销令牌")
     public PermResult<Void> revoke(@RequestBody RevokeTokenReq req) {
         oauth2Service.revokeToken(req.accessToken());
         return PermResult.success();

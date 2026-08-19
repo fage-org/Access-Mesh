@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.access.admin.dto.req.JobLogPageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobResp;
@@ -55,7 +54,6 @@ public class JobController {
      * @return 创建成功的任务ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "定时任务", action = "创建")
     public PermResult<Long> createJob(@Valid @RequestBody JobCreateReq req) {
         return PermResult.success(jobService.createJob(req));
     }
@@ -70,7 +68,6 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "定时任务", action = "更新")
     public PermResult<Void> updateJob(@Valid @RequestBody JobUpdateReq req) {
         jobService.updateJob(req);
         return PermResult.success();
@@ -86,7 +83,6 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "定时任务", action = "删除")
     public PermResult<Void> deleteJobs(@Valid @RequestBody IdsReq req) {
         jobService.deleteJobs(req);
         return PermResult.success();
@@ -103,7 +99,6 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/toggle")
-    @AuditLog(module = "定时任务", action = "切换状态")
     public PermResult<Void> toggleJobStatus(@RequestBody ToggleJobReq req) {
         jobService.toggleJobStatus(req.id(), req.status());
         return PermResult.success();
@@ -120,7 +115,6 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/trigger")
-    @AuditLog(module = "定时任务", action = "手动触发")
     public PermResult<Void> triggerJob(@Valid @RequestBody IdReq req) {
         jobService.triggerJob(req.id());
         return PermResult.success();

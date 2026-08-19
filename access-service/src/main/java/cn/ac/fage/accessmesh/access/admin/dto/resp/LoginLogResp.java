@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @param username   登录用户名
  * @param clientId   客户端ID
  * @param loginType  登录类型（password、sms、oauth2等）
- * @param status     登录状态（0=成功，1=失败）
+ * @param status     登录状态（0=失败，1=成功）
  * @param ipAddress  IP地址
  * @param userAgent  用户代理（浏览器信息）
  * @param location   登录地点
@@ -44,7 +44,7 @@ public record LoginLogResp(
     String loginType,
 
     /**
-     * 登录状态（0=成功，1=失败）
+     * 登录状态（0=失败，1=成功）
      */
     Integer status,
 

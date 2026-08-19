@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
@@ -65,7 +65,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "type-definition-create", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
+    @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_CREATE", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -158,7 +158,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "type-definition-update", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
+    @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_UPDATE", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -193,7 +193,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "type-definition-remove", targetType = "BATCH", targetId = "", summary = "'batch remove type definitions'")
+    @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_REMOVE", targetType = "type_definition", targetId = "", summary = "'batch remove type definitions'")
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

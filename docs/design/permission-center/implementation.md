@@ -499,7 +499,7 @@ sequenceDiagram
 public class PermissionGrantAppServiceImpl implements PermissionGrantAppService {
 
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "APPLY_GRANT_PLAN", targetType = "abstract_role",
+    @OperationLog(module = "PERMISSION", action = "APPLY_GRANT_PLAN", targetType = "abstract_role",
         targetId = "#req.roleExternalId", summary = "apply grant plan")
     @PermissionChange
     public ApplyGrantPlanResp applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {

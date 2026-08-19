@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgAssignReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgRemoveReq;
@@ -47,7 +46,6 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/assign")
-    @AuditLog(module = "用户组织关联", action = "分配", targetType = "USER_ORG")
     public PermResult<Void> assignUserToOrgs(@Valid @RequestBody UserOrgAssignReq req) {
         userOrgService.assignUserToOrgs(req);
         return PermResult.success();
@@ -63,7 +61,6 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    @AuditLog(module = "用户组织关联", action = "移除", targetType = "USER_ORG")
     public PermResult<Void> removeUserFromOrg(@Valid @RequestBody UserOrgRemoveReq req) {
         userOrgService.removeUserFromOrg(req.userId(), req.orgId());
         return PermResult.success();
@@ -80,7 +77,6 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/set-primary")
-    @AuditLog(module = "用户组织关联", action = "设置主组织", targetType = "USER_ORG")
     public PermResult<Void> setPrimaryOrg(@Valid @RequestBody UserOrgSetPrimaryReq req) {
         userOrgService.setPrimaryOrg(req.userId(), req.orgId());
         return PermResult.success();

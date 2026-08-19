@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -106,6 +107,8 @@ public class ConfigServiceImpl implements ConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "CONFIG_UPDATE", targetType = "system_config",
+        targetId = "#req.id()", summary = "'update config ' + #req.id()")
     public void updateConfig(ConfigUpdateReq req) {
         // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
@@ -141,6 +144,8 @@ public class ConfigServiceImpl implements ConfigService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "CONFIG_DELETE", targetType = "system_config",
+        targetId = "", summary = "'batch delete configs'")
     public void deleteConfig(IdsReq req) {
         // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream()

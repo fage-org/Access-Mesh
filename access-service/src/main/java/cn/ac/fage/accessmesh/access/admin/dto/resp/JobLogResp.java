@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @param id        任务日志ID
  * @param jobId     任务ID
  * @param jobName   任务名称
- * @param status    执行状态（0=成功，1=失败）
+ * @param status    执行状态（0=失败，1=成功）
  * @param costTime  执行耗时（毫秒）
  * @param createdAt 创建时间
  */
@@ -35,7 +35,7 @@ public record JobLogResp(
     String jobName,
 
     /**
-     * 执行状态（0=成功，1=失败）
+     * 执行状态（0=失败，1=成功）
      */
     Integer status,
 

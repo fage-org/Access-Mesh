@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
@@ -80,6 +81,8 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "NOTICE_CREATE", targetType = "sys_notice",
+        targetId = "#result", summary = "'create notice'")
     public Long createNotice(NoticeCreateReq req) {
         // 权限检查 — 类型级 CREATE
         permissionValidator.checkTypeLevel(AdminResourceType.NOTICE, AdminOperationCode.CREATE);
@@ -116,6 +119,8 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "NOTICE_UPDATE", targetType = "sys_notice",
+        targetId = "#req.id()", summary = "'update notice ' + #req.id()")
     public void updateNotice(NoticeUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -153,6 +158,8 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "NOTICE_DELETE", targetType = "sys_notice",
+        targetId = "", summary = "'batch delete notices'")
     public void deleteNotice(IdsReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -229,6 +236,8 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @OperationLog(module = "ADMIN", action = "NOTICE_PUBLISH", targetType = "sys_notice",
+        targetId = "#id", summary = "'publish notice ' + #id")
     public void publishNotice(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
         SysNotice notice = noticeMapper.selectByIdSafe(tenantId, id);
@@ -250,6 +259,11 @@ public class NoticeServiceImpl implements NoticeService {
      * <p>
      * 记录用户已阅读指定通知的状态和时间。
      * 如果已有记录则更新，否则创建新记录。
+     * </p>
+     * <p>
+     * 审计豁免（T-ACCESS-007 登记）：用户自操作的轻量已读标记，写 sys_user_notice
+     * 状态位，不标注 @OperationLog——高频低价值操作，审计追踪价值低，与 admin 域
+     * 管理写操作区分；已读事件可通过 sys_user_notice.read_at 列追踪。
      * </p>
      *
      * @param noticeId 通知ID

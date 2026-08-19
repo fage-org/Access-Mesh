@@ -47,7 +47,7 @@ public class SysJobLog {
     private String invokeTarget;
 
     /**
-     * 执行状态（0=成功，1=失败）
+     * 执行状态（0=失败，1=成功）
      */
     private Integer status;
 

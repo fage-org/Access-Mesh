@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientCreateReq;
@@ -51,7 +50,6 @@ public class Oauth2ClientController {
      * @return 创建成功的客户端ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "OAuth2客户端", action = "创建", targetType = "OAUTH2_CLIENT")
     public PermResult<Long> createClient(@Valid @RequestBody Oauth2ClientCreateReq req) {
         return PermResult.success(oauth2ClientService.createClient(req));
     }
@@ -66,7 +64,6 @@ public class Oauth2ClientController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "OAuth2客户端", action = "修改", targetType = "OAUTH2_CLIENT")
     public PermResult<Void> updateClient(@Valid @RequestBody Oauth2ClientUpdateReq req) {
         oauth2ClientService.updateClient(req);
         return PermResult.success();
@@ -82,7 +79,6 @@ public class Oauth2ClientController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "OAuth2客户端", action = "删除", targetType = "OAUTH2_CLIENT")
     public PermResult<Void> deleteClients(@Valid @RequestBody IdsReq req) {
         oauth2ClientService.deleteClients(req);
         return PermResult.success();

@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.OperationAppService;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -75,7 +75,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "operation-permission-create", targetType = "operation_permission", targetId = "#result.id()", summary = "'create operation permission ' + #resourceTypeCode + ':' + #code")
+    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_CREATE", targetType = "operation_permission", targetId = "#result.id()", summary = "'create operation permission ' + #resourceTypeCode + ':' + #code")
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -162,7 +162,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "operation-permission-update", targetType = "operation_permission", targetId = "#operationId", summary = "'update operation permission ' + #operationId")
+    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#operationId", summary = "'update operation permission ' + #operationId")
     public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -199,7 +199,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "operation-permission-remove", targetType = "BATCH", targetId = "", summary = "'batch remove operation permissions'")
+    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_REMOVE", targetType = "operation_permission", targetId = "", summary = "'batch remove operation permissions'")
     public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

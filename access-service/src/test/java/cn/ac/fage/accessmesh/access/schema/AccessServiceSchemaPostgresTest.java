@@ -175,7 +175,7 @@ class AccessServiceSchemaPostgresTest {
         try (PreparedStatement ps = conn.prepareStatement(
             "INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) VALUES (?, ?, ?, ?, ?)")) {
             ps.setLong(1, 1L);
-            ps.setString(2, "JSONB_ROUNDTRIP_TEST");
+            ps.setString(2, "admin.JSONB_ROUNDTRIP_TEST");
             ps.setString(3, "{\"mode\":\"test\"}");
             ps.setString(4, "往返测试");
             ps.setBoolean(5, false);
@@ -184,7 +184,7 @@ class AccessServiceSchemaPostgresTest {
         try (PreparedStatement ps = conn.prepareStatement(
             "SELECT config_value FROM system_config WHERE tenant_id = ? AND config_key = ?")) {
             ps.setLong(1, 1L);
-            ps.setString(2, "JSONB_ROUNDTRIP_TEST");
+            ps.setString(2, "admin.JSONB_ROUNDTRIP_TEST");
             try (ResultSet rs = ps.executeQuery()) {
                 assertTrue(rs.next(), "插入后应能读取");
                 String value = rs.getString(1);
@@ -251,7 +251,7 @@ class AccessServiceSchemaPostgresTest {
         assertThrows(SQLException.class, () -> {
             try (Statement s = conn.createStatement()) {
                 s.execute("INSERT INTO system_config (tenant_id, config_key, config_value, config_name, is_system) " +
-                    "VALUES (1, 'LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
+                    "VALUES (1, 'admin.LOGIN_CAPTCHA_ENABLED', 'true', '重复键测试', false)");
             }
         });
     }

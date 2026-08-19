@@ -6,10 +6,10 @@ import cn.ac.fage.accessmesh.access.infrastructure.mapper.OperationLogMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,8 +26,6 @@ import java.util.List;
  */
 @Service
 public class AuditDomainServiceImpl implements AuditDomainService {
-
-    private static final Logger log = LoggerFactory.getLogger(AuditDomainServiceImpl.class);
 
     private final PermissionChangeLogMapper changeLogMapper;
     private final OperationLogMapper operationLogMapper;
@@ -95,30 +93,36 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     /**
      * 异步记录操作日志
      * <p>
-     * 使用@Async注解在独立线程池中执行，不阻塞主业务流程。
-     * 记录失败时仅打印错误日志，不影响业务操作结果。
+     * 使用@Async注解在独立有界线程池中执行，不阻塞主业务流程。
+     * REQUIRES_NEW 开启独立短事务（T-ACCESS-007 §8.2 事务分级）：
+     * 即使未来调用点处于外层事务，本日志写入也在独立事务提交，
+     * 与主业务事务互不干扰。
+     * 方法体不吞异常：写入失败时异常传播至 {@code AsyncUncaughtExceptionHandler}
+     * （AsyncConfig 统一告警），调用方兜底（如 AuthServiceImpl.safeRecordLoginLog）
+     * 在入口处隔离影响。
      * </p>
      */
     @Override
     @Async
-    public void asyncRecordLog(String module, String action, String targetType, String targetId,
-                                String summary, Long operatorId, String ipAddress, String requestId, Long tenantId) {
-        try {
-            OperationLog opLog = new OperationLog();
-            opLog.setTenantId(tenantId);
-            opLog.setModule(module);
-            opLog.setAction(action);
-            opLog.setTargetType(targetType);
-            opLog.setTargetId(targetId);
-            opLog.setSummary(summary);
-            opLog.setOperatorId(operatorId);
-            opLog.setIpAddress(ipAddress);
-            opLog.setRequestId(requestId);
-            opLog.setCreatedAt(LocalDateTime.now());
-            operationLogMapper.insert(opLog);
-        } catch (Exception e) {
-            log.error("Failed to record operation log", e);
-        }
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void asyncRecordLog(OperationLogEntry entry) {
+        OperationLog opLog = new OperationLog();
+        opLog.setTenantId(entry.tenantId());
+        opLog.setModule(entry.module());
+        opLog.setAction(entry.action());
+        opLog.setTargetType(entry.targetType());
+        opLog.setTargetId(entry.targetId());
+        opLog.setSummary(entry.summary());
+        opLog.setOperatorId(entry.operatorId());
+        opLog.setOperatorName(entry.operatorName());
+        opLog.setIpAddress(entry.ipAddress());
+        opLog.setRequestId(entry.requestId());
+        opLog.setRequestUrl(entry.requestUrl());
+        opLog.setRequestBody(entry.requestBody());
+        opLog.setResponseCode(entry.responseCode());
+        opLog.setCostTime(entry.costTime());
+        opLog.setCreatedAt(LocalDateTime.now());
+        operationLogMapper.insert(opLog);
     }
 
     // ===== 变更历史查询 =====

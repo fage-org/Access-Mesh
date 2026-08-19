@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -75,7 +75,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "service-config-save", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
+    @OperationLog(module = "PERMISSION", action = "SERVICE_CONFIG_SAVE", targetType = "service_config", targetId = "#req.serviceCode()", summary = "'save service config ' + #req.serviceCode()")
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
@@ -184,7 +184,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "service-config-remove", targetType = "BATCH", targetId = "", summary = "'batch remove service configs'")
+    @OperationLog(module = "PERMISSION", action = "SERVICE_CONFIG_REMOVE", targetType = "service_config", targetId = "", summary = "'batch remove service configs'")
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);

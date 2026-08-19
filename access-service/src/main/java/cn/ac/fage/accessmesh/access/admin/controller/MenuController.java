@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MenuUpdateReq;
@@ -49,7 +48,6 @@ public class MenuController {
      * @return 创建成功的菜单ID
      */
     @PostMapping("/create")
-    @AuditLog(module = "菜单管理", action = "创建", targetType = "MENU")
     public PermResult<Long> createMenu(@Valid @RequestBody MenuCreateReq req) {
         return PermResult.success(menuService.createMenu(req));
     }
@@ -64,7 +62,6 @@ public class MenuController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    @AuditLog(module = "菜单管理", action = "修改", targetType = "MENU")
     public PermResult<Void> updateMenu(@Valid @RequestBody MenuUpdateReq req) {
         menuService.updateMenu(req);
         return PermResult.success();
@@ -80,7 +77,6 @@ public class MenuController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "菜单管理", action = "删除", targetType = "MENU")
     public PermResult<Void> deleteMenu(@Valid @RequestBody IdReq req) {
         menuService.deleteMenu(req.id());
         return PermResult.success();

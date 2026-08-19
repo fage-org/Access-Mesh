@@ -7,8 +7,11 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.service.OAuth2Service;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import lombok.Getter;
 import lombok.Setter;
@@ -52,6 +55,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private static final String AUTH_CODE_PREFIX = "oauth2:code:";
     private static final String REFRESH_TOKEN_PREFIX = "oauth2:refresh:";
     private static final int AUTH_CODE_TTL_SECONDS = 300;
+    /** OAuth2 登录方式（sys_login_log.login_type 注释对齐） */
+    private static final String LOGIN_TYPE_OAUTH2 = "OAUTH2";
 
     /**
      * Lua脚本：GET + DEL 合并为原子操作
@@ -68,6 +73,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     private final OAuth2ClientDomainService oauth2ClientDomainService;
     private final UserDomainService userDomainService;
+    private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -79,15 +85,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      *
      * @param oauth2ClientDomainService OAuth2客户端领域服务
      * @param userDomainService 用户领域服务
+     * @param loginLogDomainService 登录日志领域服务（OAUTH2 令牌签发审计）
      * @param redisTemplate Redis操作模板，用于存储授权码和刷新令牌
      * @param objectMapper JSON序列化工具
      */
     public OAuth2ServiceImpl(OAuth2ClientDomainService oauth2ClientDomainService,
                              UserDomainService userDomainService,
+                             LoginLogDomainService loginLogDomainService,
                              StringRedisTemplate redisTemplate,
                              ObjectMapper objectMapper) {
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.userDomainService = userDomainService;
+        this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
@@ -105,6 +114,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @throws BizException 客户端无效、授权类型不支持、回调地址不匹配等
      */
     @Override
+    @OperationLog(module = "ADMIN", action = "OAUTH2_AUTHORIZE", targetType = "sys_oauth2_client",
+        targetId = "#req.clientId()", summary = "'oauth2 authorize client ' + #req.clientId()")
     public AuthorizeResp authorize(AuthorizeReq req) {
         // 1. Validate client
         SysOauth2Client client = getValidClient(req.clientId());
@@ -177,6 +188,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @throws BizException 授权类型不支持
      */
     @Override
+    @OperationLog(module = "ADMIN", action = "OAUTH2_TOKEN_ISSUE", targetType = "oauth2_token",
+        targetId = "#req.clientId()", summary = "'oauth2 token issued by client ' + #req.clientId()")
     public TokenResp token(TokenReq req) {
         try {
             if ("authorization_code".equals(req.grantType())) {
@@ -204,6 +217,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @throws BizException 刷新令牌无效、客户端不匹配等
      */
     @Override
+    @OperationLog(module = "ADMIN", action = "OAUTH2_TOKEN_REFRESH", targetType = "oauth2_token",
+        targetId = "#clientId", summary = "'oauth2 token refresh by client ' + #clientId")
     public TokenResp refreshToken(String refreshToken, String clientId) {
         try {
             if (refreshToken == null || refreshToken.isBlank()) {
@@ -264,6 +279,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
             }
 
+            // OAuth2 刷新令牌成功：记录 OAUTH2 登录日志（匿名端点，审计由 sys_login_log 承载）
+            recordOauth2Login(refreshTokenData.getTenantId(), refreshTokenData.getUserId(), clientId, 1, null);
+
             return new TokenResp(accessToken, "Bearer", accessTokenTtl, newRefreshToken, refreshTokenData.getScope());
         } finally {
             TenantContextHolder.clear();
@@ -280,8 +298,10 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * @param accessToken 访问令牌
      */
     @Override
+    @OperationLog(module = "ADMIN", action = "OAUTH2_TOKEN_REVOKE", targetType = "oauth2_token",
+        targetId = "", summary = "'oauth2 revoke token'")
     public void revokeToken(String accessToken) {
-        // 评审 P1 修复（2026-08-14）：撤销前必须验签（签名 + loginType + 有效期），
+        // 撤销前必须验签（签名 + loginType + 有效期），
         // 非法令牌不得写 Redis——原实现对任意字符串直接写 oauth2:blacklist:* 键
         // （extractJti 失败返回原 token 作键、getTokenRemainingTtl 读不存在的 exp 恒回退 86400），
         // 匿名调用者可制造任意黑名单键造成 Redis 内存型 DoS。
@@ -322,7 +342,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      */
     @Override
     public OAuth2UserInfoResp getClientUserInfo(Long userId) {
-        // 评审 P1 修复（2026-08-14）：原硬编码 null 租户（tenant_id = null 恒查不到，
+        // 原硬编码 null 租户（tenant_id = null 恒查不到，
         // 端点从未可用）。改为读可信上下文租户（拦截器 OAuth2 JWT / 会话认证后绑定）。
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, userId);
@@ -435,6 +455,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
         }
 
+        // OAuth2 授权码换取令牌成功：记录 OAUTH2 登录日志（匿名端点，审计由 sys_login_log 承载）
+        recordOauth2Login(codeData.getTenantId(), codeData.getUserId(), req.clientId(), 1, null);
+
         return new TokenResp(accessToken, "Bearer", accessTokenTtl, refreshToken, scope);
     }
 
@@ -461,7 +484,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         }
         extraData.put("jti", UUID.randomUUID().toString().replace("-", ""));
 
-        // 评审 P1 修复（2026-08-14）：
+        // 历史缺陷（createToken 参数错位，任何持有者可伪造 OAuth2 token，存量安全漏洞）：
         // ① 原参数错位——createToken 签名为 (loginType, loginId, extraData, keyt)，存量把
         //    jwtSecretKey 当 loginType、字面量 "Bearer" 当签名密钥（任何持有者可伪造 OAuth2 token，
         //    存量安全漏洞）。修复：loginType=oauth2（与 RequestContextInterceptor 验签一致）、
@@ -501,6 +524,41 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         } catch (Exception e) {
             log.error("PKCE verification failed", e);
             return false;
+        }
+    }
+
+    /**
+     * 记录 OAUTH2 登录日志成功（调用方兜底，失败仅告警不影响令牌流程）。
+     * <p>
+     * OAuth2 令牌签发/刷新端点为匿名公开端点，无操作者身份；其审计由
+     * sys_login_log 承载（login_type=OAUTH2），用户名回填自用户库避免外键 ID 入库。
+     * </p>
+     *
+     * @param tenantId 租户ID（可能为 null，同匿名端点语义）
+     * @param userId   登录用户ID
+     * @param clientId OAuth2客户端ID
+     * @param status   登录状态（1=成功）
+     * @param failReason 失败原因（成功为 null）
+     */
+    private void recordOauth2Login(Long tenantId, Long userId, String clientId,
+                                   Integer status, String failReason) {
+        Long resolvedTenant = tenantId;
+        String username = null;
+        if (resolvedTenant != null && userId != null) {
+            SysUser user = userDomainService.selectValidById(resolvedTenant, userId);
+            if (user != null) {
+                username = user.getUsername();
+            }
+        }
+        try {
+            loginLogDomainService.recordLoginLog(new LoginLogDomainService.LoginLogEntry(
+                resolvedTenant, userId, username, LOGIN_TYPE_OAUTH2, clientId,
+                HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()),
+                HttpRequestUtils.getUserAgent(HttpRequestUtils.currentRequest()),
+                status, failReason));
+        } catch (Exception e) {
+            log.warn("记录 OAUTH2 登录日志失败（已隔离，不影响令牌流程）: tenantId={}, userId={}, clientId={}, error={}",
+                resolvedTenant, userId, clientId, e.getMessage());
         }
     }
 

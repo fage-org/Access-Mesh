@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
@@ -86,7 +86,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "group-role-extra-add", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'add extra role to group role ' + #req.groupRoleExternalId()")
+    @OperationLog(module = "PERMISSION", action = "GROUP_ROLE_EXTRA_ADD", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'add extra role to group role ' + #req.groupRoleExternalId()")
     @PermissionChange
     public void addGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -149,7 +149,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "perm", action = "group-role-extra-remove", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'remove extra role from group role ' + #req.groupRoleExternalId()")
+    @OperationLog(module = "PERMISSION", action = "GROUP_ROLE_EXTRA_REMOVE", targetType = "abstract_role", targetId = "#req.groupRoleExternalId()", summary = "'remove extra role from group role ' + #req.groupRoleExternalId()")
     @PermissionChange
     public void removeGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);

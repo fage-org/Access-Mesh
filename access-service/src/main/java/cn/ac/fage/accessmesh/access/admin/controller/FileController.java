@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.annotation.AuditLog;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
@@ -54,7 +53,6 @@ public class FileController {
      * @return 上传成功后的文件ID
      */
     @PostMapping("/upload")
-    @AuditLog(module = "文件管理", action = "上传", targetType = "FILE")
     public PermResult<Long> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(required = false, defaultValue = "default") String bizType) {
         return PermResult.success(fileService.uploadFile(file, bizType));
@@ -70,7 +68,6 @@ public class FileController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    @AuditLog(module = "文件管理", action = "删除", targetType = "FILE")
     public PermResult<Void> deleteFiles(@Valid @RequestBody IdsReq req) {
         fileService.deleteFiles(req);
         return PermResult.success();

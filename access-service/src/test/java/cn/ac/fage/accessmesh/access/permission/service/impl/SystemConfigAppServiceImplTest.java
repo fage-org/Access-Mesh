@@ -4,8 +4,10 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,9 +42,9 @@ class SystemConfigAppServiceImplTest {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
                 .thenReturn(true);
-            when(systemConfigMapper.selectByConfigKey(1L, "key1")).thenReturn(null);
+            when(systemConfigMapper.selectByConfigKey(1L, "admin.key1")).thenReturn(null);
 
-            SystemConfigReq req = new SystemConfigReq("key1", "{}", "desc");
+            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc");
             SystemConfigResp result = service.upsertSystemConfig(1L, req);
 
             ArgumentCaptor<SystemConfig> captor = ArgumentCaptor.forClass(SystemConfig.class);
@@ -50,7 +52,7 @@ class SystemConfigAppServiceImplTest {
             SystemConfig inserted = captor.getValue();
 
             assertNotNull(result);
-            assertEquals("key1", inserted.getConfigKey());
+            assertEquals("admin.key1", inserted.getConfigKey());
         }
     }
 
@@ -61,8 +63,69 @@ class SystemConfigAppServiceImplTest {
             when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
                 .thenReturn(false);
 
-            SystemConfigReq req = new SystemConfigReq("key1", "{}", "desc");
+            SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc");
             assertThrows(SecurityException.class, () -> service.upsertSystemConfig(1L, req));
+        }
+    }
+
+    // ---- T-ACCESS-007 §5.2 命名空间前缀校验 ----
+
+    @Test
+    void shouldRejectConfigKeyWithoutAllowedPrefix() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+                .thenReturn(true);
+
+            BizException ex = assertThrows(BizException.class,
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("key1", "{}", "desc")));
+
+            assertEquals(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(), ex.getErrorCode());
+            // 校验失败必须在触达数据访问前 fail-closed
+            verify(systemConfigMapper, never()).selectByConfigKey(anyLong(), anyString());
+        }
+    }
+
+    @Test
+    void shouldRejectBlankConfigKey() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+                .thenReturn(true);
+
+            assertThrows(BizException.class,
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("", "{}", "desc")));
+            assertThrows(BizException.class,
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq(null, "{}", "desc")));
+        }
+    }
+
+    @Test
+    void shouldRejectPrefixLookalikeKey() {
+        // "adminx.*" 不以 "admin." 开头 → 拒绝，防止前缀近似键绕过
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+                .thenReturn(true);
+
+            assertThrows(BizException.class,
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("adminx.foo", "{}", "desc")));
+        }
+    }
+
+    @Test
+    void shouldAcceptAllAllowedPrefixes() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+                .thenReturn(true);
+            when(systemConfigMapper.selectByConfigKey(eq(1L), anyString())).thenReturn(null);
+
+            service.upsertSystemConfig(1L, new SystemConfigReq("admin.foo", "{}", "desc"));
+            service.upsertSystemConfig(1L, new SystemConfigReq("permission.bar", "{}", "desc"));
+            service.upsertSystemConfig(1L, new SystemConfigReq("access.baz", "{}", "desc"));
+
+            verify(systemConfigMapper, times(3)).insert(any(SystemConfig.class));
         }
     }
 }

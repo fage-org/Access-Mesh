@@ -28,19 +28,16 @@ public interface AuditDomainService {
 
     /**
      * 异步记录操作日志
+     * <p>
+     * 入口级操作日志由 {@code @OperationLog} AOP 构造 {@link OperationLogEntry} 后调用；
+     * 内部动态日志（冲突通知等非入口场景）亦通过本方法记录。
+     * 实现使用 {@code @Async} 有界线程池异步写入，并以 {@code REQUIRES_NEW} 开启独立短事务
+     * （T-ACCESS-007 §8.2 事务分级），写入失败仅告警、不影响主业务事务。
+     * </p>
      *
-     * @param module     操作所属模块名称
-     * @param action     具体操作动作
-     * @param targetType 操作目标类型
-     * @param targetId   操作目标ID（T-ACCESS-002 起为字符串，兼容业务键与数值 ID）
-     * @param summary    操作摘要描述
-     * @param operatorId 操作者用户ID
-     * @param ipAddress  操作者IP地址
-     * @param requestId  请求唯一标识ID
-     * @param tenantId   租户ID
+     * @param entry 操作日志条目（含已脱敏限长的请求体与 HTTP 上下文）
      */
-    void asyncRecordLog(String module, String action, String targetType, String targetId,
-                         String summary, Long operatorId, String ipAddress, String requestId, Long tenantId);
+    void asyncRecordLog(OperationLogEntry entry);
 
     // ===== 变更历史查询 =====
 
@@ -77,6 +74,34 @@ public interface AuditDomainService {
                             List<String> eventTypes);
 
     // ===== 内部记录类型 =====
+
+    /**
+     * 操作日志条目（T-ACCESS-007 参数对象化）。
+     * <p>
+     * 承载 operation_log 表全部业务列（id/createdAt 由实现填充）。
+     * 由 {@code @OperationLog} AOP 在同步线程构造：采集 HTTP 上下文
+     * （requestUrl/ipAddress）、序列化并脱敏限长请求体（requestBody）、
+     * 记录响应码与耗时；operatorName 从登录会话读取（评审修复），
+     * 未登录/无会话调用为 null。内部动态日志（冲突通知等）除 tenantId/module/action/
+     * summary 外其余字段为 null。
+     * </p>
+     */
+    record OperationLogEntry(
+        Long tenantId,
+        String module,
+        String action,
+        String targetType,
+        String targetId,
+        String summary,
+        Long operatorId,
+        String operatorName,
+        String ipAddress,
+        String requestId,
+        String requestUrl,
+        String requestBody,
+        Integer responseCode,
+        Integer costTime
+    ) {}
 
     /**
      * 变更日志上下文记录类

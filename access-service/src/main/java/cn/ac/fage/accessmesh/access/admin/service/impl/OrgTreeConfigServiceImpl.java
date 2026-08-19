@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.OrgTreeConfigService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -69,6 +70,8 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
+    @OperationLog(module = "ADMIN", action = "ORG_TREE_CONFIG_CREATE", targetType = "sys_org_tree_config",
+        targetId = "#result", summary = "'create org tree config'")
     public Long createOrgTreeConfig(OrgTreeConfigCreateReq req) {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
@@ -102,6 +105,8 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
+    @OperationLog(module = "ADMIN", action = "ORG_TREE_CONFIG_UPDATE", targetType = "sys_org_tree_config",
+        targetId = "#req.id()", summary = "'update org tree config ' + #req.id()")
     public void updateOrgTreeConfig(OrgTreeConfigUpdateReq req) {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
@@ -138,6 +143,8 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
+    @OperationLog(module = "ADMIN", action = "ORG_TREE_CONFIG_DELETE", targetType = "sys_org_tree_config",
+        targetId = "", summary = "'batch delete org tree configs'")
     public void deleteOrgTreeConfigs(IdsReq req) {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         if (req.ids() == null || req.ids().isEmpty()) {
@@ -168,6 +175,8 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
+    @OperationLog(module = "ADMIN", action = "ORG_TREE_CONFIG_SET_DEFAULT", targetType = "sys_org_tree_config",
+        targetId = "#id", summary = "'set default org tree config ' + #id")
     public void setDefault(Long id) {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
