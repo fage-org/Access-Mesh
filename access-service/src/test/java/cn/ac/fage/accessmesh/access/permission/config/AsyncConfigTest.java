@@ -38,6 +38,9 @@ class AsyncConfigTest {
         injectField(config, "threadNamePrefix", "access-test-async-");
 
         ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) config.getAsyncExecutor();
+        // 模拟容器生命周期：@Bean 返回后由容器 afterPropertiesSet() 初始化
+        // （评审 P3#8 后 accessAsyncExecutor() 不再显式 initialize，非 Spring 测试需手动补一次）
+        executor.initialize();
         try {
             AtomicReference<String> workerThread = new AtomicReference<>();
             CountDownLatch holdWorker = new CountDownLatch(1);

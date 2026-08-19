@@ -15,7 +15,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -29,7 +28,8 @@ import java.util.stream.Collectors;
  * - ROLE_MUTEX（角色互斥）：两个角色不能同时拥有，发生冲突时同时移除
  * - PERM_MUTEX（权限互斥）：两个操作权限不能同时授予，发生冲突时同时移除
  * 角色互斥规则通过统一 CacheService 缓存提高查询性能。
- * 检测到权限冲突时，异步记录操作日志并发出通知。
+ * 检测到权限冲突时，记录操作日志并发出通知（日志写入经 AuditDomainService
+ * 有界线程池异步执行，不阻塞主流程）。
  * </p>
  */
 @Service
@@ -205,18 +205,19 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private record RoleMutexPair(Long first, Long second) {}
 
     /**
-     * 异步通知权限冲突
+     * 通知权限冲突（记录冲突操作日志）。
      * <p>
-     * 检测到权限互斥冲突时，异步记录操作日志。
-     * 记录冲突的租户ID、冲突的操作权限ID集合、触发的冲突规则详情。
-     * 使用@Async注解异步执行，不阻塞主流程。
+     * 检测到权限互斥冲突时记录冲突的租户ID、操作权限ID集合、触发规则详情。
+     * 本方法由同类方法内调用（self-invocation），无 Spring 代理，故不再标注
+     * {@code @Async}（标注了也不生效）；"异步"职责统一归到底层
+     * {@link AuditDomainService#asyncRecordLog}（其自身 {@code @Async} + REQUIRES_NEW
+     * 在有界线程池异步写入）。本方法体仅同步组装日志条目后提交，不阻塞主流程。
      * </p>
      *
      * @param tenantId         租户ID
      * @param conflictingOpIds 冲突的操作权限ID集合
      * @param triggeredRules   触发的冲突规则列表
      */
-    @Async
     void notifyPermConflict(Long tenantId, Set<Long> conflictingOpIds, List<PermissionConflictRule> triggeredRules) {
         try {
             String detail = triggeredRules.stream()

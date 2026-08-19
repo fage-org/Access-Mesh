@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 登录请求记录类
@@ -27,6 +28,7 @@ public record LoginReq(
      * 用户名
      */
     @NotBlank(message = "用户名不能为空")
+    @Size(max = 64, message = "用户名长度不能超过64")
     String username,
 
     /**

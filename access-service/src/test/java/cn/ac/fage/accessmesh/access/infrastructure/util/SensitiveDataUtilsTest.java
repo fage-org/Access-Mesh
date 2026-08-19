@@ -150,4 +150,30 @@ class SensitiveDataUtilsTest {
         assertTrue(masked.contains("\"name\":\"keep\""));
         assertTrue(masked.contains("\"tokens\":\"***\""));
     }
+
+    @Test
+    void shouldMaskPiiFieldNamesLikePhoneAndEmail() {
+        // PII（手机号/邮箱）不落入审计明文（评审 P1#3 扩词表）
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"phone\":\"13812345678\",\"email\":\"alice@example.com\",\"name\":\"keep\"}");
+
+        assertFalse(masked.contains("13812345678"));
+        assertFalse(masked.contains("alice@example.com"));
+        assertTrue(masked.contains("\"name\":\"keep\""));
+        assertTrue(masked.contains("\"phone\":\"***\""));
+        assertTrue(masked.contains("\"email\":\"***\""));
+    }
+
+    @Test
+    void shouldMaskIdCardAndPrivateKeyFieldNames() {
+        // 身份证/私人证书密钥脱敏（评审 P1#3 扩词表）
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"idCard\":\"110101199001011234\",\"privateKey\":\"MIIEvQ...\",\"count\":5}");
+
+        assertFalse(masked.contains("110101199001011234"));
+        assertFalse(masked.contains("MIIEvQ"));
+        assertTrue(masked.contains("\"idCard\":\"***\""));
+        assertTrue(masked.contains("\"privateKey\":\"***\""));
+        assertTrue(masked.contains("\"count\":5"));
+    }
 }

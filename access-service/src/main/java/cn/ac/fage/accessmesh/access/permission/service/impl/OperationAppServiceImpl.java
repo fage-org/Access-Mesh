@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.OperationAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
-import cn.ac.fage.accessmesh.access.permission.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;

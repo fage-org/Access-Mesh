@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.admin.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * 短信登录请求记录类
@@ -25,6 +26,7 @@ public record SmsLoginReq(
      * 手机号
      */
     @NotBlank(message = "手机号不能为空")
+    @Size(max = 20, message = "手机号长度不能超过20")
     String phone,
 
     /**

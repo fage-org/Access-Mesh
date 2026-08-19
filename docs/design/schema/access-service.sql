@@ -538,9 +538,7 @@ CREATE TABLE operation_log (
     target_id      VARCHAR(256),           -- 字符串（合并口径，原 permission 为 BIGINT；256 覆盖 configKey 128 / roleExternalId 256 等业务键上限）
     summary        VARCHAR(512),
     operator_id    BIGINT,                 -- 原 permission operation_log
-    operator_name  VARCHAR(256),           -- 原 permission operation_log
-    user_id        BIGINT,                 -- 原 admin sys_audit_log
-    username       VARCHAR(64),            -- 原 admin sys_audit_log
+    operator_name  VARCHAR(256),           -- 原 permission operation_log（user_id/username 旧 admin 双轨列已删，T-ACCESS-007 切面只写 operator 字段）
     ip_address     VARCHAR(64),
     request_id     VARCHAR(64),
     request_url    VARCHAR(256),           -- 原 admin sys_audit_log
@@ -554,19 +552,16 @@ CREATE INDEX idx_operation_log_tenant_time ON operation_log (tenant_id, created_
 CREATE INDEX idx_operation_log_operator ON operation_log (tenant_id, operator_id, created_at DESC);  -- 原 permission
 CREATE INDEX idx_operation_log_target ON operation_log (tenant_id, target_type, target_id);   -- 原 permission
 CREATE INDEX idx_operation_log_tenant_module_time ON operation_log (tenant_id, module, created_at DESC);  -- T-ACCESS-007：module 三值化后按模块边界分页过滤
-CREATE INDEX idx_operation_log_user ON operation_log (tenant_id, user_id);                    -- 原 admin idx_audit_log_user，更名并入
 CREATE INDEX idx_operation_log_request ON operation_log (request_id) WHERE request_id IS NOT NULL;  -- 原 permission
 
 COMMENT ON TABLE operation_log IS '操作日志：轻量全量记录所有写操作，不做软删除，永久保留；与 permission_change_log 区分：本表记所有操作，permission_change_log 只记权限变更详情';
 COMMENT ON COLUMN operation_log.module IS '所属模块，模块标识约定：ADMIN=管理域 / PERMISSION=权限域 / ACCESS=跨域编排';
-COMMENT ON COLUMN operation_log.action IS '操作类型，如 CREATE/UPDATE/DELETE/SYNC/ASSIGN 等';
+COMMENT ON COLUMN operation_log.action IS '操作类型，`{业务对象}_{动作}` 大写事件码，如 USER_CREATE / CONFIG_UPDATE / ROLE_RESOURCE_PERMISSION_GRANT 等（各业务 @OperationLog 维护）';
 COMMENT ON COLUMN operation_log.target_type IS '操作目标类型';
 COMMENT ON COLUMN operation_log.target_id IS '操作目标ID（字符串，兼容业务键与数值 ID）';
 COMMENT ON COLUMN operation_log.summary IS '操作摘要';
 COMMENT ON COLUMN operation_log.operator_id IS '操作人ID（permission 侧语义）';
 COMMENT ON COLUMN operation_log.operator_name IS '操作人名称（permission 侧语义）';
-COMMENT ON COLUMN operation_log.user_id IS '操作用户ID（admin 侧语义）';
-COMMENT ON COLUMN operation_log.username IS '操作用户名（admin 侧语义）';
 COMMENT ON COLUMN operation_log.request_url IS '请求URL（admin 侧语义）';
 COMMENT ON COLUMN operation_log.request_body IS '请求体（敏感字段已脱敏，限长 4000）';
 COMMENT ON COLUMN operation_log.response_code IS '响应状态码（admin 侧语义）';

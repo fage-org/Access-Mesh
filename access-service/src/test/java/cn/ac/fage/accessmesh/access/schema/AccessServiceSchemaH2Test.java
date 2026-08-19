@@ -351,12 +351,14 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("operation_log 合并超集字段与 target_id 字符串化")
+    @DisplayName("operation_log 合并超集字段与 target_id 字符串化和双轨列收敛")
     void shouldHaveOperationLogMergedColumns() throws SQLException {
         assertTrue(columnExists("operation_log", "operator_id"));
         assertTrue(columnExists("operation_log", "operator_name"));
-        assertTrue(columnExists("operation_log", "user_id"));
-        assertTrue(columnExists("operation_log", "username"));
+        // T-ACCESS-007 切面只写 operator 字段，原 admin 双轨 user_id/username 为永久空列，
+        // 评审 P3#9 已从 DDL 收敛删除
+        assertFalse(columnExists("operation_log", "user_id"), "user_id 双轨列应删除（切面只写 operator_id）");
+        assertFalse(columnExists("operation_log", "username"), "username 双轨列应删除（切面只写 operator_name）");
         assertTrue(columnExists("operation_log", "request_url"));
         assertTrue(columnExists("operation_log", "request_body"));
         assertTrue(columnExists("operation_log", "response_code"));

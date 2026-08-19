@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.aop;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService.OperationLogEntry;
@@ -537,6 +538,31 @@ class OperationLogAspectTest {
             aspect.around(joinPoint, opLog);
 
             verify(auditDomainService, never()).asyncRecordLog(any());
+        }
+    }
+
+    @Test
+    void shouldRecordOperationLogWithRuntimeTenantOverride() throws Throwable {
+        // 匿名派生端点（revoke/token/refresh）方法内从 JWT/授权码解析租户并登记 runtime override，
+        // 即使 TenantContextHolder 为空（匿名）与方法参数无 tenantId，切面也应记录而非跳过（P1#2 修复）
+        try (MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
+            tenant.when(TenantContextHolder::getTenantId).thenReturn(null);
+
+            setupJoinPoint(getClass(), "anonymousMethod", new Object[]{"jwt-token"},
+                new String[]{"accessToken"}, null);
+            OperationLog opLog = getClass().getDeclaredMethod("anonymousMethod", String.class)
+                .getAnnotation(OperationLog.class);
+
+            // 模拟方法体内登记租户 override（在 proceed 回调中设置，因为 around 入口先 clear）
+            when(joinPoint.proceed()).thenAnswer(_invocation -> {
+                OperationLogRuntimeContext.setTenantId(7L);
+                return null;
+            });
+
+            aspect.around(joinPoint, opLog);
+
+            OperationLogEntry entry = captureEntry();
+            assertEquals(7L, entry.tenantId(), "应从运行时 override 解析租户而非跳过");
         }
     }
 

@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import lombok.Getter;
 import lombok.Setter;
@@ -250,6 +251,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
             // 从 refresh token 设置租户上下文
             TenantContextHolder.setTenantId(refreshTokenData.getTenantId());
+            // 审计租户登记：匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
+            OperationLogRuntimeContext.setTenantId(refreshTokenData.getTenantId());
 
             // 验证 client_id 匹配（refreshToken 绑定特定客户端）
             if (!refreshTokenData.getClientId().equals(clientId)) {
@@ -320,6 +323,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         if (jti == null || jti.toString().isBlank()) {
             log.warn("revoke ignored oauth2 jwt without jti");
             return;
+        }
+        // 审计租户登记：revoke 为匿名端点（拦截器仅绑 ANONYMOUS），从 JWT 载荷解析 tenant_id
+        // 供 @OperationLog 切面租户解析（否则切面因租户为空跳过该条撤销审计）。
+        Long tenantId = parseTenantId(payloads.get("tenant_id"));
+        if (tenantId != null) {
+            OperationLogRuntimeContext.setTenantId(tenantId);
         }
         // 实际剩余有效期（SaJwtTemplate 以 eff claim 计算，签发侧 6 参 createToken 写入）
         long ttl = SaJwtUtil.getTimeout(accessToken, OAuth2JwtSupport.LOGIN_TYPE, jwtSecretKey);
@@ -413,6 +422,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
         // 从授权码设置租户上下文
         TenantContextHolder.setTenantId(codeData.getTenantId());
+        // 审计租户登记：token 匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
+        OperationLogRuntimeContext.setTenantId(codeData.getTenantId());
 
         // 5. Validate redirect_uri matches
         if (!codeData.getRedirectUri().equals(req.redirectUri())) {
@@ -528,6 +539,25 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     }
 
     /**
+     * 从 JWT 载荷解析租户ID（generateAccessToken 以 {@code String.valueOf(tenantId)} 写入，
+     * 无租户时为 "0"）。
+     *
+     * @param value 载荷中的 tenant_id 值（可为 null 或 "0"）
+     * @return 正租户ID；不可解析或非正数返回 null
+     */
+    private static Long parseTenantId(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            long tenantId = Long.parseLong(value.toString().trim());
+            return tenantId > 0 ? tenantId : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
      * 记录 OAUTH2 登录日志成功（调用方兜底，失败仅告警不影响令牌流程）。
      * <p>
      * OAuth2 令牌签发/刷新端点为匿名公开端点，无操作者身份；其审计由
@@ -544,13 +574,14 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                                    Integer status, String failReason) {
         Long resolvedTenant = tenantId;
         String username = null;
-        if (resolvedTenant != null && userId != null) {
-            SysUser user = userDomainService.selectValidById(resolvedTenant, userId);
-            if (user != null) {
-                username = user.getUsername();
-            }
-        }
         try {
+            // 用户名回填查询置于 try 内：DB 故障时仅告警降级，不得中断令牌签发/刷新主流程
+            if (resolvedTenant != null && userId != null) {
+                SysUser user = userDomainService.selectValidById(resolvedTenant, userId);
+                if (user != null) {
+                    username = user.getUsername();
+                }
+            }
             loginLogDomainService.recordLoginLog(new LoginLogDomainService.LoginLogEntry(
                 resolvedTenant, userId, username, LOGIN_TYPE_OAUTH2, clientId,
                 HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()),

@@ -81,7 +81,7 @@ public interface AuditDomainService {
      * 承载 operation_log 表全部业务列（id/createdAt 由实现填充）。
      * 由 {@code @OperationLog} AOP 在同步线程构造：采集 HTTP 上下文
      * （requestUrl/ipAddress）、序列化并脱敏限长请求体（requestBody）、
-     * 记录响应码与耗时；operatorName 从登录会话读取（评审修复），
+     * 记录响应码与耗时；operatorName 从登录会话读取，
      * 未登录/无会话调用为 null。内部动态日志（冲突通知等）除 tenantId/module/action/
      * summary 外其余字段为 null。
      * </p>

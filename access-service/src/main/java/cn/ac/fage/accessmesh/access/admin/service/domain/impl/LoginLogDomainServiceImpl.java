@@ -41,7 +41,7 @@ public class LoginLogDomainServiceImpl implements LoginLogDomainService {
     /**
      * 记录登录日志
      * <p>
-     * 完整回填 userId/loginType/IP/User-Agent（T-ACCESS-007 评审修复）：
+     * 完整回填 userId/loginType/IP/User-Agent（T-ACCESS-007）：
      * 由 AuthServiceImpl 从请求上下文提取 IP/UA 后随条目传入，loginType 按登录方式
      * 写入 PASSWORD/SMS/OAUTH2（与 DDL 列注释对齐），不再硬编码小写 password。
      * </p>
@@ -54,14 +54,27 @@ public class LoginLogDomainServiceImpl implements LoginLogDomainService {
         SysLoginLog log = new SysLoginLog();
         log.setTenantId(entry.tenantId());
         log.setUserId(entry.userId());
-        log.setUsername(entry.username());
-        log.setLoginType(entry.loginType());
-        log.setClientId(entry.clientId());
-        log.setIpAddress(entry.ipAddress());
-        log.setUserAgent(entry.userAgent());
+        // 对齐 sys_login_log 列上限截断各自由文本字段：
+        // 防止恶意超长输入（超长用户名/clientId/IP/UA/失败原因）触发列值超长导致插入失败，
+        // 外层尽管 try-catch 隔离，但整条登录审计会丢失；截断后超长来源仅损失超限部分，审计仍落库。
+        log.setUsername(truncate(entry.username(), 64));
+        log.setLoginType(truncate(entry.loginType(), 32));
+        log.setClientId(truncate(entry.clientId(), 128));
+        log.setIpAddress(truncate(entry.ipAddress(), 64));
+        log.setUserAgent(truncate(entry.userAgent(), 512));
         log.setStatus(entry.status());
-        log.setFailReason(entry.failReason());
+        log.setFailReason(truncate(entry.failReason(), 256));
         log.setLoginAt(LocalDateTime.now());
         loginLogMapper.insert(log);
+    }
+
+    /**
+     * 按列上限截断字符串；null 或未超长原样返回。
+     */
+    private static String truncate(String value, int maxLen) {
+        if (value == null || value.length() <= maxLen) {
+            return value;
+        }
+        return value.substring(0, maxLen);
     }
 }

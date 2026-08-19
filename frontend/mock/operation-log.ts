@@ -20,7 +20,7 @@ type OperationLogResp = {
   module: string;
   action: string;
   targetType?: string | null;
-  targetId?: number | null;
+  targetId?: string | null;
   summary?: string | null;
   operatorId?: number | null;
   operatorName?: string | null;
@@ -46,10 +46,10 @@ const ok = data => ({ code: 200, message: "success", data });
 /**
  * operation_log 内存数据。
  *
- * module 取值对齐 schema 注释（permission-center.sql:682）：
- * - type_definition / abstract_user / abstract_role / system_config / permission_grant 等
- * action 取值对齐 schema 注释（permission-center.sql:683）：
- * - CREATE / UPDATE / DELETE / SYNC / ASSIGN / BATCH_GRANT 等
+ * module 取值对齐后端 operation_log.module 三值（T-ACCESS-007：ADMIN=管理域 /
+ * PERMISSION=权限域 / ACCESS=跨域编排，按事务边界判定）。
+ * action 取值对齐后端 `{业务对象}_{动作}` 大写事件码（各业务方法 @OperationLog 注解维护）。
+ * targetType 保留细粒度物理表名（小写表名），targetId 为字符串（对齐后端 VARCHAR(256)）。
  *
  * 每条含 operatorName/ipAddress/requestId/summary/targetType/targetId/createdAt，
  * 覆盖抽屉详情全字段展示。createdAt 固定字符串（脚本禁用 Date.now），按 DESC 排序验证分页。
@@ -58,10 +58,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 1,
     tenantId: 1,
-    module: "system_config",
-    action: "SAVE",
+    module: "ADMIN",
+    action: "CONFIG_UPDATE",
     targetType: "system_config",
-    targetId: null,
+    targetId: "",
     summary: '保存系统配置 ROLE_NAME_UNIQUE_MODE = {"mode":"DOMAIN_UNIQUE"}',
     operatorId: 1,
     operatorName: "超级管理员",
@@ -72,10 +72,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 2,
     tenantId: 1,
-    module: "abstract_role",
-    action: "BATCH_GRANT",
+    module: "PERMISSION",
+    action: "ROLE_RESOURCE_PERMISSION_GRANT",
     targetType: "abstract_role",
-    targetId: 101,
+    targetId: "101",
     summary: "为角色 admin 批量授予 12 项资源权限（含 2 项条件）",
     operatorId: 2,
     operatorName: "安全管理员",
@@ -86,11 +86,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 3,
     tenantId: 1,
-    module: "type_definition",
-    action: "CREATE",
-    targetType: "type_definition",
-    targetId: 5,
-    summary: "新建类型定义 resource_type / API（typeValue 自动分配为 5）",
+    module: "PERMISSION",
+    action: "RESOURCE_ENTITY_CREATE",
+    targetType: "resource_entity",
+    targetId: "5",
+    summary: "新建资源类型 API（resourceTypeCode 分派为 5）",
     operatorId: 2,
     operatorName: "安全管理员",
     ipAddress: "192.168.1.11",
@@ -100,10 +100,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 4,
     tenantId: 1,
-    module: "abstract_user",
-    action: "UPDATE",
-    targetType: "abstract_user",
-    targetId: 2001,
+    module: "ADMIN",
+    action: "USER_UPDATE",
+    targetType: "sys_user",
+    targetId: "2001",
     summary: "更新用户 zhangsan 的状态为启用",
     operatorId: 3,
     operatorName: "组织人事管理员",
@@ -114,11 +114,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 5,
     tenantId: 1,
-    module: "abstract_role",
-    action: "DELETE",
+    module: "PERMISSION",
+    action: "ABSTRACT_ROLE_FULL_SYNC",
     targetType: "abstract_role",
-    targetId: 105,
-    summary: "删除角色 temp-role（软删除，关联用户角色关系同步清理）",
+    targetId: "105",
+    summary: "全量同步角色 temp-role（软删除，关联用户角色关系同步清理）",
     operatorId: 2,
     operatorName: "安全管理员",
     ipAddress: "192.168.1.11",
@@ -128,10 +128,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 6,
     tenantId: 1,
-    module: "permission_grant",
-    action: "SYNC",
-    targetType: "resource_api_mapping",
-    targetId: null,
+    module: "PERMISSION",
+    action: "RESOURCE_ENTITY_SYNC",
+    targetType: "resource_entity",
+    targetId: "accessmesh-admin",
     summary: "同步服务 accessmesh-admin 的 8 个接口资源映射",
     operatorId: 2,
     operatorName: "安全管理员",
@@ -142,11 +142,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 7,
     tenantId: 1,
-    module: "abstract_user",
-    action: "ASSIGN",
-    targetType: "abstract_user",
-    targetId: 2001,
-    summary: "为用户 zhangsan 分配角色 position-engineer",
+    module: "ACCESS",
+    action: "USER_ORG_ASSIGN",
+    targetType: "sys_user_org",
+    targetId: "2001",
+    summary: "为用户 zhangsan 分配组织 position-engineer",
     operatorId: 3,
     operatorName: "组织人事管理员",
     ipAddress: "192.168.1.12",
@@ -156,11 +156,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 8,
     tenantId: 1,
-    module: "type_definition",
-    action: "UPDATE",
-    targetType: "type_definition",
-    targetId: 2,
-    summary: "更新类型定义 role_type / POSITION 名称",
+    module: "PERMISSION",
+    action: "OPERATION_PERMISSION_UPDATE",
+    targetType: "operation_permission",
+    targetId: "2",
+    summary: "更新操作权限 role_type / POSITION 名称",
     operatorId: 2,
     operatorName: "安全管理员",
     ipAddress: "192.168.1.11",
@@ -170,10 +170,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 9,
     tenantId: 1,
-    module: "system_config",
-    action: "SAVE",
+    module: "ADMIN",
+    action: "CONFIG_UPDATE",
     targetType: "system_config",
-    targetId: null,
+    targetId: "",
     summary: '保存系统配置 UNREGISTERED_API_POLICY = {"mode":"DENY"}',
     operatorId: 1,
     operatorName: "超级管理员",
@@ -184,11 +184,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 10,
     tenantId: 1,
-    module: "abstract_role",
-    action: "CREATE",
+    module: "PERMISSION",
+    action: "ABSTRACT_ROLE_SYNC",
     targetType: "abstract_role",
-    targetId: 110,
-    summary: "新建角色 audit-viewer（只读审计角色）",
+    targetId: "110",
+    summary: "同步角色 audit-viewer（只读审计角色）",
     operatorId: 2,
     operatorName: "安全管理员",
     ipAddress: "192.168.1.11",
@@ -198,11 +198,11 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 11,
     tenantId: 1,
-    module: "permission_grant",
-    action: "ASSIGN",
-    targetType: "abstract_user",
-    targetId: 2002,
-    summary: "为用户 lisi 分配功能角色 system-admin",
+    module: "ACCESS",
+    action: "USER_ORG_ASSIGN",
+    targetType: "sys_user_org",
+    targetId: "2002",
+    summary: "为用户 lisi 分配组织 system-admin",
     operatorId: 3,
     operatorName: "组织人事管理员",
     ipAddress: "192.168.1.12",
@@ -212,10 +212,10 @@ const mockLogs: OperationLogResp[] = [
   {
     id: 12,
     tenantId: 1,
-    module: "abstract_user",
-    action: "DELETE",
-    targetType: "abstract_user",
-    targetId: 2003,
+    module: "ACCESS",
+    action: "USER_DELETE",
+    targetType: "sys_user",
+    targetId: "2003",
     summary: "删除用户 wangwu（孤儿 user_role 关系延迟补偿清理）",
     operatorId: 1,
     operatorName: "超级管理员",

@@ -210,7 +210,7 @@ public class AuthServiceImpl implements AuthService {
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
         session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
-        // 操作者名称供 @OperationLog AOP 会话回填（评审修复：operator_name 不再永久为空）
+        // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
         session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
 
@@ -272,7 +272,8 @@ public class AuthServiceImpl implements AuthService {
 
         SysUser user = userDomainService.findByPhone(tenantId, req.phone());
         if (user == null) {
-            safeRecordLoginLog(tenantId, null, req.phone(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
+            // 手机号为 PII：登录失败不落完整明文，仅存掩码（避免 sys_login_log.username 明文泄漏）
+            safeRecordLoginLog(tenantId, null, maskPhone(req.phone()), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
         if (user.getStatus() != null && user.getStatus() == 0) {
@@ -285,7 +286,7 @@ public class AuthServiceImpl implements AuthService {
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
         session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
-        // 操作者名称供 @OperationLog AOP 会话回填（评审修复：operator_name 不再永久为空）
+        // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
         session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
 
@@ -496,6 +497,24 @@ public class AuthServiceImpl implements AuthService {
      * @param smsCode 短信验证码
      * @throws BizException 短信验证码参数缺失、错误或已过期
      */
+    /**
+     * 手机号掩码：保留前 3 位与后 4 位，中间替换为 {@code ****}（11 位标准手机号）。
+     * <p>
+     * 用于短信登录失败等场景的日志记录——手机号为 PII，避免完整明文写入
+     * sys_login_log.username。超短或不规范输入原样返回，宁可不掩码
+     * 也不抛错阻断登录流程。
+     * </p>
+     *
+     * @param phone 手机号
+     * @return 掩码后的手机号；null 返回 null
+     */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() <= 7) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
     private void validateSmsCode(String phone, String smsCode) {
         if (phone == null || smsCode == null) {
             throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");

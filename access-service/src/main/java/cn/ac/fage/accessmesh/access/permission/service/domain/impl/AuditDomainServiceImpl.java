@@ -106,15 +106,19 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void asyncRecordLog(OperationLogEntry entry) {
+        // 对齐 operation_log 列上限统一截断：本实现是所有直接 asyncRecordLog
+        // 调用路径的统一落点（含 PermissionConflictDomainServiceImpl 冲突通知等绕过切面截断的
+        // 内部动态日志），在此截断确保任何路径都不因列值超长触发插入失败丢失审计。
+        // 入口级 @OperationLog 切面（OperationLogAspect）已在记录前截断，此处二次截断幂等兜底。
         OperationLog opLog = new OperationLog();
         opLog.setTenantId(entry.tenantId());
         opLog.setModule(entry.module());
         opLog.setAction(entry.action());
         opLog.setTargetType(entry.targetType());
-        opLog.setTargetId(entry.targetId());
-        opLog.setSummary(entry.summary());
+        opLog.setTargetId(truncate(entry.targetId(), TARGET_ID_MAX_LEN));
+        opLog.setSummary(truncate(entry.summary(), SUMMARY_MAX_LEN));
         opLog.setOperatorId(entry.operatorId());
-        opLog.setOperatorName(entry.operatorName());
+        opLog.setOperatorName(truncate(entry.operatorName(), OPERATOR_NAME_MAX_LEN));
         opLog.setIpAddress(entry.ipAddress());
         opLog.setRequestId(entry.requestId());
         opLog.setRequestUrl(entry.requestUrl());
@@ -123,6 +127,23 @@ public class AuditDomainServiceImpl implements AuditDomainService {
         opLog.setCostTime(entry.costTime());
         opLog.setCreatedAt(LocalDateTime.now());
         operationLogMapper.insert(opLog);
+    }
+
+    /** operation_log.target_id 列上限（VARCHAR(256)） */
+    private static final int TARGET_ID_MAX_LEN = 256;
+    /** operation_log.summary 列上限（VARCHAR(512)） */
+    private static final int SUMMARY_MAX_LEN = 512;
+    /** operation_log.operator_name 列上限（VARCHAR(256)） */
+    private static final int OPERATOR_NAME_MAX_LEN = 256;
+
+    /**
+     * 按列上限截断字符串；null 或未超长原样返回。
+     */
+    private static String truncate(String value, int maxLen) {
+        if (value == null || value.length() <= maxLen) {
+            return value;
+        }
+        return value.substring(0, maxLen);
     }
 
     // ===== 变更历史查询 =====

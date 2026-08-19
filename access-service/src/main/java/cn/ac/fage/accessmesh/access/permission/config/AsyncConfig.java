@@ -56,11 +56,11 @@ public class AsyncConfig implements AsyncConfigurer {
      * 队列满且线程池满时，RejectedExecutionHandler 降级为调用者线程同步执行
      * （同步写入日志，不丢失），并输出告警日志便于监控（T-ACCESS-007 用户决策：
      * 监控指标仅以错误/告警日志呈现，不引入 Micrometer）。
-     * 注册为 Bean 后线程池生命周期（初始化/关闭）由容器管理：
-     * 应用停机时容器调用 {@code destroy()} 优雅关闭。
-     * 方法体内仍显式调用 {@code initialize()}：{@code ThreadPoolTaskExecutor.initialize()}
-     * 幂等，容器随后触发 afterPropertiesSet 亦安全；必要性在于非 Spring 环境（单元测试
-     * 直接实例化本类后立即 execute，不经容器生命周期回调）也能立即可用。
+     * 注册为 Bean 后线程池生命周期（初始化/关闭）由容器统一管理：
+     * 容器经 {@code afterPropertiesSet()} 初始化一次、停机时调用 {@code destroy()} 优雅关闭。
+     * 方法体内不再显式调 {@code initialize()}——{@code ThreadPoolTaskExecutor.initialize()}
+     * 在 Spring 6.1 会无条件重建 executor，若此处显式调用，容器随后对 Bean 再调
+     * afterPropertiesSet() 会二次创建，旧线程池泄漏。初始化统一交由容器完成。
      * 拒绝处理等价 {@link java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy}：
      * 线程池已关闭（停机中）时丢弃任务不再执行，避免停机阶段在关闭中的线程池上
      * 执行新任务。
@@ -87,7 +87,6 @@ public class AsyncConfig implements AsyncConfigurer {
             // 队列满 + 线程满：调用者线程直接运行（等价 CallerRunsPolicy），保证日志不丢失
             runnable.run();
         });
-        executor.initialize();
         return executor;
     }
 

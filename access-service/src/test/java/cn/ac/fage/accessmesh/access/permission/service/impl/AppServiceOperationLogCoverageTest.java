@@ -173,7 +173,16 @@ class AppServiceOperationLogCoverageTest {
         return result;
     }
 
-    /** 扫描包下全部 *AppServiceImpl 具体类（含 query/impl 子包内查询服务，用于契约校验） */
+    /**
+     * 扫描包下全部 Service 实现类（含 query/impl 子包内查询服务），用于契约校验。
+     * <p>
+     * 匹配 {@code *ServiceImpl}（含 {@code *AppServiceImpl} 与 admin 域 {@code *ServiceImpl}）：
+     * 评审 P2#7 修复——原仅匹配 {@code *AppServiceImpl} 会把 admin 域实现类
+     * （ConfigServiceImpl 等命名 {@code *ServiceImpl}）整体过滤掉，导致 admin 域
+     * "已标注方法契约校验"实际从未执行。permission.service.impl 包内均为 *AppServiceImpl，
+     * 后缀放宽为 ServiceImpl 对 permission 域强制全覆盖结果无影响。
+     * </p>
+     */
     private static List<Class<?>> scanPackage(String pkg) {
         ClassPathScanningCandidateComponentProvider scanner =
             new ClassPathScanningCandidateComponentProvider(false);
@@ -186,7 +195,7 @@ class AppServiceOperationLogCoverageTest {
         for (String className : classNames) {
             try {
                 Class<?> clazz = Class.forName(className);
-                if (!clazz.getSimpleName().endsWith("AppServiceImpl")
+                if (!clazz.getSimpleName().endsWith("ServiceImpl")
                     || Modifier.isAbstract(clazz.getModifiers())
                     || clazz.isInterface()
                     || clazz.isMemberClass()

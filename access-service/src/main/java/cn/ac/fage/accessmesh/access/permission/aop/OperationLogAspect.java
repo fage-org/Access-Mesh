@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.aop;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
@@ -118,7 +119,9 @@ public class OperationLogAspect {
             return;
         }
 
-        Long tenantId = resolveTenantId(joinPoint);
+        Long tenantId = runtimeSnapshot.tenantIdOverride() != null
+            ? runtimeSnapshot.tenantIdOverride()
+            : resolveTenantId(joinPoint);
         if (tenantId == null) {
             log.warn("operation log for {}.{} skipped: no tenant context (module={}, action={})",
                 opLog.module(), opLog.action(), opLog.module(), opLog.action());
@@ -146,7 +149,7 @@ public class OperationLogAspect {
             ? runtimeSnapshot.summaryOverride()
             : buildSummary(opLog, ctx, result);
         // 对齐 operation_log 列上限截断（target_id VARCHAR(256)/summary VARCHAR(512)/operator_name VARCHAR(256)），
-        // 防止超长 SpEL 结果或会话名触发插入失败丢失整条审计日志（T-ACCESS-007 第三轮 P2#8）
+        // 防止超长 SpEL 结果或会话名触发插入失败丢失整条审计日志（T-ACCESS-007）
         targetId = truncate(targetId, TARGET_ID_MAX_LEN);
         summary = truncate(summary, SUMMARY_MAX_LEN);
         operatorName = truncate(operatorName, OPERATOR_NAME_MAX_LEN);
@@ -326,7 +329,7 @@ public class OperationLogAspect {
     }
 
     /**
-     * 解析目标操作所属租户 ID（T-ACCESS-007 第三轮 P1#1）。
+     * 解析目标操作所属租户 ID（T-ACCESS-007）。
      * <p>
      * 匿名安全写链路（登录失败自动锁定等）在拦截器仅绑定 ANONYMOUS 上下文，
      * TenantContextHolder.getTenantId() 为 null，但方法参数携带真实 tenantId。

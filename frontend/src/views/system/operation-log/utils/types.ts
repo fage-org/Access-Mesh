@@ -20,28 +20,34 @@ export function createEmptySearchForm(): OperationLogSearchForm {
 
 /**
  * module 下拉选项（前端本地硬编码，后端无枚举接口）。
- * 取值对齐 schema 注释（permission-center.sql:682）+ mock 数据。
+ * 取值对齐后端 operation_log.module 三值（T-ACCESS-007 收敛：按事务边界判定，
+ * ACCESS 域/PERMISSION 域/ADMIN 域），非旧的细粒度对象名。
  */
 export const MODULE_OPTIONS: ReadonlyArray<{ label: string; value: string }> = [
-  { label: "类型定义", value: "type_definition" },
-  { label: "用户", value: "abstract_user" },
-  { label: "角色", value: "abstract_role" },
-  { label: "系统配置", value: "system_config" },
-  { label: "权限授予", value: "permission_grant" }
+  { label: "管理域", value: "ADMIN" },
+  { label: "权限域", value: "PERMISSION" },
+  { label: "跨域编排", value: "ACCESS" }
 ];
 
 /**
  * action 下拉选项（前端本地硬编码，后端无枚举接口）。
- * 取值对齐 schema 注释（permission-center.sql:683）+ mock 数据。
+ * 后端 action 为 `{业务对象}_{动作}` 大写事件码（如 USER_CREATE / CONFIG_UPDATE），
+ * 由各业务方法 @OperationLog 注解维护，集合开放增长——本列表为代表性非穷尽子集，
+ * 覆盖三个模块边界；后端按 action 精确匹配过滤。T-PERM-025 登记后端补枚举/字典接口。
  */
 export const ACTION_OPTIONS: ReadonlyArray<{ label: string; value: string }> = [
-  { label: "创建", value: "CREATE" },
-  { label: "更新", value: "UPDATE" },
-  { label: "删除", value: "DELETE" },
-  { label: "同步", value: "SYNC" },
-  { label: "分配", value: "ASSIGN" },
-  { label: "批量授予", value: "BATCH_GRANT" },
-  { label: "保存", value: "SAVE" }
+  { label: "OAuth2 令牌签发", value: "OAUTH2_TOKEN_ISSUE" },
+  { label: "OAuth2 令牌刷新", value: "OAUTH2_TOKEN_REFRESH" },
+  { label: "配置更新", value: "CONFIG_UPDATE" },
+  { label: "通知发布", value: "NOTICE_PUBLISH" },
+  { label: "任务触发", value: "JOB_TRIGGER" },
+  { label: "角色同步", value: "ABSTRACT_ROLE_SYNC" },
+  { label: "角色全量同步", value: "ABSTRACT_ROLE_FULL_SYNC" },
+  { label: "资源权限授予", value: "ROLE_RESOURCE_PERMISSION_GRANT" },
+  { label: "资源权限撤销", value: "ROLE_RESOURCE_PERMISSION_REVOKE" },
+  { label: "用户创建", value: "USER_CREATE" },
+  { label: "组织创建", value: "ORG_CREATE" },
+  { label: "菜单更新", value: "MENU_UPDATE" }
 ];
 
 export type { OperationLogResp };

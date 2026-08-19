@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  * @param targetId     目标ID（T-ACCESS-002 起为字符串，兼容业务键与数值 ID）
  * @param summary      操作摘要
  * @param operatorId   操作者ID
- * @param operatorName 操作者名称（@OperationLog AOP 从登录会话回填，T-ACCESS-007 评审修复；
+ * @param operatorName 操作者名称（@OperationLog AOP 从登录会话回填；
  *                      SERVICE/TASK/ANONYMOUS 等无会话调用为 null）
  * @param ipAddress    IP地址
  * @param requestId    请求ID，用于关联追踪

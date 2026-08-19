@@ -34,10 +34,13 @@ public final class SensitiveDataUtils {
 
     /**
      * 敏感字段名匹配子串（小写、去下划线后 contains 匹配）。
-     * 覆盖密码/验证码/短信码/令牌/密钥/API Key 等；字段名含任一子串即脱敏。
+     * 覆盖密码/验证码/短信码/令牌/密钥/API Key 等，以及 PII（手机号/邮箱/身份证/私人证书），
+     * 字段名含任一子串即脱敏。普通业务字段名经去下划线归一后不会误命中
+     * （如 {@code corporateName} 不含这些子串）。
      */
     private static final String[] SENSITIVE_TERMS = {
-        "password", "pwd", "secret", "token", "smscode", "captchacode", "apikey", "authorization"
+        "password", "pwd", "secret", "token", "smscode", "captchacode", "apikey", "authorization",
+        "phone", "mobile", "email", "idcard", "idcardno", "certificate", "privatekey", "privatekeypem"
     };
 
     /** 树遍历用 ObjectMapper（仅用于解析/序列化，线程安全）。 */
@@ -100,7 +103,7 @@ public final class SensitiveDataUtils {
                 } else if (value != null && (value.isObject() || value.isArray())) {
                     obj.set(fieldName, maskNode(value));
                 } else if (value != null && value.isTextual()) {
-                    // 值为 JSON 文本字符串（如 SystemConfigReq.configValue 存嵌套 JSON，评审 P1#3）：
+                    // 值为 JSON 文本字符串（如 SystemConfigReq.configValue 存嵌套 JSON）：
                     // 尝试解析为对象/数组树并递归脱敏，再序列化回字符串，防止内层敏感键明文入库
                     String inner = maskEmbeddedJson(value.asText());
                     if (inner != null) {

@@ -30,14 +30,14 @@ import type { PaginatedResp } from "./role-manage";
 export type OperationLogResp = {
   id: number;
   tenantId?: number;
-  /** 所属模块，如 type_definition / abstract_role / abstract_user / system_config 等 */
+  /** 所属模块，对齐后端 operation_log.module 三值：ADMIN=管理域 / PERMISSION=权限域 / ACCESS=跨域编排 */
   module: string;
   /** 操作类型，如 CREATE / UPDATE / DELETE / SYNC / ASSIGN 等 */
   action: string;
   /** 操作目标类型（可空） */
   targetType?: string | null;
-  /** 操作目标 ID（可空） */
-  targetId?: number | null;
+  /** 操作目标 ID（可空；T-ACCESS-002 起为字符串，兼容业务键与数值 ID） */
+  targetId?: string | null;
   /** 操作摘要（可空，长文本） */
   summary?: string | null;
   /** 操作人 ID（可空） */
