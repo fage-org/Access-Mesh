@@ -18,6 +18,9 @@ target/
 *.log
 *.tmp
 
+# Claude Code session temp
+.claude/tmp/
+
 # OS
 .DS_Store
 Thumbs.db
