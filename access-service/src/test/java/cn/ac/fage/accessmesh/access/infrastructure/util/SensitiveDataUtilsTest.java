@@ -248,4 +248,28 @@ class SensitiveDataUtilsTest {
         assertFalse(masked.contains("tok123"));
         assertTrue(masked.contains("\"configValue\":\"***\""));
     }
+
+    @Test
+    void shouldRecognizeKeySuffixSecretConfigKeysViaPublicApi() {
+        // * KEY 后缀的签名/加密/API 等凭证类键名（normalized 后含 "key"）应判定为密钥类；
+        // 非密钥类业务配置键（LOGIN_*/FILE_* 等）不得误判。
+        assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.SIGNING_KEY"), "签名密钥应判定为密钥类");
+        assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.ENCRYPTION_KEY"), "加密密钥应判定为密钥类");
+        assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.OAUTH_CLIENT_SECRET"));
+        assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.API_TOKEN"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.LOGIN_CAPTCHA_ENABLED"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.FILE_ALLOWED_TYPES"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey(null));
+    }
+
+    @Test
+    void shouldMaskConfigValueForKeySuffixSecretConfigKey() {
+        // 跨字段规则对 * KEY 语义的配置键同样生效（JSON 场景下键名含 "key"）。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"configKey\":\"admin.SIGNING_KEY\",\"configValue\":\"new-signing-secret\",\"description\":\"keep\"}");
+
+        assertFalse(masked.contains("new-signing-secret"));
+        assertTrue(masked.contains("\"configValue\":\"***\""));
+        assertTrue(masked.contains("\"description\":\"keep\""));
+    }
 }

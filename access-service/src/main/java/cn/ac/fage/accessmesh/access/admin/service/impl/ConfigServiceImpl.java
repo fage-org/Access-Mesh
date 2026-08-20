@@ -11,8 +11,10 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
 import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
@@ -124,6 +126,13 @@ public class ConfigServiceImpl implements ConfigService {
         if (Boolean.TRUE.equals(config.getIsSystem())) {
             throw new BizException(AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getCode(),
                 AdminErrorCode.CONFIG_SYSTEM_IMMUTABLE.getMessage());
+        }
+        // 审计脱敏：以服务端从入库实体取得的真实 configKey 权威判定本配置值是否密钥类，
+        // 不信任客户端可变/可缺省的 configKey 字段。命中密钥类即登记调用作用域，
+        // 使 {@link OperationLogAspect} 在审计请求体中掩码 configValue——旧客户端
+        // （仅 id/configValue/remark）与伪造键均无法使密钥明文进入 operation_log.request_body。
+        if (SensitiveDataUtils.isSecretConfigKey(config.getConfigKey())) {
+            OperationLogRuntimeContext.markSensitiveField("configValue");
         }
         config.setConfigValue(req.configValue());
         config.setRemark(req.remark());

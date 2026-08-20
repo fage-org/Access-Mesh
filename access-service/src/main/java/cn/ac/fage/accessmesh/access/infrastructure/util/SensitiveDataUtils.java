@@ -45,9 +45,9 @@ public final class SensitiveDataUtils {
 
     /** 精确字段名敏感集合（小写、去下划线后整体相等匹配，而非 contains）。
      * 仅保留 {@code codeverifier}（PKCE 验证器，全局唯一无业务碰撞）。
-     * {@code code}（OAuth2 授权码）不再全局精确掩码——「code」同名业务字段（组织/资源编码
+     * {@code code}（OAuth2 授权码）不在此全局集合——「code」同名业务字段（组织/资源编码
      * {@code OrgUpdateReq.code} / {@code ResourceUpdateReq.code} 等）会被误掩码为 {@code ***}，
-     * 降低审计追溯价值（评审 P2#3 收窄）。OAuth2 token/refresh 场景由
+     * 降低审计追溯价值。OAuth2 token/refresh 场景由
      * {@code OperationLogRuntimeContext.markSensitiveField("code")} 按调用作用域并入精确匹配，
      * 授权码仍脱敏、业务编码保留。 */
     private static final String[] PRECISE_SENSITIVE_FIELDS = {
@@ -55,12 +55,12 @@ public final class SensitiveDataUtils {
     };
 
     /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
-     * 用于 {@code SystemConfigReq} 的跨字段脱敏：当 JSON 中同时出现 {@code configKey} 与
-     * {@code configValue} 且配置键名命中密钥类子串（如 {@code admin.OAUTH_CLIENT_SECRET}），
-     * 将同级 {@code configValue} 整体掩码——因该值可能是纯文本/标量 JSON，字段名
-     * {@code configValue} 本身不含敏感子串，仅靠按 JSON 字段名匹配的树遍历无法脱敏。 */
+     * 用于配置键的密钥类判定：键名命中任一子串（如 {@code admin.OAUTH_CLIENT_SECRET}、
+     * {@code admin.SIGNING_KEY} / {@code admin.ENCRYPTION_KEY} / {@code admin.API_TOKEN}）即视为
+     * 敏感配置。该判定由服务端基于入库实体的真实 configKey 调用（{@link ConfigServiceImpl}），
+     * 而非信任客户端请求字段。{@code key} 覆盖 *_KEY 结尾的签名/加密/API 等凭证类键名。 */
     private static final String[] SECRET_CONFIG_KEY_TERMS = {
-        "password", "secret", "token", "apikey", "privatekey"
+        "password", "secret", "token", "apikey", "privatekey", "key"
     };
 
     /** 树遍历用 ObjectMapper（仅用于解析/序列化，线程安全）。 */
@@ -304,8 +304,18 @@ public final class SensitiveDataUtils {
         return null;
     }
 
-    /** 配置键名是否命中密钥类子串（如 {@code admin.OAUTH_CLIENT_SECRET}）。 */
-    private static boolean isSecretConfigKey(String configKey) {
+    /**
+     * 配置键名是否为密钥类（如 {@code admin.OAUTH_CLIENT_SECRET} / {@code admin.SIGNING_KEY}）。
+     * <p>
+     * 供服务端基于入库实体的真实 {@code configKey} 判定是否需在审计请求体中掩码 {@code configValue}
+     * （{@code ConfigServiceImpl.updateConfig}），而非信任客户端请求字段；亦用于 {@code SystemConfigReq}
+     * 输入侧的跨字段脱敏。归一去下划线后对 {@link #SECRET_CONFIG_KEY_TERMS} 做 contains 匹配。
+     * </p>
+     *
+     * @param configKey 配置键名
+     * @return true=密钥类配置，其值不得明文进审计
+     */
+    public static boolean isSecretConfigKey(String configKey) {
         if (configKey == null || configKey.isBlank()) {
             return false;
         }

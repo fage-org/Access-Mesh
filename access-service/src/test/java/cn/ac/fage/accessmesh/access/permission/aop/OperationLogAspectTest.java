@@ -28,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -355,6 +356,49 @@ class OperationLogAspectTest {
             assertFalse(entry.requestBody().contains("authcode123"), "作用域内 code（授权码）应被精确掩码");
             assertTrue(entry.requestBody().contains("\"code\":\"***\""));
             assertTrue(entry.requestBody().contains("\"name\":\"kept\""), "非敏感字段保留");
+        }
+    }
+
+    /** 测试用 bean — 含 configValue（模拟 ConfigServiceImpl.updateConfig，服务端权威掩码） */
+    @OperationLog(module = "test", action = "config-update", targetType = "system_config",
+        targetId = "#req.id()", summary = "'update config ' + #req.id()")
+    public void configUpdateMethod(Object req, Object desc) {
+        // 仅用于 AOP 拦截测试
+    }
+
+    /** 测试: 服务端权威掩码 configValue——ConfigServiceImpl.updateConfig 依实体真实 configKey
+     *  判定密钥类后 markSensitiveField("configValue")，与客户端是否提交键无关。 */
+    @Test
+    void shouldMaskConfigValueWhenMarkedServerAuthoritative() throws Throwable {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
+             MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            tenant.when(TenantContextHolder::getTenantId).thenReturn(1L);
+
+            // 模拟旧客户端只提交 id/configValue/remark（无 configKey）的请求参数
+            Map<String, Object> req = new java.util.LinkedHashMap<>();
+            req.put("id", 42L);
+            req.put("configValue", "new-signing-secret");
+            req.put("remark", null);
+
+            setupJoinPoint(getClass(), "configUpdateMethod", new Object[]{req, "keep"},
+                new String[]{"req", "desc"}, null);
+            OperationLog opLog = getClass().getDeclaredMethod("configUpdateMethod", Object.class, Object.class)
+                .getAnnotation(OperationLog.class);
+
+            // 模拟 ConfigServiceImpl.updateConfig：从 DB 实体判定为密钥类后按作用域登记（around 入口先 clear）
+            when(joinPoint.proceed()).thenAnswer(_invocation -> {
+                OperationLogRuntimeContext.markSensitiveField("configValue");
+                return null;
+            });
+
+            aspect.around(joinPoint, opLog);
+
+            OperationLogEntry entry = captureEntry();
+            assertNotNull(entry.requestBody());
+            assertFalse(entry.requestBody().contains("new-signing-secret"), "密钥配置值不得明文进审计请求体");
+            assertTrue(entry.requestBody().contains("\"configValue\":\"***\""));
+            assertTrue(entry.requestBody().contains("\"desc\":\"keep\""), "非敏感字段保留");
         }
     }
 

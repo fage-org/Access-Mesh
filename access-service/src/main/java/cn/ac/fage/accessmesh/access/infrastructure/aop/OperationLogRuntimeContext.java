@@ -70,11 +70,11 @@ public final class OperationLogRuntimeContext {
     /**
      * 登记本调用作用域需并入精确匹配的敏感字段名（如 OAuth2 授权码 {@code code}）。
      * <p>
-     * {@code SensitiveDataUtils} 全局精确集合仅保留 {@code codeverifier}（唯一无业务碰撞）；
-     * {@code code} 因同名业务字段（组织/资源编码）会被误掩码，收窄为按调用作用域登记
-     * （评审 P2#3）。切面在序列化脱敏请求体时，把本作用域并入的字段名集传给
+     * {@code SensitiveDataUtils} 全局精确集合仅保留无业务碰撞的名称；
+     * 含业务碰撞的名称（如 {@code code}，与组织/资源编码同名）收窄为按调用作用域登记，
+     * 避免全局误掩码合法业务字段。切面在序列化脱敏请求体时，把本作用域并入的字段名集传给
      * {@code SensitiveDataUtils.maskRequestBody(...)}，按字段名整体相等匹配掩码。
-     * 方法体在入口（如 OAuth2 token/refresh 解析授权码后）调用，随 {@link #clear()} 清空。
+     * 方法体在入口时调用，随 {@link #clear()} 清空。
      * </p>
      *
      * @param fieldName 需在该调用作用域精确掩码的字段名（null/blank 忽略）

@@ -400,7 +400,7 @@ public class OperationLogAspect {
      * 解析 targetType：契约为固定小写物理表名（或登记的逻辑对象码例外，如 {@code oauth2_token}），
      * 恒为字面量，不含 SpEL 变量引用。直接按字面量返回，仅在包含 SpEL 信号（{@code #} 变量 /
      * {@code $} 占位符 / {@code T(} 类型引用）时走 {@link #parseSpelOrDefault}——
-     * 避免对纯表名做无效 SpEL 解析（每次触发异常再回退，增加开销与 debug 噪声，评审 P3#5）。
+     * 避免对纯表名做无效 SpEL 解析（每次触发异常再回退，增加开销与 debug 噪声）。
      */
     private String resolveTargetType(String targetType, EvaluationContext ctx) {
         if (targetType == null || isSpelLike(targetType)) {
