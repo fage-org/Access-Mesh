@@ -129,7 +129,7 @@ public class ConfigServiceImpl implements ConfigService {
         }
         // 审计脱敏：以服务端从入库实体取得的真实 configKey 权威判定本配置值是否密钥类，
         // 不信任客户端可变/可缺省的 configKey 字段。命中密钥类即登记调用作用域，
-        // 使 {@link OperationLogAspect} 在审计请求体中掩码 configValue——旧客户端
+        // 使 OperationLogAspect 在审计请求体中掩码 configValue——旧客户端
         // （仅 id/configValue/remark）与伪造键均无法使密钥明文进入 operation_log.request_body。
         if (SensitiveDataUtils.isSecretConfigKey(config.getConfigKey())) {
             OperationLogRuntimeContext.markSensitiveField("configValue");

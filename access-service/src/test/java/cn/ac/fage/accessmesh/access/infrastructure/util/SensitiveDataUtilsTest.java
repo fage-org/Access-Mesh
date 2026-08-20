@@ -251,12 +251,20 @@ class SensitiveDataUtilsTest {
 
     @Test
     void shouldRecognizeKeySuffixSecretConfigKeysViaPublicApi() {
-        // * KEY 后缀的签名/加密/API 等凭证类键名（normalized 后含 "key"）应判定为密钥类；
-        // 非密钥类业务配置键（LOGIN_*/FILE_* 等）不得误判。
+        // * KEY 结尾的签名/加密/API 等凭证类键名应判定为密钥类（"key" 按后缀匹配）；
+        // 名称中仅偶然含 key 子串的普通配置键（KEYBOARD_LAYOUT/HOTKEY_ENABLED/MONKEY_MODE 等）
+        // 不得误判——否则其 configValue 被误掩码、丢失审计可追溯性。
         assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.SIGNING_KEY"), "签名密钥应判定为密钥类");
         assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.ENCRYPTION_KEY"), "加密密钥应判定为密钥类");
         assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.OAUTH_CLIENT_SECRET"));
         assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.API_TOKEN"));
+        assertTrue(SensitiveDataUtils.isSecretConfigKey("admin.API_KEY"), "API_KEY 后缀应判定为密钥类");
+        // 名称中间含 key、但非 *_KEY 结尾的普通配置，不得误判
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.KEYBOARD_LAYOUT"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.HOTKEY_ENABLED"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.MONKEY_MODE"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.CACHE_KEY_PREFIX"));
+        assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.KEY_ROTATION_DAYS"));
         assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.LOGIN_CAPTCHA_ENABLED"));
         assertFalse(SensitiveDataUtils.isSecretConfigKey("admin.FILE_ALLOWED_TYPES"));
         assertFalse(SensitiveDataUtils.isSecretConfigKey(null));
@@ -264,7 +272,7 @@ class SensitiveDataUtilsTest {
 
     @Test
     void shouldMaskConfigValueForKeySuffixSecretConfigKey() {
-        // 跨字段规则对 * KEY 语义的配置键同样生效（JSON 场景下键名含 "key"）。
+        // 跨字段规则对 * KEY 结尾的凭证配置键同样生效（JSON 场景下键名以 key 结尾）。
         String masked = SensitiveDataUtils.maskJson(
             "{\"configKey\":\"admin.SIGNING_KEY\",\"configValue\":\"new-signing-secret\",\"description\":\"keep\"}");
 

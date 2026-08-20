@@ -56,11 +56,20 @@ public final class SensitiveDataUtils {
 
     /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
      * 用于配置键的密钥类判定：键名命中任一子串（如 {@code admin.OAUTH_CLIENT_SECRET}、
-     * {@code admin.SIGNING_KEY} / {@code admin.ENCRYPTION_KEY} / {@code admin.API_TOKEN}）即视为
-     * 敏感配置。该判定由服务端基于入库实体的真实 configKey 调用（{@link ConfigServiceImpl}），
-     * 而非信任客户端请求字段。{@code key} 覆盖 *_KEY 结尾的签名/加密/API 等凭证类键名。 */
+     * {@code admin.API_TOKEN}）即视为敏感配置。该判定由服务端基于入库实体的真实 configKey 调用
+     * （{@code ConfigServiceImpl}），而非信任客户端请求字段。凭证独有词按 contains 匹配即可，
+     * 不会误伤普通配置；通用词 {@code key} 见 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}。 */
     private static final String[] SECRET_CONFIG_KEY_TERMS = {
-        "password", "secret", "token", "apikey", "privatekey", "key"
+        "password", "secret", "token", "apikey", "privatekey"
+    };
+
+    /** 凭证键名后缀匹配词（{@code *_KEY} 结尾的签名/加密/API 等凭证类键名，如
+     * {@code admin.SIGNING_KEY} / {@code admin.ENCRYPTION_KEY}）。
+     * {@code key} 为通用词，只能按后缀精确匹配——contains 会误伤 KEYBOARD_LAYOUT / HOTKEY_ENABLED /
+     * MONKEY_MODE / CACHE_KEY_PREFIX / KEY_ROTATION_DAYS 等普通配置键（其 {@code configKey} 内含
+     * {@code key} 子串并非密钥），导致这些合法配置的 {@code configValue} 被误掩码、丢失审计可追溯性。 */
+    private static final String[] SECRET_CONFIG_KEY_SUFFIX_TERMS = {
+        "key"
     };
 
     /** 树遍历用 ObjectMapper（仅用于解析/序列化，线程安全）。 */
@@ -309,7 +318,9 @@ public final class SensitiveDataUtils {
      * <p>
      * 供服务端基于入库实体的真实 {@code configKey} 判定是否需在审计请求体中掩码 {@code configValue}
      * （{@code ConfigServiceImpl.updateConfig}），而非信任客户端请求字段；亦用于 {@code SystemConfigReq}
-     * 输入侧的跨字段脱敏。归一去下划线后对 {@link #SECRET_CONFIG_KEY_TERMS} 做 contains 匹配。
+     * 输入侧的跨字段脱敏。归一化去下划线后，对 {@link #SECRET_CONFIG_KEY_TERMS} 做 contains 匹配，
+     * 对 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}（通用词 {@code key}）做 endsWith 后缀匹配——
+     * 避免 {@code key} 的 contains 误伤名称中偶然含 {@code key} 子串的普通配置键。
      * </p>
      *
      * @param configKey 配置键名
@@ -322,6 +333,11 @@ public final class SensitiveDataUtils {
         String normalized = normalize(configKey);
         for (String term : SECRET_CONFIG_KEY_TERMS) {
             if (normalized.contains(term)) {
+                return true;
+            }
+        }
+        for (String suffix : SECRET_CONFIG_KEY_SUFFIX_TERMS) {
+            if (normalized.endsWith(suffix)) {
                 return true;
             }
         }
