@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotNull;
  * </p>
  *
  * @param id           配置ID（必填，用于定位配置）
+ * @param configKey    配置键（可选，用于审计脱敏——跨字段规则据此判定 configValue 是否密钥类并以 {@code ***} 掩码，评审 P1#2）
  * @param configValue  配置值（可选）
  * @param remark       备注（可选）
  */
@@ -19,6 +20,11 @@ public record ConfigUpdateReq(
      */
     @NotNull(message = "配置ID不能为空")
     Long id,
+
+    /**
+     * 配置键
+     */
+    String configKey,
 
     /**
      * 配置值

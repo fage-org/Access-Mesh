@@ -44,12 +44,14 @@ public final class SensitiveDataUtils {
     };
 
     /** 精确字段名敏感集合（小写、去下划线后整体相等匹配，而非 contains）。
-     * 用于 contains 子串会误命中普通业务字段的敏感名：
-     * {@code code} 为 OAuth2 授权码（短期凭证），但「code」子串会命中 {@code serviceCode} /
-     * {@code roleCode} / {@code resourceCode} / {@code typeCode} 等合法字段，故只能精确匹配、
-     * 不得加入 {@link #SENSITIVE_TERMS}。{@code codeverifier} 为 PKCE 验证器（去下划线归一后）。 */
+     * 仅保留 {@code codeverifier}（PKCE 验证器，全局唯一无业务碰撞）。
+     * {@code code}（OAuth2 授权码）不再全局精确掩码——「code」同名业务字段（组织/资源编码
+     * {@code OrgUpdateReq.code} / {@code ResourceUpdateReq.code} 等）会被误掩码为 {@code ***}，
+     * 降低审计追溯价值（评审 P2#3 收窄）。OAuth2 token/refresh 场景由
+     * {@code OperationLogRuntimeContext.markSensitiveField("code")} 按调用作用域并入精确匹配，
+     * 授权码仍脱敏、业务编码保留。 */
     private static final String[] PRECISE_SENSITIVE_FIELDS = {
-        "code", "codeverifier"
+        "codeverifier"
     };
 
     /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
@@ -74,6 +76,19 @@ public final class SensitiveDataUtils {
      * @return 脱敏后的 JSON；null 返回 null；非合法 JSON（纯文本、空串）原样返回
      */
     public static String maskJson(String json) {
+        return maskJson(json, null);
+    }
+
+    /**
+     * 对 JSON 字符串中的敏感字段值脱敏（递归树遍历），支持按调用作用域并入额外精确字段名。
+     *
+     * @param json              原始 JSON（可为 null）
+     * @param extraPreciseFields 调用作用域并入的精确字段名集合（小写去下划线归一后整体相等匹配）；
+     *                           如 OAuth2 场景并入 {@code code}（授权码）——见 {@code OperationLogRuntimeContext.markSensitiveField}。
+     *                           为 null 时等价于 {@link #maskJson(String)}
+     * @return 脱敏后的 JSON；null 返回 null；非合法 JSON（纯文本、空串）原样返回
+     */
+    public static String maskJson(String json, java.util.Set<String> extraPreciseFields) {
         if (json == null || json.isBlank()) {
             return json;
         }
@@ -87,7 +102,7 @@ public final class SensitiveDataUtils {
         if (root == null) {
             return json;
         }
-        JsonNode masked = maskNode(root);
+        JsonNode masked = maskNode(root, extraPreciseFields);
         try {
             return OBJECT_MAPPER.writeValueAsString(masked);
         } catch (Exception e) {
@@ -103,10 +118,11 @@ public final class SensitiveDataUtils {
      * 数组节点：逐元素递归（元素自身若为对象，其敏感字段同样被处理）。
      * </p>
      *
-     * @param node 待脱敏节点
+     * @param node               待脱敏节点
+     * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
      * @return 脱敏后的节点（可能为同一个实例的修改，或掩码文本节点）
      */
-    private static JsonNode maskNode(JsonNode node) {
+    private static JsonNode maskNode(JsonNode node, java.util.Set<String> extraPreciseFields) {
         if (node == null || node.isNull()) {
             return node;
         }
@@ -122,15 +138,15 @@ public final class SensitiveDataUtils {
             obj.fields().forEachRemaining(entry -> {
                 String fieldName = entry.getKey();
                 JsonNode value = entry.getValue();
-                if (isSensitiveField(fieldName) && value != null && !value.isNull()) {
+                if (isSensitiveField(fieldName, extraPreciseFields) && value != null && !value.isNull()) {
                     // 命中敏感字段名：无论值结构（标量/对象/数组/内嵌JSON字符串）整体替换为掩码
                     obj.set(fieldName, TextNode.valueOf(MASK));
                 } else if (value != null && (value.isObject() || value.isArray())) {
-                    obj.set(fieldName, maskNode(value));
+                    obj.set(fieldName, maskNode(value, extraPreciseFields));
                 } else if (value != null && value.isTextual()) {
                     // 值为 JSON 文本字符串（如 SystemConfigReq.configValue 存嵌套 JSON）：
                     // 尝试解析为对象/数组树并递归脱敏，再序列化回字符串，防止内层敏感键明文入库
-                    String inner = maskEmbeddedJson(value.asText());
+                    String inner = maskEmbeddedJson(value.asText(), extraPreciseFields);
                     if (inner != null) {
                         obj.set(fieldName, TextNode.valueOf(inner));
                     }
@@ -147,9 +163,9 @@ public final class SensitiveDataUtils {
                     continue;
                 }
                 if (element.isObject() || element.isArray()) {
-                    arr.set(i, maskNode(element));
+                    arr.set(i, maskNode(element, extraPreciseFields));
                 } else if (element.isTextual()) {
-                    String inner = maskEmbeddedJson(element.asText());
+                    String inner = maskEmbeddedJson(element.asText(), extraPreciseFields);
                     if (inner != null) {
                         arr.set(i, TextNode.valueOf(inner));
                     }
@@ -167,10 +183,11 @@ public final class SensitiveDataUtils {
      * 不可解析（纯文本、非 JSON）返回 null，由调用方保持原值。
      * </p>
      *
-     * @param text 字段值字符串（可能是嵌套 JSON）
+     * @param text               字段值字符串（可能是嵌套 JSON）
+     * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
      * @return 脱敏后的 JSON 文本；非 JSON 文本返回 null
      */
-    private static String maskEmbeddedJson(String text) {
+    private static String maskEmbeddedJson(String text, java.util.Set<String> extraPreciseFields) {
         if (text == null || text.isBlank()) {
             return null;
         }
@@ -184,7 +201,7 @@ public final class SensitiveDataUtils {
             return null;
         }
         try {
-            return OBJECT_MAPPER.writeValueAsString(maskNode(inner));
+            return OBJECT_MAPPER.writeValueAsString(maskNode(inner, extraPreciseFields));
         } catch (Exception e) {
             return null;
         }
@@ -203,10 +220,28 @@ public final class SensitiveDataUtils {
      * @return 脱敏并限长后的字符串；null 返回 null
      */
     public static String maskRequestBody(String json, int maxLen) {
+        return maskRequestBody(json, maxLen, null);
+    }
+
+    /**
+     * 对请求体脱敏并限长（脱敏 → 截断），支持并入调用作用域额外精确字段名。
+     * <p>
+     * 超长截断为 {@code maxLen} 内最长的“截断内容 + 省略号”：先保留
+     * {@code maxLen - 3} 个字符，再追加省略号，总长不超过 {@code maxLen}
+     * （数据库列 VARCHAR(4000)，若截断后仍超列上限，插入会失败并丢失整条审计日志）。
+     * </p>
+     *
+     * @param json               原始请求体 JSON
+     * @param maxLen             最大长度（超出截断并追加省略号，总长不超过 maxLen）
+     * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
+     * @return 脱敏并限长后的字符串；null 返回 null
+     */
+    public static String maskRequestBody(String json, int maxLen,
+                                         java.util.Set<String> extraPreciseFields) {
         if (json == null) {
             return null;
         }
-        String masked = maskJson(json);
+        String masked = maskJson(json, extraPreciseFields);
         if (masked.length() > maxLen) {
             int keep = Math.max(0, maxLen - ELLIPSIS.length());
             return masked.substring(0, keep) + ELLIPSIS;
@@ -215,21 +250,27 @@ public final class SensitiveDataUtils {
     }
 
     /**
-     * 判断字段名是否敏感：先精确匹配 {@link #PRECISE_SENSITIVE_FIELDS}（整体相等，
-     * 命中 {@code code}/{@code codeVerifier} 等），再回退 to contains 匹配
-     * {@link #SENSITIVE_TERMS}。两者皆以小写去下划线归一后比较。
+     * 判断字段名是否敏感：先精确匹配（全局 {@link #PRECISE_SENSITIVE_FIELDS} + 调用作用域
+     * {@code extraPreciseFields}，两者皆小写去下划线归一后整体相等），再回退 to contains 匹配
+     * {@link #SENSITIVE_TERMS}。
      *
-     * @param fieldName JSON 字段名
+     * @param fieldName           JSON 字段名
+     * @param extraPreciseFields 调用作用域并入的额外精确字段名集合（可为 null）
      * @return true=敏感
      */
-    private static boolean isSensitiveField(String fieldName) {
+    private static boolean isSensitiveField(String fieldName, java.util.Set<String> extraPreciseFields) {
         if (fieldName == null || fieldName.isEmpty()) {
             return false;
         }
         String normalized = normalize(fieldName);
-        if (PRECISE_SENSITIVE_FIELDS.length > 0) {
-            for (String precise : PRECISE_SENSITIVE_FIELDS) {
-                if (precise.equals(normalized)) {
+        for (String precise : PRECISE_SENSITIVE_FIELDS) {
+            if (precise.equals(normalized)) {
+                return true;
+            }
+        }
+        if (extraPreciseFields != null) {
+            for (String precise : extraPreciseFields) {
+                if (precise != null && precise.equals(normalized)) {
                     return true;
                 }
             }

@@ -67,6 +67,25 @@ public final class OperationLogRuntimeContext {
         STATE.get().tenantIdOverride = tenantId;
     }
 
+    /**
+     * 登记本调用作用域需并入精确匹配的敏感字段名（如 OAuth2 授权码 {@code code}）。
+     * <p>
+     * {@code SensitiveDataUtils} 全局精确集合仅保留 {@code codeverifier}（唯一无业务碰撞）；
+     * {@code code} 因同名业务字段（组织/资源编码）会被误掩码，收窄为按调用作用域登记
+     * （评审 P2#3）。切面在序列化脱敏请求体时，把本作用域并入的字段名集传给
+     * {@code SensitiveDataUtils.maskRequestBody(...)}，按字段名整体相等匹配掩码。
+     * 方法体在入口（如 OAuth2 token/refresh 解析授权码后）调用，随 {@link #clear()} 清空。
+     * </p>
+     *
+     * @param fieldName 需在该调用作用域精确掩码的字段名（null/blank 忽略）
+     */
+    public static void markSensitiveField(String fieldName) {
+        if (fieldName == null || fieldName.isBlank()) {
+            return;
+        }
+        STATE.get().sensitiveFields.add(fieldName.toLowerCase().replace("_", ""));
+    }
+
     public static Snapshot snapshot() {
         State state = STATE.get();
         return new Snapshot(
@@ -74,7 +93,8 @@ public final class OperationLogRuntimeContext {
             state.summaryOverride,
             state.targetTypeOverride,
             state.targetIdOverride,
-            state.tenantIdOverride
+            state.tenantIdOverride,
+            state.sensitiveFields.isEmpty() ? null : java.util.Set.copyOf(state.sensitiveFields)
         );
     }
 
@@ -89,14 +109,17 @@ public final class OperationLogRuntimeContext {
         private final String targetTypeOverride;
         private final String targetIdOverride;
         private final Long tenantIdOverride;
+        private final java.util.Set<String> sensitiveFields;
 
         public Snapshot(boolean skip, String summaryOverride, String targetTypeOverride,
-                        String targetIdOverride, Long tenantIdOverride) {
+                        String targetIdOverride, Long tenantIdOverride,
+                        java.util.Set<String> sensitiveFields) {
             this.skip = skip;
             this.summaryOverride = summaryOverride;
             this.targetTypeOverride = targetTypeOverride;
             this.targetIdOverride = targetIdOverride;
             this.tenantIdOverride = tenantIdOverride;
+            this.sensitiveFields = sensitiveFields;
         }
 
         public boolean skip() {
@@ -118,6 +141,10 @@ public final class OperationLogRuntimeContext {
         public Long tenantIdOverride() {
             return tenantIdOverride;
         }
+
+        public java.util.Set<String> sensitiveFields() {
+            return sensitiveFields;
+        }
     }
 
     private static final class State {
@@ -126,5 +153,6 @@ public final class OperationLogRuntimeContext {
         private String targetTypeOverride;
         private String targetIdOverride;
         private Long tenantIdOverride;
+        private final java.util.Set<String> sensitiveFields = new java.util.LinkedHashSet<>();
     }
 }

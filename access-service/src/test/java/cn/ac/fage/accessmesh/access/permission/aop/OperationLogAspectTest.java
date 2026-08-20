@@ -321,6 +321,43 @@ class OperationLogAspectTest {
         }
     }
 
+    /** 测试用 bean — 含 code 字段（模拟 OAuth2 token 授权码，按调用作用域精确掩码） */
+    @OperationLog(module = "test", action = "oauth2-token", targetType = "oauth2_token",
+        targetId = "#clientId", summary = "'token for ' + #clientId")
+    public void oauth2TokenMethod(String clientId, String code, String name) {
+        // 仅用于 AOP 拦截测试
+    }
+
+    /** 测试: 作用域内精确掩码 code（评审 P2#3）——OAuth2ServiceImpl.token body 调用 markSensitiveField("code") */
+    @Test
+    void shouldMaskScopedSensitiveFieldCodeInRequestBody() throws Throwable {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
+             MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            tenant.when(TenantContextHolder::getTenantId).thenReturn(1L);
+
+            setupJoinPoint(getClass(), "oauth2TokenMethod", new Object[]{"client-1", "authcode123", "kept"},
+                new String[]{"clientId", "code", "name"}, null);
+            OperationLog opLog = getClass().getDeclaredMethod("oauth2TokenMethod",
+                    String.class, String.class, String.class)
+                .getAnnotation(OperationLog.class);
+
+            // 模拟 OAuth2ServiceImpl.token 方法体在进入时登记调用作用域（around 入口先 clear，须在 proceed 回调中设置）
+            when(joinPoint.proceed()).thenAnswer(_invocation -> {
+                OperationLogRuntimeContext.markSensitiveField("code");
+                return null;
+            });
+
+            aspect.around(joinPoint, opLog);
+
+            OperationLogEntry entry = captureEntry();
+            assertNotNull(entry.requestBody(), "方法参数应序列化为请求体");
+            assertFalse(entry.requestBody().contains("authcode123"), "作用域内 code（授权码）应被精确掩码");
+            assertTrue(entry.requestBody().contains("\"code\":\"***\""));
+            assertTrue(entry.requestBody().contains("\"name\":\"kept\""), "非敏感字段保留");
+        }
+    }
+
     @Test
     void shouldClearRuntimeContextAfterInvocation() throws Throwable {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);

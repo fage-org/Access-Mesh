@@ -70,16 +70,6 @@ public class OperationLog {
     private String operatorName;
 
     /**
-     * 操作用户ID（T-ACCESS-002 归并自 admin sys_audit_log）
-     */
-    private Long userId;
-
-    /**
-     * 操作用户名（T-ACCESS-002 归并自 admin sys_audit_log）
-     */
-    private String username;
-
-    /**
      * IP地址，记录操作来源
      */
     private String ipAddress;

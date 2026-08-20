@@ -178,23 +178,39 @@ class SensitiveDataUtilsTest {
     }
 
     @Test
-    void shouldMaskExactOAuth2CodeFieldsOnly() {
-        // P1#1：`code`（OAuth2 授权码）与 `codeVerifier`（PKCE 验证器）为短期凭证，
-        // 须按精确字段名掩码；但不得误伤 serviceCode/roleCode/resourceCode 等 contains 命中的合法业务字段。
+    void shouldNotMaskBusinessCodeByDefaultButMaskCodeVerifier() {
+        // P2#3 收窄：`code`（OAuth2 授权码）不再全局精确掩码——同名业务字段
+        // （OrgUpdateReq.code 组织编码 / ResourceUpdateReq.code 资源编码）会被误掩码降低审计价值。
+        // 默认只精确掩码 `codeVerifier`（PKCE 验证器，全局唯一无业务碰撞），且不得误伤
+        // serviceCode/roleCode/resourceCode 等 contains 命中的合法业务字段。
         String masked = SensitiveDataUtils.maskJson(
-            "{\"code\":\"authcode123\",\"codeVerifier\":\"pkce-verifier\",\"code_verifier\":\"p2\","
+            "{\"code\":\"org-code-001\",\"codeVerifier\":\"pkce-verifier\",\"code_verifier\":\"p2\","
                 + "\"serviceCode\":\"svc\",\"roleCode\":\"admin\",\"resourceCode\":\"r1\",\"name\":\"keep\"}");
 
-        assertFalse(masked.contains("authcode123"));
+        // 业务 code 保留原样（不再整体 ***）
+        assertTrue(masked.contains("\"code\":\"org-code-001\""));
+        assertFalse(masked.contains("\"code\":\"***\""));
+        // codeVerifier（及下划线归一）仍精确掩码
         assertFalse(masked.contains("pkce-verifier"));
-        assertFalse(masked.contains("pkce-verifier\""));
         assertFalse(masked.contains("\"p2\""));
-        assertTrue(masked.contains("\"code\":\"***\""));
         assertTrue(masked.contains("\"codeVerifier\":\"***\""));
         assertTrue(masked.contains("\"code_verifier\":\"***\""));
+        // contains 命中非精确业务字段保留
         assertTrue(masked.contains("\"serviceCode\":\"svc\""));
         assertTrue(masked.contains("\"roleCode\":\"admin\""));
         assertTrue(masked.contains("\"resourceCode\":\"r1\""));
+        assertTrue(masked.contains("\"name\":\"keep\""));
+    }
+
+    @Test
+    void shouldMaskCodeWhenScopedAsExtraPreciseField() {
+        // P2#3：OAuth2 token/refresh 场景经 OperationLogRuntimeContext.markSensitiveField("code")
+        // 把 code 并入调用作用域精确匹配集合，授权码按那是掩码、业务场景不受影响。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"code\":\"authcode123\",\"name\":\"keep\"}", java.util.Set.of("code"));
+
+        assertFalse(masked.contains("authcode123"));
+        assertTrue(masked.contains("\"code\":\"***\""));
         assertTrue(masked.contains("\"name\":\"keep\""));
     }
 

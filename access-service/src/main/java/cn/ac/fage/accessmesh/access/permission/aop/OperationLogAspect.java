@@ -141,7 +141,7 @@ public class OperationLogAspect {
 
         String targetType = runtimeSnapshot.targetTypeOverride() != null
             ? runtimeSnapshot.targetTypeOverride()
-            : parseSpelOrDefault(opLog.targetType(), ctx, opLog.targetType());
+            : resolveTargetType(opLog.targetType(), ctx);
         String targetId = runtimeSnapshot.targetIdOverride() != null
             ? runtimeSnapshot.targetIdOverride()
             : parseSpelOrDefault(opLog.targetId(), ctx, "");
@@ -169,7 +169,7 @@ public class OperationLogAspect {
             ipAddress,
             HttpRequestUtils.getRequestId(request),
             request != null ? request.getRequestURI() : null,
-            maskRequestBody(joinPoint),
+            maskRequestBody(joinPoint, runtimeSnapshot.sensitiveFields()),
             200,
             costTime
         ));
@@ -188,7 +188,7 @@ public class OperationLogAspect {
      * 避免完整序列化文件内容并写入审计字段。
      * </p>
      */
-    private String maskRequestBody(ProceedingJoinPoint joinPoint) {
+    private String maskRequestBody(ProceedingJoinPoint joinPoint, java.util.Set<String> extraPreciseFields) {
         Object[] args = joinPoint.getArgs();
         if (args == null || args.length == 0) {
             return null;
@@ -212,7 +212,8 @@ public class OperationLogAspect {
                 body = safeArgs;
             }
             return SensitiveDataUtils.maskRequestBody(
-                objectMapper.writeValueAsString(body), SensitiveDataUtils.REQUEST_BODY_MAX_LEN);
+                objectMapper.writeValueAsString(body), SensitiveDataUtils.REQUEST_BODY_MAX_LEN,
+                extraPreciseFields);
         } catch (Exception e) {
             return null;
         }
@@ -393,6 +394,24 @@ public class OperationLogAspect {
             log.debug("Failed to resolve tenantId from method param: {}", e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * 解析 targetType：契约为固定小写物理表名（或登记的逻辑对象码例外，如 {@code oauth2_token}），
+     * 恒为字面量，不含 SpEL 变量引用。直接按字面量返回，仅在包含 SpEL 信号（{@code #} 变量 /
+     * {@code $} 占位符 / {@code T(} 类型引用）时走 {@link #parseSpelOrDefault}——
+     * 避免对纯表名做无效 SpEL 解析（每次触发异常再回退，增加开销与 debug 噪声，评审 P3#5）。
+     */
+    private String resolveTargetType(String targetType, EvaluationContext ctx) {
+        if (targetType == null || isSpelLike(targetType)) {
+            return parseSpelOrDefault(targetType, ctx, targetType);
+        }
+        return targetType;
+    }
+
+    /** 判定字符串是否形如 SpEL 表达式（含变量 `#`、占位符 `${`、类型引用 `T(`）。 */
+    private static boolean isSpelLike(String s) {
+        return s.contains("#") || s.contains("${") || s.contains("T(");
     }
 
     /**

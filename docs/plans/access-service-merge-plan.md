@@ -71,7 +71,7 @@ last_updated: 2026-08-15
 | [T-ACCESS-004](../tasks/T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | ✅ | T-ACCESS-003 |
 | [T-ACCESS-005](../tasks/T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | ✅ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-006](../tasks/T-ACCESS-006.md) | 建立跨域只读查询模型 | ✅ | T-ACCESS-002, T-ACCESS-005 |
-| [T-ACCESS-007](../tasks/T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
+| [T-ACCESS-007](../tasks/T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | ✅ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-008](../tasks/T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | ⚙️ | T-ACCESS-003, T-ACCESS-005 |
 | [T-ACCESS-009](../tasks/T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-010](../tasks/T-ACCESS-010.md) | 切换 Gateway、SDK、Nacos和部署配置 | ⚙️ | T-ACCESS-004, T-ACCESS-005, T-ACCESS-008 |

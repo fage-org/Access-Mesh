@@ -192,6 +192,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     @OperationLog(module = "ADMIN", action = "OAUTH2_TOKEN_ISSUE", targetType = "oauth2_token",
         targetId = "#req.clientId()", summary = "'oauth2 token issued by client ' + #req.clientId()")
     public TokenResp token(TokenReq req) {
+        // 授权码（TokenReq.code）为短期凭证：SensitiveDataUtils 全局精确集合不含 code
+        // （同名业务字段会误掩码，评审 P2#3 收窄），此处按调用作用域登记使切面脱敏本接口请求体时精确掩码 code。
+        OperationLogRuntimeContext.markSensitiveField("code");
         try {
             if ("authorization_code".equals(req.grantType())) {
                 return tokenByAuthorizationCode(req);

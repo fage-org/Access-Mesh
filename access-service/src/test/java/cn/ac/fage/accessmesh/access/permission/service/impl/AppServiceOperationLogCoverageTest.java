@@ -103,11 +103,15 @@ class AppServiceOperationLogCoverageTest {
 
     @Test
     void shouldValidateContractOfAnnotatedMethodsInAllDomains() {
+        // 契约校验对已标注 @OperationLog 的方法无条件生效——不依赖 @Transactional 写方法判定
+        // （即不要求 isWriteMethod）。否则 OAuth2 token/refresh/revoke、Job trigger 等已标注
+        // 但非事务入口会绕过契约校验（评审 P2#4：漏检的是对已存在注解的合法性检查，
+        // 与 T-ACCESS-014 延后的“强制覆盖缺失注解”无关）。
         List<String> violations = new ArrayList<>();
         for (Class<?> clazz : scanPackages(ADMIN_PACKAGE, APPLICATION_PACKAGES)) {
             for (Method method : clazz.getDeclaredMethods()) {
                 OperationLog opLog = method.getAnnotation(OperationLog.class);
-                if (opLog == null || !isWriteMethod(method)) {
+                if (opLog == null) {
                     continue;
                 }
                 assertValidContract(clazz, method, opLog, violations);

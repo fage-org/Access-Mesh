@@ -117,7 +117,7 @@ const mockLogs: OperationLogResp[] = [
     module: "PERMISSION",
     action: "ABSTRACT_ROLE_FULL_SYNC",
     targetType: "abstract_role",
-    targetId: "105",
+    targetId: "",
     summary: "全量同步角色 temp-role（软删除，关联用户角色关系同步清理）",
     operatorId: 2,
     operatorName: "安全管理员",

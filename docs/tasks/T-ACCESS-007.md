@@ -64,7 +64,7 @@ last_updated: 2026-08-19
 | 三类日志独立短事务；permission_change_log 归 T-ACCESS-005 | 通过：REQUIRES_NEW + 调用方兜底与异常传播断言 |
 | 脱敏限长、密码/Token/密钥不入库 | 通过：SensitiveDataUtils + 切面脱敏/大对象元数据/请求头截断测试 |
 | 有界线程池 + 队列满降级/告警 | 通过：AsyncConfig + 降级测试 |
-| 匿名安全写租户解析 + OAuth2 令牌审计 | 通过：runtime override 优先于参数、无租户跳过告警（lockUser 正常落库）；OAuth2 签发/刷新/撤销均写 `OAUTH2` 登录日志，token/refresh/revoke 补 `@OperationLog` 经 runtime override 正常落库 |
+| 匿名安全写租户解析 + OAuth2 令牌审计 | 通过：runtime override 优先于参数、无租户跳过告警（lockUser 正常落库）；token/refresh（成功与失败）写 `OAUTH2` 登录日志、token/refresh/revoke 均补 `@OperationLog` 经 runtime override 正常落库（revoke 仅 `@OperationLog`、无登录日志，见「当前口径」） |
 | 测试覆盖回滚/独立日志失败/脱敏 | 通过（可测边界内）：注解契约 + 异常传播（`asyncRecordLog` 写入失败断言向上抛） + 调用方兜底 + 脱敏/限长均已测；REQUIRES_NEW 真实回滚语义为第三方框架行为，明确列为非目标不补 Spring 集成事务测试 |
 
 ## 非目标 / 遗留
