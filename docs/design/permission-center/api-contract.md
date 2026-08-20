@@ -351,11 +351,13 @@ last_reviewed: 2026-08-08   # 2026-08-03 单类型矩阵上下文 + 2026-08-05 �
 | `POST /api/perm/permission-view/role-permissions`      | 查询角色权限视图                                       |
 | `POST /api/perm/permission-view/explain`               | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
 | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件               |
-| `POST /api/perm/operation-log/list`                    | 操作日志                                               |
-| `POST /api/perm/permission-change-log/list`            | 权限变更日志                                           |
+| `POST /api/perm/log/operation/list`              | 操作日志                                               |
+| `POST /api/perm/log/change/list`                  | 权限变更日志                                           |
 | `POST /api/perm/system-config/list`                    | 查询系统配置                                           |
 | `POST /api/perm/system-config/detail`                  | 查询系统配置详情                                       |
 | `POST /api/perm/system-config/save`                    | 保存系统配置                                           |
+
+> **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。
 
 ## 6. 核心请求契约
 

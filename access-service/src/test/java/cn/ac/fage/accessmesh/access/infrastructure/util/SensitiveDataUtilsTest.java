@@ -176,4 +176,60 @@ class SensitiveDataUtilsTest {
         assertTrue(masked.contains("\"privateKey\":\"***\""));
         assertTrue(masked.contains("\"count\":5"));
     }
+
+    @Test
+    void shouldMaskExactOAuth2CodeFieldsOnly() {
+        // P1#1：`code`（OAuth2 授权码）与 `codeVerifier`（PKCE 验证器）为短期凭证，
+        // 须按精确字段名掩码；但不得误伤 serviceCode/roleCode/resourceCode 等 contains 命中的合法业务字段。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"code\":\"authcode123\",\"codeVerifier\":\"pkce-verifier\",\"code_verifier\":\"p2\","
+                + "\"serviceCode\":\"svc\",\"roleCode\":\"admin\",\"resourceCode\":\"r1\",\"name\":\"keep\"}");
+
+        assertFalse(masked.contains("authcode123"));
+        assertFalse(masked.contains("pkce-verifier"));
+        assertFalse(masked.contains("pkce-verifier\""));
+        assertFalse(masked.contains("\"p2\""));
+        assertTrue(masked.contains("\"code\":\"***\""));
+        assertTrue(masked.contains("\"codeVerifier\":\"***\""));
+        assertTrue(masked.contains("\"code_verifier\":\"***\""));
+        assertTrue(masked.contains("\"serviceCode\":\"svc\""));
+        assertTrue(masked.contains("\"roleCode\":\"admin\""));
+        assertTrue(masked.contains("\"resourceCode\":\"r1\""));
+        assertTrue(masked.contains("\"name\":\"keep\""));
+    }
+
+    @Test
+    void shouldMaskConfigValueWhenConfigKeyIsSecretClass() {
+        // P1#1：当请求体同时含 configKey 与 configValue、且配置键命中密钥类
+        // （password/secret/token/apikey/privatekey）时，跨字段掩码整个 configValue，
+        // 覆盖其纯文本/标量 JSON 形态（字段名 configValue 本身不含敏感子串，仅靠字段名遍历无法命中）。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"configKey\":\"admin.OAUTH_CLIENT_SECRET\",\"configValue\":\"raw-secret-value\",\"description\":\"keep\"}");
+
+        assertFalse(masked.contains("raw-secret-value"));
+        assertTrue(masked.contains("\"configValue\":\"***\""));
+        assertTrue(masked.contains("\"configKey\":\"admin.OAUTH_CLIENT_SECRET\""));
+        assertTrue(masked.contains("\"description\":\"keep\""));
+    }
+
+    @Test
+    void shouldKeepConfigValueWhenConfigKeyIsNotSecretClass() {
+        // P1#1：非密钥类配置键（如 admin.LOGIN_CAPTCHA_ENABLED）的 configValue 保留原样，不误掩码。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"configKey\":\"admin.LOGIN_CAPTCHA_ENABLED\",\"configValue\":\"true\",\"description\":\"keep\"}");
+
+        assertTrue(masked.contains("\"configValue\":\"true\""));
+        assertFalse(masked.contains("\"configValue\":\"***\""));
+    }
+
+    @Test
+    void shouldMaskSecretClassConfigValueEvenWhenScalarJson() {
+        // P1#1：configValue 为标量/纯文本 JSON（非对象/数组）时原 maskEmbeddedJson 返回 null 不脱敏，
+        // 密钥类配置键路径需整体掩码。
+        String masked = SensitiveDataUtils.maskJson(
+            "{\"configKey\":\"permission.SOME_API_TOKEN\",\"configValue\":\"{\\\"plain\\\":\\\"tok123\\\"}\"}");
+
+        assertFalse(masked.contains("tok123"));
+        assertTrue(masked.contains("\"configValue\":\"***\""));
+    }
 }

@@ -13,7 +13,8 @@
 --
 -- 合并说明（access-service-architecture §5.2）：
 --   system_config = sys_config + 原 system_config（字段取超集；tenant_id+config_key 唯一；
---                   键使用 admin.*/permission.*/access.* 命名空间，存量种子键暂不强制加前缀）
+--                   键使用 admin.*/permission.*/access.* 命名空间；存量种子键已迁移至 admin.* 前缀
+--                   （T-ACCESS-007），见下方 INSERT 种子，新增键经 upsert 入口 fail-closed 校验前缀）
 --   operation_log  = sys_audit_log + 原 operation_log（字段取超集；target_id 使用字符串；
 --                   模块标识 ADMIN/PERMISSION/ACCESS；request_body 敏感内容脱敏并限长）
 --
@@ -504,7 +505,7 @@ CREATE TABLE system_config (
 CREATE UNIQUE INDEX uk_system_config ON system_config (tenant_id, config_key) WHERE delete_flag = 0;
 
 COMMENT ON TABLE system_config IS '系统配置，支持租户级覆盖；合并自 sys_config（admin）与 system_config（permission）：config_key 租户内唯一，config_value 为 JSONB；is_system=true 表示系统内置不可删除';
-COMMENT ON COLUMN system_config.config_key IS '配置键；按 admin.*/permission.*/access.* 命名空间组织，存量键保持原样';
+COMMENT ON COLUMN system_config.config_key IS '配置键；按 admin.*/permission.*/access.* 命名空间组织；存量种子键已迁移至 admin.* 前缀（T-ACCESS-007），新增键经 upsert 入口校验前缀';
 COMMENT ON COLUMN system_config.config_value IS '配置值（JSON）';
 COMMENT ON COLUMN system_config.description IS '配置描述（permission 侧语义）';
 COMMENT ON COLUMN system_config.config_name IS '配置名称（admin 侧语义）';

@@ -43,6 +43,24 @@ public final class SensitiveDataUtils {
         "phone", "mobile", "email", "idcard", "idcardno", "certificate", "privatekey", "privatekeypem"
     };
 
+    /** 精确字段名敏感集合（小写、去下划线后整体相等匹配，而非 contains）。
+     * 用于 contains 子串会误命中普通业务字段的敏感名：
+     * {@code code} 为 OAuth2 授权码（短期凭证），但「code」子串会命中 {@code serviceCode} /
+     * {@code roleCode} / {@code resourceCode} / {@code typeCode} 等合法字段，故只能精确匹配、
+     * 不得加入 {@link #SENSITIVE_TERMS}。{@code codeverifier} 为 PKCE 验证器（去下划线归一后）。 */
+    private static final String[] PRECISE_SENSITIVE_FIELDS = {
+        "code", "codeverifier"
+    };
+
+    /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
+     * 用于 {@code SystemConfigReq} 的跨字段脱敏：当 JSON 中同时出现 {@code configKey} 与
+     * {@code configValue} 且配置键名命中密钥类子串（如 {@code admin.OAUTH_CLIENT_SECRET}），
+     * 将同级 {@code configValue} 整体掩码——因该值可能是纯文本/标量 JSON，字段名
+     * {@code configValue} 本身不含敏感子串，仅靠按 JSON 字段名匹配的树遍历无法脱敏。 */
+    private static final String[] SECRET_CONFIG_KEY_TERMS = {
+        "password", "secret", "token", "apikey", "privatekey"
+    };
+
     /** 树遍历用 ObjectMapper（仅用于解析/序列化，线程安全）。 */
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -94,6 +112,13 @@ public final class SensitiveDataUtils {
         }
         if (node.isObject()) {
             ObjectNode obj = (ObjectNode) node;
+            // 跨字段规则：先识别「configKey + configValue」对，配置键名命中密钥类时掩码同级 configValue
+            // （见 SECRET_CONFIG_KEY_TERMS），无论 configValue 是纯文本/标量/对象/数组。
+            String configKeyValue = findFieldText(obj, "configkey");
+            if (configKeyValue != null && isSecretConfigKey(configKeyValue)) {
+                ObjectNode valueHolder = (ObjectNode) obj;
+                valueHolder.set("configValue", TextNode.valueOf(MASK));
+            }
             obj.fields().forEachRemaining(entry -> {
                 String fieldName = entry.getKey();
                 JsonNode value = entry.getValue();
@@ -190,7 +215,9 @@ public final class SensitiveDataUtils {
     }
 
     /**
-     * 判断字段名是否敏感：小写并去除下划线后 contains 任一敏感子串。
+     * 判断字段名是否敏感：先精确匹配 {@link #PRECISE_SENSITIVE_FIELDS}（整体相等，
+     * 命中 {@code code}/{@code codeVerifier} 等），再回退 to contains 匹配
+     * {@link #SENSITIVE_TERMS}。两者皆以小写去下划线归一后比较。
      *
      * @param fieldName JSON 字段名
      * @return true=敏感
@@ -199,8 +226,50 @@ public final class SensitiveDataUtils {
         if (fieldName == null || fieldName.isEmpty()) {
             return false;
         }
-        String normalized = fieldName.toLowerCase().replace("_", "");
+        String normalized = normalize(fieldName);
+        if (PRECISE_SENSITIVE_FIELDS.length > 0) {
+            for (String precise : PRECISE_SENSITIVE_FIELDS) {
+                if (precise.equals(normalized)) {
+                    return true;
+                }
+            }
+        }
         for (String term : SENSITIVE_TERMS) {
+            if (normalized.contains(term)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 归一化字段名：小写并去除下划线。 */
+    private static String normalize(String name) {
+        return name.toLowerCase().replace("_", "");
+    }
+
+    /** 从对象节点取某字段的字符串值（字段名归一化后整体相等匹配）；无则返回 null。 */
+    private static String findFieldText(ObjectNode obj, String targetNormalized) {
+        if (obj == null || obj.size() == 0) {
+            return null;
+        }
+        var it = obj.fields();
+        while (it.hasNext()) {
+            var entry = it.next();
+            if (normalize(entry.getKey()).equals(targetNormalized) && entry.getValue() != null
+                && entry.getValue().isTextual()) {
+                return entry.getValue().asText();
+            }
+        }
+        return null;
+    }
+
+    /** 配置键名是否命中密钥类子串（如 {@code admin.OAUTH_CLIENT_SECRET}）。 */
+    private static boolean isSecretConfigKey(String configKey) {
+        if (configKey == null || configKey.isBlank()) {
+            return false;
+        }
+        String normalized = normalize(configKey);
+        for (String term : SECRET_CONFIG_KEY_TERMS) {
             if (normalized.contains(term)) {
                 return true;
             }

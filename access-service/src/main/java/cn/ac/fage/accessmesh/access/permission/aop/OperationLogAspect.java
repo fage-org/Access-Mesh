@@ -180,8 +180,8 @@ public class OperationLogAspect {
      * <p>
      * 将方法参数按参数名包装为 {@code Map} 后序列化，使敏感字段名
      * （password/pwd/secret/token/…）在 JSON 中可被 {@link SensitiveDataUtils}
-     * 正则识别——位置参数直接序列化会退化为 JSON 数组，数组元素无字段名，
-     * 明文密码将无法脱敏入库。参数名不可用时降级为数组序列化。
+     * 按字段名匹配识别（Jackson 树遍历脱敏）——位置参数直接序列化会退化为
+     * JSON 数组，数组元素无字段名，明文密码将无法脱敏入库。参数名不可用时降级为数组序列化。
      * 密码/验证码/Token/密钥等敏感字段值替换为掩码，超长时截断追加省略号；
      * 序列化失败返回 null（不阻断日志记录）。
      * 文件/流/二进制等大对象参数在序列化前替换为元数据（见 {@link #toSafeSerializableValue}），

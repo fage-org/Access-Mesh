@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService.LoginLogEntry;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,16 +27,21 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OAuth2 令牌环节 OAUTH2 登录日志测试（T-ACCESS-007 第三轮 P2#6）。
+ * OAuth2 令牌环节 OAUTH2 登录日志测试（T-ACCESS-007）。
  * <p>
  * 验证授权码换取令牌成功后写入 sys_login_log（loginType=OAUTH2，
- * DDL 列注释声明的第三种登录方式自此有真实写入场景），用户名回填自用户库。
+ * DDL 列注释声明的第三种登录方式自此有真实写入场景），用户名回填自用户库；
+ * 以及失败尝试（凭据/授权码/刷新令牌无效等）在租户可解析时写 status=0、
+ * 租户不可解析时跳过并告警的安全审计。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -103,5 +109,69 @@ class OAuth2LoginLogTest {
         assertEquals("OAUTH2", entry.loginType());
         assertEquals("client-1", entry.clientId());
         assertEquals(1, entry.status());
+    }
+
+    @Test
+    @DisplayName("刷新令牌无效（客户端有效）→ 写 OAUTH2 登录日志失败（status=0）")
+    void shouldRecordOauth2LoginFailure_whenRefreshTokenInvalid() {
+        SysOauth2Client client = new SysOauth2Client();
+        client.setTenantId(10L);
+        client.setGrantTypes("authorization_code");
+        when(oauth2ClientDomainService.findActiveByClientId("client-1")).thenReturn(client);
+
+        // 刷新令牌存在但 Redis 中无对应数据（LUA 一次性 GET+DEL 返回 null）
+        org.mockito.BDDMockito.doReturn(null)
+            .when(redisTemplate).execute(
+                org.mockito.ArgumentMatchers.<RedisScript<String>>any(), anyList());
+
+        assertThrows(BizException.class, () -> service.refreshToken("refresh-token-x", "client-1"));
+
+        ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(captor.capture());
+        LoginLogEntry entry = captor.getValue();
+        assertEquals(10L, entry.tenantId());
+        assertEquals("OAUTH2", entry.loginType());
+        assertEquals("client-1", entry.clientId());
+        assertEquals(0, entry.status());
+    }
+
+    @Test
+    @DisplayName("客户端密钥错误 → 写 OAUTH2 登录日志失败（status=0）")
+    void shouldRecordOauth2LoginFailure_whenClientSecretMismatch() {
+        String correctSecret = "right-secret";
+        SysOauth2Client client = new SysOauth2Client();
+        client.setTenantId(10L);
+        client.setClientSecret(BCrypt.hashpw(correctSecret, BCrypt.gensalt()));
+        client.setGrantTypes("authorization_code");
+        when(oauth2ClientDomainService.findActiveByClientId("client-1")).thenReturn(client);
+
+        // 授权码已存（密钥校验在授权码读取之前被拒绝，无需走到 Redis）
+        TokenResp resp = null;
+        try {
+            resp = service.token(new TokenReq(
+                "authorization_code", "client-1", "wrong-secret", "code-abc",
+                "http://app/cb", null, null));
+        } catch (BizException ignored) {
+            // 预期抛出
+        }
+        assertNull(resp);
+
+        ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(captor.capture());
+        LoginLogEntry entry = captor.getValue();
+        assertEquals("client-1", entry.clientId());
+        assertEquals("OAUTH2", entry.loginType());
+        assertEquals(0, entry.status());
+    }
+
+    @Test
+    @DisplayName("缺少客户端ID（租户不可解析）→ 跳过登录日志（不写 status=0 于不可解析租户）")
+    void shouldSkipOauth2LoginFailure_whenTenantUnresolvable() {
+        // clientId 为 null：租户无法从任何来源解析，按匿名语义跳过并告警
+        assertThrows(BizException.class,
+            () -> service.token(new TokenReq(
+                "authorization_code", null, null, null, null, null, null)));
+
+        verify(loginLogDomainService, never()).recordLoginLog(any());
     }
 }
