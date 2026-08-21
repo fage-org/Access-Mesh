@@ -73,7 +73,7 @@ last_updated: 2026-08-21
 | [T-ACCESS-006](../tasks/T-ACCESS-006.md) | 建立跨域只读查询模型 | ✅ | T-ACCESS-002, T-ACCESS-005 |
 | [T-ACCESS-007](../tasks/T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | ✅ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-008](../tasks/T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | ✅ | T-ACCESS-003, T-ACCESS-005 |
-| [T-ACCESS-009](../tasks/T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | ⚙️ | T-ACCESS-002, T-ACCESS-004 |
+| [T-ACCESS-009](../tasks/T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | ✅ | T-ACCESS-002, T-ACCESS-004 |
 | [T-ACCESS-010](../tasks/T-ACCESS-010.md) | 切换 Gateway、SDK、Nacos和部署配置 | ⚙️ | T-ACCESS-004, T-ACCESS-005, T-ACCESS-008 |
 | [T-ACCESS-011](../tasks/T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | ⚙️ | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 |
 | [T-ACCESS-012](../tasks/T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | ⚙️ | T-ACCESS-011 |
@@ -95,6 +95,8 @@ last_updated: 2026-08-21
 - 2026-08-14：T-ACCESS-004 done（唯一可信上下文 AccessRequestContext + 统一安全链 + 安全策略矩阵，4 项用户决策 + 双评审 1 P1 修复 + 对抗核实，408 测试基线；修复 G1~G4：内部凭证不隐式获全权限 / sourceService 可信化 / admin 显式门禁 / actuator 匿名契约）。
 - 2026-08-15：T-ACCESS-005 done（同事务本地权限投影 + 删除内部同步/Feign/sys_sync_task；权限管理与外部 sync 拒绝本地投影；设计 §3/§4/§6/§7 回写完成）。
 - 2026-08-21：T-ACCESS-008 done（缓存框架 Duration 硬迁移 + 单次有效 TTL/读取令牌剩余 TTL 回填 + 普通 L1 跨实例失效广播；快照链路 6 目录 L2_ONLY≤10s + 启动边界校验 10s/5s/15s≤30s；Gateway 迁统一 CacheService、固定 fail-closed、5s 全链路硬截止；4 项用户决策；gateway.md/project-rules §12/双 skill 镜像回写）。同日 AI 复评 2 P1 + 4 P2 全部确认属实并修复（失效先递增代际再清缓存、用户级候选纳入在途回源注册表、L2 命中回填 L1 按 remainTimeToLive 门控、跟踪索引跟随有效配置 + TTL 兜底口径（用户决策）、L2 失效失败计入失效失败指标、真实 10+5+15 组合边界与代际竞态回归测试）。第二轮复评 3 P2 + 2 P3 修复（catalog 级跨租户 evictAll 支撑重连真正全量清空——用户决策、evict/evictBatch 计入失效失败指标、default-config 绑定前缀全仓更正 + 绑定契约测试、L2 命中回填门控回归测试、组合测试余量放宽）。
+
+- 2026-08-21：T-ACCESS-009 done（sys_task_execution 数据库租约：原子抢占/续租/条件完成/接管 SQL + 执行编排 + @JobInvocable 白名单反射执行（ARCH-DEBT-001 关闭，幂等执行键经 TaskExecutionContext 透传）+ 专用 accessTaskExecutor + 接管扫描器（advisory lock 协调）+ 删除 TenantAwareScheduled 残留；5 项用户决策；592 测试基线，PG Testcontainers 双实例租约并发测试本机无 Docker 待 CI 执行；设计 §8.1 回写完成）。同日 AI 复评 8 条结论（6 P1 + 2 P2，核实 7 实 1 部分实）全部处置：attempt 级 fencing（RETURNING 尝试号 + owner/attempt 双条件）、抢占后立即续租覆盖排队期 + 出队租约校验、FAILED 至少一次重试 + 抢占 maxAttempts 上限、跨时区不处理（用户决策，修正误导表述）、删除无参 @JobInvocable 签名（用户决策：必须接收上下文）、PG 测试建表提前到 @BeforeAll、advisory lock 抢锁失败跳过本轮（用户决策维持 advisory lock）、编排从 DomainService 上移调度层 JobServiceImpl 消除同层注入；593 测试基线。二轮复评 3 P1 + 3 P2 全部属实并修复（8 项用户决策累计）：执行器拒绝改抛 RejectedExecutionException 通知提交方（原只记日志致续租永续任务悬挂）、多实例配置周期对账 JobScheduleReconciler 60s + 触发时重读任务行（用户决策，漂移窗口 ≤60s 不引入 MQ 广播）、僵尸执行 abandonExecution 收敛防接管批次饥饿、白名单经 ultimateTargetClass 代理兼容（保留 @Transactional 语义）、接管 scheduledTime 由执行键反解、手动键 UUID 防碰撞；605 测试基线。三轮复评 3 P1 + 1 P2 全部属实并修复：对账失败租户不参与删除判定（临时 DB 异常不再误删该租户调度）、续租专用 taskLeaseRenewalScheduler + scheduling pool 2（共享单线程调度器阻塞会停摆续租误触发接管）、abandon 按候选快照 fencing（不碰并发抢占/SUCCESS 行）、对账真 diff（cron 未变不重建、Trigger 先构造后取消）；608 测试基线。四轮复评 1 P1 + 1 P2 + 1 P3 属实并修复：显式声明共享 taskScheduler（声明任何 TaskScheduler Bean 会使 Boot 自动配置退让，隔离失效）+ ApplicationContextRunner 拓扑测试、对账/启动加载改跨租户单条批量查询 selectAllEnabledJobs（§8.4.8，删 TenantIdProvider 残留）、补真 cron 变更测试；610 测试基线。五轮复评建议通过（无阻断），3 项 P3 清理完成：共享调度器 removeOnCancelPolicy、删除无调用者的 selectEnabledJobs、修正文档 TenantIdProvider 残留描述；610 测试基线。
 
 ## 归档条件
 

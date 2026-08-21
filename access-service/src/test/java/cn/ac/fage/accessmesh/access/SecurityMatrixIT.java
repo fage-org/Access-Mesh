@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
 import cn.ac.fage.accessmesh.access.permission.service.AbstractUserSyncAppService;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
-import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,10 +74,6 @@ class SecurityMatrixIT {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
-    private TenantIdProvider tenantIdProvider;
-
-
     /** 认证业务层 mock（/auth/captcha 走真实服务会触达 Redis——mock 连接工厂无 connection）。 */
     @MockBean
     private cn.ac.fage.accessmesh.access.admin.service.AuthService authService;
@@ -98,11 +93,6 @@ class SecurityMatrixIT {
     /** 权限管理业务层 mock（矩阵验证目标为身份层放行）。 */
     @MockBean
     private DomainConfigAppService domainConfigAppService;
-
-    @BeforeEach
-    void mockTenantIds() {
-        when(tenantIdProvider.getTenantIds()).thenReturn(java.util.Collections.emptySet());
-    }
 
     @Test
     @DisplayName("公开认证：/auth/** 匿名可访问（ANONYMOUS 上下文）")

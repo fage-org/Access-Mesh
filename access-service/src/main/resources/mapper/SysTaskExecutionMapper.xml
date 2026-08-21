@@ -9,4 +9,135 @@
           AND delete_flag = 0
     </select>
 
+    <!--
+      T-ACCESS-009 原子抢占（含故障接管与失败重试）：
+      首次执行走 INSERT 分支（attempt_count 从 1 起）；
+      已存在记录时仅当「未成功完成」「无有效租约（租约不存在或已过期）」且
+      「未超最大尝试次数」才允许抢占（attempt_count+1）。
+      RETURNING 返回抢占成功后的 attempt_count（本次尝试号，fencing token），
+      无行返回即抢占失败。所有条件在数据库端原子判定，时间基准为数据库 now()。
+    -->
+    <select id="tryClaimExecution" resultType="java.lang.Integer">
+        INSERT INTO sys_task_execution
+            (tenant_id, execution_key, status, lease_owner, lease_until,
+             attempt_count, started_at, created_at, updated_at, delete_flag)
+        VALUES (#{tenantId}, #{executionKey}, 'RUNNING', #{leaseOwner},
+                now() + make_interval(secs => #{leaseSeconds}::int),
+                1, now(), now(), now(), 0)
+        ON CONFLICT (tenant_id, execution_key) WHERE delete_flag = 0
+        DO UPDATE SET
+            status        = 'RUNNING',
+            lease_owner   = EXCLUDED.lease_owner,
+            lease_until   = EXCLUDED.lease_until,
+            attempt_count = sys_task_execution.attempt_count + 1,
+            started_at    = now(),
+            finished_at   = NULL,
+            last_error    = NULL,
+            updated_at    = now()
+        WHERE sys_task_execution.status != 'SUCCESS'
+          AND sys_task_execution.attempt_count &lt; #{maxAttempts}
+          AND (
+                sys_task_execution.lease_until IS NULL
+                OR sys_task_execution.lease_until &lt; now()
+              )
+        RETURNING sys_task_execution.attempt_count
+    </select>
+
+    <!--
+      T-ACCESS-009 续租：仅当前持有者、租约未过期且 attempt 未被新抢占顶替时延长。
+      条件同时校验 lease_owner 与 attempt_count（fencing）：同一实例接管自己的
+      过期任务时 owner 不变，但 attempt_count 已递增，旧 attempt 的续租必须失败。
+      返回 0 表示租约已丢失，调用方必须停止执行且不得写回执行结果。
+    -->
+    <update id="renewLease">
+        UPDATE sys_task_execution
+        SET lease_until = now() + make_interval(secs => #{leaseSeconds}::int),
+            updated_at  = now()
+        WHERE tenant_id      = #{tenantId}
+          AND execution_key  = #{executionKey}
+          AND delete_flag    = 0
+          AND status         = 'RUNNING'
+          AND lease_owner    = #{leaseOwner}
+          AND attempt_count  = #{expectedAttempt}
+          AND lease_until &gt; now()
+    </update>
+
+    <!--
+      T-ACCESS-009 条件完成/失败：仅当前租约持有者且 attempt 未被顶替时可写回终态
+      （lease_owner + attempt_count 双条件 fencing）。租约被接管后旧持有者更新
+      不生效（返回 0），保证旧执行尝试不能覆盖新执行尝试的结果。
+    -->
+    <update id="completeExecution">
+        UPDATE sys_task_execution
+        SET status      = CASE WHEN #{success} THEN 'SUCCESS' ELSE 'FAILED' END,
+            finished_at = now(),
+            last_error  = #{lastError},
+            lease_until = NULL,
+            updated_at  = now()
+        WHERE tenant_id      = #{tenantId}
+          AND execution_key  = #{executionKey}
+          AND delete_flag    = 0
+          AND status         = 'RUNNING'
+          AND lease_owner    = #{leaseOwner}
+          AND attempt_count  = #{expectedAttempt}
+    </update>
+
+    <!--
+      T-ACCESS-009 重试候选（接管扫描）：
+      a) RUNNING 且租约已过期（持有实例故障）；
+      b) FAILED 且未超最大尝试次数（失败后至少一次重试，§8.1 语义）。
+      已超最大次数的过期 RUNNING 由 failExpiredOverMaxAttempts 收敛，不在此列。
+      跨租户系统级扫描（扫描器逐条以任务上下文执行接管）。
+    -->
+    <select id="selectRetryable" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.SysTaskExecution">
+        SELECT * FROM sys_task_execution
+        WHERE delete_flag = 0
+          AND attempt_count &lt; #{maxAttempts}
+          AND (
+                (status = 'RUNNING' AND lease_until &lt; now())
+                OR status = 'FAILED'
+              )
+        ORDER BY updated_at
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      T-ACCESS-009 超过最大重试次数的过期执行收敛为终态 FAILED，避免永久悬挂。
+    -->
+    <update id="failExpiredOverMaxAttempts">
+        UPDATE sys_task_execution
+        SET status      = 'FAILED',
+            finished_at = now(),
+            last_error  = #{lastError},
+            lease_until = NULL,
+            updated_at  = now()
+        WHERE delete_flag = 0
+          AND status = 'RUNNING'
+          AND lease_until &lt; now()
+          AND attempt_count &gt;= #{maxAttempts}
+    </update>
+
+    <!--
+      T-ACCESS-009 不可重试执行收敛（如任务配置已删除）：attempt_count 拉满到
+      maxAttempts 使其不再满足 selectRetryable/tryClaim 的重试条件，防止僵尸
+      记录每轮占据接管批次导致有效重试饥饿。
+      fencing：按候选读取时的快照（status + attempt_count）条件更新，且不碰
+      SUCCESS 行、RUNNING 候选要求租约仍过期——读取后被其他实例抢占/完成的
+      行更新不生效（返回 0），不会破坏新尝试的续租/完成与已成功的结果。
+    -->
+    <update id="abandonExecution">
+        UPDATE sys_task_execution
+        SET attempt_count = #{maxAttempts},
+            last_error    = #{reason},
+            updated_at    = now()
+        WHERE tenant_id     = #{tenantId}
+          AND execution_key = #{executionKey}
+          AND delete_flag   = 0
+          AND status        = #{expectedStatus}
+          AND status       != 'SUCCESS'
+          AND attempt_count = #{expectedAttempt}
+          AND attempt_count &lt; #{maxAttempts}
+          AND (status = 'FAILED' OR lease_until &lt; now())
+    </update>
+
 </mapper>

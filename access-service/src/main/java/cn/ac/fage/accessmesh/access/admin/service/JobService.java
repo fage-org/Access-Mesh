@@ -102,6 +102,27 @@ public interface JobService {
     PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup);
 
     /**
+     * 执行一轮租约接管扫描（T-ACCESS-009）
+     * <p>
+     * 收敛超过最大尝试次数的过期执行为 FAILED，随后对可重试执行
+     * （RUNNING 租约过期 / FAILED 未超限）原子接管重试。
+     * 供接管扫描器（{@code TaskLeaseTakeoverScheduler}）周期调用，
+     * 不经 HTTP 暴露。
+     * </p>
+     */
+    void takeoverExpiredExecutions();
+
+    /**
+     * 多实例任务配置对账（T-ACCESS-009 用户决策：周期对账）
+     * <p>
+     * 从数据库重载全部启用任务并 diff 重调度，取消已停用/删除任务的调度——
+     * 任务 CRUD 只操作当前实例内存，其他实例靠本对账周期性收敛配置漂移。
+     * 供对账组件（{@code JobScheduleReconciler}）周期调用，不经 HTTP 暴露。
+     * </p>
+     */
+    void reconcileScheduledJobs();
+
+    /**
      * 分页查询任务执行日志
      * <p>
      * 根据条件分页查询任务执行日志列表。

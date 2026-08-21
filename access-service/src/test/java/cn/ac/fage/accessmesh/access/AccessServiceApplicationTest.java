@@ -4,7 +4,6 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,17 +69,6 @@ class AccessServiceApplicationTest {
 
     @Autowired
     private ApplicationContext applicationContext;
-
-    /**
-     * Mock 租户提供器：空租户集合，跳过 @PostConstruct 初始化查询（sys_job/sys_user 等表在空库中不存在）。
-     */
-    @MockBean
-    private TenantIdProvider tenantIdProvider;
-
-    @org.junit.jupiter.api.BeforeEach
-    void mockTenantIds() {
-        when(tenantIdProvider.getTenantIds()).thenReturn(java.util.Collections.emptySet());
-    }
 
     /**
      * 测试数据源配置：提供 H2 内存数据库，满足 MybatisFlexAutoConfiguration 的

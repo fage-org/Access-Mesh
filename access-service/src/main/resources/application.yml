@@ -43,6 +43,21 @@ spring:
         queue-capacity: 1000
         keep-alive: 60s
       thread-name-prefix: access-async-
+    # T-ACCESS-009：共享调度器池（cron 触发/对账/接管扫描共用；维护任务在线程内做
+    # 数据库 IO，默认单线程会互相饿死）。租约续租不在此池——专用 taskLeaseRenewalScheduler。
+    scheduling:
+      pool:
+        size: 2
+
+# T-ACCESS-009：sys_job 任务执行专用有界线程池（与审计异步 accessAsyncExecutor 容量隔离）。
+# 拒绝语义：队列满/停机时放弃本次提交并告警，执行租约到期后由接管扫描器按至少一次语义重试。
+access:
+  task:
+    executor:
+      core-size: 2
+      max-size: 4
+      queue-capacity: 100
+      keep-alive: 60s
 
 sa-token:
   # T-ACCESS-003：平台用户会话与 Gateway 统一（token-name/token-prefix/token-style/timeout/active-timeout/会话键）

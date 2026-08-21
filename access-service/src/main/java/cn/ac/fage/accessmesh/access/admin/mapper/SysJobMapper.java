@@ -29,12 +29,15 @@ public interface SysJobMapper extends BaseMapper<SysJob> {
     SysJob selectValidById(@Param("tenantId") Long tenantId, @Param("id") Long id);
 
     /**
-     * 查询指定租户下所有启用的有效任务
+     * 查询全部租户下所有启用的有效任务（跨租户单条批量查询，T-ACCESS-009）
+     * <p>
+     * 供启动加载与多实例配置对账使用——按租户循环查询违反 §8.4.8 N+1 禁令。
+     * 任务调度与对账以 jobId 为主键操作，跨租户加载无租户作用域问题。
+     * </p>
      *
-     * @param tenantId 租户ID
-     * @return 启用状态的有效任务列表
+     * @return 全部租户启用状态的有效任务列表
      */
-    List<SysJob> selectEnabledJobs(@Param("tenantId") Long tenantId);
+    List<SysJob> selectAllEnabledJobs();
 
     /**
      * 批量查询有效任务（租户隔离+未删除）

@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.access.permission.cache.PermInvalidationPublisher;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.mybatis.TenantIdProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,8 +124,6 @@ class UserOrgWriteAppServiceFaultInjectionIT {
     @MockBean
     private AdminPermissionValidator permissionValidator;
 
-    @MockBean
-    private TenantIdProvider tenantIdProvider;
 
     @BeforeEach
     void setUp() {
