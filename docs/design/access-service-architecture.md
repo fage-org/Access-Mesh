@@ -252,6 +252,13 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - 接受广播丢失、提交后缓存删除失败或失效后旧读取完成回填时最长 30 秒的授权读取不一致窗口；正常失效目标为毫秒到亚秒级。
 - 后续只有在性能数据证明必须启用授权 L1 时，才评估租户级权限版本屏障。
 
+**落地实现（T-ACCESS-008，2026-08-21）**：
+
+- **快照链路 6 目录**（`perm:effective-roles`、`perm:role-perm-snapshot`、`perm:type-value`、`perm:type-code`、`perm:condition-rules`、`perm:role-mutex-rule`）L2_ONLY + 10s（用户决策①）；`OPERATION_PERMISSIONS_BY_TYPE` 不进快照内容，保持 L1_L2 60m/120m 普通缓存；`ORG_VISIBILITY` 保持 L2_ONLY 60s。`PermCacheBoundaryValidator` 启动强制有效 L2 TTL≤10s（含 YAML 覆盖）。
+- **剩余 TTL 回填**：`CacheService.beginRead` 令牌记录单调时钟起点（DB 读取前），`put(token,...)` 只写「读取起点 + catalog 有效 TTL」剩余 TTL、≤0 不写、批量/重试不重置；`put(..., Duration)` 单次有效 TTL 强制 cap catalog TTL。L1 层（Caffeine 固定过期）仅当 catalog L1 TTL 在预算内才写，否则跳过。
+- **普通 L1 跨实例失效**：L1_L2 目录 evict/evictAll 时经 RTopic `accessmesh:cache:l1-invalidate` 广播，各实例订阅清本地 L1；失败计 `cache.invalidate.failures` 指标，L1 TTL 兜底；回滚不失效。
+- **Gateway**：快照缓存迁统一 CacheService（L1_ONLY `gw:interface-snapshot` 15s/50000，`accessmesh.cache.catalogs` 运维覆盖）；失效粒度用户级精确（跟踪索引 + 在途回源注册表候选；索引缺失由快照 TTL 兜底）+ 租户级兜底（用户决策③）；失效先递增代际再清缓存（防旧回源复活窗口）；固定 fail-closed（fail-mode/open/stale-allow 删除）；`snapshot-load-deadline` 5s 全链路墙钟硬截止（重试共享截止、超时不写缓存 503）；`GatewayCacheBoundaryValidator` 启动强制 L1≤15s、截止≤5s。
+
 ## 8. 任务、异步与审计
 
 ### 8.1 多实例任务协调

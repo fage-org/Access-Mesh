@@ -64,6 +64,11 @@ class PermQueryEngineTest {
 
     private PermQueryEngine engine;
 
+    /** beginRead 委托对象：mock cacheService 直接返回 null 令牌，借真实实现产生合法读取令牌 */
+    private final cn.ac.fage.accessmesh.common.cache.DefaultCacheService realCacheService =
+        new cn.ac.fage.accessmesh.common.cache.DefaultCacheService(null, null, null,
+            new cn.ac.fage.accessmesh.common.cache.CacheProperties(), null);
+
     @BeforeEach
     void setUp() {
         engine = new PermQueryEngine(
@@ -78,6 +83,11 @@ class PermQueryEngineTest {
             cacheService,
             operationPermissionMapper
         );
+        // T-ACCESS-008：beginRead 委托真实实现——mock 默认返回 null 令牌会导致
+        // putBatch(token) 断言失真
+        org.mockito.Mockito.lenient().when(cacheService.beginRead(org.mockito.ArgumentMatchers.any(
+                cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class)))
+            .thenAnswer(inv -> realCacheService.beginRead(inv.getArgument(0)));
     }
 
     @Test
@@ -261,7 +271,13 @@ class PermQueryEngineTest {
         assertEquals(1, result.allEntries().size());
         // 全 hit：不应回源 DB
         verify(rolePermMapper, never()).selectValidByRoleIds(any(), any());
-        verify(cacheService, never()).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), any());
+        // T-ACCESS-008：全 hit 不回填（含读取令牌路径）
+        verify(cacheService, never()).putBatch(org.mockito.ArgumentMatchers.any(
+                cn.ac.fage.accessmesh.common.cache.CacheReadToken.class),
+            eq(1L), any());
+        verify(cacheService, never()).putBatch(org.mockito.ArgumentMatchers.any(
+                cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class),
+            eq(1L), any());
     }
 
     @Test
@@ -285,7 +301,11 @@ class PermQueryEngineTest {
         verify(rolePermMapper).selectValidByRoleIds(1L, Set.of(20L, 21L));
         org.mockito.ArgumentCaptor<Map<Long, List<RolePermEntry>>> captor =
             org.mockito.ArgumentCaptor.forClass(Map.class);
-        verify(cacheService).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), captor.capture());
+        // T-ACCESS-008：回填走读取令牌（剩余 TTL），验证令牌绑定同一 catalog
+        org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.common.cache.CacheReadToken<List<RolePermEntry>>> tokenCaptor =
+            org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
+        verify(cacheService).putBatch(tokenCaptor.capture(), eq(1L), captor.capture());
+        assertEquals(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tokenCaptor.getValue().catalog());
         Map<Long, List<RolePermEntry>> backfilled = captor.getValue();
         assertEquals(2, backfilled.size());
         assertEquals(1, backfilled.get(20L).size());
@@ -333,7 +353,10 @@ class PermQueryEngineTest {
         // 空权限角色缓存 List.of()（非 null）防穿透
         org.mockito.ArgumentCaptor<Map<Long, List<RolePermEntry>>> captor =
             org.mockito.ArgumentCaptor.forClass(Map.class);
-        verify(cacheService).putBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), captor.capture());
+        // T-ACCESS-008：回填走读取令牌（剩余 TTL）
+        verify(cacheService).putBatch(org.mockito.ArgumentMatchers.any(
+                cn.ac.fage.accessmesh.common.cache.CacheReadToken.class),
+            eq(1L), captor.capture());
         List<RolePermEntry> cachedForRole = captor.getValue().get(20L);
         assertNotNull(cachedForRole);
         assertTrue(cachedForRole.isEmpty());

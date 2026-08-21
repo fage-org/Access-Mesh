@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -942,6 +943,8 @@ public class PermQueryEngine {
      * T-PERM-018 缓存下沉：getBatch 批量查 roleIds，miss 集合 1 SQL（selectValidByRoleIds），
      * putBatch 回填；空权限角色缓存空列表（List.of()，非 null）防穿透。
      * 缓存值为条件评估前、互斥过滤前的原始权限记录；条件实时评估（条件变更洞消失）。
+     * T-ACCESS-008：授权 L2 miss——SQL 前记录单调时钟起点（beginRead），
+     * 回填只写剩余 TTL；批量共享同一起点，不得重置。
      * </p>
      *
      * @param tenantId 租户ID
@@ -963,8 +966,10 @@ public class PermQueryEngine {
             }
         }
 
-        // 2. miss 集合回源 1 SQL
+        // 2. miss 集合回源 1 SQL（读取起点在 SQL 前——剩余 TTL 从此刻起算）
         if (!miss.isEmpty()) {
+            CacheReadToken<List<RolePermEntry>> readToken =
+                cacheService.beginRead(PermCacheCatalog.ROLE_PERM_SNAPSHOT);
             List<RoleResourcePermission> dbRows = rolePermMapper.selectValidByRoleIds(tenantId, miss);
             Map<Long, List<RolePermEntry>> perRole = new LinkedHashMap<>();
             for (RoleResourcePermission p : dbRows) {
@@ -977,7 +982,7 @@ public class PermQueryEngine {
                 allEntries.addAll(entries);
                 toPut.put(roleId, entries); // 空列表（List.of()）也缓存，防穿透
             }
-            cacheService.putBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, toPut);
+            cacheService.putBatch(readToken, tenantId, toPut);
         }
 
         return allEntries;

@@ -10,7 +10,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.redisson.api.RBatch;
 import org.redisson.api.RBucket;
-import org.redisson.api.RBucketAsync;
 import org.redisson.api.RFuture;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * 用于 L2_ONLY 模式：
  * - 纯 Redis 存储，无本地缓存
- * - 使用 RBucket<String> 存储 JSON 字符串
+ * - 使用 RBucket&lt;String&gt; 存储 JSON 字符串
  * - 批量操作使用 RBatch Pipeline
  * </p>
  *
@@ -41,6 +40,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>批量写入使用 Pipeline 提升性能</li>
  *   <li>SCAN 删除避免 KEYS 阻塞</li>
  *   <li>put(null) 静默忽略，不缓存 null</li>
+ *   <li>TTL 为 java.time.Duration 秒级精度；单次有效 TTL 强制不超过 catalog TTL，剩余 ≤0 不写</li>
  * </ul>
  */
 public class RedissonBucketStore implements DistributedCacheStore {
@@ -54,7 +54,9 @@ public class RedissonBucketStore implements DistributedCacheStore {
 
     private final Map<String, Counter> hitCounters = new ConcurrentHashMap<>();
     private final Map<String, Counter> missCounters = new ConcurrentHashMap<>();
+    private final Map<String, Counter> putCounters = new ConcurrentHashMap<>();
     private final Map<String, Counter> errorCounters = new ConcurrentHashMap<>();
+    private final Map<String, Counter> invalidateFailureCounters = new ConcurrentHashMap<>();
     private final Map<String, Timer> readTimers = new ConcurrentHashMap<>();
     private final Map<String, Timer> writeTimers = new ConcurrentHashMap<>();
 
@@ -157,21 +159,30 @@ public class RedissonBucketStore implements DistributedCacheStore {
 
     @Override
     public <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value) {
+        put(catalog, fullKey, value, null);
+    }
+
+    @Override
+    public <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value, Duration effectiveTtl) {
         if (value == null) {
             return;
         }
 
         String catalogCode = catalog.getCode();
-        int l2Ttl = cacheProperties.getEffectiveL2Ttl(catalogCode, catalog.getL2TtlMinutes());
+        Duration ttl = resolveWriteTtl(catalog, effectiveTtl);
+        if (ttl == null) {
+            return;
+        }
 
         long start = System.nanoTime();
         try {
             String json = objectMapper.writeValueAsString(value);
             RBucket<String> bucket = redissonClient.getBucket(fullKey);
-            bucket.set(json, Duration.ofMinutes(l2Ttl));
+            bucket.set(json, ttl);
 
             long duration = System.nanoTime() - start;
             recordWrite(catalogCode, duration);
+            incrementCounter(getPutCounter(catalogCode));
         } catch (Exception e) {
             log.error("Failed to put to L2, key={}", fullKey, e);
             incrementCounter(getErrorCounter(catalogCode));
@@ -180,13 +191,20 @@ public class RedissonBucketStore implements DistributedCacheStore {
 
     @Override
     public <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data) {
+        putBatch(catalog, data, null);
+    }
+
+    @Override
+    public <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data, Duration effectiveTtl) {
         if (data == null || data.isEmpty()) {
             return;
         }
 
         String catalogCode = catalog.getCode();
-        int l2Ttl = cacheProperties.getEffectiveL2Ttl(catalogCode, catalog.getL2TtlMinutes());
-        Duration ttl = Duration.ofMinutes(l2Ttl);
+        Duration ttl = resolveWriteTtl(catalog, effectiveTtl);
+        if (ttl == null) {
+            return;
+        }
 
         long start = System.nanoTime();
         try {
@@ -203,6 +221,7 @@ public class RedissonBucketStore implements DistributedCacheStore {
 
             long duration = System.nanoTime() - start;
             recordWrite(catalogCode, duration);
+            incrementCounter(getPutCounter(catalogCode));
         } catch (Exception e) {
             log.error("Failed to batch put to L2", e);
             incrementCounter(getErrorCounter(catalogCode));
@@ -216,6 +235,8 @@ public class RedissonBucketStore implements DistributedCacheStore {
         } catch (Exception e) {
             log.error("Failed to evict from L2, key={}", fullKey, e);
             incrementCounter(getErrorCounter(catalog.getCode()));
+            incrementCounter(invalidateFailureCounters.computeIfAbsent(catalog.getCode(), k ->
+                createInvalidateFailureCounter(k)));
         }
     }
 
@@ -234,12 +255,15 @@ public class RedissonBucketStore implements DistributedCacheStore {
         } catch (Exception e) {
             log.error("Failed to batch evict from L2", e);
             incrementCounter(getErrorCounter(catalog.getCode()));
+            incrementCounter(invalidateFailureCounters.computeIfAbsent(catalog.getCode(), k ->
+                createInvalidateFailureCounter(k)));
         }
     }
 
     @Override
     public <V> void evictAll(CacheCatalogEntry<V> catalog, Long tenantId) {
-        String pattern = CacheKeyUtil.buildScanPattern(tenantId, catalog.getCode());
+        String catalogCode = catalog.getCode();
+        String pattern = CacheKeyUtil.buildScanPattern(tenantId, catalogCode);
 
         try {
             Set<String> keysToDelete = new HashSet<>();
@@ -258,22 +282,82 @@ public class RedissonBucketStore implements DistributedCacheStore {
                 deleteBatchKeys(keysToDelete);
             }
 
-            log.info("Evicted all L2 cache for catalog={}, tenantId={}", catalog.getCode(), tenantId);
+            log.info("Evicted all L2 cache for catalog={}, tenantId={}", catalogCode, tenantId);
         } catch (Exception e) {
-            log.error("Failed to evict all from L2 for catalog={}", catalog.getCode(), e);
-            incrementCounter(getErrorCounter(catalog.getCode()));
+            // 复评 P2 修复：L2 全量失效失败不得误报成功——记录失效失败指标，
+            // 剩余条目由 TTL 兜底最终一致
+            log.error("Failed to evict all from L2 for catalog={}, tenantId={}", catalogCode, tenantId, e);
+            incrementCounter(invalidateFailureCounters.computeIfAbsent(catalogCode, k ->
+                createInvalidateFailureCounter(k)));
         }
     }
 
+    /**
+     * catalog 级全量失效（跨租户）：SCAN 模式删除。
+     * 供订阅重连全量清空等不依赖租户枚举的恢复场景；代价高于租户级 evictAll。
+     * SCAN 宽松模式会命中其他目录 identifier 内嵌本目录编码的键，
+     * 删除前按完整键结构精确过滤（belongsToCatalog）。
+     */
+    @Override
+    public <V> void evictAll(CacheCatalogEntry<V> catalog) {
+        String catalogCode = catalog.getCode();
+        String pattern = CacheKeyUtil.buildCatalogPattern(catalogCode);
+
+        try {
+            Set<String> keysToDelete = new HashSet<>();
+            int batchSize = 100;
+
+            Iterable<String> keys = redissonClient.getKeys().getKeysByPattern(pattern, batchSize);
+            for (String key : keys) {
+                if (!CacheKeyUtil.belongsToCatalog(key, catalogCode)) {
+                    continue;
+                }
+                keysToDelete.add(key);
+                if (keysToDelete.size() >= batchSize) {
+                    deleteBatchKeys(keysToDelete);
+                    keysToDelete.clear();
+                }
+            }
+
+            if (!keysToDelete.isEmpty()) {
+                deleteBatchKeys(keysToDelete);
+            }
+
+            log.info("Evicted all L2 cache for catalog={} (all tenants)", catalogCode);
+        } catch (Exception e) {
+            // 复评 P2 修复：L2 全量失效失败不得误报成功——记录失效失败指标，
+            // 剩余条目由 TTL 兜底最终一致
+            log.error("Failed to evict all tenants from L2 for catalog={}", catalogCode, e);
+            incrementCounter(invalidateFailureCounters.computeIfAbsent(catalogCode, k ->
+                createInvalidateFailureCounter(k)));
+        }
+    }
+
+    // ==================== 内部方法 ====================
+
+    /**
+     * 解析本次写入 TTL：null 使用 catalog 有效 TTL；非空钳制为不超过 catalog TTL；
+     * 零/负（预算耗尽）返回 null 表示不写。
+     */
+    private Duration resolveWriteTtl(CacheCatalogEntry<?> catalog, Duration effectiveTtl) {
+        Duration catalogTtl = cacheProperties.getEffectiveL2Ttl(catalog.getCode(), catalog.getL2Ttl());
+        if (effectiveTtl == null) {
+            return catalogTtl;
+        }
+        if (effectiveTtl.isZero() || effectiveTtl.isNegative()) {
+            return null;
+        }
+        return effectiveTtl.compareTo(catalogTtl) > 0 ? catalogTtl : effectiveTtl;
+    }
+
+    /**
+     * 分批删除键；失败向上抛出由 evictAll 统一计入失效失败指标（不静默吞掉）。
+     */
     private void deleteBatchKeys(Set<String> keys) {
         if (keys.isEmpty()) {
             return;
         }
-        try {
-            redissonClient.getKeys().delete(keys.toArray(new String[0]));
-        } catch (Exception e) {
-            log.error("Failed to delete keys batch", e);
-        }
+        redissonClient.getKeys().delete(keys.toArray(new String[0]));
     }
 
     // ==================== 监控 ====================
@@ -298,6 +382,17 @@ public class RedissonBucketStore implements DistributedCacheStore {
         });
     }
 
+    private Counter getPutCounter(String catalogCode) {
+        return putCounters.computeIfAbsent(catalogCode, k -> {
+            if (meterRegistry == null) return null;
+            return Counter.builder("cache.puts")
+                .tag("layer", "l2")
+                .tag("catalog", k)
+                .description("Cache backfill writes (loads)")
+                .register(meterRegistry);
+        });
+    }
+
     private Counter getErrorCounter(String catalogCode) {
         return errorCounters.computeIfAbsent(catalogCode, k -> {
             if (meterRegistry == null) return null;
@@ -306,6 +401,15 @@ public class RedissonBucketStore implements DistributedCacheStore {
                 .description("L2 cache errors")
                 .register(meterRegistry);
         });
+    }
+
+    private Counter createInvalidateFailureCounter(String catalogCode) {
+        if (meterRegistry == null) return null;
+        return Counter.builder("cache.invalidate.failures")
+            .tag("type", "evict")
+            .tag("catalog", catalogCode)
+            .description("Cache invalidation failures (evict)")
+            .register(meterRegistry);
     }
 
     private void recordRead(String catalogCode, long durationNanos) {

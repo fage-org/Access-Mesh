@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>按 catalogCode 管理独立 Caffeine 实例</li>
  *   <li>computeIfAbsent 懒创建缓存</li>
  *   <li>使用 Jackson 序列化处理复杂泛型</li>
+ *   <li>TTL 为 java.time.Duration 秒级精度；单次有效 TTL 经条目级
+ *       {@code policy().expireAfterWrite().setExpiresAfter} 生效，强制不超过 catalog TTL，剩余 ≤0 不写</li>
  * </ul>
  */
 public class CaffeineLocalCacheStore implements LocalCacheStore {
@@ -48,6 +51,7 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
 
     private final Map<String, Counter> hitCounters = new ConcurrentHashMap<>();
     private final Map<String, Counter> missCounters = new ConcurrentHashMap<>();
+    private final Map<String, Counter> putCounters = new ConcurrentHashMap<>();
     private final Map<String, Timer> readTimers = new ConcurrentHashMap<>();
     private final Map<String, Timer> writeTimers = new ConcurrentHashMap<>();
 
@@ -121,18 +125,29 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
 
     @Override
     public <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value) {
+        put(catalog, fullKey, value, null);
+    }
+
+    @Override
+    public <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value, Duration effectiveTtl) {
         if (value == null) {
             return;
         }
 
         Cache<String, Object> cache = getOrCreateCache(catalog);
         String catalogCode = catalog.getCode();
+        Duration catalogTtl = catalogTtlUsed(catalog);
+        if (!allowsWrite(catalogTtl, effectiveTtl)) {
+            // 剩余预算耗尽，或有效 TTL 短于 catalog TTL（L1_ONLY 无条目级 TTL 能力）：不缓存
+            return;
+        }
 
         long start = System.nanoTime();
         try {
             cache.put(fullKey, value);
             long duration = System.nanoTime() - start;
             recordWrite(catalogCode, duration);
+            incrementCounter(putCounters.computeIfAbsent(catalogCode, k -> createPutCounter(k)));
         } catch (Exception e) {
             log.error("Failed to put to Caffeine, key={}", fullKey, e);
         }
@@ -140,12 +155,20 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
 
     @Override
     public <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data) {
+        putBatch(catalog, data, null);
+    }
+
+    @Override
+    public <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data, Duration effectiveTtl) {
         if (data == null || data.isEmpty()) {
             return;
         }
 
         Cache<String, Object> cache = getOrCreateCache(catalog);
         String catalogCode = catalog.getCode();
+        if (!allowsWrite(catalogTtlUsed(catalog), effectiveTtl)) {
+            return;
+        }
 
         long start = System.nanoTime();
         for (Map.Entry<String, V> e : data.entrySet()) {
@@ -155,6 +178,7 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
         }
         long duration = System.nanoTime() - start;
         recordWrite(catalogCode, duration);
+        incrementCounter(putCounters.computeIfAbsent(catalogCode, k -> createPutCounter(k)));
     }
 
     @Override
@@ -195,6 +219,18 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
     }
 
     @Override
+    public <V> void evictAll(CacheCatalogEntry<V> catalog) {
+        Cache<String, Object> cache = getOrCreateCache(catalog);
+
+        try {
+            cache.asMap().keySet().removeIf(key -> CacheKeyUtil.belongsToCatalog(key, catalog.getCode()));
+            log.info("Evicted all local cache for catalog={} (all tenants)", catalog.getCode());
+        } catch (Exception e) {
+            log.error("Failed to evict all tenants from Caffeine for catalog={}", catalog.getCode(), e);
+        }
+    }
+
+    @Override
     public <V> long estimatedSize(CacheCatalogEntry<V> catalog) {
         Cache<String, Object> cache = getOrCreateCache(catalog);
         try {
@@ -204,7 +240,42 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
         }
     }
 
+    /**
+     * 读取缓存实例配置的固定过期 TTL（测试用：验证秒级精度配置真实进入 Caffeine policy）。
+     */
+    long policyExpirationMillis(CacheCatalogEntry<?> catalog, String fullKey) {
+        Cache<String, Object> cache = caches.get(catalog.getCode());
+        if (cache == null) {
+            return -1L;
+        }
+        return cache.policy().expireAfterWrite()
+            .map(fixed -> fixed.getExpiresAfter(TimeUnit.MILLISECONDS))
+            .orElse(-1L);
+    }
+
     // ==================== 内部方法 ====================
+
+    /**
+     * 目录有效 L1 TTL（缓存实例构建基准）。
+     */
+    private Duration catalogTtlUsed(CacheCatalogEntry<?> catalog) {
+        return cacheProperties.getEffectiveL1Ttl(catalog.getCode(), catalog.getL1Ttl());
+    }
+
+    /**
+     * 是否允许写入：effectiveTtl 为 null（catalog TTL）或正值且不短于 catalog TTL 时写
+     * （以 catalog TTL 写入，生命周期不超过有效 TTL）；零/负（预算耗尽）或短于
+     * catalog TTL（L1_ONLY 无条目级 TTL 能力）时不写。
+     */
+    private boolean allowsWrite(Duration catalogTtl, Duration effectiveTtl) {
+        if (effectiveTtl == null) {
+            return true;
+        }
+        if (effectiveTtl.isZero() || effectiveTtl.isNegative()) {
+            return false;
+        }
+        return catalogTtl.compareTo(effectiveTtl) <= 0;
+    }
 
     private <V> Cache<String, Object> getOrCreateCache(CacheCatalogEntry<V> catalog) {
         return caches.computeIfAbsent(catalog.getCode(), code -> createCaffeineCache(catalog));
@@ -212,12 +283,12 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
 
     private <V> Cache<String, Object> createCaffeineCache(CacheCatalogEntry<V> catalog) {
         String catalogCode = catalog.getCode();
-        int l1Ttl = cacheProperties.getEffectiveL1Ttl(catalogCode, catalog.getL1TtlMinutes());
+        Duration l1Ttl = cacheProperties.getEffectiveL1Ttl(catalogCode, catalog.getL1Ttl());
         long l1MaxSize = cacheProperties.getEffectiveL1MaxSize(catalogCode, catalog.getL1MaxSize());
 
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
             .maximumSize(l1MaxSize)
-            .expireAfterWrite(l1Ttl, TimeUnit.MINUTES)
+            .expireAfterWrite(l1Ttl)
             .recordStats();
 
         Cache<String, Object> cache = builder.build();
@@ -262,6 +333,15 @@ public class CaffeineLocalCacheStore implements LocalCacheStore {
         return Counter.builder("cache.l1.misses")
             .tag("catalog", catalogCode)
             .description("L1 cache misses")
+            .register(meterRegistry);
+    }
+
+    private Counter createPutCounter(String catalogCode) {
+        if (meterRegistry == null) return null;
+        return Counter.builder("cache.puts")
+            .tag("layer", "l1")
+            .tag("catalog", catalogCode)
+            .description("Cache backfill writes (loads)")
             .register(meterRegistry);
     }
 

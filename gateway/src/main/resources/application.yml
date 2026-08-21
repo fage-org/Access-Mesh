@@ -109,13 +109,9 @@ gateway:
       - /public/**
       - /captcha/**
 
-  cache:
-    l1:
-      max-size: 50000
-      # T-PERM-001 快照模式：TTL 兜底 30s，快照失效主要靠 Redis pub/sub 主动广播（T-PERM-006）
-      ttl-seconds: 30
-      # T-PERM-008：stale store 续命窗口；T-GW-003 接入 stale-allow 时使用
-      stale-grace-seconds: 30
+  # T-ACCESS-008：快照缓存 TTL/容量统一由 GatewayCacheCatalog 声明（15s/50000），
+  # 运维覆盖走 accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl / l1-maximum-size；
+  # 原 gateway.cache.l1.*（ttl-seconds/stale-grace-seconds）随 stale-allow 删除废弃。
 
   header:
     clean:
@@ -140,8 +136,11 @@ gateway:
     # T-PERM-001 快照模式：Gateway 拉取用户全量接口权限快照用于本地匹配
     interface-snapshot-path: /api/perm/auth/interface-snapshot
     unregistered-policy: DENY
-    # T-GW-001：权限校验失联兜底模式。closed=拒绝（默认，生产安全）/ open=放行（仅demo）/ stale-allow=陈旧快照续命（T-GW-003）
-    fail-mode: closed
+    # T-ACCESS-008：快照加载全链路墙钟硬截止（服务发现/LB、连接、发送、处理、
+    # 响应读取解码及失效竞争重试共享同一截止）；超时不写缓存固定 fail-closed 503。
+    # 上限 5s，超限启动失败（GatewayCacheBoundaryValidator）；原 gateway.permission.fail-mode
+    # 已删除——回源失败固定 fail-closed，不可切换。
+    snapshot-load-deadline: 5s
 
   # Header signature configuration
   # Signs user identity headers (X-User-Id, X-Tenant-Id) to prevent tampering

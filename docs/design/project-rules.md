@@ -783,13 +783,15 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 项目已统一到 `common/cache/` 模块，所有业务缓存必须使用以下组件：
 
 - **唯一入口**: `CacheService`
-- **类型描述符**: `CacheCatalogEntry<V>`
+- **类型描述符**: `CacheCatalogEntry<V>`（TTL 为 `java.time.Duration`，秒级精度）
+- **读取令牌**: `CacheReadToken<V>`（授权 L2 miss 剩余 TTL 回填辅助）
 - **模式枚举**: `CacheMode`
 - **L1_L2 实现**: `CombinedL1L2Store`
 - **L2_ONLY 实现**: `RedissonBucketStore`
 - **L1_ONLY 实现**: `CaffeineLocalCacheStore`
-- **配置**: `CacheProperties`（代码默认值 + `accessmesh.cache.default` / `accessmesh.cache.catalogs.*` 运维覆盖）
-- **自动配置**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只在 Redisson 可用时补充 store bean
+- **配置**: `CacheProperties`（代码默认值 + `accessmesh.cache.default-config` / `accessmesh.cache.catalogs.*` 运维覆盖，Spring Boot Duration 文法如 `15s`/`5m`）
+- **跨实例 L1 失效广播**: `CacheInvalidationBroadcaster`（Redisson 可用时自动装配，L1_L2 目录失效时经 RTopic 广播，各实例订阅清理本地 L1）
+- **自动配置**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只在 Redisson 可用时补充 store bean 与广播器
 
 **核心规范**：
 
@@ -797,10 +799,20 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 | ---------------- | ---------------------------------------------------- | --------------------------------------------------------- |
 | **业务调用模式** | `get` → miss 后业务加载 → `put` → `evictAfterCommit` | 统一使用显式 Cache Aside，不提供 loader 回调 API          |
 | **键格式**       | `{tenantId}:{catalogCode}:{identifier}`              | `catalogCode` 必须自带服务前缀，如 `perm:effective-roles` |
-| **L1_L2**        | `CombinedL1L2Store`                                  | Caffeine L1 + Redisson `RBucket` L2，支持条目级 TTL       |
+| **L1_L2**        | `CombinedL1L2Store`                                  | Caffeine L1 + Redisson `RBucket` L2，条目级 TTL           |
 | **L2_ONLY**      | `RedissonBucketStore`                                | 纯 Redis 分布式缓存                                       |
 | **L1_ONLY**      | `CaffeineLocalCacheStore`                            | 纯本地缓存，适用于 gateway 等无 Redisson 依赖模块         |
-| **事务后失效**   | `evictAfterCommit` / `evictBatchAfterCommit`         | 由 `CacheService` 内部感知事务状态                        |
+| **事务后失效**   | `evictAfterCommit` / `evictBatchAfterCommit`         | 由 `CacheService` 内部感知事务状态；回滚不失效            |
+| **全量失效**     | `evictAll(catalog, tenantId)` / `evictAll(catalog)`  | 后者为 catalog 级跨租户全清（订阅重连等恢复场景，L2 走 SCAN，禁止高频调用） |
+| **单次有效 TTL** | `put(..., Duration)` / `putBatch(..., Duration)`     | 强制不超过 catalog 有效 TTL，剩余 ≤0 不写；L2 精确生效     |
+| **剩余 TTL 回填** | `beginRead` → 查 DB → `put(token,...)` / `putBatch(token,...)` | 授权 L2 miss 在 DB 读取前记录单调时钟起点；回填只写「读取起点 + catalog TTL」剩余 TTL；单条/批量/并发合并/重试不得重置起点 |
+
+**T-ACCESS-008 授权缓存安全边界（30 秒）**：
+
+- access-service 内可能影响接口权限快照的 6 个目录（`perm:effective-roles`、`perm:role-perm-snapshot`、`perm:type-value`、`perm:type-code`、`perm:condition-rules`、`perm:role-mutex-rule`）统一 **L2_ONLY、TTL≤10s、不创建授权 L1**；有效 L2 TTL 超限由 `PermCacheBoundaryValidator` 启动校验强制（含 YAML 覆盖值）。
+- Gateway 快照缓存 L1 TTL≤15s、快照加载全链路墙钟截止≤5s（`gateway.permission.snapshot-load-deadline`），由 `GatewayCacheBoundaryValidator` 启动校验强制；超截止不写缓存并固定 fail-closed 503。
+- 三段预算 10s + 5s + 15s ≤ 30s 构成最坏陈旧窗口上限；正常失效（事务提交后 evict 共享 L2 + 广播清理 Gateway/普通 L1）目标毫秒到亚秒级。
+- 权限缓存不可用时 access-service 绕过缓存查数据库；无法得到可信授权结果时 fail-closed。
 
 业务服务只允许注入 `CacheService`，不再为单个缓存创建 `CacheManager`、region 类或 loader 回调适配层。
 
@@ -816,6 +828,8 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 - ❌ 禁止在循环中调用单条查询方法（用批量方法）
 - ❌ 禁止数据变更后不触发缓存失效
 - ❌ 禁止业务侧手写 `TransactionSynchronizationManager.registerSynchronization` 做缓存失效
+- ❌ 禁止分钟制 TTL 字段（`l1TtlMinutes`/`l2TtlMinutes`/`l1-expire-minutes`/`l2-ttl-minutes` 已删除，不留兼容别名）
+- ❌ 禁止业务侧硬编码 TTL 换算（统一 `Duration` + catalog 声明 + `accessmesh.cache` 覆盖）
 
 ---
 
@@ -849,13 +863,15 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 
 ### 12.3 缓存 TTL 规范
 
-| 维度       | 规范                                                               |
+| 维度       | 规则                                                               |
 | ---------- | ------------------------------------------------------------------ |
+| 类型       | 统一 `java.time.Duration` 秒级精度；YAML 使用 Spring Boot Duration 文法（`15s`/`5m`） |
 | 默认值来源 | 优先使用 `CacheCatalogEntry` 中声明的 TTL / size                   |
-| 运维覆盖   | 使用 `accessmesh.cache.default.*` 与 `accessmesh.cache.catalogs.*` |
+| 运维覆盖   | 使用 `accessmesh.cache.default-config.*` 与 `accessmesh.cache.catalogs.*` |
 | L1_ONLY    | 只配置 L1 TTL 与 size                                              |
 | L2_ONLY    | 只配置 L2 TTL                                                      |
 | L1_L2      | 同时配置 L1 与 L2                                                  |
+| 安全边界   | 快照链路 6 目录有效 L2 TTL≤10s、Gateway 快照 L1≤15s——超限启动失败  |
 
 具体 TTL 应按 catalog 粒度定义，不再使用模块私有的分散常量或 Spring Cache region 配置。
 

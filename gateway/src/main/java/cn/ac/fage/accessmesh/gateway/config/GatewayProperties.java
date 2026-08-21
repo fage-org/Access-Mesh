@@ -5,12 +5,13 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
 
 /**
  * 网关自定义配置属性类
  * <p>
- * 绑定到'gateway'前缀的配置属性，包含白名单、缓存、请求头、权限、签名等配置。
+ * 绑定到'gateway'前缀的配置属性，包含白名单、请求头、权限、签名等配置。
  * 通过application.yml中的gateway.*配置项进行配置。
  * </p>
  *
@@ -19,6 +20,11 @@ import java.util.List;
  * {@code org.springframework.cloud.gateway.config.GatewayProperties}（GatewayAutoConfiguration
  * 创建）同名冲突，导致上下文无法启动（归并前既有缺陷，由新 Gateway 上下文测试暴露）。
  * 注入点按类型（cn.ac.fage.accessmesh.gateway.config.GatewayProperties）查找不受影响。</p>
+ *
+ * <p>T-ACCESS-008（2026-08-21）：删除 {@code gateway.cache.l1.*}（快照 TTL/容量统一由
+ * {@code GatewayCacheCatalog} 声明 + {@code accessmesh.cache.catalogs."gw:interface-snapshot".*}
+ * 运维覆盖）与 {@code gateway.permission.fail-mode}（权限回源失败固定 fail-closed，
+ * 不可切换）；新增 {@code snapshot-load-deadline} 快照加载全链路墙钟硬截止时间。</p>
  */
 @Getter
 @Setter
@@ -27,7 +33,6 @@ import java.util.List;
 public class GatewayProperties {
 
     private Whitelist whitelist = new Whitelist();
-    private Cache cache = new Cache();
     private Header header = new Header();
     private Permission permission = new Permission();
     private Signature signature = new Signature();
@@ -48,37 +53,6 @@ public class GatewayProperties {
             "/public/**",
             "/captcha/**"
         );
-    }
-
-    /**
-     * 缓存配置
-     * <p>
-     * 配置网关本地缓存参数，用于减少远程服务调用。
-     * </p>
-     */
-    @Getter
-    @Setter
-    public static class Cache {
-        private L1 l1 = new L1();
-
-        /**
-         * L1本地缓存配置
-         * <p>
-         * 配置Caffeine本地缓存的参数：
-         * - maxSize: 最大缓存条目数
-         * - ttlSeconds: 缓存过期时间
-         * </p>
-         */
-        @Getter
-        @Setter
-        public static class L1 {
-            private long maxSize = 50000;
-            // T-PERM-001：快照模式下 TTL 兜底 30-60s（快照失效主要靠 Redis pub/sub 主动广播 T-PERM-006，
-            // TTL 仅作兜底）。原 check-interface 单值模式为 10s。
-            private int ttlSeconds = 30;
-            // T-PERM-008：stale store 续命窗口，T-GW-003 接入 stale-allow 时使用。
-            private int staleGraceSeconds = 30;
-        }
     }
 
     /**
@@ -105,7 +79,7 @@ public class GatewayProperties {
         private Enrich enrich = new Enrich();
 
         /**
-         * 请求头增强配置
+         * 请求头增强
          * <p>
          * 配置从token中提取并添加到下游请求的请求头名称。
          * </p>
@@ -135,8 +109,17 @@ public class GatewayProperties {
         // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
         private String interfaceSnapshotPath = "/api/perm/auth/interface-snapshot";
         private String unregisteredPolicy = "DENY";
-        // T-GW-001：权限校验失联兜底模式。closed=拒绝（默认，生产安全）/ open=放行（仅demo）/ stale-allow=陈旧快照续命（T-GW-003）
-        private FailMode failMode = FailMode.CLOSED;
+        /**
+         * 权限快照加载全链路墙钟硬截止时间（T-ACCESS-008，默认/上限 5 秒）。
+         * <p>
+         * 计时覆盖服务发现与负载均衡、连接、请求发送、access-service 处理、
+         * 响应读取与解码，以及失效竞争触发的重试；同一授权请求内的所有尝试
+         * 共享同一截止时间，不得因重试重新计时。超过截止时间不得写入 Gateway
+         * 缓存并固定 fail-closed 返回 503。连接/响应分段超时不能替代该总截止。
+         * 配置超过 5 秒时启动失败（GatewayCacheBoundaryValidator）。
+         * </p>
+         */
+        private Duration snapshotLoadDeadline = Duration.ofSeconds(5);
     }
 
     /**

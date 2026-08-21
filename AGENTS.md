@@ -86,19 +86,24 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 ### dual-layer-cache-framework
 
 **自动触发条件**: 涉及缓存相关代码、`CacheService`、`CacheCatalogEntry`、`CacheMode`、
-`CombinedL1L2Store`、`RedissonBucketStore`、`CaffeineLocalCacheStore`、
-`CacheAutoConfiguration`、`RedissonCacheAutoConfiguration`、缓存失效逻辑、关键词 "cache"、"缓存"、
-"Caffeine"、"Redis"、"Redisson"、"evictAfterCommit"、"getBatch"、`CacheProperties`。
+`CacheReadToken`、`CombinedL1L2Store`、`RedissonBucketStore`、`CaffeineLocalCacheStore`、
+`CacheAutoConfiguration`、`RedissonCacheAutoConfiguration`、`CacheInvalidationBroadcaster`、
+缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、"Redisson"、"evictAfterCommit"、
+"getBatch"、`CacheProperties`、"剩余 TTL"、"beginRead"、"单次有效 TTL"。
 
 **核心要点**:
 
 - **框架位置**: `common/cache/` 模块，所有服务可复用
 - **唯一入口**: 业务层只注入 `CacheService`，不再创建 `CacheManager` / region 类
-- **装配模型**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只提供 Redisson store
+- **装配模型**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只提供 Redisson store 与跨实例 L1 失效广播器
 - **键格式**: `{tenantId}:{catalogCode}:{identifier}`
+- **TTL**: 统一 `java.time.Duration` 秒级精度；YAML 用 Spring Duration 文法（`15s`/`5m`）；分钟字段已删除、无兼容别名
 - **使用模式**: `get` → miss 后业务加载 → `put` → 写路径使用 `evictAfterCommit`
 - **模式划分**: `L1_L2` 使用 `CombinedL1L2Store`，`L2_ONLY` 使用 `RedissonBucketStore`，`L1_ONLY` 使用 `CaffeineLocalCacheStore`
-- **禁止事项**: 禁止 loader 回调缓存 API、禁止直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`、禁止业务缓存继续使用 Spring Cache 注解、禁止循环单条查询、禁止 `KEYS`
+- **剩余 TTL 回填（T-ACCESS-008）**: 授权 L2 miss 在 DB 读取前 `beginRead` 记录单调时钟起点，`put(token,...)` 只写剩余 TTL、≤0 不写、批量/重试不重置起点；`put(..., Duration)` 单次有效 TTL 强制 cap catalog TTL
+- **30s 安全边界（启动强制）**: 快照链路 6 目录 L2_ONLY 且有效 L2 TTL≤10s（`PermCacheBoundaryValidator`）；Gateway 快照 L1≤15s、加载截止≤5s（`GatewayCacheBoundaryValidator`）；超截止不写缓存 fail-closed 503
+- **普通 L1 跨实例失效**: L1_L2 目录失效时经 RTopic 广播，各实例清本地 L1；失败仅记 `cache.invalidate.failures` 指标，L1 TTL 兜底
+- **禁止事项**: 禁止 loader 回调缓存 API、禁止直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`、禁止业务缓存继续使用 Spring Cache 注解、禁止循环单条查询、禁止 `KEYS`、禁止分钟制 TTL 字段或硬编码 TTL 换算
 
 **Catalog 定义示例**:
 
@@ -108,9 +113,9 @@ public final class MyCacheCatalog {
         CacheCatalogEntry.<MyData>builder()
             .code("my:detail")
             .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(5)
+            .l1Ttl(Duration.ofMinutes(5))
             .l1MaxSize(1000)
-            .l2TtlMinutes(30)
+            .l2Ttl(Duration.ofMinutes(30))
             .valueType(new TypeRef<MyData>() {})
             .build();
 }

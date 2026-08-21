@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,22 +15,26 @@ import java.util.Map;
  * - 全局默认配置（default）
  * - Catalog 级运维覆盖（catalogs）
  * </p>
+ * <p>
+ * TTL 统一使用 {@link java.time.Duration}（Spring Boot Duration 文法，如 {@code 15s}、{@code 5m}），
+ * 支持秒级精度；不保留分钟字段或兼容别名。
+ * </p>
  *
  * <h3>配置示例：</h3>
  * <pre>
  * accessmesh:
  *   cache:
  *     enabled: true
- *     default:
- *       l1-expire-minutes: 10
+ *     default-config:
+ *       l1-ttl: 10m
  *       l1-maximum-size: 1000
- *       l2-ttl-minutes: 30
+ *       l2-ttl: 30m
  *     catalogs:
- *       perm:effective-roles:
- *         l2-ttl-minutes: 60
- *       gw:perm-check:
- *         l1-expire-minutes: 1
- *         l1-maximum-size: 5000
+ *       "[perm:effective-roles]":
+ *         l2-ttl: 10s
+ *       "[gw:interface-snapshot]":
+ *         l1-ttl: 15s
+ *         l1-maximum-size: 50000
  * </pre>
  *
  * <h3>注意：</h3>
@@ -55,7 +60,7 @@ public class CacheProperties {
     /**
      * Catalog 级配置覆盖
      * <p>
-     * Key: catalogCode（如 "perm:effective-roles"）
+     * Key: catalogCode（如 "perm:effective-roles"，YAML 中需加引号括号）
      * Value: 该 catalog 的配置覆盖
      * </p>
      */
@@ -69,9 +74,9 @@ public class CacheProperties {
     public static class DefaultConfig {
 
         /**
-         * L1 缓存默认过期时间（分钟）
+         * L1 缓存默认过期时间（Duration，秒级精度）
          */
-        private int l1ExpireMinutes = 10;
+        private Duration l1Ttl = Duration.ofMinutes(10);
 
         /**
          * L1 缓存默认最大容量
@@ -79,9 +84,9 @@ public class CacheProperties {
         private long l1MaximumSize = 1000;
 
         /**
-         * L2 缓存默认 TTL（分钟）
+         * L2 缓存默认 TTL（Duration，秒级精度）
          */
-        private int l2TtlMinutes = 30;
+        private Duration l2Ttl = Duration.ofMinutes(30);
     }
 
     /**
@@ -92,9 +97,9 @@ public class CacheProperties {
     public static class CatalogOverride {
 
         /**
-         * L1 缓存过期时间覆盖（分钟）
+         * L1 缓存过期时间覆盖（Duration，秒级精度）
          */
-        private Integer l1ExpireMinutes;
+        private Duration l1Ttl;
 
         /**
          * L1 缓存最大容量覆盖
@@ -102,9 +107,9 @@ public class CacheProperties {
         private Long l1MaximumSize;
 
         /**
-         * L2 缓存 TTL 覆盖（分钟）
+         * L2 缓存 TTL 覆盖（Duration，秒级精度）
          */
-        private Integer l2TtlMinutes;
+        private Duration l2Ttl;
     }
 
     /**
@@ -117,13 +122,14 @@ public class CacheProperties {
      * @param defaultValue catalog 代码中的默认值
      * @return 实际 TTL
      */
-    public int getEffectiveL1Ttl(String catalogCode, int defaultValue) {
+    public Duration getEffectiveL1Ttl(String catalogCode, Duration defaultValue) {
         CatalogOverride override = catalogs.get(catalogCode);
-        if (override != null && override.getL1ExpireMinutes() != null) {
-            return override.getL1ExpireMinutes();
+        if (override != null && override.getL1Ttl() != null) {
+            return override.getL1Ttl();
         }
-        // 如果 catalog 代码有默认值，使用它；否则使用全局默认
-        return defaultValue > 0 ? defaultValue : defaultConfig.getL1ExpireMinutes();
+        return defaultValue != null && !defaultValue.isNegative() && !defaultValue.isZero()
+            ? defaultValue
+            : defaultConfig.getL1Ttl();
     }
 
     /**
@@ -141,7 +147,6 @@ public class CacheProperties {
         if (override != null && override.getL1MaximumSize() != null) {
             return override.getL1MaximumSize();
         }
-        // 如果 catalog 代码有默认值，使用它；否则使用全局默认
         return defaultValue > 0 ? defaultValue : defaultConfig.getL1MaximumSize();
     }
 
@@ -155,12 +160,13 @@ public class CacheProperties {
      * @param defaultValue catalog 代码中的默认值
      * @return 实际 TTL
      */
-    public int getEffectiveL2Ttl(String catalogCode, int defaultValue) {
+    public Duration getEffectiveL2Ttl(String catalogCode, Duration defaultValue) {
         CatalogOverride override = catalogs.get(catalogCode);
-        if (override != null && override.getL2TtlMinutes() != null) {
-            return override.getL2TtlMinutes();
+        if (override != null && override.getL2Ttl() != null) {
+            return override.getL2Ttl();
         }
-        // 如果 catalog 代码有默认值，使用它；否则使用全局默认
-        return defaultValue > 0 ? defaultValue : defaultConfig.getL2TtlMinutes();
+        return defaultValue != null && !defaultValue.isNegative() && !defaultValue.isZero()
+            ? defaultValue
+            : defaultConfig.getL2Ttl();
     }
 }

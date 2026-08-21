@@ -2,10 +2,12 @@ package cn.ac.fage.accessmesh.common.cache;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * CacheCatalogEntry 单元测试
+ * CacheCatalogEntry 单元测试（T-ACCESS-008 Duration 秒级精度）
  */
 class CacheCatalogEntryTest {
 
@@ -14,32 +16,31 @@ class CacheCatalogEntryTest {
         CacheCatalogEntry<String> entry = CacheCatalogEntry.<String>builder()
             .code("test:cache")
             .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(10)
+            .l1Ttl(Duration.ofMinutes(10))
             .l1MaxSize(1000)
-            .l2TtlMinutes(60)
+            .l2Ttl(Duration.ofHours(1))
             .valueType(new TypeRef<String>() {})
             .build();
 
         assertEquals("test:cache", entry.getCode());
         assertEquals(CacheMode.L1_L2, entry.getMode());
-        assertEquals(10, entry.getL1TtlMinutes());
+        assertEquals(Duration.ofMinutes(10), entry.getL1Ttl());
         assertEquals(1000, entry.getL1MaxSize());
-        assertEquals(60, entry.getL2TtlMinutes());
+        assertEquals(Duration.ofHours(1), entry.getL2Ttl());
         assertEquals(String.class, entry.getValueType().getRawClass());
     }
 
     @Test
-    void builder_shouldCreateL2OnlyEntry() {
+    void builder_shouldCreateL2OnlyEntryWithSecondsPrecision() {
         CacheCatalogEntry<Long> entry = CacheCatalogEntry.<Long>builder()
             .code("test:version")
             .mode(CacheMode.L2_ONLY)
-            .l2TtlMinutes(120)
+            .l2Ttl(Duration.ofSeconds(10))
             .valueType(new TypeRef<Long>() {})
             .build();
 
-        assertEquals("test:version", entry.getCode());
         assertEquals(CacheMode.L2_ONLY, entry.getMode());
-        assertEquals(120, entry.getL2TtlMinutes());
+        assertEquals(Duration.ofSeconds(10), entry.getL2Ttl());
         assertEquals(Long.class, entry.getValueType().getRawClass());
     }
 
@@ -48,14 +49,13 @@ class CacheCatalogEntryTest {
         CacheCatalogEntry<Boolean> entry = CacheCatalogEntry.<Boolean>builder()
             .code("test:local")
             .mode(CacheMode.L1_ONLY)
-            .l1TtlMinutes(5)
+            .l1Ttl(Duration.ofSeconds(15))
             .l1MaxSize(5000)
             .valueType(new TypeRef<Boolean>() {})
             .build();
 
-        assertEquals("test:local", entry.getCode());
         assertEquals(CacheMode.L1_ONLY, entry.getMode());
-        assertEquals(5, entry.getL1TtlMinutes());
+        assertEquals(Duration.ofSeconds(15), entry.getL1Ttl());
         assertEquals(5000, entry.getL1MaxSize());
         assertEquals(Boolean.class, entry.getValueType().getRawClass());
     }
@@ -65,13 +65,12 @@ class CacheCatalogEntryTest {
         CacheCatalogEntry<java.util.Set<Long>> entry = CacheCatalogEntry.<java.util.Set<Long>>builder()
             .code("test:roles")
             .mode(CacheMode.L1_L2)
-            .l1TtlMinutes(30)
+            .l1Ttl(Duration.ofMinutes(30))
             .l1MaxSize(2000)
-            .l2TtlMinutes(60)
+            .l2Ttl(Duration.ofHours(1))
             .valueType(new TypeRef<java.util.Set<Long>>() {})
             .build();
 
-        assertEquals("test:roles", entry.getCode());
         assertEquals(java.util.Set.class, entry.getValueType().getRawClass());
         assertEquals(Long.class, entry.getValueType().getContentType().getRawClass());
     }
@@ -99,10 +98,9 @@ class CacheCatalogEntryTest {
             .valueType(new TypeRef<String>() {})
             .build();
 
-        // Builder 默认值
         assertEquals(CacheMode.L1_L2, entry.getMode());
-        assertEquals(10, entry.getL1TtlMinutes());
+        assertEquals(Duration.ofMinutes(10), entry.getL1Ttl());
         assertEquals(1000, entry.getL1MaxSize());
-        assertEquals(30, entry.getL2TtlMinutes());
+        assertEquals(Duration.ofMinutes(30), entry.getL2Ttl());
     }
 }

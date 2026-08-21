@@ -83,6 +83,8 @@ public class CacheAutoConfiguration {
      * <p>
      * Redisson 相关 store 由独立自动配置按需贡献；这里始终只装配一个
      * CacheService，避免基础版与增强版之间的 bean 竞争。
+     * 普通 L1 跨实例失效广播器（Redisson 可用时提供）可选注入，
+     * Gateway 等无 Redisson 模块不广播（L1_ONLY 无跨实例语义）。
      * </p>
      */
     @Bean
@@ -90,9 +92,12 @@ public class CacheAutoConfiguration {
     public CacheService cacheService(
             CaffeineLocalCacheStore l1OnlyStore,
             Map<String, LocalCacheStore> localStores,
-            Map<String, DistributedCacheStore> distributedStores) {
+            Map<String, DistributedCacheStore> distributedStores,
+            CacheProperties cacheProperties,
+            @Autowired(required = false) CacheInvalidationBroadcaster invalidationBroadcaster) {
         LocalCacheStore l1L2Store = localStores.get("combinedL1L2Store");
         DistributedCacheStore l2OnlyStore = distributedStores.get("redissonBucketStore");
-        return new DefaultCacheService(l1L2Store, l2OnlyStore, l1OnlyStore);
+        return new DefaultCacheService(l1L2Store, l2OnlyStore, l1OnlyStore,
+            cacheProperties, invalidationBroadcaster);
     }
 }

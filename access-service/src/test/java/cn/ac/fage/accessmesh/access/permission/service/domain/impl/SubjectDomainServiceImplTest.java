@@ -47,6 +47,13 @@ class SubjectDomainServiceImplTest {
             cacheService,
             new ObjectMapper()
         );
+        // T-ACCESS-008：beginRead 委托真实实现——mock 默认返回 null 令牌会导致
+        // putBatch(token) 断言失真
+        org.mockito.Mockito.lenient().when(cacheService.beginRead(any(
+                cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class)))
+            .thenAnswer(inv -> new cn.ac.fage.accessmesh.common.cache.DefaultCacheService(
+                null, null, null, new cn.ac.fage.accessmesh.common.cache.CacheProperties(), null)
+                .beginRead(inv.getArgument(0)));
     }
 
     @Test
@@ -63,7 +70,11 @@ class SubjectDomainServiceImplTest {
         assertEquals(Set.of(10L), result.get(1L));
         assertEquals(Set.of(), result.get(2L));
         verify(cacheService).getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
-        verify(cacheService).putBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, Map.of(2L, Set.of()));
+        // T-ACCESS-008：回填走读取令牌（剩余 TTL），验证令牌绑定同一 catalog
+        var tokenCaptor = org.mockito.ArgumentCaptor.forClass(
+            cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
+        verify(cacheService).putBatch(tokenCaptor.capture(), eq(1L), eq(Map.of(2L, Set.of())));
+        assertEquals(PermCacheCatalog.EFFECTIVE_ROLES, tokenCaptor.getValue().catalog());
     }
 
     @Test

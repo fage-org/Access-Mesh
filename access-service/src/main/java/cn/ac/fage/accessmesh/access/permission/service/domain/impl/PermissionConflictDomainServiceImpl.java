@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflict
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -110,22 +111,26 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
 
     /**
      * 从数据库加载角色互斥规则并缓存
+     * <p>
+     * T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL。
+     * </p>
      */
     private List<RoleMutexPair> loadMutexRulesFromDb(Long tenantId) {
+        CacheReadToken<String> readToken = cacheService.beginRead(PermCacheCatalog.ROLE_MUTEX_RULE);
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.ROLE_MUTEX.getValue());
         List<RoleMutexPair> mutexPairs = rules.stream()
             .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
             .collect(Collectors.toList());
 
-        // 回填缓存（JSON格式）
+        // 回填缓存（JSON格式，剩余 TTL）
         if (!mutexPairs.isEmpty()) {
             try {
                 List<Map<String, Long>> toCache = mutexPairs.stream()
                     .map(p -> Map.of("first", p.first, "second", p.second))
                     .collect(Collectors.toList());
                 String json = objectMapper.writeValueAsString(toCache);
-                cacheService.put(PermCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all", json);
+                cacheService.put(readToken, tenantId, "all", json);
             } catch (Exception e) {
                 log.warn("Failed to serialize mutex rules for caching: tenantId={}", tenantId);
             }

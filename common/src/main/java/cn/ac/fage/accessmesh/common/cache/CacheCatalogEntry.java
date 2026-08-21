@@ -4,13 +4,15 @@ import com.fasterxml.jackson.databind.JavaType;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.time.Duration;
+
 /**
  * 类型化缓存描述符
  * <p>
  * 每种缓存只需一个静态常量，携带完整的配置信息：
  * - code: 缓存键中间段，如 "perm:effective-roles"
  * - mode: 缓存模式（L1_L2 / L2_ONLY / L1_ONLY）
- * - TTL 配置（L1/L2 各独立）
+ * - TTL 配置（L1/L2 各独立，java.time.Duration，秒级精度）
  * - valueType: Jackson JavaType，支持复杂泛型
  * </p>
  *
@@ -20,10 +22,8 @@ import lombok.Getter;
  *     public static final CacheCatalogEntry<Set<Long>> EFFECTIVE_ROLES =
  *         CacheCatalogEntry.<Set<Long>>builder()
  *             .code("perm:effective-roles")
- *             .mode(CacheMode.L1_L2)
- *             .l1TtlMinutes(5)
- *             .l1MaxSize(2000)
- *             .l2TtlMinutes(30)
+ *             .mode(CacheMode.L2_ONLY)
+ *             .l2Ttl(Duration.ofSeconds(10))
  *             .valueType(new TypeRef<Set<Long>>() {})
  *             .build();
  * }
@@ -48,12 +48,12 @@ public final class CacheCatalogEntry<V> {
     private final CacheMode mode;
 
     /**
-     * L1 缓存 TTL（分钟）
+     * L1 缓存 TTL
      * <p>
-     * 仅 L1_L2 和 L1_ONLY 模式有效
+     * 仅 L1_L2 和 L1_ONLY 模式有效；秒级精度
      * </p>
      */
-    private final int l1TtlMinutes;
+    private final Duration l1Ttl;
 
     /**
      * L1 缓存最大容量
@@ -64,12 +64,12 @@ public final class CacheCatalogEntry<V> {
     private final long l1MaxSize;
 
     /**
-     * L2 缓存 TTL（分钟）
+     * L2 缓存 TTL
      * <p>
-     * 仅 L1_L2 和 L2_ONLY 模式有效
+     * 仅 L1_L2 和 L2_ONLY 模式有效；秒级精度
      * </p>
      */
-    private final int l2TtlMinutes;
+    private final Duration l2Ttl;
 
     /**
      * 值类型
@@ -83,9 +83,9 @@ public final class CacheCatalogEntry<V> {
     private CacheCatalogEntry(
         String code,
         CacheMode mode,
-        Integer l1TtlMinutes,
+        Duration l1Ttl,
         Long l1MaxSize,
-        Integer l2TtlMinutes,
+        Duration l2Ttl,
         JavaType valueType
     ) {
         if (code == null || code.isEmpty()) {
@@ -96,9 +96,9 @@ public final class CacheCatalogEntry<V> {
         }
         this.code = code;
         this.mode = mode != null ? mode : CacheMode.L1_L2;
-        this.l1TtlMinutes = l1TtlMinutes != null ? l1TtlMinutes : 10;
+        this.l1Ttl = l1Ttl != null ? l1Ttl : Duration.ofMinutes(10);
         this.l1MaxSize = l1MaxSize != null ? l1MaxSize : 1000L;
-        this.l2TtlMinutes = l2TtlMinutes != null ? l2TtlMinutes : 30;
+        this.l2Ttl = l2Ttl != null ? l2Ttl : Duration.ofMinutes(30);
         this.valueType = valueType;
     }
 

@@ -75,4 +75,21 @@ class CacheKeyUtilTest {
         assertTrue(keys.contains("1:perm:cache:2"));
         assertTrue(keys.contains("1:perm:cache:3"));
     }
+
+    @Test
+    void belongsToCatalog_shouldMatchOnlyKeysOfThatCatalog() {
+        assertTrue(CacheKeyUtil.belongsToCatalog("1:perm:cache:abc", "perm:cache"));
+        assertTrue(CacheKeyUtil.belongsToCatalog("22:perm:cache:x:y", "perm:cache"));
+        // catalogCode 必须紧跟租户段：identifier 内嵌其他目录编码的键不得命中
+        assertFalse(CacheKeyUtil.belongsToCatalog("1:other:x:perm:cache:y", "perm:cache"));
+        assertFalse(CacheKeyUtil.belongsToCatalog("1:perm:cache-v2:z", "perm:cache"));
+        // 首段必须是数字租户ID
+        assertFalse(CacheKeyUtil.belongsToCatalog("abc:perm:cache:x", "perm:cache"));
+        assertFalse(CacheKeyUtil.belongsToCatalog(null, "perm:cache"));
+    }
+
+    @Test
+    void buildCatalogPattern_shouldBeLooseSuperset() {
+        assertEquals("*:perm:cache:*", CacheKeyUtil.buildCatalogPattern("perm:cache"));
+    }
 }

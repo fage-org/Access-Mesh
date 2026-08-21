@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.common.cache.spi;
 
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,6 +12,7 @@ import java.util.Set;
  * 定义 L1 缓存操作抽象，支持：
  * - 单条/批量 get/put/evict
  * - 基于 CacheCatalogEntry 的配置
+ * - 单次写入有效 TTL（受 catalog TTL 上限约束）
  * </p>
  *
  * <h3>实现：</h3>
@@ -49,12 +51,39 @@ public interface LocalCacheStore {
     <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value);
 
     /**
+     * 单条写入（单次有效 TTL）
+     * <p>
+     * effectiveTtl 为本次写入的有效 TTL，强制不超过 catalog 有效 TTL；
+     * 剩余 TTL ≤ 0 时不写入。
+     * </p>
+     *
+     * @param catalog 缓存目录
+     * @param fullKey 完整缓存键
+     * @param value 缓存值（null 时忽略）
+     * @param effectiveTtl 单次有效 TTL（null 视为使用 catalog TTL）
+     */
+    <V> void put(CacheCatalogEntry<V> catalog, String fullKey, V value, Duration effectiveTtl);
+
+    /**
      * 批量写入
      *
      * @param catalog 缓存目录
      * @param data 键值映射（null 值会被忽略）
      */
     <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data);
+
+    /**
+     * 批量写入（单次有效 TTL）
+     * <p>
+     * 语义与 {@link #put(CacheCatalogEntry, String, Object, Duration)} 一致，
+     * 单条与批量写入的 TTL 约束相同。
+     * </p>
+     *
+     * @param catalog 缓存目录
+     * @param data 键值映射（null 值会被忽略）
+     * @param effectiveTtl 单次有效 TTL（null 视为使用 catalog TTL）
+     */
+    <V> void putBatch(CacheCatalogEntry<V> catalog, Map<String, V> data, Duration effectiveTtl);
 
     /**
      * 单条失效
@@ -86,6 +115,15 @@ public interface LocalCacheStore {
      * @param tenantId 租户ID
      */
     <V> void evictAll(CacheCatalogEntry<V> catalog, Long tenantId);
+
+    /**
+     * 清空指定目录在全部租户下的缓存（catalog 级全量失效）
+     *
+     * @param catalog 缓存目录
+     */
+    default <V> void evictAll(CacheCatalogEntry<V> catalog) {
+        throw new UnsupportedOperationException("catalog-wide evictAll is not supported by this store");
+    }
 
     /**
      * 获取缓存大小估算

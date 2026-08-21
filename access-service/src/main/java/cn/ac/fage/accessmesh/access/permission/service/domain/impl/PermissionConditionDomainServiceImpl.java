@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
@@ -95,8 +96,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         // ① 查缓存（null = miss）
         JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
 
-        // ② miss 后查 DB
+        // ② miss 后查 DB（T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL）
         if (rules == null) {
+            CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
             PermissionCondition condition = conditionMapper.selectOneById(conditionId);
             if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
                 || !tenantId.equals(condition.getTenantId())) {
@@ -105,9 +107,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
             try {
                 rules = objectMapper.readTree(condition.getConditionRules());
-                // ③ 回填缓存
+                // ③ 回填缓存（剩余 TTL）
                 if (rules != null) {
-                    cacheService.put(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId, rules);
+                    cacheService.put(readToken, tenantId, conditionId, rules);
                 }
             } catch (Exception e) {
                 log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);

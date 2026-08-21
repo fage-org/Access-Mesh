@@ -1,18 +1,21 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import cn.ac.fage.accessmesh.common.cache.CacheProperties;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
+import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
+import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
-import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -26,13 +29,11 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
-import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,10 +51,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * PermissionFilter 组合路径回归测试（T-PERM-008）
+ * PermissionFilter 组合路径回归测试（T-PERM-008 / T-ACCESS-008）
  * <p>
- * 覆盖高风险组合路径：回源写双缓存+unmark、token失效丢弃、重试一次、
- * 二次失效fail-close、缓存命中但marker标记→驱逐+回源。
+ * 覆盖高风险组合路径：回源写缓存+unmark、token失效丢弃、重试一次、
+ * 二次失效fail-closed、缓存命中但marker标记→驱逐+回源、
+ * 5秒全链路硬截止（超时不写缓存+503、重试共享截止不重新计时）。
  * </p>
  */
 class PermissionFilterTest {
@@ -64,10 +66,10 @@ class PermissionFilterTest {
     private static final String SERVICE_CODE = "admin-service";
 
     private PermissionClient permissionClient;
-    private Cache<String, InterfaceSnapshotResp> mainCache;
-    private Cache<String, StaleEntry> staleCache;
+    private CacheService cacheService;
     private InvalidationMarker marker;
     private InterfaceSnapshotLoadRegistry loadRegistry;
+    private InterfaceSnapshotCacheInvalidator invalidator;
     private GatewayProperties gatewayProperties;
     private ObjectMapper objectMapper;
     private PermissionFilter filter;
@@ -77,18 +79,20 @@ class PermissionFilterTest {
     @BeforeEach
     void setUp() {
         permissionClient = mock(PermissionClient.class);
-        mainCache = Caffeine.newBuilder().build();
-        staleCache = Caffeine.newBuilder().build();
         marker = new InvalidationMarker();
         loadRegistry = new InterfaceSnapshotLoadRegistry();
+        objectMapper = new ObjectMapper();
+        cacheService = new DefaultCacheService(null, null,
+            new CaffeineLocalCacheStore(objectMapper, null, new CacheProperties()),
+            new CacheProperties(), null);
+        invalidator = new InterfaceSnapshotCacheInvalidator(cacheService, marker, loadRegistry,
+            new cn.ac.fage.accessmesh.common.cache.CacheProperties());
 
         gatewayProperties = new GatewayProperties();
-        gatewayProperties.getCache().getL1().setTtlSeconds(30);
-        gatewayProperties.getCache().getL1().setStaleGraceSeconds(30);
+        gatewayProperties.getPermission().setSnapshotLoadDeadline(Duration.ofSeconds(5));
 
-        objectMapper = new ObjectMapper();
-        filter = new PermissionFilter(permissionClient, mainCache, staleCache, marker, loadRegistry,
-            gatewayProperties, objectMapper, new SimpleMeterRegistry());
+        filter = new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
+            invalidator, gatewayProperties, objectMapper, new SimpleMeterRegistry());
 
         chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
@@ -96,10 +100,6 @@ class PermissionFilterTest {
 
     /**
      * 构建测试用 exchange（使用 mock response 避免 ReadOnlyHttpHeaders 问题）。
-     * <p>
-     * MockServerWebExchange 的 response 在 filter 写入 status/header 时
-     * 可能触发 ReadOnlyHttpHeaders 异常，因此用 mock response 替代。
-     * </p>
      */
     private ServerWebExchange buildExchange() {
         Route route = Route.async()
@@ -137,7 +137,11 @@ class PermissionFilterTest {
     }
 
     private String cacheKey() {
-        return InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
+        return InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
+    }
+
+    private InterfaceSnapshotResp cachedSnapshot() {
+        return cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, cacheKey());
     }
 
     /**
@@ -173,13 +177,26 @@ class PermissionFilterTest {
         return success.get();
     }
 
-    // ─── 路径 1：回源成功 → 写主缓存 + stale store + unmark ───
+    private HttpStatus awaitCapturedStatus(ServerWebExchange exchange, long timeoutSeconds)
+        throws InterruptedException {
+        AtomicReference<HttpStatus> capturedStatus = new AtomicReference<>();
+        when(exchange.getResponse().setStatusCode(any())).thenAnswer(inv -> {
+            capturedStatus.set(inv.getArgument(0));
+            return true;
+        });
+        CountDownLatch latch = new CountDownLatch(1);
+        filter.filter(exchange, chain).subscribe(__ -> {}, __ -> latch.countDown(), () -> latch.countDown());
+        latch.await(timeoutSeconds, TimeUnit.SECONDS);
+        return capturedStatus.get();
+    }
+
+    // ─── 路径 1：回源成功 → 写缓存 + unmark + track ───
 
     @Nested
-    class LoadSuccessWritesBothCaches {
+    class LoadSuccessWritesCache {
 
         @Test
-        void shouldWriteMainCacheAndStaleStoreAndUnmark_whenLoadSucceedsAndTokenCurrent()
+        void shouldWriteCacheAndUnmark_whenLoadSucceedsAndTokenCurrent()
             throws InterruptedException {
             String key = cacheKey();
             InterfaceSnapshotResp snapshot = allowSnapshot();
@@ -190,18 +207,11 @@ class PermissionFilterTest {
             ServerWebExchange exchange = buildExchange();
             boolean completed = awaitFilterCompletion(exchange, 5);
 
-            // filter 正常完成（ALLOW 路径走 chain.filter，switchIfEmpty 不影响结果正确性）
             assertThat(completed).isTrue();
-
-            // 主缓存写入
-            assertThat(mainCache.getIfPresent(key)).isNotNull();
-            // stale store 写入
-            StaleEntry stale = staleCache.getIfPresent(key);
-            assertThat(stale).isNotNull();
-            assertThat(stale.snapshot()).isEqualTo(snapshot);
-            assertThat(stale.staleUntil()).isAfter(Instant.now());
+            // 快照缓存写入
+            assertThat(cachedSnapshot()).isNotNull();
             // marker 已 unmark
-            assertThat(marker.contains(key)).isFalse();
+            assertThat(marker.contains(TENANT_ID + ":" + key)).isFalse();
         }
     }
 
@@ -218,27 +228,18 @@ class PermissionFilterTest {
             // 在 permissionClient 回调中标记 key，确保在 beginLoad 之后、commitIfCurrent 之前
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
-                    marker.mark(key);
+                    marker.mark(TENANT_ID + ":" + key);
                     return Mono.just(successResult(snapshot));
                 });
 
             ServerWebExchange exchange = buildExchange();
-            AtomicReference<HttpStatus> capturedStatus = new AtomicReference<>();
-            when(exchange.getResponse().setStatusCode(any())).thenAnswer(inv -> {
-                capturedStatus.set(inv.getArgument(0));
-                return true;
-            });
 
-            CountDownLatch latch = new CountDownLatch(1);
-            filter.filter(exchange, chain).subscribe(__ -> {}, __ -> latch.countDown(), () -> latch.countDown());
-            latch.await(5, TimeUnit.SECONDS);
+            HttpStatus status = awaitCapturedStatus(exchange, 5);
 
-            // 期望 503
-            assertThat(capturedStatus.get()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-
-            // 主缓存和 stale store 不应被写入
-            assertThat(mainCache.getIfPresent(key)).isNull();
-            assertThat(staleCache.getIfPresent(key)).isNull();
+            // 期望 503（固定 fail-closed）
+            assertThat(status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            // 快照缓存不应被写入
+            assertThat(cachedSnapshot()).isNull();
         }
     }
 
@@ -257,11 +258,9 @@ class PermissionFilterTest {
                 .thenAnswer(invocation -> {
                     int call = callCount.incrementAndGet();
                     if (call == 1) {
-                        // 第一次回源：返回前标记 key（模拟并发失效）
-                        marker.mark(key);
+                        marker.mark(TENANT_ID + ":" + key);
                         return Mono.just(successResult(snapshot));
                     }
-                    // 第二次回源（重试）：token 应为新的，可以成功
                     return Mono.just(successResult(snapshot));
                 });
 
@@ -269,15 +268,12 @@ class PermissionFilterTest {
             boolean completed = awaitFilterCompletion(exchange, 5);
 
             assertThat(completed).isTrue();
-
-            // 重试成功后，主缓存和 stale store 应被写入
-            assertThat(mainCache.getIfPresent(key)).isNotNull();
-            assertThat(staleCache.getIfPresent(key)).isNotNull();
+            assertThat(cachedSnapshot()).isNotNull();
             assertThat(callCount).hasValue(2);
         }
     }
 
-    // ─── 路径 4：二次失效 → fail-close 503 ───
+    // ─── 路径 4：二次失效 → fail-closed 503 ───
 
     @Nested
     class DoubleStaleTokenFailsClose {
@@ -290,43 +286,34 @@ class PermissionFilterTest {
             AtomicInteger callCount = new AtomicInteger();
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
-                    // 每次回源前都标记 key 失效
-                    marker.mark(key);
+                    marker.mark(TENANT_ID + ":" + key);
                     callCount.incrementAndGet();
                     return Mono.just(successResult(snapshot));
                 });
 
             ServerWebExchange exchange = buildExchange();
-            AtomicReference<HttpStatus> capturedStatus = new AtomicReference<>();
-            when(exchange.getResponse().setStatusCode(any())).thenAnswer(inv -> {
-                capturedStatus.set(inv.getArgument(0));
-                return true;
-            });
 
-            CountDownLatch latch = new CountDownLatch(1);
-            filter.filter(exchange, chain).subscribe(__ -> {}, __ -> latch.countDown(), () -> latch.countDown());
-            latch.await(5, TimeUnit.SECONDS);
+            HttpStatus status = awaitCapturedStatus(exchange, 5);
 
-            assertThat(capturedStatus.get()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(callCount).hasValue(2);
         }
     }
 
-    // ─── 路径 5：缓存命中但 marker.contains → 驱逐双缓存 → 回源 ───
+    // ─── 路径 5：缓存命中但 marker.contains → 驱逐缓存 → 回源 ───
 
     @Nested
     class CacheHitButMarkedInvalid {
 
         @Test
-        void shouldEvictBothCachesAndReload_whenCachedButMarkedInvalid() throws InterruptedException {
+        void shouldEvictCacheAndReload_whenCachedButMarkedInvalid() throws InterruptedException {
             String key = cacheKey();
             InterfaceSnapshotResp oldSnapshot = allowSnapshot();
             InterfaceSnapshotResp newSnapshot = allowSnapshot();
 
-            // 预填主缓存 + stale store + 标记失效
-            mainCache.put(key, oldSnapshot);
-            staleCache.put(key, new StaleEntry(oldSnapshot, Instant.now().plusSeconds(60)));
-            marker.mark(key);
+            // 预填快照缓存 + 标记失效
+            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, key, oldSnapshot);
+            marker.mark(TENANT_ID + ":" + key);
 
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.just(successResult(newSnapshot)));
@@ -335,10 +322,76 @@ class PermissionFilterTest {
             boolean completed = awaitFilterCompletion(exchange, 5);
 
             assertThat(completed).isTrue();
-
             // 旧缓存条目应被驱逐，新的回源结果写入
-            assertThat(mainCache.getIfPresent(key)).isNotNull();
-            assertThat(staleCache.getIfPresent(key)).isNotNull();
+            assertThat(cachedSnapshot()).isNotNull();
+        }
+    }
+
+    // ─── T-ACCESS-008：5 秒全链路硬截止 ───
+
+    @Nested
+    class SnapshotLoadDeadline {
+
+        @Test
+        void shouldReturn503AndSkipCache_whenLoadExceedsDeadline() throws InterruptedException {
+            // 截止 200ms，回源延迟 1s → 超时
+            gatewayProperties.getPermission().setSnapshotLoadDeadline(Duration.ofMillis(200));
+            filter = new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
+                invalidator, gatewayProperties, objectMapper, new SimpleMeterRegistry());
+
+            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenReturn(Mono.just(successResult(allowSnapshot()))
+                    .delayElement(Duration.ofSeconds(1)));
+
+            ServerWebExchange exchange = buildExchange();
+            HttpStatus status = awaitCapturedStatus(exchange, 5);
+
+            assertThat(status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            // 超时的结果不得写入 Gateway 缓存
+            assertThat(cachedSnapshot()).isNull();
+        }
+
+        @Test
+        void shouldShareDeadlineAcrossRetry_notResetByRetry() throws InterruptedException {
+            // 截止 400ms；第一次回源 token 失效（立即返回触发重试），重试回源延迟 1s →
+            // 重试沿用首次截止（累计已超时），不得重新计时
+            gatewayProperties.getPermission().setSnapshotLoadDeadline(Duration.ofMillis(400));
+            filter = new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
+                invalidator, gatewayProperties, objectMapper, new SimpleMeterRegistry());
+
+            String key = cacheKey();
+            InterfaceSnapshotResp snapshot = allowSnapshot();
+            AtomicInteger callCount = new AtomicInteger();
+            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenAnswer(invocation -> {
+                    if (callCount.incrementAndGet() == 1) {
+                        marker.mark(TENANT_ID + ":" + key);
+                        return Mono.just(successResult(snapshot));
+                    }
+                    return Mono.just(successResult(snapshot))
+                        .delayElement(Duration.ofSeconds(1));
+                });
+
+            ServerWebExchange exchange = buildExchange();
+            HttpStatus status = awaitCapturedStatus(exchange, 5);
+
+            assertThat(status).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            // 超时不写缓存
+            assertThat(cachedSnapshot()).isNull();
+            // 确实发生了重试（共享同一截止时刻传递）
+            assertThat(callCount).hasValue(2);
+        }
+
+        @Test
+        void shouldCompleteWithinDeadline_whenLoadFast() throws InterruptedException {
+            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
+                .thenReturn(Mono.just(successResult(allowSnapshot())));
+
+            ServerWebExchange exchange = buildExchange();
+            boolean completed = awaitFilterCompletion(exchange, 5);
+
+            assertThat(completed).isTrue();
+            assertThat(cachedSnapshot()).isNotNull();
         }
     }
 }

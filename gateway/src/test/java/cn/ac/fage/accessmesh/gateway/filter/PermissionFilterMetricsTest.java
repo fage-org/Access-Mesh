@@ -1,21 +1,21 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import cn.ac.fage.accessmesh.common.cache.CacheProperties;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
+import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
+import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
-import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
-import cn.ac.fage.accessmesh.gateway.config.FailMode;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -34,7 +34,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,14 +50,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * T-GW-004 监控指标测试：验证 Counter 在各 fail-mode 分支正确递增。
+ * T-ACCESS-008 监控指标测试：固定 fail-closed（open/stale 系列指标已随 fail-mode 删除）。
  * <p>
  * 指标命名：
  * <ul>
  *   <li>{@code gateway.perm.unreachable}（tag: source=snapshot|check_interface）</li>
- *   <li>{@code gateway.perm.fallback}（tag: mode=closed, reason=denied）</li>
- *   <li>{@code gateway.perm.fallback}（tag: mode=open, reason=allowed）</li>
- *   <li>{@code gateway.perm.fallback}（tag: mode=stale, reason=no_entry|expired|invalidated|allowed|denied）</li>
+ *   <li>{@code gateway.perm.fallback}（tag: mode=closed, reason=denied|deadline_exceeded）</li>
  * </ul>
  */
 class PermissionFilterMetricsTest {
@@ -68,10 +66,10 @@ class PermissionFilterMetricsTest {
     private static final String SERVICE_CODE = "admin-service";
 
     private PermissionClient permissionClient;
-    private Cache<String, InterfaceSnapshotResp> mainCache;
-    private Cache<String, StaleEntry> staleCache;
+    private CacheService cacheService;
     private InvalidationMarker marker;
     private InterfaceSnapshotLoadRegistry loadRegistry;
+    private InterfaceSnapshotCacheInvalidator invalidator;
     private ObjectMapper objectMapper;
     private GatewayFilterChain chain;
     private SimpleMeterRegistry meterRegistry;
@@ -79,23 +77,24 @@ class PermissionFilterMetricsTest {
     @BeforeEach
     void setUp() {
         permissionClient = mock(PermissionClient.class);
-        mainCache = Caffeine.newBuilder().build();
-        staleCache = Caffeine.newBuilder().build();
         marker = new InvalidationMarker();
         loadRegistry = new InterfaceSnapshotLoadRegistry();
         objectMapper = new ObjectMapper();
+        cacheService = new DefaultCacheService(null, null,
+            new CaffeineLocalCacheStore(objectMapper, null, new CacheProperties()),
+            new CacheProperties(), null);
+        invalidator = new InterfaceSnapshotCacheInvalidator(cacheService, marker, loadRegistry,
+            new cn.ac.fage.accessmesh.common.cache.CacheProperties());
         chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
         meterRegistry = new SimpleMeterRegistry();
     }
 
-    private PermissionFilter createFilter(FailMode failMode) {
+    private PermissionFilter createFilter(Duration deadline) {
         GatewayProperties props = new GatewayProperties();
-        props.getCache().getL1().setTtlSeconds(30);
-        props.getCache().getL1().setStaleGraceSeconds(30);
-        props.getPermission().setFailMode(failMode);
-        return new PermissionFilter(permissionClient, mainCache, staleCache, marker, loadRegistry,
-            props, objectMapper, meterRegistry);
+        props.getPermission().setSnapshotLoadDeadline(deadline);
+        return new PermissionFilter(permissionClient, cacheService, marker, loadRegistry,
+            invalidator, props, objectMapper, meterRegistry);
     }
 
     private ServerWebExchange buildExchange() {
@@ -137,7 +136,7 @@ class PermissionFilterMetricsTest {
     private static WebClientRequestException connectionRefused() {
         return new WebClientRequestException(
             new java.net.ConnectException("Connection refused"),
-            HttpMethod.GET, URI.create("http://permission-center/api/perm/auth/interface-snapshot"),
+            HttpMethod.GET, URI.create("http://access-service/api/perm/auth/interface-snapshot"),
             HttpHeaders.EMPTY);
     }
 
@@ -156,10 +155,6 @@ class PermissionFilterMetricsTest {
     }
 
     private double counterValue(String name, String... tags) {
-        // meterRegistry.counter() does exact ID lookup (name + full tag set);
-        // if already registered (by constructor), returns existing counter.
-        // This avoids find().tags().counter() which does subset matching
-        // and may return a different counter with additional tags.
         return meterRegistry.counter(name, tags).count();
     }
 
@@ -170,7 +165,7 @@ class PermissionFilterMetricsTest {
 
         @Test
         void shouldIncrementUnreachableSnapshot_whenSnapshotFetchFails() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.CLOSED);
+            PermissionFilter filter = createFilter(Duration.ofSeconds(5));
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
@@ -182,14 +177,14 @@ class PermissionFilterMetricsTest {
 
         @Test
         void shouldIncrementUnreachableCheckInterface_whenFallbackFails() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.CLOSED);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
+            PermissionFilter filter = createFilter(Duration.ofSeconds(5));
+            String key = InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
 
-            // 主缓存放 FALLBACK 快照，使 decide() 走 fallbackCheckInterface
+            // 快照缓存放 FALLBACK 条目，使 decide() 走 fallbackCheckInterface
             InterfaceSnapshotResp fallbackSnapshot = new InterfaceSnapshotResp(List.of(
                 new ApiPermissionEntry(SERVICE_CODE, "GET", "/api/test", true, null, null, ScopeMode.INSTANCE)
             ));
-            mainCache.put(key, fallbackSnapshot);
+            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, key, fallbackSnapshot);
 
             when(permissionClient.checkInterface(anyString(), anyLong(), anyString(), anyString(),
                 anyString(), anyString(), anyLong()))
@@ -202,149 +197,34 @@ class PermissionFilterMetricsTest {
         }
     }
 
-    // ─── fallback 模式指标 ───
+    // ─── 固定 fail-closed 指标 ───
 
     @Nested
-    class FallbackModeMetrics {
+    class FailClosedMetrics {
 
         @Test
-        void shouldIncrementFallbackClosedDenied_whenFailClosed() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.CLOSED);
+        void shouldIncrementFallbackClosedDenied_whenUnreachable() throws InterruptedException {
+            PermissionFilter filter = createFilter(Duration.ofSeconds(5));
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(connectionRefused()));
 
             awaitCompletion(filter, buildExchange());
 
             assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(1.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "deadline_exceeded")).isEqualTo(0.0);
         }
 
         @Test
-        void shouldIncrementFallbackOpenAllowed_whenFailOpen() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.OPEN);
+        void shouldIncrementDeadlineExceeded_whenLoadExceedsDeadline() throws InterruptedException {
+            PermissionFilter filter = createFilter(Duration.ofMillis(150));
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
+                .thenReturn(Mono.just(PermResult.success(allowSnapshot()))
+                    .delayElement(Duration.ofSeconds(1)));
 
             awaitCompletion(filter, buildExchange());
 
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(1.0);
-            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(0.0);
-        }
-    }
-
-    // ─── stale-allow 细分指标 ───
-
-    @Nested
-    class StaleAllowMetrics {
-
-        @Test
-        void shouldIncrementStaleAllowed_whenValidStaleSnapshotMatchesAllow() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            staleCache.put(key, new StaleEntry(allowSnapshot(), Instant.now().plusSeconds(60)));
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "allowed")).isEqualTo(1.0);
-        }
-
-        @Test
-        void shouldIncrementStaleNoEntry_whenNoStaleSnapshot() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "no_entry")).isEqualTo(1.0);
-        }
-
-        @Test
-        void shouldIncrementStaleExpired_whenStaleUntilPassed() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            staleCache.put(key, new StaleEntry(allowSnapshot(), Instant.now().minusSeconds(10)));
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "expired")).isEqualTo(1.0);
-        }
-
-        @Test
-        void shouldIncrementStaleInvalidated_whenMarkerContainsKey() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            staleCache.put(key, new StaleEntry(allowSnapshot(), Instant.now().plusSeconds(60)));
-            marker.mark(key);
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "invalidated")).isEqualTo(1.0);
-        }
-
-        @Test
-        void shouldIncrementStaleDenied_whenStaleSnapshotMatchesDeny() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            // DENY 快照：无匹配 entry
-            InterfaceSnapshotResp denySnapshot = new InterfaceSnapshotResp(List.of());
-            staleCache.put(key, new StaleEntry(denySnapshot, Instant.now().plusSeconds(60)));
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "denied")).isEqualTo(1.0);
-        }
-
-        @Test
-        void shouldIncrementStaleDenied_whenStaleSnapshotMatchesFallback() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.STALE_ALLOW);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            InterfaceSnapshotResp fallbackSnapshot = new InterfaceSnapshotResp(List.of(
-                new ApiPermissionEntry(SERVICE_CODE, "GET", "/api/test", true, null, null, ScopeMode.INSTANCE)
-            ));
-            staleCache.put(key, new StaleEntry(fallbackSnapshot, Instant.now().plusSeconds(60)));
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            assertThat(counterValue("gateway.perm.fallback", "mode", "stale", "reason", "denied")).isEqualTo(1.0);
-        }
-    }
-
-    // ─── 显式失效不递增 fallback 指标 ───
-
-    @Nested
-    class ExplicitInvalidationMetrics {
-
-        @Test
-        void shouldNotIncrementFallback_whenExplicitlyInvalidated() throws InterruptedException {
-            PermissionFilter filter = createFilter(FailMode.OPEN);
-            String key = InterfaceSnapshotCacheKeys.build(TENANT_ID, SUBJECT_TYPE_CODE, USER_ID, SERVICE_CODE);
-            mainCache.put(key, allowSnapshot());
-            staleCache.put(key, new StaleEntry(allowSnapshot(), Instant.now().plusSeconds(60)));
-            marker.mark(key);
-
-            when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(connectionRefused()));
-
-            awaitCompletion(filter, buildExchange());
-
-            // 显式失效后走 P1 分支（始终 503），不经过 handleUnreachable → 不递增 fallback
-            assertThat(counterValue("gateway.perm.fallback", "mode", "open", "reason", "allowed")).isEqualTo(0.0);
+            assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "deadline_exceeded"))
+                .isEqualTo(1.0);
             assertThat(counterValue("gateway.perm.fallback", "mode", "closed", "reason", "denied")).isEqualTo(0.0);
         }
     }

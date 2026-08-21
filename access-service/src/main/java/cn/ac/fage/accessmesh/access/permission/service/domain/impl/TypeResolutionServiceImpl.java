@@ -16,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import org.springframework.stereotype.Service;
@@ -91,7 +92,8 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             return cached.get(typeCode);
         }
 
-        // ② miss 后查数据库
+        // ② miss 后查数据库（T-ACCESS-008：SQL 前记录读取起点，回填只写剩余 TTL）
+        CacheReadToken<Map<String, Integer>> readToken = cacheService.beginRead(PermCacheCatalog.TYPE_VALUE);
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, typeKey, typeCode);
         Integer result = td != null ? td.getTypeValue() : null;
 
@@ -99,7 +101,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (result != null) {
             Map<String, Integer> toCache = new HashMap<>();
             toCache.put(typeCode, result);
-            cacheService.put(PermCacheCatalog.TYPE_VALUE, tenantId, cacheKey, toCache);
+            cacheService.put(readToken, tenantId, cacheKey, toCache);
         }
 
         return result;
@@ -138,13 +140,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             return cached;
         }
 
-        // ② miss 后查数据库
+        // ② miss 后查数据库（T-ACCESS-008：SQL 前记录读取起点，回填只写剩余 TTL）
+        CacheReadToken<String> readToken = cacheService.beginRead(PermCacheCatalog.TYPE_CODE);
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndValue(tenantId, typeKey, typeValue);
         String result = td != null ? td.getTypeCode() : null;
 
         // ③ 回填缓存（只缓存非 null 值）
         if (result != null) {
-            cacheService.put(PermCacheCatalog.TYPE_CODE, tenantId, cacheKey, result);
+            cacheService.put(readToken, tenantId, cacheKey, result);
         }
 
         return result;

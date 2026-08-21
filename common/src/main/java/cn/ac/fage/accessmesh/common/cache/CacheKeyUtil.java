@@ -91,6 +91,56 @@ public final class CacheKeyUtil {
     }
 
     /**
+     * 构建 catalog 级 SCAN 模式匹配键（跨租户全量失效）
+     * <p>
+     * 宽松超集模式：SCAN 结果必须再经 {@link #belongsToCatalog} 按完整键结构
+     * 精确过滤（glob 无法约束 catalogCode 紧跟 tenantId 段，其他目录 identifier
+     * 内嵌本目录编码的键也会被 SCAN 命中）。
+     * </p>
+     *
+     * @param catalogCode 缓存目录编码
+     * @return SCAN 模式，如 "*:perm:effective-roles:*"
+     */
+    public static String buildCatalogPattern(String catalogCode) {
+        validateCatalogCode(catalogCode);
+        return "*" + SEPARATOR + catalogCode + SEPARATOR + "*";
+    }
+
+    /**
+     * 判断完整缓存键是否属于指定目录（跨租户清理的精确过滤）
+     * <p>
+     * 按完整键结构校验：首段必须是数字租户ID，且 catalogCode 紧跟租户段之后、
+     * 以分隔符结束——防止其他目录 identifier 中内嵌本目录编码的键被误清
+     * （如清理 {@code test:catalog-wide} 时 {@code 1:test:other:x:test:catalog-wide:y}
+     * 不得命中）。精度与租户级 SCAN 前缀（{@code tenant:code:*}）一致。
+     * </p>
+     *
+     * @param fullKey 完整缓存键（{tenantId}:{catalogCode}:{identifier}）
+     * @param catalogCode 缓存目录编码
+     * @return 是否属于该目录
+     */
+    public static boolean belongsToCatalog(String fullKey, String catalogCode) {
+        if (fullKey == null || catalogCode == null || catalogCode.isEmpty()) {
+            return false;
+        }
+        int tenantEnd = fullKey.indexOf(SEPARATOR);
+        if (tenantEnd <= 0) {
+            return false;
+        }
+        String tenant = fullKey.substring(0, tenantEnd);
+        try {
+            Long.parseLong(tenant);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        int codeStart = tenantEnd + 1;
+        int codeEnd = codeStart + catalogCode.length();
+        return fullKey.length() > codeEnd
+            && fullKey.charAt(codeEnd) == SEPARATOR.charAt(0)
+            && fullKey.regionMatches(codeStart, catalogCode, 0, catalogCode.length());
+    }
+
+    /**
      * 构建租户级 SCAN 模式
      * <p>
      * 用于删除某租户所有缓存

@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.RoleType;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
@@ -225,6 +226,9 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             return result;
         }
 
+        // T-ACCESS-008：授权 L2 miss——数据库读取前记录单调时钟起点，回填只写剩余 TTL
+        CacheReadToken<Set<Long>> readToken = cacheService.beginRead(PermCacheCatalog.EFFECTIVE_ROLES);
+
         // 2. 批量查询所有未命中缓存的用户的UserRole记录
         LocalDateTime now = LocalDateTime.now();
         List<UserRole> allUserRoles = userRoleMapper.selectValidByUserIdsWithValidity(tenantId, uncachedUserIds, now);
@@ -288,7 +292,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             result.put(userId, effectiveRoles);
         }
 
-        cacheService.putBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, uncachedResults);
+        cacheService.putBatch(readToken, tenantId, uncachedResults);
 
         return result;
     }

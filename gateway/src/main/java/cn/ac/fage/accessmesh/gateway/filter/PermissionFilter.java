@@ -1,12 +1,13 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker.LoadToken;
+import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheKeys;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotLoadRegistry;
-import cn.ac.fage.accessmesh.gateway.cache.StaleEntry;
-import cn.ac.fage.accessmesh.gateway.config.FailMode;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.ac.fage.accessmesh.gateway.service.InterfaceSnapshotMatcher;
@@ -16,7 +17,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.benmanes.caffeine.cache.Cache;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -37,15 +37,17 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.net.InetSocketAddress;
-import java.time.Instant;
+import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 
 /**
- * 接口级权限过滤器（T-PERM-001 快照模式 / T-PERM-017 C4 条件 Gateway 重评 / T-GW-002 fail-mode）
+ * 接口级权限过滤器（T-PERM-001 快照模式 / T-PERM-017 条件 Gateway 重评 / T-ACCESS-008 安全边界）
  * <p>
- * 缓存维度：(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp。
+ * 缓存维度：(tenantId,subjectTypeCode,userId,serviceCode)→InterfaceSnapshotResp，
+ * 经统一 {@link CacheService}（L1_ONLY，catalog {@code gw:interface-snapshot}，TTL≤15s）。
  * 鉴权流程：
  * <ol>
- *   <li>本地查快照 → 未命中回源拉取并缓存（permission-center 实时构建全量快照）</li>
+ *   <li>本地查快照 → 未命中回源拉取并缓存（access-service 实时构建全量快照）</li>
  *   <li>本地匹配 ({@link InterfaceSnapshotMatcher}) 返回三态：
  *     <ul>
  *       <li>{@link Decision#ALLOW} → 直接放行</li>
@@ -56,13 +58,17 @@ import java.time.Instant;
  * </ol>
  * </p>
  * <p>
- * T-PERM-017 C4：含条件 entry 不再直接放行——能内联评估的本地评，不能下发的走 check-interface fallback。
- * T-GW-002 fail-mode：permission-center 不可达时按 {@link FailMode} 兜底——
- * {@code CLOSED}(默认)→503 拒绝 / {@code OPEN}(demo)→放行 / {@code STALE_ALLOW}→陈旧快照续命(T-GW-003 已实现)。
- * {@code StaleLoadDiscardedException}（回源并发失效）不受 fail-mode 影响，始终 503（显式撤销 > 不可达兜底）。
- * P1：显式失效({@code invalidationMarker}命中)后回源失败也不走 fail-mode，始终 503。
- * P2：仅 {@link PermCenterUnreachableException}（远端不可达）走 fail-mode 三模分支；其他异常始终 fail-closed。
- * T-GW-004 监控指标：{@code gateway.perm.unreachable}（不可达计数）+ {@code gateway.perm.fallback}（兜底模式计数）。
+ * T-ACCESS-008 安全边界：
+ * <ul>
+ *   <li><b>固定 fail-closed</b>：删除可切换 fail-mode 及 open/stale-allow 分支——
+ *       回源不可达、显式失效后回源失败、未知异常一律 503 拒绝，不得绕过授权或使用过期结果</li>
+ *   <li><b>5 秒全链路硬截止</b>：一次授权请求触发的整个快照加载流程（服务发现/负载均衡、
+ *       连接、请求发送、access-service 处理、响应读取/解码、失效竞争重试）共享同一墙钟截止；
+ *       重试不重新计时。超过截止不得写入 Gateway 缓存并固定 503。
+ *       连接/响应分段超时（WebClientConfig）不替代该总截止</li>
+ *   <li>保留失效代际校验（{@link InvalidationMarker}）、per-key 回源去重
+ *       （{@link InterfaceSnapshotLoadRegistry}）与订阅重连全量清空</li>
+ * </ul>
  * 执行顺序：-60
  * </p>
  */
@@ -74,64 +80,49 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static final String USER_ID_ATTR = "userId";
     private static final String TENANT_ID_ATTR = "tenantId";
     private static final String SUBJECT_TYPE_CODE_ATTR = "subjectTypeCode";
-    /** exchange 属性键：标记当前请求已知权限被显式撤销（perm:invalidate 已到达），fail-mode 不适用 */
-    private static final String EXPLICITLY_INVALIDATED_ATTR = "permExplicitlyInvalidated";
 
     private final PermissionClient permissionClient;
-    private final Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache;
-    private final Cache<String, StaleEntry> staleSnapshotCache;
+    private final CacheService cacheService;
     private final InvalidationMarker invalidationMarker;
     private final InterfaceSnapshotLoadRegistry loadRegistry;
+    private final InterfaceSnapshotCacheInvalidator invalidator;
     private final ObjectMapper objectMapper;
-    private final int ttlSeconds;
-    private final int staleGraceSeconds;
-    private final FailMode failMode;
+    private final Duration snapshotLoadDeadline;
 
-    // T-GW-004 监控指标（所有 gateway.perm.fallback counter 统一使用 {mode, reason} 标签集，保证 Prometheus 兼容）
+    // T-ACCESS-008 监控指标（固定 fail-closed；open/stale 系列随 fail-mode 删除）
     private final Counter unreachableSnapshotCounter;
     private final Counter unreachableCheckInterfaceCounter;
     private final Counter fallbackClosedDeniedCounter;
-    private final Counter fallbackOpenAllowedCounter;
-    private final Counter fallbackStaleNoEntryCounter;
-    private final Counter fallbackStaleExpiredCounter;
-    private final Counter fallbackStaleInvalidatedCounter;
-    private final Counter fallbackStaleAllowedCounter;
-    private final Counter fallbackStaleDeniedCounter;
+    private final Counter deadlineExceededCounter;
 
     /**
      * 构造函数注入依赖
      *
      * @param permissionClient       权限校验客户端
-     * @param interfaceSnapshotCache 接口快照缓存
-     * @param staleSnapshotCache     陈旧快照缓存
-     * @param invalidationMarker     失效标记
+     * @param cacheService           统一缓存服务（L1_ONLY gw:interface-snapshot）
+     * @param invalidationMarker     失效代际标记
      * @param loadRegistry           回源去重注册表
+     * @param invalidator            快照失效器（回填成功后 track 登记跟踪索引）
      * @param gatewayProperties      网关配置属性
      * @param objectMapper           JSON序列化工具
-     * @param meterRegistry          Micrometer 指标注册表（T-GW-004）
+     * @param meterRegistry          Micrometer 指标注册表
      */
     public PermissionFilter(PermissionClient permissionClient,
-                            Cache<String, InterfaceSnapshotResp> interfaceSnapshotCache,
-                            Cache<String, StaleEntry> staleSnapshotCache,
+                            CacheService cacheService,
                             InvalidationMarker invalidationMarker,
                             InterfaceSnapshotLoadRegistry loadRegistry,
+                            InterfaceSnapshotCacheInvalidator invalidator,
                             GatewayProperties gatewayProperties,
                             ObjectMapper objectMapper,
                             MeterRegistry meterRegistry) {
         this.permissionClient = permissionClient;
-        this.interfaceSnapshotCache = interfaceSnapshotCache;
-        this.staleSnapshotCache = staleSnapshotCache;
+        this.cacheService = cacheService;
         this.invalidationMarker = invalidationMarker;
         this.loadRegistry = loadRegistry;
+        this.invalidator = invalidator;
         this.objectMapper = objectMapper;
-        GatewayProperties.Cache.L1 l1 = gatewayProperties.getCache().getL1();
-        this.ttlSeconds = l1.getTtlSeconds();
-        this.staleGraceSeconds = l1.getStaleGraceSeconds();
-        this.failMode = gatewayProperties.getPermission().getFailMode();
+        this.snapshotLoadDeadline = gatewayProperties.getPermission().getSnapshotLoadDeadline();
 
-        // T-GW-004：初始化监控指标
-        // 所有 gateway.perm.fallback counter 统一使用 {mode, reason} 标签集，
-        // 保证 Prometheus 同名指标 label set 一致（否则 scrape 只导出先注册的子集）
         this.unreachableSnapshotCounter = Counter.builder("gateway.perm.unreachable")
             .tag("source", "snapshot")
             .description("Permission-center unreachable during snapshot fetch")
@@ -144,29 +135,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             .tag("mode", "closed").tag("reason", "denied")
             .description("Fail-closed: request denied when permission-center unreachable")
             .register(meterRegistry);
-        this.fallbackOpenAllowedCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "open").tag("reason", "allowed")
-            .description("Fail-open: request allowed when permission-center unreachable")
-            .register(meterRegistry);
-        this.fallbackStaleNoEntryCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "stale").tag("reason", "no_entry")
-            .description("Stale-allow: no stale entry available")
-            .register(meterRegistry);
-        this.fallbackStaleExpiredCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "stale").tag("reason", "expired")
-            .description("Stale-allow: stale entry expired past staleUntil")
-            .register(meterRegistry);
-        this.fallbackStaleInvalidatedCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "stale").tag("reason", "invalidated")
-            .description("Stale-allow: stale entry explicitly invalidated")
-            .register(meterRegistry);
-        this.fallbackStaleAllowedCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "stale").tag("reason", "allowed")
-            .description("Stale-allow: stale snapshot matched ALLOW, request allowed")
-            .register(meterRegistry);
-        this.fallbackStaleDeniedCounter = Counter.builder("gateway.perm.fallback")
-            .tag("mode", "stale").tag("reason", "denied")
-            .description("Stale-allow: stale snapshot matched DENY/FALLBACK, request denied")
+        this.deadlineExceededCounter = Counter.builder("gateway.perm.fallback")
+            .tag("mode", "closed").tag("reason", "deadline_exceeded")
+            .description("Fail-closed: snapshot load exceeded the full-chain wall-clock deadline")
             .register(meterRegistry);
     }
 
@@ -202,43 +173,49 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
         String clientIp = resolveClientIp(exchange);
 
-        String cacheKey = buildCacheKey(tenantId, subjectTypeCode, userId, serviceCode);
-        InterfaceSnapshotResp cached = interfaceSnapshotCache.getIfPresent(cacheKey);
+        String identifier = InterfaceSnapshotCacheKeys.build(subjectTypeCode, userId, serviceCode);
+        // marker / in-flight 去重命名空间使用租户限定键（identifier 不含租户，
+        // 直接复用会跨租户串扰）；CacheService 自行组装含租户前缀的完整缓存键
+        String loadKey = tenantId + ":" + identifier;
+        InterfaceSnapshotResp cached = cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier);
 
         if (cached != null) {
-            if (!invalidationMarker.contains(cacheKey)) {
+            if (!invalidationMarker.contains(loadKey)) {
                 return decide(exchange, chain, cached, serviceCode, httpMethod, path, clientIp,
-                    subjectTypeCode, userId, tenantId, cacheKey);
+                    subjectTypeCode, userId, tenantId, identifier);
             }
-            // P1：显式失效（perm:invalidate 已到达），驱逐双缓存后标记 exchange，
-            // 后续回源失败时 handleUnreachable 据此始终 503，不走 fail-mode
-            interfaceSnapshotCache.invalidate(cacheKey);
-            staleSnapshotCache.invalidate(cacheKey);
-            exchange.getAttributes().put(EXPLICITLY_INVALIDATED_ATTR, Boolean.TRUE);
+            // 显式失效（perm:invalidate 已到达）：驱逐本地快照后强制回源
+            cacheService.evict(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier);
         }
 
-        // 未命中：回源拉取快照（T-PERM-018：permission-center 实时构建全量快照）
+        // 未命中：回源拉取快照，整段加载流程置于 5 秒全链路硬截止内（T-ACCESS-008）
         // switchIfEmpty 置于 flatMap 之前：将"快照为空"转为异常，避免 decide() 返回 Mono<Void>
         // （天然 empty）时误触发 switchIfEmpty → 重复写 403
-        return loadSnapshot(cacheKey, subjectTypeCode, userId, serviceCode, tenantId, true)
+        return loadSnapshotWithinDeadline(exchange, loadKey, identifier, subjectTypeCode, userId,
+            serviceCode, tenantId)
             .switchIfEmpty(Mono.error(new EmptySnapshotException()))
             .flatMap(snapshot -> decide(exchange, chain, snapshot, serviceCode, httpMethod, path, clientIp,
-                subjectTypeCode, userId, tenantId, cacheKey))
+                subjectTypeCode, userId, tenantId, identifier))
             .onErrorResume(EmptySnapshotException.class, e ->
                 writeForbidden(exchange, "无接口访问权限"))
             .onErrorResume(StaleLoadDiscardedException.class, e -> {
-                // 显式失效并发——不受 fail-mode 影响，始终 503（权限主动撤销 > 服务不可达兜底）
-                log.warn("Discarded stale interface snapshot load after invalidation (key={})", cacheKey);
+                // 显式失效并发——固定 fail-closed 503（权限主动撤销 > 服务不可达兜底）
+                log.warn("Discarded stale interface snapshot load after invalidation (key={})", loadKey);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
-            // P2：仅 PermCenterUnreachableException 走 fail-mode 三模分支
+            .onErrorResume(DeadlineExceededException.class, e ->
+                writeServiceUnavailable(exchange, "鉴权服务暂时不可用"))
             .onErrorResume(PermCenterUnreachableException.class, e -> {
+                // T-ACCESS-008：固定 fail-closed（fail-mode/open/stale-allow 已删除）
                 unreachableSnapshotCounter.increment();
-                return handleUnreachable(exchange, chain, cacheKey, e.getCause());
+                fallbackClosedDeniedCounter.increment();
+                log.warn("Permission-center unreachable ({}), fail-closed denying request: {}",
+                    loadKey, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
+                return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
-            // P2：非远端不可达异常（代码 bug / DTO 兼容等）始终 fail-closed
+            // 非远端不可达异常（代码 bug / DTO 兼容等）固定 fail-closed
             .onErrorResume(e -> {
-                log.error("Unexpected error during permission check (key={}), failing closed", cacheKey, e);
+                log.error("Unexpected error during permission check (key={}), failing closed", loadKey, e);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
     }
@@ -247,33 +224,32 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * 根据快照本地匹配结果三态分发：ALLOW 放行 / FALLBACK 调 check-interface / DENY 拒绝。
      * <p>
      * T-PERM-017 C4：FALLBACK 分支处理 gateway_evaluable=false 或 conditionRules 未下发的含条件 entry。
-     * 同步 HTTP 调 permission-center 实时鉴权，context 仅承载 clientIp（跨进程时钟一致性由 NTP 保证）。
+     * 同步 HTTP 调 access-service 实时鉴权，context 仅承载 clientIp（跨进程时钟一致性由 NTP 保证）。
      * </p>
      */
     private Mono<Void> decide(ServerWebExchange exchange, GatewayFilterChain chain,
                               InterfaceSnapshotResp snapshot, String serviceCode, String httpMethod,
                               String path, String clientIp,
                               String subjectTypeCode, Long userId, Long tenantId,
-                              String cacheKey) {
+                              String identifier) {
         Decision decision = InterfaceSnapshotMatcher.match(snapshot, serviceCode, httpMethod, path, clientIp);
         return switch (decision) {
             case ALLOW -> chain.filter(exchange);
             case DENY -> writeForbidden(exchange, "无接口访问权限");
             case FALLBACK -> fallbackCheckInterface(exchange, chain, subjectTypeCode, userId,
-                serviceCode, httpMethod, path, clientIp, tenantId, cacheKey);
+                serviceCode, httpMethod, path, clientIp, tenantId);
         };
     }
 
     /**
      * 回退实时鉴权：含条件 entry 命中但 conditionRules 未下发 Gateway 时同步调 check-interface。
      * <p>
-     * permission-center 不可达时按 fail-mode 兜底处理（T-GW-002 / T-GW-003）。
+     * access-service 不可达时固定 fail-closed（T-ACCESS-008）。
      * </p>
      */
     private Mono<Void> fallbackCheckInterface(ServerWebExchange exchange, GatewayFilterChain chain,
                                               String subjectTypeCode, Long userId, String serviceCode,
-                                              String httpMethod, String path, String clientIp, Long tenantId,
-                                              String cacheKey) {
+                                              String httpMethod, String path, String clientIp, Long tenantId) {
         return wrapRemoteErrors(permissionClient.checkInterface(subjectTypeCode, userId, serviceCode, httpMethod, path, clientIp, tenantId))
             .flatMap(result -> {
                 CheckInterfaceResp data = result != null ? result.getData() : null;
@@ -283,114 +259,19 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 String reason = data != null && data.reason() != null ? data.reason() : "无接口访问权限";
                 return writeForbidden(exchange, reason);
             })
-            // 远端不可达走 fail-mode 三模分支（T-GW-003：stale-allow 需 cacheKey 查 stale store）
+            // 固定 fail-closed（T-ACCESS-008）
             .onErrorResume(PermCenterUnreachableException.class, e -> {
                 unreachableCheckInterfaceCounter.increment();
-                return handleUnreachable(exchange, chain, cacheKey, e.getCause());
+                fallbackClosedDeniedCounter.increment();
+                log.warn("Permission-center unreachable in check-interface fallback ({}), fail-closed: {}",
+                    serviceCode, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
+                return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
-            // 非远端异常始终 fail-closed
+            // 非远端异常固定 fail-closed
             .onErrorResume(e -> {
                 log.error("Unexpected error in fallback check-interface (serviceCode={}), failing closed", serviceCode, e);
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             });
-    }
-
-    /**
-     * permission-center 不可达兜底处理（T-GW-002 fail-mode 三模 / T-GW-003 stale-allow 续命）。
-     * <ul>
-     *   <li>P1：若 exchange 已标记 {@code explicitlyInvalidated}，始终 503（显式撤销 > 兜底）</li>
-     *   <li>{@link FailMode#CLOSED}：fail-closed，返回 503</li>
-     *   <li>{@link FailMode#OPEN}：fail-open，放行请求（仅限演示环境）</li>
-     *   <li>{@link FailMode#STALE_ALLOW}：从 stale store 取陈旧快照续命（双重检查 staleUntil + !invalidatedKeys）；
-     *       FALLBACK 条件不可评估时视为 DENY（403）；无可用 stale 条目转 closed（503）</li>
-     * </ul>
-     */
-    private Mono<Void> handleUnreachable(ServerWebExchange exchange, GatewayFilterChain chain,
-                                         String cacheKey, Throwable error) {
-        // P1：显式失效后回源失败——始终 fail-closed，不受 fail-mode 影响
-        if (Boolean.TRUE.equals(exchange.getAttribute(EXPLICITLY_INVALIDATED_ATTR))) {
-            log.warn("Permission-center unreachable after explicit invalidation ({}), fail-closed: {}",
-                cacheKey, error.getMessage());
-            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-        }
-        return switch (failMode) {
-            case OPEN -> {
-                log.warn("Permission-center unreachable ({}), fail-open allowing request: {}", cacheKey, error.getMessage());
-                fallbackOpenAllowedCounter.increment();
-                yield chain.filter(exchange);
-            }
-            case STALE_ALLOW -> tryStaleAllow(exchange, chain, cacheKey, error);
-            case CLOSED -> {
-                log.warn("Permission-center unreachable ({}), fail-closed denying request: {}", cacheKey, error.getMessage());
-                fallbackClosedDeniedCounter.increment();
-                yield writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-            }
-        };
-    }
-
-    /**
-     * T-GW-003 stale-allow 续命逻辑：从 stale store 取陈旧快照，双重检查后本地匹配。
-     * <ul>
-     *   <li>stale store 有有效条目（未超 staleUntil + 未被显式失效标记）→ 本地匹配快照</li>
-     *   <li>匹配结果 ALLOW → 放行 / DENY 或 FALLBACK → 拒绝（条件不可评估视为 DENY）</li>
-     *   <li>无可用 stale 条目 → 降级 closed（503）</li>
-     * </ul>
-     */
-    private Mono<Void> tryStaleAllow(ServerWebExchange exchange, GatewayFilterChain chain,
-                                     String cacheKey, Throwable error) {
-        StaleEntry staleEntry = staleSnapshotCache.getIfPresent(cacheKey);
-        if (staleEntry == null) {
-            log.warn("Permission-center unreachable ({}), stale-allow: no stale entry, failing closed: {}",
-                cacheKey, error.getMessage());
-            fallbackStaleNoEntryCounter.increment();
-            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-        }
-        // 双重检查：staleUntil 未过期（now < staleUntil，含边界拒绝）+ 未被显式失效标记
-        if (!Instant.now().isBefore(staleEntry.staleUntil())) {
-            log.warn("Permission-center unreachable ({}), stale-allow: stale entry expired (staleUntil={}), failing closed: {}",
-                cacheKey, staleEntry.staleUntil(), error.getMessage());
-            fallbackStaleExpiredCounter.increment();
-            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-        }
-        if (invalidationMarker.contains(cacheKey)) {
-            log.warn("Permission-center unreachable ({}), stale-allow: key explicitly invalidated, failing closed: {}",
-                cacheKey, error.getMessage());
-            fallbackStaleInvalidatedCounter.increment();
-            return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
-        }
-
-        // stale 条目有效，本地匹配陈旧快照
-        InterfaceSnapshotResp staleSnapshot = staleEntry.snapshot();
-        String serviceCode = extractServiceCodeFromExchange(exchange);
-        String httpMethod = exchange.getRequest().getMethod().name();
-        String path = exchange.getRequest().getURI().getPath();
-        String clientIp = resolveClientIp(exchange);
-        Decision decision = InterfaceSnapshotMatcher.match(staleSnapshot, serviceCode, httpMethod, path, clientIp);
-
-        if (decision == Decision.ALLOW) {
-            log.info("Permission-center unreachable ({}), stale-allow: matched ALLOW from stale snapshot", cacheKey);
-            fallbackStaleAllowedCounter.increment();
-            return chain.filter(exchange);
-        }
-        // DENY 或 FALLBACK：条件不可评估时视为 DENY——陈旧快照显示无明确授权，安全拒绝
-        log.warn("Permission-center unreachable ({}), stale-allow: stale snapshot result={}, failing closed: {}",
-            cacheKey, decision, error.getMessage());
-        fallbackStaleDeniedCounter.increment();
-        if (decision == Decision.FALLBACK) {
-            return writeForbidden(exchange, "无接口访问权限（条件权限不可评估）");
-        }
-        return writeForbidden(exchange, "无接口访问权限");
-    }
-
-    /**
-     * 从 exchange 的路由元数据提取 serviceCode。
-     */
-    private String extractServiceCodeFromExchange(ServerWebExchange exchange) {
-        Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-        if (route == null) {
-            return "";
-        }
-        return String.valueOf(route.getMetadata().getOrDefault("serviceCode", route.getId()));
     }
 
     /**
@@ -425,7 +306,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     /**
      * 将远端 WebClient 调用中仅"不可达"类异常包装为 {@link PermCenterUnreachableException}。
      * <p>
-     * P1：仅 WebClientRequestException（连接/超时）、5xx WebClientResponseException、
+     * 仅 WebClientRequestException（连接/超时）、5xx WebClientResponseException、
      * TimeoutException 视为不可达；解码/DTO/4xx 等错误不包装，由外层 catch-all 兜底 fail-closed。
      * </p>
      */
@@ -439,11 +320,11 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 判断异常是否为 permission-center 远端不可达。
+     * 判断异常是否为 access-service 远端不可达。
      * <ul>
      *   <li>{@link WebClientRequestException}：连接拒绝 / DNS / 超时等 IO 错误</li>
      *   <li>{@link WebClientResponseException} 且 5xx：服务端错误</li>
-     *   <li>{@link java.util.concurrent.TimeoutException}：Reactor 超时</li>
+     *   <li>{@link TimeoutException}：Reactor 超时</li>
      * </ul>
      * 其余（解码错误、4xx、本地异常等）均非"不可达"。
      */
@@ -456,7 +337,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             if (current instanceof WebClientResponseException wcre) {
                 return wcre.getStatusCode().is5xxServerError();
             }
-            if (current instanceof java.util.concurrent.TimeoutException) {
+            if (current instanceof TimeoutException) {
                 return true;
             }
             current = current.getCause();
@@ -464,12 +345,38 @@ public class PermissionFilter implements GlobalFilter, Ordered {
         return false;
     }
 
-    private Mono<InterfaceSnapshotResp> loadSnapshot(String cacheKey, String subjectTypeCode,
+    /**
+     * 在 5 秒全链路硬截止内执行快照加载（T-ACCESS-008）。
+     * <p>
+     * 截止时刻在进入加载流程前一次确定；组合流（含失效竞争触发的一次重试）整体
+     * 置于 {@code Mono.timeout} 之下——重试共享同一截止，不重新计时。写入缓存前
+     * 再次校验截止时刻，超时的结果不写缓存直接 fail-closed。超时统一转为
+     * {@link DeadlineExceededException} 计数后 503。
+     * </p>
+     */
+    private Mono<InterfaceSnapshotResp> loadSnapshotWithinDeadline(ServerWebExchange exchange,
+                                                                   String loadKey, String identifier,
+                                                                   String subjectTypeCode,
+                                                                   Long userId, String serviceCode,
+                                                                   Long tenantId) {
+        return Mono.defer(() -> {
+            long deadlineNanos = System.nanoTime() + snapshotLoadDeadline.toNanos();
+            return loadSnapshot(loadKey, identifier, subjectTypeCode, userId, serviceCode, tenantId,
+                true, deadlineNanos)
+                .timeout(snapshotLoadDeadline)
+                .onErrorResume(TimeoutException.class, e -> {
+                    deadlineExceededCounter.increment();
+                    return Mono.error(new DeadlineExceededException());
+                });
+        });
+    }
+
+    private Mono<InterfaceSnapshotResp> loadSnapshot(String loadKey, String identifier, String subjectTypeCode,
                                                      Long userId, String serviceCode, Long tenantId,
-                                                     boolean retryWhenTokenInvalid) {
-        return loadRegistry.load(cacheKey, () -> {
-                LoadToken token = invalidationMarker.beginLoad(cacheKey);
-                // P1：仅对 WebClient 远端不可达错误包装为 PermCenterUnreachableException；
+                                                     boolean retryWhenTokenInvalid, long deadlineNanos) {
+        return loadRegistry.load(loadKey, () -> {
+                LoadToken token = invalidationMarker.beginLoad(loadKey);
+                // 仅对 WebClient 远端不可达错误包装为 PermCenterUnreachableException；
                 // flatMap 内部错误（extractSnapshot / putSnapshotIfCurrent 等）不做包装，
                 // 由外层 catch-all 兜底 fail-closed
                 return wrapRemoteErrors(permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId))
@@ -478,7 +385,14 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                         if (snapshot == null) {
                             return Mono.empty();
                         }
-                        if (!putSnapshotIfCurrent(cacheKey, snapshot, token)) {
+                        // 截止校验先于缓存写入：超时的结果不写缓存（T-ACCESS-008）
+                        if (System.nanoTime() > deadlineNanos) {
+                            deadlineExceededCounter.increment();
+                            log.warn("Interface snapshot load exceeded full-chain deadline ({}), discard without caching",
+                                loadKey);
+                            return Mono.<InterfaceSnapshotResp>error(new DeadlineExceededException());
+                        }
+                        if (!putSnapshotIfCurrent(tenantId, identifier, loadKey, snapshot, token)) {
                             return Mono.<InterfaceSnapshotResp>error(new StaleLoadDiscardedException());
                         }
                         return Mono.just(snapshot);
@@ -486,33 +400,32 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             })
             .onErrorResume(StaleLoadDiscardedException.class, e -> {
                 if (retryWhenTokenInvalid) {
-                    return loadSnapshot(cacheKey, subjectTypeCode, userId, serviceCode, tenantId, false);
+                    // 失效竞争重试：共享同一截止时刻（deadlineNanos 原样传递，不重新计时）
+                    return loadSnapshot(loadKey, identifier, subjectTypeCode, userId, serviceCode, tenantId,
+                        false, deadlineNanos);
                 }
                 return Mono.error(e);
             });
     }
 
-    private boolean putSnapshotIfCurrent(String cacheKey, InterfaceSnapshotResp snapshot, LoadToken token) {
-        Instant staleUntil = Instant.now().plusSeconds((long) ttlSeconds + staleGraceSeconds);
+    /**
+     * 写入快照缓存（代际校验）。
+     * <p>
+     * 代际失效（LoadToken 过期）不写并返回 false（走重试/503）；写入成功后向失效器
+     * 登记跟踪索引（用户级精确失效枚举用）。截止校验由调用方在写入前完成。
+     * </p>
+     */
+    private boolean putSnapshotIfCurrent(Long tenantId, String identifier, String loadKey,
+                                         InterfaceSnapshotResp snapshot, LoadToken token) {
         return invalidationMarker.commitIfCurrent(token, () -> {
-            interfaceSnapshotCache.put(cacheKey, snapshot);
-            staleSnapshotCache.put(cacheKey, new StaleEntry(snapshot, staleUntil));
+            cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, identifier, snapshot);
+            invalidator.track(tenantId, identifier);
         });
     }
 
     @Override
     public int getOrder() {
         return -60;
-    }
-
-    /**
-     * 构建快照缓存键
-     * <p>
-     * 格式：perm:snapshot:tenantId:subjectTypeCode:userId:serviceCode
-     * </p>
-     */
-    private String buildCacheKey(Long tenantId, String subjectTypeCode, Long userId, String serviceCode) {
-        return InterfaceSnapshotCacheKeys.build(tenantId, subjectTypeCode, userId, serviceCode);
     }
 
     private Long toLong(Object obj) {
@@ -559,10 +472,10 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * permission-center 远端不可达异常。
+     * access-service 远端不可达异常。
      * <p>
-     * 仅包装 WebClient / 网络超时 / 远端 5xx 等明确不可达错误，
-     * 供 fail-mode 三模分支处理。其他异常（代码 bug、DTO 兼容等）不应走 fail-mode。
+     * 仅包装 WebClient / 网络超时 / 远端 5xx 等明确不可达错误；
+     * 其他异常（代码 bug、DTO 兼容等）不应包装。T-ACCESS-008：不可达固定 fail-closed。
      * </p>
      */
     static class PermCenterUnreachableException extends RuntimeException {
@@ -576,5 +489,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
     /** 回源返回空快照（PermResult.data 为 null）时抛出，触发 403 */
     private static class EmptySnapshotException extends RuntimeException {
+    }
+
+    /** 快照加载超过 5 秒全链路硬截止（含写入前截止校验失败），固定 fail-closed 503 */
+    static class DeadlineExceededException extends RuntimeException {
     }
 }

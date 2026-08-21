@@ -76,4 +76,22 @@ public class RedissonCacheAutoConfiguration {
         return new RedissonBucketStore(redissonClient, cacheObjectMapper, meterRegistry, cacheProperties);
     }
 
+    /**
+     * 普通 L1 跨实例失效广播器（T-ACCESS-008）
+     * <p>
+     * L1_L2 目录失效时经 RTopic 广播，各实例订阅后清理本地 Caffeine L1；
+     * 广播失败不抛异常，由各实例 L1 TTL 兜底。构造时即订阅 topic。
+     * </p>
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public RedissonCacheInvalidationBroadcaster redissonCacheInvalidationBroadcaster(
+            RedissonClient redissonClient,
+            ObjectMapper cacheObjectMapper,
+            CombinedL1L2Store combinedL1L2Store,
+            @Autowired(required = false) MeterRegistry meterRegistry) {
+        return new RedissonCacheInvalidationBroadcaster(redissonClient, cacheObjectMapper,
+            combinedL1L2Store, meterRegistry);
+    }
+
 }

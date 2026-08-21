@@ -31,13 +31,14 @@ last_reviewed: 2026-06-28
 
 ### 缓存模型
 
-| 项 | 旧（check-interface 单值） | 新（快照模式） |
+| 项 | 旧（check-interface 单值） | 新（快照模式，T-ACCESS-008） |
 |---|---|---|
-| 缓存 key | `(tenantId,subjectTypeCode,userId,serviceCode,httpMethod,path)` | `(tenantId,subjectTypeCode,userId,serviceCode)` |
+| 缓存载体 | 裸 Caffeine Bean | 自身唯一 `CacheService`（L1_ONLY，catalog `gw:interface-snapshot`） |
+| 缓存 key | `(tenantId,subjectTypeCode,userId,serviceCode,httpMethod,path)` | identifier = `(subjectTypeCode,userId,serviceCode)`；完整键 `{tenantId}:gw:interface-snapshot:{identifier}` |
 | 缓存值 | `Boolean`（仅 true 入缓存） | `InterfaceSnapshotResp`（含 `allowedApis[]`） |
 | 鉴权方式 | 每请求打 RPC（未命中时） | 本地内存匹配，O(1) |
-| TTL | 10s | 30s 兜底（主靠 Redis pub/sub 主动广播，T-PERM-006 已落地） |
-| 未命中处理 | 调 check-interface | 回源拉 interface-snapshot 快照后缓存再匹配 |
+| TTL | 10s | 15s 兜底（主靠 Redis pub/sub 主动广播；TTL/容量由 catalog 声明，`accessmesh.cache.catalogs."gw:interface-snapshot".*` 运维覆盖，有效 TTL>15s 启动失败） |
+| 未命中处理 | 调 check-interface | 5 秒全链路硬截止内回源拉 interface-snapshot 快照后缓存再匹配 |
 
 ### 本地匹配规则（`InterfaceSnapshotMatcher`）
 
@@ -55,102 +56,57 @@ last_reviewed: 2026-06-28
 
 > **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
 
-### 主动失效（T-PERM-006）
+### 主动失效（T-PERM-006 / T-ACCESS-008）
 
-Gateway 启动后订阅 Redis topic `perm:invalidate`。permission-center 写路径在事务提交后发布 `PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)` JSON，Gateway 收到后清理本地 `interfaceSnapshotCache`：
+Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径在事务提交后发布 `PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)` JSON，Gateway 收到后经统一 `CacheService` 清理本地快照（T-ACCESS-008 用户决策：用户级精确 + 租户级兜底）：
 
-- `serviceCodes` 非空：按 `tenantId + serviceCode` 清理对应服务下所有用户快照，覆盖 API mapping / 资源 / syncInterfaces / 条件规则影响的快照构建结果。
-- `userIds` 非空且 `serviceCodes` 为空：按 `tenantId + userId` 清理该用户所有服务快照，覆盖用户角色关系变化。
-- 仅 `roleIds` 非空：Gateway 不读权限库，无法本地反查角色影响用户，按 `tenantId` 级安全清理；广播丢失或订阅断线时仍由 `gateway.cache.l1.ttl-seconds` 兜底。
+- `userIds` 非空且 `serviceCodes`/`roleIds` 为空：按 `tenantId + userId` 精确清理该用户全部服务快照（本地跟踪索引枚举 identifier，覆盖用户角色关系变化）。
+- `serviceCodes` 非空或仅 `roleIds` 非空：按 `tenantId` 租户级 `evictAll` 安全清理——Gateway 无本地反查服务/角色影响用户集合的能力，过度失效方向安全；回源惊群由 per-key in-flight 去重缓解。
+- 广播丢失或订阅断线时由快照 TTL（≤15s）兜底。
 
-广播契约定义在 `perm-common` 的 `PermInvalidateEvent`，由 permission-center 发布端与 Gateway 订阅端共享，避免跨模块事件结构漂移。
+广播契约定义在 `perm-common` 的 `PermInvalidateEvent`，由 access-service 发布端与 Gateway 订阅端共享，避免跨模块事件结构漂移。
 
-### 快照失效标记与订阅恢复（T-GW-005 / S-006）
+### 快照失效标记与回源防护（T-GW-005 / S-006 / T-ACCESS-008）
 
-Gateway 本地快照有两种失效方式，在 stale-allow 模式下行为不同：
+> T-ACCESS-008：stale store、stale-allow 续命、`invalidatedKeys` 的 stale 门禁语义随可切换 fail-mode 一并删除；仍有效能力——**失效代际校验、per-key 回源去重、订阅重连全量清空**——保留如下。
 
-| 方式 | 触发 | stale-allow 可续命？ | 语义 |
-|---|---|---|---|
-| 自然过期 | 主缓存 `expireAfterWrite` TTL 到期，条目转入 stale store | ✅ 可以 | 快照陈旧但未被主动撤销 |
-| 显式失效 | 收到 `perm:invalidate` Redis 广播 | ❌ 不可以 | 权限中心明确告知权限已变更 |
+**显式失效与代际校验**：`InvalidationMarker` 以租户限定键（`tenantId:identifier`）维护 `keyGeneration` / `globalEpoch`。回源开始前记录 `LoadToken(keyGeneration, globalEpoch)`；完成时只有 token 仍有效才能写入快照缓存，否则丢弃结果并重试一次（重试共享同一截止时刻）或转 fail-closed——禁止旧回源结果复活已撤销权限。
 
-**核心原则：权限主动撤销 > 服务不可达兜底。**
+**Per-key 回源去重**：`InterfaceSnapshotLoadRegistry` 使同一快照 key 的并发请求共享同一个 `Mono<InterfaceSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。
 
-#### 三层缓存结构
+**跟踪索引**：失效器维护本地 `tenantId:identifier → userId` 跟踪索引（Caffeine），TTL/容量跟随 `gw:interface-snapshot` 的有效配置（经 `accessmesh.cache` 覆盖后的最终值），与主缓存同步过期。仅用于用户级失效枚举；索引缺失（毫秒级定时器偏差）的残留条目与广播丢失同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（用户决策 2026-08-21：TTL 兜底，不降级租户级清理）。用户级失效候选同时包含在途回源注册表 key（首次回源尚未登记索引时撤权，在途回源被代际作废重试）。孤立标记按 60s 周期清理。
 
-```
-interfaceSnapshotCache: Cache<String, InterfaceSnapshotResp>   // L1 主缓存（expireAfterWrite = ttlSeconds，默认 30s）
-staleSnapshotCache:   Cache<String, StaleEntry>               // L2 陈旧快照缓存（expireAfterWrite = ttlSeconds + staleGraceSeconds，默认 60s）
-invalidationMarker:   InvalidationMarker                       // invalidatedKeys + keyGeneration + globalEpoch
-```
-
-`StaleEntry` 包装 `(InterfaceSnapshotResp snapshot, Instant staleUntil)`，`staleUntil` = 快照首次写入主缓存的时刻 + `ttlSeconds` + `staleGraceSeconds`（默认 30+30=60s），续命时检查 `Instant.now().isBefore(entry.staleUntil())`。**不基于 RemovalListener 触发时刻**——Caffeine 过期清理可能延迟触发，基于触发时刻计算会错误延后 stale 窗口。
-
-**关键安全约束**：`perm:invalidate` 事件必须**同时驱逐主缓存和 stale store**，并**标记 invalidatedKeys**。仅驱逐主缓存而遗漏 stale store 会导致 stale-allow 续命使用已撤销权限。
-
-#### 失效标记
-
-显式失效通过 `InvalidationMarker` 追踪：`invalidatedKeys` 用于 stale-allow 门禁，`keyGeneration` / `globalEpoch` 用于回源提交代际校验。
-
-| 触发场景 | 主缓存 | stale store | InvalidationMarker |
-|---|---|---|---|
-| 回源拉取新快照成功且 `LoadToken` 仍有效 | `put(key, snapshot)` | `put(key, StaleEntry(snapshot, staleUntil))` | `unmarkIfCurrent(token)` |
-| 回源完成但 `LoadToken` 已失效 | 不写入 | 不写入 | 不清标记；丢弃结果并重试一次或转 fail-close |
-| 主缓存条目过期（Caffeine 自然淘汰） | 自动淘汰 | 已有数据，无需操作 | — |
-| `perm:invalidate` 事件 | `invalidate(key)` | `invalidate(key)` | `mark(key)`：`invalidatedKeys.add(key)` + `keyGeneration++` |
-| stale-allow 续命检查 | — | `getIfPresent(key)` → 检查 staleUntil + 检查 !invalidatedKeys | `contains(key)` |
-| 订阅重连全量清空 | `invalidateAll()` | `invalidateAll()` | `clearAndBumpGlobalEpoch()` |
-
-回源成功时同步写 stale store（`staleUntil = now + ttl + grace`），不依赖 RemovalListener——避免 TTL 过期后 RemovalListener 未触发时 stale store 空缺导致 stale-allow 错误 fail-close。
-
-标记维度与 `InterfaceSnapshotCacheInvalidator.evict()` 驱逐维度一致：`serviceCodes` 非空按服务、`userIds` 非空按用户、仅 `roleIds` 按租户级。失效匹配 key 集合必须覆盖主缓存 key、stale store key 与 in-flight 回源 key。回源开始前记录 `LoadToken(keyGeneration, globalEpoch)`；完成时只有 token 仍有效才能写主缓存/stale store 并清除 marker，否则丢弃结果，禁止旧回源结果复活已撤销权限。标记生命周期：回源成功且 token 有效时清除、定期清理孤立 key（默认 60s 扫描）、重连全量清空时一并清除并递增 `globalEpoch`。
-
-#### Per-key 回源去重
-
-T-PERM-008 已通过 `InterfaceSnapshotLoadRegistry` 落地 per-key in-flight 去重。`PermissionFilter` 未命中回源时，同一快照 key 的并发请求共享同一个 `Mono<InterfaceSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。`perm:invalidate` 匹配范围同时包含主缓存 key、stale store key 和 in-flight key，避免旧回源结果在显式失效后写回。
-
-#### 订阅恢复：重连即全量清空
-
-Gateway 与 Redis 断线重连后执行全量清空（主缓存 + stale store + 失效标记），后续请求按需回源。设计理由：pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
-
-T-PERM-008 已在 `PermInvalidationSubscriber` 增加重连检测：Reactive Redis 订阅的 `onError`/`onComplete` 会安排重建订阅，重建后触发全量清空。
+**订阅重连：重连即全量清空**：与 Redis 断线重连后，先递增 `globalEpoch`（在途回源作废重试），再执行 catalog 级跨租户 `evictAll`（`CacheService.evictAll(catalog)`，不依赖跟踪索引推导租户——索引与主缓存是独立 Caffeine，容量压力下索引会先于主缓存淘汰），后续请求按需回源。pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
 
 ### 配置项
 
 | 配置键 | 默认值 | 说明 |
 |---|---|---|
-| `gateway.cache.l1.ttl-seconds` | 30 | 快照 TTL 兜底 |
-| `gateway.cache.l1.max-size` | 50000 | 本地快照最大条目 |
-| `gateway.cache.l1.stale-grace-seconds` | 30 | stale store 续命窗口；T-GW-003 接入 stale-allow 时使用 |
-| `gateway.permission.fail-mode` | `closed` | 权限校验失联兜底模式：`closed`（拒绝，生产安全）/ `open`（放行，仅 demo）/ `stale-allow`（陈旧快照续命，T-GW-003） |
-| `gateway.permission.service-url` | `lb://permission-center` | 权限中心地址 |
+| `gateway.permission.snapshot-load-deadline` | `5s` | 快照加载全链路墙钟硬截止（含服务发现/LB、连接、发送、处理、响应读取解码及失效竞争重试）；同一授权请求内所有尝试共享同一截止，超时不写缓存并固定 fail-closed 503。上限 5s，超限启动失败 |
+| `gateway.permission.service-url` | `lb://permission-center` | 权限服务地址 |
 | `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
 | `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |
+| `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl` | `15s`（catalog 声明） | 快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`） |
+| `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地快照最大条目 |
 
-### 失联兜底模式（T-GW-001 / T-GW-002 / T-GW-003）
+> T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。
 
-当 permission-center 不可达（网络错误、超时、5xx）时，`PermissionFilter` 按 `gateway.permission.fail-mode` 配置决定行为：
+### 失联兜底模式（T-ACCESS-008 固定 fail-closed）
 
-| 模式 | 行为 | 适用场景 |
-|---|---|---|
-| `closed`（默认） | 返回 503 `SERVICE_UNAVAILABLE` | 生产环境——安全优先，宁可拒绝不可放行 |
-| `open` | 放行请求（`chain.filter`） | 仅限演示环境——可用性优先，安全风险高 |
-| `stale-allow` | 从 stale store 取陈旧快照续命 | 折中——陈旧快照在 grace window 内可用，超过转 closed |
+> T-GW-001/T-GW-002/T-GW-003 历史实现的 `closed`/`open`/`stale-allow` 三模式及 stale store 已于 T-ACCESS-008 删除，权限回源失败**固定 fail-closed**，不可配置、不得绕过授权或使用过期结果。
 
-**核心原则：权限主动撤销 > 服务不可达兜底。**
+| 场景 | 行为 |
+|---|---|
+| access-service 不可达（网络错误、超时、5xx） | 503 `SERVICE_UNAVAILABLE`（fail-closed） |
+| 快照加载超过 5 秒全链路硬截止 | 不写缓存 + 503（`reason=deadline_exceeded`） |
+| 显式失效（`perm:invalidate` 已到达）后回源失败/在途回源代际失效 | 503（权限主动撤销 > 不可达兜底） |
+| 快照匹配 DENY / FALLBACK 且 check-interface 失败 | 403 / 503 |
 
-- `StaleLoadDiscardedException`（回源并发失效）不受 fail-mode 影响，始终 503——这是显式撤销（`perm:invalidate` 事件已到达），不是不可达场景。
-- `fail-open` 模式下，主快照加载失败和 fallback `check-interface` 失败均放行。
-- `stale-allow` 续命逻辑（T-GW-003 已实现）：
-  1. 从 `staleSnapshotCache` 取 `StaleEntry`
-  2. 双重检查：`Instant.now().isBefore(staleUntil)` + `!invalidationMarker.contains(key)`
-  3. 通过 → 对陈旧快照运行 `InterfaceSnapshotMatcher.match()`：ALLOW 放行 / DENY 403 / FALLBACK → 403（条件不可评估视为 DENY）
-  4. 不通过 → 降级 closed（503）
-- 显式失效（`perm:invalidate` 已到达 + 主缓存有此 key）后回源不可达，`stale-allow` 也不续命——P1 门禁由 `EXPLICITLY_INVALIDATED_ATTR` exchange 属性保证。
+**核心原则：权限主动撤销 > 服务不可达兜底；任何不确定性一律拒绝。**
 
-### 监控指标（T-GW-004）
+### 监控指标
 
-Gateway 通过 Micrometer 暴露 Prometheus 指标，监控权限校验失联与兜底行为。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，端点 `/actuator/prometheus`。
+Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，端点 `/actuator/prometheus`。
 
 #### 计数器
 
@@ -159,20 +115,13 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标，监控权限校验失联与
 | `gateway.perm.unreachable` | `source=snapshot` | 快照回源不可达计数 |
 | `gateway.perm.unreachable` | `source=check_interface` | fallback check-interface 不可达计数 |
 | `gateway.perm.fallback` | `mode=closed, reason=denied` | fail-closed 拒绝次数 |
-| `gateway.perm.fallback` | `mode=open, reason=allowed` | fail-open 放行次数 |
-| `gateway.perm.fallback` | `mode=stale, reason=no_entry` | stale-allow 无陈旧条目 |
-| `gateway.perm.fallback` | `mode=stale, reason=expired` | stale-allow 条目已过期 |
-| `gateway.perm.fallback` | `mode=stale, reason=invalidated` | stale-allow 条目被显式失效标记 |
-| `gateway.perm.fallback` | `mode=stale, reason=allowed` | stale-allow 续命成功（快照匹配 ALLOW） |
-| `gateway.perm.fallback` | `mode=stale, reason=denied` | stale-allow 快照拒绝（DENY/FALLBACK） |
+| `gateway.perm.fallback` | `mode=closed, reason=deadline_exceeded` | 快照加载超 5 秒硬截止次数 |
 
-> 所有 `gateway.perm.fallback` counter 统一使用 `{mode, reason}` 标签集，保证 Prometheus 同名指标 label set 一致。
-> stale 总数可由 `sum(gateway_perm_fallback_total{mode="stale"})` 聚合。
+> 所有 `gateway.perm.fallback` counter 统一使用 `{mode, reason}` 标签集。原 `mode=open`/`mode=stale` 系列指标随 fail-mode 删除一并移除。
 
-#### Caffeine 缓存指标
+#### 统一缓存框架指标
 
-`CacheConfig` 通过 `CaffeineCacheMetrics.monitor()` 将两个 Caffeine Cache 绑定到 MeterRegistry，
-Actuator 导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load` 等，tag `cache=interfaceSnapshotCache|staleSnapshotCache`。
+快照缓存经统一 `CacheService`（L1_ONLY）自动接入框架指标：`cache.l1.hits` / `cache.l1.misses` / `cache.puts`（回源回填）等，tag `catalog=gw:interface-snapshot`；上游 access-service 侧另有 `cache.l2.hits`/`cache.l2.misses`/`cache.l2.errors`/`cache.invalidate.failures` 区分 L1/L2 命中、回源与失效失败。
 
 #### Prometheus 告警规则示例
 
@@ -182,7 +131,7 @@ Actuator 导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load
   for: 1m
   labels: { severity: warning }
   annotations:
-    summary: "Gateway 检测到权限中心不可达"
+    summary: "Gateway 检测到 access-service 不可达"
 
 - alert: GatewayPermFallbackClosed
   expr: increase(gateway_perm_fallback_total{mode="closed",reason="denied"}[5m]) > 10
@@ -191,12 +140,12 @@ Actuator 导出 Caffeine 指标：`cache_gets`、`cache_evictions`、`cache_load
   annotations:
     summary: "Gateway fail-closed 拒绝过多"
 
-- alert: GatewayPermStaleAllowDenied
-  expr: increase(gateway_perm_fallback_total{mode="stale",reason="denied"}[5m]) > 0
+- alert: GatewayPermSnapshotDeadlineExceeded
+  expr: increase(gateway_perm_fallback_total{mode="closed",reason="deadline_exceeded"}[5m]) > 0
   for: 2m
   labels: { severity: warning }
   annotations:
-    summary: "Gateway stale-allow 续命但快照拒绝"
+    summary: "Gateway 快照加载超过 5 秒全链路截止"
 ```
 
 ## 与权限中心的约定

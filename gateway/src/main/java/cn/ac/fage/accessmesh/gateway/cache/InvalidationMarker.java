@@ -9,10 +9,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 显式失效标记与回源代际校验。
+ * 显式失效标记与回源代际校验（T-GW-005 / T-ACCESS-008）。
  * <p>
- * {@code invalidatedKeys} 用于 stale-allow 门禁；{@code keyGeneration} 和
- * {@code globalEpoch} 用于阻止失效事件之后返回的旧回源结果重新写回缓存。
+ * {@code invalidatedKeys} 标记已被显式失效（perm:invalidate 广播）的 key：
+ * 缓存命中被标记 key 时强制驱逐并回源，禁止继续放行；
+ * {@code keyGeneration} 和 {@code globalEpoch} 用于阻止失效事件之后返回的
+ * 旧回源结果重新写回缓存（在途回源提交前校验代际，失效后作废）。
  * </p>
  */
 @Component
@@ -84,7 +86,7 @@ public class InvalidationMarker {
     }
 
     /**
-     * 保留当前仍可能参与 stale 或 in-flight 校验的 key，清掉孤立标记。
+     * 保留当前仍可能参与缓存命中门禁或 in-flight 校验的 key，清掉孤立标记。
      */
     public synchronized void retainLiveKeys(Set<String> liveKeys) {
         Set<String> safeLiveKeys = liveKeys == null ? Set.of() : liveKeys;

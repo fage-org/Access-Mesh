@@ -1,151 +1,147 @@
 package cn.ac.fage.accessmesh.gateway.cache;
 
+import cn.ac.fage.accessmesh.common.cache.CacheProperties;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
+import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import reactor.core.publisher.Mono;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * InterfaceSnapshotCacheInvalidator 单元测试（T-PERM-006）
+ * InterfaceSnapshotCacheInvalidator 测试（T-PERM-006 / T-ACCESS-008 迁 CacheService + 失效粒度）。
  * <p>
- * 验证 Gateway 收到 perm:invalidate 后按 tenant + serviceCodes / userIds 精确清理本地快照；
- * roleIds-only 等无法反查用户的事件采用 tenant 级安全清理，避免撤权后 Gateway 快照陈旧。
+ * T-ACCESS-008 用户决策：userIds 非空且无 serviceCodes/roleIds → 用户级精确清理；
+ * serviceCodes 非空或仅 roleIds → 租户级 evictAll 安全兜底。
  * </p>
  */
 class InterfaceSnapshotCacheInvalidatorTest {
 
-    private final Cache<String, InterfaceSnapshotResp> cache = Caffeine.newBuilder().build();
-    private final Cache<String, StaleEntry> staleCache = Caffeine.newBuilder().build();
-    private final InvalidationMarker marker = new InvalidationMarker();
-    private final InterfaceSnapshotLoadRegistry loadRegistry = new InterfaceSnapshotLoadRegistry();
-    private final InterfaceSnapshotCacheInvalidator invalidator =
-        new InterfaceSnapshotCacheInvalidator(cache, staleCache, marker, loadRegistry);
+    private static final Long TENANT_ID = 1L;
+    private static final Long OTHER_TENANT_ID = 2L;
+    private static final String SUBJECT_TYPE_CODE = "USER";
 
-    @Test
-    void shouldEvictOnlyMatchingTenantAndService_whenServiceCodesPresent() {
-        put(1L, 10L, "admin-service");
-        put(1L, 10L, "example-service");
-        put(2L, 10L, "admin-service");
+    private CacheService cacheService;
+    private InvalidationMarker marker;
+    private InterfaceSnapshotLoadRegistry loadRegistry;
+    private InterfaceSnapshotCacheInvalidator invalidator;
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(), Set.of("admin-service")));
+    @BeforeEach
+    void setUp() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        marker = new InvalidationMarker();
+        loadRegistry = new InterfaceSnapshotLoadRegistry();
+        cacheService = new DefaultCacheService(null, null,
+            new CaffeineLocalCacheStore(objectMapper, null, new CacheProperties()),
+            new CacheProperties(), null);
+        invalidator = new InterfaceSnapshotCacheInvalidator(cacheService, marker, loadRegistry,
+            new cn.ac.fage.accessmesh.common.cache.CacheProperties());
+    }
 
-        assertThat(evicted).isEqualTo(1);
-        assertThat(cache.getIfPresent(key(1L, 10L, "admin-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 10L, "example-service"))).isNotNull();
-        assertThat(cache.getIfPresent(key(2L, 10L, "admin-service"))).isNotNull();
+    private String identifier(Long userId, String serviceCode) {
+        return InterfaceSnapshotCacheKeys.build(SUBJECT_TYPE_CODE, userId, serviceCode);
+    }
+
+    private void putSnapshot(Long tenantId, Long userId, String serviceCode) {
+        String id = identifier(userId, serviceCode);
+        cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, tenantId, id, snapshot(serviceCode));
+        invalidator.track(tenantId, id);
+    }
+
+    private InterfaceSnapshotResp snapshot(String serviceCode) {
+        return new InterfaceSnapshotResp(List.of(
+            new ApiPermissionEntry(serviceCode, null, null, false, null, null, ScopeMode.ALL)
+        ));
     }
 
     @Test
-    void shouldEvictAllServicesForMatchingUsers_whenUserIdsPresent() {
-        put(1L, 10L, "admin-service");
-        put(1L, 10L, "example-service");
-        put(1L, 11L, "admin-service");
+    void evictByUserIds_shouldEvictOnlyThatUserInTenant() {
+        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "example-service");
+        putSnapshot(TENANT_ID, 20L, "admin-service");
+        putSnapshot(OTHER_TENANT_ID, 10L, "admin-service");
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(10L), Set.of()));
+        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(10L), Set.of()));
 
         assertThat(evicted).isEqualTo(2);
-        assertThat(cache.getIfPresent(key(1L, 10L, "admin-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 10L, "example-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 11L, "admin-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        // 同租户其他用户不受影响
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "admin-service"))).isNotNull();
+        // 其他租户同用户不受影响
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(10L, "admin-service"))).isNotNull();
+        // 被清理 key 标记失效（租户限定键，防旧回源复活）
+        assertThat(marker.contains(TENANT_ID + ":" + identifier(10L, "admin-service"))).isTrue();
     }
 
     @Test
-    void shouldEvictTenantWide_whenRoleOnlyEventCannotResolveAffectedUsers() {
-        put(1L, 10L, "admin-service");
-        put(1L, 11L, "example-service");
-        put(2L, 10L, "admin-service");
+    void evictByServiceCodes_shouldEvictTenantWide() {
+        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 20L, "example-service");
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(200L), Set.of(), Set.of()));
+        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of("admin-service")));
 
-        assertThat(evicted).isEqualTo(2);
-        assertThat(cache.getIfPresent(key(1L, 10L, "admin-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 11L, "example-service"))).isNull();
-        assertThat(cache.getIfPresent(key(2L, 10L, "admin-service"))).isNotNull();
+        // 服务级失效降级为租户级兜底（-1 表示全量）
+        assertThat(evicted).isEqualTo(-1L);
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
-    void shouldEvictUnionOfMatchingServicesAndUsers_whenBothDimensionsPresent() {
-        put(1L, 10L, "admin-service");
-        put(1L, 10L, "example-service");
-        put(1L, 11L, "admin-service");
-        put(1L, 11L, "example-service");
+    void evictByRoleIdsOnly_shouldEvictTenantWide() {
+        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 20L, "example-service");
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(10L), Set.of("admin-service")));
+        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(5L), Set.of(), Set.of()));
 
-        assertThat(evicted).isEqualTo(3);
-        assertThat(cache.getIfPresent(key(1L, 10L, "admin-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 10L, "example-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 11L, "admin-service"))).isNull();
-        assertThat(cache.getIfPresent(key(1L, 11L, "example-service"))).isNotNull();
+        assertThat(evicted).isEqualTo(-1L);
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
-    void shouldSkipMalformedCacheKeys() {
-        cache.put("malformed", new InterfaceSnapshotResp(List.of()));
-        put(1L, 10L, "admin-service");
+    void evictWithEmptyPayload_shouldNoop() {
+        putSnapshot(TENANT_ID, 10L, "admin-service");
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(), Set.of("admin-service")));
+        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of()));
 
-        assertThat(evicted).isEqualTo(1);
-        assertThat(cache.getIfPresent("malformed")).isNotNull();
+        assertThat(evicted).isZero();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNotNull();
     }
 
     @Test
-    void shouldEvictStaleSnapshotAndMarkMatchedKey() {
-        String key = key(1L, 10L, "admin-service");
-        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
-        cache.put(key, snapshot);
-        staleCache.put(key, new StaleEntry(snapshot, Instant.now().plusSeconds(60)));
-
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(10L), Set.of()));
-
-        assertThat(evicted).isEqualTo(1);
-        assertThat(cache.getIfPresent(key)).isNull();
-        assertThat(staleCache.getIfPresent(key)).isNull();
-        assertThat(marker.contains(key)).isTrue();
-    }
-
-    @Test
-    void shouldMarkInFlightKeyEvenWhenNoSnapshotCacheEntryExists() {
-        String key = key(1L, 10L, "admin-service");
-        loadRegistry.load(key, () -> Mono.never());
-
-        long evicted = invalidator.evict(new PermInvalidateEvent(1L, Set.of(), Set.of(), Set.of("admin-service")));
-
-        assertThat(evicted).isEqualTo(1);
-        assertThat(marker.contains(key)).isTrue();
-    }
-
-    @Test
-    void shouldClearAllCachesAndBumpGlobalEpoch() {
-        String key = key(1L, 10L, "admin-service");
-        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
-        InvalidationMarker.LoadToken token = marker.beginLoad(key);
-        cache.put(key, snapshot);
-        staleCache.put(key, new StaleEntry(snapshot, Instant.now().plusSeconds(60)));
+    void clearAll_shouldEvictAllTenantsAndBumpEpoch() {
+        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(OTHER_TENANT_ID, 20L, "admin-service");
 
         invalidator.clearAll();
 
-        assertThat(cache.getIfPresent(key)).isNull();
-        assertThat(staleCache.getIfPresent(key)).isNull();
-        assertThat(marker.isCurrent(token)).isFalse();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(20L, "admin-service"))).isNull();
     }
 
-    private void put(Long tenantId, Long userId, String serviceCode) {
-        String key = key(tenantId, userId, serviceCode);
-        InterfaceSnapshotResp snapshot = new InterfaceSnapshotResp(List.of());
-        cache.put(key, snapshot);
-    }
+    /**
+     * 复评 P2-1 回归：索引条目丢失（容量压力下索引先于主缓存淘汰）的租户，
+     * clearAll 仍必须清空——catalog 级跨租户 evictAll 不依赖跟踪索引推导租户。
+     */
+    @Test
+    void clearAll_shouldEvictTenantsMissingFromTrackingIndex() {
+        // 快照直接写入缓存但不登记跟踪索引（模拟索引条目已丢失）
+        cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
+            identifier(10L, "admin-service"), snapshot("admin-service"));
 
-    private String key(Long tenantId, Long userId, String serviceCode) {
-        return InterfaceSnapshotCacheKeys.build(tenantId, "USER", userId, serviceCode);
+        invalidator.clearAll();
+
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
+            identifier(10L, "admin-service"))).isNull();
     }
 }
