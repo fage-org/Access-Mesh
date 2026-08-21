@@ -1,6 +1,6 @@
 /**
  * 用户管理 API
- * 经 @/utils/http 调用 admin-service 端点；Phase 1 由 mock/user-manage.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 access-service 端点；Phase 1 由 mock/user-manage.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */

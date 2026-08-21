@@ -1,5 +1,5 @@
 // 冲突规则 Mock（T-FE-010）。
-// 对齐 permission-center 的 conflict-rule 管理接口；
+// 对齐 access-service 权限域的 conflict-rule 管理接口；
 // 冲突规则 CRUD + 冲突检测，ROLE_MUTEX（角色互斥）/ PERM_MUTEX（权限互斥）两类。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。

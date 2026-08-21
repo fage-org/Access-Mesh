@@ -58,14 +58,14 @@ class PermInvalidationSubscriberTest {
         @Test
         void shouldDeserializeMessageAndEvictLocalSnapshotCache() throws Exception {
             String message = objectMapper.writeValueAsString(
-                new PermInvalidateEvent(1L, Set.of(200L), Set.of(10L), Set.of("admin-service"))
+                new PermInvalidateEvent(1L, Set.of(200L), Set.of(10L), Set.of("example-service"))
             );
 
             subscriber.handleMessage(message);
 
             verify(invalidator).evict(argThat(event -> event.tenantId().equals(1L)
                 && event.userIds().contains(10L)
-                && event.serviceCodes().contains("admin-service")));
+                && event.serviceCodes().contains("example-service")));
         }
 
         @Test

@@ -1,7 +1,7 @@
 // 根据角色动态生成路由 / 模拟前端按钮级 perm 门控（fake server）
 //
 // 注意：
-// - 这是 fake server 仅模拟前端 UX 隐藏，**真实拒绝以 admin-service 后端 permissionValidator 为准**。
+// - 这是 fake server 仅模拟前端 UX 隐藏，**真实拒绝以 access-service 后端 permissionValidator 为准**。
 // - perm 串字面量从 `views/system/user/utils/perms.ts`（SSOT）反向导入，禁止再硬编码。
 //   契约见 `docs/design/org-user-permission-contract.md` §4。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";

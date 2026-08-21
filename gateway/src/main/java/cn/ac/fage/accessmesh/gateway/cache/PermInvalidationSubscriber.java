@@ -18,7 +18,7 @@ import java.time.Duration;
 /**
  * 权限失效广播订阅器（T-PERM-006）
  * <p>
- * 订阅 Redis pub/sub topic {@code perm:invalidate}，收到 permission-center afterCommit 发布的事件后，
+ * 订阅 Redis pub/sub topic {@code perm:invalidate}，收到 access-service afterCommit 发布的事件后，
  * 按 tenant + serviceCodes / userIds 清理 Gateway 本地 {@code INTERFACE_SNAPSHOT} 缓存。
  * </p>
  */

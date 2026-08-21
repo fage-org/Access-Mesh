@@ -13,8 +13,9 @@ last_reviewed: 2026-06-28
 ## 职责边界
 
 - 作为系统唯一流量入口，负责路由、Token 校验、白名单、请求上下文注入和接口级鉴权。
+- **路由拓扑（T-ACCESS-010，2026-08-22）**：`/admin/**` 与 `/perm/**` 合并为一条路由指向 `lb://access-service`（StripPrefix=1，`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（StripPrefix=0）；`/example/**` 不变。旧服务发现目标 `lb://admin-service`、`lb://permission-center` 已删除，无别名兼容。
 - 不直接读取业务库或权限中心数据库。
-- 鉴权采用**快照模式**（T-PERM-001）：调用权限中心 `POST /api/perm/auth/interface-snapshot` 拉取用户全量接口权限快照，本地内存匹配，不再每请求打 RPC。
+- 鉴权采用**快照模式**（T-PERM-001）：调用权限服务（access-service）`POST /api/perm/auth/interface-snapshot` 拉取用户全量接口权限快照，本地内存匹配，不再每请求打 RPC。
 - 只处理入口安全和路由职责，不承载业务权限管理页面或授权配置。
 
 ## 核心链路
@@ -52,7 +53,7 @@ last_reviewed: 2026-06-28
    - `hasCondition=true` 但 `conditionRules` 未下发（`gateway_evaluable=false` 或防御过滤拒绝）→ 标记需要 `FALLBACK`，继续遍历（后续仍可能有无条件条目兜底）。
 4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/perm/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
 
-> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 permission-center 评估。`PermissionFilter` 提取 `clientIp` 顺序：`X-Forwarded-For` 首段 → `X-Real-IP` → 远端地址。
+> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 access-service 评估。`PermissionFilter` 提取 `clientIp` 顺序：`X-Forwarded-For` 首段 → `X-Real-IP` → 远端地址。
 
 > **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
 
@@ -83,7 +84,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 | 配置键 | 默认值 | 说明 |
 |---|---|---|
 | `gateway.permission.snapshot-load-deadline` | `5s` | 快照加载全链路墙钟硬截止（含服务发现/LB、连接、发送、处理、响应读取解码及失效竞争重试）；同一授权请求内所有尝试共享同一截止，超时不写缓存并固定 fail-closed 503。上限 5s，超限启动失败 |
-| `gateway.permission.service-url` | `lb://permission-center` | 权限服务地址 |
+| `gateway.permission.service-url` | `lb://access-service` | 权限服务地址（T-ACCESS-010：目标由 permission-center 切换） |
 | `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
 | `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |
 | `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl` | `15s`（catalog 声明） | 快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`） |

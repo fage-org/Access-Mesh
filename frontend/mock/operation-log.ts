@@ -1,6 +1,6 @@
 // 操作日志 Mock（Phase 1）
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
-// 字段已对齐 permission-center 的 OperationLogResp
+// 字段已对齐 access-service 权限域的 OperationLogResp
 // 契约依据：docs/design/permission-center/api-contract.md §5.8（操作日志仅 1 行表格条目，路径写错且无独立字段契约章节）
 // 表结构：docs/design/schema/permission-center.sql:661-690
 // 后端实现：LogQueryController（@RequestMapping("/api/perm/log")）+ LogQueryAppServiceImpl.listOperationLogs

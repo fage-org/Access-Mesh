@@ -1,5 +1,5 @@
 // 权限授予 Mock（T-FE-036，4.1 权限授予页 v3）。
-// 对齐 permission-center 的 role-resource-permission/list（§6.4）与
+// 对齐 access-service 权限域的 role-resource-permission/list（§6.4）与
 // role-resource-permission/apply-grant-plan（§6.5.1，授权页面唯一写入口；mock 与真实后端同契约）。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。

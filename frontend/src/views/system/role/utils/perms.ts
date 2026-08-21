@@ -7,7 +7,7 @@
  * - 各组件 v-if/computed：直接 `hasPerms(ROLE_MANAGE_PERMS.XXX)`
  *
  * ## 权限锚点（B1：前端操作码口径对齐后端）
- * 资源类型 `ROLE`（permission-center 乙层模型），操作码对齐 OperationCodeConstants。
+ * 资源类型 `ROLE`（access-service 乙层模型），操作码对齐 OperationCodeConstants。
  * - `ROLE:VIEW` —— 查看（路由可达 + 树可见）。
  * - `ROLE:CREATE` —— 创建。
  * - `ROLE:MANAGE` —— **编辑 / 启停 / 删除 / 移动** 统一口径。

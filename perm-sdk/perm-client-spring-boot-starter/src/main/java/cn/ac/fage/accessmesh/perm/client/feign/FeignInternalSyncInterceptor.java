@@ -11,9 +11,9 @@ import java.util.Collection;
 /**
  * 服务间内部调用拦截器
  * <p>
- * 当调用 permission-center 的 {@code /api/perm/**} 路径时（典型为 sync/full-sync
+ * 当调用 access-service 的 {@code /api/perm/**} 路径时（典型为 sync/full-sync
  * 同步接口、auth/check 鉴权接口等），自动注入 {@code X-Internal-Secret}
- * 与 {@code X-Service-Code} 两个 Header，用于通过 permission-center 端的
+ * 与 {@code X-Service-Code} 两个 Header，用于通过 access-service 端的
  * {@code InternalApiSecretInterceptor} 校验。
  * </p>
  * <p>
@@ -21,8 +21,12 @@ import java.util.Collection;
  * 服务依赖时）不会因缺少配置启动失败。
  * </p>
  * <p>
- * {@code X-Tenant-Id} 由各调用方业务侧拦截器（如 admin-service 的
- * {@code FeignTenantInterceptor}）从 ThreadLocal 注入；本拦截器不处理。
+ * {@code perm.service-code} 无默认值（T-ACCESS-010 用户决策）：配置了
+ * {@code perm.internal-secret} 但未显式声明自身服务编码时，Spring 占位符解析
+ * 失败导致启动失败（fail-fast），防止调用方以已退役的旧服务名声明身份。
+ * </p>
+ * <p>
+ * {@code X-Tenant-Id} 由各调用方业务侧拦截器从 ThreadLocal 注入；本拦截器不处理。
  * </p>
  */
 @Component
@@ -37,7 +41,7 @@ public class FeignInternalSyncInterceptor implements RequestInterceptor {
     @Value("${perm.internal-secret:}")
     private String internalSecret;
 
-    @Value("${perm.service-code:admin-service}")
+    @Value("${perm.service-code}")
     private String serviceCode;
 
     @Override

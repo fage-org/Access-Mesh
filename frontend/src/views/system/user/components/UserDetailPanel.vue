@@ -76,7 +76,7 @@ const userOrgs = ref<UserOrgItem[]>([]);
 // ========== 权限门控 ==========
 // 与 docs/design/org-user-permission-contract.md §4 矩阵 B/C 区对齐。
 // 详情弹窗自身不区分「默认树/非默认树」，前端只把它折叠到 ORG_MEMBER：
-// 默认树主组织（设主）按身份目录操作处理，落地仍由后端 admin-service 二次拒绝。
+// 默认树主组织（设主）按身份目录操作处理，落地仍由后端 access-service 二次拒绝。
 const canManageOrgMember = computed(() => hasPerms(ORG_USER_PERMS.ORG_MEMBER));
 const canAssignFunctionalRole = computed(() =>
   hasPerms(ORG_USER_PERMS.USER_ROLE_ASSIGN)

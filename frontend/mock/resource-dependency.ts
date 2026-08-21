@@ -1,5 +1,5 @@
 // 资源依赖 Mock（T-FE-011）。
-// 对齐 permission-center 的 resource-dependency 管理接口；
+// 对齐 access-service 权限域的 resource-dependency 管理接口；
 // 资源依赖 CRUD + 依赖图 + 循环检测。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。

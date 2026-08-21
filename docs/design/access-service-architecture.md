@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-08-15
+last_reviewed: 2026-08-22
 ---
 
 # access-service 目标架构与归并约束
@@ -307,6 +307,13 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - access 内部代码禁止通过 `perm-sdk` 或 Feign 调用自身。
 - `serviceCode`、服务配置、资源映射、owner code、缓存失效载荷、日志和指标中原本代表两个旧服务的值立即统一为 `access-service`；不保留历史别名。
 - 外部业务服务自己的 `sourceService` 仍使用其已验证服务身份，不统一改成 `access-service`。
+
+**落地实现（T-ACCESS-010，2026-08-22，4 项用户决策）**：
+
+- **Gateway 路由合并（用户决策①）**：`/admin/**` 与 `/perm/**` 合并为一条路由 `id=access-service`（`lb://access-service`、`StripPrefix=1`、`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
+- **perm-sdk（用户决策②③）**：`PermissionFeignClient` 的 `@FeignClient` name 切换为 `access-service`，18 个 `@PostMapping` 路径契约由新增 `PermissionFeignClientContractTest` 封闭清单固化（含 POST + 单一 `@RequestBody` 形态断言），证明切换不产生契约漂移。`SyncTaskFeignClient`（admin-service S5 内部同步调度器定制、Map 请求体、仓库内无使用者）删除；其封装的 8 个 sync/full-sync 端点对外部服务继续由服务端保留，外部服务按需经 `PermissionFeignClient` 或自行调用。`FeignInternalSyncInterceptor` 的 `perm.service-code` 去除默认值 `admin-service`（用户决策③）：配置了 `perm.internal-secret` 但未显式声明 `perm.service-code` 时 Spring 占位符解析失败启动失败（fail-fast，与 `jwt-secret-key` 同模式），防止调用方冒充已退役服务身份。
+- **旧名清理（用户决策④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/services/admin-service-api-contract.md` 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
+- **部署单元**：根 Maven 聚合自 T-ACCESS-001 起即不含旧模块，本任务核验无旧启动类/运行配置/源码目录/docker-compose 残留（仓库无容器编排文件，AGENTS.md 基础设施命令示例不涉及服务名）；`common/GlobalErrorCode` 错误码分段注释更新为管理域/权限域措辞，分段值不变。
 
 ## 10. 验收门禁
 

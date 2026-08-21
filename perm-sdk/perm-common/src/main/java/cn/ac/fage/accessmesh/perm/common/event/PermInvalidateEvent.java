@@ -6,7 +6,7 @@ import java.util.Set;
 /**
  * 权限失效广播事件
  * <p>
- * permission-center 写路径事务提交后通过 Redis pub/sub（topic: {@code perm:invalidate}）广播。
+ * access-service 写路径事务提交后通过 Redis pub/sub（topic: {@code perm:invalidate}）广播。
  * Gateway 订阅后据此 evict 本地 INTERFACE_SNAPSHOT 缓存。
  * </p>
  * <p>

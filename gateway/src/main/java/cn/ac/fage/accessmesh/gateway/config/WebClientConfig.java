@@ -14,7 +14,7 @@ import java.time.Duration;
  * WebClient配置类
  * <p>
  * 提供负载均衡的WebClient.Builder，用于通过逻辑名称调用内部服务
- * （如lb://permission-center）。
+ * （如lb://access-service）。
  * 配置连接超时和响应超时以防止长时间阻塞。
  * </p>
  */

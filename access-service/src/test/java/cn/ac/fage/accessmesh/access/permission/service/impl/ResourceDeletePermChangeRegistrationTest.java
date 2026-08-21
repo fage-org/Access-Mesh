@@ -87,7 +87,7 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(Set.of(20L, 21L));
         // 受影响 serviceCodes（资源→API mapping→serviceCode，软删前查出）
         ResourceApiMapping mapping1 = new ResourceApiMapping();
-        mapping1.setServiceCode("admin-service");
+        mapping1.setServiceCode("example-service");
         ResourceApiMapping mapping2 = new ResourceApiMapping();
         mapping2.setServiceCode("order-service");
         when(apiMappingMapper.selectByResourceEntityIds(eq(1L), eq(Set.of(10L, 11L))))
@@ -102,7 +102,7 @@ class ResourceDeletePermChangeRegistrationTest {
         // 双重登记已落入 ThreadLocal accumulator
         PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
         org.junit.jupiter.api.Assertions.assertEquals(Set.of(20L, 21L), acc.roleIds());
-        org.junit.jupiter.api.Assertions.assertEquals(Set.of("admin-service", "order-service"), acc.serviceCodes());
+        org.junit.jupiter.api.Assertions.assertEquals(Set.of("example-service", "order-service"), acc.serviceCodes());
         // 软删确实执行
         verify(rolePermMapper).softDeleteBatch(eq(1L), anyList(), any());
     }

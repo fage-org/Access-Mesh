@@ -28,10 +28,12 @@
 
 ```text
 Gateway (8080)
-  ├── admin-service (9100)      用户/组织/菜单/认证/字典/通知/文件/审计/调度
-  ├── permission-center (9200)  核心权限管理与鉴权引擎
+  ├── access-service (9100)    admin 域：用户/组织/菜单/认证/字典/通知/文件/审计/调度
+  │                             permission 域：核心权限管理与鉴权引擎
   └── example-service (9300)    对接演示 + SDK 参考实现
 ```
+
+`admin-service` 与 `permission-center` 已归并为 `access-service`（单库 `access_db`），详见 [架构设计](docs/design/architecture.md) 与 [归并后目标架构](docs/design/access-service-architecture.md)。
 
 ## 项目状态
 
@@ -54,9 +56,8 @@ Gateway (8080)
 # 1. 启动基础设施
 docker compose up -d nacos redis postgresql
 
-# 2. 初始化数据库
-psql -h localhost -U postgres -f docs/design/schema/permission-center.sql
-psql -h localhost -U postgres -f docs/design/schema/admin-service.sql
+# 2. 初始化数据库（access-service 权威 DDL，单库 access_db）
+psql -h localhost -U postgres -f docs/design/schema/access-service.sql
 psql -h localhost -U postgres -f docs/design/schema/example-service.sql
 
 # 3. 启动服务（后续步骤，待编码）

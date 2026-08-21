@@ -7,7 +7,7 @@
  * - 各组件 v-if/computed：直接 `hasPerms(ORG_USER_PERMS.XXX)`
  *
  * ## v1.4「双轨并行」命名空间统一
- * 前后端统一使用 `资源类型:操作码` 词法（permission-center 的乙层模型），
+ * 前后端统一使用 `资源类型:操作码` 词法（access-service 的乙层模型），
  * 不再经 `sys_menu.perm_code` 中转，也无 `system:模块:动作` 翻译层：
  * - 前端 `hasPerms("ADMIN_ORG:CREATE_POSITION")` 与后端 `engine.hasPermission(... ADMIN_ORG, CREATE_POSITION)` 同源
  * - 管理员只在权限中心一处配权，前端按钮即时跟随
@@ -59,11 +59,11 @@ export const ORG_USER_PERMS = {
   /** 重置密码（改己豁免） */
   USER_RESET_PWD: "ADMIN_USER:RESET_PASSWORD",
 
-  // ===== 功能角色分配（C 区）—— permission-center 的 ROLE 资源类型 =====
+  // ===== 功能角色分配（C 区）—— access-service 的 ROLE 资源类型 =====
   //
   // 契约依据：org-user-permission-contract.md §5 备注³
   // 功能角色分配 = ROLE:MANAGE（目标角色实例），不得复用 ADMIN_ROLE:GRANT/REVOKE（配权语义，属红线）。
-  // permission-center 内部 UserManageAppServiceImpl.assignRole/revokeRolesBatch
+  // access-service 内部 UserManageAppServiceImpl.assignRole/revokeRolesBatch
   // 同样使用 ROLE:MANAGE 做二次校验，形成门禁一致性。
   /** 分配/回收功能角色（ROLE:MANAGE，权限锚点为目标 abstract_role） */
   USER_ROLE_ASSIGN: "ROLE:MANAGE",

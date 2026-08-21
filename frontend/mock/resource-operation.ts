@@ -1,5 +1,5 @@
 // 资源与操作定义 Mock（T-FE-008）。
-// 对齐 permission-center 的 resource-entity / operation-permission 管理接口；
+// 对齐 access-service 权限域的 resource-entity / operation-permission 管理接口；
 // 树形资源 CRUD + 移动，操作权限按资源类型维度 CRUD。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。

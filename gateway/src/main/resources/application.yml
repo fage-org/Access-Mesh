@@ -26,25 +26,16 @@ spring:
         locator:
           enabled: false
       routes:
-        # 管理服务
-        - id: admin-service
-          uri: lb://admin-service
+        # 管理与权限服务（T-ACCESS-010：admin-service/permission-center 归并为唯一部署单元，
+        # /admin/** 与 /perm/** 路径行为不变，目标统一为 access-service）
+        - id: access-service
+          uri: lb://access-service
           predicates:
-            - Path=/admin/**
+            - Path=/admin/**,/perm/**
           filters:
             - StripPrefix=1
           metadata:
-            serviceCode: admin-service
-
-        # 权限中心
-        - id: permission-center
-          uri: lb://permission-center
-          predicates:
-            - Path=/perm/**
-          filters:
-            - StripPrefix=1
-          metadata:
-            serviceCode: permission-center
+            serviceCode: access-service
 
         # 演示服务
         - id: example-service
@@ -56,9 +47,9 @@ spring:
           metadata:
             serviceCode: example-service
 
-        # 认证接口（转发到管理服务）
+        # 认证接口（转发到 access-service）
         - id: auth-routes
-          uri: lb://admin-service
+          uri: lb://access-service
           predicates:
             - Path=/auth/**
           filters:
@@ -131,7 +122,8 @@ gateway:
       user-type: X-User-Type
 
   permission:
-    service-url: lb://permission-center
+    # T-ACCESS-010：目标统一为 access-service
+    service-url: lb://access-service
     check-interface-path: /api/perm/auth/check-interface
     # T-PERM-001 快照模式：Gateway 拉取用户全量接口权限快照用于本地匹配
     interface-snapshot-path: /api/perm/auth/interface-snapshot
@@ -148,7 +140,7 @@ gateway:
   signature:
     # Secret key for HMAC-SHA256 signing
     # MUST be configured via environment variable: ACCESSMESH_SIGNATURE_SECRET
-    # Must match perm.signature.secret in permission-center
+    # Must match perm.signature.secret in access-service
     secret: ${ACCESSMESH_SIGNATURE_SECRET:}
     header-name: X-User-Signature
     timestamp-header-name: X-Signature-Timestamp
@@ -171,5 +163,5 @@ logging:
 
 perm:
   # Internal API secret injected as X-Internal-Secret header to downstream services.
-  # Must match perm.internal-secret in permission-center.
+  # Must match perm.internal-secret in access-service.
   internal-secret: ${PERM_INTERNAL_SECRET:}

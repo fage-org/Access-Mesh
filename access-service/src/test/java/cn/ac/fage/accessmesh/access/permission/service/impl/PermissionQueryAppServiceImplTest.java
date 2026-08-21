@@ -193,26 +193,26 @@ class PermissionQueryAppServiceImplTest {
 
         @Test
         void shouldBuildSnapshotFromEngineEveryCallWithoutToken() {
-            // T-PERM-018：permission-center 每次实时构建全量快照，不再有 permissionVersion/notModified
+            // T-PERM-018：access-service 每次实时构建全量快照，不再有 permissionVersion/notModified
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
             when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of(200L))).thenReturn(Set.of(200L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
-            when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2)))
+            when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("example-service"), eq(2)))
                 .thenReturn(List.of(
-                    new InterfaceSnapshotResp.ApiPermissionEntry("admin-service", "POST", "/api/user/list", false, null, null, ScopeMode.INSTANCE)
+                    new InterfaceSnapshotResp.ApiPermissionEntry("example-service", "POST", "/api/user/list", false, null, null, ScopeMode.INSTANCE)
                 ));
 
             InterfaceSnapshotResp first = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service"));
+                "USER", "u-1", "example-service"));
             InterfaceSnapshotResp second = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service"));
+                "USER", "u-1", "example-service"));
 
             // 每次都返回全量 entries（无 notModified 短路）
             assertEquals(1, first.allowedApis().size());
             assertEquals(1, second.allowedApis().size());
-            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), any(PermResult.class), eq("admin-service"), eq(2));
+            verify(snapshotAssembler, times(2)).buildSnapshot(eq(1L), any(PermResult.class), eq("example-service"), eq(2));
         }
 
         @Test
@@ -222,7 +222,7 @@ class PermissionQueryAppServiceImplTest {
             when(permissionConflictDomainService.filterRoleMutex(1L, Set.of())).thenReturn(Set.of());
 
             InterfaceSnapshotResp resp = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
-                "USER", "u-1", "admin-service"));
+                "USER", "u-1", "example-service"));
 
             assertTrue(resp.allowedApis().isEmpty());
             // 无有效角色短路，不调引擎

@@ -27,12 +27,11 @@
 ## 服务架构
 
 ```text
-Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
-               -> permission-center (9200)  核心权限引擎
-               -> example-service (9300)    对接演示
+Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认证）+ permission 域（权限引擎）
+               -> example-service (9300)   对接演示
 ```
 
-整体架构见 `docs/design/architecture.md`。
+`admin-service` 与 `permission-center` 已归并为 `access-service`（T-ACCESS-001~010）。整体架构见 `docs/design/architecture.md`，归并后目标架构见 `docs/design/access-service-architecture.md`。
 
 ## 权威来源
 
@@ -41,12 +40,13 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 | 文档入口与阅读顺序 | `docs/README.md`                           |
 | 工程规范           | `docs/design/project-rules.md`             |
 | 整体架构           | `docs/design/architecture.md`              |
+| 归并后目标架构     | `docs/design/access-service-architecture.md` |
 | 权限中心概念模型   | `docs/design/permission-center/overview.md` |
 | 权限中心 API 契约  | `docs/design/permission-center/api-contract.md` |
 | 权限中心核心流程   | `docs/design/permission-center/core-flows.md` |
 | 权限中心实现设计   | `docs/design/permission-center/implementation.md` |
 | 服务设计           | `docs/design/services/*.md`                  |
-| 表结构             | `docs/design/schema/*.sql`                 |
+| 表结构             | `docs/design/schema/access-service.sql`（权威；`admin-service.sql`/`permission-center.sql` 已 superseded） |
 
 `docs/archive/` 只用于历史追溯，不作为实现依据。
 
@@ -71,7 +71,7 @@ Gateway (8080) -> admin-service (9100)      用户/组织/菜单/认证
 ## 权限中心实现提醒
 
 - API 路径、请求体、响应体、错误原因以 `docs/design/permission-center/api-contract.md` 为准。
-- 表字段、索引、约束以 `docs/design/schema/permission-center.sql` 为准。
+- 表字段、索引、约束以 `docs/design/schema/access-service.sql` 为准（admin/perm 旧 schema 已 superseded）。
 - 核心场景链路以 `docs/design/permission-center/core-flows.md` 为准。
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`；内部表继续使用 `type_value` 数字值。
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一；不要按业务域重复分配相同内部值。
@@ -178,7 +178,7 @@ mvn spring-boot:run -pl <module>
 docker compose -f docker-compose.yml up -d nacos redis postgresql
 ```
 
-> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter` → `admin-service`）。
+> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter` → `example-service`）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
 > 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 

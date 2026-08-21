@@ -134,11 +134,10 @@ public class UserServiceImpl implements UserService {
      * 更新用户的姓名、手机号、邮箱、状态等信息。
      * 用户修改自己的信息无需权限校验（自我修改豁免）。
      * 修改手机号时校验新手机号唯一性。
-     * 如果用户已同步到permission-center，记录更新同步任务。
      * </p>
      *
      * @param req 用户更新请求，包含用户ID和新属性值
-     * @throws BizException 用户不存在、手机号已存在、同步任务记录失败等
+     * @throws BizException 用户不存在、手机号已存在等
      */
     @Override
     public void updateUser(UserUpdateReq req) {

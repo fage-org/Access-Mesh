@@ -11,7 +11,7 @@ import java.util.List;
  * 包含租户的服务接口权限配置，Gateway 本地内存匹配鉴权。
  * </p>
  * <p>
- * T-PERM-018：移除 permissionVersion/notModified（缓存下沉）。permission-center 每次实时构建全量快照，
+ * T-PERM-018：移除 permissionVersion/notModified（缓存下沉）。access-service 每次实时构建全量快照，
  * Gateway 本地 Caffeine 缓存 + Redis 广播（perm:invalidate）+ TTL 兜底保证一致性。
  * </p>
  * <p>

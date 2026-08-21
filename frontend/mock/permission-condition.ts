@@ -1,5 +1,5 @@
 // 权限条件 Mock（T-FE-009）。
-// 对齐 permission-center 的 permission-condition 管理接口；
+// 对齐 access-service 权限域的 permission-condition 管理接口；
 // 扁平条件模板 CRUD，conditionRules 为 {logic, items[]} JSON 字符串。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。

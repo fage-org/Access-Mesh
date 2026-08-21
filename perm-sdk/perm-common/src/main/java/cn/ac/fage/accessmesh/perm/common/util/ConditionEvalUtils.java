@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 权限条件评估工具类（T-PERM-017 搬入 perm-common，供 Gateway 与 permission-center 共享）
+ * 权限条件评估工具类（T-PERM-017 搬入 perm-common，供 Gateway 与 access-service 共享）
  * <p>
  * 提供权限条件项评估的静态工具方法。纯静态、无 DB / Spring 依赖，可在任意 JVM 进程内复用。
  * 支持日期范围、时间范围、IP白名单/黑名单等条件类型的评估。
@@ -22,8 +22,8 @@ import java.util.Set;
  * <ul>
  *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 使用调用方进程的系统时钟
  *       {@code LocalDate.now()} / {@code LocalTime.now()}。</li>
- *   <li>Gateway 与 permission-center 可能运行在不同进程。本项目面向中小型企业部署，
- *       Gateway 与 permission-center 通常同机房 / 同云区域，跨进程时钟一致性由 NTP
+ *   <li>Gateway 与 access-service 可能运行在不同进程。本项目面向中小型企业部署，
+ *       Gateway 与 access-service 通常同机房 / 同云区域，跨进程时钟一致性由 NTP
  *       同步保证（亚秒级）。条件规则的业务粒度（DATE_RANGE 按天，TIME_RANGE 通常按
  *       小时级如 09:00-18:00）远大于 NTP 漂移，因此 4 类条件均可下发 Gateway。</li>
  *   <li>评估上下文 {@link Map} 当前仅承载 {@code clientIp}，不传递 {@code timestamp}：

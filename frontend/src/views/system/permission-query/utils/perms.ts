@@ -8,7 +8,7 @@
  * ## 权限锚点（临时口径，🔧 T-PERM-033 定稿）
  * Phase 1 mock 阶段复用 `SYSTEM_CONFIG:VIEW`（与操作日志/变更日志同源临时口径）。
  *
- * 后端门禁现状（核实 permission-center）：
+ * 后端门禁现状（核实 access-service）：
  * - explain：SYSTEM_CONFIG:VIEW（PermissionViewAppServiceImpl:665）
  * - effective-permissions：目标实例 USER:VIEW / ROLE:VIEW（PermissionViewAppServiceImpl:134/153）
  * - query-resources/query-scopes：运行时接口，无排查门禁
@@ -17,9 +17,9 @@
  * T-PERM-033 完成后切换为独立 `PERMISSION_QUERY:VIEW` 全链路：
  * - 新增资源类型 ResourceTypeCode.PERMISSION_QUERY
  * - 类型/操作种子 + 默认角色授权
- * - admin-service 权限码下发白名单（AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES，
+ * - access-service 权限码下发白名单（AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES，
  *   当前 L122-137 不含 PERMISSION_QUERY）
- * - admin-service 聚合层统一门禁（方案 A: PERMISSION_QUERY:VIEW 全租户排查；
+ * - access-service 聚合层统一门禁（方案 A: PERMISSION_QUERY:VIEW 全租户排查；
  *   方案 B: PERMISSION_QUERY:VIEW + 被查目标 USER:VIEW/ROLE:VIEW）
  *
  * 切换时仅需改本常量值，路由/组件 hasPerms 调用不变。

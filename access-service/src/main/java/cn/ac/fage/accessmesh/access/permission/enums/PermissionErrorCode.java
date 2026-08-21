@@ -5,7 +5,7 @@ import lombok.Getter;
 /**
  * Permission Center 错误码枚举
  * <p>
- * 定义 permission-center 模块业务错误码，范围 20001-29999。
+ * 定义 access-service 模块业务错误码，范围 20001-29999。
  * 当前先补齐权限授予相关错误码，后续按模块逐步扩展。
  * </p>
  */

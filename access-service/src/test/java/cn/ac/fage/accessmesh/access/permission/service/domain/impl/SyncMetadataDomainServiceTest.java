@@ -27,12 +27,12 @@ import static org.mockito.Mockito.when;
 class SyncMetadataDomainServiceTest {
 
     private static final Long TENANT_ID = 1L;
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final String SCOPE_KEY = "subjectTypeCode=USER";
     private static final String SCOPE_KEY_HASH = "scope-hash";
     private static final String BUSINESS_KEY = "subjectTypeCode=USER&subjectExternalId=u1";
     private static final String BUSINESS_KEY_HASH = "biz-hash";
-    private static final String SYNC_KEY = "admin-service|ABSTRACT_USER|" + BUSINESS_KEY;
+    private static final String SYNC_KEY = "example-service|ABSTRACT_USER|" + BUSINESS_KEY;
     private static final String SYNC_KEY_HASH = "sync-hash";
 
     @Mock

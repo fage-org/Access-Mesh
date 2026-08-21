@@ -6,7 +6,7 @@ import java.util.Set;
  * 权限检查请求体
  * <p>
  * 用于内部权限检查，验证操作者是否对目标拥有指定权限。
- * 用于permission-center内部服务调用。
+ * 用于access-service内部服务调用。
  * </p>
  *
  * @param operatorId    操作者ID

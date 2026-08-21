@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.permission.util;
 /**
  * 权限模块通用常量类
  * <p>
- * 定义permission-center模块中使用的通用常量值。
+ * 定义access-service模块中使用的通用常量值。
  * 包括状态值等。
  * </p>
  */

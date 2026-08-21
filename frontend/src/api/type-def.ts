@@ -1,12 +1,12 @@
 /**
  * 类型定义 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/type-definition/*`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/type-definition/*`）；
  * Phase 1 由 mock/type-def.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.1
- * 后端实现：permission-center TypeDefinitionController + TypeDefinitionAppService
+ * 后端实现：access-service TypeDefinitionController + TypeDefinitionAppService
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";

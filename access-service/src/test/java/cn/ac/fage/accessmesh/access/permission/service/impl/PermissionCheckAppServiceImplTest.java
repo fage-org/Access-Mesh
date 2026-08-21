@@ -49,7 +49,7 @@ class PermissionCheckAppServiceImplTest {
 
     @Test
     void shouldDenyWhenInterfaceNotRegistered() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
+        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
         when(apiMappingMapper.selectForInterfaceCheck(any(), any(), any())).thenReturn(List.of());
 
@@ -62,7 +62,7 @@ class PermissionCheckAppServiceImplTest {
 
     @Test
     void shouldAllowWhenAnyMatchedMappingPasses() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
+        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
 
         ResourceApiMapping m1 = new ResourceApiMapping();
@@ -102,7 +102,7 @@ class PermissionCheckAppServiceImplTest {
 
     @Test
     void shouldDenyNoPermissionWhenResourceExists() {
-        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "admin-service", "POST", "/api/user/list", Map.of());
+        CheckInterfaceReq req = new CheckInterfaceReq("USER", "u-1", "example-service", "POST", "/api/user/list", Map.of());
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
 
         ResourceApiMapping mapping = new ResourceApiMapping();

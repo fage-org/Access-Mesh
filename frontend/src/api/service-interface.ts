@@ -2,7 +2,7 @@
  * 服务注册与接口映射 API。
  *
  * Phase 1 通过 mock/service-interface.ts 提供可交互数据；接口形状对齐
- * permission-center 的 /api/perm/service-config/* 与
+ * access-service 的 /api/perm/service-config/* 与
  * /api/perm/resource-api-mapping/* 契约。
  */
 import { http } from "@/utils/http";

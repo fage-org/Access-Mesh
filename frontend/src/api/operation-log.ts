@@ -1,6 +1,6 @@
 /**
  * 操作日志 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/log/operation/list`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/log/operation/list`）；
  * Phase 1 由 mock/operation-log.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
@@ -8,7 +8,7 @@
  * 契约依据：docs/design/permission-center/api-contract.md §5.8（操作日志仅 1 行表格条目，
  *   且路径写为 /api/perm/operation-log/list——与后端实现不符，无独立字段契约章节。
  *   🔧 登记 T-PERM-025：Phase 2 修正契约路径 + 补字段契约）
- * 后端实现：permission-center LogQueryController（@RequestMapping("/api/perm/log")）
+ * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")）
  *   + LogQueryAppServiceImpl.listOperationLogs
  *
  * 后端仅 1 个端点（list），无 detail——OperationLogResp 已含全部字段，

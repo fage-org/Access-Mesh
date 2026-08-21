@@ -8,7 +8,7 @@ package cn.ac.fage.accessmesh.access.admin.dto.resp;
  * </p>
  *
  * @param roleTypeCode   角色类型编码
- * @param roleExternalId 角色外部标识（permission-center 业务键）
+ * @param roleExternalId 角色外部标识（access-service 业务键）
  * @param roleName       角色名称
  * @param roleTypeLabel  角色类型显示名
  */
@@ -19,7 +19,7 @@ public record RoleListItemResp(
     String roleTypeCode,
 
     /**
-     * 角色外部标识（permission-center 业务键）
+     * 角色外部标识（access-service 业务键）
      */
     String roleExternalId,
 

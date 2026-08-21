@@ -20,7 +20,7 @@ import java.util.Map;
 /**
  * 权限校验HTTP客户端
  * <p>
- * 调用permission-center的接口权限校验端点。
+ * 调用access-service的接口权限校验端点（T-ACCESS-010：目标由 permission-center 切换）。
  * 使用负载均衡的WebClient支持lb://服务URL格式。
  * </p>
  */
@@ -63,7 +63,7 @@ public class PermissionClient {
     }
 
     /**
-     * 调用permission-center检查接口访问权限
+     * 调用access-service检查接口访问权限
      * <p>
      * 发送CheckInterfaceReq（包含subjectTypeCode、subjectExternalId、服务编码、路径等）
      * 并解析PermResult<CheckInterfaceResp>响应。
@@ -99,7 +99,7 @@ public class PermissionClient {
             context
         );
 
-        log.debug("调用permission-center进行接口权限校验: userId={}, serviceCode={}, path={}",
+        log.debug("调用access-service进行接口权限校验: userId={}, serviceCode={}, path={}",
             userId, serviceCode, path);
 
         return webClient.post()
@@ -121,7 +121,7 @@ public class PermissionClient {
                     }
                 }
             })
-            .doOnError(e -> log.error("permission-center调用失败: userId={}, serviceCode={}, path={}",
+            .doOnError(e -> log.error("access-service权限校验调用失败: userId={}, serviceCode={}, path={}",
                 userId, serviceCode, path));
     }
 
@@ -129,7 +129,7 @@ public class PermissionClient {
      * 拉取用户接口权限快照（T-PERM-001 快照模式 / T-PERM-018 缓存下沉）
      * <p>
      * 调用 {@code POST /api/perm/auth/interface-snapshot}，获取用户在指定服务下可访问的接口集合，
-     * 供 Gateway 本地内存匹配。permission-center 每次实时构建全量快照返回；Gateway 本地 Caffeine
+     * 供 Gateway 本地内存匹配。access-service 每次实时构建全量快照返回；Gateway 本地 Caffeine
      * 缓存 + Redis 广播（perm:invalidate，T-PERM-006）+ TTL 兜底保证一致性。
      * </p>
      *

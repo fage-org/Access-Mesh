@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * 内部API密钥拦截器
  * <p>
- * 用于permission-center的内部API访问控制。
+ * 用于access-service的内部API访问控制。
  * 确保只有来自Gateway的请求（携带有效的X-Internal-Secret请求头）
  * 可以访问管理端点。未携带请求头的请求将被拒绝（返回403）。
  * </p>

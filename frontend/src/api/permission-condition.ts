@@ -1,11 +1,11 @@
 /**
  * 权限条件 API
- * 经 @/utils/http 调用 permission-center 端点（/api/perm/permission-condition/*）；
+ * 经 @/utils/http 调用 access-service 端点（/api/perm/permission-condition/*）；
  * Phase 1 由 mock/permission-condition.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6
- * 后端实现：permission-center ConditionController + ConditionAppServiceImpl
+ * 后端实现：access-service ConditionController + ConditionAppServiceImpl
  *
  * 🔧 API 核对项（登记 T-PERM-029）：
  * - detail/update/remove 均用内部主键 id（IdReq/IdsReq），应切业务键 code。

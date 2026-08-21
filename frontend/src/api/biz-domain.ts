@@ -1,12 +1,12 @@
 /**
  * 业务域 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/biz-domain/*`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/biz-domain/*`）；
  * Phase 1 由 mock/biz-domain.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.1（类型与域）
- * 后端实现：permission-center BizDomainController + BizDomainAppServiceImpl
+ * 后端实现：access-service BizDomainController + BizDomainAppServiceImpl
  *
  * 后端端点 5 个：list / detail / create / update / remove（批量软删）。
  * - biz-domain 有独立 create/update/remove（非 save upsert，与 system-config 不同）。

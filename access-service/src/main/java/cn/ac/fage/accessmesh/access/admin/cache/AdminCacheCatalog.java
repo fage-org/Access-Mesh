@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * Admin 服务缓存目录
  * <p>
- * 定义 admin-service 模块的所有缓存条目。
+ * 定义 admin 域（access-service）的所有缓存条目。
  * </p>
  */
 public final class AdminCacheCatalog {

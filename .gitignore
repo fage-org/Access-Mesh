@@ -67,3 +67,4 @@ reference/
 # OpenCode / Claude Code
 .claude/worktrees/
 .reasonix
+.zcode/

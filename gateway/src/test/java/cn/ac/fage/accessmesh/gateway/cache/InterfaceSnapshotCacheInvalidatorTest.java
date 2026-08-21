@@ -65,68 +65,68 @@ class InterfaceSnapshotCacheInvalidatorTest {
 
     @Test
     void evictByUserIds_shouldEvictOnlyThatUserInTenant() {
-        putSnapshot(TENANT_ID, 10L, "admin-service");
         putSnapshot(TENANT_ID, 10L, "example-service");
-        putSnapshot(TENANT_ID, 20L, "admin-service");
-        putSnapshot(OTHER_TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "order-service");
+        putSnapshot(TENANT_ID, 20L, "example-service");
+        putSnapshot(OTHER_TENANT_ID, 10L, "example-service");
 
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(10L), Set.of()));
 
         assertThat(evicted).isEqualTo(2);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
         assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
         // 同租户其他用户不受影响
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "admin-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNotNull();
         // 其他租户同用户不受影响
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(10L, "admin-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(10L, "example-service"))).isNotNull();
         // 被清理 key 标记失效（租户限定键，防旧回源复活）
-        assertThat(marker.contains(TENANT_ID + ":" + identifier(10L, "admin-service"))).isTrue();
+        assertThat(marker.contains(TENANT_ID + ":" + identifier(10L, "example-service"))).isTrue();
     }
 
     @Test
     void evictByServiceCodes_shouldEvictTenantWide() {
-        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "example-service");
         putSnapshot(TENANT_ID, 20L, "example-service");
 
-        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of("admin-service")));
+        long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of("example-service")));
 
         // 服务级失效降级为租户级兜底（-1 表示全量）
         assertThat(evicted).isEqualTo(-1L);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
         assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
     void evictByRoleIdsOnly_shouldEvictTenantWide() {
-        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "example-service");
         putSnapshot(TENANT_ID, 20L, "example-service");
 
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(5L), Set.of(), Set.of()));
 
         assertThat(evicted).isEqualTo(-1L);
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
         assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     @Test
     void evictWithEmptyPayload_shouldNoop() {
-        putSnapshot(TENANT_ID, 10L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "example-service");
 
         long evicted = invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(), Set.of()));
 
         assertThat(evicted).isZero();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNotNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNotNull();
     }
 
     @Test
     void clearAll_shouldEvictAllTenantsAndBumpEpoch() {
-        putSnapshot(TENANT_ID, 10L, "admin-service");
-        putSnapshot(OTHER_TENANT_ID, 20L, "admin-service");
+        putSnapshot(TENANT_ID, 10L, "example-service");
+        putSnapshot(OTHER_TENANT_ID, 20L, "example-service");
 
         invalidator.clearAll();
 
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "admin-service"))).isNull();
-        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(20L, "admin-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID, identifier(10L, "example-service"))).isNull();
+        assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, OTHER_TENANT_ID, identifier(20L, "example-service"))).isNull();
     }
 
     /**
@@ -137,11 +137,11 @@ class InterfaceSnapshotCacheInvalidatorTest {
     void clearAll_shouldEvictTenantsMissingFromTrackingIndex() {
         // 快照直接写入缓存但不登记跟踪索引（模拟索引条目已丢失）
         cacheService.put(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
-            identifier(10L, "admin-service"), snapshot("admin-service"));
+            identifier(10L, "example-service"), snapshot("example-service"));
 
         invalidator.clearAll();
 
         assertThat(cacheService.get(GatewayCacheCatalog.INTERFACE_SNAPSHOT, TENANT_ID,
-            identifier(10L, "admin-service"))).isNull();
+            identifier(10L, "example-service"))).isNull();
     }
 }

@@ -6,7 +6,7 @@ import java.util.Set;
  * 批量权限检查请求体
  * <p>
  * 用于内部批量权限检查，同时检查多个目标ID的权限。
- * 用于permission-center内部服务调用。
+ * 用于access-service内部服务调用。
  * </p>
  *
  * @param operatorId    操作者ID

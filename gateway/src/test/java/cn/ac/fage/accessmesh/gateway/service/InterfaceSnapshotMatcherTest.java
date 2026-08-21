@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class InterfaceSnapshotMatcherTest {
 
-    private static final String SERVICE = "admin-service";
+    private static final String SERVICE = "example-service";
     private static final String PATH = "/api/order";
     private static final String METHOD = "POST";
     private static final String IP_IN = "10.0.0.5";

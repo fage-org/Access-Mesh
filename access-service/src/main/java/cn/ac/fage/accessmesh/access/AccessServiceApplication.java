@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 /**
  * access-service 统一启动入口
  * <p>
- * 归并 admin-service 与 permission-center 后的唯一 Spring Boot 主启动类。
+ * 归并 admin-service 与 permission-center（两个旧部署单元已退役）后的唯一 Spring Boot 主启动类。
  * 扫描 admin、permission、application、infrastructure 全部子包。
  * </p>
  */

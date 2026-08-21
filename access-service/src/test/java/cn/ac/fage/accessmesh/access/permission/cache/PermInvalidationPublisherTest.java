@@ -24,7 +24,7 @@ class PermInvalidationPublisherTest {
 
     @Test
     void shouldPublishJsonMessageToPermInvalidateTopic() throws Exception {
-        publisher.publish(1L, Set.of(200L), Set.of(10L), Set.of("admin-service"));
+        publisher.publish(1L, Set.of(200L), Set.of(10L), Set.of("example-service"));
 
         org.mockito.ArgumentCaptor<String> captor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(redisTemplate).convertAndSend(eq(PermInvalidationPublisher.TOPIC), captor.capture());
@@ -33,12 +33,12 @@ class PermInvalidationPublisherTest {
         assertThat(event.tenantId()).isEqualTo(1L);
         assertThat(event.roleIds()).containsExactly(200L);
         assertThat(event.userIds()).containsExactly(10L);
-        assertThat(event.serviceCodes()).containsExactly("admin-service");
+        assertThat(event.serviceCodes()).containsExactly("example-service");
     }
 
     @Test
     void shouldSkipPublish_whenTenantIdIsNull() {
-        publisher.publish(null, Set.of(200L), Set.of(10L), Set.of("admin-service"));
+        publisher.publish(null, Set.of(200L), Set.of(10L), Set.of("example-service"));
 
         verifyNoInteractions(redisTemplate);
     }

@@ -86,7 +86,7 @@ public class InterfaceSnapshotMatcher {
         boolean needFallback = false;
         List<ApiPermissionEntry> entries = snapshot.allowedApis();
 
-        // 评估上下文：仅承载 clientIp（与 permission-center / PermissionClient 保持一致）
+        // 评估上下文：仅承载 clientIp（与 access-service / PermissionClient 保持一致）
         Map<String, Object> evalContext = new HashMap<>();
         if (clientIp != null) {
             evalContext.put("clientIp", clientIp);
@@ -125,7 +125,7 @@ public class InterfaceSnapshotMatcher {
      * 仅判断路由是否落在该 entry 范围内，不涉及条件。
      * <p>
      * 防御性约定：scopeMode=null 时按 INSTANCE 处理（走精确匹配），
-     * 宁可误拒不误放行。正常情况下 permission-center 总是设置 INSTANCE 或 ALL，
+     * 宁可误拒不误放行。正常情况下 access-service 总是设置 INSTANCE 或 ALL，
      * null 仅在异常场景出现（反序列化失败等）。
      * </p>
      */
@@ -140,14 +140,14 @@ public class InterfaceSnapshotMatcher {
     /**
      * 本地重评内联条件规则（fail-close）。
      * <p>
-     * 评估规则与 permission-center {@code PermissionConditionDomainServiceImpl.evaluateCondition} 对齐：
+     * 评估规则与 access-service {@code PermissionConditionDomainServiceImpl.evaluateCondition} 对齐：
      * 支持 AND/OR 逻辑，使用 {@link ConditionEvalUtils#evalItem} 评估每条 item。
      * 解析或评估异常 → 返回 false（拒绝该条 entry，由 OR 合并的其他 entry 兜底）。
      * </p>
      * <p>
-     * 类型常量与 permission-center {@code PermConstants.ConditionType} 保持一致（IP_WHITELIST/
+     * 类型常量与 access-service {@code PermConstants.ConditionType} 保持一致（IP_WHITELIST/
      * IP_BLACKLIST/DATE_RANGE/TIME_RANGE），同样收录于 {@link ConditionEvalUtils#GATEWAY_PUSHABLE_TYPES}。
-     * 此处硬编码字符串是因 perm-common 不引入 permission-center 常量包；后续若引入跨模块常量类可统一。
+     * 此处硬编码字符串是因 perm-common 不引入 access-service 常量包；后续若引入跨模块常量类可统一。
      * </p>
      */
     private static boolean evaluateInlineRules(String rulesJson, Map<String, Object> context, Long conditionId) {

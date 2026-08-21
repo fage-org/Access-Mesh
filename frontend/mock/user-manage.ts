@@ -1,6 +1,6 @@
 // 用户管理 Mock（Phase 1）
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
-// 字段已对齐 admin-service 的 OrgResp / OrgTreeConfigResp / UserPageItemResp / OrgBrief
+// 字段已对齐 access-service admin 域的 OrgResp / OrgTreeConfigResp / UserPageItemResp / OrgBrief
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 /** 统一成功信封（对齐 common.model.PermResult.success） */

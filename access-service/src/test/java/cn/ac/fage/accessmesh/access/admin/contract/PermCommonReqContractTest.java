@@ -16,13 +16,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 验证 perm-common DTO 的校验注解与设计契约一致。
  * <p>
- * 背景：perm-common 和 permission-center 内部各自维护一份 DTO（EXT-10），
- * Phase 1 M1 放宽 domainCode 的 @NotBlank 时必须双端同改，否则请求被 400 拒绝。
- * 此测试在构建时自动发现注解回退，防止类似问题复发。
+ * 背景：perm-common 和 access-service permission 域内部各自维护一份 DTO（EXT-10，
+ * 归并前为 permission-center），Phase 1 M1 放宽 domainCode 的 @NotBlank 时必须
+ * 双端同改，否则请求被 400 拒绝。此测试在构建时自动发现注解回退，防止类似问题复发。
  * <p>
- * 由于 admin-service 无法直接引用 permission-center 内部 DTO，
+ * 由于 admin 域无法直接引用 permission 域内部 DTO（归并前为两服务、admin-service
+ * 无法引用 permission-center 内部 DTO，归并后为包边界约束），
  * 本测试通过断言 perm-common DTO 的「字段名 → 是否必填」映射来守卫契约，
- * permission-center 侧应有镜像测试。
+ * permission 域侧应有镜像测试。
  * <p>
  * 契约依据：user-role-proxy-fix-plan.md M1 + EXT-12
  */

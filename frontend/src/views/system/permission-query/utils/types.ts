@@ -1,14 +1,14 @@
 /**
  * 权限排查页类型与常量。
  *
- * 主体模型（核实 permission-center 后端）：
+ * 主体模型（核实 access-service 后端）：
  * - query-resources/query-scopes：仅支持用户主体（subjectTypeCode + subjectExternalId）
  * - effective-permissions/explain：支持 targetType=USER/ROLE
  *   - USER：subjectTypeCode（ADMIN_USER/USER）+ subjectExternalId
  *   - ROLE：roleTypeCode（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）+ roleExternalId + domainCode
  *
- * 角色类型码对齐 permission-center RoleType.java（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE），
- * 不存在 ORG_ROLE/POSITION_ROLE（后者仅 admin-service 同步阶段名，非 roleTypeCode）。
+ * 角色类型码对齐 access-service RoleType.java（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE），
+ * 不存在 ORG_ROLE/POSITION_ROLE（后者仅归并前 admin-service 同步阶段名，非 roleTypeCode）。
  *
  * scopeMode 四态对齐 @/utils/scope-mode（DENIED/INSTANCE/ALL/EMPTY）。
  * 🔧 T-PERM-033：正式选项应来自类型定义/主体候选接口，Phase 1 硬编码。

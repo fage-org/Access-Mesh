@@ -107,7 +107,7 @@ class ResourceEntitySyncAppServiceTest {
 
     @Test
     void shouldKeepOwnerNull_whenExternalSourceService() {
-        // 外部业务服务来源（sourceService != admin-service）：所有权保持 NULL，以 sync_metadata 为准
+        // 外部业务服务来源（sourceService 非 access-service）：所有权保持 NULL，以 sync_metadata 为准
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
                 "Menu One", null, null, null, "/menu/one", 1, 0, null,
                 "example-service", "menu", "menu-1",

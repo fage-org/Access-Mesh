@@ -144,7 +144,7 @@ CREATE TABLE sys_user (
 CREATE UNIQUE INDEX uk_user_username ON sys_user (tenant_id, username) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_user_phone ON sys_user (tenant_id, phone) WHERE delete_flag = 0 AND phone IS NOT NULL;
 
-COMMENT ON TABLE sys_user IS '用户表，admin-service 事实源；默认组织树是用户目录/身份池，负责用户生命周期';
+COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期';
 COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
 COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 摘要传输）';
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
@@ -181,7 +181,7 @@ CREATE UNIQUE INDEX uk_org_code ON sys_org (tenant_id, code) WHERE delete_flag =
 CREATE INDEX idx_org_parent ON sys_org (tenant_id, parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_org_path ON sys_org (tenant_id, path) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ADMIN_ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission-center 内部 ID';
+COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ADMIN_ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission 域内部 ID';
 COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，NULL=根节点';
 COMMENT ON COLUMN sys_org.org_type IS '组织类型标签（字典管理），仅分类用';
 COMMENT ON COLUMN sys_org.code IS '组织编码，租户内唯一';
@@ -274,7 +274,7 @@ CREATE UNIQUE INDEX uk_sys_menu_tenant_resource ON sys_menu (tenant_id, resource
 CREATE UNIQUE INDEX uk_sys_menu_tenant_path ON sys_menu (tenant_id, path) WHERE delete_flag = 0 AND path IS NOT NULL;
 CREATE INDEX idx_menu_parent ON sys_menu (tenant_id, parent_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_menu IS '菜单表：admin-service 事实源，仅承载 UI 路由元数据 + 关联资源 link（v3.5 菜单零权限化，不承载权限语义）';
+COMMENT ON TABLE sys_menu IS '菜单表：access-service admin 域事实源，仅承载 UI 路由元数据 + 关联资源 link（v3.5 菜单零权限化，不承载权限语义）';
 COMMENT ON COLUMN sys_menu.menu_type IS '类型：DIR=目录，MENU=菜单，EXTERNAL=外链，IFRAME=嵌入，HIDDEN=隐藏路由（派生同 MENU，不进 menus[] 下发 hiddenRoutes[]）';
 COMMENT ON COLUMN sys_menu.status IS '状态：0=DISABLED，1=ENABLED';
 COMMENT ON COLUMN sys_menu.resource_type IS '关联业务资源类型（不参与鉴权决策，仅 link；v3.5 §4.1 派生公式用）';
@@ -907,7 +907,7 @@ COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';
 COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
-COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
+COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝旧内部来源 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
 COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；新外部事实同步不依赖本字段做 full-sync 清理';
 COMMENT ON COLUMN resource_entity.sync_key IS '既有同步源内稳定键，用于 service-config/sync 等 FULL diff 判断；新 resource-entity/sync/full-sync 的 syncKey 以 sync_metadata 为准';
 
@@ -1067,14 +1067,14 @@ CREATE INDEX idx_sync_metadata_sync_key ON sync_metadata (tenant_id, source_serv
 
 COMMENT ON TABLE sync_metadata IS '外部同步元数据表，统一记录 abstract_user/abstract_role/user_role/resource_entity 的同步来源、scope、业务键、目标内部ID和最后 syncVersion；用于旧版本 no-op 和 full-sync 差异校准';
 COMMENT ON COLUMN sync_metadata.entity_kind IS '同步实体类型：ABSTRACT_USER/ABSTRACT_ROLE/USER_ROLE/RESOURCE_ENTITY';
-COMMENT ON COLUMN sync_metadata.source_service IS '同步来源服务，如 admin-service；必须与服务间认证主体一致';
+COMMENT ON COLUMN sync_metadata.source_service IS '同步来源服务（外部业务服务编码，如 example-service；access-service/admin-service 等内部来源被拒绝）；必须与服务间认证主体一致';
 COMMENT ON COLUMN sync_metadata.scope_key IS 'full-sync 清理范围键原文，采用 api-contract §6.2.2.4 的规范化 scopeKey，不包含 tenantId/sourceService/entityKind';
 COMMENT ON COLUMN sync_metadata.scope_key_hash IS 'scope_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
 COMMENT ON COLUMN sync_metadata.business_key IS '同步对象业务键原文，采用 api-contract §6.2.2.4 的规范化 businessKey，不包含 tenantId/sourceService/entityKind';
 COMMENT ON COLUMN sync_metadata.business_key_hash IS 'business_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
 COMMENT ON COLUMN sync_metadata.sync_key IS '来源内稳定同步键原文，用于定位同一外部事实，格式为 sourceService|entityKind|businessKey';
 COMMENT ON COLUMN sync_metadata.sync_key_hash IS 'sync_key 的 SHA-256 lowercase hex，用于查询索引';
-COMMENT ON COLUMN sync_metadata.target_id IS '目标表内部ID，仅 permission-center 内部使用，不作为对外契约';
+COMMENT ON COLUMN sync_metadata.target_id IS '目标表内部ID，仅 access-service 内部使用，不作为对外契约';
 COMMENT ON COLUMN sync_metadata.target_status IS '目标同步状态：ABSTRACT_USER/ABSTRACT_ROLE/RESOURCE_ENTITY 仅允许 ACTIVE/DISABLED/DELETED；USER_ROLE 仅允许 ACTIVE/UNBOUND';
 COMMENT ON COLUMN sync_metadata.last_sync_occurred_at IS '最后一次已应用同步事件发生时间';
 COMMENT ON COLUMN sync_metadata.last_sync_sequence_no IS '最后一次已应用同步事件序号，和 occurred_at 共同判断新旧版本';

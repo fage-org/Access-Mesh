@@ -125,15 +125,15 @@ public class PermissionFilter implements GlobalFilter, Ordered {
 
         this.unreachableSnapshotCounter = Counter.builder("gateway.perm.unreachable")
             .tag("source", "snapshot")
-            .description("Permission-center unreachable during snapshot fetch")
+            .description("Access-service unreachable during snapshot fetch")
             .register(meterRegistry);
         this.unreachableCheckInterfaceCounter = Counter.builder("gateway.perm.unreachable")
             .tag("source", "check_interface")
-            .description("Permission-center unreachable during check-interface fallback")
+            .description("Access-service unreachable during check-interface fallback")
             .register(meterRegistry);
         this.fallbackClosedDeniedCounter = Counter.builder("gateway.perm.fallback")
             .tag("mode", "closed").tag("reason", "denied")
-            .description("Fail-closed: request denied when permission-center unreachable")
+            .description("Fail-closed: request denied when access-service unreachable")
             .register(meterRegistry);
         this.deadlineExceededCounter = Counter.builder("gateway.perm.fallback")
             .tag("mode", "closed").tag("reason", "deadline_exceeded")

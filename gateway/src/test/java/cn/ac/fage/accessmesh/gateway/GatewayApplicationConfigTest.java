@@ -146,12 +146,44 @@ class GatewayApplicationConfigTest {
     }
 
     @Test
-    @DisplayName("路由定义加载：admin-service/permission-center/example-service/auth-routes 4 条")
+    @DisplayName("路由契约：access-service/example-service/auth-routes 3 条，无旧服务发现目标（T-ACCESS-010）")
     void routesAreDefined() {
         RouteDefinitionLocator locator = applicationContext.getBean(RouteDefinitionLocator.class);
         assertNotNull(locator, "RouteDefinitionLocator 必须存在");
-        long count = locator.getRouteDefinitions().collectList().block().size();
-        assertTrue(count >= 4, "至少 4 条路由（admin-service/permission-center/example-service/auth-routes），实际 " + count);
+        var routes = locator.getRouteDefinitions().collectList().block();
+        assertNotNull(routes, "路由定义必须可加载");
+        // T-ACCESS-010：/admin/** 与 /perm/** 合并为一条 access-service 路由（StripPrefix=1），
+        // /auth/** 独立（StripPrefix=0）；旧服务名不得残留为路由 id 或发现目标
+        var byId = new java.util.HashSet<String>();
+        var byUri = new java.util.HashSet<String>();
+        routes.forEach(r -> {
+            byId.add(r.getId());
+            byUri.add(r.getUri().toString());
+        });
+        assertTrue(byId.contains("access-service"), "必须存在合并路由 access-service，实际 " + byId);
+        assertTrue(byId.contains("example-service"), "必须存在路由 example-service，实际 " + byId);
+        assertTrue(byId.contains("auth-routes"), "必须存在路由 auth-routes，实际 " + byId);
+        assertTrue(byUri.contains("lb://access-service"), "发现目标必须包含 lb://access-service，实际 " + byUri);
+        routes.stream().filter(r -> "access-service".equals(r.getId())).findFirst().ifPresent(r -> {
+            assertTrue(r.getUri().toString().equals("lb://access-service"),
+                "access-service 路由目标必须为 lb://access-service，实际 " + r.getUri());
+            assertTrue(r.getPredicates().stream()
+                    .anyMatch(p -> "Path".equals(p.getName())
+                        && p.getArgs().containsValue("/admin/**") && p.getArgs().containsValue("/perm/**")),
+                "合并路由必须同时覆盖 /admin/** 与 /perm/**，实际 " + r.getPredicates());
+            assertTrue(r.getFilters().stream()
+                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "1".equals(f.getArgs().get("_genkey_0"))),
+                "合并路由 StripPrefix 必须为 1（原路径行为不变），实际 " + r.getFilters());
+            assertTrue("access-service".equals(r.getMetadata().get("serviceCode")),
+                "合并路由 metadata.serviceCode 必须为 access-service，实际 " + r.getMetadata().get("serviceCode"));
+        });
+        routes.stream().filter(r -> "auth-routes".equals(r.getId())).findFirst().ifPresent(r ->
+            assertTrue(r.getUri().toString().equals("lb://access-service"),
+                "auth-routes 目标必须为 lb://access-service（原 lb://admin-service），实际 " + r.getUri()));
+        assertTrue(byUri.stream().noneMatch(u -> u.contains("admin-service") || u.contains("permission-center")),
+            "路由发现目标不得残留旧服务名，实际 " + byUri);
+        assertTrue(byId.stream().noneMatch(id -> id.equals("admin-service") || id.equals("permission-center")),
+            "路由 id 不得残留旧服务名，实际 " + byId);
     }
 
     @Test
@@ -159,8 +191,8 @@ class GatewayApplicationConfigTest {
     void gatewayCustomPropertiesLoad() {
         GatewayProperties props = applicationContext.getBean(GatewayProperties.class);
         assertNotNull(props, "GatewayProperties 必须存在");
-        assertTrue("lb://permission-center".equals(props.getPermission().getServiceUrl()),
-            "permission.service-url 必须为 lb://permission-center，实际 " + props.getPermission().getServiceUrl());
+        assertTrue("lb://access-service".equals(props.getPermission().getServiceUrl()),
+            "permission.service-url 必须为 lb://access-service（T-ACCESS-010 切换），实际 " + props.getPermission().getServiceUrl());
         assertTrue(props.getWhitelist().getPaths().contains("/auth/**"),
             "whitelist 必须包含 /auth/**");
         // Spring 应用名（Nacos 服务名）配置加载

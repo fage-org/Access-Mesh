@@ -1,13 +1,13 @@
 /**
  * 系统配置 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/system-config/*`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/system-config/*`）；
  * Phase 1 由 mock/system-config.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.8（系统配置仅 3 行表格条目，无独立字段契约章节，
  *   字段由后端 DTO 落地——🔧 登记 T-PERM-024：Phase 2 补 api-contract 字段契约）
- * 后端实现：permission-center SystemConfigController + SystemConfigAppServiceImpl
+ * 后端实现：access-service SystemConfigController + SystemConfigAppServiceImpl
  *
  * 后端端点仅 3 个（list/detail/save），无 create/update/remove——save 为 upsert 幂等语义
  * （按 configKey 查存在则 update 不存在则 insert），无删除接口。

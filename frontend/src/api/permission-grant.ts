@@ -1,11 +1,11 @@
 /**
  * 权限授予 API（4.1 权限授予页 v3，T-FE-036）
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/role-resource-permission/*`）。
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/role-resource-permission/*`）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.5 / §6.4 / §6.5 / §6.5.1
- * 后端实现：permission-center PermissionGrantController + PermissionGrantAppServiceImpl
+ * 后端实现：access-service PermissionGrantController + PermissionGrantAppServiceImpl
  *
  * T-PERM-034 已实现的契约要点：
  * - `RolePermissionItem` 统一返回 14 字段；list 支持 resourceTypeCode/includeChildren。
@@ -29,7 +29,7 @@ export const GRANT_SCOPE_MODE = {
 export type GrantScopeMode =
   (typeof GRANT_SCOPE_MODE)[keyof typeof GRANT_SCOPE_MODE];
 
-/** 授权来源（对齐 permission-center GrantSource 枚举；INHERITED 为查询时克隆、不落库不返回） */
+/** 授权来源（对齐 access-service GrantSource 枚举；INHERITED 为查询时克隆、不落库不返回） */
 export const GRANT_SOURCE = {
   MANUAL: "MANUAL",
   AUTO_DEP: "AUTO_DEP"

@@ -3,10 +3,11 @@ package cn.ac.fage.accessmesh.common.enums;
 /**
  * 全局错误码枚举
  * <p>
- * 错误码范围定义（参考PROJECT_RULES.md §1.2）：
+ * 错误码范围定义（参考PROJECT_RULES.md §1.2；T-ACCESS-010：admin-service 与
+ * permission-center 已归并为 access-service，错误码继续按业务域归属分段，不重编号）：
  * <ul>
- *   <li>10001–19999：admin-service</li>
- *   <li>20001–29999：permission-center</li>
+ *   <li>10001–19999：管理域（原 admin-service，现 access-service admin 域）</li>
+ *   <li>20001–29999：权限域（原 permission-center，现 access-service permission 域）</li>
  *   <li>30001–39999：example-service</li>
  *   <li>90001–99999：全局系统错误</li>
  * </ul>

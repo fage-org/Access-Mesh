@@ -66,7 +66,7 @@ class SnapshotSafetyBoundaryTest {
     private static final Long TENANT_ID = 1L;
     private static final Long USER_ID = 10L;
     private static final String SUBJECT_TYPE_CODE = "USER";
-    private static final String SERVICE_CODE = "admin-service";
+    private static final String SERVICE_CODE = "example-service";
 
     /** 定时器/JIT 抖动兜底余量 */
     private static final long CLOCK_MARGIN_MS = 800;
@@ -171,8 +171,8 @@ class SnapshotSafetyBoundaryTest {
 
     private ServerWebExchange buildExchange() {
         Route route = Route.async()
-            .id("admin-service-route")
-            .uri(URI.create("lb://admin-service"))
+            .id("example-service-route")
+            .uri(URI.create("lb://example-service"))
             .metadata("serviceCode", SERVICE_CODE)
             .predicate(exchange -> true)
             .build();

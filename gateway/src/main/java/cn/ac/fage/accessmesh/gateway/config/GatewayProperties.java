@@ -104,7 +104,8 @@ public class GatewayProperties {
     @Getter
     @Setter
     public static class Permission {
-        private String serviceUrl = "lb://permission-center";
+        // T-ACCESS-010：目标由 permission-center 统一切换为 access-service
+        private String serviceUrl = "lb://access-service";
         private String checkInterfacePath = "/api/perm/auth/check-interface";
         // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
         private String interfaceSnapshotPath = "/api/perm/auth/interface-snapshot";

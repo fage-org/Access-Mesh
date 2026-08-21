@@ -63,7 +63,7 @@ class PermissionFilterTest {
     private static final Long TENANT_ID = 1L;
     private static final Long USER_ID = 10L;
     private static final String SUBJECT_TYPE_CODE = "USER";
-    private static final String SERVICE_CODE = "admin-service";
+    private static final String SERVICE_CODE = "example-service";
 
     private PermissionClient permissionClient;
     private CacheService cacheService;
@@ -103,8 +103,8 @@ class PermissionFilterTest {
      */
     private ServerWebExchange buildExchange() {
         Route route = Route.async()
-            .id("admin-service-route")
-            .uri(URI.create("lb://admin-service"))
+            .id("example-service-route")
+            .uri(URI.create("lb://example-service"))
             .metadata("serviceCode", SERVICE_CODE)
             .predicate(exchange -> true)
             .build();

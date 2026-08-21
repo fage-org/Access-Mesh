@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class SnapshotAssemblerTest {
 
     private static final long TENANT_ID = 1L;
-    private static final String SERVICE_CODE = "admin-service";
+    private static final String SERVICE_CODE = "example-service";
     private static final Integer API_TYPE = 2;
     private static final Long RESOURCE_ID = 100L;
     private static final Long CONDITION_ID = 9L;

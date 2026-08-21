@@ -5,7 +5,7 @@ import lombok.Getter;
 /**
  * Admin服务错误码枚举
  * <p>
- * 定义admin-service模块的错误码，范围10001-19999。
+ * 定义管理域（access-service admin 域）的错误码，范围10001-19999。
  * 包括用户、组织、菜单、字典、通知、文件、任务、配置、OAuth2等业务错误码。
  * 错误码分配规则（参考PROJECT_RULES.md §1.2）：
  * <ul>

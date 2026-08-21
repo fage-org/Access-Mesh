@@ -48,7 +48,7 @@ public record UserRolesResp(
          */
         String targetType,
         /**
-         * 关联关系ID（关联组织角色 abstract_role.id，permission-center 内部主键）
+         * 关联关系ID（关联组织角色 abstract_role.id，access-service 内部主键）
          */
         Long relationId,
         /**

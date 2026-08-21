@@ -146,9 +146,9 @@ public final class PermissionChangeContext {
 
     /**
      * 登记受影响服务编码（API mapping 增删改 / 资源删除 / syncInterfaces → 广播 serviceCodes，
-     * Gateway 订阅后清本地 interfaceSnapshotCache；permission-center 侧不清缓存）。
+     * Gateway 订阅后清本地 interfaceSnapshotCache；access-service 侧不清缓存）。
      * <p>
-     * serviceCodes 仅触发广播，不清 permission-center 任何缓存——API mapping 变更不影响
+     * serviceCodes 仅触发广播，不清 access-service 任何缓存——API mapping 变更不影响
      * ROLE_PERM_SNAPSHOT（perm 记录未变），仅影响 Gateway 本地快照（含旧 mapping）。
      * </p>
      */

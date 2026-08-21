@@ -1,12 +1,12 @@
 /**
  * 角色管理 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/abstract-role/*`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/abstract-role/*`）；
  * Phase 1 由 mock/role-manage.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.2 / §6.10.3
- * 后端实现：permission-center RoleController + RoleManageAppService
+ * 后端实现：access-service RoleController + RoleManageAppService
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -14,7 +14,7 @@ import { type PermResult, unwrap } from "./_envelope";
 // ========== 角色类型常量 ==========
 
 /**
- * 5 种抽象角色类型编码（对齐 permission-center overview §角色模型）。
+ * 5 种抽象角色类型编码（对齐 access-service overview §角色模型）。
  * - ORG / POSITION / PERSONAL：外部同步自动生成（ORG/POSITION 由组织同步、
  *   PERSONAL 由用户同步连带创建 PERSONAL_{external_id}），不在角色管理页展示，
  *   其权限分配归「权限授予」(页面待重做，原 T-FE-014 已废弃) 与「用户详情」(2.1)。
@@ -249,7 +249,7 @@ export const removeRoles = async (ids: number[]): Promise<void> => {
  * 查询角色详情（POST /api/perm/abstract-role/detail）
  *
  * 🔧 API 核对项（登记 T-PERM-022）：后端 Controller 现用 IdReq{id}（内部主键），
- * 与 api-contract §6.10.3 / 项目铁律「调用方不应存储 permission-center 内部主键」不符；
+ * 与 api-contract §6.10.3 / 项目铁律「调用方不应存储 access-service 内部主键」不符；
  * 已有未使用的 RoleDetailReq（业务键 domainCode+roleTypeCode+roleExternalId）待启用。
  * Phase 1 mock 阶段用树节点 id 工作正常；联调需后端切换业务键。详见 docs/design/frontend/role-manage.md。
  */

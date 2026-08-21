@@ -72,7 +72,7 @@ class SyncMetadataConcurrencyTest {
 
     private static final Long TENANT_ID = 1L;
     private static final String ENTITY_KIND = "ABSTRACT_USER";
-    private static final String SOURCE_SERVICE = "admin-service";
+    private static final String SOURCE_SERVICE = "example-service";
     private static final String SCOPE_KEY = "subjectTypeCode=USER";
     private static final String SCOPE_KEY_HASH = "scope-hash-conc";
     private static final String BUSINESS_KEY = "subjectTypeCode=USER&subjectExternalId=conc-1";

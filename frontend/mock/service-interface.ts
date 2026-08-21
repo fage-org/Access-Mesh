@@ -1,5 +1,5 @@
 // 服务注册与接口映射 Mock（T-FE-007）。
-// 对齐 permission-center 的 service-config / resource-api-mapping 接口；
+// 对齐 access-service 权限域的 service-config / resource-api-mapping 接口；
 // FULL 同步严格只清理由服务自动维护的映射，手工映射会被保留。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
@@ -65,24 +65,13 @@ const services: ServiceConfigResp[] = [
   {
     id: 101,
     tenantId: 1,
-    serviceCode: "admin-service",
-    name: "管理服务",
-    basePath: "/admin",
-    description: "组织、用户、菜单与认证管理",
+    serviceCode: "access-service",
+    name: "访问控制服务",
+    basePath: "/",
+    description: "组织、用户、菜单、认证与权限管理（admin/perm 归并后唯一部署单元）",
     status: 1,
     extra: '{"owner":"identity"}',
     createdAt: "2026-06-18 09:30:00"
-  },
-  {
-    id: 102,
-    tenantId: 1,
-    serviceCode: "permission-center",
-    name: "权限中心",
-    basePath: "/perm",
-    description: "权限事实、授权关系与运行时校验",
-    status: 1,
-    extra: '{"owner":"security"}',
-    createdAt: "2026-06-18 09:35:00"
   },
   {
     id: 103,
@@ -102,7 +91,7 @@ let mappings: InternalMapping[] = [
     id: 301,
     tenantId: 1,
     resourceEntityId: 1001,
-    serviceCode: "admin-service",
+    serviceCode: "access-service",
     httpMethod: "POST",
     pathPattern: "/admin/api/user/list",
     matchOrder: 30,
@@ -117,7 +106,7 @@ let mappings: InternalMapping[] = [
     id: 302,
     tenantId: 1,
     resourceEntityId: 1002,
-    serviceCode: "admin-service",
+    serviceCode: "access-service",
     httpMethod: "POST",
     pathPattern: "/admin/api/org/tree",
     matchOrder: 30,
@@ -132,7 +121,7 @@ let mappings: InternalMapping[] = [
     id: 303,
     tenantId: 1,
     resourceEntityId: 1003,
-    serviceCode: "permission-center",
+    serviceCode: "access-service",
     httpMethod: "POST",
     pathPattern: "/perm/api/perm/auth/check",
     matchOrder: 10,
@@ -147,7 +136,7 @@ let mappings: InternalMapping[] = [
     id: 304,
     tenantId: 1,
     resourceEntityId: 1004,
-    serviceCode: "permission-center",
+    serviceCode: "access-service",
     httpMethod: "POST",
     pathPattern: "/perm/api/perm/permission-view/explain",
     matchOrder: 80,

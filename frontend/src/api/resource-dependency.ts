@@ -1,13 +1,13 @@
 /**
  * 资源依赖 API
- * 经 @/utils/http 调用 permission-center 端点
+ * 经 @/utils/http 调用 access-service 端点
  * （`/api/perm/resource-dependency/*`）；
  * Phase 1 由 mock/resource-dependency.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6 / §6.9
- * 后端实现：permission-center ResourceDependencyController + DependencyAppServiceImpl
+ * 后端实现：access-service ResourceDependencyController + DependencyAppServiceImpl
  *
  * 🔧 API 核对项（登记 T-PERM-031）：
  * - ResourceDependencyResp 字段不全：缺 sourceResourceTypeCode/targetResourceTypeCode（资源类型）、

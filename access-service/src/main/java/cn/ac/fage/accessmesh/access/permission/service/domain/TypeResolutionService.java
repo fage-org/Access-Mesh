@@ -72,8 +72,8 @@ public interface TypeResolutionService {
     /**
      * 解析resourceTypeCode + resourceCode -> resource_entity.id
      * <p>
-     * permission-center 内部鉴权和写入操作依赖该解析将业务键映射为内部 ID。
-     * 调用方通过业务键定位实体时，permission-center 内部自动调用此方法，
+     * access-service 内部鉴权和写入操作依赖该解析将业务键映射为内部 ID。
+     * 调用方通过业务键定位实体时，access-service 内部自动调用此方法，
      * 调用方无需直接使用。
      * </p>
      *

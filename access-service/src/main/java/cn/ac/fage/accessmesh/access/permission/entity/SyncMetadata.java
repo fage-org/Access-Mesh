@@ -80,7 +80,7 @@ public class SyncMetadata {
     private String syncKeyHash;
 
     /**
-     * 目标事实表内部 ID，仅 permission-center 内部使用
+     * 目标事实表内部 ID，仅 access-service 内部使用
      */
     private Long targetId;
 

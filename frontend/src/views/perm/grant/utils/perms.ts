@@ -9,13 +9,13 @@
  * ## 双层门禁（设计文档 permission-grant.md §10，P1-3）
  * - 轨道 1（数据源可见性）：左栏主体数据源沿用入口页既有门禁
  *   （组织树 `ADMIN_ORG:VIEW` / 用户列表 `ADMIN_USER:VIEW` / 岗位 `ADMIN_ORG:VIEW_POSITION`，
- *   admin-service 数据，与 views/system/user/utils/perms.ts 同源；首期组织入口二期、个人入口移除，
- *   角色入口主体树为 permission-center 数据，随 ROLE:VIEW 门控）。
+ *   access-service 数据，与 views/system/user/utils/perms.ts 同源；首期组织入口二期、个人入口移除，
+ *   角色入口主体树为 access-service 数据，随 ROLE:VIEW 门控）。
  * - 轨道 2（配权门禁）：矩阵查看/授权动作统一用对目标抽象角色的 `ROLE:VIEW` / `ROLE:MANAGE`
  *   （后端 role-resource-permission/* 均校验目标抽象角色）。
  *
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：
- * ROLE:VIEW / ROLE:MANAGE（permission-center 乙层锚点）、CONDITION:VIEW（3.2 条件）、
+ * ROLE:VIEW / ROLE:MANAGE（access-service 乙层锚点）、CONDITION:VIEW（3.2 条件）、
  * RESOURCE:VIEW / OPERATION:VIEW（3.1 资源与操作）。
  */
 export const PERMISSION_GRANT_PERMS = {

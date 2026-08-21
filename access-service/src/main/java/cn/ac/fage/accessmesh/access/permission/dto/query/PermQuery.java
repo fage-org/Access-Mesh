@@ -117,7 +117,7 @@ public class PermQuery {
      * </p>
      * <p>
      * 使用场景：interfaceSnapshot 构建快照时，条件评估应在 Gateway 用真实请求 context
-     * 完成（而非 permission-center 用空 context），故 permission-center 此处只标记不过滤。
+     * 完成（而非 access-service 用空 context），故 access-service 此处只标记不过滤。
      * </p>
      */
     private boolean markConditionsOnly;

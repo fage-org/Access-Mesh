@@ -1,12 +1,12 @@
 /**
  * 冲突规则 API
- * 经 @/utils/http 调用 permission-center 端点（`/api/perm/conflict-rule/*`）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/perm/conflict-rule/*`）；
  * Phase 1 由 mock/conflict-rule.ts（vite-plugin-fake-server）提供假数据。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6
- * 后端实现：permission-center ConflictRuleController + ConflictRuleAppService
+ * 后端实现：access-service ConflictRuleController + ConflictRuleAppService
  *
  * 🔧 API 核对项（登记 T-PERM-030）：
  * - detail/update/remove 用内部主键 id。冲突规则无业务键（无 code 字段），id 即唯一标识，

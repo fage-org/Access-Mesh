@@ -7,7 +7,7 @@
  * - 各组件 v-if/computed：直接 `hasPerms(TYPE_DEF_PERMS.XXX)`
  *
  * ## 权限锚点
- * 资源类型 `TYPE_DEFINITION`（permission-center 乙层模型 ResourceTypeCode.TYPE_DEFINITION），
+ * 资源类型 `TYPE_DEFINITION`（access-service 乙层模型 ResourceTypeCode.TYPE_DEFINITION），
  * 操作码对齐 OperationCodeConstants（后端 TypeDefinitionAppServiceImpl）。
  * - `TYPE_DEFINITION:VIEW` —— 列表/详情查看（listTypes:133 / getType:109 校验 VIEW）。
  * - `TYPE_DEFINITION:CREATE` —— 创建（createType:71 校验 CREATE）。

@@ -3,14 +3,14 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-08-12
+last_reviewed: 2026-08-22
 ---
 
 # 微服务架构设计
 
 本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。权限中心概念模型见 `permission-center/overview.md`。
 
-> **目标架构提示（2026-08-10）**：项目已采纳将 `admin-service` 与 `permission-center` 归并为模块化单体 `access-service` 的目标设计。本文尚未完成 T-ACCESS-012 的全量实现回写；涉及新增后端代码、服务拓扑、事务、数据库、缓存或安全边界时，以 [`access-service-architecture.md`](access-service-architecture.md) 为准。下文旧双服务拓扑仅用于说明当前实施基线，不得继续扩展。
+> **目标架构提示（2026-08-10，T-ACCESS-010 拓扑切换已生效）**：项目已将 `admin-service` 与 `permission-center` 归并为模块化单体 `access-service`，旧服务模块、旧服务发现目标与内部同步链路均已删除（T-ACCESS-001~010）。本文 §1 已按归并后拓扑更新；§2 之后的历史章节尚未完成 T-ACCESS-012 的全量实现回写，涉及事务、数据库、缓存或安全边界细节时，以 [`access-service-architecture.md`](access-service-architecture.md) 为准。
 
 ---
 
@@ -18,13 +18,12 @@ last_reviewed: 2026-08-12
 
 ### 1.1 服务清单
 
-> **当前实施基线，待 T-ACCESS-012 回写**：下表描述归并前代码现状，不是新增实现目标；目标服务清单以 `access-service-architecture.md` §2 为准。
+> T-ACCESS-010（2026-08-22）起归并后拓扑为**当前实施基线**：`admin-service` 与 `permission-center` 已物理归并为 `access-service`（唯一部署单元），详见 `access-service-architecture.md` §2。
 
 | 服务                          | 技术栈                         | 数据库                 | 端口(建议) | 说明                                                                   |
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
-| admin-service（管理服务）     | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9100       | 用户、组织、菜单、认证与管理端前端聚合入口；默认组织树是用户目录；组织既是业务树也是角色容器 |
-| permission-center（权限中心） | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9200       | 通用权限管理与鉴权引擎（已完成设计）                                   |
+| access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（admin 域）+ 通用权限管理与鉴权引擎（permission 域）；模块化单体，默认组织树是用户目录；组织既是业务树也是角色容器 |
 | example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示权限中心对接与权限管控能力 **（⚠️ 当前仅启动骨架 — 2026-06-20 审计 S-020：仅含 `ExampleServiceApplication`，演示 Controller/DTO 待 perm-sdk 与核心主线稳定后补齐）**         |
 
 ### 1.2 基础设施
@@ -43,7 +42,7 @@ last_reviewed: 2026-08-12
 
 ### 1.3 架构拓扑图
 
-> **当前实施基线，待 T-ACCESS-012 回写**：下图仅用于识别待迁移组件，不得据此新增旧服务调用或部署单元。
+> T-ACCESS-010（2026-08-22）起为归并后拓扑：Gateway 是用户流量唯一入口，`/admin/**`、`/perm/**`、`/auth/**` 统一路由到 `lb://access-service`。
 
 ```
                           ┌──────────────────┐
@@ -57,55 +56,52 @@ last_reviewed: 2026-08-12
                           │ · Token 校验     │
                           │ · 接口鉴权       │
                           │ · 路由转发       │
-                          └──┬─────┬─────┬───┘
-                             │     │     │
-                ┌────────────┘     │     └────────────┐
-                │                  │                   │
-       ┌────────▼──────┐  ┌───────▼───────┐  ┌───────▼────────┐
-       │ admin-service  │  │  permission   │  │   example      │
-       │                │  │   -center     │  │   -service     │
-       │ · 用户管理     │  │               │  │                │
-       │ · 组织管理     │  │ · 权限管理    │  │ · 对接演示     │
-       │ · 菜单管理     │  │ · 鉴权引擎    │  │ · 权限展示     │
-       │ · 认证/OAuth2  │  │ · 版本管理    │  │                │
-       │ · 字典/通知    │  │               │  │                │
-       │ · 文件/OSS     │  │               │  │                │
-       │ · 审计日志     │  │               │  │                │
-       │ · 任务调度     │  │               │  │                │
-       └───────┬────────┘  └───────┬───────┘  └───────┬────────┘
-               │                   │                   │
-               ▼                   ▼                   ▼
-          PostgreSQL          PostgreSQL          PostgreSQL
-          (admin_db)         (perm_db)          (example_db)
+                          └──┬────────────┬──┘
+                             │            │
+                ┌────────────┘            └────────────┐
+                │                                      │
+       ┌────────▼─────────────────┐          ┌────────▼────────┐
+       │      access-service      │          │  example-service│
+       │  （模块化单体，9100）    │          │    （9300）     │
+       │ admin 域：               │          │                 │
+       │ · 用户/组织/菜单         │          │ · 对接演示      │
+       │ · 认证/OAuth2            │          │ · 权限展示      │
+       │ · 字典/通知/文件         │          │                 │
+       │ · 审计/任务调度          │          │                 │
+       │ permission 域：          │          │                 │
+       │ · 权限管理/鉴权引擎      │          │                 │
+       └───────────┬──────────────┘          └────────┬────────┘
+                   │                                  │
+                   ▼                                  ▼
+              PostgreSQL                        PostgreSQL
+              (access_db)                       (example_db)
 ```
 
 ### 1.4 服务间交互矩阵
 
-> **当前实施基线，待 T-ACCESS-012 回写**：表内旧服务间调用将按归并计划删除或改为进程内调用；目标交互以 `access-service-architecture.md` 为准。
+> T-ACCESS-010（2026-08-22）起为归并后交互；admin 与 permission 之间的内部同步/通知调用已随 T-ACCESS-005 删除（同进程 `access.application` 同事务本地投影替代）。
 
-| 调用方            | 被调方            | 协议           | 场景                                                                                         |
-| ----------------- | ----------------- | -------------- | -------------------------------------------------------------------------------------------- |
-| gateway           | admin-service     | HTTP (转发)    | 登录请求透传、管理接口转发                                                                   |
-| gateway           | permission-center | OpenFeign/HTTP | 调用 `POST /api/perm/auth/check-interface` 做接口级鉴权；`interface-snapshot` 仅作为可选优化 |
-| gateway           | example-service   | HTTP (转发)    | 演示服务接口转发                                                                             |
-| admin-service     | permission-center | OpenFeign      | 用户主体与用户管理资源同步、组织资源与组织角色同步、user-org 到 user-role 映射、角色查询/复用、菜单资源同步、鉴权查询（**已随 T-ACCESS-005 删除**：管理事实改由 `access.application` 同事务维护本地投影，见 access-service-architecture.md §4） |
-| example-service   | permission-center | OpenFeign      | 鉴权查询、权限数据查询                                                                       |
-| permission-center | admin-service     | OpenFeign      | 权限变更通知（可选，如角色变更通知管理端刷新缓存）（**已随 T-ACCESS-005 删除**：同进程内失效广播替代） |
+| 调用方          | 被调方        | 协议           | 场景                                                                                         |
+| --------------- | ------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| gateway         | access-service | HTTP (转发)    | `/admin/**`、`/perm/**`（合并路由，StripPrefix=1）、`/auth/**`（StripPrefix=0）登录与管理接口转发 |
+| gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/perm/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
+| gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
+| example-service | access-service | OpenFeign（perm-sdk `PermissionFeignClient`） | 鉴权查询、权限数据查询；Feign 目标已随 T-ACCESS-010 切换为 `access-service` |
 
 ### 1.5 管理端前后端交互原则
 
-- 管理端前端统一通过 Gateway 访问 admin-service，由 admin-service 作为前端唯一后端聚合入口；前端不直接调用 permission-center。
+- 管理端前端统一通过 Gateway 访问 access-service（`/admin/**`、`/perm/**`、`/auth/**` 路由目标统一），由 access-service 作为前端唯一后端聚合入口；前端不直接调用后端服务。
 - 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/auth/login` 获取 token 与最小身份信息后，再调用 `/auth/userinfo` 与 `/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
-- 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 admin-service 聚合下发，按钮权限由稳定 `permissions` 权限码表达。
+- 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 access-service admin 域聚合下发，按钮权限由稳定 `permissions` 权限码表达。
 - 前端本地 mock 可以保留并改造，用于基础前端验证、联调兜底和组件级演示，但不作为长期生产契约或路由权限事实源。
 - 管理端前端最终只保留一套权限呈现模型；模板式 `auths`、`meta.roles` 等逻辑仅允许作为过渡兼容，不再作为新增设计的基准。
 
 ### 1.6 主体、业务域与接入层原则
 
-- admin-service 中的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
-- admin-service 中的组织既是业务树，也是角色容器。组织结构由 admin-service 主维护；与组织相关的角色、用户角色事实最终落在 permission-center。
-- `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由 admin-service 编排触发，permission-center 负责保存最终权限事实。
-- 权限中心内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(ADMIN_USER)` 表示被管理用户资源，`resource_entity(ADMIN_ORG)` 表示被管理组织资源，`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin-service 不存储这些事实的内部 ID，所有跨服务操作使用业务键。
+- access-service admin 域中的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
+- 组织既是业务树，也是角色容器。组织结构由 admin 域主维护；与组织相关的角色、用户角色事实最终落在 permission 域（同进程同库，`access.application` 同事务写入）。
+- `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由 `access.application` 编排，permission 域保存最终权限事实。
+- 权限模型内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(ADMIN_USER)` 表示被管理用户资源，`resource_entity(ADMIN_ORG)` 表示被管理组织资源，`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin 域不存储这些事实的内部 ID，所有跨域操作使用业务键。
 - 业务域只承担角色、权限分类和后台管理视角隔离职责，不承担数据权限载体、运行时鉴权主链或资源归属重构职责。
 - 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
@@ -169,7 +165,7 @@ last_reviewed: 2026-08-12
 - 使用 `sa-token-reactor-spring-boot3-starter`（WebFlux 版本）
 - Token 存储对接 Redis（`sa-token-redis-jackson`）
 - Gateway 只做 Token 解析和校验，**不做登录签发**
-- 登录接口 `/auth/**` 在白名单中，请求透传到 admin-service
+- 登录接口 `/auth/**` 在白名单中，请求透传到 access-service
 
 ---
 

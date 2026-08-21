@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.admin.dto.resp;
 import java.time.LocalDateTime;
 
 /**
- * 用户角色列表项响应（admin 代理查询 permission-center 后拼装）。
+ * 用户角色列表项响应（admin 代理查询 access-service 后拼装）。
  * <p>
  * 包含全类型角色（ORG/POSITION/BASIC_ROLE/GROUP_ROLE/PERSONAL），
  * 前端按 roleTypeCode 区分展示区域。
@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.1
  *
  * @param roleTypeCode    角色类型码（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）
- * @param roleExternalId  角色外部标识（permission-center 业务键）
+ * @param roleExternalId  角色外部标识（access-service 业务键）
  * @param roleName        角色名
  * @param roleTypeLabel   角色类型显示名
  * @param targetType      前端展示用，同 roleTypeCode

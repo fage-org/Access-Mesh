@@ -100,7 +100,7 @@ defineExpose({ validate, getFormData });
       <el-input
         v-else
         v-model.trim="formData.serviceCode"
-        placeholder="如 admin-service"
+        placeholder="如 example-service"
         maxlength="128"
         clearable
       />

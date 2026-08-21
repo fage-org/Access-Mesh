@@ -58,7 +58,7 @@ public class PermissionCondition {
      * 是否可下发 Gateway 评估（T-PERM-017）
      * <p>
      * true 时本条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp / 本进程时钟）本地重评，
-     * 避免 permission-center 用空 context 评估快照导致 IP 条目被丢弃 / 日期条目时钟漂移误判。
+     * 避免 access-service 用空 context 评估快照导致 IP 条目被丢弃 / 日期条目时钟漂移误判。
      * </p>
      * <p>
      * 可下发类型见 {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES}：

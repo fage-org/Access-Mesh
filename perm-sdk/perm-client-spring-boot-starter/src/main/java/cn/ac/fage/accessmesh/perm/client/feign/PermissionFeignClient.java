@@ -18,13 +18,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
- * 权限中心Feign客户端接口
+ * 权限服务Feign客户端接口
  * <p>
- * 用于从其他服务调用权限中心的远程接口。
+ * 用于从其他服务调用access-service的远程接口（T-ACCESS-010：目标由 permission-center 切换为
+ * access-service，服务发现名与部署单元统一，HTTP 契约不变）。
  * 所有接口路径遵循 {@code /api/perm/*} 契约，使用 POST + JSON Body 方式调用。
  * </p>
  */
-@FeignClient(name = "permission-center")
+@FeignClient(name = "access-service")
 public interface PermissionFeignClient {
 
     // ========== 用户管理 ==========

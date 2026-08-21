@@ -12,6 +12,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 验证 {@link FeignInternalSyncInterceptor} 仅对 {@code /api/perm/**} 路径注入
  * {@code X-Internal-Secret} 与 {@code X-Service-Code}，且不覆盖调用方已显式声明的
  * {@code X-Service-Code}。
+ * <p>
+ * T-ACCESS-010：{@code perm.service-code} 无默认值（反射注入显式值模拟外部调用方
+ * 配置自身服务编码，如 example-service）；配置了 {@code perm.internal-secret} 但缺
+ * {@code perm.service-code} 时由 Spring 占位符解析失败启动失败（fail-fast），此处不覆盖。
+ * </p>
  */
 class FeignInternalSyncInterceptorTest {
 
@@ -21,7 +26,7 @@ class FeignInternalSyncInterceptorTest {
     void setUp() throws Exception {
         interceptor = new FeignInternalSyncInterceptor();
         setField("internalSecret", "test-secret-xyz");
-        setField("serviceCode", "admin-service");
+        setField("serviceCode", "example-service");
     }
 
     private void setField(String name, String value) throws Exception {
@@ -44,19 +49,19 @@ class FeignInternalSyncInterceptorTest {
         interceptor.apply(t);
 
         assertThat(t.headers().get("X-Internal-Secret")).containsExactly("test-secret-xyz");
-        assertThat(t.headers().get("X-Service-Code")).containsExactly("admin-service");
+        assertThat(t.headers().get("X-Service-Code")).containsExactly("example-service");
     }
 
     @Test
     void apply_injectsSecretAndServiceCode_forAuthCheckPath() {
-        // PermissionFeignClient.authCheck 也走 /api/perm/auth/check；同样注入是合理副作用
+        // PermissionFeignClient.checkAuth 也走 /api/perm/auth/check；同样注入是合理副作用
         // 现有 Gateway 链路本身也通过 X-Internal-Secret 校验，此处统一注入即可
         RequestTemplate t = template("/api/perm/auth/check");
 
         interceptor.apply(t);
 
         assertThat(t.headers().get("X-Internal-Secret")).containsExactly("test-secret-xyz");
-        assertThat(t.headers().get("X-Service-Code")).containsExactly("admin-service");
+        assertThat(t.headers().get("X-Service-Code")).containsExactly("example-service");
     }
 
     @Test
@@ -69,7 +74,7 @@ class FeignInternalSyncInterceptorTest {
 
         // X-Internal-Secret 仍注入
         assertThat(t.headers().get("X-Internal-Secret")).containsExactly("test-secret-xyz");
-        // X-Service-Code 保留原值，不被默认值覆盖
+        // X-Service-Code 保留原值，不被配置值覆盖
         assertThat(t.headers().get("X-Service-Code")).containsExactly("external-importer");
     }
 
@@ -91,7 +96,7 @@ class FeignInternalSyncInterceptorTest {
         interceptor.apply(t);
 
         assertThat(t.headers().get("X-Internal-Secret")).isNull();
-        // service-code 仍按默认注入（保持 perm-sdk 在没配置 secret 时被禁用，本测试只为防御性兜底）
-        assertThat(t.headers().get("X-Service-Code")).containsExactly("admin-service");
+        // service-code 仍按配置注入（保持 perm-sdk 在没配置 secret 时被禁用，本测试只为防御性兜底）
+        assertThat(t.headers().get("X-Service-Code")).containsExactly("example-service");
     }
 }

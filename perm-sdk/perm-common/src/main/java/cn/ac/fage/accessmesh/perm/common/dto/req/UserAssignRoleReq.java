@@ -11,7 +11,7 @@ import java.util.List;
  * 用户分配角色请求体（perm-common 共享）。
  * <p>
  * 用于分配用户与角色的关联关系，支持有效期配置。
- * 与 permission-center 内部 UserAssignRoleReq 同构。
+ * 与 access-service 内部 UserAssignRoleReq 同构。
  * </p>
  *
  * @param items 分配条目列表，必填且不能为空
@@ -26,7 +26,7 @@ public record UserAssignRoleReq(
      * @param subjectExternalId 用户外部标识，必填
      * @param domainCode        业务域编码：功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）允许 null
      *                          表示全局域；ORG/POSITION 必填（由服务端跨字段业务校验保证，
-     *                          见 permission-center 的 UserManageAppServiceImpl 入口校验）
+     *                          见 access-service 的 UserManageAppServiceImpl 入口校验）
      * @param roleTypeCode      角色类型编码，必填
      * @param roleExternalId    角色外部标识，必填
      * @param relationId        关系ID，可选
