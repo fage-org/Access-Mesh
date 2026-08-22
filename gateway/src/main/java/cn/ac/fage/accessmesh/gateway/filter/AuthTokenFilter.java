@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,47 +77,43 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
         }
 
         try {
-            // 使用getLoginIdByToken — 不依赖ThreadLocal，WebFlux环境安全
+            // 使用getLoginIdByToken — 不依赖ThreadLocal，WebFlux环境安全；
+            // 无效/过期令牌返回 null（不抛 NotLoginException），null 必须按 401 处理
+            // 而非 NPE→500（T-ACCESS-011 次生缺陷修复）
             Object loginId = StpUtil.getLoginIdByToken(token);
+            if (loginId == null) {
+                return writeUnauthorized(exchange, 401, "登录已过期");
+            }
             exchange.getAttributes().put(USER_ID_ATTR, loginId);
 
-            // 使用基于Token的API从Sa-Token session读取额外数据
+            // 会话身份从共享 Redis 的 SaSession 读取（access-service AuthServiceImpl 登录时
+            // 写入 tenantId/subjectTypeCode/operatorName；键格式 Authorization:login:session:<loginId>）。
+            // T-ACCESS-011 P0 修复：不可使用 StpUtil.getExtra(loginId,key)——默认 StpLogic
+            // 下该 API 无条件抛 ApiDisabledException（仅 sa-token-jwt 插件支持），导致
+            // 所有合法令牌请求恒 401「租户信息缺失」。
             String loginIdStr = loginId.toString();
-            try {
-                Object tenantId = StpUtil.getExtra(loginIdStr, "tenantId");
-                if (tenantId != null) {
-                    exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
-                } else {
-                    log.warn("租户ID为空，loginId={}", loginIdStr);
-                    return writeUnauthorized(exchange, 401, "租户信息缺失");
-                }
-            } catch (Exception e) {
-                log.error("获取租户ID异常，loginId={}: {}", loginIdStr, e.getMessage());
+            SaSession session = StpUtil.getSessionByLoginId(loginIdStr, false);
+
+            Object tenantId = session != null ? session.get("tenantId") : null;
+            if (tenantId == null) {
+                log.warn("租户ID为空，loginId={}", loginIdStr);
                 return writeUnauthorized(exchange, 401, "租户信息缺失");
             }
+            exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
 
-            try {
-                Object subjectTypeCode = StpUtil.getExtra(loginIdStr, "subjectTypeCode");
-                if (subjectTypeCode != null && !subjectTypeCode.toString().isBlank()) {
-                    exchange.getAttributes().put(SUBJECT_TYPE_CODE_ATTR, subjectTypeCode.toString());
-                } else {
-                    log.warn("主体类型为空，loginId={}", loginIdStr);
-                    return writeUnauthorized(exchange, 401, "登录信息缺失");
-                }
-            } catch (Exception e) {
-                log.error("获取主体类型异常，loginId={}: {}", loginIdStr, e.getMessage());
+            Object subjectTypeCode = session != null ? session.get("subjectTypeCode") : null;
+            if (subjectTypeCode == null || subjectTypeCode.toString().isBlank()) {
+                log.warn("主体类型为空，loginId={}", loginIdStr);
                 return writeUnauthorized(exchange, 401, "登录信息缺失");
             }
+            exchange.getAttributes().put(SUBJECT_TYPE_CODE_ATTR, subjectTypeCode.toString());
 
-            try {
-                Object username = StpUtil.getExtra(loginIdStr, "username");
-                if (username != null) {
-                    exchange.getAttributes().put(USER_NAME_ATTR, username.toString());
-                }
-            } catch (Exception e) {
-                // 用户名可能未设置
+            // access-service 会话键为 operatorName（@OperationLog 操作者回填）；
+            // 缺失不阻断（历史会话/旧版本兼容），仅不设置 userName 属性
+            Object operatorName = session != null ? session.get("operatorName") : null;
+            if (operatorName != null) {
+                exchange.getAttributes().put(USER_NAME_ATTR, operatorName.toString());
             }
-
         } catch (NotLoginException e) {
             return writeUnauthorized(exchange, 401, "登录已过期");
         }
