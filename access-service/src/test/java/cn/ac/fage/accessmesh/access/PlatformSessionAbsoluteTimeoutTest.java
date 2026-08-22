@@ -137,6 +137,10 @@ class PlatformSessionAbsoluteTimeoutTest {
             .andReturn();
         JsonNode body = MAPPER.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
         assertThat(body.get("code").asInt()).isEqualTo(200);
+        // expiresIn 单一权威来源 = sa-token.timeout（测试上下文缩短为 4）
+        assertThat(body.get("data").get("expiresIn").asLong())
+            .as("LoginResp.expiresIn 必须等于 sa-token.timeout（当前测试配置 4s）")
+            .isEqualTo(4);
         return body.get("data").get("accessToken").asText();
     }
 

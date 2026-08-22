@@ -42,23 +42,28 @@ class GatewayFailModeRemovalTest {
         List.of("failMode", "open", "staleAllow", "staleGraceSeconds");
 
     @Test
-    @DisplayName("代码：GatewayProperties 全嵌套结构不含 failMode/open/stale 系列字段")
+    @DisplayName("代码：GatewayProperties 全嵌套结构不含 failMode/open/stale 系列字段（按叶子名判定）")
     void gatewayPropertiesHasNoFailModeFields() {
-        List<String> violations = new ArrayList<>();
-        collectFieldNames(GatewayProperties.class, "", violations);
-        assertThat(violations)
-            .as("GatewayProperties 声明的全部字段（含嵌套）：%s", violations)
+        List<String> leafNames = new ArrayList<>();
+        collectFieldNames(GatewayProperties.class, "", new ArrayList<>(), leafNames);
+        assertThat(leafNames)
+            .as("GatewayProperties 全部字段叶子名（含任意嵌套层级）：%s", leafNames)
             .doesNotContain(REMOVED_FIELD_NAMES.toArray(String[]::new));
     }
 
-    /** 递归收集属性类全部嵌套字段（含父类），fail-mode 配置键必须绑不出任何字段。 */
-    private void collectFieldNames(Class<?> type, String prefix, List<String> out) {
+    /**
+     * 递归收集属性类全部嵌套字段（含父类）。
+     * 评审修复：断言按「叶子名」判定——前缀限定名（如 permission.failMode）与裸名
+     * （failMode）必须同时拒绝，否则嵌套类内复活该字段将逃逸检测。
+     */
+    private void collectFieldNames(Class<?> type, String prefix, List<String> prefixed, List<String> leaves) {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
-                out.add(prefix + f.getName());
+                prefixed.add(prefix + f.getName());
+                leaves.add(f.getName());
                 Class<?> ft = f.getType();
                 if (ft.getName().startsWith("cn.ac.fage.accessmesh.gateway")) {
-                    collectFieldNames(ft, prefix + f.getName() + ".", out);
+                    collectFieldNames(ft, prefix + f.getName() + ".", prefixed, leaves);
                 }
             }
         }
@@ -139,6 +144,13 @@ class GatewayFailModeRemovalTest {
             .filter(m -> "gateway.perm.unreachable".equals(m.getId().getName()))
             .count())
             .as("不可达计数器（source=snapshot/check_interface）必须注册")
+            .isGreaterThanOrEqualTo(2);
+        // 评审修复：fail-closed 拒绝路径的计数器必须存在（denied + deadline_exceeded），
+        // 否则「fallback 仅 mode=closed」检查在计数器整体缺失时为假阴性
+        assertThat(registry.getMeters().stream()
+            .filter(m -> "gateway.perm.fallback".equals(m.getId().getName()))
+            .count())
+            .as("fail-closed fallback 计数器（mode=closed）必须注册")
             .isGreaterThanOrEqualTo(2);
     }
 }

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
+import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
@@ -84,6 +85,23 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
             if (loginId == null) {
                 return writeUnauthorized(exchange, 401, "登录已过期");
             }
+
+            // 无操作超时校验（§6.1 端到端一致）：getLoginIdByToken 只读 token→loginId 映射，
+            // 不检查冻结也不续期；与 access-service RequestContextInterceptor 的
+            // isLogin()（冻结→false）口径对齐：闲置超过 active-timeout 的令牌
+            // （getTokenActiveTimeoutByToken == -2）按 401 拒绝，不得进入权限链与身份注入。
+            // 两个 API 均为纯 dao 读写（WebFlux 安全）；-1 表示检查未启用，放行。
+            long activeRemaining = StpUtil.stpLogic.getTokenActiveTimeoutByToken(token);
+            if (activeRemaining == SaTokenDao.NOT_VALUE_EXPIRE) {
+                return writeUnauthorized(exchange, 401, "登录已过期");
+            }
+
+            // 滑动续期：网关是全部业务请求的唯一入口，每次认证通过即视为「操作」，
+            // 更新 last-active（与 access-service getLoginIdAsLong 续期口径一致，
+            // 双端幂等时间戳写无害）；否则仅使用 example-service 的活跃用户
+            // 会被无操作超时误冻结
+            StpUtil.stpLogic.updateLastActiveToNow(token);
+
             exchange.getAttributes().put(USER_ID_ATTR, loginId);
 
             // 会话身份从共享 Redis 的 SaSession 读取（access-service AuthServiceImpl 登录时
