@@ -248,204 +248,204 @@ class HttpApiPathSnapshotTest {
 
     /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，198 条）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
-/api/perm/abstract-role/create|RoleCreateReq|PermResult<RoleResp>
-/api/perm/abstract-role/detail|IdReq|PermResult<RoleResp>
-/api/perm/abstract-role/extra-roles/add|GroupRoleExtraRoleReq|PermResult<Void>
-/api/perm/abstract-role/extra-roles/list|GroupRoleExtraRolesListReq|PermResult<ItemsResp<RoleSummaryResp>>
-/api/perm/abstract-role/extra-roles/remove|GroupRoleExtraRoleReq|PermResult<Void>
-/api/perm/abstract-role/full-sync|AbstractRoleFullSyncReq|PermResult<SyncResultResp>
-/api/perm/abstract-role/list|RoleListReq|PermResult<PaginatedResp<RoleResp>>
-/api/perm/abstract-role/move|RoleMoveReq|PermResult<Void>
-/api/perm/abstract-role/remove|IdsReq|PermResult<Void>
-/api/perm/abstract-role/sync|AbstractRoleSyncReq|PermResult<SyncResultResp>
-/api/perm/abstract-role/tree|RoleTreeReq|PermResult<ItemsResp<RoleTreeResp>>
-/api/perm/abstract-role/update|RoleUpdateReq|PermResult<RoleResp>
-/api/perm/abstract-user/create|UserCreateReq|PermResult<UserResp>
-/api/perm/abstract-user/detail|IdReq|PermResult<UserResp>
-/api/perm/abstract-user/full-sync|AbstractUserFullSyncReq|PermResult<SyncResultResp>
-/api/perm/abstract-user/list|UserListReq|PermResult<PaginatedResp<UserResp>>
-/api/perm/abstract-user/remove|IdsReq|PermResult<Void>
-/api/perm/abstract-user/sync|AbstractUserSyncReq|PermResult<SyncResultResp>
-/api/perm/abstract-user/update|UserUpdateReq|PermResult<UserResp>
-/api/perm/auth/batch-check|BatchAuthCheckReq|PermResult<BatchAuthCheckResp>
-/api/perm/auth/check-interface|CheckInterfaceReq|PermResult<CheckInterfaceResp>
-/api/perm/auth/check|AuthCheckReq|PermResult<AuthCheckResp>
+/api/perm/abstract-role/create|Prm.RoleCreateReq|PermResult<Prm.RoleResp>
+/api/perm/abstract-role/detail|Prm.IdReq|PermResult<Prm.RoleResp>
+/api/perm/abstract-role/extra-roles/add|Prm.GroupRoleExtraRoleReq|PermResult<Void>
+/api/perm/abstract-role/extra-roles/list|Prm.GroupRoleExtraRolesListReq|PermResult<Prm.ItemsResp<Prm.RoleSummaryResp>>
+/api/perm/abstract-role/extra-roles/remove|Prm.GroupRoleExtraRoleReq|PermResult<Void>
+/api/perm/abstract-role/full-sync|Prm.AbstractRoleFullSyncReq|PermResult<SyncResultResp>
+/api/perm/abstract-role/list|Prm.RoleListReq|PermResult<Prm.PaginatedResp<Prm.RoleResp>>
+/api/perm/abstract-role/move|Prm.RoleMoveReq|PermResult<Void>
+/api/perm/abstract-role/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/abstract-role/sync|Prm.AbstractRoleSyncReq|PermResult<SyncResultResp>
+/api/perm/abstract-role/tree|Prm.RoleTreeReq|PermResult<Prm.ItemsResp<Prm.RoleTreeResp>>
+/api/perm/abstract-role/update|Prm.RoleUpdateReq|PermResult<Prm.RoleResp>
+/api/perm/abstract-user/create|Prm.UserCreateReq|PermResult<Prm.UserResp>
+/api/perm/abstract-user/detail|Prm.IdReq|PermResult<Prm.UserResp>
+/api/perm/abstract-user/full-sync|Prm.AbstractUserFullSyncReq|PermResult<SyncResultResp>
+/api/perm/abstract-user/list|Prm.UserListReq|PermResult<Prm.PaginatedResp<Prm.UserResp>>
+/api/perm/abstract-user/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/abstract-user/sync|Prm.AbstractUserSyncReq|PermResult<SyncResultResp>
+/api/perm/abstract-user/update|Prm.UserUpdateReq|PermResult<Prm.UserResp>
+/api/perm/auth/batch-check|Prm.BatchAuthCheckReq|PermResult<Prm.BatchAuthCheckResp>
+/api/perm/auth/check-interface|Prm.CheckInterfaceReq|PermResult<Prm.CheckInterfaceResp>
+/api/perm/auth/check|Prm.AuthCheckReq|PermResult<Prm.AuthCheckResp>
 /api/perm/auth/interface-snapshot|InterfaceSnapshotReq|PermResult<InterfaceSnapshotResp>
-/api/perm/auth/query-permission-tree|PermissionTreeReq|PermResult<PermissionTreeResp>
-/api/perm/auth/query-resources|QueryResourcesReq|PermResult<QueryResourcesResp>
-/api/perm/auth/query-scopes|QueryScopesReq|PermResult<QueryScopesResp>
-/api/perm/biz-domain/create|BizDomainCreateReq|PermResult<BizDomainResp>
-/api/perm/biz-domain/detail|IdReq|PermResult<BizDomainResp>
-/api/perm/biz-domain/list|EmptyReq|PermResult<ItemsResp<BizDomainResp>>
-/api/perm/biz-domain/remove|IdsReq|PermResult<Void>
-/api/perm/biz-domain/update|BizDomainUpdateReq|PermResult<BizDomainResp>
-/api/perm/conflict-rule/create|ConflictRuleReq|PermResult<ConflictRuleResp>
-/api/perm/conflict-rule/detail|IdReq|PermResult<ConflictRuleResp>
-/api/perm/conflict-rule/detect|ConflictRuleDetectReq|PermResult<ConflictDetectResp>
-/api/perm/conflict-rule/list|EmptyReq|PermResult<ItemsResp<ConflictRuleResp>>
-/api/perm/conflict-rule/remove|IdsReq|PermResult<Void>
-/api/perm/conflict-rule/update|ConflictRuleUpdateReq|PermResult<ConflictRuleResp>
-/api/perm/domain-config/detail|DomainConfigGetReq|PermResult<DomainConfigResp>
-/api/perm/domain-config/list|DomainConfigListReq|PermResult<ItemsResp<DomainConfigResp>>
-/api/perm/domain-config/remove|IdsReq|PermResult<Void>
-/api/perm/domain-config/save|DomainConfigReq|PermResult<DomainConfigResp>
-/api/perm/log/change/list|ChangeLogListReq|PermResult<PaginatedResp<ChangeLogResp>>
-/api/perm/log/operation/list|OperationLogListReq|PermResult<PaginatedResp<OperationLogResp>>
-/api/perm/operation-permission/create|OperationCreateReq|PermResult<OperationPermissionResp>
-/api/perm/operation-permission/detail|IdReq|PermResult<OperationPermissionResp>
-/api/perm/operation-permission/list|OperationListReq|PermResult<ItemsResp<OperationPermissionResp>>
-/api/perm/operation-permission/remove|IdsReq|PermResult<Void>
-/api/perm/operation-permission/update|OperationUpdateReq|PermResult<OperationPermissionResp>
-/api/perm/permission-condition/create|ConditionCreateReq|PermResult<ConditionResp>
-/api/perm/permission-condition/detail|IdReq|PermResult<ConditionResp>
-/api/perm/permission-condition/list|EmptyReq|PermResult<ItemsResp<ConditionResp>>
-/api/perm/permission-condition/remove|IdsReq|PermResult<Void>
-/api/perm/permission-condition/update|ConditionUpdateReq|PermResult<ConditionResp>
+/api/perm/auth/query-permission-tree|Prm.PermissionTreeReq|PermResult<Prm.PermissionTreeResp>
+/api/perm/auth/query-resources|Prm.QueryResourcesReq|PermResult<Prm.QueryResourcesResp>
+/api/perm/auth/query-scopes|Prm.QueryScopesReq|PermResult<Prm.QueryScopesResp>
+/api/perm/biz-domain/create|Prm.BizDomainCreateReq|PermResult<Prm.BizDomainResp>
+/api/perm/biz-domain/detail|Prm.IdReq|PermResult<Prm.BizDomainResp>
+/api/perm/biz-domain/list|Prm.EmptyReq|PermResult<Prm.ItemsResp<Prm.BizDomainResp>>
+/api/perm/biz-domain/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/biz-domain/update|Prm.BizDomainUpdateReq|PermResult<Prm.BizDomainResp>
+/api/perm/conflict-rule/create|Prm.ConflictRuleReq|PermResult<Prm.ConflictRuleResp>
+/api/perm/conflict-rule/detail|Prm.IdReq|PermResult<Prm.ConflictRuleResp>
+/api/perm/conflict-rule/detect|Prm.ConflictRuleDetectReq|PermResult<Prm.ConflictDetectResp>
+/api/perm/conflict-rule/list|Prm.EmptyReq|PermResult<Prm.ItemsResp<Prm.ConflictRuleResp>>
+/api/perm/conflict-rule/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/conflict-rule/update|Prm.ConflictRuleUpdateReq|PermResult<Prm.ConflictRuleResp>
+/api/perm/domain-config/detail|Prm.DomainConfigGetReq|PermResult<Prm.DomainConfigResp>
+/api/perm/domain-config/list|Prm.DomainConfigListReq|PermResult<Prm.ItemsResp<Prm.DomainConfigResp>>
+/api/perm/domain-config/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/domain-config/save|Prm.DomainConfigReq|PermResult<Prm.DomainConfigResp>
+/api/perm/log/change/list|Prm.ChangeLogListReq|PermResult<Prm.PaginatedResp<Prm.ChangeLogResp>>
+/api/perm/log/operation/list|Prm.OperationLogListReq|PermResult<Prm.PaginatedResp<Prm.OperationLogResp>>
+/api/perm/operation-permission/create|Prm.OperationCreateReq|PermResult<Prm.OperationPermissionResp>
+/api/perm/operation-permission/detail|Prm.IdReq|PermResult<Prm.OperationPermissionResp>
+/api/perm/operation-permission/list|Prm.OperationListReq|PermResult<Prm.ItemsResp<Prm.OperationPermissionResp>>
+/api/perm/operation-permission/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/operation-permission/update|Prm.OperationUpdateReq|PermResult<Prm.OperationPermissionResp>
+/api/perm/permission-condition/create|Prm.ConditionCreateReq|PermResult<Prm.ConditionResp>
+/api/perm/permission-condition/detail|Prm.IdReq|PermResult<Prm.ConditionResp>
+/api/perm/permission-condition/list|Prm.EmptyReq|PermResult<Prm.ItemsResp<Prm.ConditionResp>>
+/api/perm/permission-condition/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/permission-condition/update|Prm.ConditionUpdateReq|PermResult<Prm.ConditionResp>
 /api/perm/permission-view/effective-permission-codes|UserEffectivePermissionCodesReq|PermResult<UserEffectivePermissionCodesResp>
-/api/perm/permission-view/effective-permissions|UserPermissionViewReq|PermResult<PermissionEffectivePermissionsResp>
-/api/perm/permission-view/effective-roles|UserEffectiveRolesReq|PermResult<ItemsResp<EffectiveRoleResp>>
-/api/perm/permission-view/explain|PermissionExplainReq|PermResult<PermissionExplainResp>
-/api/perm/permission-view/recent-changes|PermissionRecentChangesReq|PermResult<PermissionRecentChangesResp>
-/api/perm/permission-view/resource-tree|UserResourceTreeReq|PermResult<ItemsResp<ResourcePermissionTreeResp>>
-/api/perm/permission-view/resource-users|ResourcePermissionViewReq|PermResult<ResourcePermissionViewResp>
-/api/perm/permission-view/role-permissions|RolePermissionViewReq|PermResult<RolePermissionViewResp>
-/api/perm/resource-api-mapping/create|ApiMappingAddReq|PermResult<ApiMappingResp>
-/api/perm/resource-api-mapping/list|ApiMappingListReq|PermResult<ItemsResp<ApiMappingResp>>
-/api/perm/resource-api-mapping/remove|IdsReq|PermResult<Void>
-/api/perm/resource-api-mapping/update|ApiMappingUpdateReq|PermResult<ApiMappingResp>
-/api/perm/resource-dependency/batch-sync|DependencyBatchSyncReq|PermResult<Void>
-/api/perm/resource-dependency/check|ResourceDependencyCheckReq|PermResult<DependencyCycleCheckResp>
-/api/perm/resource-dependency/create|ResourceDependencyCreateReq|PermResult<ResourceDependencyResp>
-/api/perm/resource-dependency/graph|DependencyListReq|PermResult<ItemsResp<ResourceDependencyResp>>
-/api/perm/resource-dependency/list|DependencyListReq|PermResult<ItemsResp<ResourceDependencyResp>>
-/api/perm/resource-dependency/remove|IdsReq|PermResult<Void>
-/api/perm/resource-dependency/update|ResourceDependencyUpdateReq|PermResult<ResourceDependencyResp>
-/api/perm/resource-entity/batch-create|ResourceBatchCreateReq|PermResult<ItemsResp<ResourceResp>>
-/api/perm/resource-entity/create|ResourceCreateReq|PermResult<ResourceResp>
-/api/perm/resource-entity/detail|IdReq|PermResult<ResourceResp>
-/api/perm/resource-entity/full-sync|ResourceEntityFullSyncReq|PermResult<SyncResultResp>
-/api/perm/resource-entity/list|ResourceListReq|PermResult<PaginatedResp<ResourceResp>>
-/api/perm/resource-entity/move|ResourceMoveReq|PermResult<Void>
-/api/perm/resource-entity/remove|IdsReq|PermResult<Void>
-/api/perm/resource-entity/sync|ResourceEntitySyncReq|PermResult<SyncResultResp>
-/api/perm/resource-entity/tree|ResourceTreeReq|PermResult<ItemsResp<ResourceTreeResp>>
-/api/perm/resource-entity/update|ResourceUpdateReq|PermResult<ResourceResp>
-/api/perm/role-resource-permission/add-child|RolePermissionAddChildReq|PermResult<RolePermissionItemsResp>
-/api/perm/role-resource-permission/apply-grant-plan|ApplyGrantPlanReq|PermResult<RolePermissionItemsResp>
-/api/perm/role-resource-permission/children|RolePermissionChildrenReq|PermResult<RolePermissionItemsResp>
-/api/perm/role-resource-permission/list|RolePermissionListReq|PermResult<RolePermissionItemsResp>
-/api/perm/role-resource-permission/remove-child|RolePermissionRemoveChildReq|PermResult<Void>
-/api/perm/role-resource-permission/revoke|BatchRevokeReq|PermResult<Void>
-/api/perm/role-resource-permission/save|RoleGrantReq|PermResult<RolePermissionItemsResp>
-/api/perm/service-config/apis|ServiceConfigApisReq|PermResult<ItemsResp<ApiMappingResp>>
-/api/perm/service-config/detail|ServiceConfigGetReq|PermResult<ServiceConfigResp>
-/api/perm/service-config/list|EmptyReq|PermResult<ItemsResp<ServiceConfigResp>>
-/api/perm/service-config/remove|IdsReq|PermResult<Void>
-/api/perm/service-config/save|ServiceConfigReq|PermResult<ServiceConfigResp>
-/api/perm/service-config/sync|ServiceConfigSyncReq|PermResult<ServiceConfigSyncResp>
-/api/perm/system-config/detail|SystemConfigGetReq|PermResult<SystemConfigResp>
-/api/perm/system-config/list|EmptyReq|PermResult<ItemsResp<SystemConfigResp>>
-/api/perm/system-config/save|SystemConfigReq|PermResult<SystemConfigResp>
-/api/perm/type-definition/create|TypeCreateReq|PermResult<TypeDefinitionResp>
-/api/perm/type-definition/detail|IdReq|PermResult<TypeDefinitionResp>
-/api/perm/type-definition/list|TypeListReq|PermResult<ItemsResp<TypeDefinitionResp>>
-/api/perm/type-definition/remove|IdsReq|PermResult<Void>
-/api/perm/type-definition/update|TypeUpdateReq|PermResult<TypeDefinitionResp>
-/api/perm/user-role/assign|UserAssignRoleReq|PermResult<Void>
-/api/perm/user-role/batch-assign|UserRoleBatchAssignReq|PermResult<Void>
-/api/perm/user-role/full-sync|UserRoleFullSyncReq|PermResult<SyncResultResp>
-/api/perm/user-role/list|UserRoleListReq|PermResult<UserRolesResp>
-/api/perm/user-role/revoke|UserRoleBatchRevokeReq|PermResult<Void>
-/api/perm/user-role/sync|UserRoleSyncReq|PermResult<SyncResultResp>
-/auth/captcha|-|PermResult<CaptchaResp>
-/auth/login/sms|SmsLoginReq|PermResult<LoginResp>
-/auth/login|LoginReq|PermResult<LoginResp>
+/api/perm/permission-view/effective-permissions|Prm.UserPermissionViewReq|PermResult<Prm.PermissionEffectivePermissionsResp>
+/api/perm/permission-view/effective-roles|Prm.UserEffectiveRolesReq|PermResult<Prm.ItemsResp<Prm.EffectiveRoleResp>>
+/api/perm/permission-view/explain|Prm.PermissionExplainReq|PermResult<Prm.PermissionExplainResp>
+/api/perm/permission-view/recent-changes|Prm.PermissionRecentChangesReq|PermResult<Prm.PermissionRecentChangesResp>
+/api/perm/permission-view/resource-tree|Prm.UserResourceTreeReq|PermResult<Prm.ItemsResp<Prm.ResourcePermissionTreeResp>>
+/api/perm/permission-view/resource-users|Prm.ResourcePermissionViewReq|PermResult<Prm.ResourcePermissionViewResp>
+/api/perm/permission-view/role-permissions|Prm.RolePermissionViewReq|PermResult<Prm.RolePermissionViewResp>
+/api/perm/resource-api-mapping/create|Prm.ApiMappingAddReq|PermResult<Prm.ApiMappingResp>
+/api/perm/resource-api-mapping/list|Prm.ApiMappingListReq|PermResult<Prm.ItemsResp<Prm.ApiMappingResp>>
+/api/perm/resource-api-mapping/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/resource-api-mapping/update|Prm.ApiMappingUpdateReq|PermResult<Prm.ApiMappingResp>
+/api/perm/resource-dependency/batch-sync|Prm.DependencyBatchSyncReq|PermResult<Void>
+/api/perm/resource-dependency/check|Prm.ResourceDependencyCheckReq|PermResult<Prm.DependencyCycleCheckResp>
+/api/perm/resource-dependency/create|Prm.ResourceDependencyCreateReq|PermResult<Prm.ResourceDependencyResp>
+/api/perm/resource-dependency/graph|Prm.DependencyListReq|PermResult<Prm.ItemsResp<Prm.ResourceDependencyResp>>
+/api/perm/resource-dependency/list|Prm.DependencyListReq|PermResult<Prm.ItemsResp<Prm.ResourceDependencyResp>>
+/api/perm/resource-dependency/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/resource-dependency/update|Prm.ResourceDependencyUpdateReq|PermResult<Prm.ResourceDependencyResp>
+/api/perm/resource-entity/batch-create|Prm.ResourceBatchCreateReq|PermResult<Prm.ItemsResp<Prm.ResourceResp>>
+/api/perm/resource-entity/create|Prm.ResourceCreateReq|PermResult<Prm.ResourceResp>
+/api/perm/resource-entity/detail|Prm.IdReq|PermResult<Prm.ResourceResp>
+/api/perm/resource-entity/full-sync|Prm.ResourceEntityFullSyncReq|PermResult<SyncResultResp>
+/api/perm/resource-entity/list|Prm.ResourceListReq|PermResult<Prm.PaginatedResp<Prm.ResourceResp>>
+/api/perm/resource-entity/move|Prm.ResourceMoveReq|PermResult<Void>
+/api/perm/resource-entity/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/resource-entity/sync|Prm.ResourceEntitySyncReq|PermResult<SyncResultResp>
+/api/perm/resource-entity/tree|Prm.ResourceTreeReq|PermResult<Prm.ItemsResp<Prm.ResourceTreeResp>>
+/api/perm/resource-entity/update|Prm.ResourceUpdateReq|PermResult<Prm.ResourceResp>
+/api/perm/role-resource-permission/add-child|Prm.RolePermissionAddChildReq|PermResult<Prm.RolePermissionItemsResp>
+/api/perm/role-resource-permission/apply-grant-plan|Prm.ApplyGrantPlanReq|PermResult<Prm.RolePermissionItemsResp>
+/api/perm/role-resource-permission/children|Prm.RolePermissionChildrenReq|PermResult<Prm.RolePermissionItemsResp>
+/api/perm/role-resource-permission/list|Prm.RolePermissionListReq|PermResult<Prm.RolePermissionItemsResp>
+/api/perm/role-resource-permission/remove-child|Prm.RolePermissionRemoveChildReq|PermResult<Void>
+/api/perm/role-resource-permission/revoke|Prm.BatchRevokeReq|PermResult<Void>
+/api/perm/role-resource-permission/save|Prm.RoleGrantReq|PermResult<Prm.RolePermissionItemsResp>
+/api/perm/service-config/apis|Prm.ServiceConfigApisReq|PermResult<Prm.ItemsResp<Prm.ApiMappingResp>>
+/api/perm/service-config/detail|Prm.ServiceConfigGetReq|PermResult<Prm.ServiceConfigResp>
+/api/perm/service-config/list|Prm.EmptyReq|PermResult<Prm.ItemsResp<Prm.ServiceConfigResp>>
+/api/perm/service-config/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/service-config/save|Prm.ServiceConfigReq|PermResult<Prm.ServiceConfigResp>
+/api/perm/service-config/sync|Prm.ServiceConfigSyncReq|PermResult<Prm.ServiceConfigSyncResp>
+/api/perm/system-config/detail|Prm.SystemConfigGetReq|PermResult<Prm.SystemConfigResp>
+/api/perm/system-config/list|Prm.EmptyReq|PermResult<Prm.ItemsResp<Prm.SystemConfigResp>>
+/api/perm/system-config/save|Prm.SystemConfigReq|PermResult<Prm.SystemConfigResp>
+/api/perm/type-definition/create|Prm.TypeCreateReq|PermResult<Prm.TypeDefinitionResp>
+/api/perm/type-definition/detail|Prm.IdReq|PermResult<Prm.TypeDefinitionResp>
+/api/perm/type-definition/list|Prm.TypeListReq|PermResult<Prm.ItemsResp<Prm.TypeDefinitionResp>>
+/api/perm/type-definition/remove|Prm.IdsReq|PermResult<Void>
+/api/perm/type-definition/update|Prm.TypeUpdateReq|PermResult<Prm.TypeDefinitionResp>
+/api/perm/user-role/assign|Prm.UserAssignRoleReq|PermResult<Void>
+/api/perm/user-role/batch-assign|Prm.UserRoleBatchAssignReq|PermResult<Void>
+/api/perm/user-role/full-sync|Prm.UserRoleFullSyncReq|PermResult<SyncResultResp>
+/api/perm/user-role/list|Prm.UserRoleListReq|PermResult<Prm.UserRolesResp>
+/api/perm/user-role/revoke|Prm.UserRoleBatchRevokeReq|PermResult<Void>
+/api/perm/user-role/sync|Prm.UserRoleSyncReq|PermResult<SyncResultResp>
+/auth/captcha|-|PermResult<Adm.CaptchaResp>
+/auth/login/sms|Adm.SmsLoginReq|PermResult<Adm.LoginResp>
+/auth/login|Adm.LoginReq|PermResult<Adm.LoginResp>
 /auth/logout|-|PermResult<Void>
-/auth/oauth2/authorize|AuthorizeReq|PermResult<AuthorizeResp>
-/auth/oauth2/refresh|RefreshTokenReq|PermResult<TokenResp>
-/auth/oauth2/revoke|RevokeTokenReq|PermResult<Void>
-/auth/oauth2/token|TokenReq|PermResult<TokenResp>
-/auth/oauth2/userinfo|-|PermResult<OAuth2UserInfoResp>
-/auth/user-menu|-|PermResult<UserMenuResp>
-/auth/userinfo|-|PermResult<UserInfoResp>
-/config/delete|IdsReq|PermResult<Void>
-/config/detail|IdReq|PermResult<ConfigResp>
-/config/page|PageReq|PermResult<PaginatedResult<ConfigResp>>
-/config/update|ConfigUpdateReq|PermResult<Void>
-/dict/data/create|DictDataCreateReq|PermResult<Long>
+/auth/oauth2/authorize|Adm.AuthorizeReq|PermResult<Adm.AuthorizeResp>
+/auth/oauth2/refresh|Adm.controller.OAuth2Controller$RefreshTokenReq|PermResult<Adm.TokenResp>
+/auth/oauth2/revoke|Adm.controller.OAuth2Controller$RevokeTokenReq|PermResult<Void>
+/auth/oauth2/token|Adm.TokenReq|PermResult<Adm.TokenResp>
+/auth/oauth2/userinfo|-|PermResult<Adm.OAuth2UserInfoResp>
+/auth/user-menu|-|PermResult<Adm.UserMenuResp>
+/auth/userinfo|-|PermResult<Adm.UserInfoResp>
+/config/delete|Adm.IdsReq|PermResult<Void>
+/config/detail|IdReq|PermResult<Adm.ConfigResp>
+/config/page|PageReq|PermResult<PaginatedResult<Adm.ConfigResp>>
+/config/update|Adm.ConfigUpdateReq|PermResult<Void>
+/dict/data/create|Adm.DictDataCreateReq|PermResult<Long>
 /dict/data/delete|IdReq|PermResult<Void>
-/dict/data/list|IdReq|PermResult<List<DictDataResp>>
-/dict/data/update|DictDataUpdateReq|PermResult<Void>
-/dict/type/create|DictTypeCreateReq|PermResult<Long>
-/dict/type/delete|IdsReq|PermResult<Void>
-/dict/type/list|-|PermResult<List<DictTypeResp>>
-/dict/type/page|PageReq|PermResult<PaginatedResult<DictTypeResp>>
-/file/delete|IdsReq|PermResult<Void>
-/file/detail|IdReq|PermResult<FileResp>
+/dict/data/list|IdReq|PermResult<List<Adm.DictDataResp>>
+/dict/data/update|Adm.DictDataUpdateReq|PermResult<Void>
+/dict/type/create|Adm.DictTypeCreateReq|PermResult<Long>
+/dict/type/delete|Adm.IdsReq|PermResult<Void>
+/dict/type/list|-|PermResult<List<Adm.DictTypeResp>>
+/dict/type/page|PageReq|PermResult<PaginatedResult<Adm.DictTypeResp>>
+/file/delete|Adm.IdsReq|PermResult<Void>
+/file/detail|IdReq|PermResult<Adm.FileResp>
 /file/download|IdReq|void
-/file/page|FilePageReq|PermResult<PaginatedResult<FileResp>>
+/file/page|Adm.FilePageReq|PermResult<PaginatedResult<Adm.FileResp>>
 /file/upload|-|PermResult<Long>
-/job/create|JobCreateReq|PermResult<Long>
-/job/delete|IdsReq|PermResult<Void>
-/job/detail|IdReq|PermResult<JobResp>
-/job/log/page|JobLogPageReq|PermResult<PaginatedResult<JobLogResp>>
-/job/page|PageReq|PermResult<PaginatedResult<JobResp>>
-/job/toggle|ToggleJobReq|PermResult<Void>
+/job/create|Adm.JobCreateReq|PermResult<Long>
+/job/delete|Adm.IdsReq|PermResult<Void>
+/job/detail|IdReq|PermResult<Adm.JobResp>
+/job/log/page|Adm.JobLogPageReq|PermResult<PaginatedResult<Adm.JobLogResp>>
+/job/page|PageReq|PermResult<PaginatedResult<Adm.JobResp>>
+/job/toggle|Adm.controller.JobController$ToggleJobReq|PermResult<Void>
 /job/trigger|IdReq|PermResult<Void>
-/job/update|JobUpdateReq|PermResult<Void>
-/login-log/page|PageReq|PermResult<PaginatedResult<LoginLogResp>>
-/menu/create|MenuCreateReq|PermResult<Long>
+/job/update|Adm.JobUpdateReq|PermResult<Void>
+/login-log/page|PageReq|PermResult<PaginatedResult<Adm.LoginLogResp>>
+/menu/create|Adm.MenuCreateReq|PermResult<Long>
 /menu/delete|IdReq|PermResult<Void>
-/menu/detail|IdReq|PermResult<MenuResp>
-/menu/tree|-|PermResult<List<MenuResp>>
-/menu/update|MenuUpdateReq|PermResult<Void>
-/notice/create|NoticeCreateReq|PermResult<Long>
-/notice/delete|IdsReq|PermResult<Void>
-/notice/detail|IdReq|PermResult<NoticeResp>
-/notice/my-notices|-|PermResult<List<NoticeService$UserNoticeItem>>
-/notice/page|PageReq|PermResult<PaginatedResult<NoticeResp>>
+/menu/detail|IdReq|PermResult<Adm.MenuResp>
+/menu/tree|-|PermResult<List<Adm.MenuResp>>
+/menu/update|Adm.MenuUpdateReq|PermResult<Void>
+/notice/create|Adm.NoticeCreateReq|PermResult<Long>
+/notice/delete|Adm.IdsReq|PermResult<Void>
+/notice/detail|IdReq|PermResult<Adm.NoticeResp>
+/notice/my-notices|-|PermResult<List<Adm.service.NoticeService$UserNoticeItem>>
+/notice/page|PageReq|PermResult<PaginatedResult<Adm.NoticeResp>>
 /notice/publish|IdReq|PermResult<Void>
 /notice/read|IdReq|PermResult<Void>
-/notice/update|NoticeUpdateReq|PermResult<Void>
-/oauth2/client/create|Oauth2ClientCreateReq|PermResult<Long>
-/oauth2/client/delete|IdsReq|PermResult<Void>
-/oauth2/client/detail|IdReq|PermResult<Oauth2ClientResp>
-/oauth2/client/page|Oauth2ClientPageReq|PermResult<PaginatedResult<Oauth2ClientResp>>
-/oauth2/client/update|Oauth2ClientUpdateReq|PermResult<Void>
-/org-tree-config/create|OrgTreeConfigCreateReq|PermResult<Long>
-/org-tree-config/delete|IdsReq|PermResult<Void>
-/org-tree-config/detail|IdReq|PermResult<OrgTreeConfigResp>
-/org-tree-config/page|PageReq|PermResult<PaginatedResult<OrgTreeConfigResp>>
+/notice/update|Adm.NoticeUpdateReq|PermResult<Void>
+/oauth2/client/create|Adm.Oauth2ClientCreateReq|PermResult<Long>
+/oauth2/client/delete|Adm.IdsReq|PermResult<Void>
+/oauth2/client/detail|IdReq|PermResult<Adm.Oauth2ClientResp>
+/oauth2/client/page|Adm.Oauth2ClientPageReq|PermResult<PaginatedResult<Adm.Oauth2ClientResp>>
+/oauth2/client/update|Adm.Oauth2ClientUpdateReq|PermResult<Void>
+/org-tree-config/create|Adm.OrgTreeConfigCreateReq|PermResult<Long>
+/org-tree-config/delete|Adm.IdsReq|PermResult<Void>
+/org-tree-config/detail|IdReq|PermResult<Adm.OrgTreeConfigResp>
+/org-tree-config/page|PageReq|PermResult<PaginatedResult<Adm.OrgTreeConfigResp>>
 /org-tree-config/set-default|IdReq|PermResult<Void>
-/org-tree-config/update|OrgTreeConfigUpdateReq|PermResult<Void>
-/org/create|OrgCreateReq|PermResult<Long>
+/org-tree-config/update|Adm.OrgTreeConfigUpdateReq|PermResult<Void>
+/org/create|Adm.OrgCreateReq|PermResult<Long>
 /org/delete|IdReq|PermResult<Void>
-/org/detail|IdReq|PermResult<OrgResp>
-/org/page|OrgPageReq|PermResult<PaginatedResult<OrgResp>>
-/org/tree|OrgQuery|PermResult<List<OrgResp>>
-/org/update|OrgUpdateReq|PermResult<Void>
-/org/users|IdReq|PermResult<List<OrgUserItemResp>>
-/role/create|CreateRoleReq|PermResult<Long>
-/role/grant-menu|RoleMenuReq|PermResult<Void>
-/role/list|RoleListQueryReq|PermResult<ItemsResp<RoleListItemResp>>
-/role/my-info|-|PermResult<UserInfoResp>
-/role/revoke-menu|RoleMenuReq|PermResult<Void>
-/user-org/assign|UserOrgAssignReq|PermResult<Void>
-/user-org/list|IdReq|PermResult<List<UserPageItemResp$OrgBrief>>
-/user-org/remove|UserOrgRemoveReq|PermResult<Void>
-/user-org/set-primary|UserOrgSetPrimaryReq|PermResult<Void>
-/user-role/assign|UserRoleAssignReq|PermResult<Void>
-/user-role/list|UserRoleListReq|PermResult<ItemsResp<UserRoleItemResp>>
-/user-role/revoke|UserRoleRevokeReq|PermResult<Void>
-/user/create|UserCreateReq|PermResult<UserCreateResp>
-/user/delete|IdsReq|PermResult<Void>
-/user/detail|IdReq|PermResult<UserResp>
-/user/enable|UserUpdateStatusReq|PermResult<Void>
-/user/member-candidates|MemberCandidatesReq|PermResult<PaginatedResult<MemberCandidateItemResp>>
-/user/page|UserPageReq|PermResult<PaginatedResult<UserPageItemResp>>
-/user/reset-password|ResetPasswordReq|PermResult<ResetPasswordResp>
-/user/update|UserUpdateReq|PermResult<Void>
-/user/user-menus|IdReq|PermResult<UserInfoResp>
+/org/detail|IdReq|PermResult<Adm.OrgResp>
+/org/page|Adm.OrgPageReq|PermResult<PaginatedResult<Adm.OrgResp>>
+/org/tree|Adm.OrgQuery|PermResult<List<Adm.OrgResp>>
+/org/update|Adm.OrgUpdateReq|PermResult<Void>
+/org/users|IdReq|PermResult<List<Adm.OrgUserItemResp>>
+/role/create|Adm.controller.AdminRoleController$CreateRoleReq|PermResult<Long>
+/role/grant-menu|Adm.controller.AdminRoleController$RoleMenuReq|PermResult<Void>
+/role/list|Adm.controller.AdminRoleController$RoleListQueryReq|PermResult<ItemsResp<Adm.RoleListItemResp>>
+/role/my-info|-|PermResult<Adm.UserInfoResp>
+/role/revoke-menu|Adm.controller.AdminRoleController$RoleMenuReq|PermResult<Void>
+/user-org/assign|Adm.UserOrgAssignReq|PermResult<Void>
+/user-org/list|IdReq|PermResult<List<Adm.UserPageItemResp$OrgBrief>>
+/user-org/remove|Adm.UserOrgRemoveReq|PermResult<Void>
+/user-org/set-primary|Adm.UserOrgSetPrimaryReq|PermResult<Void>
+/user-role/assign|Adm.UserRoleAssignReq|PermResult<Void>
+/user-role/list|Adm.UserRoleListReq|PermResult<ItemsResp<Adm.UserRoleItemResp>>
+/user-role/revoke|Adm.UserRoleRevokeReq|PermResult<Void>
+/user/create|Adm.UserCreateReq|PermResult<Adm.UserCreateResp>
+/user/delete|Adm.IdsReq|PermResult<Void>
+/user/detail|IdReq|PermResult<Adm.UserResp>
+/user/enable|Adm.UserUpdateStatusReq|PermResult<Void>
+/user/member-candidates|Adm.MemberCandidatesReq|PermResult<PaginatedResult<Adm.MemberCandidateItemResp>>
+/user/page|Adm.UserPageReq|PermResult<PaginatedResult<Adm.UserPageItemResp>>
+/user/reset-password|Adm.ResetPasswordReq|PermResult<Adm.ResetPasswordResp>
+/user/update|Adm.UserUpdateReq|PermResult<Void>
+/user/user-menus|IdReq|PermResult<Adm.UserInfoResp>
 """.strip().split("\n"));
 
     /** 统一响应包装的唯一白名单：二进制文件流直出（void）。 */
@@ -459,15 +459,20 @@ class HttpApiPathSnapshotTest {
         "/audit-log/page"
     );
 
-    /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（枚举全部 path 值）。 */
+    /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（类级/方法级均枚举全部 path 值）。 */
     private Set<String> scanSignatures() throws Exception {
         Set<String> signatures = new TreeSet<>();
         for (Class<?> clazz : controllerClasses()) {
             RequestMapping classMapping =
                 AnnotatedElementUtils.findMergedAnnotation(clazz, RequestMapping.class);
-            String base = "";
-            if (classMapping != null && classMapping.path().length > 0) {
-                base = classMapping.path()[0];
+            // 评审修复：类级映射枚举全部 path 值（多路径类映射不漏检）
+            Set<String> bases = new TreeSet<>();
+            if (classMapping == null || classMapping.path().length == 0) {
+                bases.add("");
+            } else {
+                for (String p : classMapping.path()) {
+                    bases.add(p);
+                }
             }
             for (Method m : clazz.getDeclaredMethods()) {
                 RequestMapping merged =
@@ -478,28 +483,40 @@ class HttpApiPathSnapshotTest {
                 String reqType = "-";
                 for (Parameter p : m.getParameters()) {
                     if (p.isAnnotationPresent(RequestBody.class)) {
-                        reqType = p.getType().getSimpleName();
+                        reqType = p.getType().getName();
                         break;
                     }
                 }
-                String respType = simpleTypeName(m.getGenericReturnType().getTypeName());
-                for (String sub : merged.path()) {
-                    String path = (base + sub).replace("//", "/");
-                    signatures.add(path + "|" + reqType + "|" + respType);
+                String respType = m.getGenericReturnType().getTypeName();
+                for (String base : bases) {
+                    for (String sub : merged.path()) {
+                        String path = (base + sub).replace("//", "/");
+                        signatures.add(path + "|" + normalize(reqType) + "|" + normalize(respType));
+                    }
                 }
             }
         }
         return signatures;
     }
 
-    /** 反复剥离包前缀（含泛型内部），得到全简单名形态（与快照生成口径一致）。 */
-    private static String simpleTypeName(String typeName) {
+    /**
+     * 域标记消歧归一化（与快照生成口径一致）。
+     * <p>
+     * 评审修复：仓库存在 admin 与 permission 同名 DTO（如两个 UserRoleListReq），
+     * 仅比较简单类名时误换同名不同包 DTO 仍通过——归一化保留域标记
+     * （Adm./Prm.，中间用大写下划线防小写链剥离误食），再剥离剩余小写包段。
+     * </p>
+     */
+    private static String normalize(String typeName) {
+        String t = typeName
+            .replace("cn.ac.fage.accessmesh.access.admin.", "ADMIN_")
+            .replace("cn.ac.fage.accessmesh.access.permission.", "PERM_");
         String prev;
         do {
-            prev = typeName;
-            typeName = typeName.replaceAll("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+\\.", "");
-        } while (!prev.equals(typeName));
-        return typeName;
+            prev = t;
+            t = t.replaceAll("[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+\\.", "");
+        } while (!prev.equals(t));
+        return t.replace("ADMIN_", "Adm.").replace("PERM_", "Prm.");
     }
 
     @Test

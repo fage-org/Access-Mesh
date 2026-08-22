@@ -45,25 +45,23 @@ class GatewayFailModeRemovalTest {
     @DisplayName("代码：GatewayProperties 全嵌套结构不含 failMode/open/stale 系列字段（按叶子名判定）")
     void gatewayPropertiesHasNoFailModeFields() {
         List<String> leafNames = new ArrayList<>();
-        collectFieldNames(GatewayProperties.class, "", new ArrayList<>(), leafNames);
+        collectFieldNames(GatewayProperties.class, leafNames);
         assertThat(leafNames)
             .as("GatewayProperties 全部字段叶子名（含任意嵌套层级）：%s", leafNames)
             .doesNotContain(REMOVED_FIELD_NAMES.toArray(String[]::new));
     }
 
     /**
-     * 递归收集属性类全部嵌套字段（含父类）。
-     * 评审修复：断言按「叶子名」判定——前缀限定名（如 permission.failMode）与裸名
-     * （failMode）必须同时拒绝，否则嵌套类内复活该字段将逃逸检测。
+     * 递归收集属性类全部嵌套字段的叶子名（含父类）。
+     * 按叶子名判定：任意嵌套层级（如 Permission.failMode）复活这些字段都会命中裸名。
      */
-    private void collectFieldNames(Class<?> type, String prefix, List<String> prefixed, List<String> leaves) {
+    private void collectFieldNames(Class<?> type, List<String> leaves) {
         for (Class<?> c = type; c != null && c != Object.class; c = c.getSuperclass()) {
             for (Field f : c.getDeclaredFields()) {
-                prefixed.add(prefix + f.getName());
                 leaves.add(f.getName());
                 Class<?> ft = f.getType();
                 if (ft.getName().startsWith("cn.ac.fage.accessmesh.gateway")) {
-                    collectFieldNames(ft, prefix + f.getName() + ".", prefixed, leaves);
+                    collectFieldNames(ft, leaves);
                 }
             }
         }

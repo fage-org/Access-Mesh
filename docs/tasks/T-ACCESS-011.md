@@ -58,9 +58,9 @@ last_updated: 2026-08-22
 | 命令 | 结果 |
 |---|---|
 | `mvn clean install -DskipTests` | BUILD SUCCESS（全模块） |
-| `mvn test` | BUILD SUCCESS：common 60 / gateway 76 / access-service 635 / perm-client 12，共 **783 tests，0 failures**，37 skipped（`@Testcontainers(disabledWithoutDocker=true)` Docker 门控，见「环境受限豁免」） |
+| `mvn test` | BUILD SUCCESS：common 60 / gateway 76 / access-service 638 / perm-client 12，共 **786 tests，0 failures**，40 skipped（`@Testcontainers(disabledWithoutDocker=true)` Docker 门控，见「环境受限豁免」） |
 
-测试基线对比 T-ACCESS-010 出口（access 610 / gateway 59 / perm-client 12）：access +25、gateway +17，全部为本任务新增验收测试，存量无改动无回退。
+测试基线对比 T-ACCESS-010 出口（access 610 / gateway 59 / perm-client 12）：access +28、gateway +17，共 45 个本任务新增验收测试（其中双实例 3 用例 Docker 门控本机跳过待 CI），存量无改动无回退。
 
 ### 验收矩阵逐项结论
 
@@ -68,13 +68,13 @@ last_updated: 2026-08-22
 |---|---|---|---|
 | 1 | 全量构建/单测/Spring Context | ✅ | `AccessServiceApplicationTest`（H2 PostgreSQL 模式上下文 + 基础设施 Bean 唯一 + Sa-Token 权威配置） |
 | 2 | 空 PostgreSQL DDL / Redis 配置 / 种子 | ✅（容器部分按环境豁免待 CI） | `AccessServiceSchemaPostgresTest`（PG16 容器：33 表+139 操作种子，本机无 Docker 跳过）+ `AccessServiceSchemaH2Test`（H2 兜底通过）+ `CacheAutoConfigurationTest`/`CachePropertiesBindingTest`/`GatewayApplicationConfigTest`（统一 Redis 配置） |
-| 3 | HTTP 路径/DTO/统一响应/错误码契约回归 | ✅（DTO 为类型级封闭，字段级为登记限制） | `HttpApiPathSnapshotTest`（7 用例：198 路径快照 + **198 条 路径→请求体类型｜响应类型 签名快照** + POST-only 按 @PostMapping 注解身份判定（空 method 数组不逃逸）+ 全映射值枚举（多路径不漏检）+ **统一响应 PermResult 包装断言**（唯一白名单 /file/download 文件流）+ 无路径参数 + @RequestParam 仅文件上传例外）；归并前后路径 diff：210→198，仅 12 条丢失且全部有设计决策背书（11×/sync-task/* T-ACCESS-005、/audit-log/page T-ACCESS-007），0 意外丢失 0 新增；DTO 字段级契约由既有分散测试（`PermCommonReqContractTest` 等）+ SDK 18 路径封闭契约测试覆盖，全量字段级封闭为登记限制（见遗留项） |
+| 3 | HTTP 路径/DTO/统一响应/错误码契约回归 | ✅（DTO 为类型级封闭，字段级为登记限制） | `HttpApiPathSnapshotTest`（7 用例：198 路径快照 + **198 条 路径→请求体类型｜响应类型 签名快照**（DTO 带 Adm./Prm. 域标记，同名 DTO 不可互替）+ POST-only 按 @PostMapping 注解身份判定（空 method 数组不逃逸）+ 类级/方法级全映射值枚举（多路径不漏检）+ **统一响应 PermResult 包装断言**（唯一白名单 /file/download 文件流）+ 无路径参数 + @RequestParam 仅文件上传例外）；归并前后路径 diff：210→198，仅 12 条丢失且全部有设计决策背书（11×/sync-task/* T-ACCESS-005、/audit-log/page T-ACCESS-007），0 意外丢失 0 新增；DTO 字段级契约由既有分散测试（`PermCommonReqContractTest` 等）+ SDK 18 路径封闭契约测试覆盖，全量字段级封闭为登记限制（见遗留项） |
 | 4 | 错误码扫描 | ✅ | `ErrorCodeContractTest`（6 用例）：固化归并前 53+37 码值基线逐码断言（枚举名+码值绑定不变）+ 分段独占（1xxxx 仅 Admin/2xxxx 仅 Perm/9xxxx 仅公共）+ 无 4xxxx + 跨枚举无重复 |
 | 5 | /admin/sync-task/* 负向验收 | ✅ | `HttpApiPathSnapshotTest.retiredPaths_haveNoControllerMappings`（注解扫描级）+ `RetiredSyncTaskEndpointTest`（全量 Context：RequestMappingHandlerMapping 注册表无映射 + MockMvc 实际请求被拒） |
 | 6 | 跨域事务故障注入/强事务审计/独立日志/缓存 afterCommit | ✅（容器部分按环境豁免待 CI） | `UserWriteAppServiceFaultInjectionTest`（单测版通过）+ `*FaultInjectionIT`（PG 容器版待 CI）+ `OperationLogAspectTest`/`AuditDomainServiceImplTest`（REQUIRES_NEW 独立日志失败）+ `PermissionChangeAspectTest`（事务外 afterCommit/无变更清理） |
 | 7 | 安全矩阵/租户隔离/来源所有权/上下文清理 | ✅ | `SecurityMatrixIT`（8 类入口矩阵 + 跨请求租户串扰 + afterCompletion 泄漏）+ `RequestContextInterceptorTest`（28 用例含 G1 验签）+ Sync 所有权（`ResourceEntitySyncAppServiceTest` 等 + `LocalProjectionGuardTest`） |
 | 8 | 平台用户会话端到端 | ✅（含两项验收期修复，见「发现与处置」） | `PlatformSessionAbsoluteTimeoutTest`（真实 /auth/login 签发 + expiresIn=timeout 单一来源断言 + 身份绑定 + timeout=4s 持续活跃仍绝对失效 + 注销立即 401）+ `PlatformSessionIdleTimeoutTest`（active-timeout=2s 静置失效 + 滑动续命）+ gateway `AuthTokenFilterTest`（13 用例：令牌校验/**无操作超时冻结 401/每请求滑动续期**/身份提取/fail-closed/cookie/skipAuth）+ `OAuth2ClientTtlTest`（客户端自定义 TTL 3600 双路径签发 + 默认 86400 回落）+ `SyncEndpointAuthIT` 用例 4/4b（服务入口拒绝无 HMAC 用户头）；生产值 7200/1800 由双端配置权威断言钉住，运行时语义以缩短配置验证 |
-| 9 | 双实例共享 PG/Redis | ✅（降级口径，容器部分按环境豁免待 CI） | `DualInstanceCacheInvalidationTest`（同 JVM 双 CacheService：广播丢失 L1 TTL 兜底、Redis 故障旁路、撤销跨实例一致）+ `TaskExecutionLeaseConcurrencyTest`（真实 PG+Redis 容器 10 用例：并发抢占恰一胜/fencing/接管/幂等，待 CI）；真实双进程容器编排为登记限制（见遗留项） |
+| 9 | 双实例共享 PG/Redis | ✅（双实例测试 Docker 门控，随豁免待 CI） | `DualInstanceContainerTest`（**同 JVM 两个完整 ApplicationContext 共享同一容器 PG/Redis**：A 写缓存 B 可读共享 L2 + A 失效后 B 跨实例 L1 清空（真实 RTopic 广播）+ 两实例并发抢占恰一胜 + 租约过期 B 接管/A fencing，Docker 门控待 CI）+ `TaskExecutionLeaseConcurrencyTest`（容器 PG 租约并发 10 用例：抢占/fencing/接管/幂等，待 CI）+ `DualInstanceCacheInvalidationTest`（同 JVM 双 CacheService：广播丢失 L1 TTL 兜底、Redis 故障旁路、撤销跨实例一致） |
 | 10 | 授权缓存 30s 边界（10+5+15） | ✅ | `SnapshotSafetyBoundaryTest`（真实墙钟 9.2s 近过期 + 4.5s 回源延迟 + 15s L1 ≤30s）+ `PermCacheCatalogBoundaryTest`/`GatewayCacheBoundaryValidatorTest` |
 | 11 | 回源超 5s 不写缓存 503 / 全链路截止共享 | ✅ | `PermissionFilterTest`（截止超限 503 不写缓存、重试共享截止不重计时、失效竞争重试）+ `PermissionFilterMetricsTest` |
 | 12 | 陈旧回填竞态 | ✅ | `StaleBackfillLatchTest`（闩锁旧读取→失效→回填只获剩余 TTL、预算耗尽不写、批量共享起点）+ `CombinedL1L2BackfillGatingTest` |
@@ -93,19 +93,19 @@ last_updated: 2026-08-22
 - 现象：`getLoginIdByToken` 只读 token→loginId 映射（字节码确认：不检查冻结、不续期）；access-service 侧拦截器为 `isLogin()`（冻结→false）+ `getLoginIdAsLong()`（检查+滑动续期）。后果一：闲置超 30 分钟但未到 2 小时绝对 TTL 的令牌，access-service 拒绝而 Gateway 放行并注入可信身份头，依赖 Gateway 头的 example-service 会接受冻结令牌（违反 §6.1 端到端一致）。后果二：Gateway 不续期，仅使用 example-service 的活跃用户会被无操作超时误冻结。
 - 修复（当前口径：校验+续期）：`getTokenActiveTimeoutByToken(token) == -2`（冻结）→ 401 登录已过期（与 access-service `isLogin` 口径一致，login 时必写 last-active 记录故无假阴性）；认证通过即 `updateLastActiveToNow(token)` 滑动续期（网关是全部业务请求唯一入口，每次认证通过即视为「操作」，与 access-service 续期口径一致，双端幂等时间戳写无害）。两 API 均为纯 dao 读写，WebFlux 安全。
 - 验证：`AuthTokenFilterTest` 新增冻结令牌 401 与 1.2s 间隔连续 4 次调用续期存活两用例。
+- 运行质量（评审修复）：Sa-Token dao（生产 SaTokenDaoRedisJackson，同步 StringRedisTemplate）为阻塞调用，过滤器内 4-5 次 Redis 往返已整体移至 `Schedulers.boundedElastic()`（`Mono.defer` 包裹完整校验分支），不再阻塞 Netty 事件循环；所用 API 不依赖 ThreadLocal 请求上下文，attributes 跨线程写安全。
 
 **实现口径说明**：验收 8 的「30 分钟无操作/2 小时绝对失效」运行时语义以缩短配置验证（真实等待不可行），生产值由双端配置权威断言钉住；sa-token 1.38 剩余时间按整秒除法且 `-1` 为「未启用」哨兵（剩余 ≤ -2 判冻结），测试时序按此留余量，生产 1800s 口径不受影响（±2 秒粒度）。
 
 ### 环境受限豁免与遗留项
 
-**环境受限豁免（2026-08-22 确认口径）**：37 个 Docker 门控 Testcontainers 测试（空库 PG DDL 12、任务租约并发 10、故障注入 IT 5、PG 集成 2 等）因本机无 Docker 未执行，`mvn test` 中 skipped=37。处置口径沿用 T-ACCESS-009：测试代码与覆盖完整、仅执行环境缺失，不构成未关闭缺陷；**CI 环境跑通 `mvn test` 并确认 37 项全绿后，验收 2/6/9 的容器部分方视为最终关闭，且必须在计划归档（T-ACCESS-012 收口）前完成**。
+**环境受限豁免（2026-08-22 确认口径）**：40 个 Docker 门控 Testcontainers 测试（空库 PG DDL 12、任务租约并发 10、双实例容器 3、故障注入 IT 5、PG 集成 2 等）因本机无 Docker 未执行，`mvn test` 中 skipped=40。处置口径沿用 T-ACCESS-009：测试代码与覆盖完整、仅执行环境缺失，不构成未关闭缺陷；**CI 环境跑通 `mvn test` 并确认 40 项全绿后，验收 2/6/9 的容器部分方视为最终关闭，且必须在计划归档（T-ACCESS-012 收口）前完成**。
 
 | 级别 | 项 | 处置 |
 |---|---|---|
-| 豁免 | 37 个 Docker 门控容器测试待 CI 执行（同上） | CI 跑绿前验收 2/6/9 容器部分为条件性关闭；计划归档前置条件 |
+| 豁免 | 40 个 Docker 门控容器测试待 CI 执行（含双实例容器测试 3 用例，同上） | CI 跑绿前验收 2/6/9 容器部分为条件性关闭；计划归档前置条件 |
 | P3 | api-contract.md §5 清单欠账 2 条：`auth/query-permission-tree`（implementation.md §7.5 已有权威定义）、`permission-view/effective-permission-codes`（org-user-permission-contract.md v1.4 已有）未列入 §5 表格 | 移交 T-ACCESS-012 设计回写收口 |
 | P3 | DTO 字段级契约回归为类型级封闭（198 条签名快照检测类型漂移），字段级漂移由既有分散测试 + 后续 T-PERM 任务覆盖 | 登记限制，不单独立项 |
-| P3 | 真实双进程双实例共享 PG/Redis 编排测试（现覆盖：同 JVM 双 CacheService + 容器租约并发待 CI） | 随容器豁免一并由 CI 证据收敛 |
 | P3 | `PermissionGrantAppServiceImplTest` 2 个 `@Disabled`（OperatorContext mock 前置，历史遗留非本任务引入） | 维持现状，不阻断 |
 
 ### 覆盖口径说明

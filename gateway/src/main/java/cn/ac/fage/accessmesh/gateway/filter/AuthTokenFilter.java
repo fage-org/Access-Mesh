@@ -20,6 +20,7 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 /**
  * 认证令牌过滤器
@@ -77,23 +78,44 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
             return writeUnauthorized(exchange, 401, "未登录");
         }
 
+        // Sa-Token dao（生产为 SaTokenDaoRedisJackson，同步 StringRedisTemplate）全部为
+        // 阻塞 Redis 调用：令牌映射读、活动超时读、续期（读 TTL+写）与会话读共 4-5 次往返。
+        // GlobalFilter 在 Netty 事件循环执行，必须移到 boundedElastic，避免 Redis 延迟
+        // 阻塞事件循环（T-ACCESS-011 评审修复）。以下 API 均不依赖 ThreadLocal 请求上下文
+        // （线程上下文安全），exchange attributes 为 ConcurrentHashMap，跨线程写安全。
+        // defer 而非 fromCallable：校验通过返回 null，fromCallable 会把 null 视为空完成
+        // 导致放行分支被吞（既不转发也不拒绝）。
+        return Mono.defer(() -> {
+                String rejectMessage = validateSession(exchange, token);
+                return rejectMessage != null
+                    ? writeUnauthorized(exchange, 401, rejectMessage)
+                    : chain.filter(exchange);
+            })
+            .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /**
+     * 阻塞式会话校验（仅在 boundedElastic 线程执行）。
+     *
+     * @return 拒绝原因消息；校验通过返回 null（身份已写入 exchange attributes）
+     */
+    private String validateSession(ServerWebExchange exchange, String token) {
         try {
-            // 使用getLoginIdByToken — 不依赖ThreadLocal，WebFlux环境安全；
-            // 无效/过期令牌返回 null（不抛 NotLoginException），null 必须按 401 处理
-            // 而非 NPE→500（T-ACCESS-011 次生缺陷修复）
+            // getLoginIdByToken：无效/绝对过期令牌返回 null（不抛 NotLoginException），
+            // null 必须按 401 处理而非 NPE→500（T-ACCESS-011 次生缺陷修复）
             Object loginId = StpUtil.getLoginIdByToken(token);
             if (loginId == null) {
-                return writeUnauthorized(exchange, 401, "登录已过期");
+                return "登录已过期";
             }
 
             // 无操作超时校验（§6.1 端到端一致）：getLoginIdByToken 只读 token→loginId 映射，
             // 不检查冻结也不续期；与 access-service RequestContextInterceptor 的
             // isLogin()（冻结→false）口径对齐：闲置超过 active-timeout 的令牌
             // （getTokenActiveTimeoutByToken == -2）按 401 拒绝，不得进入权限链与身份注入。
-            // 两个 API 均为纯 dao 读写（WebFlux 安全）；-1 表示检查未启用，放行。
+            // -1 表示检查未启用，放行。
             long activeRemaining = StpUtil.stpLogic.getTokenActiveTimeoutByToken(token);
             if (activeRemaining == SaTokenDao.NOT_VALUE_EXPIRE) {
-                return writeUnauthorized(exchange, 401, "登录已过期");
+                return "登录已过期";
             }
 
             // 滑动续期：网关是全部业务请求的唯一入口，每次认证通过即视为「操作」，
@@ -115,14 +137,14 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
             Object tenantId = session != null ? session.get("tenantId") : null;
             if (tenantId == null) {
                 log.warn("租户ID为空，loginId={}", loginIdStr);
-                return writeUnauthorized(exchange, 401, "租户信息缺失");
+                return "租户信息缺失";
             }
             exchange.getAttributes().put(TENANT_ID_ATTR, tenantId);
 
             Object subjectTypeCode = session != null ? session.get("subjectTypeCode") : null;
             if (subjectTypeCode == null || subjectTypeCode.toString().isBlank()) {
                 log.warn("主体类型为空，loginId={}", loginIdStr);
-                return writeUnauthorized(exchange, 401, "登录信息缺失");
+                return "登录信息缺失";
             }
             exchange.getAttributes().put(SUBJECT_TYPE_CODE_ATTR, subjectTypeCode.toString());
 
@@ -132,11 +154,10 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
             if (operatorName != null) {
                 exchange.getAttributes().put(USER_NAME_ATTR, operatorName.toString());
             }
+            return null;
         } catch (NotLoginException e) {
-            return writeUnauthorized(exchange, 401, "登录已过期");
+            return "登录已过期";
         }
-
-        return chain.filter(exchange);
     }
 
     /**
