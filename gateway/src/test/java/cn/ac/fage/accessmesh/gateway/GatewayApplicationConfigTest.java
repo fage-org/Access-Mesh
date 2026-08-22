@@ -146,7 +146,7 @@ class GatewayApplicationConfigTest {
     }
 
     @Test
-    @DisplayName("路由契约：access-service/example-service/auth-routes 3 条，无旧服务发现目标（T-ACCESS-010）")
+    @DisplayName("路由契约：恰为 access-service/example-service/auth-routes 3 条，旧路径行为不变（T-ACCESS-010）")
     void routesAreDefined() {
         RouteDefinitionLocator locator = applicationContext.getBean(RouteDefinitionLocator.class);
         assertNotNull(locator, "RouteDefinitionLocator 必须存在");
@@ -160,6 +160,7 @@ class GatewayApplicationConfigTest {
             byId.add(r.getId());
             byUri.add(r.getUri().toString());
         });
+        assertTrue(byId.size() == 3, "路由总数必须恰为 3（评审 P2：固化路由集合，防止增删路由静默漂移），实际 " + byId);
         assertTrue(byId.contains("access-service"), "必须存在合并路由 access-service，实际 " + byId);
         assertTrue(byId.contains("example-service"), "必须存在路由 example-service，实际 " + byId);
         assertTrue(byId.contains("auth-routes"), "必须存在路由 auth-routes，实际 " + byId);
@@ -177,9 +178,25 @@ class GatewayApplicationConfigTest {
             assertTrue("access-service".equals(r.getMetadata().get("serviceCode")),
                 "合并路由 metadata.serviceCode 必须为 access-service，实际 " + r.getMetadata().get("serviceCode"));
         });
-        routes.stream().filter(r -> "auth-routes".equals(r.getId())).findFirst().ifPresent(r ->
+        // 评审 P2：auth-routes 与 example-service 的原路径行为（Path + StripPrefix）一并固化
+        routes.stream().filter(r -> "auth-routes".equals(r.getId())).findFirst().ifPresent(r -> {
             assertTrue(r.getUri().toString().equals("lb://access-service"),
-                "auth-routes 目标必须为 lb://access-service（原 lb://admin-service），实际 " + r.getUri()));
+                "auth-routes 目标必须为 lb://access-service（原 lb://admin-service），实际 " + r.getUri());
+            assertTrue(r.getPredicates().stream()
+                    .anyMatch(p -> "Path".equals(p.getName()) && p.getArgs().containsValue("/auth/**")),
+                "auth-routes 必须覆盖 /auth/**（原路径行为不变），实际 " + r.getPredicates());
+            assertTrue(r.getFilters().stream()
+                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "0".equals(f.getArgs().get("_genkey_0"))),
+                "auth-routes StripPrefix 必须为 0（/auth/** 不剥前缀直传，原路径行为不变），实际 " + r.getFilters());
+        });
+        routes.stream().filter(r -> "example-service".equals(r.getId())).findFirst().ifPresent(r -> {
+            assertTrue(r.getPredicates().stream()
+                    .anyMatch(p -> "Path".equals(p.getName()) && p.getArgs().containsValue("/example/**")),
+                "example-service 必须覆盖 /example/**，实际 " + r.getPredicates());
+            assertTrue(r.getFilters().stream()
+                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "1".equals(f.getArgs().get("_genkey_0"))),
+                "example-service StripPrefix 必须为 1，实际 " + r.getFilters());
+        });
         assertTrue(byUri.stream().noneMatch(u -> u.contains("admin-service") || u.contains("permission-center")),
             "路由发现目标不得残留旧服务名，实际 " + byUri);
         assertTrue(byId.stream().noneMatch(id -> id.equals("admin-service") || id.equals("permission-center")),

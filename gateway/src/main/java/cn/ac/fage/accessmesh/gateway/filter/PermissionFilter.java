@@ -205,11 +205,11 @@ public class PermissionFilter implements GlobalFilter, Ordered {
             })
             .onErrorResume(DeadlineExceededException.class, e ->
                 writeServiceUnavailable(exchange, "鉴权服务暂时不可用"))
-            .onErrorResume(PermCenterUnreachableException.class, e -> {
+            .onErrorResume(AccessServiceUnreachableException.class, e -> {
                 // T-ACCESS-008：固定 fail-closed（fail-mode/open/stale-allow 已删除）
                 unreachableSnapshotCounter.increment();
                 fallbackClosedDeniedCounter.increment();
-                log.warn("Permission-center unreachable ({}), fail-closed denying request: {}",
+                log.warn("Access-service unreachable ({}), fail-closed denying request: {}",
                     loadKey, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
@@ -260,10 +260,10 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                 return writeForbidden(exchange, reason);
             })
             // 固定 fail-closed（T-ACCESS-008）
-            .onErrorResume(PermCenterUnreachableException.class, e -> {
+            .onErrorResume(AccessServiceUnreachableException.class, e -> {
                 unreachableCheckInterfaceCounter.increment();
                 fallbackClosedDeniedCounter.increment();
-                log.warn("Permission-center unreachable in check-interface fallback ({}), fail-closed: {}",
+                log.warn("Access-service unreachable in check-interface fallback ({}), fail-closed: {}",
                     serviceCode, e.getCause() == null ? e.getMessage() : e.getCause().getMessage());
                 return writeServiceUnavailable(exchange, "鉴权服务暂时不可用");
             })
@@ -304,7 +304,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 将远端 WebClient 调用中仅"不可达"类异常包装为 {@link PermCenterUnreachableException}。
+     * 将远端 WebClient 调用中仅"不可达"类异常包装为 {@link AccessServiceUnreachableException}。
      * <p>
      * 仅 WebClientRequestException（连接/超时）、5xx WebClientResponseException、
      * TimeoutException 视为不可达；解码/DTO/4xx 等错误不包装，由外层 catch-all 兜底 fail-closed。
@@ -313,7 +313,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private <T> Mono<T> wrapRemoteErrors(Mono<T> upstream) {
         return upstream.onErrorResume(e -> {
             if (isRemoteUnreachable(e)) {
-                return Mono.error(new PermCenterUnreachableException(e));
+                return Mono.error(new AccessServiceUnreachableException(e));
             }
             return Mono.error(e);
         });
@@ -376,7 +376,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
                                                      boolean retryWhenTokenInvalid, long deadlineNanos) {
         return loadRegistry.load(loadKey, () -> {
                 LoadToken token = invalidationMarker.beginLoad(loadKey);
-                // 仅对 WebClient 远端不可达错误包装为 PermCenterUnreachableException；
+                // 仅对 WebClient 远端不可达错误包装为 AccessServiceUnreachableException；
                 // flatMap 内部错误（extractSnapshot / putSnapshotIfCurrent 等）不做包装，
                 // 由外层 catch-all 兜底 fail-closed
                 return wrapRemoteErrors(permissionClient.interfaceSnapshot(subjectTypeCode, userId, serviceCode, tenantId))
@@ -478,8 +478,8 @@ public class PermissionFilter implements GlobalFilter, Ordered {
      * 其他异常（代码 bug、DTO 兼容等）不应包装。T-ACCESS-008：不可达固定 fail-closed。
      * </p>
      */
-    static class PermCenterUnreachableException extends RuntimeException {
-        PermCenterUnreachableException(Throwable cause) {
+    static class AccessServiceUnreachableException extends RuntimeException {
+        AccessServiceUnreachableException(Throwable cause) {
             super(cause);
         }
     }

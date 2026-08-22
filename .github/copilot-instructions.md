@@ -60,8 +60,8 @@ R.fail(errorCode, message)
 | 范围          | 模块              |
 | ------------- | ----------------- |
 | `200`         | 成功              |
-| `10001–19999` | admin-service     |
-| `20001–29999` | permission-center |
+| `10001–19999` | 管理域（access-service admin 域）|
+| `20001–29999` | 权限域（access-service permission 域）|
 | `30001–39999` | example-service   |
 | `90001–99999` | 全局系统错误      |
 
@@ -238,7 +238,7 @@ if (userDomainService.existsByUsername(req.username(), tenantId)) {
   "version": "1.0",
   "timestamp": "2026-04-21T10:00:00Z",
   "tenantId": "tenant-001",
-  "sourceService": "admin-service",
+  "sourceService": "example-service",
   "payload": {}
 }
 ```
@@ -258,7 +258,7 @@ if (userDomainService.existsByUsername(req.username(), tenantId)) {
 ## Git Commit 格式
 
 ```
-feat(permission-center): 新增角色分组批量删除接口
+feat(access): 新增角色分组批量删除接口
 fix(admin): 修复登录 Token 过期未刷新问题
 refactor(common): 优化分页响应结构
 ```

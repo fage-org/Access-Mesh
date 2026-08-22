@@ -17,8 +17,10 @@ import java.util.Collection;
  * {@code InternalApiSecretInterceptor} 校验。
  * </p>
  * <p>
- * 仅当配置了 {@code perm.internal-secret} 时启用；其他场景（perm-sdk 被前端
- * 服务依赖时）不会因缺少配置启动失败。
+ * 仅当配置了 {@code perm.internal-secret} 时启用（由
+ * {@code PermClientAutoConfiguration} 经 {@code @Import} 装配——业务服务的组件
+ * 扫描覆盖不到 SDK 包，不得依赖 {@code @ComponentScan} 发现本类）；其他场景
+ * （perm-sdk 被前端服务依赖时）不会因缺少配置启动失败。
  * </p>
  * <p>
  * {@code perm.service-code} 无默认值（T-ACCESS-010 用户决策）：配置了

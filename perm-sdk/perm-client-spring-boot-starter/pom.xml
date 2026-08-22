@@ -27,6 +27,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
+            <exclusions>
+                <!-- 全仓库统一 Log4j2（common 已传递 spring-boot-starter-log4j2）；
+                     不排除默认 logging 会与 log4j-slf4j2-impl 并存形成桥接环
+                     （log4j-to-slf4j ↔ log4j-slf4j2-impl），初始化 Spring Boot
+                     自动配置基础设施时即失败。与 access-service/gateway 模块同模式。 -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
