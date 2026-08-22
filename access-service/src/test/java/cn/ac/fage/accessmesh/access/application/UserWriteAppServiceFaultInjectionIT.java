@@ -82,8 +82,14 @@ class UserWriteAppServiceFaultInjectionIT {
         .withUsername("perm")
         .withPassword("perm");
 
+    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
+     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
+    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
+
     @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
+        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
+        .withExposedPorts(6379);
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -93,6 +99,7 @@ class UserWriteAppServiceFaultInjectionIT {
         registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
     }
 
     @BeforeAll

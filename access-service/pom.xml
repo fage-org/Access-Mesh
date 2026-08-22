@@ -195,6 +195,11 @@
                     <systemPropertyVariables>
                         <!-- 禁用 Nacos SpringApplicationRunListener 默认日志：测试不得在构建目录外写日志文件（如 ~/logs/nacos/config.log） -->
                         <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
+                        <!-- Docker 25+ 与 docker-java 3.3.6 兼容（2026-08-22，用户决策 pom 固定）：
+                             Testcontainers 1.19.x 携带的 docker-java 默认走 API 1.32，
+                             Docker 29 起守护进程最低仅支持 API 1.44，未固定版本时
+                             @Testcontainers(disabledWithoutDocker=true) 测试会被静默跳过。 -->
+                        <api.version>1.44</api.version>
                     </systemPropertyVariables>
                     <!-- T-ACCESS-004 评审 P1-2（2026-08-14，用户决策 Surefire 纳入）：
                          安全矩阵 IT（SecurityMatrixIT/SyncEndpointAuthIT）必须随默认 mvn test 执行，

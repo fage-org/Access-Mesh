@@ -12,3 +12,10 @@ spring:
   data:
     redis:
       timeout: 2s
+
+# OAuth2/签名/内部同步密钥的测试默认值（2026-08-22，用户决策中心化）：
+# 主配置以 ${JWT_SECRET_KEY} 等占位符注入且无默认值，测试上下文必须提供；
+# 仅 test profile 生效，生产由环境变量注入。已有逐类 @TestPropertySource 的测试优先级更高。
+JWT_SECRET_KEY: test-jwt-secret-for-access-service
+ACCESSMESH_SIGNATURE_SECRET: test-signature-secret-for-access-service
+PERM_INTERNAL_SECRET: test-internal-secret-for-access-service
