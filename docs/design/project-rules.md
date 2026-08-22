@@ -464,10 +464,7 @@ Mapper（数据访问层）
 ### 8.2 调用方向规范
 
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
-- **禁止横向调用**：同层级之间禁止互相调用（如 Service A 调用 Service B 同层方法，应抽取到更低层）。
-- **授权域同层调用例外（2026-08-08 产品确认）**：权限中心的授权写链路中，`PermissionGrantPlanDomainServiceImpl` 组合注入 `PermissionGrantDomainService`（`checkCanGrant`/`validateSingleManualGrants`/`validateGrantAttributes`）为**明确允许的例外**，限定条件：① 仅限授权域 `PlanDomainService → GrantDomainService` 单向；② 禁止反向调用与循环依赖；③ 仅复用校验能力，不承载事务编排（**事务仅由 AppService/调度层声明，PlanDomainService 仅参与该事务**）；④ **不推广为一般规则**，其他域/其他服务仍禁止同层横向调用。
-- **query 包只读查询例外（2026-08-15 用户确认，T-ACCESS-006）**：`access.application.query` 包（跨域只读组合查询）允许依赖 permission 域只读入口 `PermissionViewAppService`（`getEffectivePermissionCodes`/`getEffectiveResourceAccess`），限定条件：① 仅限 `query 包 → PermissionViewAppService` 单向；② 仅复用只读权限事实查询，不承载写编排；③ 架构测试 `QueryBoundaryArchitectureTest` 固化 AppService 黑名单（其他 permission AppService 拒绝，白名单仅此一个）；④ **不推广为一般规则**，query 包以外的 application 代码仍禁止横向调用 AppService。
-- **审计门面例外（2026-08-20，T-ACCESS-007 评审对齐）**：`AuditDomainService`（以及 permission-center 对应审计门面）作为**跨切面审计写入门面**，允许任何层级——含同层 DomainService——注入以记录内部动态日志（diff 快照、冲突通知等，见 permission-center-coding-standards §7）。限定条件：① 仅限「审计/操作日志写入」单向复用，`PermissionConflictDomainServiceImpl` 等业务 DomainService 不得经其绕过分层承载其他业务；② 不做环形依赖；③ 该门面本质是审计基础设施（落 operation_log/permission_change_log），非同级业务 Service 互调；④ **不推广为一般规则**，除审计门面外的同层业务 Service 横向调用仍严格禁止。
+- **允许同层横向调用（2026-08-22 用户确认全局放开）**：同层级之间允许互相复用（调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用，如 infrastructure 安全拦截器注入 admin 域 `OAuth2ClientDomainService`、`PermissionGrantPlanDomainServiceImpl` 组合 `PermissionGrantDomainService` 校验能力），无需逐一登记例外。通用约束：① 仅限同层之间（调度层↔调度层、DomainService↔DomainService；跨层仍遵守跳层禁令）；② 不得形成循环依赖；③ 复用方不重复实现被复用方已有的领域逻辑（与 §8.4 复用规范一致）；④ 跨域 Mapper 直读边界不变——admin/permission 域互不直读对方 Mapper（`QueryBoundaryArchitectureTest` 数据边界断言继续生效）。历史：2026-08-08 授权域、2026-08-15 query 包（T-ACCESS-006）、2026-08-20 审计门面三个单点例外的登记随全局放开废止，其限定语义（单向、只读复用、不承载事务）收敛为上述通用约束。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
 
 **permission-center Controller（补充）：**

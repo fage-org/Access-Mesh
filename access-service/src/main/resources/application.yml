@@ -58,6 +58,18 @@ access:
       max-size: 4
       queue-capacity: 100
       keep-alive: 60s
+  # T-ACCESS-013：OAuth2 资源服务器开放路径（显式配置、默认拒绝；Ant 通配允许）。
+  # 每条规则：path（必填）+ requiredScopes（令牌 scope 子集校验，独立映射）+
+  # audience（业务路径强制受众）+ clientIds（可选客户端限定）。
+  # 业务开放路径（非 userinfo）必须声明 requiredScopes 与 audience——缺失启动失败
+  # （防配置遗漏静默放行）；userinfo 默认豁免两项（仅验签+黑名单+客户端启用）。
+  # 显式配置为全量替换（非合并），新增业务路径必须保留 userinfo 条目；
+  # 非 /auth/** 前缀的开放路径需同步在 Gateway gateway.oauth2.passthrough-paths
+  # 放行透传（仅 Bearer 三段式 JWT 透传；平台会话仍走 Gateway 正常鉴权）。
+  # client_id 启用状态动态校验（禁用立即失效）对所有开放路径恒定生效，无需配置。
+  oauth2:
+    resource-paths:
+      - path: /auth/oauth2/userinfo
 
 sa-token:
   # T-ACCESS-003：平台用户会话与 Gateway 统一（token-name/token-prefix/token-style/timeout/active-timeout/会话键）

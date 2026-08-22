@@ -36,6 +36,7 @@ public class GatewayProperties {
     private Header header = new Header();
     private Permission permission = new Permission();
     private Signature signature = new Signature();
+    private OAuth2 oauth2 = new OAuth2();
 
     /**
      * 白名单配置
@@ -53,6 +54,23 @@ public class GatewayProperties {
             "/public/**",
             "/captcha/**"
         );
+    }
+
+    /**
+     * OAuth2 委托令牌透传配置（T-ACCESS-013）
+     * <p>
+     * 命中路径的请求跳过会话校验/权限校验/身份头注入/身份头签名，
+     * Authorization 头（OAuth2 JWT）原样透传给下游，由下游 access-service 的
+     * OAuth2 JWT 认证分支验签 + 开放路径门禁（scope/audience/client_id 启用校验）判定。
+     * 路径为 Gateway 外部口径（如 /admin/api/**，StripPrefix 后由下游按自身口径
+     * 匹配 access.oauth2.resource-paths）；/auth/** 已在白名单中透传，无需重复配置。
+     * 默认为空（无业务路径默认开放）。
+     * </p>
+     */
+    @Getter
+    @Setter
+    public static class OAuth2 {
+        private List<String> passthroughPaths = List.of();
     }
 
     /**

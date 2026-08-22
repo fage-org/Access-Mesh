@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.dev33.satoken.exception.SaTokenException;
 import cn.dev33.satoken.jwt.SaJwtTemplate;
 import cn.dev33.satoken.jwt.SaJwtUtil;
@@ -16,6 +18,8 @@ import org.springframework.web.servlet.AsyncHandlerInterceptor;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -31,8 +35,10 @@ import java.util.UUID;
  *   <li>内部凭证通过（attribute INTERNAL_AUTHENTICATED）→
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
- *   <li>OAuth2 JWT（Bearer 三段式，仅 /auth/oauth2/userinfo 端点）→ 验签 + 撤销黑名单检查 → USER
- *       （委托令牌不触达管理接口或其他端点；业务 API 开放见 T-ACCESS-013）</li>
+ *   <li>OAuth2 JWT（Bearer 三段式，仅显式配置的开放路径 access.oauth2.resource-paths，
+ *       默认仅 /auth/oauth2/userinfo）→ 验签 + 撤销黑名单 + 客户端启用校验 + 路径门禁
+ *       （clientIds/scope/audience，T-ACCESS-013 独立映射）→ USER + delegatedClientId；
+ *       未配置路径上委托令牌默认拒绝（业务 API 逐项显式放开，不得通配 /auth/oauth2/**）</li>
  *   <li>Sa-Token 会话 → USER（会话权威：operatorId=loginId、tenantId=session 租户；
  *       X-Tenant-Id / X-User-Id 头存在必须与会话一致，否则 403 拒绝伪造头）</li>
  *   <li>签名用户态（/api/** 路径，HeaderSignatureInterceptor 验签通过的 X-User-Id）→ USER</li>
@@ -65,15 +71,21 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
     private final SignatureVerifier signatureVerifier;
     private final StringRedisTemplate stringRedisTemplate;
+    private final OAuth2ResourcePathProperties oauth2ResourcePaths;
+    private final OAuth2ClientDomainService oauth2ClientDomainService;
 
     /** OAuth2 JWT 签发/验签密钥（sa-token.jwt-secret-key，T-ACCESS-003 权威配置）。 */
     @Value("${sa-token.jwt-secret-key:}")
     private String jwtSecretKey;
 
     public RequestContextInterceptor(SignatureVerifier signatureVerifier,
-                                     StringRedisTemplate stringRedisTemplate) {
+                                     StringRedisTemplate stringRedisTemplate,
+                                     OAuth2ResourcePathProperties oauth2ResourcePaths,
+                                     OAuth2ClientDomainService oauth2ClientDomainService) {
         this.signatureVerifier = signatureVerifier;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.oauth2ResourcePaths = oauth2ResourcePaths;
+        this.oauth2ClientDomainService = oauth2ClientDomainService;
     }
 
     /**
@@ -140,16 +152,17 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return true;
         }
 
-        // 2.5 OAuth2 JWT 认证（2026-08-14 实现，用户决策限定路径）：
+        // 2.5 OAuth2 JWT 认证（2026-08-14 实现；T-ACCESS-013 白名单配置化）：
         // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
-        // 验签（HS256 + loginType）+ 撤销黑名单检查通过后绑定 USER 上下文。
-        // 精确匹配 /auth/oauth2/userinfo（唯一 OAuth2 资源端点）：前缀匹配会覆盖
-        // authorize（其内部要求平台会话，JWT 认证后 NotLoginException 落为 500）；
-        // 委托令牌不得触达其他端点，业务 API 开放由 T-ACCESS-013 显式放开。
+        // 仅显式配置的开放路径（access.oauth2.resource-paths，默认仅 /auth/oauth2/userinfo）
+        // 走本分支，其余路径委托令牌默认拒绝（落到会话分支 → 401）；
+        // 开放路径不得覆盖 /auth/** 会话端点与 /api/perm/**（启动防护 fail-fast）。
         String bearerToken = extractBearerToken(request.getHeader(HEADER_AUTHORIZATION));
-        if (bearerToken != null && bearerToken.indexOf('.') >= 0
-            && "/auth/oauth2/userinfo".equals(uri)) {
-            return authenticateOAuth2Jwt(request, response, bearerToken);
+        if (bearerToken != null && bearerToken.indexOf('.') >= 0) {
+            Optional<OAuth2ResourcePathProperties.ResourcePathRule> rule = oauth2ResourcePaths.match(uri);
+            if (rule.isPresent()) {
+                return authenticateOAuth2Jwt(request, response, bearerToken, rule.get());
+            }
         }
 
         // 3. Sa-Token 会话权威（admin 域接口 / 直连用户态）
@@ -297,12 +310,19 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：SaJwtUtil 验签
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
-     * 仅对 /auth/oauth2/userinfo 端点生效（唯一消费方，精确匹配防前缀覆盖
-     * authorize 等非资源端点）；委托令牌不得触达管理接口或其他端点，业务 API 的
-     * 显式逐项开放（scope 授权模型）见 T-ACCESS-013，不得默认放开 /auth/oauth2/**。
+     * 仅对显式配置的开放路径（access.oauth2.resource-paths，默认仅 /auth/oauth2/userinfo）
+     * 生效；开放路径不得覆盖 /auth/** 会话端点与 /api/perm/**（启动防护 fail-fast）。
+     * 委托令牌在其他路径默认拒绝；授权链（2026-08-22 用户决策，T-ACCESS-013）：
+     * 验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单 → 客户端启用动态校验
+     * （sys_oauth2_client 唯一索引点查，不经缓存，禁用立即失效）→ 路径门禁
+     * （clientIds 限定 / requiredScopes 子集校验 / audience 匹配，独立映射模型，
+     * 不接入 PermQueryEngine）→ 绑定委托用户上下文（USER + delegatedClientId）。
+     * 认证失败（验签/黑名单/客户端禁用）→ 401；授权不足（scope/audience/clientIds）→ 403。
      */
     private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
-                                          String token) throws IOException {
+                                          String token,
+                                          OAuth2ResourcePathProperties.ResourcePathRule rule)
+        throws IOException {
         if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
             logSecurity(request, "oauth2 jwt auth attempted without jwt secret configured");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
@@ -322,20 +342,59 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
         Object loginIdObj = payloads.get(SaJwtTemplate.LOGIN_ID);
         Object jtiObj = payloads.get(OAuth2JwtSupport.JTI_CLAIM);
-        if (loginIdObj == null || jtiObj == null
-            || loginIdObj.toString().isBlank() || jtiObj.toString().isBlank()) {
-            logSecurity(request, "oauth2 jwt missing loginId or jti");
+        Object clientIdObj = payloads.get(OAuth2JwtSupport.CLIENT_ID_CLAIM);
+        if (loginIdObj == null || jtiObj == null || clientIdObj == null
+            || loginIdObj.toString().isBlank() || jtiObj.toString().isBlank()
+            || clientIdObj.toString().isBlank()) {
+            logSecurity(request, "oauth2 jwt missing loginId or jti or client_id");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
         }
 
-        // 撤销检查：revoke 时写入 oauth2:blacklist:<jti>，TTL=令牌剩余有效期
+        // 撤销检查：revoke 时写入 oauth2:blacklist:<jti>，TTL=令牌剩余有效期；
+        // 黑名单对全部开放路径生效（含 userinfo 与业务路径），路径限定不产生绕过。
         Boolean revoked = stringRedisTemplate.hasKey(
             OAuth2JwtSupport.BLACKLIST_KEY_PREFIX + jtiObj);
         if (Boolean.TRUE.equals(revoked)) {
             logSecurity(request, "oauth2 jwt revoked");
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
             return false;
+        }
+
+        // 客户端启用动态校验（唯一索引点查，不经缓存保证禁用立即生效）：
+        // 客户端被禁用/删除后已签发令牌立即失效（2026-08-22 用户决策）。
+        String clientId = clientIdObj.toString();
+        SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
+        if (client == null) {
+            logSecurity(request, "oauth2 jwt client disabled or not found: " + clientId);
+            writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "认证失败");
+            return false;
+        }
+
+        // 路径门禁 1：clientIds 限定（可选；不满足 → 403 授权不足）
+        if (!rule.getClientIds().isEmpty() && !rule.getClientIds().contains(clientId)) {
+            logSecurity(request, "oauth2 jwt client not allowed for path " + rule.getPath());
+            writeJson(response, HttpServletResponse.SC_FORBIDDEN, "拒绝访问");
+            return false;
+        }
+
+        // 路径门禁 2：scope 子集校验（独立映射：令牌 scope ⊇ requiredScopes，2026-08-22 用户决策）
+        if (!rule.getRequiredScopes().isEmpty()) {
+            Set<String> tokenScopes = OAuth2JwtSupport.scopesOf(payloads);
+            if (!tokenScopes.containsAll(rule.getRequiredScopes())) {
+                logSecurity(request, "oauth2 jwt insufficient scope for path " + rule.getPath());
+                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "拒绝访问");
+                return false;
+            }
+        }
+
+        // 路径门禁 3：audience 匹配（业务开放路径强制；userinfo 默认豁免——rule.audience 为空不校验）
+        if (rule.getAudience() != null && !rule.getAudience().isBlank()) {
+            if (!OAuth2JwtSupport.audiencesOf(payloads).contains(rule.getAudience())) {
+                logSecurity(request, "oauth2 jwt audience mismatch for path " + rule.getPath());
+                writeJson(response, HttpServletResponse.SC_FORBIDDEN, "拒绝访问");
+                return false;
+            }
         }
 
         Long operatorId;
@@ -348,7 +407,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         }
         Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
 
-        AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
+        AccessRequestContext.bind(RequestContext.delegatedUser(tenantId, operatorId, clientId));
         setMdc(request, String.valueOf(operatorId),
             tenantId == null ? null : String.valueOf(tenantId), null);
         return true;

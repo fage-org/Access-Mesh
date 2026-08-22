@@ -72,6 +72,12 @@ public final class AccessRequestContext {
         return ctx == null ? null : ctx.serviceCode();
     }
 
+    /** OAuth2 委托客户端标识；非 OAuth2 JWT 委托调用或未绑定时返回 null（T-ACCESS-013）。 */
+    public static String getDelegatedClientId() {
+        RequestContext ctx = CTX.get();
+        return ctx == null ? null : ctx.delegatedClientId();
+    }
+
     /**
      * 当前上下文快照（异步 / 嵌套任务显式传递用）。
      *

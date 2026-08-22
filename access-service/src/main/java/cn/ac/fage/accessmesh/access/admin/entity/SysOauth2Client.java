@@ -62,6 +62,11 @@ public class SysOauth2Client {
     private String scopes;
 
     /**
+     * 令牌受众/目标资源服务器标识（逗号分隔，T-ACCESS-013；配置后签发写入 aud claim）
+     */
+    private String audiences;
+
+    /**
      * 访问令牌有效期（秒）
      */
     private Integer accessTokenTtl;

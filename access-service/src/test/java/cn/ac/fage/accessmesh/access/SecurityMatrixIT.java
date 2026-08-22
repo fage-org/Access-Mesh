@@ -82,6 +82,10 @@ class SecurityMatrixIT {
     @MockBean
     private cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService userDomainService;
 
+    /** T-ACCESS-013：OAuth2 JWT 分支客户端启用动态校验依赖（mock 返回启用客户端）。 */
+    @MockBean
+    private cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService oauth2ClientDomainService;
+
     /** OAuth2 JWT 黑名单检查依赖（底层 mock 连接工厂无 connection，hasKey 默认 false=未撤销）。 */
     @MockBean
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
@@ -137,10 +141,17 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("评审 P1：OAuth2 签发 JWT → /auth/oauth2/userinfo 200（正向链路修复验证）")
     void oauth2Userinfo_withIssuedJwt_allowed() throws Exception {
+        // T-ACCESS-013：客户端启用动态校验（mock 返回启用客户端）
+        cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client client =
+            new cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client();
+        client.setClientId("admin-web");
+        client.setStatus(1);
+        when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(client);
+
         // 模拟 OAuth2 签发链路（SaJwtUtil.createToken，loginType=oauth2、jwt-secret-key）
         long ts = System.currentTimeMillis() / 1000;
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts), JWT_SECRET);
+            java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts, "client_id", "admin-web"), JWT_SECRET);
         cn.ac.fage.accessmesh.access.admin.entity.SysUser user = new cn.ac.fage.accessmesh.access.admin.entity.SysUser();
         user.setId(100L);
         user.setTenantId(1L);
@@ -155,6 +166,26 @@ class SecurityMatrixIT {
         // afterCompletion 清理（防泄漏断言）
         assertThat(AccessRequestContext.get()).isNull();
     }
+
+    @Test
+    @DisplayName("T-ACCESS-013：客户端禁用 → userinfo 401（动态启用校验，禁用立即失效）")
+    void oauth2Userinfo_withDisabledClient_rejected401() throws Exception {
+        when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(null);
+        when(stringRedisTemplate.hasKey(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        long ts = System.currentTimeMillis() / 1000;
+        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            java.util.Map.of("tenant_id", "1", "jti", "jti-disabled-" + ts, "client_id", "admin-web"), JWT_SECRET);
+
+        mockMvc.perform(post("/auth/oauth2/userinfo")
+                .header("Authorization", "Bearer " + jwt))
+            .andExpect(status().isUnauthorized());
+    }
+
+    // 注：非开放路径带有效 JWT → 401（默认拒绝）由 RequestContextInterceptorTest
+    // shouldReject_whenOAuth2JwtOnNonOAuth2Path 覆盖（mockStatic StpUtil）。
+    // 本 IT 的 mock 环境（无 Sa-Token filter 链）下带 Authorization 头调用 StpUtil.isLogin()
+    // 会因 SaTokenContextException（IllegalArgumentException 子类）被 advice 转 400，
+    // 无法真实表达会话分支语义，故不在 IT 重复该矩阵。
 
     // 评审 P1-1（/error ERROR dispatch 不 401 掩蔽）由 RequestContextInterceptorTest 单测覆盖
     // （MockHttpServletRequest.setDispatcherType(ERROR) 直接验证拦截器分支）

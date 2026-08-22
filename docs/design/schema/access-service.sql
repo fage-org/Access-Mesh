@@ -59,6 +59,7 @@ CREATE TABLE sys_oauth2_client (
     grant_types       VARCHAR(256) NOT NULL,
     redirect_uris     VARCHAR(1024),
     scopes            VARCHAR(512),
+    audiences         VARCHAR(512),
     access_token_ttl  INT NOT NULL DEFAULT 7200,
     refresh_token_ttl INT NOT NULL DEFAULT 2592000,
     status            SMALLINT NOT NULL DEFAULT 1,
@@ -79,17 +80,18 @@ COMMENT ON COLUMN sys_oauth2_client.client_secret IS '客户端密钥（BCrypt �
 COMMENT ON COLUMN sys_oauth2_client.grant_types IS '允许的授权模式（逗号分隔）：authorization_code,password,client_credentials,refresh_token';
 COMMENT ON COLUMN sys_oauth2_client.redirect_uris IS '允许的回调地址（逗号分隔）';
 COMMENT ON COLUMN sys_oauth2_client.scopes IS '允许的权限范围（逗号分隔）';
+COMMENT ON COLUMN sys_oauth2_client.audiences IS '允许的令牌受众/目标资源服务器标识（逗号分隔，T-ACCESS-013）；配置后签发的访问令牌写入 aud claim，业务开放路径按 audience 强制校验';
 COMMENT ON COLUMN sys_oauth2_client.access_token_ttl IS 'Access Token 有效期（秒），默认 7200（2小时）';
 COMMENT ON COLUMN sys_oauth2_client.refresh_token_ttl IS 'Refresh Token 有效期（秒），默认 2592000（30天）';
 COMMENT ON COLUMN sys_oauth2_client.status IS '状态：0=停用，1=启用';
 COMMENT ON COLUMN sys_oauth2_client.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置客户端数据
-INSERT INTO sys_oauth2_client (tenant_id, client_id, client_secret, client_name, grant_types, redirect_uris, scopes, access_token_ttl, refresh_token_ttl, status, created_by, created_at, updated_at)
+INSERT INTO sys_oauth2_client (tenant_id, client_id, client_secret, client_name, grant_types, redirect_uris, scopes, audiences, access_token_ttl, refresh_token_ttl, status, created_by, created_at, updated_at)
 VALUES
-    (1, 'admin-web',        '$2a$10$PLACEHOLDER_HASH_1', '管理端前端',  'authorization_code,password,refresh_token', 'http://localhost:3000/callback', 'all', 7200, 2592000, 1, 0, now(), now()),
-    (1, 'example-web',      '$2a$10$PLACEHOLDER_HASH_2', '演示端前端',  'authorization_code,password,refresh_token', 'http://localhost:3001/callback', 'all', 7200, 2592000, 1, 0, now(), now()),
-    (1, 'internal-service', '$2a$10$PLACEHOLDER_HASH_3', '服务间调用',  'client_credentials',                        NULL,                            'all', 7200, 0,       1, 0, now(), now());
+    (1, 'admin-web',        '$2a$10$PLACEHOLDER_HASH_1', '管理端前端',  'authorization_code,password,refresh_token', 'http://localhost:3000/callback', 'all', 'access-service', 7200, 2592000, 1, 0, now(), now()),
+    (1, 'example-web',      '$2a$10$PLACEHOLDER_HASH_2', '演示端前端',  'authorization_code,password,refresh_token', 'http://localhost:3001/callback', 'all', 'access-service', 7200, 2592000, 1, 0, now(), now()),
+    (1, 'internal-service', '$2a$10$PLACEHOLDER_HASH_3', '服务间调用',  'client_credentials',                        NULL,                            'all', 'access-service', 7200, 0,       1, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
 -- 2. sys_login_log - 登录日志（不做软删除，永久保留）

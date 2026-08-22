@@ -82,7 +82,7 @@ flowchart LR
 边界规则：
 
 - `access.application` 是唯一跨域写事务编排层，只调用两个领域的 DomainService 接口。
-- `admin` 与 `permission` 禁止相互依赖实现类、Mapper 或 AppService，禁止横向调用（唯一例外：query 包只读查询依赖 `PermissionViewAppService`，白名单见下「依赖白名单」）。
+- `admin` 与 `permission` 禁止相互依赖实现类或 Mapper（跨域 Mapper 直读边界不变）；Service 层同层横向调用允许（2026-08-22 用户确认全局放开，通用约束见 project-rules §8.2：仅限同层、禁循环依赖、复用优先于重实现）。
 - 单域用例继续由各自 AppService 调度，不为形式统一搬入 `access.application`。
 - 跨域组合读取集中到 `access.application.query`。该包可以使用专用 QueryMapper 批量查询或 JOIN 两域表，但只能返回 Projection/DTO，严禁写 SQL。
 - QueryMapper 必须显式带租户条件、正确处理分页，并遵守 N+1 查询禁令。
@@ -96,7 +96,7 @@ flowchart LR
   - `UserRoleQueryService`：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
   - `OrgVisibilityQueryService`：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
 - 专用 QueryMapper（`query/mapper`，XML 在 `resources/mapper/query/`）：只 SELECT、显式 `tenant_id` 条件、返回 `query/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
-- 依赖白名单（架构测试固化）：`admin`/`permission` 域互不使用对方 Mapper；`application` 非 query 包（写编排/门禁）不使用两域 Mapper；query 包不依赖两域实体/Mapper；query 包依赖的 permission AppService 仅限 `PermissionViewAppService`（写/管理 AppService 黑名单固化于 `QueryBoundaryArchitectureTest`）；组合查询数据读取只发生在 query 包。
+- 数据访问白名单（架构测试固化）：`admin`/`permission` 域互不使用对方 Mapper；`application` 非 query 包（写编排/门禁）不使用两域 Mapper；query 包不依赖两域实体/Mapper；组合查询数据读取只发生在 query 包。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
 
 菜单可见性判定（v3.5 §4.1 派生公式）：
 
@@ -202,7 +202,16 @@ flowchart LR
 | 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头），通过写 `SIGNATURE_VERIFIED` attribute |
 | 3 | `RequestContextInterceptor` | `/**` | 唯一上下文绑定入口：安全策略矩阵决策 + MDC 注入 + afterCompletion 清理；/error ERROR dispatch 放行（防真实错误被 401 掩蔽） |
 
-操作者绑定规则（T-ACCESS-004 用户决策）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。OAuth2 JWT 认证分支**仅对 `/auth/oauth2/userinfo` 端点生效**（唯一消费方；精确匹配防前缀覆盖 authorize 等非资源端点）：委托令牌不得触达管理接口或其他端点（防 OAuth2 委托令牌越权访问 `/user/**` 等）；未来开放业务 API 由 T-ACCESS-013（OAuth2 资源服务器 + scope 授权模型）显式逐项放开，不得默认放开 `/auth/oauth2/**` 通配。
+操作者绑定规则（T-ACCESS-004 用户决策；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。
+
+OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 用户决策）：
+
+- **开放路径白名单配置化**（`access.oauth2.resource-paths`，application.yml 静态配置、全量替换语义）：默认仅 `/auth/oauth2/userinfo`；每条规则 = path（Ant 通配允许）+ `requiredScopes` + `audience` + `clientIds`。未配置路径上 OAuth2 JWT 默认拒绝（落到会话分支 → 401）。启动防护 fail-fast（`OAuth2ResourcePathProperties.afterPropertiesSet`）：① 模式不得覆盖 `/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize——有限端点集逐样本匹配即完备）与 `/api/perm/**` 内部凭证空间（无限路径集合，按静态前缀保守判定：模式第一个通配符（`*`/`?`/URI 模板变量 `{`——AntPathMatcher 段内正则支持 `{name}`/`{name:regex}`，复评 P2）前的静态前缀为空、为 `/api/perm` 的字符前缀、或以 `/api/perm/` 开头即拒绝——`/api/**/sync`、`/api/*`、`/**`、`/api/per?/**`、`/api/{module}/**` 等形态均拦截，防双认证机制冲突；无关节务路径的 `{var}` 模板如 `/example/{id}` 为有效配置不受影响），不得以 `/auth/oauth2/**` 通配放开；② **业务开放路径（非 userinfo 豁免路径）必须声明 `requiredScopes` 与 `audience`**——空值在运行时直接跳过两项授权门禁，属配置遗漏放行面（评审 P1 修复）。
+- **授权链**（`RequestContextInterceptor.authenticateOAuth2Jwt`）：验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单（对全部开放路径生效，路径限定不产生绕过）→ 客户端启用动态校验（`OAuth2ClientDomainService.findActiveByClientId` 唯一索引点查，不经缓存保证禁用立即失效；客户端禁用/删除 → 401）→ 路径门禁三重校验（`clientIds` 限定 / `requiredScopes` 令牌 scope 子集校验 / `audience` 令牌 aud 匹配；不满足 → 403 授权不足）→ 绑定委托用户上下文。
+- **scope → 权限映射采用独立映射模型**（用户决策，不接入 PermQueryEngine）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
+- **audience**（用户决策：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
+- **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
+- **Gateway 透传**（用户决策：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径差异部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret，因开放路径禁止位于 `/api/perm/**`（启动防护），该头在开放路径无消费者、无冲突。
 
 平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 用户决策：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
@@ -216,7 +225,8 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 | 入口 | 调用方要求 | 关键约束 | 实现 |
 |---|---|---|---|
-| `/auth/**` 公开子集 | 匿名/会话/OAuth2 JWT | 精确拆分：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize} 需会话 → USER 分支；{oauth2/userinfo} 需 OAuth2 JWT（验签 + 撤销黑名单后绑定，仅限该端点；revoke 验签后写黑名单防匿名 Redis 键 DoS） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
+| `/auth/**` 公开子集 | 匿名/会话/OAuth2 JWT | 精确拆分：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize} 需会话 → USER 分支；{oauth2/userinfo} 需 OAuth2 JWT（验签 + 撤销黑名单 + 客户端启用校验后绑定；revoke 验签后写黑名单防匿名 Redis 键 DoS） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
+| OAuth2 开放业务路径（`access.oauth2.resource-paths` 显式配置，默认零开放） | OAuth2 JWT（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds 门禁） | 默认拒绝；启动防护禁覆盖会话端点与 /api/perm/**；userinfo 豁免 audience、业务路径强制 | USER + delegatedClientId 委托上下文 |
 | 用户管理接口（`/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
 | `/api/perm/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
 | `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |

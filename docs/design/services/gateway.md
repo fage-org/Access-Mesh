@@ -26,6 +26,17 @@ last_reviewed: 2026-06-28
 4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
 5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
 
+## OAuth2 委托令牌透传（T-ACCESS-013，2026-08-22）
+
+`AuthTokenFilter` 只认平台用户 Sa-Token uuid 会话，业务路径上的 OAuth2 JWT 会被 401。为支持 access-service 资源服务器显式开放业务 API：
+
+- 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
+- **平台 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
+- `/auth/**` 已由白名单覆盖（userinfo 等端点透传，无需重复配置）。
+- **部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`，配置于 `access.oauth2.resource-paths`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 注入的 X-Internal-Secret 在开放路径无消费者（access 侧启动防护禁止开放路径位于 `/api/perm/**`）。
+- 门禁语义权威说明见 `../access-service-architecture.md` §6。
+
+
 > **平台超管跨租户（2026-06-20 审计 S-017）**：v3.5 **不支持**平台超级管理员跨租户操作。超管必须分别登录每个租户实例，`X-Tenant-Id` 始终对应当前登录租户。不支持双 Header（`X-Tenant-Id` + `X-Target-Tenant-Id`）跨租户切换；如未来需支持，作为 v3.5.1+ platform-admin 增量设计。`TenantManager.ignore()`（见 project-rules.md）仅用于内部测试/迁移场景，**非超管跨租户能力**，禁止用于生产跨租户访问。
 
 ## 快照模式鉴权（T-PERM-001）

@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
  * @param grantTypes      授权类型（逗号分隔）
  * @param redirectUris    重定向URI列表（逗号分隔）
  * @param scopes          权限范围（逗号分隔）
+ * @param audiences       令牌受众/资源服务器标识（逗号分隔）
  * @param accessTokenTtl  访问令牌有效期（秒）
  * @param refreshTokenTtl 刷新令牌有效期（秒）
  * @param status          状态（0=正常，1=禁用）
@@ -61,6 +62,11 @@ public record Oauth2ClientResp(
     String scopes,
 
     /**
+     * 令牌受众/目标资源服务器标识（逗号分隔）
+     */
+    String audiences,
+
+    /**
      * 访问令牌有效期（秒）
      */
     Integer accessTokenTtl,
@@ -101,6 +107,7 @@ public record Oauth2ClientResp(
             entity.getGrantTypes(),
             entity.getRedirectUris(),
             entity.getScopes(),
+            entity.getAudiences(),
             entity.getAccessTokenTtl(),
             entity.getRefreshTokenTtl(),
             entity.getStatus(),

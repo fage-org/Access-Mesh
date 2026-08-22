@@ -87,6 +87,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
         client.setGrantTypes(req.grantTypes());
         client.setRedirectUris(req.redirectUris());
         client.setScopes(req.scopes());
+        client.setAudiences(req.audiences());
         client.setAccessTokenTtl(req.accessTokenTtl() != null ? req.accessTokenTtl() : 3600);
         client.setRefreshTokenTtl(req.refreshTokenTtl() != null ? req.refreshTokenTtl() : 86400);
         client.setStatus(req.status() != null ? req.status() : 1);
@@ -141,6 +142,9 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
         }
         if (req.scopes() != null) {
             existing.setScopes(req.scopes());
+        }
+        if (req.audiences() != null) {
+            existing.setAudiences(req.audiences());
         }
         if (req.accessTokenTtl() != null) {
             existing.setAccessTokenTtl(req.accessTokenTtl());

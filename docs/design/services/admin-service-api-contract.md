@@ -895,6 +895,80 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 ---
 
+## 8. OAuth2 认证与客户端管理契约 (T-ACCESS-013 补记, 2026-08-22)
+
+> OAuth2 端点此前仅存在于归档设计（`docs/archive/2026-04-28/admin-service-design.full.md` §1.5-1.6），本节按当前实现补记为活跃契约。授权链路语义（JWT 载荷、audience、开放路径门禁）以 `access-service-architecture.md` §6 为权威。
+
+### 8.1 授权端点 (`/auth/oauth2/*`)
+
+所有端点 POST + JSON Body；统一响应壳 `PermResult<T>`。
+
+#### 8.1.1 `POST /auth/oauth2/authorize`（需平台会话）
+
+平台用户为客户端发起授权，生成一次性授权码（Redis `oauth2:code:<uuid>`，TTL 300s，Lua GET+DEL 原子消费）。
+
+请求（`AuthorizeReq`）：`clientId`* / `responseType`*（固定 `code`）/ `redirectUri`* / `state` / `scope`（空格分隔，⊆ 客户端注册 scopes，否则 `OAUTH2_SCOPE_INVALID`；**客户端注册 scopes 为空时拒绝非空 scope 请求**——空注册不解释为无限制，复评 P1 修复；空 scope 请求放行，签发的无 scope 令牌因业务路径 requiredScopes 强制非空而仅可访问 userinfo 豁免端点）/ `codeChallenge` / `codeChallengeMethod`（S256|plain）。
+
+响应（`AuthorizeResp`）：`code` / `state`。
+
+#### 8.1.2 `POST /auth/oauth2/token`（匿名）
+
+授权码兑换访问令牌。仅支持 `grant_type=authorization_code`。
+
+请求（`TokenReq`）：`grantType`* / `clientId`* / `clientSecret`* / `code`* / `redirectUri`* / `codeVerifier` / `refreshToken`。
+
+响应（`TokenResp`）：`accessToken`（JWT）/ `tokenType`（`Bearer`）/ `expiresIn`（=客户端 `accessTokenTtl`）/ `refreshToken` / `scope`。
+
+**JWT 载荷**（`SaJwtUtil` HS256，loginType=`oauth2`，密钥 `sa-token.jwt-secret-key`）：`loginId`（userId）/ `client_id` / `tenant_id`（字符串，无租户 `"0"`）/ `scope`（空格分隔委托范围）/ `jti` / `aud`（**T-ACCESS-013**：客户端注册 `audiences` 非空时写入 List，未配置不写）/ `eff` / `device=oauth2`。
+
+#### 8.1.3 `POST /auth/oauth2/refresh`（匿名）
+
+刷新令牌轮换（Lua 原子取删旧 refresh token，一次性使用；签发新 access + refresh token，scope/clientId 透传）。
+
+请求（`RefreshTokenReq`）：`clientId`* / `refreshToken`*。响应同 `TokenResp`。
+
+#### 8.1.4 `POST /auth/oauth2/revoke`（匿名）
+
+撤销访问令牌：先验签（非法令牌不写 Redis，防黑名单键 DoS），`jti` 写入 `oauth2:blacklist:<jti>`，TTL=令牌剩余有效期。黑名单对全部开放路径生效。
+
+请求（`RevokeTokenReq`）：`accessToken`*。响应：`PermResult<Void>`。
+
+#### 8.1.5 `POST /auth/oauth2/userinfo`（需 OAuth2 JWT，默认开放路径）
+
+资源服务器端点（默认开放路径，audience 豁免）。请求体空；`Authorization: Bearer <OAuth2 JWT>`。
+
+响应（`OAuth2UserInfoResp`）：`sub`（userId 字符串）/ `username` / `name` / `phone` / `email`。
+
+### 8.2 资源服务器开放路径门禁（T-ACCESS-013）
+
+OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重门禁控制（**默认拒绝**）：
+
+- 配置：`access.oauth2.resource-paths`（application.yml；默认仅 `/auth/oauth2/userinfo`；Ant 通配允许；显式配置为全量替换；启动防护禁止覆盖 `/auth/**` 会话端点与 `/api/perm/**` 内部凭证空间（静态前缀保守判定，`/api/**/sync` 等绕过形态均拦截），且**业务开放路径必须声明 requiredScopes 与 audience**——缺失启动失败，防配置遗漏静默放行）。
+- 每条规则：`path` + `requiredScopes`（令牌 scope 子集校验，独立映射模型——不接入 PermQueryEngine）+ `audience`（业务路径强制；userinfo 豁免）+ `clientIds`（可选客户端限定）。
+- 恒定校验（无需配置）：验签 + 必填 claim（loginId/jti/client_id）+ 撤销黑名单 + 客户端启用动态校验（禁用立即失效 → 401）。门禁不满足 → 403。
+- 委托调用绑定 `USER + delegatedClientId` 上下文（审计可区分第三方委托）。
+- Gateway 侧配套 `gateway.oauth2.passthrough-paths`（外部路径口径，默认空；**仅对 Bearer 三段式 JWT 启用透传**，平台 uuid 会话仍走 Gateway 正常鉴权）透传 Authorization；双侧路径口径差异与部署约束见架构文档 §6。
+
+### 8.3 OAuth2 客户端管理 (`/oauth2/client/*`)
+
+门禁：`AdminResourceType.OAUTH2_CLIENT`（类型级 CREATE / 实例级 UPDATE/DELETE）；操作日志 `@OperationLog`（sys_oauth2_client）。
+
+| 端点 | 请求 | 响应 | 备注 |
+|------|------|------|------|
+| `POST /oauth2/client/create` | `Oauth2ClientCreateReq` | `PermResult<Long>`（新客户端 id） | clientId 唯一（重复 `CLIENT_ID_EXISTS`）；secret BCrypt 存储 |
+| `POST /oauth2/client/update` | `Oauth2ClientUpdateReq` | `PermResult<Void>` | 仅更新非 null 字段；secret 更新重新 BCrypt |
+| `POST /oauth2/client/delete` | `IdsReq` | `PermResult<Void>` | 批量软删除 |
+| `POST /oauth2/client/detail` | `IdReq` | `PermResult<Oauth2ClientResp>` | 不返回 clientSecret |
+| `POST /oauth2/client/page` | `Oauth2ClientPageReq` | `PermResult<PaginatedResult<Oauth2ClientResp>>` | 按名称/状态过滤 |
+
+`Oauth2ClientCreateReq`：`clientId`* / `clientSecret`* / `clientName`* / `grantTypes`（逗号分隔）/ `redirectUris`（逗号分隔）/ `scopes`（逗号分隔）/ **`audiences`**（逗号分隔资源服务器标识，T-ACCESS-013；配置后签发写入 aud claim）/ `accessTokenTtl`（60-86400）/ `refreshTokenTtl`（60-604800）/ `status`。
+
+`Oauth2ClientResp`：上表字段 + `id` / `tenantId` / `createdAt` / `updatedAt`（不含 clientSecret）。
+
+种子数据（access-service.sql）：admin-web / example-web / internal-service，`scopes='all'`、`audiences='access-service'`。
+
+---
+
 ## 附录 A. 接口与前端 API 一一对照表
 
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |

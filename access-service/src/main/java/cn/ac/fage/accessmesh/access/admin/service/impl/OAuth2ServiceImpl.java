@@ -270,7 +270,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             // 生成新的访问令牌
             int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
             String accessToken = generateAccessToken(refreshTokenData.getUserId(), clientId,
-                refreshTokenData.getScope(), accessTokenTtl);
+                refreshTokenData.getScope(), client.getAudiences(), accessTokenTtl);
             int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
 
             // 生成新的刷新令牌
@@ -464,7 +464,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
         String scope = codeData.getScope();
 
-        String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope, accessTokenTtl);
+        String accessToken = generateAccessToken(codeData.getUserId(), req.clientId(), scope,
+            client.getAudiences(), accessTokenTtl);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 存储刷新令牌
@@ -492,25 +493,39 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     /**
      * 生成JWT访问令牌
      * <p>
-     * 使用SaJwtUtil创建JWT令牌，包含用户ID、客户端ID、租户ID、授权范围、jti等额外数据。
+     * 使用SaJwtUtil创建JWT令牌，包含用户ID、客户端ID、租户ID、授权范围、受众、jti等额外数据。
      * </p>
      *
      * @param userId 用户ID
      * @param clientId 客户端ID
      * @param scope 授权范围
+     * @param audiences 客户端注册的令牌受众（逗号分隔；非空写入 aud claim，T-ACCESS-013）
      * @param accessTokenTtl 访问令牌有效期（秒，客户端配置；拦截器验签校验 EFF）
      * @return JWT访问令牌字符串
      */
-    private String generateAccessToken(long userId, String clientId, String scope, int accessTokenTtl) {
+    private String generateAccessToken(long userId, String clientId, String scope, String audiences,
+                                       int accessTokenTtl) {
         Map<String, Object> extraData = new LinkedHashMap<>();
-        extraData.put("client_id", clientId);
+        extraData.put(OAuth2JwtSupport.CLIENT_ID_CLAIM, clientId);
         // 从 TenantContextHolder 获取实际的 tenantId
         Long tenantId = TenantContextHolder.getTenantId();
-        extraData.put("tenant_id", tenantId != null ? String.valueOf(tenantId) : "0");
+        extraData.put(OAuth2JwtSupport.TENANT_CLAIM, tenantId != null ? String.valueOf(tenantId) : "0");
         if (scope != null && !scope.isBlank()) {
-            extraData.put("scope", scope);
+            extraData.put(OAuth2JwtSupport.SCOPE_CLAIM, scope);
         }
-        extraData.put("jti", UUID.randomUUID().toString().replace("-", ""));
+        // T-ACCESS-013：客户端注册 audiences 非空时写入 aud claim（业务开放路径强制校验受众）
+        if (audiences != null && !audiences.isBlank()) {
+            List<String> audList = new ArrayList<>();
+            for (String a : audiences.split(",")) {
+                if (!a.isBlank()) {
+                    audList.add(a.trim());
+                }
+            }
+            if (!audList.isEmpty()) {
+                extraData.put(OAuth2JwtSupport.AUD_CLAIM, audList);
+            }
+        }
+        extraData.put(OAuth2JwtSupport.JTI_CLAIM, UUID.randomUUID().toString().replace("-", ""));
 
         // 历史缺陷（createToken 参数错位，任何持有者可伪造 OAuth2 token，存量安全漏洞）：
         // ① 原参数错位——createToken 签名为 (loginType, loginId, extraData, keyt)，存量把
@@ -760,15 +775,20 @@ public class OAuth2ServiceImpl implements OAuth2Service {
      * <p>
      * 检查请求的授权范围是否在客户端注册的授权范围内。
      * 授权范围以空格分隔。
+     * T-ACCESS-013 评审 P1：客户端注册 scopes 为空时不再解释为"无限制"——scope 已是
+     * 资源端业务开放路径的核心授权门禁，未注册可授予范围的客户端不得授予任何 scope
+     * （请求非空 scope 拒绝；请求空 scope 放行，签发的无 scope 令牌因业务路径
+     * requiredScopes 强制非空而访问不了任何业务路径，仅可访问 userinfo 豁免端点）。
      * </p>
      *
      * @param client OAuth2客户端实体
-     * @param scope 请求的授权范围（空格分隔）
+     * @param scope 请求的授权范围（空格分隔，调用方保证非空）
      * @throws BizException 授权范围无效
      */
     private void validateScope(SysOauth2Client client, String scope) {
         if (client.getScopes() == null || client.getScopes().isBlank()) {
-            return; // 无授权范围限制
+            throw new BizException(AdminErrorCode.OAUTH2_SCOPE_INVALID.getCode(),
+                "客户端未注册任何可授予的授权范围");
         }
         String[] allowedScopes = client.getScopes().split(",");
         Set<String> allowedSet = new HashSet<>();

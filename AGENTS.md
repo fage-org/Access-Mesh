@@ -62,7 +62,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 - 分层：Controller -> 调度层 Service -> 逻辑级 DomainService -> Mapper。
 - **Service 层复用规范**：新增/修改功能必须检查 DomainService 是否有可复用方法，禁止在调度层重新实现领域逻辑。详见 `docs/design/project-rules.md` §8.4。
 - **N+1 查询禁止**：循环内禁止单条数据库查询，必须使用批量查询方法。详见 `docs/design/project-rules.md` §8.4.8。
-- 禁止跳层调用，禁止同层横向调用。（**唯一例外（2026-08-08 产品确认）**：授权域 `PermissionGrantPlanDomainServiceImpl` → `PermissionGrantDomainService` 组合注入允许，限定单向/无循环/仅校验能力不承载事务/不推广，见 `docs/design/project-rules.md` §分层规范）
+- 禁止跳层调用；同层横向调用允许（2026-08-22 用户确认全局放开：仅限同层、禁循环依赖、复用优先于重实现，跨域 Mapper 直读边界不变，见 `docs/design/project-rules.md` §分层规范）。
 - 不可变 DTO 优先使用 Java 21 Record。
 - Lombok 允许精确导入并按需使用；`@Builder` 可用于复杂构造或测试数据装配，但禁止 `@Data`、`@Value`、`@EqualsAndHashCode` 等隐式生成过多逻辑的注解。
 - 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。

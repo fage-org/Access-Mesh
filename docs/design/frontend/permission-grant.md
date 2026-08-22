@@ -484,7 +484,7 @@ interface MatrixContext {
 
 ### 工程加固（2026-08-01 分析评审后，随 T-PERM-034/T-FE-036/T-FE-018 落地）
 
-- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**授权域内同层调用例外（产品确认）：PlanDomainService 组合 GrantDomainService 校验能力，不推广到其他域**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
+- **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**PlanDomainService 组合 GrantDomainService 校验能力（2026-08-22 起同层调用全局放开，无域限定）**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
 - **引擎双写消除（方案三）**：后端 `GoldenFixtureTest` 使用 6 个用例（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记为**演进方向**，当前不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：后端 GoldenFixtureTest 随 T-PERM-034 未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；后端 T-PERM-034 落地时移植同一用例集比对（届时可评估是否上移为跨语言共享位置）。
 - **端点契约（方案四）**：`docs/contracts/perm-grant.schema.json` 已删除，不做说明性机器校验；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 

@@ -18,6 +18,7 @@ import jakarta.validation.constraints.Min;
  * @param grantTypes      授权类型（可选）
  * @param redirectUris    重定向URI列表（可选）
  * @param scopes          权限范围（可选）
+ * @param audiences       令牌受众/资源服务器标识（可选，逗号分隔；配置后签发写入 aud claim）
  * @param accessTokenTtl  访问令牌有效期（可选，秒，范围60-86400）
  * @param refreshTokenTtl 刷新令牌有效期（可选，秒，范围60-604800）
  * @param status          状态（可选）
@@ -52,6 +53,11 @@ public record Oauth2ClientUpdateReq(
      * 权限范围（逗号分隔）
      */
     String scopes,
+
+    /**
+     * 令牌受众/目标资源服务器标识（逗号分隔；配置后签发的访问令牌写入 aud claim）
+     */
+    String audiences,
 
     /**
      * 访问令牌有效期（秒，范围60-86400）

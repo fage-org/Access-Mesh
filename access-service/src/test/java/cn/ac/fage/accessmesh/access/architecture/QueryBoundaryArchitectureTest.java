@@ -7,15 +7,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static com.tngtech.archunit.base.DescribedPredicate.not;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleName;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * 跨域只读查询边界架构测试（T-ACCESS-006）。
+ * 跨域只读查询数据边界架构测试（T-ACCESS-006；2026-08-22 同层调用全局放开后
+ * 仅保护 Mapper/实体数据访问边界，Service 层横向依赖不再限定白名单）。
  * <p>
  * 组合查询的跨域数据读取只允许发生在 access.application.query 白名单包：
  * admin 域与 permission 域不得互相访问 Mapper；application 非 query 包（写编排、
@@ -90,19 +87,6 @@ class QueryBoundaryArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAnyPackage("..admin.mapper..", "..permission.mapper..", "..admin.entity..", "..permission.entity..")
             .because("query 包经专用 QueryMapper（XML 直读表）读取，不直接操纵领域实体或领域 Mapper")
-            .check(classes);
-    }
-
-    @Test
-    @DisplayName("query 包不得依赖 permission 域除 PermissionViewAppService 外的 AppService（写/管理入口）")
-    void queryPackageAppServiceWhitelist() {
-        noClasses()
-            .that().resideInAPackage("..application.query..")
-            .should().dependOnClassesThat(
-                resideInAPackage("..permission.service..")
-                    .and(simpleNameEndingWith("AppService"))
-                    .and(not(simpleName("PermissionViewAppService"))))
-            .because("query 包获取权限事实仅限只读入口 PermissionViewAppService（TypeResolutionService/PermQueryEngine 为解析/引擎允许项，不属 AppService 后缀）")
             .check(classes);
     }
 }

@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
+import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -15,7 +17,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,18 +31,23 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link RequestContextInterceptor} 决策树单元测试（T-ACCESS-004）。
+ * {@link RequestContextInterceptor} 决策树单元测试（T-ACCESS-004；T-ACCESS-013 扩展 JWT 分支）。
  * <p>覆盖：公开路径匿名、内部凭证路径（纯服务 / 验签用户 / 纵深 403）、签名用户态、
- * 无身份 401、afterCompletion 清理。Sa-Token 会话路径由 SecurityMatrixIT（集成）覆盖。</p>
+ * 无身份 401、afterCompletion 清理；OAuth2 JWT 分支（T-ACCESS-013）：配置化开放路径、
+ * 客户端启用动态校验、scope/audience/clientIds 门禁、默认路径 userinfo 豁免 audience。
+ * Sa-Token 会话路径由 SecurityMatrixIT（集成）覆盖。</p>
  */
 class RequestContextInterceptorTest {
 
     private static final String SECRET = "test-secret-key-for-interceptor-0123456789";
     private static final int VALID_SECONDS = 300;
     private static final String JWT_SECRET = "test-jwt-secret-for-interceptor-0123456789";
+    private static final String CLIENT_ID = "admin-web";
 
     private RequestContextInterceptor interceptor;
     private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+    private OAuth2ClientDomainService oauth2ClientDomainService;
+    private OAuth2ResourcePathProperties oauth2ResourcePaths;
 
     @BeforeEach
     void setUp() {
@@ -43,10 +55,21 @@ class RequestContextInterceptorTest {
         ReflectionTestUtils.setField(verifier, "signatureSecret", SECRET);
         ReflectionTestUtils.setField(verifier, "signatureValidSeconds", VALID_SECONDS);
         verifier.validateConfiguration();
-        // T-ACCESS-004 评审 P1：拦截器新增 OAuth2 JWT 认证分支（注入 Redis 黑名单检查）
+        // T-ACCESS-004 评审 P1：拦截器新增 OAuth2 JWT 认证分支（注入 Redis 黑名单检查）；
+        // T-ACCESS-013：注入开放路径配置（默认仅 /auth/oauth2/userinfo）+ 客户端域服务（启用校验）
         stringRedisTemplate = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
-        interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate);
+        oauth2ClientDomainService = mock(OAuth2ClientDomainService.class);
+        oauth2ResourcePaths = new OAuth2ResourcePathProperties();
+        interceptor = new RequestContextInterceptor(verifier, stringRedisTemplate,
+            oauth2ResourcePaths, oauth2ClientDomainService);
         ReflectionTestUtils.setField(interceptor, "jwtSecretKey", JWT_SECRET);
+
+        // 默认 mock：客户端启用（禁用用例单独覆盖）
+        SysOauth2Client activeClient = new SysOauth2Client();
+        activeClient.setClientId(CLIENT_ID);
+        activeClient.setStatus(1);
+        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(activeClient);
+        when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
     }
 
     @AfterEach
@@ -125,11 +148,10 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("评审 P1：OAuth2 JWT 有效（未撤销）→ USER 上下文绑定（验签+黑名单通过）")
+    @DisplayName("评审 P1：OAuth2 JWT 有效（未撤销）→ USER 上下文绑定（验签+黑名单+客户端启用通过）")
     void shouldBindUser_whenValidOAuth2Jwt() throws Exception {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+        String jwt = jwt(oauth2Claims(null, null));
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -141,15 +163,167 @@ class RequestContextInterceptorTest {
         assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.USER);
         assertThat(AccessRequestContext.getOperatorId()).isEqualTo(100L);
         assertThat(AccessRequestContext.getTenantId()).isEqualTo(1L);
+        // T-ACCESS-013：委托上下文第五要素（审计区分第三方委托调用与用户直调）
+        assertThat(AccessRequestContext.getDelegatedClientId()).isEqualTo(CLIENT_ID);
         org.mockito.Mockito.verify(stringRedisTemplate).hasKey("oauth2:blacklist:jti-1");
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：旧令牌无 aud claim 访问默认路径 userinfo → 通过（audience 豁免）")
+    void shouldBindUser_whenLegacyJwtWithoutAudOnUserinfo() throws Exception {
+        String jwt = jwt(oauth2Claims(null, null));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.USER);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：客户端被禁用 → 401（动态启用校验，禁用立即失效）")
+    void shouldReject_whenClientDisabled() throws Exception {
+        when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(null);
+        String jwt = jwt(oauth2Claims(null, null));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(401);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：JWT 载荷缺失 client_id → 401（必填 claim）")
+    void shouldReject_whenJwtMissingClientId() throws Exception {
+        Map<String, Object> claims = oauth2Claims(null, null);
+        claims.remove("client_id");
+        String jwt = jwt(claims);
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：配置业务路径 + scope 满足 → 通过（audience/scope 门禁全过）")
+    void shouldBindUser_whenBusinessPathAllGatesPassed() throws Exception {
+        configureBusinessPath("/api/example/open", "example:read", "access-service", null);
+        String jwt = jwt(oauth2Claims("example:read example:write", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getDelegatedClientId()).isEqualTo(CLIENT_ID);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：scope 不足（requiredScopes 未全包含）→ 403 授权不足")
+    void shouldReject_whenInsufficientScope() throws Exception {
+        configureBusinessPath("/api/example/open", "example:read example:admin", "access-service", null);
+        String jwt = jwt(oauth2Claims("example:read", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+        assertThat(AccessRequestContext.get()).isNull();
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：audience 不匹配（业务路径强制受众）→ 403")
+    void shouldReject_whenAudienceMismatch() throws Exception {
+        configureBusinessPath("/api/example/open", null, "example-service", null);
+        String jwt = jwt(oauth2Claims("example:read", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：业务路径令牌无 aud claim（受众强制，不豁免）→ 403")
+    void shouldReject_whenBusinessPathAndTokenWithoutAud() throws Exception {
+        configureBusinessPath("/api/example/open", "example:read", "access-service", null);
+        String jwt = jwt(oauth2Claims("example:read", null));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：clientIds 限定不满足 → 403")
+    void shouldReject_whenClientNotInAllowedList() throws Exception {
+        configureBusinessPath("/api/example/open", "example:read", "access-service", "other-client");
+        String jwt = jwt(oauth2Claims("example:read", "access-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/open");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isFalse();
+        assertThat(resp.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-013：配置通配路径（/api/example/**）→ 命中子路径按规则放行")
+    void shouldMatchAntPatternPath() throws Exception {
+        OAuth2ResourcePathProperties.ResourcePathRule rule =
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/example/**");
+        rule.getRequiredScopes().add("example:read");
+        rule.setAudience("example-service");
+        oauth2ResourcePaths.setResourcePaths(new ArrayList<>(List.of(
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), rule)));
+        String jwt = jwt(oauth2Claims("example:read", "example-service"));
+
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/resource/action");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("Authorization", "Bearer " + jwt);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getDelegatedClientId()).isEqualTo(CLIENT_ID);
     }
 
     @Test
     @DisplayName("评审 P1：OAuth2 JWT 已撤销（黑名单命中）→ 401")
     void shouldReject_whenOAuth2JwtRevoked() throws Exception {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
-        String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+        String jwt = jwt(oauth2Claims(null, null));
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -166,7 +340,7 @@ class RequestContextInterceptorTest {
     @DisplayName("评审 P1：OAuth2 JWT 签名无效（错误密钥签发）→ 401")
     void shouldReject_whenOAuth2JwtSignatureInvalid() throws Exception {
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-            java.util.Map.of("tenant_id", "1", "jti", "jti-1"), "wrong-secret-key");
+            oauth2Claims(null, null), "wrong-secret-key");
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -179,12 +353,11 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("P2 路径精确匹配：有效 OAuth2 JWT 访问 /auth/oauth2/authorize → 不认证 → 无会话 401")
+    @DisplayName("P2 路径限定：有效 OAuth2 JWT 访问 /auth/oauth2/authorize → 不认证 → 无会话 401")
     void shouldReject_whenOAuth2JwtOnAuthorizePath() throws Exception {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
-            String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-                java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+            String jwt = jwt(oauth2Claims(null, null));
 
             MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/authorize");
             MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -199,12 +372,11 @@ class RequestContextInterceptorTest {
     }
 
     @Test
-    @DisplayName("P1 路径限定：有效 OAuth2 JWT 访问非 OAuth2 路径（/user/page）→ 不认证 → 无会话 401")
+    @DisplayName("P1 路径限定：有效 OAuth2 JWT 访问非开放路径（/user/page）→ 不认证 → 无会话 401（默认拒绝）")
     void shouldReject_whenOAuth2JwtOnNonOAuth2Path() throws Exception {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
-            String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
-                java.util.Map.of("tenant_id", "1", "jti", "jti-1"), JWT_SECRET);
+            String jwt = jwt(oauth2Claims(null, null));
 
             MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
@@ -579,5 +751,42 @@ class RequestContextInterceptorTest {
         mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String payload = userId + "|" + tenantId + "|" + timestamp;
         return HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    /** OAuth2 JWT 标准测试载荷（tenant_id/jti/client_id + 可选 scope/aud）。 */
+    private static Map<String, Object> oauth2Claims(String scope, String aud) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("tenant_id", "1");
+        claims.put("jti", "jti-1");
+        claims.put("client_id", CLIENT_ID);
+        if (scope != null) {
+            claims.put("scope", scope);
+        }
+        if (aud != null) {
+            claims.put("aud", List.of(aud));
+        }
+        return claims;
+    }
+
+    /** 以测试密钥签发 OAuth2 JWT（与拦截器验签密钥一致）。 */
+    private static String jwt(Map<String, Object> claims) {
+        return cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
+            claims, JWT_SECRET);
+    }
+
+    /** 配置一条业务开放路径规则（保留 userinfo 默认条目；path + requiredScopes/audience/clientIds）。 */
+    private void configureBusinessPath(String path, String requiredScope, String audience,
+                                       String allowedClientId) {
+        OAuth2ResourcePathProperties.ResourcePathRule rule =
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath(path);
+        if (requiredScope != null) {
+            rule.setRequiredScopes(new LinkedHashSet<>(List.of(requiredScope.split(" "))));
+        }
+        rule.setAudience(audience);
+        if (allowedClientId != null) {
+            rule.setClientIds(new LinkedHashSet<>(List.of(allowedClientId)));
+        }
+        oauth2ResourcePaths.setResourcePaths(new ArrayList<>(List.of(
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), rule)));
     }
 }

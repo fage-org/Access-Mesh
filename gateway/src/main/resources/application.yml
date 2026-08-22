@@ -100,6 +100,15 @@ gateway:
       - /public/**
       - /captcha/**
 
+  # T-ACCESS-013：OAuth2 委托令牌透传路径（外部路径口径；默认为空=无业务路径默认开放）。
+  # 命中路径且 Authorization 为 Bearer 三段式 JWT 时跳过会话/权限校验与身份头注入，
+  # Authorization 原样透传下游，由 access-service 开放路径门禁（access.oauth2.resource-paths
+  # + scope/audience/client_id 启用校验）判定；平台 uuid 会话令牌不启用透传（走正常
+  # 会话校验与接口鉴权，防绕过 Gateway 权限）；/auth/** 已由白名单覆盖无需重复配置。
+  # 注意：下游匹配的是 StripPrefix 后路径（如 /admin/api/** → 下游 /api/**），双侧需人工对应。
+  oauth2:
+    passthrough-paths: []
+
   # T-ACCESS-008：快照缓存 TTL/容量统一由 GatewayCacheCatalog 声明（15s/50000），
   # 运维覆盖走 accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl / l1-maximum-size；
   # 原 gateway.cache.l1.*（ttl-seconds/stale-grace-seconds）随 stale-allow 删除废弃。
