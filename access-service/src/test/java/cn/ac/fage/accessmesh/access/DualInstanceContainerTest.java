@@ -25,6 +25,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -151,14 +153,16 @@ class DualInstanceContainerTest {
         }
         SpringApplication app = new SpringApplication(AccessServiceApplication.class);
         app.setAdditionalProfiles("test");
-        app.setDefaultProperties(Map.of(
-            "spring.datasource.url", postgres.getJdbcUrl(),
-            "spring.datasource.username", postgres.getUsername(),
-            "spring.datasource.password", postgres.getPassword(),
-            "spring.datasource.driver-class-name", postgres.getDriverClassName(),
-            "spring.data.redis.host", redis.getHost(),
-            "spring.data.redis.port", redis.getMappedPort(6379)));
-        instanceB = app.run();
+        // 必须以命令行参数注入容器地址：setDefaultProperties 优先级最低，
+        // 会被 application.yml 的 127.0.0.1 本机地址压过（评审修复）；
+        // 命令行参数优先级高于 ConfigData，实例 B 才会真正连接容器
+        instanceB = app.run(
+            "--spring.datasource.url=" + postgres.getJdbcUrl(),
+            "--spring.datasource.username=" + postgres.getUsername(),
+            "--spring.datasource.password=" + postgres.getPassword(),
+            "--spring.datasource.driver-class-name=" + postgres.getDriverClassName(),
+            "--spring.data.redis.host=" + redis.getHost(),
+            "--spring.data.redis.port=" + redis.getMappedPort(6379));
     }
 
     @AfterAll
@@ -201,18 +205,46 @@ class DualInstanceContainerTest {
     }
 
     @Test
-    @DisplayName("任务并发抢占：两实例抢占同一执行键，恰一胜")
-    void concurrentClaim_exactlyOneInstanceWins() {
-        String key = "dual-instance-claim-" + System.nanoTime();
+    @DisplayName("任务并发抢占：两实例闭栏同时抢占同一执行键，恰一胜（多轮）")
+    void concurrentClaim_exactlyOneInstanceWins() throws Exception {
+        // 顺序调用只能证明「先到先得 + 有效租约排他」；以闭栏（CountDownLatch）让
+        // 两实例的 tryClaim 真正并发提交，多轮断言每轮恰一胜（评审修复）
+        int rounds = 5;
+        for (int round = 0; round < rounds; round++) {
+            String key = "dual-instance-claim-" + round + "-" + System.nanoTime();
+            CountDownLatch start = new CountDownLatch(1);
+            AtomicReference<Integer> attemptA = new AtomicReference<>();
+            AtomicReference<Integer> attemptB = new AtomicReference<>();
 
-        Integer attemptA = taskExecutionA.tryClaim(TENANT_ID, key, OWNER_A);
-        Integer attemptB = taskExecutionB.tryClaim(TENANT_ID, key, OWNER_B);
+            Thread threadA = new Thread(() -> {
+                await(start);
+                attemptA.set(taskExecutionA.tryClaim(TENANT_ID, key, OWNER_A));
+            }, "instance-A-claim");
+            Thread threadB = new Thread(() -> {
+                await(start);
+                attemptB.set(taskExecutionB.tryClaim(TENANT_ID, key, OWNER_B));
+            }, "instance-B-claim");
+            threadA.start();
+            threadB.start();
+            start.countDown();
+            threadA.join(10_000);
+            threadB.join(10_000);
 
-        assertThat(attemptA == null || attemptB == null)
-            .as("同一执行键两实例并发抢占必须恰一胜，A=%s B=%s", attemptA, attemptB)
-            .isTrue();
-        assertThat(attemptA).as("先抢占方（A）必须成功").isNotNull();
-        assertThat(attemptB).as("后抢占方（B）必须失败").isNull();
+            int winners = (attemptA.get() != null ? 1 : 0) + (attemptB.get() != null ? 1 : 0);
+            assertThat(winners)
+                .as("第 %d 轮：两实例并发抢占同一执行键必须恰一胜，A=%s B=%s",
+                    round, attemptA.get(), attemptB.get())
+                .isEqualTo(1);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("claim 并发门闩被中断", e);
+        }
     }
 
     @Test
