@@ -33,7 +33,7 @@ last_updated: 2026-08-22
 
 D 来自归档设计评审 §11 的暂缓项，目标是减少权限中心实现阶段的隐式约定和易错点。当前核对结论是：D 的方向与现行设计基本兼容，但 `type_value` 外部入参和软删除不复用保证方式存在文档漂移，必须先收敛设计再实现。
 
-> **重基线（T-ACCESS-012，2026-08-22）**：原 D4「SyncHandler 版本声明」已移除——归并后内部 admin→permission 同步链已删除（T-ACCESS-005），仅剩外部业务服务 sync 摄入面（`/api/perm/**/sync`），跨服务协议演进防护价值大幅下降（用户决策移除）；外部 sync 的 `sync_metadata` 版本校验按现行契约（api-contract §6.2）继续有效，不依赖本任务。落点为 access-service permission 域；schema 权威为 `access-service.sql`。
+> **重基线（T-ACCESS-012，2026-08-22）**：原 D4「SyncHandler 版本声明」已移除——归并后内部 admin→permission 同步链已删除（T-ACCESS-005），仅剩外部业务服务 sync 摄入面（`/api/perm/**/sync`），跨服务协议演进防护价值大幅下降（T-ACCESS-012 重基线移除）；外部 sync 的 `sync_metadata` 版本校验按现行契约（api-contract §6.2）继续有效，不依赖本任务。落点为 access-service permission 域；schema 权威为 `access-service.sql`。
 
 ## 子项核对
 

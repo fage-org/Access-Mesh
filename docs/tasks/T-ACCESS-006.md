@@ -48,7 +48,7 @@ last_updated: 2026-08-16
 2. QueryMapper 形态：批量查询 + 内存组装（权限判定必须经 engine，不跨域 JOIN）。
 3. 合并后不再保留「代理 service 类」：`RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现形态）整体删除，admin 域直接依赖 query 包服务。
 4. 角色直接由 permission 管理：admin 侧 `/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke` 退役（保留映射恒抛新增错误码 `ROLE_API_RETIRED`(10111)）；`/role/create` 保持恒 20045 语义不变。角色与授权管理由 `/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission` 直接提供。
-5. 权威 schema 的 `sys_menu`（display_name/DIR-MENU 枚举，无 component/visible/perm_code 列）与存量 SysMenu 实体存在 DDL-实体漂移：query 包按权威 schema 显式列读取，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME→frameSrc=path；HIDDEN 不进 menus[]）；存量漂移（菜单 CRUD 写路径仍用旧实体字段，真实库写入会失败）登记交由 T-ACCESS-015 收口（原登记 T-ACCESS-012，2026-08-22 评审改挂）。
+5. 权威 schema 的 `sys_menu`（display_name/DIR-MENU 枚举，无 component/visible/perm_code 列）与存量 SysMenu 实体存在 DDL-实体漂移：query 包按权威 schema 显式列读取，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME→frameSrc=path；HIDDEN 不进 menus[]）；存量漂移（菜单 CRUD 写路径仍用旧实体字段，真实库写入会失败）登记交由 T-ACCESS-015 收口（原登记 T-ACCESS-012，2026-08-22 改挂）。
 6. 验证方式：静态测试（ArchUnit 包边界 + XML 只读/tenant_id/分页契约断言）+ 查询服务 `@Transactional(readOnly = true)`。
 
 **新增 `access.application.query` 包**：
@@ -98,7 +98,7 @@ last_updated: 2026-08-16
 
 **测试**（486 tests 0 失败 27 跳过）：`UserMenuQueryServiceImplTest` 重写为 7 个（派生公式实例匹配/scopeAll 全范围/纯展示/HIDDEN/status=0/DIR 剪枝/fail-closed/容错降级）；`QueryBoundaryArchitectureTest` 6 个。
 
-**前端影响登记**：`frontend/src/api/user-manage.ts` 的 `assignRole`/`revokeRole` 调 `/user-role/assign|revoke`（mock 阶段），Phase 3 联调（T-FE-015~022）时改调 `/api/perm/user-role/assign|revoke`。`sys_menu` DDL-实体漂移（菜单 CRUD 写路径）交由 T-ACCESS-015 收口（原登记 T-ACCESS-012，2026-08-22 评审改挂）。
+**前端影响登记**：`frontend/src/api/user-manage.ts` 的 `assignRole`/`revokeRole` 调 `/user-role/assign|revoke`（mock 阶段），Phase 3 联调（T-FE-015~022）时改调 `/api/perm/user-role/assign|revoke`。`sys_menu` DDL-实体漂移（菜单 CRUD 写路径）交由 T-ACCESS-015 收口（原登记 T-ACCESS-012，2026-08-22 改挂）。
 
 ---
 

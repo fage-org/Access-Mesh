@@ -38,7 +38,7 @@ last_updated: 2026-08-22
 
 T-FE-013 权限排查页前端已实现（Phase 1 mock 驱动，mock 路径 `/permission-query/*`）。
 
-> **重基线（T-ACCESS-012，2026-08-22，用户决策：取消聚合层）**：原「admin 域聚合层 `PermissionQueryController`（`/permission-query/*`）+ OpenFeign 调 permission-center」方案取消——归并后 `/perm/**` 与 `/admin/**` 同路由到 access-service，聚合层前提（前端不直连权限服务）不再成立；三个端点的契约路径已存在（见 acceptance），页面直连使用，不新增 Controller/聚合 DTO/Gateway 路由（维持 T-ACCESS-010 固化的 3 路由契约）。原「跨模块 admin-service + permission-center」复杂度与「AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES L122-137」锚点失效：常量已迁 `access/application/query/impl/UserMenuQueryServiceImpl.java`；explain 若需 admin 域数据由 `application.query` 查询服务承接（依赖白名单见 access-service-architecture.md §3）。
+> **重基线（T-ACCESS-012，2026-08-22：取消聚合层）**：原「admin 域聚合层 `PermissionQueryController`（`/permission-query/*`）+ OpenFeign 调 permission-center」方案取消——归并后 `/perm/**` 与 `/admin/**` 同路由到 access-service，聚合层前提（前端不直连权限服务）不再成立；三个端点的契约路径已存在（见 acceptance），页面直连使用，不新增 Controller/聚合 DTO/Gateway 路由（维持 T-ACCESS-010 固化的 3 路由契约）。原「跨模块 admin-service + permission-center」复杂度与「AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES L122-137」锚点失效：常量已迁 `access/application/query/impl/UserMenuQueryServiceImpl.java`；explain 若需 admin 域数据由 `application.query` 查询服务承接（依赖白名单见 access-service-architecture.md §3）。
 
 前端核实发现的后端现状问题（详见 `docs/design/frontend/permission-query.md` §8-9）：
 

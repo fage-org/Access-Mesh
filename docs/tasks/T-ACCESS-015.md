@@ -30,7 +30,7 @@ last_updated: 2026-08-22
 
 ## 背景
 
-T-ACCESS-006 建立跨域只读查询时登记的存量 DDL-实体漂移：权威 DDL `access-service.sql` 的 `sys_menu` 已按 v3.5 最终态收敛（`display_name`、`menu_type` 5 值枚举 DIR/MENU/EXTERNAL/IFRAME/HIDDEN、无 `component`/`visible`/`perm_code` 列），但菜单 CRUD 写路径（`MenuWriteAppServiceImpl` + `SysMenu` 实体 + `SysMenuMapper`）仍使用旧实体字段 `name`/`visible`/`perm_code`/`component` 与数字 `menu_type`，Mapper 仍按 `perm_code` 查询——真实 PostgreSQL 下菜单创建/更新与相关查询会直接失败（现有测试仅 mock DomainService，未覆盖此组合）。原登记由 T-ACCESS-012 收口；2026-08-22 评审确认该收敛属功能开发（含对外契约 DTO 变更），与文档生命周期任务主题不同，按治理规则新开本任务承接。
+T-ACCESS-006 建立跨域只读查询时登记的存量 DDL-实体漂移：权威 DDL `access-service.sql` 的 `sys_menu` 已按 v3.5 最终态收敛（`display_name`、`menu_type` 5 值枚举 DIR/MENU/EXTERNAL/IFRAME/HIDDEN、无 `component`/`visible`/`perm_code` 列），但菜单 CRUD 写路径（`MenuWriteAppServiceImpl` + `SysMenu` 实体 + `SysMenuMapper`）仍使用旧实体字段 `name`/`visible`/`perm_code`/`component` 与数字 `menu_type`，Mapper 仍按 `perm_code` 查询——真实 PostgreSQL 下菜单创建/更新与相关查询会直接失败（现有测试仅 mock DomainService，未覆盖此组合）。原登记由 T-ACCESS-012 收口；该收敛属功能开发（含对外契约 DTO 变更），与文档生命周期任务主题不同，按治理规则（遗留工作新开未占用任务 ID）新开本任务承接（2026-08-22）。
 
 ## 范围
 

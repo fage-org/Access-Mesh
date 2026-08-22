@@ -10,7 +10,7 @@ last_reviewed: 2026-06-27
 
 > 状态：v3.5 简化版（2026-06-18 PM 决策回退完成）
 > 范围：菜单零权限化 + 单 RPC 原子契约 + tenant 强制 + L1 操作 + L2 数据权限
-> 历史版本：[../archive/2026-06/](../archive/2026-06/) — v3.0~v3.3 OBSOLETED；v3.4 / v3.5 初版（含 L3 维度过度设计）通过 git history 追溯
+> 历史版本：[../plans/archive/2026-06/](../plans/archive/2026-06/) — v3.0~v3.3 OBSOLETED；v3.4 / v3.5 初版（含 L3 维度过度设计）通过 git history 追溯
 > 关联评审：[../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md)（原评审记录，已归档）
 > 演进方向：[permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（v3.5.1+ 增量，非约束）
 > 文档定位：**设计契约**（schema + 原则 + 公式 + 接口签名）。实施细节（审计 / 运营调控 / 迁移 / 兼容性 / 验收 / 监控 / 合规）作为 v3.5.1+ 增量章节。
@@ -42,7 +42,7 @@ v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复
 
 ### 0.4 v3.0~v3.3 OBSOLETED 关系图
 
-详见 [../archive/2026-06/README.md](../archive/2026-06/README.md) §"P1~P14 范式 OBSOLETED 关系图"。
+详见 [../plans/archive/2026-06/README.md](../plans/archive/2026-06/README.md) §"P1~P14 范式 OBSOLETED 关系图"。
 
 ---
 

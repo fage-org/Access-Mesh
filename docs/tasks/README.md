@@ -111,7 +111,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6，低优先级） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；access-service-architecture | — | ⚙️ | ⏳ |
-| T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；P2-3，2026-08-01 立项） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | —（联调任务 T-FE-037 汇集（二期）） | ⚙️ | ⏳ |
+| T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；P2-3，2026-08-01 立项；下游联调 T-FE-037 二期汇集） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ⚙️ | ⏳ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
@@ -121,7 +121,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../plans/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
+| [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../archive/2026-07-12/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
 | T-FE-002 | 2.2 角色管理页（5 种角色类型 CRUD，本页仅消费功能角色） | frontend-phase1 | api-contract §5.2/§6.10.3；design/frontend/role-manage.md | T-FE-001 | ✅ | ✓ |
 | T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ✅ | ✓ |
 | T-FE-004 | 6.2 系统配置页（租户级 key-value 配置字典；任务原标题「分组表单」校正——后端/schema 无 config_group 字段，为扁平键值表，仅 list/detail/save 3 端点，save upsert 幂等无删除） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ✅ | ✓ |
@@ -170,10 +170,10 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 
 ### access-service 归并（✅ 完成 2026-08-22，主链 T-ACCESS-001~012 全部 done）
 
-1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器）在 [access-post-merge-plan](../plans/access-post-merge-plan.md)。
+1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器、T-ACCESS-015 菜单写链路收口）在 [access-post-merge-plan](../plans/access-post-merge-plan.md)。
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
 3. 前端真接口联调（T-FE-015~022）等待对应 Phase 2 后端任务完成；纯 mock/UI 任务不受影响。
-4. access-post-merge 准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试（责任已随归档转移，用户决策 2026-08-22）。
+4. access-post-merge 准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试（责任已随归档转移，2026-08-22）。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
 

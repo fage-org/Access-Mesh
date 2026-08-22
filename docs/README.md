@@ -41,7 +41,6 @@ docs/
     ├── 2026-06-21/
     ├── 2026-06-20/
     ├── 2026-06-17/
-    ├── 2026-06/
     ├── 2026-06-14/
     ├── 2026-06-05/
     ├── 2026-06-03/
@@ -70,7 +69,7 @@ docs/
 | 主题 | 文档 |
 |------|------|
 | ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
-| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013/014；准入前置：CI 跑绿 40 项 Docker 门控测试） |
+| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013~015；准入前置：CI 跑绿 40 项 Docker 门控测试） |
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
@@ -129,8 +128,8 @@ docs/
 | `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |
 | `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |
-| `archive/2026-06-20/` | 用户角色代理修复归档（第一轮 M1-M13+S1-S3 + 第二轮 P1-1/P1-2/P2-1/P2-2，均验收 + 设计回写完成）。当时结论沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync；同步设计现仅供历史追溯。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
-| `archive/2026-06/` | v3.0~v3.3 权限中心设计演进历史快照（双轨 AND + sys_menu.operations 元数据化等），已被 v3.5 取代。 | [archive/2026-06/README.md](archive/2026-06/README.md) |
+| `archive/2026-06-20/` | 用户角色代理修复归档（M1-M13+S1-S3 主线 + P1-1/P1-2/P2-1/P2-2 补充批次，均验收 + 设计回写完成）。当时结论沉淀至 admin-api-contract / org-user-permission-contract / api-contract / admin-permission-sync；同步设计现仅供历史追溯。 | [archive/2026-06-20/README.md](archive/2026-06-20/README.md) |
+| `plans/archive/2026-06/` | v3.0~v3.3 权限中心设计演进历史快照（双轨 AND + sys_menu.operations 元数据化等），已被 v3.5 取代。 | [plans/archive/2026-06/README.md](plans/archive/2026-06/README.md) |
 | `archive/2026-06-17/` | AccessMesh 设计评审记录（2026-06-17）。评审结论已沉淀至 `design/`，工作单 A-C 派生为 P0 计划，D/E/F 暂缓；D1-D10 文档数字勘误待 F-1.a 自动化根治。 | [archive/2026-06-17/README.md](archive/2026-06-17/README.md) |
 | `archive/2026-06-14/` | 同步模块重构执行计划归档；当时的稳定设计沉淀到 `design/cross-service/admin-permission-sync.md`，该设计已于 2026-08-10 被 access-service 单库强事务目标架构取代。 | [archive/2026-06-14/README.md](archive/2026-06-14/README.md) |
 | `archive/2026-06-05/` | 编码与创作风格分析报告。可操作知识已合并到项目规范（项目规范§17、权限中心规范§19、文档治理规范），报告仅作历史追溯。 | [archive/2026-06-05/README.md](archive/2026-06-05/README.md) |

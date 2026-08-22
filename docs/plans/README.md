@@ -10,7 +10,7 @@
 | [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
 | [improvement-plan.md](improvement-plan.md) | 项目级路线图 | 进行中 | 前端、API 核对、核心能力补齐和联调的分阶段完善计划。4 阶段已拆为独立 plan（见下 frontend-phase1~4），本文件保留为 roadmap（tasks:[] 保持空） |
 | ~~access-service-merge-plan~~ | （已归档）| — | `admin-service` + `permission-center` 归并为模块化单体 `access-service`；T-ACCESS-001~012 全部 done（2026-08-22），计划归档至 [../archive/2026-08-22/](../archive/2026-08-22/)。权威约束见 `design/access-service-architecture.md` |
-| [access-post-merge-plan.md](access-post-merge-plan.md) | 归并后续强化 | proposed | 承接归并主链后续任务 T-ACCESS-013（OAuth2 资源服务器）/014（✅）。准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试（归档前置责任随用户决策转移至此） |
+| [access-post-merge-plan.md](access-post-merge-plan.md) | 归并后续强化 | proposed | 承接归并主链后续任务 T-ACCESS-013（OAuth2 资源服务器）/014（✅ 操作日志覆盖）/015（菜单写链路收口）。准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试（归档前置责任 2026-08-22 转移至此） |
 | ~~frontend-phase1-plan~~ | （已归档）| — | 前端 Phase 1（13 页 mock 驱动 + API 核对）2026-07-12 完成，见 [../archive/2026-07-12/](../archive/2026-07-12/)；🔧❌ 清单登记为 Phase 2 后端任务 T-PERM-022~034 |
 | [frontend-phase2-plan.md](frontend-phase2-plan.md) | 前端 Phase 2 执行编排 | proposed | 自动授权 + API 改造 + 动态数据权限。任务 T-PERM-022~041（022~034 逐页后端改造 + 035/036 暂缓 + 037 共性收尾 + 040/041 授权链收口）。⚠️ 自动授权/动态数据权限受 design-review §11 暂缓门禁 |
 | [frontend-phase3-plan.md](frontend-phase3-plan.md) | 前端 Phase 3 执行编排 | proposed | 前后端联调。任务 T-FE-015~022。待 Phase 1/2 收尾 |

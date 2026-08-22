@@ -164,7 +164,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 ```
 
 > **4 阶段执行编排已拆为独立 plan**（本文件保留为 roadmap，tasks:[] 保持空）：
-> - Phase 1 -> [frontend-phase1-plan.md](archive/2026-07-12/frontend-phase1-plan.md)（archived）
+> - Phase 1 -> [frontend-phase1-plan.md](../archive/2026-07-12/frontend-phase1-plan.md)（archived）
 > - Phase 2 → [frontend-phase2-plan.md](frontend-phase2-plan.md)（proposed）
 > - Phase 3 → [frontend-phase3-plan.md](frontend-phase3-plan.md)（proposed）
 > - Phase 4 → [frontend-phase4-plan.md](frontend-phase4-plan.md)（proposed）
