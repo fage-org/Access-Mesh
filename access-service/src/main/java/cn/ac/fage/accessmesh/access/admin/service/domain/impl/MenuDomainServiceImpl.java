@@ -39,6 +39,25 @@ public class MenuDomainServiceImpl implements MenuDomainService {
     }
 
     /**
+     * 计算菜单子树高度
+     * <p>
+     * 从指定菜单向下的最大层级数（单节点=1），单条递归 CTE 完成。
+     * 换父移动时与 calculateDepth 组合校验整棵树层级上限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param menuId   子树根菜单ID
+     * @return 子树高度（根=1）；菜单不存在返回 0
+     */
+    @Override
+    public int subtreeHeight(Long tenantId, Long menuId) {
+        if (menuId == null || menuId == 0L) {
+            return 0;
+        }
+        return menuMapper.selectSubtreeHeight(tenantId, menuId);
+    }
+
+    /**
      * 获取指定菜单的所有子孙菜单ID（不包括自身）
      * <p>
      * 使用PostgreSQL CTE递归查询，性能高效
@@ -261,33 +280,44 @@ public class MenuDomainServiceImpl implements MenuDomainService {
     }
 
     /**
-     * 根据权限标识查询菜单
+     * 检查路由路径是否已被其他有效菜单占用
+     * <p>
+     * uk_sys_menu_tenant_path 唯一索引预查，并发窗口由数据库唯一索引兜底
+     * </p>
      *
-     * @param tenantId 租户ID
-     * @param permCode 权限标识
-     * @return 菜单实体
+     * @param tenantId  租户ID
+     * @param path      路由路径
+     * @param excludeId 排除的菜单ID（更新场景传自身ID，创建场景传 null）
+     * @return 已被占用返回 true
      */
     @Override
-    public SysMenu findByPermCode(Long tenantId, String permCode) {
-        if (permCode == null || permCode.isBlank()) {
-            return null;
+    public boolean pathExists(Long tenantId, String path, Long excludeId) {
+        if (path == null || path.isBlank()) {
+            return false;
         }
-        return menuMapper.selectByPermCode(tenantId, permCode);
+        return menuMapper.existsByPath(tenantId, path,
+            excludeId != null ? Set.of(excludeId) : Set.of());
     }
 
     /**
-     * 批量根据权限标识查询菜单
+     * 检查资源关联是否已被其他有效菜单占用
+     * <p>
+     * uk_sys_menu_tenant_resource 唯一索引预查，并发窗口由数据库唯一索引兜底
+     * </p>
      *
-     * @param tenantId  租户ID
-     * @param permCodes 权限标识集合
-     * @return 菜单实体列表
+     * @param tenantId     租户ID
+     * @param resourceType 关联业务资源类型
+     * @param resourceCode 关联业务资源实例
+     * @param excludeId    排除的菜单ID（更新场景传自身ID，创建场景传 null）
+     * @return 已被占用返回 true
      */
     @Override
-    public List<SysMenu> findByPermCodes(Long tenantId, Set<String> permCodes) {
-        if (permCodes == null || permCodes.isEmpty()) {
-            return List.of();
+    public boolean resourceExists(Long tenantId, String resourceType, String resourceCode, Long excludeId) {
+        if (resourceType == null || resourceType.isBlank()) {
+            return false;
         }
-        return menuMapper.selectByPermCodes(tenantId, permCodes);
+        return menuMapper.existsByResource(tenantId, resourceType, resourceCode,
+            excludeId != null ? Set.of(excludeId) : Set.of());
     }
 
     /**
@@ -313,25 +343,6 @@ public class MenuDomainServiceImpl implements MenuDomainService {
 
         // 深度 = 祖先数量 + 1（自身）
         return ancestors.size() + 1;
-    }
-
-    /**
-     * 批量查询已存在的权限标识
-     *
-     * @param tenantId  租户ID
-     * @param permCodes 权限标识集合
-     * @return 已存在的权限标识集合
-     */
-    @Override
-    public Set<String> findExistingPermCodes(Long tenantId, Set<String> permCodes) {
-        if (permCodes == null || permCodes.isEmpty()) {
-            return Set.of();
-        }
-        List<SysMenu> existingMenus = menuMapper.selectExistingByPermCodes(tenantId, permCodes);
-        return existingMenus.stream()
-            .map(SysMenu::getPermCode)
-            .filter(p -> p != null && !p.isBlank())
-            .collect(Collectors.toSet());
     }
 
     /**

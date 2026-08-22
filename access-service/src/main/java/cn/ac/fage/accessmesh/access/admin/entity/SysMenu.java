@@ -11,8 +11,9 @@ import java.time.LocalDateTime;
 /**
  * 系统菜单实体类
  * <p>
- * 对应数据库表sys_menu，用于存储系统菜单和权限配置。
- * 支持菜单树结构、路由配置、权限码绑定等。
+ * 对应数据库表 sys_menu（v3.5 菜单零权限化终态，权威 DDL 见
+ * docs/design/schema/access-service.sql）。仅承载 UI 路由元数据与
+ * 关联资源 link，不承载权限语义；按钮级权限由 OperationPermission 承担。
  * </p>
  */
 @Getter
@@ -32,34 +33,19 @@ public class SysMenu {
     private Long tenantId;
 
     /**
-     * 父菜单ID
+     * 父菜单ID（顶级为 0）
      */
     private Long parentId;
 
     /**
-     * 菜单类型（M=目录，C=菜单，F=按钮）
+     * 菜单显示名
      */
-    private String menuType;
+    private String displayName;
 
     /**
-     * 服务编码
-     */
-    private String serviceCode;
-
-    /**
-     * 菜单名称
-     */
-    private String name;
-
-    /**
-     * 路由路径
+     * 路由路径（EXTERNAL/IFRAME 为外链 URL；uk_sys_menu_tenant_path 唯一）
      */
     private String path;
-
-    /**
-     * 组件路径
-     */
-    private String component;
 
     /**
      * 菜单图标
@@ -67,49 +53,34 @@ public class SysMenu {
     private String icon;
 
     /**
-     * 权限编码
-     */
-    private String permCode;
-
-    /**
-     * 排序序号
+     * 排序权重（升序）
      */
     private Integer sortOrder;
 
     /**
-     * 是否可见
+     * 菜单类型：DIR/MENU/EXTERNAL/IFRAME/HIDDEN
      */
-    private Boolean visible;
+    private String menuType;
 
     /**
-     * 是否外链
-     */
-    private Boolean isExternal;
-
-    /**
-     * 是否内嵌框架
-     */
-    private Boolean isFrame;
-
-    /**
-     * 是否缓存
-     */
-    private Boolean isCache;
-
-    /**
-     * 状态（0=正常，1=禁用）
+     * 状态：0=DISABLED，1=ENABLED
      */
     private Integer status;
 
     /**
-     * 扩展配置（JSON格式）
+     * 关联业务资源类型（不参与鉴权决策，仅 link，v3.5 §4.1 派生公式用）
      */
-    private String extra;
+    private String resourceType;
 
     /**
-     * 权限资源ID
+     * 关联业务资源实例（不参与鉴权决策，仅 link）
      */
-    private Long permResourceId;
+    private String resourceCode;
+
+    /**
+     * 业务服务标识（链路追溯，管理端创建缺省 access-service）
+     */
+    private String sourceService;
 
     /**
      * 创建人ID
@@ -142,7 +113,7 @@ public class SysMenu {
     private LocalDateTime deletedAt;
 
     /**
-     * 删除标记（0=未删除，1=已删除）
+     * 删除标记（0=未删除，删除时填本行id）
      */
     private Long deleteFlag;
 }

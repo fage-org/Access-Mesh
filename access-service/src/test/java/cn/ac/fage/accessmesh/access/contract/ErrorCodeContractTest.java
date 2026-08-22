@@ -33,6 +33,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ErrorCodeContractTest {
 
+    /**
+     * 显式退役清单（枚举名已从当前枚举移除，退役码值不得被复用）：
+     * MENU_PERM_CODE_EXISTS(10202) 随 v3.5 菜单零权限化退役，
+     * 唯一性校验由 uk_sys_menu_tenant_path / uk_sys_menu_tenant_resource
+     * 及错误码 10205/10206 承接（T-ACCESS-015）。
+     */
+    private static final java.util.Set<String> RETIRED_ADMIN_NAMES =
+        java.util.Set.of("MENU_PERM_CODE_EXISTS");
+
     private static final Map<String, Integer> PRE_MERGE_BASELINE = Map.ofEntries(
         // ===== 归并前 admin-service AdminErrorCode（git 5f1e65dd5^，53 项）=====
         Map.entry("ADMIN:USER_NOT_FOUND", 10001),
@@ -165,6 +174,12 @@ class ErrorCodeContractTest {
             String name = e.getKey().substring("ADMIN:".length());
             int code = e.getValue();
             if (code < ADMIN_SEGMENT_MIN || code > ADMIN_SEGMENT_MAX) {
+                continue;
+            }
+            if (RETIRED_ADMIN_NAMES.contains(name)) {
+                if (currentByCode.containsKey(code)) {
+                    violations.add("退役码值被复用: " + code + " -> " + currentByCode.get(code));
+                }
                 continue;
             }
             Integer currentCode = current.get(name);

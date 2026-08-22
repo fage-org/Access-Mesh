@@ -38,7 +38,7 @@ last_updated: 2026-08-22
 |---|---|---|---|
 | [T-ACCESS-013](../tasks/T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | ✅ | T-ACCESS-012 ✅ |
 | [T-ACCESS-014](../tasks/T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | ✅ | T-ACCESS-007 ✅ |
-| [T-ACCESS-015](../tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL | ⚙️ | T-ACCESS-012 ✅ |
+| [T-ACCESS-015](../tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL | ✅ | T-ACCESS-012 ✅ |
 
 ## 归档条件
 

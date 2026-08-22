@@ -69,10 +69,10 @@ class OAuth2ResourcePathPropertiesTest {
         props.setResourcePaths(List.of(
             OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/**")));
 
-        // Set.of 保留端点遍历顺序不定，断言命中三端点任一即视为防护生效
+        // Set.of 保留端点遍历顺序不定，断言不绑定具体端点，命中任一保留端点即视为防护生效
         assertThatThrownBy(props::afterPropertiesSet)
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("平台会话端点 /auth/user")
+            .hasMessageContaining("覆盖平台会话端点")
             .hasMessageContaining("（JWT 分支不得覆盖）");
     }
 

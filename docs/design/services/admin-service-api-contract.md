@@ -103,7 +103,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 |----------|------|--------|
 | `sys_user` | `abstract_user(ADMIN_USER)` + `resource_entity(ADMIN_USER)` | `external_id` / `code` = `sys_user.id.toString()` |
 | `sys_org` | `abstract_role(ORG\|POSITION)` + `resource_entity(ADMIN_ORG)` | `external_id` / `code` = `sys_org.id.toString()` |
-| `sys_menu`（`menuType≠3` 按钮不投影） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
+| `sys_menu`（DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值全量投影，T-ACCESS-015） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
 | `sys_user_org` | `user_role` | 主体 `ADMIN_USER` + 角色 `ORG/POSITION` |
 
 保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20045)`。
@@ -843,6 +843,75 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **门禁**: `ADMIN_ROLE:VIEW`.
 
 **数据来源**: 本地经 `application.query`（`UserRoleQueryService` 直读 `user_role ⨝ abstract_role` 跨域只读）按 `roleTypeCodes` 过滤, 无跨服务调用.
+
+---
+
+### 4.6 菜单管理 (`/menu`) 🔧 (T-ACCESS-015 新增, v3.5 菜单零权限化终态)
+
+> 菜单表仅承载 UI 路由元数据与关联资源 link，不承载权限语义（`sys_menu` 权威 DDL 见 `../schema/access-service.sql`；设计语义见 `../permission-center-v3.5-design.md` §2.1/§4.1）。按钮级权限由 OperationPermission（L1）承担，不再挂菜单。前端登录菜单聚合走 `/auth/user-menu`（v3.5 §5 单 RPC 契约），与本节管理接口分离。前端菜单管理页尚未开发（views/system 无 menu 页面），本节契约为先行定稿，无现存消费方破坏面。
+
+#### 4.6.1 `POST /menu/create` 🔧
+
+**请求 DTO**: `MenuCreateReq`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `menuType` | `String` | 是 | 枚举 `DIR/MENU/EXTERNAL/IFRAME/HIDDEN`（v3.5 五值，BUTTON 已移除） |
+| `displayName` | `String` | 是 | 最长 128 |
+| `parentId` | `Long` | 否 | null/0 表示顶级 |
+| `path` | `String` | 否 | 最长 256；EXTERNAL/IFRAME 为外链 URL；租户内唯一（10205） |
+| `icon` | `String` | 否 | 最长 64 |
+| `sortOrder` | `Integer` | 否 | 默认 0，升序 |
+| `status` | `Integer` | 否 | `1=ENABLED`（默认）/`0=DISABLED`，对齐 DDL |
+| `resourceType` | `String` | 否 | 与 `resourceCode` 成对（同填或同空，校验失败 90001） |
+| `resourceCode` | `String` | 否 | 关联资源实例；租户内同一资源仅可挂一个菜单（10206） |
+| `sourceService` | `String` | 否 | 业务服务标识，缺省 `access-service`（管理端创建） |
+
+**响应**: `PermResult<Long>`（新菜单 ID）。
+
+**错误**: `10201` 菜单不存在（含正数 `parentId` 指向的父菜单不存在）/ `10203` 深度超限 / `10205` 路径已存在 / `10206` 资源关联已被占用 / `10207` 父菜单为自身或后代 / `90001` 成对校验失败。
+
+**门禁**: `ADMIN_MENU:CREATE`（类型级）。
+
+#### 4.6.2 `POST /menu/update` 🔧
+
+**请求 DTO**: `MenuUpdateReq`：同 `MenuCreateReq` 全部字段均可选（null 跳过保留原值）+ 必填 `id`；`sourceService` 不可更新（创建期追溯标识）。
+
+**响应**: `PermResult<Void>`。
+
+**错误**: `10201` 菜单不存在（含目标 `parentId` 不存在）/ `10203` 深度超限（换父按整棵子树）/ `10205` / `10206`（排除自身的冲突预查 + 唯一索引兜底）/ `10207` 父菜单为自身或后代（防环）。
+
+**门禁**: `ADMIN_MENU:UPDATE`（实例级，按 sys_menu.id）。
+
+#### 4.6.3 `POST /menu/delete` 🔧
+
+**请求 DTO**: `IdReq`（`id`）。
+
+**响应**: `PermResult<Void>`。软删（`delete_flag=id`）+ 同事务清理 ADMIN_MENU 投影；软删后部分唯一索引释放（path/资源可复用）。
+
+**错误**: `10201` 不存在 / `10204` 存在子菜单。
+
+**门禁**: `ADMIN_MENU:DELETE`（实例级）。
+
+#### 4.6.4 `POST /menu/detail` 🔧
+
+**请求 DTO**: `IdReq`。**响应**: `PermResult<MenuResp>`。**错误**: `10201`。
+
+#### 4.6.5 `POST /menu/tree` 🔧
+
+**请求**: 无参。**响应**: `PermResult<List<MenuResp>>`（全量菜单树，管理界面用；用户可见性过滤走 `/auth/user-menu`）。
+
+`MenuResp` 字段：`id / menuType(String) / displayName / parentId / path / icon / sortOrder / status(1=ENABLED) / resourceType / resourceCode / sourceService / createdAt / updatedAt / children`。
+
+**写链路语义**（create/update/delete 同一事务）：
+
+- 可选字符串字段（`path/icon/resourceType/resourceCode/sourceService`）收到空白字符串时**服务端规范化为 null**（空串写库会命中部分唯一索引并被读链路误判为业务菜单；update 时空白等同未提供，跳过保留原值）——用户决策 2026-08-22
+- `status` 仅允许 `0/1`（DTO `@Min(0) @Max(1)` 校验，违规 90001）
+- ADMIN_MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **全量维护**（无 BUTTON 短路；实例级门禁依赖投影行授权到具体菜单实例）
+- 菜单可见性由 v3.5 §4.1 派生公式在 `/auth/user-menu` 读链路决定（业务菜单 = `resource_type` 非空走资源访问事实，纯展示 `resource_type` 为空全员可见），不消费投影
+- 菜单层级最多 5 级（根=第 1 层）：`calculateDepth` 返回父节点自身深度，新节点深度 = 父深度 + 1；**换父按整棵子树校验**（新根深度 + 子树高度 - 1 ≤ 5，即最深节点不超上限；顶级目标父深度按 0 计，防止把不存在的父层多算一层）
+- 父菜单校验：正数 `parentId` 必须为同租户有效菜单（否则 `10201`，无外键兜底防孤儿节点）；换父时目标父不能是被移动菜单自身或其后代（否则 `10207`，防 parent 链成环——环会导致祖先链遍历与递归 CTE 不收敛）
+- `MENU_PERM_CODE_EXISTS(10202)` 已退役（perm_code 列移除），由 `MENU_PATH_EXISTS(10205)` / `MENU_RESOURCE_EXISTS(10206)` 承接
 
 ---
 

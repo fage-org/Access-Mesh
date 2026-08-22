@@ -98,27 +98,48 @@
         WHERE tenant_id = #{tenantId} AND parent_id = #{parentId} AND delete_flag = 0
     </select>
 
-    <select id="selectByPermCode" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysMenu">
-        SELECT * FROM sys_menu
-        WHERE tenant_id = #{tenantId} AND perm_code = #{permCode} AND delete_flag = 0
+    <!-- 子树高度（根=1，单条 CTE；换父移动按新根深度+子树高度校验层级上限） -->
+    <select id="selectSubtreeHeight" resultType="int">
+        WITH RECURSIVE subtree AS (
+            SELECT id, 1 AS depth FROM sys_menu
+            WHERE id = #{menuId} AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION ALL
+            SELECT m.id, s.depth + 1 FROM sys_menu m
+            INNER JOIN subtree s ON m.parent_id = s.id
+            WHERE m.tenant_id = #{tenantId} AND m.delete_flag = 0
+        )
+        SELECT COALESCE(MAX(depth), 0) FROM subtree
     </select>
 
-    <select id="selectByPermCodes" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysMenu">
-        SELECT * FROM sys_menu
-        WHERE tenant_id = #{tenantId} AND delete_flag = 0
-        AND perm_code IN
-        <foreach collection="permCodes" item="permCode" open="(" separator="," close=")">
-            #{permCode}
-        </foreach>
+    <!-- 唯一性预查：uk_sys_menu_tenant_path（path 非空时占用检查，排除自身） -->
+    <select id="existsByPath" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM sys_menu
+            WHERE tenant_id = #{tenantId} AND path = #{path} AND delete_flag = 0
+            <if test="excludeIds != null and excludeIds.size() > 0">
+              AND id NOT IN
+              <foreach collection="excludeIds" item="excludeId" open="(" separator="," close=")">
+                  #{excludeId}
+              </foreach>
+            </if>
+        )
     </select>
 
-    <select id="selectExistingByPermCodes" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysMenu">
-        SELECT * FROM sys_menu
-        WHERE tenant_id = #{tenantId} AND delete_flag = 0
-        AND perm_code IN
-        <foreach collection="permCodes" item="permCode" open="(" separator="," close=")">
-            #{permCode}
-        </foreach>
+    <!-- 唯一性预查：uk_sys_menu_tenant_resource（资源关联占用检查，排除自身） -->
+    <select id="existsByResource" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM sys_menu
+            WHERE tenant_id = #{tenantId}
+              AND resource_type = #{resourceType}
+              AND resource_code = #{resourceCode}
+              AND delete_flag = 0
+            <if test="excludeIds != null and excludeIds.size() > 0">
+              AND id NOT IN
+              <foreach collection="excludeIds" item="excludeId" open="(" separator="," close=")">
+                  #{excludeId}
+              </foreach>
+            </if>
+        )
     </select>
 
     <select id="selectAllValid" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysMenu">

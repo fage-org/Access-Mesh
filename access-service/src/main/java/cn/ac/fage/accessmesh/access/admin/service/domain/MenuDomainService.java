@@ -11,11 +11,26 @@ import java.util.Set;
  * <p>
  * 封装菜单树的核心领域逻辑，提供层级遍历、批量查询、软删除等操作。
  * 使用 PostgreSQL CTE 递归查询高效处理菜单树的层级关系。
- * 菜单用于前端动态路由配置和按钮权限控制。
+ * 菜单仅承载 UI 路由元数据与资源 link（v3.5 菜单零权限化），
+ * 按钮级权限由 OperationPermission 承担。
  * 所有方法均遵循租户隔离原则，确保多租户数据安全。
  * </p>
  */
 public interface MenuDomainService {
+
+    /**
+     * 计算菜单子树高度
+     * <p>
+     * 从指定菜单向下的最大层级数，单节点（无子菜单）高度为 1。
+     * 用于换父移动时按"新根绝对深度 + 子树高度 - 1 ≤ 层级上限"校验，
+     * 防止带子树的菜单移动后子节点突破层级上限。
+     * </p>
+     *
+     * @param tenantId 租户ID，用于多租户隔离
+     * @param menuId   菜单ID，子树根
+     * @return 子树高度（根=1）；菜单不存在返回 0
+     */
+    int subtreeHeight(Long tenantId, Long menuId);
 
     /**
      * 获取指定菜单的所有子孙菜单ID（不含自身）
@@ -146,55 +161,47 @@ public interface MenuDomainService {
     boolean hasChildren(Long tenantId, Long menuId);
 
     /**
-     * 根据权限标识查询菜单
+     * 检查路由路径是否已被其他有效菜单占用
      * <p>
-     * 通过权限标识（permCode）查找菜单，用于权限编码定位和唯一性检查。
-     * 权限标识用于前端按钮级权限控制。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param permCode 权限标识
-     * @return 菜单实体，不存在返回 null
-     */
-    SysMenu findByPermCode(Long tenantId, String permCode);
-
-    /**
-     * 批量根据权限标识查询菜单
-     * <p>
-     * 批量通过权限标识查找菜单，用于批量权限校验。
+     * 写链路对 uk_sys_menu_tenant_path 唯一索引的预查，
+     * 并发窗口由数据库唯一索引兜底（约束名映射错误码）。
      * </p>
      *
      * @param tenantId  租户ID，用于多租户隔离
-     * @param permCodes 权限标识集合
-     * @return 菜单实体列表
+     * @param path      路由路径
+     * @param excludeId 排除的菜单ID（更新场景传自身ID，创建场景传 null）
+     * @return 已被占用返回 true
      */
-    List<SysMenu> findByPermCodes(Long tenantId, Set<String> permCodes);
+    boolean pathExists(Long tenantId, String path, Long excludeId);
+
+    /**
+     * 检查资源关联是否已被其他有效菜单占用
+     * <p>
+     * 写链路对 uk_sys_menu_tenant_resource 唯一索引的预查，
+     * 并发窗口由数据库唯一索引兜底（约束名映射错误码）。
+     * </p>
+     *
+     * @param tenantId     租户ID，用于多租户隔离
+     * @param resourceType 关联业务资源类型
+     * @param resourceCode 关联业务资源实例
+     * @param excludeId    排除的菜单ID（更新场景传自身ID，创建场景传 null）
+     * @return 已被占用返回 true
+     */
+    boolean resourceExists(Long tenantId, String resourceType, String resourceCode, Long excludeId);
 
     /**
      * 计算菜单深度
      * <p>
      * 从根菜单到指定菜单的层级数，用于菜单层级验证。
-     * 深度值从 0 开始，根菜单深度为 0。
+     * 深度值从 1 开始，顶级菜单（parent 为 null/0）深度为 1。
+     * 注意：返回的是该节点自身深度；挂到某父节点下的新菜单深度 = 父深度 + 1。
      * </p>
      *
      * @param tenantId 租户ID，用于多租户隔离
-     * @param parentId 父菜单ID，从该节点开始计算深度
-     * @return 菜单深度值
+     * @param parentId 父菜单ID，计算该节点的深度
+     * @return 菜单深度值（顶级=1）
      */
     int calculateDepth(Long tenantId, Long parentId);
-
-    /**
-     * 批量查询已存在的权限标识
-     * <p>
-     * 从给定的权限标识集合中筛选出已存在的标识。
-     * 用于批量创建菜单时的唯一性批量校验。
-     * </p>
-     *
-     * @param tenantId  租户ID，用于多租户隔离
-     * @param permCodes 权限标识集合
-     * @return 已存在的权限标识集合
-     */
-    Set<String> findExistingPermCodes(Long tenantId, Set<String> permCodes);
 
     /**
      * 批量计算菜单深度

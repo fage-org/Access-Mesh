@@ -116,7 +116,7 @@ flowchart LR
 
 - `RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现代理形态）已删除，admin 域直接依赖 `application.query` 查询服务。
 - admin 侧角色写代理端点保留映射但恒拒绝：`/role/create` 恒 `20045`（LOCAL_PROJECTION_IMMUTABLE，语义不变）；`/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke` 恒 `10111`（ROLE_API_RETIRED）。角色与授权管理由 permission 域直接提供（`/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission`）。
-- 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移（菜单 CRUD 写路径仍使用旧实体字段 `name`/`visible`/`perm_code`，真实库写入会失败）登记于 T-ACCESS-006 完成记录，由 T-ACCESS-015 统一收口（2026-08-22 改挂：功能开发不混入文档收口任务）。
+- 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移已由 T-ACCESS-015 收口（2026-08-22）：菜单 CRUD 写路径（实体/Mapper/DTO/`MenuWriteAppServiceImpl`）对齐权威 DDL，BUTTON 类型与 `perm_code` 唯一性退役，唯一性由 `uk_sys_menu_tenant_path`/`uk_sys_menu_tenant_resource` 及错误码 10205/10206 承接，ADMIN_MENU 投影对五值枚举全量维护；对外契约见 admin-service-api-contract §4.6。
 
 ## 4. 管理事实与权限投影
 

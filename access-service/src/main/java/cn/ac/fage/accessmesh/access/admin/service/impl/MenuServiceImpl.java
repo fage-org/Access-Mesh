@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * <p>
  * 提供菜单的CRUD操作、树形查询功能。
  * 写操作委托 {@code MenuWriteAppService} 同一事务维护 ADMIN_MENU 权限投影。
- * 支持菜单层级深度限制（最多5级）、权限标识唯一性校验。
+ * 支持菜单层级深度限制（最多5级）、路由路径与资源关联唯一性校验（v3.5 终态）。
  * 使用MenuDomainService处理菜单数据查询。
  * </p>
  */
@@ -63,13 +63,13 @@ public class MenuServiceImpl implements MenuService {
     /**
      * 创建菜单
      * <p>
-     * 创建新菜单，校验权限标识唯一性和菜单层级深度（不超过5级）。
+     * 创建新菜单，校验路由路径/资源关联唯一性和菜单层级深度（不超过5级）。
      * ADMIN_MENU 投影由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
-     * @param req 菜单创建请求，包含菜单名称、路径、组件、权限标识等
+     * @param req 菜单创建请求，包含菜单类型、显示名、路径、资源关联等
      * @return 新菜单ID
-     * @throws BizException 权限标识已存在、菜单层级超限等
+     * @throws BizException 路径/资源关联已存在、菜单层级超限等
      */
     @Override
     public Long createMenu(MenuCreateReq req) {
@@ -79,12 +79,12 @@ public class MenuServiceImpl implements MenuService {
     /**
      * 更新菜单
      * <p>
-     * 更新菜单的各项属性，校验权限标识唯一性和菜单层级深度。
+     * 更新菜单的各项属性，校验路由路径/资源关联唯一性和菜单层级深度。
      * 执行实例级权限校验；投影由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
      * @param req 菜单更新请求，包含菜单ID和新属性值
-     * @throws BizException 菜单不存在、权限标识已存在、菜单层级超限等
+     * @throws BizException 菜单不存在、路径/资源关联已存在、菜单层级超限等
      */
     @Override
     public void updateMenu(MenuUpdateReq req) {
@@ -147,7 +147,7 @@ public class MenuServiceImpl implements MenuService {
     /**
      * 将菜单实体转换为响应对象
      * <p>
-     * 转换菜单实体为API响应格式，包含子菜单列表。
+     * 转换菜单实体为API响应格式（v3.5 终态字段），包含子菜单列表。
      * </p>
      *
      * @param menu 菜单实体
@@ -156,10 +156,10 @@ public class MenuServiceImpl implements MenuService {
      */
     private MenuResp toResp(SysMenu menu, List<MenuResp> children) {
         return new MenuResp(
-            menu.getId(), Integer.parseInt(menu.getMenuType()), menu.getName(),
-            menu.getParentId(), menu.getPath(), menu.getComponent(), menu.getPermCode(),
-            menu.getIcon(), menu.getSortOrder(), menu.getVisible() ? 1 : 0,
-            menu.getStatus(), menu.getCreatedAt(), menu.getUpdatedAt(), children
+            menu.getId(), menu.getMenuType(), menu.getDisplayName(),
+            menu.getParentId(), menu.getPath(), menu.getIcon(), menu.getSortOrder(),
+            menu.getStatus(), menu.getResourceType(), menu.getResourceCode(),
+            menu.getSourceService(), menu.getCreatedAt(), menu.getUpdatedAt(), children
         );
     }
 
@@ -177,10 +177,10 @@ public class MenuServiceImpl implements MenuService {
         return all.stream()
             .filter(m -> parentId.equals(m.getParentId()))
             .map(m -> new MenuResp(
-                m.getId(), Integer.parseInt(m.getMenuType()), m.getName(),
-                m.getParentId(), m.getPath(), m.getComponent(), m.getPermCode(),
-                m.getIcon(), m.getSortOrder(), m.getVisible() ? 1 : 0,
-                m.getStatus(), m.getCreatedAt(), m.getUpdatedAt(),
+                m.getId(), m.getMenuType(), m.getDisplayName(),
+                m.getParentId(), m.getPath(), m.getIcon(), m.getSortOrder(),
+                m.getStatus(), m.getResourceType(), m.getResourceCode(),
+                m.getSourceService(), m.getCreatedAt(), m.getUpdatedAt(),
                 buildTree(all, m.getId())
             ))
             .collect(Collectors.toList());

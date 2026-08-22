@@ -47,7 +47,8 @@ public interface LocalProjectionDomainService {
     void deleteAdminOrg(Long tenantId, Long sysOrgId, String orgType);
 
     /**
-     * UPSERT resource_entity(ADMIN_MENU)。BUTTON 行由调用方短路。
+     * UPSERT resource_entity(ADMIN_MENU)。DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值
+     * 全量维护（v3.5 无 BUTTON 短路，T-ACCESS-015）。
      *
      * @return resource_entity.id
      */

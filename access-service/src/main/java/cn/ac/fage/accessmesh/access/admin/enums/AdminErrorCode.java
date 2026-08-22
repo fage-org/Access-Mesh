@@ -127,16 +127,14 @@ public enum AdminErrorCode {
     ORG_POSITION_TOPOLOGY_INVALID(10110, "岗位必须作为普通组织的直接子节点，且不能拥有下级节点"),
 
     // ===== 菜单相关错误（10201-10299） =====
+    // 10202（MENU_PERM_CODE_EXISTS）已随 v3.5 菜单零权限化退役（T-ACCESS-015）：
+    // perm_code 列从权威 DDL 移除，唯一性校验由 uk_sys_menu_tenant_path /
+    // uk_sys_menu_tenant_resource 及对应错误码 10205/10206 承接
 
     /**
      * 菜单不存在
      */
     MENU_NOT_FOUND(10201, "菜单不存在"),
-
-    /**
-     * 权限标识已存在
-     */
-    MENU_PERM_CODE_EXISTS(10202, "权限标识已存在"),
 
     /**
      * 菜单层级深度超过限制
@@ -147,6 +145,21 @@ public enum AdminErrorCode {
      * 存在子菜单，请先删除子菜单
      */
     MENU_HAS_CHILDREN(10204, "存在子菜单，请先删除子菜单"),
+
+    /**
+     * 路由路径已存在（uk_sys_menu_tenant_path 唯一索引）
+     */
+    MENU_PATH_EXISTS(10205, "路由路径已存在"),
+
+    /**
+     * 资源关联已被其他菜单占用（uk_sys_menu_tenant_resource 唯一索引）
+     */
+    MENU_RESOURCE_EXISTS(10206, "资源关联已被其他菜单占用"),
+
+    /**
+     * 父菜单非法：不能是菜单自身或其后代（防 parent 链成环）
+     */
+    MENU_PARENT_INVALID(10207, "父菜单不能是自身或当前菜单的后代"),
 
     // ===== 字典相关错误（10301-10399） =====
 

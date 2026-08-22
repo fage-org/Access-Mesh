@@ -4,26 +4,26 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 菜单响应记录类
+ * 菜单响应记录类（v3.5 菜单零权限化终态，T-ACCESS-015）
  * <p>
- * 用于返回菜单信息，支持树形结构。
- * 包含菜单类型、名称、父级、路由配置、权限标识、图标、排序、状态、子菜单列表。
+ * 对齐权威 DDL sys_menu 列；不含权限字段
+ * （perm_code/component/visible 已随 v3.5 移除）。
  * </p>
  *
- * @param id         菜单ID
- * @param menuType   菜单类型（0=目录，1=菜单，2=按钮）
- * @param menuName   菜单名称
- * @param parentId   父级菜单ID
- * @param path       路由路径
- * @param component  组件路径
- * @param perms      权限标识
- * @param icon       图标名称
- * @param sort       排序号
- * @param visible    是否可见（1=可见，0=隐藏）
- * @param status     状态（0=正常，1=禁用）
- * @param createdAt  创建时间
- * @param updatedAt  更新时间
- * @param children   子菜单列表（树形结构）
+ * @param id            菜单ID
+ * @param menuType      菜单类型（DIR/MENU/EXTERNAL/IFRAME/HIDDEN）
+ * @param displayName   菜单显示名
+ * @param parentId      父级菜单ID（顶级为 0）
+ * @param path          路由路径（EXTERNAL/IFRAME 为外链 URL）
+ * @param icon          图标名称
+ * @param sortOrder     排序权重
+ * @param status        状态（1=ENABLED，0=DISABLED）
+ * @param resourceType  关联业务资源类型（仅 link，不参与鉴权决策）
+ * @param resourceCode  关联业务资源实例（仅 link，不参与鉴权决策）
+ * @param sourceService 业务服务标识（链路追溯）
+ * @param createdAt     创建时间
+ * @param updatedAt     更新时间
+ * @param children      子菜单列表（树形结构）
  */
 public record MenuResp(
     /**
@@ -32,34 +32,24 @@ public record MenuResp(
     Long id,
 
     /**
-     * 菜单类型（0=目录，1=菜单，2=按钮）
+     * 菜单类型（DIR=目录，MENU=菜单，EXTERNAL=外链，IFRAME=嵌入，HIDDEN=隐藏路由）
      */
-    Integer menuType,
+    String menuType,
 
     /**
-     * 菜单名称
+     * 菜单显示名
      */
-    String menuName,
+    String displayName,
 
     /**
-     * 父级菜单ID
+     * 父级菜单ID（顶级为 0）
      */
     Long parentId,
 
     /**
-     * 路由路径
+     * 路由路径（EXTERNAL/IFRAME 为外链 URL）
      */
     String path,
-
-    /**
-     * 组件路径
-     */
-    String component,
-
-    /**
-     * 权限标识
-     */
-    String perms,
 
     /**
      * 图标名称
@@ -67,19 +57,29 @@ public record MenuResp(
     String icon,
 
     /**
-     * 排序号
+     * 排序权重（升序）
      */
-    Integer sort,
+    Integer sortOrder,
 
     /**
-     * 是否可见（1=可见，0=隐藏）
-     */
-    Integer visible,
-
-    /**
-     * 状态（0=正常，1=禁用）
+     * 状态（1=ENABLED，0=DISABLED）
      */
     Integer status,
+
+    /**
+     * 关联业务资源类型（仅 link）
+     */
+    String resourceType,
+
+    /**
+     * 关联业务资源实例（仅 link）
+     */
+    String resourceCode,
+
+    /**
+     * 业务服务标识（链路追溯）
+     */
+    String sourceService,
 
     /**
      * 创建时间

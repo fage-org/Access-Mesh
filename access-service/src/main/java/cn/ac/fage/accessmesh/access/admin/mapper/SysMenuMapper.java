@@ -142,34 +142,46 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
                        @Param("parentId") Long parentId);
 
     /**
-     * 根据权限标识查询有效菜单（租户隔离 + 未删除）
+     * 使用PostgreSQL CTE递归查询计算菜单子树高度（根自身为 1）
+     * <p>
+     * 从指定菜单向下遍历，返回子树内最大层级数（单节点返回 1）。
+     * 用于换父移动时按"新根深度 + 子树高度"校验整棵树不超过层级上限。
+     * </p>
      *
      * @param tenantId 租户ID
-     * @param permCode 权限标识
-     * @return 菜单实体，不存在则返回null
+     * @param menuId   菜单ID
+     * @return 子树高度（根=1）；菜单不存在返回 0
      */
-    SysMenu selectByPermCode(@Param("tenantId") Long tenantId,
-                             @Param("permCode") String permCode);
+    int selectSubtreeHeight(@Param("tenantId") Long tenantId,
+                            @Param("menuId") Long menuId);
 
     /**
-     * 根据权限标识集合批量查询有效菜单（租户隔离 + 未删除）
+     * 检查路由路径是否已被其他有效菜单占用（租户隔离 + 未删除，
+     * 对应唯一索引 uk_sys_menu_tenant_path，排除指定菜单自身）
      *
-     * @param tenantId  租户ID
-     * @param permCodes 权限标识集合
-     * @return 菜单实体列表
+     * @param tenantId   租户ID
+     * @param path       路由路径
+     * @param excludeIds 排除的菜单ID（更新场景传自身ID，创建场景传空集合）
+     * @return 已被占用返回 true
      */
-    List<SysMenu> selectByPermCodes(@Param("tenantId") Long tenantId,
-                                    @Param("permCodes") Set<String> permCodes);
+    boolean existsByPath(@Param("tenantId") Long tenantId,
+                         @Param("path") String path,
+                         @Param("excludeIds") Set<Long> excludeIds);
 
     /**
-     * 根据权限标识集合查询已存在的菜单（租户隔离 + 未删除）
+     * 检查资源关联是否已被其他有效菜单占用（租户隔离 + 未删除，
+     * 对应唯一索引 uk_sys_menu_tenant_resource，排除指定菜单自身）
      *
-     * @param tenantId  租户ID
-     * @param permCodes 权限标识集合
-     * @return 菜单实体列表
+     * @param tenantId     租户ID
+     * @param resourceType 关联业务资源类型
+     * @param resourceCode 关联业务资源实例
+     * @param excludeIds   排除的菜单ID（更新场景传自身ID，创建场景传空集合）
+     * @return 已被占用返回 true
      */
-    List<SysMenu> selectExistingByPermCodes(@Param("tenantId") Long tenantId,
-                                            @Param("permCodes") Set<String> permCodes);
+    boolean existsByResource(@Param("tenantId") Long tenantId,
+                             @Param("resourceType") String resourceType,
+                             @Param("resourceCode") String resourceCode,
+                             @Param("excludeIds") Set<Long> excludeIds);
 
     /**
      * 查询租户下所有有效菜单（租户隔离 + 未删除）
