@@ -160,7 +160,9 @@ class GatewayApplicationConfigTest {
             byId.add(r.getId());
             byUri.add(r.getUri().toString());
         });
-        assertTrue(byId.size() == 3, "路由总数必须恰为 3（评审 P2：固化路由集合，防止增删路由静默漂移），实际 " + byId);
+        // 路由定义总数直接断言（byId 是 Set，重复 ID 的额外路由会被折叠，Set 大小证明不了定义数）
+        assertTrue(routes.size() == 3, "路由定义总数必须恰为 3（access-service/example-service/auth-routes，防增删路由静默漂移），实际 " + routes.size());
+        assertTrue(byId.size() == 3, "路由 ID 不得重复（重复 ID 的多条定义会被 Set 折叠），实际不同 ID " + byId);
         assertTrue(byId.contains("access-service"), "必须存在合并路由 access-service，实际 " + byId);
         assertTrue(byId.contains("example-service"), "必须存在路由 example-service，实际 " + byId);
         assertTrue(byId.contains("auth-routes"), "必须存在路由 auth-routes，实际 " + byId);

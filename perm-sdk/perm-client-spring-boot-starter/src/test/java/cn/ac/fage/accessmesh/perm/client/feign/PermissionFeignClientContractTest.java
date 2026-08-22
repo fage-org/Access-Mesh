@@ -3,15 +3,17 @@ package cn.ac.fage.accessmesh.perm.client.feign;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -114,9 +116,10 @@ class PermissionFeignClientContractTest {
             assertThat(Arrays.stream(method.getParameterAnnotations()[0])
                 .anyMatch(RequestBody.class::isInstance))
                 .as("%s 的唯一参数必须标注 @RequestBody", method.getName()).isTrue();
-            assertThat(Arrays.stream(method.getParameterTypes())
-                .noneMatch(p -> p.getName().startsWith("org.springframework.web.bind")))
-                .as("%s 不得出现 Spring Web 参数类型（@RequestParam/@PathVariable/@RequestHeader 均违反 POST+JSON 契约）",
+            // 禁用注解按注解实例判定（参数类型检查无效：DTO 参数可同时带 @RequestBody @RequestParam）
+            assertThat(Arrays.stream(method.getParameterAnnotations()[0])
+                .noneMatch(a -> a instanceof RequestParam || a instanceof PathVariable || a instanceof RequestHeader))
+                .as("%s 不得携带 @RequestParam/@PathVariable/@RequestHeader（违反 POST+单一 JSON Body 契约）",
                     method.getName()).isTrue();
         }
     }
