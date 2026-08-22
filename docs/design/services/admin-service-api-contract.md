@@ -85,8 +85,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/user-org/set-primary` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
 | `/user-role/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
-| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 域入口代理同服务 `/api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)`. **admin 入口不做 ROLE:MANAGE 预检，由 permission 域引擎兜底**（P1-1：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code，语义错位会误拒；perm 用正确 abstract_role.id 校验）|
-| `/user-role/revoke` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | 同上 |
+| `/user-role/assign` | — | — | — | ⛔ 已退役（T-ACCESS-006）：保留映射恒抛 `10111`（`ROLE_API_RETIRED`）；角色分配走 `/api/perm/user-role/assign`（`ROLE:MANAGE` 门禁由 permission 域 enforce）|
+| `/user-role/revoke` | — | — | — | ⛔ 已退役（T-ACCESS-006）：同上，走 `/api/perm/user-role/revoke` |
 | `/role/list` | `ADMIN_ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
 > **默认树身份目录边界二次校验**: `/user/create`、`/user/delete`、`/user/enable`、`/user/reset-password`、`/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
@@ -123,7 +123,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/assign` | INSERT/UPDATE `sys_user_org` | 每个新增关系 `bindUserOrg` |
 | `/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
-| `/user-role/assign`, `/user-role/revoke` | 本地调用 `UserManageAppService` | 仅功能角色；`ORG/POSITION` 拒绝 |
+| `/user-role/assign`, `/user-role/revoke` | 恒拒绝 `10111`（已退役，无投影动作） | 角色分配/回收由 `/api/perm/user-role/*` 直接提供 |
 
 > 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）继续走 `/user-role/*` 正式管理 API。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
@@ -508,7 +508,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `status` | `Integer` | 否 | 默认 0 |
 | `sort` | `Integer` | 否 | |
 
-> 九轮评审 P2（2026-08-15）：组织 `phone`/`email` 字段已从契约/请求 DTO/响应模型删除——`sys_org` 实体与表不含联系方式字段（声明必须生效）。
+> 评审 P2（2026-08-15）：组织 `phone`/`email` 字段已从契约/请求 DTO/响应模型删除——`sys_org` 实体与表不含联系方式字段（声明必须生效）。
 
 **响应**: `PermResult<Long>` (新组织 ID)
 
@@ -730,7 +730,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `roleTypeCode` | `String` | `ORG` / `POSITION` / `PERSONAL` / `GROUP_ROLE` / `BASIC_ROLE` |
-| `roleExternalId` | `String` | 角色业务键（前端据此回传 assign/revoke） |
+| `roleExternalId` | `String` | 角色业务键（`/api/perm/user-role/*` 消费） |
 | `roleName` | `String` | 角色名 |
 | `roleTypeLabel` | `String` | 显示名 (代理层映射) |
 | `targetType` | `String` | (前端展示用, 同 `roleTypeCode`) |
@@ -836,13 +836,13 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `roleTypeCode` | `String` | 角色类型编码（BASIC_ROLE / GROUP_ROLE / PERSONAL） |
-| `roleExternalId` | `String` | 角色业务键（前端据此回传 assign/revoke） |
+| `roleExternalId` | `String` | 角色业务键（`/api/perm/user-role/*` 消费） |
 | `roleName` | `String` | 角色名称 |
 | `roleTypeLabel` | `String` | 角色类型显示名 |
 
 **门禁**: `ADMIN_ROLE:VIEW`.
 
-**代理动作**: 调 permission-center `/api/perm/abstract-role/tree` 或 list 接口, 按 `roleTypeCodes` 过滤.
+**数据来源**: 本地经 `application.query`（`UserRoleQueryService` 直读 `user_role ⨝ abstract_role` 跨域只读）按 `roleTypeCodes` 过滤, 无跨服务调用.
 
 ---
 
@@ -878,7 +878,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 | # | 决策 | 理由 |
 |---|------|------|
-| 1 | admin 代理 user-role/* 而非前端直连 permission-center | 避免业务键暴露给前端; 前端只感知数字 ID; admin 内部完成 ID↔业务键翻译 (api-gap-analysis §4 A 方案，已归档 `docs/archive/2026-06-21/`) |
+| 1 | `/user-role/list` 读接口保留 admin 域聚合（跨域只读）；`/user-role/assign`/`revoke` 已退役（恒 `10111`），角色管理由 permission 域 `/api/perm/abstract-role`、`/api/perm/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
 | 2 | `/user/create` 一次性返回 `initialPassword` (明文) | 仅本次返回, 由前端弹窗展示给操作者; 后续无法再获取 |
 | 3 | `/user/enable` 启停一体 (`status=0/1`), 不拆 `/user/disable` | 前端 mock 已采用此形态; AppService 内部按 status 派发 ENABLE/DISABLE 门禁码 |
 | 4 | `/user-org/assign` 关系级追加, 禁止 wipe 模式 | 防止跨树意外清除 (default-org-tree §3.2); 已存在关系幂等忽略 |
@@ -886,8 +886,8 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 6 | 岗位 = 特殊组织 (`orgType=2`), 走 `/org/*` + `/user-org/*` | org-user-permission-contract.md v1.2 决策; `/user-role/*` 仅服务功能角色 |
 | 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2（已归档）; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
 | 8 | 写操作必须在同一事务内维护管理事实、本地权限投影和 permission_change_log | access-service-architecture §4；任一步失败整体回滚；缓存失效仅提交后发生 |
-| 9 | `/user-role/assign|revoke` 只处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝 |
-| 10 | admin-service 不存储 permission-center 内部 ID | 跨服务统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
+| 9 | 功能角色分配/回收由 `/api/perm/user-role/assign|revoke` 提供，仅处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝（原 admin 代理端点已退役恒 `10111`） |
+| 10 | admin 域不存储 permission 域内部 ID | 跨域统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |

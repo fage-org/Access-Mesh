@@ -1,19 +1,12 @@
 /**
  * 权限排查 API
  *
- * 前端不直连 access-service（architecture.md §1.5：管理端前端统一通过 Gateway 访问
- * access-service）。本页前瞻性采用未来 access-service 聚合路径 `/permission-query/*`，
- * Phase 1 mock 直接模拟该路径；T-PERM-033 实现 access-service PermissionQueryController
- * 聚合层后，前端无需改路径。
- *
- * 与现有 `/api/perm/*` 直连 access-service 的页面（冲突规则/业务域/变更日志等）不同：
- * 本页作为管理端排查视图，应走 access-service 聚合层 + 统一门禁（PERMISSION_QUERY:VIEW）。
- * 现有 `/api/perm/*` 页面的聚合层迁移登记为独立技术债，不在本任务范围。
- *
- * 三个端点（对齐 api-contract.md §6.6-6.8）：
- * - POST /permission-query/effective-permissions（§6.8 L1353 管理端分页排查视图，USER/ROLE）
- * - POST /permission-query/query-scopes（§6.7 L1254 范围权限四态，仅 USER）
- * - POST /permission-query/explain（§6.8 L1458 单权限解释 + 近期影响事件，USER/ROLE）
+ * 归并后取消聚合层（T-ACCESS-012 决策）：权限排查页直连既有契约端点，无新增
+ * PermissionQueryController / Gateway 路由。Phase 1 mock 仍模拟本地路径
+ * `/permission-query/*`；联调（T-FE-019）时切换为契约路径：
+ * - /api/perm/permission-view/effective-permissions（§6.8 管理端分页排查视图，USER/ROLE）
+ * - /api/perm/auth/query-scopes（§6.7 范围权限四态，仅 USER）
+ * - /api/perm/permission-view/explain（§6.8 单权限解释 + 近期影响事件，USER/ROLE）
  *
  * 主体模型（核实 access-service 后端 PermissionQueryAppServiceImpl:126 / PermissionViewAppServiceImpl:698）：
  * - query-resources/query-scopes：仅支持用户主体（subjectTypeCode + subjectExternalId）
@@ -22,8 +15,7 @@
  *   - ROLE：roleTypeCode（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）+ roleExternalId + domainCode
  *
  * 🔧 T-PERM-033 登记项（详见 docs/tasks/T-PERM-033.md）：
- * - access-service 聚合入口 + PermissionQueryController + 聚合 DTO
- * - 统一门禁 PERMISSION_QUERY:VIEW 全链路（资源类型常量+种子+默认角色授权+access-service 白名单）
+ * - 统一门禁 PERMISSION_QUERY:VIEW 全链路（资源类型常量+种子+默认角色授权+权限码下发白名单 UserMenuQueryServiceImpl；聚合层已取消）
  * - explain DTO 扩展（命中条件/条件评估过程/冲突详情 + 评估上下文来源 + IP/时间条件 + 敏感值脱敏）
  * - recentChanges 按完整权限键过滤（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
  * - ADMIN_USER/USER 主体来源与候选查询方式核对

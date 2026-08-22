@@ -2,11 +2,11 @@
  * 权限查询 API 类型定义（对齐 api-contract.md §6.6-6.7）。
  *
  * T-PERM-015：前端 L2 数据权限类型落地。
- * 当前前端不直连 access-service（经 access-service 聚合），
- * 本文件为未来 query-scopes / query-resources 集成场景提供类型基础。
+ * 本文件为 query-scopes / query-resources 集成场景提供类型基础（归并后无聚合层，
+ * 页面直连 /api/perm/* 契约端点——T-ACCESS-012 决策）。
  *
  * 使用场景：
- * - access-service 聚合层透传 query-scopes 响应时，前端可按 ScopeMode 四态分支渲染
+ * - 消费 /api/perm/auth/query-scopes 响应时，前端可按 ScopeMode 四态分支渲染
  * - 前端排查页（permission-view）消费 effective-permissions 时，可区分 INSTANCE/ALL
  *
  * @see docs/design/permission-center/api-contract.md §6.6-6.7

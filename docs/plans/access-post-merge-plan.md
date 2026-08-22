@@ -9,7 +9,8 @@ design_refs:
 tasks:
   - T-ACCESS-013
   - T-ACCESS-014
-acceptance: "T-ACCESS-013/014 全部 done 或经确认 cancelled；归并主链（T-ACCESS-001~012）验收结论保持有效；稳定结论只存在于 docs/design。"
+  - T-ACCESS-015
+acceptance: "T-ACCESS-013~015 全部 done 或经确认 cancelled；归并主链（T-ACCESS-001~012）验收结论保持有效；稳定结论只存在于 docs/design。"
 last_updated: 2026-08-22
 ---
 
@@ -20,7 +21,7 @@ last_updated: 2026-08-22
 
 ## 目标
 
-- 承接归并主链完成后挂起的后续任务：T-ACCESS-013（OAuth2 资源服务器与 scope 授权模型）、T-ACCESS-014（操作日志强制覆盖，已完成）。
+- 承接归并主链完成后挂起的后续任务：T-ACCESS-013（OAuth2 资源服务器与 scope 授权模型）、T-ACCESS-014（操作日志强制覆盖，已完成）、T-ACCESS-015（菜单 CRUD 写链路对齐权威 DDL，T-ACCESS-006 登记漂移的收口承接，2026-08-22 评审移交）。
 
 ## 非目标
 
@@ -37,9 +38,10 @@ last_updated: 2026-08-22
 |---|---|---|---|
 | [T-ACCESS-013](../tasks/T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | ⚙️ | T-ACCESS-012 ✅ |
 | [T-ACCESS-014](../tasks/T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | ✅ | T-ACCESS-007 ✅ |
+| [T-ACCESS-015](../tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL | ⚙️ | T-ACCESS-012 ✅ |
 
 ## 归档条件
 
-- T-ACCESS-013/014 全部 `done` 或经确认 `cancelled`。
+- T-ACCESS-013~015 全部 `done` 或经确认 `cancelled`。
 - 准入条件中的 CI 验证前置已关闭（40 项 Docker 门控测试全绿）。
 - 稳定结论已沉淀到 `docs/design/`，本计划不形成第二套契约。

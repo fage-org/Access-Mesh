@@ -1114,7 +1114,7 @@ CREATE TABLE role_resource_permission (
     CONSTRAINT ck_role_resource_permission_condition_can_grant CHECK (
         condition_id IS NULL OR can_grant = false
     ),
-    -- 子权限属性系统不变量：子权限不承载条件/再授予（20043 同口径，T-PERM-034 七轮复审产品确认）
+    -- 子权限属性系统不变量：子权限不承载条件/再授予（20043 同口径，T-PERM-034 产品确认）
     CONSTRAINT ck_role_resource_permission_child_attributes CHECK (
         depend_on IS NULL OR (condition_id IS NULL AND can_grant = false)
     ),

@@ -1,6 +1,6 @@
 // 权限排查 Mock（Phase 1）
 // 经 vite-plugin-fake-server 拦截，统一返回 PermResult 信封：{ code, message, data }
-// 模拟未来 access-service 聚合路径 /permission-query/*（T-PERM-033 实现后对接真聚合层，前端无需改路径）
+// 模拟本地路径 /permission-query/*（归并后已取消聚合层——T-ACCESS-012 决策；联调 T-FE-019 时切换为契约路径 /api/perm/permission-view/* 与 /api/perm/auth/query-scopes）
 // 零 src 依赖：类型本地声明，避免 fake-server 经 bundle-import 打包 src/api 链
 //
 // 契约依据：docs/design/permission-center/api-contract.md §6.6-6.8

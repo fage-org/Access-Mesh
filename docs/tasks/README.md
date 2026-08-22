@@ -8,7 +8,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 015 |
+| access-service 归并（跨服务） | `T-ACCESS` | 016 |
 | permission-center | `T-PERM` | 042 |
 | admin-service | `T-ADMIN` | 022 |
 | gateway | `T-GW` | 007 |
@@ -42,6 +42,7 @@
 | [T-ACCESS-012](T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | access-service-merge（已归档） | access-service-architecture；architecture；project-rules；admin-service-api-contract；permission-center 设计；schema/access-service.sql；文档索引 | T-ACCESS-011 | ✅ | ✓ |
 | [T-ACCESS-013](T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §6；admin-service-api-contract | T-ACCESS-012 | ⚙️ | ⏳ |
 | [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
+| [T-ACCESS-015](T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（sys_menu DDL-实体漂移收口） | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §3；v3.5-design §2.1/§4.1；schema/access-service.sql；admin-service-api-contract | T-ACCESS-012 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
@@ -67,17 +68,17 @@
 | [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（type_value 自动分配、业务键封装、AppliesTo；D4 已移除） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；admin sync | — | ⚙️ | ⏳ |
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（domain_config 旧配置、PermQuery 工厂、RocketMQ 脚注、auto-grant TODO；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ⚙️ | ⏳ |
 | [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
-| T-PERM-022 | 2.2 角色管理后端（见任务卡） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ⚙️ | ⏳ |
-| T-PERM-023 | 6.1 类型定义后端（见任务卡） | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ⚙️ | ⏳ |
-| T-PERM-024 | 6.2 系统配置后端（见任务卡） | frontend-phase2 | api-contract §5.8 | T-FE-004 | ⚙️ | ⏳ |
+| T-PERM-022 | 2.2 角色管理后端 | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ⚙️ | ⏳ |
+| T-PERM-023 | 6.1 类型定义后端 | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ⚙️ | ⏳ |
+| T-PERM-024 | 6.2 系统配置后端 | frontend-phase2 | api-contract §5.8 | T-FE-004 | ⚙️ | ⏳ |
 | T-PERM-025 | 7.1 操作日志后端（见任务卡） | frontend-phase2 | api-contract §5.8/§6.10.6；implementation §2.3 | T-FE-005 | ⚙️ | ⏳ |
-| T-PERM-026 | 5.1 业务域后端（见任务卡） | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7 | T-FE-006 | ⚙️ | ⏳ |
-| T-PERM-027 | 5.2 服务+接口映射后端（见任务卡） | frontend-phase2 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md §7 | T-FE-007 | ⚙️ | ⏳ |
+| T-PERM-026 | 5.1 业务域后端 | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7 | T-FE-006 | ⚙️ | ⏳ |
+| T-PERM-027 | 5.2 服务+接口映射后端 | frontend-phase2 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md §7 | T-FE-007 | ⚙️ | ⏳ |
 | T-PERM-028 | 3.1 资源+操作定义后端（resource-entity/* + operation-permission/*；🔧detail/update/move/remove 切业务键[resource: resourceTypeCode+code+codeType；operation: resourceTypeCode+code，schema uk_resource_entity/uk_operation_permission_typed 已保证唯一]；🔧RESOURCE:VIEW/OPERATION:VIEW 种子缺失[resource-entity list/tree 与 operation-permission list 未见 VIEW 校验，schema 无 INSERT 预置操作位，联调全账号 403]；🔧bigint 字段 JSON 序列化为 string[operation-permission.binaryBit/inheritMask 为 63 位 bigint 列，Jackson 默认序列化为 number 致前端 JSON.parse 在 >2^53 丢精度；DTO 加 @JsonSerialize(ToStringSerializer.class) 或改 String 类型，前端切 BigInt 全链路+el-input 文本输入；T-FE-008 已用 BigInt 运算解决 32 位截断（2^53 内精确），63 位彻底方案作为全项目 bigint 序列化策略首例；🔧update 可选字段 extra 支持 null 清空语义[现 if(extra!=null) 不更新致前端 form.extra||null 清空传 null 被当不更新；extra JSONB 列不可用空串清空，需后端区分不更新vs清空为null]） | frontend-phase2 | api-contract §5.3/§6.2.2；implementation §2.9；design/frontend/resource-operation.md §8 | T-FE-008 | ⚙️ | ⏳ |
-| T-PERM-029 | 3.2 权限条件后端（见任务卡） | frontend-phase2 | api-contract §5.6；implementation §2.5 | T-FE-009 | ⚙️ | ⏳ |
-| T-PERM-030 | 3.3 冲突规则后端（见任务卡） | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ⚙️ | ⏳ |
-| T-PERM-031 | 3.4 资源依赖后端（见任务卡） | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ⚙️ | ⏳ |
-| T-PERM-032 | 7.2 变更日志后端（见任务卡） | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ⚙️ | ⏳ |
+| T-PERM-029 | 3.2 权限条件后端 | frontend-phase2 | api-contract §5.6；implementation §2.5 | T-FE-009 | ⚙️ | ⏳ |
+| T-PERM-030 | 3.3 冲突规则后端 | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ⚙️ | ⏳ |
+| T-PERM-031 | 3.4 资源依赖后端 | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ⚙️ | ⏳ |
+| T-PERM-032 | 7.2 变更日志后端 | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ⚙️ | ⏳ |
 | T-PERM-033 | 4.2 权限查询后端（门禁统一 + DTO 扩展；聚合层已取消，直连 /api/perm/*） | frontend-phase2 | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ⚙️ | ⏳ |
 | [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（见任务卡） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ⚙️ | ⏳ |
 | [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | [frontend-phase2](../plans/frontend-phase2-plan.md) | core-flows §12；implementation §4；api-contract | T-PERM-034 | ⚙️ | ⏳ |

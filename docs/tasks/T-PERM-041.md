@@ -35,7 +35,7 @@ last_updated: 2026-08-22
 
 ## 背景
 
-评审确认"条件权限不能转授"为既定不变量：带条件的权限（`conditionCode != null`）不得再授予他人（`canGrant` 必须 false）。**2026-08-08 五轮复审产品确认追加"条件启用状态"不变量：主权限新写入/变更的 conditionCode 必须为启用状态（20042）**——停用条件不得新建绑定或改绑，存量绑定未变更 conditionCode 允许保留。此前契约未约束、数据库仅范围 CHECK。本任务落地主权限两项 API 校验（20041/20042）、主权限 DDL CHECK 与测试（子权限不变量 20043 归 T-PERM-034，职责拆分确认）。
+评审确认"条件权限不能转授"为既定不变量：带条件的权限（`conditionCode != null`）不得再授予他人（`canGrant` 必须 false）。**2026-08-08 产品确认追加"条件启用状态"不变量：主权限新写入/变更的 conditionCode 必须为启用状态（20042）**——停用条件不得新建绑定或改绑，存量绑定未变更 conditionCode 允许保留。此前契约未约束、数据库仅范围 CHECK。本任务落地主权限两项 API 校验（20041/20042）、主权限 DDL CHECK 与测试（子权限不变量 20043 归 T-PERM-034，职责拆分确认）。
 
 > **重基线（T-ACCESS-012，2026-08-22）**：落点为 access-service permission 域；schema 权威为 `access-service.sql`。
 

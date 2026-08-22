@@ -17,10 +17,10 @@
  * T-PERM-033 完成后切换为独立 `PERMISSION_QUERY:VIEW` 全链路：
  * - 新增资源类型 ResourceTypeCode.PERMISSION_QUERY
  * - 类型/操作种子 + 默认角色授权
- * - access-service 权限码下发白名单（AuthServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES，
- *   当前 L122-137 不含 PERMISSION_QUERY）
- * - access-service 聚合层统一门禁（方案 A: PERMISSION_QUERY:VIEW 全租户排查；
- *   方案 B: PERMISSION_QUERY:VIEW + 被查目标 USER:VIEW/ROLE:VIEW）
+ * - 权限码下发白名单（UserMenuQueryServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES，
+ *   当前不含 PERMISSION_QUERY）
+ * - 统一门禁（聚合层已取消——T-ACCESS-012 决策；方案 A: PERMISSION_QUERY:VIEW 全租户排查；
+ *   方案 B: PERMISSION_QUERY:VIEW + 被查目标 USER:VIEW/ROLE:VIEW，T-PERM-033 定稿）
  *
  * 切换时仅需改本常量值，路由/组件 hasPerms 调用不变。
  *
