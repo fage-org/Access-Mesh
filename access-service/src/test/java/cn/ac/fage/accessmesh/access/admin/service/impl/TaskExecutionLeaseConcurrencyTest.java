@@ -95,7 +95,8 @@ class TaskExecutionLeaseConcurrencyTest {
         }
     }
 
-    static class TaskLeaseTestJobBean {
+    // 必须 public：JobInvokeDomainServiceImpl 反射跨包调用，包私有类会 IllegalAccessException
+    public static class TaskLeaseTestJobBean {
         final List<String> invokedExecutionKeys = new CopyOnWriteArrayList<>();
         final Map<String, AtomicInteger> invocationsPerKey = new ConcurrentHashMap<>();
         volatile Long lastSeenTenantId;

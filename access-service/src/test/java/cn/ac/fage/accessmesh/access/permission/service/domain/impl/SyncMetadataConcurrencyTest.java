@@ -199,9 +199,10 @@ class SyncMetadataConcurrencyTest {
     /**
      * 用例 3：并发 (T2, seq=1) 与 (T1, seq=99)（旧），多次重复触发以提高并发覆盖度。
      * <p>
-     * 期望：每轮恰好一次 APPLIED + 一次 STALE，最终态固定为 (T2, seq=1)。
+     * 期望：至少一次 APPLIED，两个写均有裁决，最终态固定为 (T2, seq=1)。
      * 即使两个调用 select 时同步看到 “无现存记录” 也不会发生 lost update：
      * 第二个 INSERT 命中唯一索引冲突进入 ON CONFLICT，受 WHERE 子句保护仅当严格新于时才更新。
+     * 旧版本先落库时两个写均合法返回 APPLIED（旧先插入、新覆盖），属正确交错。
      * </p>
      */
     @Test
@@ -238,12 +239,15 @@ class SyncMetadataConcurrencyTest {
 
                 long appliedCount = results.stream().filter(r -> r == ApplyVersionResult.APPLIED).count();
                 long staleCount = results.stream().filter(r -> r == ApplyVersionResult.STALE).count();
+                // 2026-08-22 用户决策：旧版本先落库的合法交错下两个写均返回 APPLIED
+                // （旧先 INSERT 成功、新经 ON CONFLICT 覆盖），"恰好一次 APPLIED"不可能跨交错成立；
+                // 确定不变量为：至少一次 APPLIED、两个写均有裁决、最终态为新版本（防丢失更新）。
                 assertThat(appliedCount)
-                        .as("round %d: exactly one APPLIED, results=%s", round, results)
-                        .isEqualTo(1);
-                assertThat(staleCount)
-                        .as("round %d: exactly one STALE, results=%s", round, results)
-                        .isEqualTo(1);
+                        .as("round %d: at least one APPLIED, results=%s", round, results)
+                        .isGreaterThanOrEqualTo(1);
+                assertThat(appliedCount + staleCount)
+                        .as("round %d: every writer got a verdict, results=%s", round, results)
+                        .isEqualTo(2);
 
                 SyncMetadata current = syncMetadataMapper.selectByBusinessKey(
                         TENANT_ID, ENTITY_KIND, SOURCE_SERVICE, SCOPE_KEY_HASH, BUSINESS_KEY_HASH);
