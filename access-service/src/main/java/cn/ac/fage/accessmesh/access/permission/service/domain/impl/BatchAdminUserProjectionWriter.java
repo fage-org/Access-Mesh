@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
@@ -157,6 +158,8 @@ public class BatchAdminUserProjectionWriter {
                 resource.setParentId(null);
                 resource.setStatus(statusVal);
                 resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+                // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束
+                resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);
                 resource.setCreatedAt(now);
                 resource.setUpdatedAt(now);
                 resource.setDeleteFlag(0L);

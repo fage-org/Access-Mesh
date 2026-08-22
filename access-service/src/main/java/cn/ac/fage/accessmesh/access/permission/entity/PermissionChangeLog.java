@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.permission.entity;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
+import cn.ac.fage.accessmesh.access.infrastructure.JsonbStringTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -52,16 +54,19 @@ public class PermissionChangeLog {
     /**
      * 变更前数据快照（JSON格式）
      */
+    @Column(typeHandler = JsonbStringTypeHandler.class)
     private String oldSnapshot;
 
     /**
      * 变更后数据快照（JSON格式）
      */
+    @Column(typeHandler = JsonbStringTypeHandler.class)
     private String newSnapshot;
 
     /**
      * 差异快照（JSON格式），记录变更的具体差异
      */
+    @Column(typeHandler = JsonbStringTypeHandler.class)
     private String diffSnapshot;
 
     /**

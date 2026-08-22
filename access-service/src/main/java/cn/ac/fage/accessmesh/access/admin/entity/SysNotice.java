@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.admin.entity;
 
+import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
+import cn.ac.fage.accessmesh.access.infrastructure.JsonbStringTypeHandler;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -54,6 +56,7 @@ public class SysNotice {
     /**
      * 目标ID列表（逗号分隔）
      */
+    @Column(typeHandler = JsonbStringTypeHandler.class)
     private String targetIds;
 
     /**

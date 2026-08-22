@@ -112,6 +112,11 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         String initialPassword = generateRandomPassword();
         user.setPassword(BCrypt.hashpw(initialPassword));
         user.setStatus(req.status() != null ? req.status() : 1);
+        // UserCreateReq 无 gender/user_type/force_reset_pwd 字段，显式 NULL 插入会绕过列默认值
+        // 触发 NOT NULL 约束（DDL：gender 0=未知，user_type 1=人员，force_reset_pwd 随机初始密码须强制改密）
+        user.setGender(0);
+        user.setUserType(1);
+        user.setForceResetPwd(true);
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         user.setDeleteFlag(0L);

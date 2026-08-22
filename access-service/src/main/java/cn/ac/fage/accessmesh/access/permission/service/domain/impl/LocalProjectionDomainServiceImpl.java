@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
@@ -308,6 +309,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             resource.setParentId(parentId);
             resource.setStatus(status);
             resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+            // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束
+            resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);
             resource.setCreatedAt(now);
             resource.setUpdatedAt(now);
             resource.setDeleteFlag(0L);
