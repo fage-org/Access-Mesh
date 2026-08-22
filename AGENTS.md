@@ -4,7 +4,7 @@
 
 **AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
-- **当前阶段**：设计完成，待编码实现
+- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；Phase 2 后端任务重基线后按依赖推进，前端联调待其后端任务完成
 - **当前分支**：`feat-permission-center`
 - **文档入口**：`docs/README.md`
 
@@ -46,7 +46,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | 权限中心核心流程   | `docs/design/permission-center/core-flows.md` |
 | 权限中心实现设计   | `docs/design/permission-center/implementation.md` |
 | 服务设计           | `docs/design/services/*.md`                  |
-| 表结构             | `docs/design/schema/access-service.sql`（权威；`admin-service.sql`/`permission-center.sql` 已 superseded） |
+| 表结构             | `docs/design/schema/access-service.sql`（唯一权威；旧 admin/perm DDL 已归档 `docs/archive/2026-08-22/schema/`） |
 
 `docs/archive/` 只用于历史追溯，不作为实现依据。
 

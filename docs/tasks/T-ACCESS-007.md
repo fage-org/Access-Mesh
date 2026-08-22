@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-007
 title: 合并系统配置与操作审计并落实日志事务分级
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#52-表合并边界

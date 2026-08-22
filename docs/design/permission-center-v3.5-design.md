@@ -70,7 +70,7 @@ v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复
 
 ### 2.1 sys_menu（极简化）
 
-sys_menu 表的权威 DDL 见 [`schema/admin-service.sql`](schema/admin-service.sql) §8（PostgreSQL，v3.5 菜单零权限化最终态）。本节仅描述 v3.5 关心的语义要点，不复制 DDL（避免与权威 schema 双源漂移）。
+sys_menu 表的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.sql) `sys_menu` 节（PostgreSQL，v3.5 菜单零权限化最终态；旧 admin-service.sql 已归档至 `../archive/2026-08-22/schema/`）。本节仅描述 v3.5 关心的语义要点，不复制 DDL（避免与权威 schema 双源漂移）。
 
 **v3.5 语义要点**：
 - `menu_type`：5 值枚举 `DIR/MENU/EXTERNAL/IFRAME/HIDDEN`（schema 中以 VARCHAR(16) + 注释表达，PostgreSQL 无内联 ENUM）
@@ -105,7 +105,7 @@ private String grantSource;
 private Long grantDepId;
 ```
 
-> 注：本字段清单仅列 v3.5 关心的语义字段（数据权限相关），**非完整结构**。完整 DDL 见 `schema/permission-center.sql` `role_resource_permission` 表（含 `abstract_role_id` / `resource_entity_id` / `resource_type` / `granted_bits` 等核心定位字段）。
+> 注：本字段清单仅列 v3.5 关心的语义字段（数据权限相关），**非完整结构**。完整 DDL 见 `schema/access-service.sql` `role_resource_permission` 表（含 `abstract_role_id` / `resource_entity_id` / `resource_type` / `granted_bits` 等核心定位字段）。
 
 ### 2.4 删除/废弃清单
 
@@ -189,7 +189,7 @@ visible(menu, user) :=
 
 ## §5. /auth/user-menu 单 RPC 原子契约
 
-> **服务归属**：本接口归 **admin-service**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md) + [services/admin-service.md](services/admin-service.md) §管理端前端聚合约束）。permission-center api-contract.md 不承载此端点（已移除）。admin-service 聚合时调用 permission-center 的 `/api/perm/auth/*` 运行时鉴权接口获取权限事实，组装为 `menus + permissions` 返回前端。
+> **服务归属（T-ACCESS-012 更新）**：本接口归 **access-service 管理域**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `access.application.query`（UserMenuQueryService）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
 >
 > **落地状态**：本接口为 v3.5 规划契约，尚未在 admin-service-api-contract.md 与代码中落地。实施时需同步 admin-service-api-contract.md。
 

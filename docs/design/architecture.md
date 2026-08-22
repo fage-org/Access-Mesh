@@ -10,7 +10,7 @@ last_reviewed: 2026-08-22
 
 本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。权限中心概念模型见 `permission-center/overview.md`。
 
-> **目标架构提示（2026-08-10，T-ACCESS-010 拓扑切换已生效）**：项目已将 `admin-service` 与 `permission-center` 归并为模块化单体 `access-service`，旧服务模块、旧服务发现目标与内部同步链路均已删除（T-ACCESS-001~010）。本文 §1 已按归并后拓扑更新；§2 之后的历史章节尚未完成 T-ACCESS-012 的全量实现回写，涉及事务、数据库、缓存或安全边界细节时，以 [`access-service-architecture.md`](access-service-architecture.md) 为准。
+> **归并提示（T-ACCESS-012 全量回写，2026-08-22）**：`admin-service` 与 `permission-center` 已物理归并为模块化单体 `access-service`（唯一部署单元，T-ACCESS-001~012）。本文已按归并后实现回写；access-service 内部模块边界、事务、缓存与安全细节以 [`access-service-architecture.md`](access-service-architecture.md) 为准，对外接口契约以 [`services/admin-service-api-contract.md`](services/admin-service-api-contract.md) 与 [`permission-center/api-contract.md`](permission-center/api-contract.md) 为准。
 
 ---
 
@@ -24,7 +24,7 @@ last_reviewed: 2026-08-22
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（admin 域）+ 通用权限管理与鉴权引擎（permission 域）；模块化单体，默认组织树是用户目录；组织既是业务树也是角色容器 |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示权限中心对接与权限管控能力 **（⚠️ 当前仅启动骨架 — 2026-06-20 审计 S-020：仅含 `ExampleServiceApplication`，演示 Controller/DTO 待 perm-sdk 与核心主线稳定后补齐）**         |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示 access-service 权限能力对接与权限管控 **（⚠️ 当前仅启动骨架 — 2026-06-20 审计 S-020：仅含 `ExampleServiceApplication`，演示 Controller/DTO 待 perm-sdk 与核心主线稳定后补齐）**         |
 
 ### 1.2 基础设施
 
@@ -32,7 +32,7 @@ last_reviewed: 2026-08-22
 | -------- | ---------------------------------- | ------------------------------------ |
 | 注册中心 | Nacos                              | 服务发现 + 配置管理一体              |
 | 配置中心 | Nacos                              | 与注册中心复用                       |
-| 消息队列 | RocketMQ                           | 预留给未来异步事件；当前用户/权限同步采用 API + 本地同步任务表 |
+| 消息队列 | RocketMQ                           | 预留给未来异步事件；当前无内部同步链路（归并后同库同事务），缓存失效经 Redis pub/sub 广播，不经过 RocketMQ |
 | 缓存     | Redis                              | L2 缓存、Sa-Token 会话存储、分布式锁 |
 | 对象存储 | S3 兼容（MinIO / 阿里云 OSS）      | 文件上传下载                         |
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
@@ -113,7 +113,7 @@ last_reviewed: 2026-08-22
 
 - **路由转发**：按配置规则将请求转发到后端服务
 - **Token 校验**：解析 Sa-Token 令牌，提取租户和主体信息，清洗外部伪造 Header 后注入标准请求头
-- **接口鉴权**：对接权限中心，判断用户是否有权访问当前接口
+- **接口鉴权**：快照模式对接 access-service（T-PERM-001），本地内存匹配判定接口权限，未覆盖场景回退实时鉴权
 - **白名单管理**：公开接口（登录、注册、健康检查等）免鉴权
 - **请求头增强**：向下游注入 X-Tenant-Id、X-User-Id、X-Request-Id 等标准头
 
@@ -123,12 +123,12 @@ last_reviewed: 2026-08-22
 | --- | ---------------- | ---------------------------------------------------------------------------------------------- |
 | 1   | 路由配置         | 基于 Nacos 动态路由配置，支持按服务名/路径匹配转发                                             |
 | 2   | Token 校验过滤器 | 全局 GatewayFilter，Sa-Token 解析令牌，校验有效性和登录状态                                    |
-| 3   | 接口鉴权过滤器   | 全局 GatewayFilter，对接权限中心判断接口权限，Gateway 仅维护短 TTL L1 缓存，未注册接口默认拒绝 |
+| 3   | 接口鉴权过滤器   | 快照模式本地匹配（OR 合并 + 三态判定），条件不可本地评估时回退 access-service 实时鉴权；快照 L1 ≤15s，回源失败固定 fail-closed |
 | 4   | 白名单管理       | 可配置的公开接口列表（Nacos 配置动态刷新），匹配的请求跳过鉴权                                 |
 | 5   | 请求头增强       | 注入标准请求头（X-Tenant-Id、X-User-Id、X-Request-Id），清洗外部伪造头                         |
 | 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                                        |
 
-### 2.3 鉴权流程（与权限中心 core-flows 场景六对齐）
+### 2.3 鉴权流程（快照模式，与权限域 core-flows 场景六对齐）
 
 ```
 请求到达 Gateway
@@ -139,26 +139,29 @@ last_reviewed: 2026-08-22
     │
     ├─ 提取 X-Tenant-Id、主体标识、serviceCode
     │
-    ├─ 查 L1 Caffeine 缓存（tenantId + userId + serviceCode + method + path）
-    │   ├─ 命中 → 直接放行/拒绝
-    │   └─ 未命中 → 回调权限中心
+    ├─ 查本地快照缓存（tenantId + subjectTypeCode + userId + serviceCode）
+    │   ├─ 命中 → 本地内存匹配 allowedApis（OR 合并 + 三态判定）
+    │   │        ├─ 任一无条件授权 → 放行
+    │   │        ├─ 条件授权且条件规则已内联 → 本地评估，通过则放行
+    │   │        └─ 条件规则未下发 → 标记 FALLBACK，回退实时鉴权
+    │   └─ 未命中 → 在 5 秒全链路硬截止内回源拉取快照
+    │              POST /api/perm/auth/interface-snapshot（access-service）
     │
-    └─ POST /api/perm/auth/check-interface（权限中心内部处理）
-        │   ├─ 权限中心读 Redis 两份数据（用户角色 + 角色权限）
-        │   ├─ 匹配接口权限 + 条件评估（hasCondition=true 的条目）
-        │   └─ 返回 allowed/denied + 拒绝原因
-        │
-        └─ 写入 L1 缓存 → 放行或返回 403
+    ├─ FALLBACK：POST /api/perm/auth/check-interface（access-service 实时鉴权）
+    │
+    └─ 回源失败/超截止 → 固定 fail-closed 503；匹配拒绝 → 403
 ```
+
+> 快照缓存 TTL ≤15s，access-service 写路径在事务提交后经 Redis pub/sub（`perm:invalidate`）主动失效；权限主动撤销优先于不可达兜底，任何不确定性一律拒绝（fail-closed，不可配置）。完整规则见 [`services/gateway.md`](services/gateway.md)。
 
 ### 2.4 缓存策略
 
-| 层级 | 存储     | Key 模式                               | TTL | 失效方式             |
+| 层级 | 存储 | Key 模式 | TTL | 失效方式 |
 | ---- | -------- | -------------------------------------- | --- | -------------------- |
-| L1   | Caffeine | `perm:auth:{tenantId}:{userId}:{path}` | 30s | TTL 过期             |
-| L2   | 无       | —                                      | —   | Gateway 不直连 Redis |
+| 快照 L1 | Caffeine（统一 CacheService，L1_ONLY，catalog `gw:interface-snapshot`） | `{tenantId}:gw:interface-snapshot:{subjectTypeCode,userId,serviceCode}` | ≤15s | Redis pub/sub `perm:invalidate` 主动失效 + TTL 兜底 |
+| L2 | 无 | — | — | 快照缓存不落 L2；Sa-Token 会话与失效订阅仍使用 Redis |
 
-> Gateway 不直接读 Redis，鉴权缓存命中走 L1，未命中回调权限中心 HTTP 接口。权限中心内部使用 Redis 两份数据（用户角色 + 角色权限）完成判定。
+> 一次授权请求触发的整个快照加载流程共享不超过 5 秒的墙钟硬截止，超时不写缓存并固定 fail-closed。串行授权安全预算 ≤30s = access-service 授权 L2（≤10s）+ 回源全链路截止（≤5s）+ Gateway 快照 L1（≤15s），详见 [`access-service-architecture.md`](access-service-architecture.md) §7.2。
 
 ### 2.5 Sa-Token 集成要点
 
@@ -169,7 +172,9 @@ last_reviewed: 2026-08-22
 
 ---
 
-## 3. 管理服务 (admin-service)
+## 3. access-service 管理域（admin 域）
+
+> access-service 是模块化单体（详见 [`access-service-architecture.md`](access-service-architecture.md)），本节概述其 admin 域职责；对外接口契约见 [`services/admin-service-api-contract.md`](services/admin-service-api-contract.md)。表结构权威 DDL 为 [`schema/access-service.sql`](schema/access-service.sql)。
 
 ### 3.1 职责边界
 
@@ -177,7 +182,7 @@ last_reviewed: 2026-08-22
 - **用户管理**：完整用户生命周期（CRUD、密码、头像、启停），是用户数据的事实源
 - **组织管理**：统一组织模型（部门/岗位/团队同表，按组织类型区分），支持多棵组织树和一人多岗
 - **菜单管理**：菜单树维护，前端路由配置
-- **角色管理**：复用权限中心角色功能，按需补充管理侧逻辑
+- **角色管理**：角色与授权由 permission 域直接提供（`/api/perm/abstract-role` 等），管理端不重复建设
 - **字典管理**：系统字典/枚举值维护
 - **通知/消息**：系统公告 + 站内信
 - **文件/OSS**：S3 标准文件上传下载
@@ -193,27 +198,27 @@ last_reviewed: 2026-08-22
 | 2   | 用户管理    | ~8         | sys_user                     | 含密码、手机、邮箱等业务字段；CRUD + 启停 + 重置密码 + 个人中心 |
 | 3   | 组织管理    | ~8         | sys_org, sys_user_org        | 统一组织表(type区分)，树形结构；用户-组织多对多关联             |
 | 4   | 菜单管理    | ~6         | sys_menu                     | 菜单树CRUD + 权限标识配置                                       |
-| 5   | 角色管理    | ~4         | -（复用权限中心）            | 代理/封装权限中心的角色相关接口，补充管理端特有逻辑             |
-| 6   | 字典管理    | ~6         | sys_dict_type, sys_dict_data | 字典类型 + 字典数据CRUD，支持缓存                               |
+| 5   | 角色管理    | ~4         | -（permission 域表）         | 功能角色列表经 `application.query` 跨域只读查询；角色/授权管理直接使用 permission 域接口，旧 admin 侧代理端点已恒拒绝（20045/10111） |
+| 6   | 字典管理    | ~6         | sys_dict_type, sys_dict_data | 字典类型 + 字典数据CRUD，支持缓存                              |
 | 7   | 通知管理    | ~6         | sys_notice, sys_user_notice  | 系统公告 + 站内信，含已读/未读状态                              |
 | 8   | 文件管理    | ~4         | sys_file                     | S3兼容上传/下载/删除，文件元信息持久化                          |
-| 9   | 审计日志    | ~3         | sys_audit_log                | 操作日志记录 + 查询（AOP 自动采集）                             |
-| 10  | 任务调度    | ~5         | sys_job, sys_job_log         | Spring Scheduler，兼演示定时任务中的权限控制                    |
-| 11  | 系统设置    | ~3         | sys_config                   | 系统级参数配置 CRUD                                             |
+| 9   | 审计日志    | ~3         | operation_log（合并表）      | 操作日志记录 + 查询（`@OperationLog` AOP 自动采集；module=ADMIN/PERMISSION/ACCESS） |
+| 10   | 任务调度    | ~5         | sys_job, sys_job_log, sys_task_execution | Spring Scheduler + 数据库租约（多实例抢占/续租/接管），兼演示定时任务中的权限控制 |
+| 11   | 系统设置    | ~3         | system_config（合并表）      | 系统级参数配置 CRUD（`admin.*`/`permission.*`/`access.*` 命名空间） |
 
-**预估总接口数：75 个（17 张表）**
+**预估总接口数：75 个（admin 域 sys_* 14 张表；sys_config/sys_audit_log 已并入合并表 system_config/operation_log，sys_sync_task 已随 T-ACCESS-005 退役）**
 
 ### 3.3 核心模型设计概要
 
 #### 3.3.1 用户模型 (sys_user)
 
-与权限中心的 `abstract_user` 关系：
+与 permission 域 `abstract_user` 的关系：
 
-- `admin-service.sys_user` 是**事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
+- `sys_user` 是 **admin 域事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
 - 用户生命周期由默认组织树承载。创建用户时必须绑定默认组织树中的组织节点；禁用、删除、重置密码等高危账号操作不属于非默认组织树成员管理。
-- 用户创建/更新/删除时，通过 **API 同步**到权限中心的 `abstract_user`，用于主体解析和鉴权。
-- 若需要 `ADMIN_USER:{userId}` 实例级管理权限，用户还必须同步为 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id` 定位。
-- 同步字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
+- 用户创建/更新/删除时，由 `access.application` 在**同一 PostgreSQL 事务**内写入/更新权限域本地投影（`abstract_user` + `resource_entity(ADMIN_USER)`），无跨服务同步链路（T-ACCESS-005）。
+- 若需要 `ADMIN_USER:{userId}` 实例级管理权限，用户投影同时维护 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id` 定位。
+- 投影字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
 
 关键字段（概要）：
 
@@ -265,7 +270,7 @@ last_reviewed: 2026-08-22
 
 > **schema 迁移（2026-06-20 审计 S-002=B）**：sys_menu 表结构按 v3.5 §2.1 最终态迁移 — `menu_type` 改 5 值枚举(DIR/MENU/EXTERNAL/IFRAME/HIDDEN)，删除 `BUTTON` 类型与 `visible`/`is_external`/`is_frame`/`is_cache`/`perm_code`/`primary_operation`/`operations`/`default_preset` 字段，新增 `source_service`/`resource_type`/`resource_code` 关联业务资源 link。详见 v3.5 §2.1 + §4.1 菜单可见性派生公式。原 BUTTON 行（按钮权限）不再由 sys_menu 承载，归 v3.5.1+ 评估。
 
-sys_menu 的权威 DDL 见 [`schema/admin-service.sql`](schema/admin-service.sql) §8（PostgreSQL）。本节仅列语义要点，不复制 DDL（避免与权威 schema 双源漂移）：
+sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.sql)（sys_menu 节）。本节仅列语义要点，不复制 DDL（避免与权威 schema 双源漂移）：
 
 | 字段            | 语义                                    |
 | --------------- | --------------------------------------- |
@@ -289,61 +294,18 @@ sys_menu 的权威 DDL 见 [`schema/admin-service.sql`](schema/admin-service.sql
 
 > **已废弃字段**（迁移期物理删除）：`perm_code` / `operations` / `primary_operation` / `default_preset` / `visible` / `is_external` / `is_frame` / `is_cache` / `component`（前端组件路径归前端路由配置，不在 sys_menu） / `extra`（JSONB 扩展，按需迁移） / `service_code`（被 `source_service` 替代）。
 
-### 3.4 与权限中心的交互
+### 3.4 与 permission 域的关系（同事务本地投影）
 
-#### 3.4.1 用户同步
+admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权限事实（`abstract_user`/`abstract_role`/`resource_entity`/`user_role`）位于同一进程、同一数据库（`access_db.public`）。跨域写操作由 `access.application` 在同一 PostgreSQL 事务内编排：更新管理事实的同事务写入对应权限投影，任一步失败整体回滚。原跨服务 API 同步、消息通知与补偿链路（内部同步子系统）已随 T-ACCESS-005 退役。
 
-```
-admin-service                        permission-center
-    │                                       │
-    ├─ 创建用户 sys_user ──API─────────────▶ 创建 abstract_user
-    │                                       │ + 自动创建个人角色
-    │                                       │ + 创建/更新 ADMIN_USER resource_entity
-    ├─ 更新用户状态 ───────API─────────────▶ 更新 abstract_user.enabled
-    │                                       │ + 更新 ADMIN_USER resource_entity.status/name
-    │                                       │
-    └─ 删除用户 ───────────API─────────────▶ 软删 abstract_user
-                                            │ + 软删 ADMIN_USER resource_entity
-                                            │ + 级联清理关联
-```
+- **用户投影（双事实，不可混淆）**：
+  - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=ADMIN_USER + externalId=sys_user.id`；
+  - `resource_entity(ADMIN_USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id`。只维护 `abstract_user` 时用户可参与鉴权，但 `ADMIN_USER:{userId}` 的更新/删除/启停等实例级权限无法稳定解析。
+- **组织投影（双事实）**：`resource_entity(ADMIN_ORG)`（组织作为可管理资源，支撑 `ADMIN_ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，`access.application` 同事务写入对应 `user_role`；组织树层级由 permission 域自动维护，编排层只传当前节点和父节点业务键。
+- **菜单**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不承载权限语义；菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，前端经 `/auth/user-menu` 单 RPC 获取 `menus[] + permissions[]`，动态注册 Vue Router 路由。
+- **投影所有权**：本地投影统一标记 `owner_service_code='access-service'`，只能经 `LocalProjectionDomainService` 写入；权限管理 API 不得直接修改本地投影，外部 sync 不得冒充本地来源（`sourceService=access-service/admin-service` 被拒绝）。
 
-所有同步操作使用业务键定位，不回填 permission-center 内部 ID。
-
-用户同步的两个事实不能混淆：
-
-- `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=ADMIN_USER + externalId=sys_user.id`。
-- `resource_entity(ADMIN_USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id`。
-
-只同步 `abstract_user` 时，用户可以作为操作者参与鉴权，但 `ADMIN_USER:{userId}` 的更新、删除、启停、重置密码等实例级权限无法稳定解析。
-
-#### 3.4.2 角色管理复用
-
-- 管理服务**不自建角色表**，直接调用权限中心的角色相关接口
-- 管理端的「角色管理」页面本质上是权限中心接口的 UI 包装
-- 管理服务可做额外封装：如把组织-角色的关联逻辑聚合在管理服务侧
-
-#### 3.4.3 菜单与资源同步
-
-> **v3.5 菜单零权限化（2026-06-20 审计 S-002）**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不再承载权限语义。菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，不再依赖 `perm_code`/`operations` 字段。
-
-- **admin-service 是菜单数据的事实源**（sys_menu 表存 UI 路由元数据 + 关联资源 link）
-- 菜单创建/更新/删除时，关联的 `resource_type`/`resource_code` 与权限中心 `resource_entity` 对应（不再有 MENU/BUTTON 类型区分，BUTTON 权限归 v3.5.1+）
-- 同步字段映射：`sys_menu.resource_type + resource_code → resource_entity(type, code)`，`sys_menu.display_name → resource_entity.name`
-- 前端渲染菜单：通过 v3.5 `/auth/user-menu` 单 RPC 原子返回 `menus[]`（已派生可见集）+ `permissions[]`，不再前端取交集
-- **动态路由**：前端登录后拉取用户有权菜单，动态注册 Vue Router 路由
-
-#### 3.4.4 组织与权限中心同步
-
-组织同步有两条并行语义，均使用业务键定位，不回填内部 ID：
-
-1. **组织作为可管理资源**：同步为 `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`，用于 `ADMIN_ORG:{orgId}` 实例级权限校验和 `auth/query-resources` 查询可管理组织。
-2. **组织作为角色容器**：按 `orgType` 同步为权限中心的 `abstract_role`。
-   - 普通组织 → `role_type=ORG`
-   - 岗位 → `role_type=POSITION`
-
-每个组织/岗位节点对应一个角色，用户关联到组织时，admin-service 必须在权限中心写入对应 `user_role`。组织树层级在 permission-center 内自动维护，admin-service 只传当前节点和父节点的业务键。
-
-这样用户通过所在组织/岗位自动获得该组织角色上配置的权限，同时管理员对组织节点的增删改仍可通过 `ADMIN_ORG` 资源权限独立控制。
+权威细节见 [`access-service-architecture.md`](access-service-architecture.md) §3/§4、[`services/admin-service-api-contract.md`](services/admin-service-api-contract.md) §3、[`default-org-tree-user-lifecycle.md`](default-org-tree-user-lifecycle.md)。
 
 ---
 
@@ -351,19 +313,19 @@ admin-service                        permission-center
 
 ### 4.1 职责
 
-作为独立微服务，演示第三方业务系统如何对接权限中心实现权限管控。包含前后端，是开发者的**接入参考实现**。
+作为独立微服务，演示第三方业务系统如何对接 access-service 权限能力实现权限管控。包含前后端，是开发者的**接入参考实现**。
 
 ### 4.2 演示模块
 
 | #   | 模块         | 说明                                                                       |
 | --- | ------------ | -------------------------------------------------------------------------- |
-| 1   | 服务注册演示 | 启动时自动向权限中心注册 service_config + 接口信息（resource_api_mapping） |
+| 1   | 服务注册演示 | 启动时自动向 access-service 注册 service_config + 接口信息（resource_api_mapping） |
 | 2   | 接口权限演示 | 注解标记接口权限要求，展示网关鉴权拦截效果                                 |
-| 3   | 菜单权限演示 | 前端动态菜单渲染，基于权限中心返回的菜单资源                               |
+| 3   | 菜单权限演示 | 前端动态菜单渲染，基于 access-service 返回的菜单与权限结果                  |
 | 4   | 按钮权限演示 | 前端按钮级别权限控制（v-permission 指令等）                                |
 | 5   | 数据权限演示 | 查询数据时附加数据权限过滤条件（项目组 project_id 维度）                   |
 | 6   | 权限条件演示 | 展示时间范围/IP白名单条件权限的实际效果                                    |
-| 7   | 权限查询演示 | 调用权限中心查询用户权限视图、来源追溯                                     |
+| 7   | 权限查询演示 | 调用 access-service 查询用户权限视图、来源追溯                             |
 | 8   | SDK 集成指南 | 提供可复用的 Starter 封装（接口注册、鉴权注解、数据权限拦截器）            |
 
 ### 4.3 数据库
@@ -385,8 +347,8 @@ perm-sdk/
 | Starter                          | 功能                                                                                                                       |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
-| perm-client-spring-boot-starter  | 权限中心客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式） |
-| perm-gateway-spring-boot-starter | 网关插件：接口权限缓存（L1 Caffeine）、回调权限中心鉴权、ConditionEvaluator 条件评估                                       |
+| perm-client-spring-boot-starter  | access-service 权限客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式；Feign 目标已切换为 access-service） |
+| perm-gateway-spring-boot-starter | 网关插件：快照模式本地匹配鉴权（T-PERM-001）、条件本地评估、未覆盖场景回退 access-service 实时鉴权                        |
 | perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存 **（⚠️ 规划中，未实现 — 2026-06-20 审计 S-011：当前模块仅含空 `PermDataAutoConfiguration`，注解/拦截器/SQL 改写均未落地，待核心主线稳定后补齐）**             |
 
 ### 4.5 核心 API 清单
@@ -395,7 +357,7 @@ perm-sdk/
 
 | 组件                           | 说明                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到权限中心                          |
+| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到 access-service                          |
 | `PermissionClient`             | 业务服务查询用户权限视图的客户端。主要方法：`hasPermission(resourceId, operationId)`、`getMenuTree()` |
 | `DataPermissionInterceptor`    | MyBatis 拦截器，自动在 SQL 中注入数据权限过滤条件                                                     |
 
@@ -403,7 +365,7 @@ perm-sdk/
 
 | 组件                 | 说明                                                      |
 | -------------------- | --------------------------------------------------------- |
-| `PermissionFilter`   | Gateway GlobalFilter，Order=-60，每次请求回调权限中心鉴权 |
+| `PermissionFilter`   | Gateway GlobalFilter，Order=-60，快照模式本地匹配鉴权，条件不可本地评估时回退 access-service 实时鉴权 |
 | `ConditionEvaluator` | 评估条件规则（时间范围、IP白名单等），返回匹配结果        |
 
 ---
@@ -423,8 +385,8 @@ perm-sdk/
 
 | #   | 事项              | 决策                                                                 |
 | --- | ----------------- | -------------------------------------------------------------------- |
-| Q1  | 菜单数据归属      | admin-service 存完整菜单表(sys_menu)，同步到权限中心 resource_entity |
-| Q2  | 组织-权限中心映射 | 组织同步为 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)` 双事实，均使用业务键定位 |
+| Q1  | 菜单数据归属      | sys_menu 由 access-service admin 域维护（UI 路由元数据 + 关联资源 link）；关联资源经同事务本地投影落 permission 域 resource_entity |
+| Q2  | 组织-权限域映射   | 组织以 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)` 双事实投影，由 access.application 同事务维护，均使用业务键定位 |
 | Q3  | 限流方案          | 首期不做，后续按需集成                                               |
 | Q4  | 任务调度          | Spring Scheduler（轻量），兼演示定时任务的权限控制                   |
 | Q5  | 前端技术栈        | Vue 3 + Element Plus                                                 |
@@ -432,7 +394,7 @@ perm-sdk/
 
 ---
 
-## 7. 设计约定（与权限中心一致）
+## 7. 设计约定（与项目规范一致）
 
 - **无数据库外键**：所有关联为逻辑 ID
 - **多租户**：所有表带 `tenant_id`
@@ -441,4 +403,4 @@ perm-sdk/
 - **所有接口 POST + JSON Body**
 - **通用响应结构**：`{ "code": 200, "message": "success", "data": {} }`
 - **分页规范**：与项目规范一致，分页入参使用 `pageNum/pageSize/sort`，分页响应使用 `items/total/pageNum/pageSize/hasNext`
-- **限制使用 Lombok**：仅允许 `@Getter` / `@Setter`，禁止 `@Data`、`@Value`、`@Builder` 等其他注解；不可变 DTO 优先使用 Java 21 Record
+- **限制使用 Lombok**：仅允许精确导入 `@Getter` / `@Setter`，`@Builder` 可用于复杂构造或测试数据装配；禁止 `@Data`、`@Value`、`@EqualsAndHashCode` 等隐式生成过多逻辑的注解；不可变 DTO 优先使用 Java 21 Record

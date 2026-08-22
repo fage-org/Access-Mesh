@@ -2,7 +2,7 @@
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
 // 字段已对齐 access-service 权限域的 DomainConfigResp
 // 契约依据：docs/design/permission-center/api-contract.md §5.6（高级能力）
-// 表结构：docs/design/schema/permission-center.sql:465-483
+// 表结构：docs/design/schema/access-service.sql
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import { resolveDomainId } from "./_bizDomainRegistry";
 
@@ -46,7 +46,7 @@ const err = (code: number, message: string) => ({ code, message, data: null });
 /**
  * domain_config 内存数据。
  *
- * schema 注释（permission-center.sql:482-483）：
+ * schema 注释（access-service.sql）：
  * - config_type 取值：SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY
  * - 每个域独立，无继承
  *

@@ -3,14 +3,14 @@ doc_type: design
 title: 权限排查 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-11
+last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 /api/perm/* 契约端点
 ---
 
 # 权限排查 前端设计
 
 > 对应任务：T-FE-013
 > 后端契约：`docs/design/permission-center/api-contract.md` §6.6-6.8
-> 后端任务：T-PERM-033（聚合层 + 门禁 + DTO 扩展）
+> 后端任务：T-PERM-033（permission 域门禁统一 + DTO 扩展；聚合层已取消——T-ACCESS-012 决策，页面直连 `/api/perm/*` 契约端点）
 
 ## 1. 页面定位
 
@@ -46,7 +46,7 @@ last_reviewed: 2026-07-11
 
 覆写 layout `.main-content` margin：`div.permission-query-page.main-content { margin: var(--space-3); }`（特异性 0,2,1 覆盖 scoped 0,2,0，对齐 T-FE-012 范式）。
 
-## 3. 主体模型（核实 permission-center 后端）
+## 3. 主体模型（核实 permission 域后端）
 
 | 接口 | targetType | USER 字段 | ROLE 字段 |
 |---|---|---|---|
@@ -94,11 +94,11 @@ last_reviewed: 2026-07-11
 
 | 端点 | 契约 | 路径 | 说明 |
 |---|---|---|---|
-| effective-permissions | §6.8 L1353 | POST /permission-query/effective-permissions | 管理端分页排查视图 |
-| query-scopes | §6.7 L1254 | POST /permission-query/query-scopes | 范围权限四态 |
-| explain | §6.8 L1458 | POST /permission-query/explain | 单权限解释 |
+| effective-permissions | §6.8 | POST /api/perm/permission-view/effective-permissions | 管理端分页排查视图 |
+| query-scopes | §6.7 | POST /api/perm/auth/query-scopes | 范围权限四态 |
+| explain | §6.8 | POST /api/perm/permission-view/explain | 单权限解释 |
 
-**路径说明**：本页前瞻性采用未来 admin-service 聚合路径 `/permission-query/*`（与 admin-service `/user/*` 模式一致），Phase 1 mock 模拟该路径。T-PERM-033 实现 admin-service `PermissionQueryController` 聚合层后前端无需改路径。与现有 `/api/perm/*` 直连 permission-center 的页面（冲突规则/业务域/变更日志等）不同--架构要求前端不直连 permission-center（architecture.md §1.5 L89），现有 `/api/perm/*` 页面的聚合层迁移登记为独立技术债。
+**路径说明（T-ACCESS-012 决策：取消聚合层）**：原「admin 域聚合层 `/permission-query/*`」方案取消——归并后 `/perm/**` 与 `/admin/**` 同路由到 access-service，聚合层前提（前端不直连权限服务）不再成立；页面直连上表 `/api/perm/*` 契约端点，无新增 Gateway 路由（维持 3 路由契约）。Phase 1 mock 仍模拟 `/permission-query/*` 本地路径，联调（T-FE-019）时切换为契约路径。
 
 ## 7. 组件结构
 
@@ -122,7 +122,7 @@ last_reviewed: 2026-07-11
 - 路由 `meta.auths`：`[...PERMISSION_QUERY_PERM_LIST]`（值 `SYSTEM_CONFIG:VIEW` 临时）
 - 路由框架不消费 `meta.auths` 隐藏菜单，页面入口必须 `hasPerms` + 整页无权状态 + hook 短路
 
-### 门禁现状（核实 permission-center）
+### 门禁现状（核实 permission 域）
 - explain：`SYSTEM_CONFIG:VIEW`（`PermissionViewAppServiceImpl:665`）
 - effective-permissions：目标实例 `USER:VIEW`/`ROLE:VIEW`（`:134/153`）
 - query-resources/query-scopes：运行时接口，无排查门禁
@@ -133,7 +133,7 @@ last_reviewed: 2026-07-11
 
 | # | 项 | 状态 | 说明 |
 |---|---|---|---|
-| 1 | admin-service 聚合入口 | 🔧 | 新增 PermissionQueryController + 聚合 DTO |
+| 1 | 聚合层取消 | ✅ | T-ACCESS-012 决策：不新增聚合层/路由，页面直连 `/api/perm/*` 契约端点；mock 路径联调时切换 |
 | 2 | 统一门禁 PERMISSION_QUERY:VIEW | 🔧 | 方案 A/B + 全链路（资源类型/种子/默认角色/白名单） |
 | 3 | explain DTO 扩展 | 🔧 | 命中条件/条件评估/冲突详情 + 评估上下文 + 脱敏 |
 | 4 | recentChanges 按权限键过滤 | 🔧 | 完整 6 字段过滤（当前 :735 只按用户/角色取 50 条） |

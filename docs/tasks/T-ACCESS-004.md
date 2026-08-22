@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-004
 title: 实现可信请求上下文和统一安全策略矩阵
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#6-可信请求上下文与安全策略

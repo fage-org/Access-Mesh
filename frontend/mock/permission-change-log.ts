@@ -3,7 +3,7 @@
 // 字段已对齐 access-service 权限域的 ChangeLogResp
 // 契约依据：docs/design/permission-center/api-contract.md §5.8（变更日志仅 1 行表格条目，路径写错且无独立字段契约章节）
 //           §6.8 diff_snapshot 轻量规范（L1590-1671）
-// 表结构：docs/design/schema/permission-center.sql:600-632
+// 表结构：docs/design/schema/access-service.sql
 // 后端实现：LogQueryController（@RequestMapping("/api/perm/log")）+ LogQueryAppServiceImpl.listChangeLogs
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
@@ -49,9 +49,9 @@ const ok = data => ({ code: 200, message: "success", data });
 /**
  * permission_change_log 内存数据。
  *
- * entityType 取值对齐 schema 注释（permission-center.sql:626）：
+ * entityType 取值对齐 schema 注释（access-service.sql）：
  * - user_role / role_resource_permission / abstract_user / abstract_role / resource_entity 等
- * operation 取值对齐 schema 注释（permission-center.sql:627）：INSERT/UPDATE/DELETE
+ * operation 取值对齐 schema 注释（access-service.sql）：INSERT/UPDATE/DELETE
  * changeSource 取值对齐后端代码实际（PermConstants.MaintainSource 复用）：MANUAL/SERVICE_SYNC
  *   🔧 schema L631 注释写 ADMIN/SYNC/API/SYSTEM 与代码不符，登记 T-PERM-032。
  * diffSnapshot 遵循 §6.8 L1590-1671 规范：eventType（7 枚举）+ items[]（changeType ADD/REMOVE/UPDATE）。

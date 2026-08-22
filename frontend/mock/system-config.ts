@@ -2,7 +2,7 @@
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
 // 字段已对齐 access-service 权限域的 SystemConfigResp
 // 契约依据：docs/design/permission-center/api-contract.md §5.8（系统配置仅 3 行表格条目，无独立字段契约章节）
-// 表结构：docs/design/schema/permission-center.sql:635-656
+// 表结构：docs/design/schema/access-service.sql
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 /**
@@ -37,7 +37,7 @@ const err = (code: number, message: string) => ({ code, message, data: null });
 /**
  * system_config 内存数据（扁平数组）。
  *
- * schema 注释示例键（permission-center.sql:654-656）：
+ * schema 注释示例键（access-service.sql）：
  * - ROLE_NAME_UNIQUE_MODE：角色名唯一性策略（{"mode":"DOMAIN_UNIQUE"}）
  * - UNREGISTERED_API_POLICY：未注册接口默认策略（{"mode":"NO_RESTRICT"}）
  *

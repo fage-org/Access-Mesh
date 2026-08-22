@@ -16,7 +16,7 @@ last_reviewed: 2026-06-30
 
 类型定义页管理 `type_definition` 表的**多组枚举字典**：按 `type_key` 分组，每条是 `(typeCode 对外稳定编码, typeValue 内部值, name, isSystem, sortOrder, extra)` 的 code↔value 映射。
 
-- **4 个 typeKey 分组**：`user_type`（用户/主体类型）、`role_type`（角色类型）、`resource_type`（资源类型）、`group_type`（分组类型）。对齐 schema `permission-center.sql:15-50` 注释。
+- **4 个 typeKey 分组**：`user_type`（用户/主体类型）、`role_type`（角色类型）、`resource_type`（资源类型）、`group_type`（分组类型）。对齐 schema `access-service.sql` `type_definition` 表注释。
 - **系统预置项（isSystem=true）**：租户初始化自动写入，**不可删改**（schema:47 注释）——前端隐藏编辑/删除按钮（业务约束，非权限），后端亦跳过删除。
 - **租户自定义项（isSystem=false）**：可 CRUD。
 - **无 status 字段**：`type_definition` 表无启停概念（与 `abstract_role` 不同），本页无启停列/启停按钮。
@@ -171,7 +171,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-023。
 1. **`typeValue` 自动分配未实现（T-PERM-019 D1 漂移）**
    - 现状：`TypeCreateReq.typeValue` 仍 `@NotNull`，`createType` 直接用入参，无 allocator。
    - 期望：服务端在 `tenant+typeKey` 内自动分配 `typeValue`（`max+1`，**软删不复用**——已删行的 typeValue 仍占位），`TypeCreateReq` 移除 `typeValue` 字段。
-   - 依据：schema 唯一索引 `uk_type_definition_value (tenant_id,type_key,type_value) WHERE delete_flag=0`（permission-center.sql）保证未删行唯一；`type_value` 是内部计算值，不应外部入参；D1 明确软删不复用。
+   - 依据：schema 唯一索引 `uk_type_definition_value (tenant_id,type_key,type_value) WHERE delete_flag=0`（access-service.sql）保证未删行唯一；`type_value` 是内部计算值，不应外部入参；D1 明确软删不复用。
    - 前端可行性：✅ 本页表单已不收集 typeValue，mock `nextTypeValue` 取全部行（含已软删）max+1。后端切换后前端无需改动。
    - 归属：T-PERM-023 🔧（收敛 T-PERM-019 D1）。
 

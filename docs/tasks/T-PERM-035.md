@@ -45,7 +45,7 @@ last_updated: 2026-06-29
 
 ## 当前状态
 
-- `resource_dependency` 表已设计（permission-center.sql）
+- `resource_dependency` 表已设计（access-service.sql）
 - `PermissionGrantAppServiceImpl` TODO：`自动授予依赖权限（autoGrantForInsert）`（L130）
 - `PermissionGrantDomainService` / Impl TODO：`自动授权解析（resolveAutoGrants）`（L13/L39）
 

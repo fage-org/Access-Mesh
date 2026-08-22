@@ -3,22 +3,24 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-15
+last_reviewed: 2026-08-22
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
 
-> 状态：`adopted`。本文整体仍是「组织与用户」融合页 HTTP 路径、DTO、错误码和业务行为的兼容基线。
+> 状态：`adopted`。本文整体仍是「组织与用户」融合页 HTTP 路径、DTO、错误码和业务行为的兼容基线。**归并后定位（T-ACCESS-012，2026-08-22）**：本文描述的 `/admin/**`、`/auth/**` 契约由 access-service 管理域（admin 域）承载，文件名与路径保留历史叫法；文件名中的 "Admin Service" 指该管理域而非独立服务（原 admin-service 已归并为 access-service，服务设计见 `../access-service-architecture.md`）。
 >
 > **目标架构（T-ACCESS-005，2026-08-15）**：§3、§4 各写接口的投影动作以及 §6/§7 的内部一致性契约已改为同事务本地权限投影。HTTP 路径、DTO 与错误码继续有效。access 内部不再写 `sys_sync_task`、不再 Feign 自调用。
+>
+> **术语（T-ACCESS-012）**：本文中「admin / admin-service 层」指 access-service admin 域入口，「permission-center」指同服务 permission 域（本地 `PermQueryEngine`/AppService 调用，无跨服务 HTTP）；历史决策表中的旧服务名表述按此映射阅读，不改变契约本身。
 >
 > 关联文档:
 > - `../project-rules.md` (强约束: 报文/接口/异常/错误码段)
 > - `../permission-center/api-contract.md` (业务键, /api/perm/user-role/* 代理调用)
 > - `../default-org-tree-user-lifecycle.md` (默认组织树身份目录边界)
 > - `../org-user-permission-contract.md` v1.2 (页面门禁与岗位=特殊组织决策)
-> - `./admin-service.md` (admin-service 职责与同步任务模型)
-> - `../schema/admin-service.sql` (字段事实)
+> - `../../archive/2026-08-22/admin-service.md` (原 admin-service 服务设计，已 superseded；同步任务模型已随 T-ACCESS-005 退役)
+> - `../schema/access-service.sql` (字段事实，唯一权威 DDL)
 >
 > 当前 16 个接口处于"契约已定稿, 待 Phase 2 后端实现"状态; 另 6 个接口与前端 mock 已对齐, 见 §5 已对齐汇总.
 >
@@ -33,9 +35,9 @@ last_reviewed: 2026-08-15
 - **§1.1 统一响应壳**: 所有接口返回 `PermResult<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由网关与 Micrometer Tracing 注入, 业务侧不写入.
 - **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PaginatedResult<T> { items: T[], total, pageNum, pageSize, hasNext }`. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
-- **§2.2 路径**: admin-service 直接挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
+- **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
 - **请求体禁止 `tenantId`**: 服务端统一从 `X-Tenant-Id` Header 与 SecurityContext 读取. 前端经网关后无需感知.
-- **§1.2 业务错误码**: admin-service 业务错误使用 `10001-19999` 段; 系统公共错误 (参数校验/系统异常) 使用 `90001-99999` 段, 由 `common` 模块统一定义.
+- **§1.2 业务错误码**: access-service 管理域（admin 域）业务错误使用 `10001-19999` 段; 系统公共错误 (参数校验/系统异常) 使用 `90001-99999` 段, 由 `common` 模块统一定义.
 - **§3.2 异常**: 业务拒绝 (资源不存在/状态冲突/默认树边界违规等) 抛 `BizException`; 安全拒绝 (操作者身份缺失/权限不足/越权) 抛 `SecurityException`; 技术故障 (DB/RPC/序列化) 抛 `SystemException`. **禁止**用 `SecurityException` 表达"资源不存在"或"参数非法".
 
 ---
@@ -83,7 +85,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/user-org/set-primary` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
 | `/user-role/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
-| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 代理 `permission-center /api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)`. **admin 层不做 ROLE:MANAGE 预检，由 permission-center 兜底**（P1-1：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code，语义错位会误拒；perm 用正确 abstract_role.id 校验）|
+| `/user-role/assign` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | admin 域入口代理同服务 `/api/perm/user-role/assign`; 前端传业务键 `(roleTypeCode, roleExternalId)`. **admin 入口不做 ROLE:MANAGE 预检，由 permission 域引擎兜底**（P1-1：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code，语义错位会误拒；perm 用正确 abstract_role.id 校验）|
 | `/user-role/revoke` | `ROLE` | 实例级 (roleExternalId) | `MANAGE` | 同上 |
 | `/role/list` | `ADMIN_ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
@@ -403,15 +405,15 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理。**`includePositions=true` 时仅支持 `VIEW`（P2-1 第九轮：CREATE + 混合树 → 参数校验失败——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）** |
+| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理。**`includePositions=true` 时仅支持 `VIEW`（P2-1 ：CREATE + 混合树 → 参数校验失败——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）** |
 | `treeConfigId` | `Long` | 否 | 组织树配置 ID; 不传则返回默认树 |
 | `orgName` | `String` | 否 | 模糊匹配 |
 | `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）** |
-| `includePositions` | `Boolean` | 否 | **T-ADMIN-021 新增（2026-08-01 第七轮评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
+| `includePositions` | `Boolean` | 否 | **T-ADMIN-021 新增（2026-08-01 评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
 | `status` | `Integer` | 否 | |
 | `parentOrgId` | `Long` | 否 | 用于查询子树; 一般不与 `treeConfigId` 同时使用 |
 
-**响应（P1-3 第八轮定稿）**: `PermResult<OrgItemsResp>`，`data.items[]`（`OrgItemsResp{ items: List<OrgResp> }`）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃；包装改造由 **T-ADMIN-021** 落地，见合规债务清单）
+**响应（P1-3 定稿）**: `PermResult<OrgItemsResp>`，`data.items[]`（`OrgItemsResp{ items: List<OrgResp> }`）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃；包装改造由 **T-ADMIN-021** 落地，见合规债务清单）
 
 `OrgResp`:
 
@@ -436,7 +438,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **同步动作**: 无.
 
-**当前差距** (合规债务): ① `OrgQuery` 当前 record 缺 `operationCode` 与 `treeConfigId` 字段; ② 顶层响应应改为 `{ items: [...] }` 包装. **②已由 T-ADMIN-021 消化（2026-08-01 第八轮 P1-3：响应定稿 `PermResult<OrgItemsResp>{data:{items}}`，含调用方适配）**; ① 仍列入 Phase 2 修正项.
+**当前差距** (合规债务): ① `OrgQuery` 当前 record 缺 `operationCode` 与 `treeConfigId` 字段; ② 顶层响应应改为 `{ items: [...] }` 包装. **②已由 T-ADMIN-021 消化（2026-08-01 P1-3：响应定稿 `PermResult<OrgItemsResp>{data:{items}}`，含调用方适配）**; ① 仍列入 Phase 2 修正项.
 
 ---
 
@@ -770,7 +772,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission-center 兜底**（admin 层不做预检，P1-1 修复：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位会误拒；permission-center `UserManageAppServiceImpl.assignRole` 用正确 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
+**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission 域引擎兜底**（admin 入口不做预检，P1-1 修复：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位会误拒；permission 域 `UserManageAppServiceImpl.assignRole` 用正确 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
 
 **代理动作**:
 1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException`，应走 /user-org/*).
@@ -783,7 +785,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **验收要点**:
 - `roleTypeCode` 为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED)`.
-- permission-center 返回非 200 → 透传错误码与 message; admin 层不吞错.
+- permission 域引擎校验拒绝 → 透传错误码与 message; admin 入口不吞错（本地调用，无跨服务 HTTP）.
 
 ---
 
@@ -803,7 +805,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission-center 兜底**（同 assign，P1-1 修复；permission-center `revokeRolesBatch` 用 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
+**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission 域引擎兜底**（同 assign，P1-1 修复；permission 域 `revokeRolesBatch` 用 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
 
 **代理动作**:
 1. 校验 `roleTypeCode` (同 assign).
@@ -848,7 +850,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | # | 接口 | 来源 record | 备注 |
 |---|------|-------------|------|
-| 1 | `POST /org/tree` | `OrgQuery` | 待补 `operationCode/treeConfigId` 字段; **响应包装 `{ items }` 已由 T-ADMIN-021 消化（第八轮 P1-3）** |
+| 1 | `POST /org/tree` | `OrgQuery` | 待补 `operationCode/treeConfigId` 字段; **响应包装 `{ items }` 已由 T-ADMIN-021 消化（P1-3）** |
 | 2 | `POST /org/page` | `OrgPageReq` | 含 `orgId` 子树筛选; 已对齐 |
 | 3 | `POST /org/users` | `IdReq` | 前端 mock 入参字段名为 `orgId`, 待 Phase 2 调整为 `id` |
 | 4 | `POST /user/update` | `UserUpdateReq` | 已对齐 |
@@ -887,7 +889,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 9 | `/user-role/assign|revoke` 只处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝 |
 | 10 | admin-service 不存储 permission-center 内部 ID | 跨服务统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
-| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, 第八轮 P1-3**) |
+| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
 | 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 角色代理 10500-10599 / 其他保留 10600-19999 |
 
@@ -923,7 +925,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 ---
 
-## 附录 B. 错误码段建议 (admin-service 10001-10599 区间)
+## 附录 B. 错误码段建议 (access-service 管理域 10001-10599 区间)
 
 | 子段 | 含义 |
 |------|------|

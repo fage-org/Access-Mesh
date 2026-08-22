@@ -40,7 +40,7 @@ export function createEmptyDomainConfigForm(): DomainConfigFormData {
 }
 
 /**
- * 域配置类型选项（对齐 schema domain_config.config_type 注释，permission-center.sql:482-483）。
+ * 域配置类型选项（对齐 schema domain_config.config_type 注释，access-service.sql）。
  *
  * schema 注释列 5 种：SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY。
  * 🔧 后端 AppServiceImpl.upsertDomainConfig 注释只提 CLASSIFY/SUB_PERM，schema 注释列 5 种，登记 T-PERM-026。

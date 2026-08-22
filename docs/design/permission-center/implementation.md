@@ -3,14 +3,14 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-08   # 2026-08-08 十轮复审：SubPermissionPolicy、20042/20043、旧端点终态、§6.5.2 引用；十一轮复审：resolveSubPermissionPolicy 唯一公开入口、prevalidate 方法名口径
+last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-08 复审（§4.1 授权写链路收敛、SubPermissionPolicy）
 ---
 
 # 权限中心 — 核心功能实现设计
 
 > 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。
 > 本文档不定义对外 API 路径、请求体、响应体或错误原因；这些内容以 `api-contract.md` 为准。
-> 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/permission-center.sql` 为准。
+> 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/access-service.sql` 为准（唯一权威 DDL；文中「permission-center」指 access-service permission 域，见 overview.md 术语注记）。
 
 ---
 
@@ -414,11 +414,11 @@ PermQueryEngine.query(PermQuery q)
 ## 4. 权限授权管理模块
 
 
-### 4.1 接口定义（第十四轮收窄重写）
+### 4.1 接口定义（收窄重写）
 
-授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **随 T-PERM-034 迁移 admin-service 后统一删除（2026-08-08 八轮复审确认：仓库内无外部调用、项目未上线，兼容策略=不考虑旧接口）**；删除前兼容期：`save/revoke` 仅 admin-service 存量调用、`add-child` 仍执行 ROLE:MANAGE + 批量 `checkCanGrant` + **子权限属性不变量 20043**（不得成为 20043 绕过路径）；授权页面禁止调用；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
+授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **随 T-PERM-034 统一删除（2026-08-08 复审确认：仓库内无外部调用、项目未上线，兼容策略=不考虑旧接口）**；删除前兼容期：`save/revoke` 仅管理域存量调用、`add-child` 仍执行 ROLE:MANAGE + 批量 `checkCanGrant` + **子权限属性不变量 20043**（不得成为 20043 绕过路径）；授权页面禁止调用；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
 
-**SUB_PERM 共享策略对象（八轮复审实现建议采纳，十一轮复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
+**SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
@@ -426,7 +426,7 @@ PermQueryEngine.query(PermQuery q)
 | 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
 | 子权限类型查询 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（§6.5.2）**：按父资源类型返回 SUB_PERM 允许策略（mode/reason/allowedChildResourceTypeCodes），AppService 直接映射 `resolveSubPermissionPolicy` 结果 |
 
-> wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 为唯一权威；本文不重复完整字段定义。**砍（第十四轮）**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
+> wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 为唯一权威；本文不重复完整字段定义。**砍**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
 
 ### 4.2 聚合授权执行链路（apply-grant-plan）
 
@@ -453,7 +453,7 @@ public record GrantPlan(
 
 ```java
 public record ApplyGrantPlanResp(
-    List<RolePermissionItemResp> items   // 完整持久化结果（无 revision/currentRevision/replayed，第十四轮砍）
+    List<RolePermissionItemResp> items   // 完整持久化结果（无 revision/currentRevision/replayed，砍）
 ) {}
 ```
 
@@ -543,8 +543,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 }
 ```
 
-- **写入口五项清单（第十四轮定案，写入口必须齐全）**：① `@Transactional(rollbackFor=Exception.class)` 单事务原子 ② `@OperationLog` 入口级操作日志 ③ `@PermissionChange` 缓存失效 AOP（afterCommit flush markRoles -> 广播 + evict）④ `auditDomainService.recordChangeLog` 同事务聚合 permission_change_log ⑤ `PermissionChangeContext.markRoles` 登记影响范围。缺任一项会导致审计缺失或缓存失效遗漏（markRoles 未绑上下文时 no-op）。
-- **无 CAS / 无幂等表 / 无 clientRequestId**（第十四轮收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。
+- **写入口五项清单（定案，写入口必须齐全）**：① `@Transactional(rollbackFor=Exception.class)` 单事务原子 ② `@OperationLog` 入口级操作日志 ③ `@PermissionChange` 缓存失效 AOP（afterCommit flush markRoles -> 广播 + evict）④ `auditDomainService.recordChangeLog` 同事务聚合 permission_change_log ⑤ `PermissionChangeContext.markRoles` 登记影响范围。缺任一项会导致审计缺失或缓存失效遗漏（markRoles 未绑上下文时 no-op）。
+- **无 CAS / 无幂等表 / 无 clientRequestId**（收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。
 - **受影响行数断言（问题 5 修复）**：`updates`/`removes` 执行后核对实际影响行数，少于预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **hasPermission 显式判断（问题 1 修复）**：`engine.hasPermission()` 返回 boolean 不自动抛异常，必须 `if(!...) throw SecurityException`，否则 ROLE:MANAGE 门禁失效。
 
@@ -697,7 +697,7 @@ record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}
 > **下一步建议**：
 >
 > - 在此基础上补充用户管理（abstract_user + user_role）模块的执行链路设计
-> - 或直接开始 permission-center 服务代码骨架搭建（pom.xml + 主启动类 + 基础配置）
+> - 或直接开始 access-service permission 域代码骨架搭建（pom.xml + 主启动类 + 基础配置）
 
 ---
 

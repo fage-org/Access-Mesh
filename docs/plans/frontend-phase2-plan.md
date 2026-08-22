@@ -82,7 +82,7 @@ last_updated: 2026-08-09
 | T-PERM-031 | 3.4 资源依赖后端 | T-FE-011 | 同上 |
 | T-PERM-032 | 7.2 变更日志后端 | T-FE-012 | 同上 |
 | T-PERM-033 | 4.2 权限查询后端 | T-FE-013 | 同上 |
-| T-PERM-034 | 4.1 权限授予后端（见任务卡） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；design/frontend/permission-grant.md §12；permission-center.sql | T-PERM-031 | ⚙️ | ⏳ |
+| T-PERM-034 | 4.1 权限授予后端（见任务卡） | T-PERM-031 | 同上（design_refs 含 access-service.sql） |
 
 ### 单类型矩阵后端任务（T-PERM-040/041，2026-08-03 定稿；范围见任务卡）
 

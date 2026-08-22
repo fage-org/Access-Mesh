@@ -34,7 +34,7 @@ const DEFAULT_TENANT_ID = 1;
 /**
  * 业务域内存注册表（唯一权威源）。
  *
- * schema（permission-center.sql:55-72）：
+ * schema（access-service.sql）：
  * - uk_biz_domain(tenant_id, code) WHERE delete_flag=0 —— 租户内 code 唯一
  * - uk_biz_domain_global(tenant_id) WHERE global=TRUE AND delete_flag=0 —— 每租户仅一个全局域
  *

@@ -15,7 +15,7 @@ import type { PaginatedResp, ItemsResp } from "./role-manage";
 // ========== 类型种类常量（type_key 分组） ==========
 
 /**
- * type_definition.type_key 取值（对齐 schema permission-center.sql:15-50 注释）。
+ * type_definition.type_key 取值（对齐 schema access-service.sql 注释）。
  * - user_type：用户/主体类型
  * - role_type：角色类型（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）
  * - resource_type：资源类型（MENU/BUTTON/API/DATA 等）

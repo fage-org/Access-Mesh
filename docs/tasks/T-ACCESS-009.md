@@ -3,12 +3,12 @@ doc_type: task
 id: T-ACCESS-009
 title: 建立数据库任务租约、幂等和异步执行治理
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#81-多实例任务协调
   - docs/design/access-service-architecture.md#82-审计事务分级
-  - docs/design/services/admin-service.md
+  - docs/archive/2026-08-22/admin-service.md
 depends_on:
   - T-ACCESS-002
   - T-ACCESS-004

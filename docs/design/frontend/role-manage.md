@@ -20,8 +20,8 @@ last_reviewed: 2026-07-26
 
 | 类型 | 来源 | 权限分配归属 |
 |---|---|---|
-| `ORG` / `POSITION` | 组织同步自动生成（admin-service → permission-center，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口二期） |
-| `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema permission-center.sql:103） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
+| `ORG` / `POSITION` | 组织投影自动生成（`access.application` 同事务维护，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口二期） |
+| `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema access-service.sql `abstract_role` 注释） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
 
 **设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ADMIN_ORG`/`ADMIN_USER`）。
 
@@ -195,7 +195,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
 1. **`/detail` 用内部主键而非业务键**
    - 现状：`RoleController.getRole` 用 `IdReq{id}`（内部主键）。
    - 期望：用业务键二元组 `roleTypeCode + externalId` 定位（tenantId 走上下文，**不含 domainCode**）。
-   - 依据：schema 唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（permission-center.sql:147）已保证租户内 `(role_type, external_id)` 唯一；`abstract_role` 表无 domain 字段（编码规范 §18，bizDomainId 已删）；`external_id` 列注释明示「按 tenant_id + role_type + external_id 定位」。
+   - 依据：schema 唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（access-service.sql `abstract_role` 节）已保证租户内 `(role_type, external_id)` 唯一；`abstract_role` 表无 domain 字段（编码规范 §18，bizDomainId 已删）；`external_id` 列注释明示「按 tenant_id + role_type + external_id 定位」。
    - 前端可行性：✅ 角色树 `RoleTreeNode` 已返回 `roleTypeCode` + `externalId`（RoleTreeResp.java），前端可直接取用，前提满足。
    - 旧 DTO 处置：**废弃 `RoleDetailReq.java`**（带 domainCode，bizDomainId 旧时代遗留，零引用，与 schema/编码规范 §18 矛盾）；T-PERM-022 新建正确的二元组请求体。
    - 影响：Phase 1 mock 用树节点 id 工作正常；Phase 3 联调（T-FE-016）需后端切换。

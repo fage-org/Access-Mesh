@@ -110,7 +110,7 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 | /api/perm/permission-condition/remove | POST | IdsReq{ids} | Void | CONDITION:DELETE |
 
 后端实现：ConditionController + ConditionAppServiceImpl。
-conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 permission-center 共享）。
+conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。
 
 ## 组件结构
 

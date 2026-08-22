@@ -10,7 +10,7 @@ design_refs:
   - docs/design/permission-center/api-contract.md
   - docs/design/permission-center/core-flows.md
   - docs/design/permission-center/implementation.md
-  - docs/design/schema/permission-center.sql
+  - docs/design/schema/access-service.sql
   - docs/design/architecture.md
 depends_on: []
 blocks: []
@@ -22,7 +22,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-06-28
+last_updated: 2026-08-22
 ---
 
 # T-PERM-020 工作单 E：清理预设能力

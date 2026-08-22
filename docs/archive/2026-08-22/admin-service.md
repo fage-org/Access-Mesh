@@ -1,14 +1,21 @@
 ---
 doc_type: design
 title: Admin Service 设计
-status: adopted
+status: superseded
 domain: admin-service
-last_reviewed: 2026-08-15
+superseded_by: docs/design/access-service-architecture.md
+last_reviewed: 2026-08-22
 ---
 
 # Admin Service 设计
 
-本文档是 admin-service 的精简设计入口。旧版完整设计已归档到 `../../archive/2026-04-28/admin-service-design.full.md`，仅用于追溯。
+> **SUPERSEDED（2026-08-22，T-ACCESS-012）**：`admin-service` 已与 `permission-center` 物理归并为 `access-service`（模块化单体，唯一部署单元）。本文件描述的独立 admin-service 服务设计已被取代，归档于此仅作历史追溯，不得作为实现依据：
+>
+> - 服务架构、模块边界、事务与本地投影：[`docs/design/access-service-architecture.md`](../../design/access-service-architecture.md)（§2/§3/§4）
+> - 对外 `/admin/**`、`/auth/**` 接口契约：[`docs/design/services/admin-service-api-contract.md`](../../design/services/admin-service-api-contract.md)（仍为 adopted 权威）
+> - 表结构权威 DDL：[`docs/design/schema/access-service.sql`](../../design/schema/access-service.sql)
+>
+> 其中「同步任务模型」章节描述的 `sys_sync_task` 内部同步模型已于 T-ACCESS-005 随内部同步子系统一并退役。旧版完整设计见 `../2026-04-28/admin-service-design.full.md`。
 
 ## 职责边界
 
@@ -70,9 +77,9 @@ last_reviewed: 2026-08-15
 
 ### 同步任务模型
 
-> **T-ACCESS-005**：内部 admin→permission 同步任务模型已退役。管理事实写入改由 `access.application` 同事务维护本地权限投影，见 [`../access-service-architecture.md`](../access-service-architecture.md) §4 与 `admin-service-api-contract.md` §3。以下段落仅描述已删除的历史模型，不得再实施。
+> **T-ACCESS-005**：内部 admin→permission 同步任务模型已退役。管理事实写入改由 `access.application` 同事务维护本地权限投影，见 [`../../design/access-service-architecture.md`](../../design/access-service-architecture.md) §4 与 `admin-service-api-contract.md` §3。以下段落仅描述已删除的历史模型，不得再实施。
 
-admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放（参见 `../../archive/2026-08-15/admin-permission-sync.md`，已 superseded）。
+admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。主业务事务内写入业务表和同步任务，事务外由调度器按 `syncAction -> Handler -> Feign/API` 重放（参见 `../2026-08-15/admin-permission-sync.md`，已 superseded）。
 
 同步动作收敛为 4 类领域级 action，具体行为由 payload 中的 `operation` 区分：
 
@@ -109,16 +116,16 @@ admin-service 曾使用本地消息表 `sys_sync_task` 作为同步任务表。�
 
 同步保障分三层：单次变更实时生成任务；失败任务按显式 `retryClass` 退避重发；最后通过 permission-center 分领域全量校准接口兜底。全量校准采用单请求、强制 scope、分领域接口，由 permission-center 在限定范围内对比上报全量数据并补齐缺失、清理多余事实。
 
-用户、组织和成员关系的完整边界见 `../default-org-tree-user-lifecycle.md`。
+用户、组织和成员关系的完整边界见 `../../design/default-org-tree-user-lifecycle.md`。
 
-API 契约以 `../permission-center/api-contract.md` 为准，核心流程见 `../permission-center/core-flows.md`。
+API 契约以 `../../design/permission-center/api-contract.md` 为准，核心流程见 `../../design/permission-center/core-flows.md`。
 
 ## 数据库
 
-admin-service 表结构以 `../schema/admin-service.sql` 为准。本文档不重复维护字段、索引、约束。
+admin-service 表结构以本归档目录 `schema/admin-service.sql` 为准（该 DDL 已 superseded；现行权威为 `../../design/schema/access-service.sql`）。本文档不重复维护字段、索引、约束。
 
 ## 实现约束
 
-- 所有接口遵守 `../project-rules.md`。
+- 所有接口遵守 `../../design/project-rules.md`。
 - 权限相关对象引用权限中心稳定业务键，不依赖权限中心内部主键作为外部契约。
 - 组织、菜单、角色等本服务业务数据由 admin-service 自己查询和展示；权限中心只返回权限事实和资源业务键。

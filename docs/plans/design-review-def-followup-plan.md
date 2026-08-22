@@ -8,16 +8,15 @@ design_refs:
   - docs/design/permission-center/core-flows.md
   - docs/design/permission-center/implementation.md
   - docs/design/permission-center/api-contract.md
-  - docs/design/schema/permission-center.sql
+  - docs/design/schema/access-service.sql
   - docs/design/architecture.md
-  - docs/design/cross-service/admin-permission-sync.md
-  - docs/design/services/admin-service.md
+  - docs/design/access-service-architecture.md
 tasks:
   - T-PERM-019
   - T-PERM-020
   - T-PERM-021
 acceptance: "D/E/F 三个暂缓工作单拆成 proposed 任务；冲突项已标注；每个任务进入 in-progress 前必须二次确认 scope 与设计回写目标。"
-last_updated: 2026-06-28
+last_updated: 2026-08-22
 ---
 
 # 设计评审 D/E/F 后续任务拆分
@@ -48,13 +47,14 @@ last_updated: 2026-06-28
 
 | 任务 | 工作单 | 范围 | 冲突状态 | 执行门禁 |
 |---|---|---|---|---|
-| [T-PERM-019](../tasks/T-PERM-019.md) | D 防呆机制 | `type_value` 自动分配、`BusinessKeys`、`@AppliesTo`、SyncHandler 版本声明 | `DESIGN_DRIFT`：`typeValue` 入参旧描述与软删不复用保证方式需先收敛 | 执行前确认 D1 语义和 BusinessKeys 默认方案 |
+| [T-PERM-019](../tasks/T-PERM-019.md) | D 防呆机制 | `type_value` 自动分配、`BusinessKeys`、`@AppliesTo`（D4 SyncHandler 版本声明已移除——T-ACCESS-012 重基线） | `DESIGN_DRIFT`：`typeValue` 入参旧描述与软删不复用保证方式需先收敛 | 执行前确认 D1 语义和 BusinessKeys 默认方案 |
 | [T-PERM-020](../tasks/T-PERM-020.md) | E 清理预设 | `domain_config` 旧配置、PermQuery 工厂、RocketMQ 脚注、`auto-grant` TODO | `CONFLICT_REQUIRES_DECISION`：`forValidate` / `forResourceCheck` 仍被当前设计使用 | 执行前确认 E2 替代设计 |
-| [T-PERM-021](../tasks/T-PERM-021.md) | F 文档准确性 + 代码简化 | 指标自动化、DTO 单源、ownership 单源、日志链路、full-sync runbook | `CONFLICT_REQUIRES_DECISION`：ownership 字段删除与 request_id NOT NULL 有当前设计约束；`requestId`/`traceId` 语义存在漂移 | 执行前确认 F1.c/F1.d 取舍 |
+| [T-PERM-021](../tasks/T-PERM-021.md) | F 文档准确性 + 代码简化 | 指标自动化、DTO 单源、ownership 单源、日志链路、外部 sync/full-sync runbook（T-ACCESS-012 收窄） | `CONFLICT_REQUIRES_DECISION`：ownership 字段删除与 request_id NOT NULL 有当前设计约束；`requestId`/`traceId` 语义存在漂移 | 执行前确认 F1.c/F1.d 取舍 |
 
 ## 当前进度
 
 - 2026-06-28：建立计划与任务；所有任务保持 `proposed`。
+- 2026-08-22（T-ACCESS-012 重基线）：三卡 design_refs 切换 `access-service.sql` 与 `access-service-architecture.md`（原 cross-service/admin-permission-sync.md 与 services/admin-service.md 已归档 superseded）；T-PERM-019 移除 D4、T-PERM-021 F1.e 收窄为外部 sync runbook。
 - 冲突项只登记，不执行。
 
 ## 归档条件

@@ -12,8 +12,8 @@ tasks:
   - T-ADMIN-020
   - T-PERM-038
   - T-PERM-039
-acceptance: "扩展点验证通过；扩展指南文档完成；admin-service CRUD 清理；全局 TODO 收口；测试补充达标。"
-last_updated: 2026-07-26
+acceptance: "扩展点验证通过；扩展指南文档完成；access-service admin 域 CRUD 清理；全局 TODO 收口；测试补充达标。"
+last_updated: 2026-08-22
 ---
 
 # 前端 Phase 4 — 扩展性验证 + 代码清理 + 文档
@@ -25,7 +25,7 @@ last_updated: 2026-07-26
 ## 目标
 
 - 扩展性验证（SPI / 配置驱动 / 代码级扩展）+ 接入文档
-- 代码清理（admin-service CRUD、全局 TODO、构造函数膨胀）
+- 代码清理（access-service admin 域 CRUD、全局 TODO、构造函数膨胀）
 - 测试补充
 - 文档更新
 
@@ -35,9 +35,9 @@ last_updated: 2026-07-26
 |---|---|---|---|
 | T-FE-023 | SPI 策略扩展验证 + 扩展指南（`docs/design/frontend/extension-guide.md`） | frontend | 🔴 |
 | T-FE-024 | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取（✅ done 2026-07-12；2026-07-26 权限授予页删除重做，`ReConditionPicker` / `ChildPermissionInline` 随之删除，`ReConditionEditor` / `condition-rules` 保留） | frontend | 🟡 |
-| T-ADMIN-020 | admin-service CRUD 代码清理（痛点 #6） | admin-service | 🟢 低 |
+| T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6） | admin-service | 🟢 低 |
 | T-PERM-038 | 全局 TODO 收口（improvement-plan 附录 A） | permission-center | 🟡 |
-| T-PERM-039 | 测试补充（permission-center 新增改造接口测试） | permission-center | 🟡 |
+| T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | permission-center | 🟡 |
 
 > 文档更新项（api-contract / core-flows / architecture / extension-guide）随各任务 design_writeback 完成，不单列任务。
 

@@ -10,7 +10,7 @@ last_reviewed: 2026-08-15
 
 > 状态：**v1.0 定稿**（2026-06-10）。本文固化“默认组织树作为用户目录/身份池”的设计，用于约束多组织树场景下用户生命周期、组织成员关系、权限资源建模和同步逻辑。
 >
-> 关联文档：`architecture.md`、`services/admin-service.md`、`org-user-permission-contract.md`、`../archive/2026-06-21/api-gap-analysis.md`（已归档，16 个 🔧 接口已实现）、`permission-center/overview.md`、`schema/admin-service.sql`、`schema/permission-center.sql`。
+> 关联文档：`architecture.md`、`org-user-permission-contract.md`、`../archive/2026-06-21/api-gap-analysis.md`（已归档，16 个 🔧 接口已实现）、`permission-center/overview.md`、`schema/access-service.sql`（唯一权威 DDL；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。
 
 ---
 

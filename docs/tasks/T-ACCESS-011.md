@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-011
 title: 完成契约、回滚、架构、空库和双实例验收
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#10-验收门禁
@@ -99,7 +99,7 @@ last_updated: 2026-08-22
 
 ### 环境受限豁免与遗留项
 
-**环境受限豁免（2026-08-22 确认口径）**：40 个 Docker 门控 Testcontainers 测试（空库 PG DDL 12、任务租约并发 10、双实例容器 3、故障注入 IT 5、PG 集成 2 等）因本机无 Docker 未执行，`mvn test` 中 skipped=40。处置口径沿用 T-ACCESS-009：测试代码与覆盖完整、仅执行环境缺失，不构成未关闭缺陷；**CI 环境跑通 `mvn test` 并确认 40 项全绿后，验收 2/6/9 的容器部分方视为最终关闭，且必须在计划归档（T-ACCESS-012 收口）前完成**。
+**环境受限豁免（2026-08-22 确认口径）**：40 个 Docker 门控 Testcontainers 测试（空库 PG DDL 12、任务租约并发 10、双实例容器 3、故障注入 IT 5、PG 集成 2 等）因本机无 Docker 未执行，`mvn test` 中 skipped=40。处置口径沿用 T-ACCESS-009：测试代码与覆盖完整、仅执行环境缺失，不构成未关闭缺陷；**CI 环境跑通 `mvn test` 并确认 40 项全绿后，验收 2/6/9 的容器部分方视为最终关闭**；原「必须在计划归档（T-ACCESS-012 收口）前完成」的归档前置，经用户决策（2026-08-22）改为随归档转移至 access-post-merge-plan 准入条件。
 
 | 级别 | 项 | 处置 |
 |---|---|---|

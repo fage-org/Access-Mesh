@@ -3,7 +3,7 @@
 -- =============================================================================
 -- 本文件是 access-service 数据库结构的唯一权威定义（access-service-architecture §5.1）。
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
---       （四份旧文件已标记 superseded，不再作为实现依据）
+--       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
 -- 范围：33 张表
 --   admin 域 14 张（sys_*，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）

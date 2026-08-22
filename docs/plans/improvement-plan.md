@@ -82,7 +82,7 @@ note: |
 | 3 | **自动授权未实现** | 🟡 高 → **暂缓**（2026-06-20 审计 S-026）| permission-center | 资源依赖链自动补全权限——核心差异化能力缺失。**design-review §11 E4 决策：保留 TODO + 排期 Phase X（未排期）**，本痛点近期不推进 |
 | 4 | **动态数据权限待验证** | 🟡 高 → **暂缓**（2026-06-20 审计 S-026）| permission-center | 设计有（按身份ID的数据范围），但能否适配真实场景不确定。**design-review §11 Q7/B 决策：端到端测试延后到 example-service，且 example-service 暂不实现**，本痛点近期不推进 |
 | 5 | **扩展性未经检验** | 🟢 中 | 全项目 | 开源后接入者遇到未覆盖场景时能否低成本适配 |
-| 6 | **CRUD/配置代码质量差** | 🟢 低 | admin-service | AI 生成的样板代码臃肿、一致性差，但不影响核心逻辑 |
+| 6 | **CRUD/配置代码质量差** | 🟢 低 | access-service admin 域 | AI 生成的样板代码臃肿、一致性差，但不影响核心逻辑 |
 
 ### 3.2 痛点详细说明
 
@@ -136,7 +136,7 @@ note: |
 
 #### 痛点 6：CRUD/配置代码质量差
 
-admin-service 中大量 CRUD 和配置管理接口是 AI 生成的样板代码，问题包括：
+admin 域（原 admin-service，已归并入 access-service）中大量 CRUD 和配置管理接口是 AI 生成的样板代码，问题包括：
 
 - 代码风格不一致
 - 缺少必要的校验和错误处理
@@ -433,7 +433,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 | 范围 | 内容 |
 |------|------|
-| admin-service CRUD | 统一代码风格、补充校验、消除重复 |
+| admin 域 CRUD（T-ADMIN-020） | 统一代码风格、补充校验、消除重复 |
 | 全局 TODO | 逐一处理或转为正式 Issue |
 | 构造函数膨胀 | `PermissionGrantAppServiceImpl`（14 依赖）、`TypeResolutionServiceImpl`（7 依赖）考虑拆分 |
 
@@ -444,7 +444,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 | permission-center 核心逻辑 | 维持现有测试 + 补充自动授权测试 | 已有 27 个测试 |
 | permission-center 新增改造接口 | 每个接口至少 1 个 happy path + 2 个异常测试 | Phase 2 新增 |
 | common 缓存层 | 维持现有 4 个测试 | 已覆盖 |
-| admin-service | 关键配置接口基础测试 | 低优先级 |
+| access-service admin 域 | 关键配置接口基础测试 | 低优先级 |
 | gateway | 关键 filter 基础测试 | 低优先级 |
 
 #### 4.4 文档更新
@@ -507,7 +507,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 ## 附录 A：当前 TODO 清单
 
-来自代码扫描（`permission-center`）：
+来自代码扫描（归并前 `permission-center` 模块；2026-08-22 T-ACCESS-012 核实——文件均已迁入 access-service，TODO 锚点仍存活，行号以现状代码为准）：
 
 | 文件 | 行号 | TODO 内容 | 归属阶段 |
 |------|------|-----------|----------|
@@ -526,8 +526,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 | common | 26 | 4 | ~15% |
 | perm-entity | 18 | 0 | 0% |
 | gateway | 15 | 0 | 0% |
-| permission-center | 200+ | 27 | ~13% |
-| admin-service | 185 | 0 | 0% |
+| access-service（原 admin-service + permission-center 归并） | ~385 | 27+ | 待重估（T-ACCESS-012 归并后口径） |
 | perm-sdk | 30 | 0 | 0% |
 | example-service | <10 | 0 | 0% |
-| **合计** | **~575** | **31** | **~5.4%** |
+| **合计** | **~575** | **31** | **~5.4%（归并前快照，Phase 4 重估）** |

@@ -6,7 +6,7 @@ domain: frontend-permission-grant
 design_refs:
   - docs/design/frontend/permission-grant.md
   - docs/design/permission-center/api-contract.md
-  - docs/design/schema/permission-center.sql
+  - docs/design/schema/access-service.sql
 tasks: []
 acceptance: "方案经产品确认后，先回写权威设计，再拆分任务与实施"
 last_updated: 2026-08-09

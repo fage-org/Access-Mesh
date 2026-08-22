@@ -19,21 +19,24 @@ docs/
 │   │   ├── core-flows.md              # 核心调用链路
 │   │   ├── implementation.md          # 实现设计
 │   ├── services/                      # 服务设计
-│   │   ├── admin-service.md
+│   │   ├── admin-service-api-contract.md  # admin 域对前端 API 契约（access-service 管理域承载）
 │   │   ├── gateway.md
 │   │   └── example-service.md
 │   ├── frontend/                      # 前端页面级设计（随 T-FE 任务产出回写）
 │   │   └── README.md
-│   └── schema/                        # 数据库表结构
-│       ├── admin-service.sql
-│       ├── example-service.sql
-│       └── permission-center.sql
+│   └── schema/                        # 数据库表结构（access-service.sql 为唯一权威）
+│       ├── access-service.sql
+│       └── example-service.sql
 ├── plans/                             # 执行计划（编排层，任务清单仅引用 ID）
 │   ├── README.md
 │   └── <plan>.md
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-08-22/
+    ├── 2026-08-15/
+    ├── 2026-07-26/
+    ├── 2026-07-12/
     ├── 2026-06-28/
     ├── 2026-06-21/
     ├── 2026-06-20/
@@ -59,14 +62,15 @@ docs/
 | 权限中心核心调用链路 | [design/permission-center/core-flows.md](design/permission-center/core-flows.md)                                                     |
 | 权限中心实现设计     | [design/permission-center/implementation.md](design/permission-center/implementation.md)                                             |
 | 默认组织树与用户生命周期 | [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)                                                |
-| admin-service 对前端 API 契约 | [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) |
-| PostgreSQL 表结构    | [design/schema/](design/schema/)                                                                                                     |
+| admin 域对前端 API 契约 | [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md)（access-service 管理域承载） |
+| PostgreSQL 表结构    | [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威 DDL）                                                 |
 
 ## 执行计划
 
 | 主题 | 文档 |
 |------|------|
-| access-service 归并计划 | [plans/access-service-merge-plan.md](plans/access-service-merge-plan.md)（T-ACCESS-001~012，当前后端前置） |
+| ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
+| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013/014；准入前置：CI 跑绿 40 项 Docker 门控测试） |
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
@@ -80,7 +84,7 @@ docs/
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [design/default-org-tree-user-lifecycle.md](design/default-org-tree-user-lifecycle.md)。
 6. 原 admin→permission 异步同步设计已被取代；实现归并读取 [design/access-service-architecture.md](design/access-service-architecture.md) §4，历史追溯才读取 [archive/2026-08-15/admin-permission-sync.md](archive/2026-08-15/admin-permission-sync.md)。
 7. 跟进仍在推进的任务时，读取 [plans/README.md](plans/README.md)。
-8. 涉及表字段、索引、约束时，以 [design/schema/](design/schema/) 下 SQL 为准。
+8. 涉及表字段、索引、约束时，以 [design/schema/access-service.sql](design/schema/access-service.sql)（唯一权威）为准。
 
 ## 文档治理规范
 
@@ -121,6 +125,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL、原 admin-service 服务设计（superseded）、归并主计划（T-ACCESS-001~012 全部完成）。权威入口：`design/access-service-architecture.md` + `design/schema/access-service.sql` + `design/services/admin-service-api-contract.md` |
 | `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |
 | `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |

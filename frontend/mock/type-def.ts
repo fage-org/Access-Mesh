@@ -2,7 +2,7 @@
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
 // 字段已对齐 access-service 权限域的 TypeDefinitionResp
 // 契约依据：docs/design/permission-center/api-contract.md §5.1
-// 表结构：docs/design/schema/permission-center.sql:15-50
+// 表结构：docs/design/schema/access-service.sql
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 /**

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-003
 title: 收敛单数据源、MyBatis、Redis、JSON等运行基础配置
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#2-目标工程与部署单元

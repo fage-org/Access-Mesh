@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-014
 title: admin/application 域 AppService 操作日志强制覆盖
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/plans/access-post-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#82-审计事务分级

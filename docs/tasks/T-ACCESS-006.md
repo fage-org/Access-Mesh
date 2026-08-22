@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-006
 title: 建立跨域只读查询模型
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#3-模块边界

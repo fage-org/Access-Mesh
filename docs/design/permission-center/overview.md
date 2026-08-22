@@ -3,12 +3,14 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-27
+last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写（schema 权威改指 access-service.sql、服务名口径收敛）
 ---
 
 # Permission Center 概念模型
 
-本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [api-contract.md](api-contract.md) 为准；表字段、索引、约束以 [../schema/permission-center.sql](../schema/permission-center.sql) 为准；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
+本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [api-contract.md](api-contract.md) 为准；表字段、索引、约束以 [../schema/access-service.sql](../schema/access-service.sql) 为准（唯一权威 DDL）；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
+
+> **术语（T-ACCESS-012，2026-08-22）**：原独立服务 `permission-center` 已归并为 access-service 的 permission 域。本文及权限中心系列文档中「permission-center / 权限中心」指该 permission 域（同进程同库，经 Gateway 以 `/api/perm/**` 对外），「admin-service / admin」指同服务的管理域；不再存在跨服务同步链路。
 
 ## 设计原则
 
@@ -54,9 +56,9 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - `GROUP_ROLE`：分组角色，用于组织角色集合，不直接配置权限。首期通过 `extra.basicRoleIds` 简化关联，缓存构建阶段展开。
 - `BASIC_ROLE`：基础角色，承载可复用权限配置。
 
-在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin-service 主维护组织树和 `user-org` 关系；permission-center 保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
+在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin 域主维护组织树和 `user-org` 关系；permission 域保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
 
-默认组织树是 admin-service 的用户目录/身份池。permission-center 不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 `access.application` 在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。permission-center 的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用 permission-center 的内部主键。
+默认组织树是 admin 域的用户目录/身份池。permission 域不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 `access.application` 在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。permission 域的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用 permission 域的内部主键。
 
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 
@@ -64,9 +66,9 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode` 等稳定字符串编码；内部存储和计算使用 `type_definition.type_value`。
 - `type_value` 在同一租户和同一 `type_key` 内全局唯一，不随业务域重复；业务域只影响 `type_code` 解析范围和管理分区。
-- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（第八轮 P2-2 同步，旧"传域查域+全局"语义废弃）
+- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（P2-2 同步，旧"传域查域+全局"语义废弃）
 - 业务域不承担数据权限载体、运行时鉴权主链或资源归属重构职责；其主要作用是降低后台管理复杂度，让不同业务管理员聚焦各自负责的角色和权限集合。
-- 资源通过 `resourceTypeCode + resourceCode + codeType` 定位（`domainCode` 不参与资源定位，仅管理查询域过滤，第八轮 P2-2 同步）。
+- 资源通过 `resourceTypeCode + resourceCode + codeType` 定位（`domainCode` 不参与资源定位，仅管理查询域过滤，P2-2 同步）。
 - 操作通过 `operationCode` 定位，并必须与资源类型兼容。
 - 接口权限也是资源权限，Gateway 使用 `resource_api_mapping` 将请求路径映射到资源操作；同一路径可映射多个资源，接口级鉴权采用任一资源权限通过即允许的 OR 语义。
 - 业务服务如果需要查询“用户能管理哪些组织/角色/菜单”，应先把这些对象建模为 `resource_entity`。
@@ -78,7 +80,7 @@ AccessMesh 管理端的用户与组织需要使用以下资源建模：
 | 被管理用户 | `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)` | 支撑 `ADMIN_USER:{userId}` 的更新、删除、启停、重置密码等实例级校验。 |
 | 被管理组织/岗位 | `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)` | 支撑 `ADMIN_ORG:{orgId}` 的组织 CRUD、成员管理和可管理组织查询。 |
 
-注意：`abstract_user` 只表示访问主体，不能替代 `ADMIN_USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ADMIN_ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知 permission-center 内部主键。
+注意：`abstract_user` 只表示访问主体，不能替代 `ADMIN_USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ADMIN_ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知 permission 域内部主键。
 
 ## 资源依赖
 
@@ -175,7 +177,7 @@ Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.US
 | [core-flows.md](core-flows.md)                                                                       | 核心场景端到端调用链路                   |
 | [implementation.md](implementation.md)                                                               | 分层架构、类清单、关键机制实现细节       |
 | [../../archive/2026-05-30/service-layer-review.md](../../archive/2026-05-30/service-layer-review.md) | Service 层重构分析（Phase 1-5 完成总结） |
-| [../schema/permission-center.sql](../schema/permission-center.sql)                                   | 表结构 DDL                               |
+| [../schema/access-service.sql](../schema/access-service.sql)                                         | 表结构 DDL（唯一权威）                   |
 
 ## 非权威内容
 

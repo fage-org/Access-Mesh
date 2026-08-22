@@ -42,7 +42,7 @@ export const ROLE_TYPE_LABEL: Record<string, string> = {
 /**
  * 角色管理页可手工 CRUD 的功能角色类型。
  * 仅 BASIC_ROLE / GROUP_ROLE——其余三类（ORG/POSITION/PERSONAL）由外部同步生成，
- * 不在本页管理（schema permission-center.sql:103，abstract_user 创建时自动生成 PERSONAL）。
+ * 不在本页管理（schema access-service.sql，abstract_user 创建时自动生成 PERSONAL）。
  */
 export const MANAGEABLE_ROLE_TYPES: RoleTypeCode[] = [
   ROLE_TYPE_CODE.BASIC_ROLE,

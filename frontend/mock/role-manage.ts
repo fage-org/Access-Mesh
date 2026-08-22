@@ -16,7 +16,7 @@ const ok = data => ({ code: 200, message: "success", data });
  * delete_flag=0 + status=1 全部角色）+ `TreeBuilder` 按 parentId 组装：
  * 根 = parentId=null 的真实角色，**无类型虚拟根**。
  *
- * 类型说明（overview §角色模型 + schema permission-center.sql:103）：
+ * 类型说明（overview §角色模型 + schema access-service.sql）：
  * - ORG / POSITION：由组织同步自动生成
  * - PERSONAL：由用户同步连带创建（PERSONAL_{external_id}）
  * - BASIC_ROLE / GROUP_ROLE：功能角色，角色管理页可 CRUD

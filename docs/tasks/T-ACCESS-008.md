@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-008
 title: 统一缓存并实现多实例失效及30秒安全边界
 status: done
-plan: docs/plans/access-service-merge-plan.md
+plan: docs/archive/2026-08-22/access-service-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#7-缓存与多实例一致性

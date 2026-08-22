@@ -18,9 +18,9 @@
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
-| admin-service 对前端 API 契约 | [services/admin-service-api-contract.md](services/admin-service-api-contract.md) |
+| admin 域对前端 API 契约 | [services/admin-service-api-contract.md](services/admin-service-api-contract.md)（`/admin/**`、`/auth/**` 契约由 access-service 管理域承载，文件名保留历史叫法） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
-| PostgreSQL 表结构     | [schema/](schema/)                                                                     |
+| PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |
 
 ## 推荐阅读顺序
 
@@ -31,7 +31,7 @@
 5. 涉及组织与用户、多组织树、用户生命周期和成员关系时，先读 [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)，再读 [org-user-permission-contract.md](org-user-permission-contract.md)。
 6. 原 admin→permission 异步同步设计已被取代；归并实现读取 [access-service-architecture.md](access-service-architecture.md) §4，历史追溯才读取 [cross-service/admin-permission-sync.md](../archive/2026-08-15/admin-permission-sync.md)。
 7. 需要跟进执行计划、API 核对清单或阶段路线图时，读取 [../plans/](../plans/)。
-8. 涉及表字段、索引、约束时，以 [schema/](schema/) 下当前有效 SQL 为准；最终 `access-service.sql` 由 T-ACCESS-002 产出。
+8. 涉及表字段、索引、约束时，以 [schema/access-service.sql](schema/access-service.sql)（唯一权威）为准；[schema/example-service.sql](schema/example-service.sql) 为 example 演示库。旧 admin/perm DDL 已归档至 `../archive/2026-08-22/schema/`。
 
 ## 目录说明
 
@@ -40,9 +40,9 @@
 | `permission-center/` | 权限中心的概念、API、流程、实现设计              |
 | 根目录 `*-design.md` / `*-evolution.md` | 端到端设计契约（`status: adopted`）与演进方向（`status: evolution`，非约束）|
 | `cross-service/`     | 跨服务设计及仍需保留原位的 superseded 追溯文档；当前归并约束见根目录 `access-service-architecture.md` |
-| `services/`          | Gateway、admin-service、example-service 设计     |
+| `services/`          | Gateway、example-service 设计与 admin 域 API 契约（`admin-service-api-contract.md`，文件名保留历史叫法）；原 `admin-service.md` 服务设计已 superseded 归档（`../archive/2026-08-22/`） |
 | `frontend/`          | 前端页面级设计（布局/字段/交互/权限接线），随 T-FE 任务产出回写 |
-| `schema/`            | 当前有效 PostgreSQL schema                       |
+| `schema/`            | PostgreSQL schema：`access-service.sql`（唯一权威）+ `example-service.sql`；旧 admin/perm DDL 已归档 |
 | `../plans/`          | 编排层计划：目标/非目标/准入 + 任务清单引用，不作为契约来源 |
 | `../tasks/`          | 原子任务看板（唯一权威任务清单）                 |
 | `../archive/`        | 旧版长文档和讨论清单，仅用于追溯，不作为实现依据 |
@@ -67,6 +67,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL（admin-service.sql / permission-center.sql / seed-admin-operations.sql / seed-perm-operations.sql）、原 admin-service 服务设计（admin-service.md，superseded）、归并主计划 access-service-merge-plan.md（T-ACCESS-001~012 全部完成）。权威入口：`access-service-architecture.md` + `schema/access-service.sql` + `services/admin-service-api-contract.md` |
 | `../archive/2026-06-28/` | 工作单 A/B/C 执行计划归档：权限缓存失效改造、scopeMode 协议迁移、Gateway 失联兜底全部完成。稳定结论已沉淀至本目录 v3.5-design §7.2 / api-contract scopeMode / gateway.md |
 | `../archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口已由 admin-service 实现；org-user-page P0/P1/P2 全 100%。契约权威以 `org-user-permission-contract.md` v1.2 + `services/admin-service-api-contract.md` v1.0 为准 |
 | `../archive/2026-06-14/` | 同步模块重构执行计划归档；当时的稳定设计沉淀到 `cross-service/admin-permission-sync.md`，该设计已于 2026-08-10 被 access-service 单库强事务目标架构取代 |

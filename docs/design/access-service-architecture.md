@@ -10,7 +10,7 @@ last_reviewed: 2026-08-22
 # access-service 目标架构与归并约束
 
 本文定义 `admin-service` 与 `permission-center` 归并为 `access-service` 后的权威目标架构。实施编排见
-[`../plans/access-service-merge-plan.md`](../plans/access-service-merge-plan.md)。在归并计划完成前，仓库代码可能仍处于旧拓扑；新增和修改不得继续扩大旧服务边界或内部异步同步链路。
+[`../archive/2026-08-22/access-service-merge-plan.md`](../archive/2026-08-22/access-service-merge-plan.md)（T-ACCESS-001~012 已于 2026-08-22 全部完成归档；后续强化见 [`../plans/access-post-merge-plan.md`](../plans/access-post-merge-plan.md)）。新增和修改不得恢复旧服务边界或内部异步同步链路。
 
 接口字段、权限语义和领域规则仍分别以现有 admin 与 permission 设计文档为准；当服务拓扑、事务边界、数据源、缓存或调用方式与旧文档冲突时，以本文为准。
 
@@ -154,7 +154,7 @@ flowchart LR
 - 所有表物理归并到 `access_db.public`。
 - 最终 DDL 的唯一权威文件为 `docs/design/schema/access-service.sql`。
 - 最终 DDL 必须同时包含 §8.1 所需的任务执行键、唯一约束、租约、状态与幂等持久化结构，不允许运行时临时建表补齐。
-- `admin-service.sql` 和 `permission-center.sql` 在最终 DDL 验收后转为 superseded，不再作为实现依据。
+- `admin-service.sql` 和 `permission-center.sql` 已随 T-ACCESS-012 物理归档至 `docs/archive/2026-08-22/schema/`，不再作为实现依据。
 - 因无部署和历史数据，不提供旧库搬迁、兼容视图或升级脚本。
 - 本阶段不引入数据库迁移框架；本地和 CI 必须能够从空 PostgreSQL 完整执行最终 DDL。
 

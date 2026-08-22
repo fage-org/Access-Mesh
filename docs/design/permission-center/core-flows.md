@@ -3,12 +3,12 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-08   # 2026-08-08 十轮复审：20041/20042/20043 主/子分类、旧端点终态、SubPermissionPolicy
+last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-08 复审（20041/20042/20043 主/子分类、旧端点终态、SubPermissionPolicy）
 ---
 
 # Permission Center 核心流程链路
 
-> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 `api-contract.md` 为准。
+> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 `api-contract.md` 为准。文中「permission-center / 权限中心」指 access-service 的 permission 域、「admin-service / admin」指同服务管理域（术语注记见 `overview.md`，T-ACCESS-012）。
 
 ## 1. 全局约定
 
@@ -55,7 +55,7 @@ flowchart LR
 
 - 创建 `resource_type` 时可以自动预置 CRUD 或 ACCESS 操作，具体以实现配置为准。
 - 对外使用 `typeCode`，内部存储和计算使用 `typeValue`；服务端通过 `type_definition` 缓存完成解析。
-- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（第八轮 P2-2 同步，旧"传域查域+全局"语义废弃）
+- `domainCode` 是管理分区的命名空间标识：管理查询经 `DomainClassifyService` 按 ALL / GLOBAL_PLUS / DOMAIN_ONLY 三种模式分类过滤；查询管线不做按域的对象过滤（仅分类过滤资源类型）；角色/资源实体不内嵌域列，`domainCode` 不参与对象定位。（ P2-2 同步，旧"传域查域+全局"语义废弃）
 - `SUB_PERM` 决定哪些资源类型可以作为某类父资源的子权限。
 - 这些配置是后续授权校验的基础，不直接给用户产生权限。
 
@@ -105,7 +105,7 @@ flowchart LR
 
 ## 6. 场景四：配置基础角色权限
 
-目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。**授权页面写链路收敛为唯一写入口 `apply-grant-plan`（2026-08-02 第十二轮单入口收敛）**——所有页面写操作（新增/编辑/删除主权限与子权限、跨键替换）统一在一次 plan 中表达；`save/revoke/children/add-child/remove-child` **仅迁移期保留并标记弃用**（**终态=随 T-PERM-034 迁移 admin-service 后删除，2026-08-08 八轮复审确认**），`update-child/children-save/rebuild` 不实现。
+目标：为角色配置资源和操作权限，这是最核心的权限事实写入链路。**授权页面写链路收敛为唯一写入口 `apply-grant-plan`（2026-08-02 单入口收敛）**——所有页面写操作（新增/编辑/删除主权限与子权限、跨键替换）统一在一次 plan 中表达；`save/revoke/children/add-child/remove-child` **仅迁移期保留并标记弃用**（**终态=随 T-PERM-034 删除，2026-08-08 复审确认**），`update-child/children-save/rebuild` 不实现。
 
 | 步骤 | 接口                                           | 关键入参                                                         | 结果                             |
 | ---- | ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
@@ -118,14 +118,14 @@ flowchart LR
 
 关键逻辑（`apply-grant-plan`，详见 api-contract §6.5/§6.5.1）：
 
-- **单事务**：`creates`（新建记录：主权限可带 children 一次性建树；子权限用 `parentPermissionId` 挂父）+ `updates`（现有**主权限** canGrant/conditionCode 微变更；**目标为子权限的 update 一律拒绝 -> 20043**，八轮复审）+ `removes`（删除记录：主权限级联删子、子权限单条删）在**同一事务**内执行，任一失败整体回滚，无部分成功。
+- **单事务**：`creates`（新建记录：主权限可带 children 一次性建树；子权限用 `parentPermissionId` 挂父）+ `updates`（现有**主权限** canGrant/conditionCode 微变更；**目标为子权限的 update 一律拒绝 -> 20043**，复审）+ `removes`（删除记录：主权限级联删子、子权限单条删）在**同一事务**内执行，任一失败整体回滚，无部分成功。
 - **跨键替换**（范围/资源/操作变化）= removes 旧 + creates 新（同事务原子）；**子权限不迁移**，随旧主权限级联删除（预期行为），新主权限子权限在 creates 中显式配置。
-- **无 CAS/无乐观锁**（第十四轮收窄）：砍 expectedRevision/grant_revision/20037；后端靠单事务原子 + uk 约束 + 受影响行数断言保证一致性。
-- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容、**主权限条件不变量 20041/20042（八轮复审：仅主权限）**、**子权限属性系统不变量 20043（两种 create 形态非 null/false 拒绝、update 目标为子权限拒绝；优先级先于 20041/20042，见 api-contract §6.5.1）**）经 `prevalidateGrantPlan` 唯一预检入口执行。
+- **无 CAS/无乐观锁**（收窄）：砍 expectedRevision/grant_revision/20037；后端靠单事务原子 + uk 约束 + 受影响行数断言保证一致性。
+- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容、**主权限条件不变量 20041/20042（复审：仅主权限）**、**子权限属性系统不变量 20043（两种 create 形态非 null/false 拒绝、update 目标为子权限拒绝；优先级先于 20041/20042，见 api-contract §6.5.1）**）经 `prevalidateGrantPlan` 唯一预检入口执行。
 - **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
-- **无 CAS/无幂等表/无 clientRequestId**（第十四轮收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按"专属优先、全局回退"规则校验适用性，不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（九轮复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件必须启用（**20042**）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，填写 `conditionCode` 时必须存在且启用。
-- 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；第十四轮收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
+- **无 CAS/无幂等表/无 clientRequestId**（收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按"专属优先、全局回退"规则校验适用性，不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件必须启用（**20042**）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，填写 `conditionCode` 时必须存在且启用。
+- 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）
 
@@ -182,7 +182,7 @@ PermQueryEngine.query(PermQuery)
 
 关键逻辑：
 
-- **新父子树唯一通道 = `creates` 主权限带 `children` 嵌套**；`parentPermissionId` 仅引用提交前已存在的父记录（协议无临时关联键，第十三轮 P1-7）。
+- **新父子树唯一通道 = `creates` 主权限带 `children` 嵌套**；`parentPermissionId` 仅引用提交前已存在的父记录（协议无临时关联键， P1-7）。
 - 子权限继承父权限的角色，不需要再次传 `roleTypeCode + roleExternalId`。
 - 删除主权限时级联软删子权限。
 - 权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段。
@@ -191,7 +191,7 @@ PermQueryEngine.query(PermQuery)
 
 ## 9. 场景六：Gateway 接口级鉴权
 
-目标：Gateway 在请求进入业务服务前，通过权限中心判断当前用户是否能访问接口。
+目标：Gateway 在请求进入业务服务前完成接口级鉴权。**快照模式（T-PERM-001）为主链路**：Gateway 按 `(tenantId, subjectTypeCode, userId, serviceCode)` 拉取 `interface-snapshot` 全量接口权限快照后本地内存匹配（≤15s L1，Redis pub/sub 主动失效），条件不可本地评估或快照未覆盖时回退下表实时鉴权链路（check-interface，保留端点）。
 
 | 步骤 | 执行方            | 动作                                                                                           |
 | ---- | ----------------- | ---------------------------------------------------------------------------------------------- |
@@ -199,9 +199,9 @@ PermQueryEngine.query(PermQuery)
 | 2    | Gateway           | 提取 `serviceCode + httpMethod + 原始 path`                                                    |
 | 3    | Gateway           | 查询本地 L1 缓存                                                                               |
 | 4    | Gateway           | 缓存未命中时调用 `POST /api/perm/auth/check-interface`                                         |
-| 5    | permission-center | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
-| 6    | permission-center | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
-| 7    | permission-center | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
+| 5    | permission 域（access-service） | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
+| 6    | permission 域（access-service） | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
+| 7    | permission 域（access-service） | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
 | 8    | Gateway           | 允许则转发业务服务，拒绝则返回 403                                                             |
 
 拒绝原因示例：
@@ -227,12 +227,12 @@ PermQueryEngine.query(PermQuery)
 | -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
 | 布尔鉴权       | `POST /api/perm/auth/check`           | 打开报表前判断是否有 `VIEW` 权限                             | `allowed/reason`              |
 | 批量鉴权       | `POST /api/perm/auth/batch-check`     | 列表页按钮批量置灰                                           | 每个检查项的 `allowed/reason` |
-| 可操作资源查询 | `POST /api/perm/auth/query-resources` | admin-service 查询可管理组织、角色、菜单                     | 资源业务键集合和命中操作      |
+| 可操作资源查询 | `POST /api/perm/auth/query-resources` | 管理域查询可管理组织、角色、菜单                             | 资源业务键集合和命中操作      |
 | 范围权限查询   | `POST /api/perm/auth/query-scopes`    | example-service 查询报表可读、可编辑的城市、部门、门店等范围 | 范围权限集合                  |
 
-### 10.1 admin-service 查询可管理对象
+### 10.1 管理域查询可管理对象
 
-admin-service 可被权限控制的组织、角色、菜单资源由 `access.application` 在管理事实写入的同一事务内维护为本地权限投影（ADMIN_ORG/ADMIN_USER/MENU 资源与 ORG/POSITION 角色），运行时查询直接命中本地引擎。
+管理域可被权限控制的组织、角色、菜单资源由 `access.application` 在管理事实写入的同一事务内维护为本地权限投影（ADMIN_ORG/ADMIN_USER/MENU 资源与 ORG/POSITION 角色），运行时查询直接命中本地引擎。
 
 | 查询目标           | 资源建模                                                      | 运行时查询                                                                                     |
 | ------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -243,17 +243,17 @@ admin-service 可被权限控制的组织、角色、菜单资源由 `access.app
 
 调用链路：
 
-1. admin-service 从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
-2. admin-service 调用 `POST /api/perm/auth/query-resources`，传资源类型、操作码、业务域和上下文。
-3. permission-center 解析用户有效角色、角色继承、资源继承、条件、冲突规则。
-4. permission-center 返回命中的 `resourceCode`、`operations`、`matchedRoleIds`、`matchedPermissionIds`。
-5. admin-service 用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
+1. 管理域入口从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
+2. 同进程调用 permission 域 `POST /api/perm/auth/query-resources` 语义（本地 AppService/engine 直调，非跨服务 HTTP），传资源类型、操作码、业务域和上下文。
+3. permission 域解析用户有效角色、角色继承、资源继承、条件、冲突规则。
+4. permission 域返回命中的 `resourceCode`、`operations`、`matchedRoleIds`、`matchedPermissionIds`。
+5. 管理域用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
 
 关键逻辑：
 
-- 权限中心不直接查询 admin-service 的业务表，只返回权限事实。
+- permission 域不直接查询 admin 域业务表，只返回权限事实。
 - 如果角色本身也是被管理对象，就必须把角色建模成 `resource_entity`；`abstract_role` 只表示授权主体，不等同于“可被管理的角色资源”。
-- 菜单树展示可以用 `treeMode=true` 返回权限中心资源树，但最终排序、隐藏字段、路由元信息仍由 admin-service 控制。
+- 菜单树展示可以用 `treeMode=true` 返回 permission 域资源树，但最终排序、隐藏字段、路由元信息仍由管理域控制。
 
 ### 10.2 example-service 查询报表范围权限
 
@@ -417,7 +417,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | ----------------------- | ------------------------------------------------------ | --------------------------------------- |
 | 回收用户角色            | `POST /api/perm/user-role/revoke`                      | 失效用户有效角色缓存                    |
 | 回收角色权限            | `POST /api/perm/role-resource-permission/apply-grant-plan`（plan.removes） | 级联软删子权限，失效角色权限快照与相关用户缓存 |
-| 删除子权限              | `POST /api/perm/role-resource-permission/apply-grant-plan`（plan.removes 填子权限 id） | 子权限单条删（removes 不区分主/子意图，第十三轮） |
+| 删除子权限              | `POST /api/perm/role-resource-permission/apply-grant-plan`（plan.removes 填子权限 id） | 子权限单条删（removes 不区分主/子意图） |
 | 删除资源                | `POST /api/perm/resource-entity/remove`                | 软删资源、接口映射、角色权限、依赖关系；登记受影响角色和服务编码 |
 | 删除角色                | `POST /api/perm/abstract-role/remove`                  | 软删用户角色关系和角色权限，直清角色权限快照并失效用户缓存 |
 | 删除用户                | `POST /api/perm/abstract-user/remove`                  | 软删用户角色关系和个人角色权限          |
@@ -446,10 +446,10 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 ## 16. 仍需实现时重点校验
 
-- `abstract_role.external_id` 唯一约束为 `uk_abstract_role_external (tenant_id, role_type, external_id)`（**无业务域列**，schema L147）；解析 `roleTypeCode + roleExternalId` 定位角色，**不携带 domainCode 过滤**（domainCode 仅域存在性校验，第八轮 P2-2 同步修正）。
+- `abstract_role.external_id` 唯一约束为 `uk_abstract_role_external (tenant_id, role_type, external_id)`（**无业务域列**，schema L147）；解析 `roleTypeCode + roleExternalId` 定位角色，**不携带 domainCode 过滤**（domainCode 仅域存在性校验， P2-2 同步修正）。
 - `type_definition.type_value` 必须在同一 `tenant_id + type_key` 内全局唯一，不能按业务域重复分配相同值。
 - `operationCode` 在解析时必须结合 `resourceTypeCode`，避免不同资源类型下同名操作产生歧义。
-- `resourceCode` 必须结合 `resourceTypeCode + codeType` 解析，避免多编码歧义（`domainCode` 不参与资源解析，第八轮 P2-2 同步）。
+- `resourceCode` 必须结合 `resourceTypeCode + codeType` 解析，避免多编码歧义（`domainCode` 不参与资源解析， P2-2 同步）。
 - `check-interface` 查询 `resource_api_mapping` 必须带 `tenant_id`。
 - `check-interface` 命中同一路径的多个资源映射时采用 OR 语义，任一映射资源权限通过即允许；响应必须使用 `matchedResources[]` 表达所有命中映射资源。
 - `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的鉴权计算链路，避免查询结果和布尔鉴权结果不一致。

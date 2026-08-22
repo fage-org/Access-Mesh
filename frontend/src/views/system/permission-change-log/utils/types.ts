@@ -23,7 +23,7 @@ export function createEmptySearchForm(): ChangeLogSearchForm {
 
 /**
  * entityType 下拉选项（前端本地硬编码，后端无枚举接口）。
- * 取值对齐 schema 注释（permission-center.sql:626）：user_role/role_resource_permission/abstract_user/abstract_role 等。
+ * 取值对齐 schema 注释（access-service.sql）：user_role/role_resource_permission/abstract_user/abstract_role 等。
  */
 export const ENTITY_TYPE_OPTIONS: ReadonlyArray<{
   label: string;
@@ -41,7 +41,7 @@ export const ENTITY_TYPE_OPTIONS: ReadonlyArray<{
 
 /**
  * operation（实体层操作）标签选项（前端本地硬编码）。
- * 取值对齐 schema 注释（permission-center.sql:627）：INSERT/UPDATE/DELETE。
+ * 取值对齐 schema 注释（access-service.sql）：INSERT/UPDATE/DELETE。
  * 注意：区别于 diff_snapshot.items[].changeType（ADD/REMOVE/UPDATE）。
  */
 export const OPERATION_OPTIONS: ReadonlyArray<{

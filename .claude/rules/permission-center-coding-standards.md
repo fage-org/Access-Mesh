@@ -1,18 +1,19 @@
 ---
 name: permission-center-coding-standards
 description: >-
-  Permission Center 编码规范。
-  Rule type: ALWAYS — applies to all permission-center module code changes.
+  权限中心（access-service permission 域）编码规范。
+  Rule type: ALWAYS — applies to all access-service permission-domain code changes
+  (package cn.ac.fage.accessmesh.access.permission; 原独立 permission-center 模块已于 T-ACCESS-001~012 归并入 access-service).
   Covers: layered architecture, PermQueryEngine, naming conventions, transaction boundaries,
   batch loading, operation logging, domain classification, type resolution.
 origin: project
 metadata:
   project: AccessMesh
-  module: permission-center
-  version: "4.0.1"
+  module: access-service
+  version: "5.0.0"
 ---
 
-# Permission Center 编码规范
+# 权限中心（access-service permission 域）编码规范
 
 ## 1. 分层职责
 
