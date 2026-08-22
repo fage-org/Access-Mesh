@@ -41,7 +41,7 @@
 | [T-ACCESS-011](T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | access-service-merge | access-service-architecture §10；项目与 API 契约；gateway | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 | ✅ | ✓ |
 | [T-ACCESS-012](T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | access-service-merge | access-service-architecture；architecture；project-rules；服务/API/权限设计；旧 schema；文档索引 | T-ACCESS-011 | ⚙️ | ⏳ |
 | [T-ACCESS-013](T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | access-service-merge | access-service-architecture §6；admin-service-api-contract | T-ACCESS-012 | ⚙️ | ⏳ |
-| [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | access-service-merge | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ⚙️ | ⏳ |
+| [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | access-service-merge | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
