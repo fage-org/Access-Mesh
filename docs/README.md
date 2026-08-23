@@ -69,7 +69,8 @@ docs/
 | 主题 | 文档 |
 |------|------|
 | ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
-| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013~015；准入前置：CI 跑绿 40 项 Docker 门控测试） |
+| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013~015 已全 done；准入前置以 CI 退出状态为准，T-ACCESS-026 归档时关闭） |
+| 产品垂直切片与试点加固 | [plans/product-vertical-slice-plan.md](plans/product-vertical-slice-plan.md)（2026-08-22 立项、2026-08-23 评审修订：模型收敛 + bootstrap + 前端真实登录 + BASIC_ROLE E2E 垂直切片（里程碑 A）+ 试点加固与收口（里程碑 B）；18 项任务） |
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |

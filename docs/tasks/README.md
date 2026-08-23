@@ -8,13 +8,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 016 |
-| permission-center | `T-PERM` | 042 |
-| admin-service | `T-ADMIN` | 022 |
-| gateway | `T-GW` | 007 |
-| 组织/用户（跨 admin+perm） | `T-ORG` | 001 |
-| 跨服务 API 契约 | `T-API` | 001 |
-| 前端 | `T-FE` | 041 |
+| access-service 归并（跨服务） | `T-ACCESS` | 027 |
+| permission-center | `T-PERM` | 044 |
+| admin-service | `T-ADMIN` | 025 |
+| gateway | `T-GW` | 008 |
+| 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
+| 跨服务 API 契约 | `T-API` | 002 |
+| 前端 | `T-FE` | 043 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -22,7 +22,7 @@
 
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
-> **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化见 [access-post-merge-plan](../plans/access-post-merge-plan.md)（准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试）。
+> **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化见 [access-post-merge-plan](../plans/access-post-merge-plan.md)（准入前置以 CI 退出状态为准、按当前适用容器门控动态统计——原登记 40 项为当时口径，2026-08-22 外部主机实测约 68 项为历史基线）。
 
 ### access-service 归并（主链 ✅ 2026-08-22 完成归档；后续强化见 access-post-merge）
 
@@ -43,6 +43,15 @@
 | [T-ACCESS-013](T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §6；admin-service-api-contract | T-ACCESS-012 | ✅ | ✅ |
 | [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
 | [T-ACCESS-015](T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（sys_menu DDL-实体漂移收口） | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §3；v3.5-design §2.1/§4.1；schema/access-service.sql；admin-service-api-contract | T-ACCESS-012 | ✅ | ✓ |
+| [T-ACCESS-016](T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | access-service-architecture（新增章节）；schema/access-service.sql；api-contract；implementation；admin-service-api-contract | — | ⚙️ | ⏳ |
+| [T-ACCESS-017](T-ACCESS-017.md) | 窄回归安全网与最小 CI | product-vertical-slice | access-service-architecture；core-flows | — | ⚙️ | — |
+| [T-ACCESS-018](T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | product-vertical-slice | schema/access-service.sql；access-service-architecture；api-contract；admin-service-api-contract；frontend/README | T-ORG-001 | ⚙️ | ⏳ |
+| [T-ACCESS-019](T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | product-vertical-slice | access-service-architecture；schema/access-service.sql；admin-service-api-contract | T-ACCESS-018 | ⚙️ | ⏳ |
+| [T-ACCESS-020](T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | product-vertical-slice | schema/access-service.sql；access-service-architecture；architecture | T-ACCESS-019 | ⚙️ | ⏳ |
+| [T-ACCESS-021](T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | product-vertical-slice | core-flows；gateway；access-service-architecture | T-ACCESS-020, T-FE-041 | ⚙️ | ⏳ |
+| [T-ACCESS-024](T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | product-vertical-slice | project-rules；access-service-architecture | T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ACCESS-025](T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，裁剪覆盖要求） | product-vertical-slice | access-service-architecture；project-rules；admin-service-api-contract | T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
@@ -88,6 +97,8 @@
 | T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | frontend-phase4 | api-contract；implementation | T-PERM-037 | ⚙️ | ⏳ |
 | [T-PERM-040](T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | [frontend-phase2](../plans/frontend-phase2-plan.md) | | T-PERM-028, T-PERM-034 | ⚙️ | ⏳ |
 | [T-PERM-041](T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | [frontend-phase2](../plans/frontend-phase2-plan.md) | | T-PERM-034 | ⚙️ | ⏳ |
+| [T-PERM-042](T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ⚙️ | ⏳ |
+| [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice | api-contract；implementation；frontend/role-manage | T-ACCESS-019, T-ACCESS-021 | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -99,6 +110,7 @@
 | T-GW-004 | 监控指标：unreachable.count / fallback.{closed,open,stale}.count + WARN + Prometheus 告警 | gateway-fail-mode | design/services/gateway.md | T-GW-002 | ✅ | ✓ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出，已完成） | gateway-fail-mode | design/services/gateway.md §快照失效标记与订阅恢复 | T-PERM-006（广播事件载荷）| ✅ | ✓ |
 | [T-GW-006](T-GW-006.md) | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | gateway-fail-mode | — | T-GW-002 | ✅ | ✓ |
+| [T-GW-007](T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口（origin 明确列表、credentials 禁 `*`、独立 management 端口） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | design/services/gateway.md | T-ACCESS-021 | ⚙️ | ⏳ |
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
@@ -112,6 +124,16 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 |---|---|---|---|---|---|---|
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6，低优先级） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；access-service-architecture | — | ⚙️ | ⏳ |
 | T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；P2-3，2026-08-01 立项） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ⚙️ | ⏳ |
+| [T-ADMIN-022](T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（/role/create、/role/grant-menu、/user-role/assign、/user-role/revoke 及配套 DTO/错误码/文档；已核实前端/SDK/文档无活引用） | product-vertical-slice | admin-service-api-contract | T-ACCESS-021 | ⚙️ | ⏳ |
+
+### 组织/用户与跨服务 API（product-vertical-slice）
+
+| ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
+|---|---|---|---|---|---|---|
+| [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle | T-PERM-042 | ⚙️ | ⏳ |
+| [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice | example-service；gateway；architecture | T-ACCESS-021 | ⚙️ | ⏳ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
@@ -161,6 +183,8 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 | [T-FE-038](T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §2.2/§3.1/§3.2/§3.5/§3.6/§11/§13.2/§13.4；api-contract §5.1/§5.3/§6.4 | T-FE-036 | ✅ | ✅ |
 | [T-FE-039](T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §3.3/§6.2/§11（S2/S5/S6/S10/S11）/§13.5；api-contract §6.5.1（20041 配套） | T-FE-038 | ✅ | ✅ |
 | [T-FE-040](T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要；mock-first） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3.1）；api-contract §6.5.1/§6.5.2；plans/permission-grant-record-level-editing-proposal.md | T-FE-039 | ✅ | ✓ |
+| [T-FE-041](T-FE-041.md) | 前端真实登录链路与默认导航收敛 | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | admin-service-api-contract；gateway；frontend/README | T-ACCESS-020 | ⚙️ | ⏳ |
+| T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice | frontend/README | — | ❌ | — |
 
 ---
 
@@ -168,12 +192,28 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 
 依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
 
+### product-vertical-slice（2026-08-22 立项、2026-08-23 评审修订，当前主线；身份/资源/权限管线冻结至 T-ORG-001 done）
+
+**里程碑 A（核心可运行）：**
+
+1. `T-ACCESS-016` 设计定稿 ∥ `T-ACCESS-017` 窄回归安全网 + 最小 CI（无依赖，可并行）
+2. 模型收敛串行：`T-PERM-042` 显式资源 API → `T-ORG-001` 统一主体 ID → `T-ACCESS-018` 类型收敛 → `T-ACCESS-019` USER/ROLE 投影（各自独立提交；投影以最终主体 ID + 最终类型码一次到位，无过渡转换层）
+3. `T-ACCESS-020` bootstrap（双角色双用户模型：首管理员 + 管理用功能角色按管理 API 清单双层最小授权，含授权页读接口；不向目标角色/用户预授目标 API）→ `T-FE-041` 前端真实登录 + 导航收敛（里程碑 A 只显示冒烟通过的页面）
+4. `T-ACCESS-021` E2E 垂直切片验收 + README 回写（计划总目标载体，测试全绿不替代；目标用户与普通 BASIC_ROLE 在场景内经管理链路创建）
+
+**里程碑 B（试点加固，不反向阻塞 A 的达成声明；硬门禁：全部 B 任务 depends_on T-ACCESS-021，A 未完成不启动 B）：**
+
+5. `T-ADMIN-022` / `T-PERM-043` / `T-ADMIN-023` / `T-GW-007` / `T-ACCESS-024` / `T-ACCESS-025` / `T-ADMIN-024`（B 内互不阻塞，避免与同链路任务并发；T-ADMIN-022 另依赖 T-ORG-001、T-PERM-043 另依赖 T-ACCESS-019）
+6. `T-API-001` example 接入（Gateway 主线）→ `T-ACCESS-026` 验证证据与文档状态收口（依赖全部 B 任务 + T-API-001；含 access-post-merge-plan 归档，CI 已由 T-ACCESS-017 前置落地）
+
+跨计划：63 位掩码精度归 `T-PERM-028`（frontend-phase2），建议在步骤 5 前完成以免前端授权页联调返工。T-FE-042 已 cancelled（范围并入 T-FE-041）。
+
 ### access-service 归并（✅ 完成 2026-08-22，主链 T-ACCESS-001~012 全部 done）
 
 1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器、T-ACCESS-015 菜单写链路收口）在 [access-post-merge-plan](../plans/access-post-merge-plan.md)。
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
 3. 前端真接口联调（T-FE-015~022）等待对应 Phase 2 后端任务完成；纯 mock/UI 任务不受影响。
-4. access-post-merge 准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试（责任已随归档转移，2026-08-22）。
+4. access-post-merge 准入前置：以 CI 退出状态为准、按当前适用容器门控动态统计（原登记 40 项为当时口径，责任已随归档转移，2026-08-22）。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
 
