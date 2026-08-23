@@ -231,6 +231,21 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         // T-ACCESS-008：授权 L2 miss——数据库读取前记录单调时钟起点，回填只写剩余 TTL
         CacheReadToken<Set<Long>> readToken = cacheService.beginRead(PermCacheCatalog.EFFECTIVE_ROLES);
 
+        // T-ACCESS-019 评审 P1-2：DDL 语义 enabled=false 时鉴权不通过——禁用主体有效角色置空
+        // （空集同样回填缓存，重新启用由写路径 markUsers 失效）
+        Map<Long, Set<Long>> disabledEmpty = new HashMap<>();
+        Set<Long> disabledUserIds = new HashSet<>(
+            abstractUserMapper.selectDisabledIdsByIds(tenantId, uncachedUserIds));
+        for (Long disabledId : disabledUserIds) {
+            disabledEmpty.put(disabledId, Collections.emptySet());
+            result.put(disabledId, Collections.emptySet());
+        }
+        uncachedUserIds.removeAll(disabledUserIds);
+        if (uncachedUserIds.isEmpty()) {
+            cacheService.putBatch(readToken, tenantId, disabledEmpty);
+            return result;
+        }
+
         // 2. 批量查询所有未命中缓存的用户的UserRole记录
         LocalDateTime now = LocalDateTime.now();
         List<UserRole> allUserRoles = userRoleMapper.selectValidByUserIdsWithValidity(tenantId, uncachedUserIds, now);
@@ -283,8 +298,8 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             enabledRoleIds = new HashSet<>(enabledIdList);
         }
 
-        // 7. 在内存中为每个userId组装有效角色列表，并批量回填缓存
-        Map<Long, Set<Long>> uncachedResults = new HashMap<>();
+        // 7. 在内存中为每个userId组装有效角色列表，并批量回填缓存（含禁用主体空集）
+        Map<Long, Set<Long>> uncachedResults = new HashMap<>(disabledEmpty);
         for (Long userId : uncachedUserIds) {
             Set<Long> userRoleIds = userToRoleIds.getOrDefault(userId, Collections.emptySet());
             Set<Long> effectiveRoles = new HashSet<>(userRoleIds);
@@ -440,6 +455,18 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         if (roleIds == null || roleIds.isEmpty()) {
             return;
         }
+        Set<Long> userIds = findUserIdsByEffectiveRoles(tenantId, roleIds);
+        if (userIds.isEmpty()) {
+            return;
+        }
+        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+    }
+
+    @Override
+    public Set<Long> findUserIdsByEffectiveRoles(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptySet();
+        }
 
         Set<Long> userIds = new HashSet<>(userRoleMapper.selectValidByTargetIdsAndType(
                 tenantId, roleIds, PermConstants.TargetType.ROLE)
@@ -451,11 +478,6 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
                 tenantId, new HashSet<>(ancestorGroupRoleIds), PermConstants.TargetType.GROUP_ROLE)
             .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
         }
-
-        if (userIds.isEmpty()) {
-            return;
-        }
-
-        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+        return userIds;
     }
 }

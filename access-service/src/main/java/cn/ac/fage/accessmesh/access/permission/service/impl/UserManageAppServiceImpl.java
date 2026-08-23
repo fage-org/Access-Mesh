@@ -175,9 +175,10 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         user.setDeleteFlag(0L);
         abstractUserMapper.insert(user);
 
-        // T-ACCESS-019：USER 资源投影与主体事实同事务（code=subjectId，§12.3）
+        // T-ACCESS-019：USER 资源投影与主体事实同事务（code=subjectId，§12.3）；
+        // resource_entity.name NOT NULL 而 abstract_user.name 可空，name 缺省以 externalId 兜底（评审 P1-1）
         boolean enabled = Boolean.TRUE.equals(user.getEnabled());
-        localProjectionDomainService.upsertUserResource(tenantId, user.getId(), user.getName(), enabled);
+        localProjectionDomainService.upsertUserResource(tenantId, user.getId(), resourceName(user), enabled);
         recordProjectionChange(tenantId, user.getId(), "UPSERT");
         PermissionChangeContext.markUsers(tenantId, Set.of(user.getId()));
         return toUserResp(user);
@@ -215,10 +216,10 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         existing.setUpdatedAt(LocalDateTime.now());
         abstractUserMapper.update(existing);
 
-        // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性，
-        // 登记 markUsers 失效主体有效角色缓存（afterCommit 由 @PermissionChange AOP 处理）
+        // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性（禁用主体
+        // 有效角色置空，评审 P1-2），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）
         localProjectionDomainService.upsertUserResource(
-            tenantId, existing.getId(), existing.getName(), Boolean.TRUE.equals(existing.getEnabled()));
+            tenantId, existing.getId(), resourceName(existing), Boolean.TRUE.equals(existing.getEnabled()));
         recordProjectionChange(tenantId, existing.getId(), "UPSERT");
         PermissionChangeContext.markUsers(tenantId, Set.of(existing.getId()));
         return toUserResp(existing);
@@ -840,6 +841,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             matchNone = true;
         }
         return abstractUserMapper.selectUserListCount(tenantId, userType, keyword, matchNone);
+    }
+
+    /** resource_entity.name NOT NULL 兜底：abstract_user.name 可空，缺省以 externalId 承载展示名（评审 P1-1） */
+    private static String resourceName(AbstractUser user) {
+        return user.getName() != null ? user.getName() : user.getExternalId();
     }
 
     /** 投影写变更日志（T-ACCESS-019：USER 投影 UPSERT 与主体事实同事务登记） */

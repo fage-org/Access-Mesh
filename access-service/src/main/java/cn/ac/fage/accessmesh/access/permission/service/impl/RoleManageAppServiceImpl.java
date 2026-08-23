@@ -210,15 +210,19 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
             }
         }
+        // 旧父链成员须在树变更前反查（提交后旧链关系不可再发现，评审 P1-3）；
+        // 新父链成员由提交后 markRoles 反查覆盖（新树可达）
+        Set<Long> oldTreeUserIds = subjectDomainService.findUserIdsByEffectiveRoles(tenantId, Set.of(roleId));
         role.setParentId(parentId);
         role.setUpdatedBy(operatorId);
         role.setUpdatedAt(LocalDateTime.now());
         abstractRoleMapper.update(role);
 
-        // T-ACCESS-019：ROLE 资源投影同事务镜像父节点；移动改变组角色展开结果，登记 markRoles
+        // T-ACCESS-019：ROLE 资源投影同事务镜像父节点
         localProjectionDomainService.upsertRoleResource(
             tenantId, roleId, role.getName(), role.getStatus(), role.getParentId());
         recordProjectionChange(tenantId, roleId, "UPSERT");
+        PermissionChangeContext.markUsers(tenantId, oldTreeUserIds);
         PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
     }
 
@@ -302,9 +306,21 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             }
         }
 
+        // 受影响用户须在软删前反查（提交后已删角色不可作组展开递归起点，评审 P1-3）
+        Set<Long> affectedUserIds = subjectDomainService.findUserIdsByEffectiveRoles(tenantId, allIdsToDelete);
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
         // T-ACCESS-019：ROLE 资源投影同事务软删（含级联子孙角色），实例授权目标随之不可解析（fail-closed）
         localProjectionDomainService.softDeleteRoleResources(tenantId, allIdsToDelete);
+        // 投影软删变更日志（评审 P1-4：覆盖含级联子孙的全量删除集合，与决策 4 的逐投影写登记对齐）
+        List<AuditDomainService.ChangeLogEntry> projectionDeletes = allIdsToDelete.stream()
+            .map(deletedId -> new AuditDomainService.ChangeLogEntry(
+                "abstract_role", deletedId, "DELETE", null, null, null,
+                new Long[0], new Long[]{deletedId}))
+            .collect(Collectors.toList());
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+            projectionDeletes);
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + allIdsToDelete.size() + " role(s), rootPermitted="
             + permittedIds.size() + ", denied=" + deniedRoleCodes.size()
@@ -322,9 +338,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             itemsJson.add(it);
         }
 
-        // 登记需直清角色权限快照的角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）；
-        // markRoles 反查持有者失效 EFFECTIVE_ROLES（角色删除同时影响角色快照与用户，二者可叠加）
-        PermissionChangeContext.markRoles(tenantId, allIdsToDelete);
+        // 受影响用户按事务内预计算集合显式失效（评审 P1-3），角色权限快照直清照旧（铁律 P1-B）
+        PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         PermissionChangeContext.markRoleSnapshots(tenantId, allIdsToDelete);
 
         ObjectNode diffRoot = objectMapper.createObjectNode();

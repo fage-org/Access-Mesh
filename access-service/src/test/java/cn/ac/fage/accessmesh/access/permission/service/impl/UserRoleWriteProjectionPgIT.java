@@ -282,6 +282,89 @@ class UserRoleWriteProjectionPgIT {
         assertThat(countLocalProjections(RESOURCE_TYPE_USER)).isEqualTo(localProjectionsBefore);
     }
 
+    @Test
+    @DisplayName("ROLE 父镜像：createRole 投影 parent_id 镜像角色树，moveRole 同步迁移；父投影缺失 fail-closed 回滚")
+    void roleParentMirrorShouldProjectTreeAndFailClosedWhenParentProjectionMissing() {
+        Long creator = insertSubject("t019-op-parent", "父镜像操作者");
+        Long creatorRole = insertBasicRole("t019-holder-parent", "父镜像角色");
+        insertUserRole(creator, creatorRole);
+        // CREATE + MANAGE（scopeAll 各一行——ck_role_resource_permission_manual_single_operation
+        // 限制 MANUAL 来源单 bit；移动门禁经 scopeAll，实例门禁命中已由首用例覆盖）
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        bindOperator(creator);
+
+        RoleResp parentA = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-parent-a", "父角色A", null, null), creator);
+        RoleResp parentB = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-parent-b", "父角色B", null, null), creator);
+        RoleResp child = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(parentA.id(), "BASIC_ROLE", "t019-ext-child", "子角色", null, null), creator);
+
+        Long parentAProjectionId = ((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(parentA.id())).get("id")).longValue();
+        Long parentBProjectionId = ((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(parentB.id())).get("id")).longValue();
+        // 创建即镜像父节点（决策 1）
+        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(child.id()))
+            .get("parent_id")).longValue()).isEqualTo(parentAProjectionId);
+
+        // moveRole 同步迁移投影父节点（旧父链成员事务内预计算失效，评审 P1-3）
+        roleManageAppService.moveRole(TENANT, child.id(), parentB.id(), creator);
+        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(child.id()))
+            .get("parent_id")).longValue()).isEqualTo(parentBProjectionId);
+
+        // 父投影缺失 fail-closed：裸插父角色（无投影）下创建子角色整体回滚
+        Long bareParent = insertBasicRole("t019-ext-bare-parent", "无投影父角色");
+        assertThatThrownBy(() -> roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(bareParent, "BASIC_ROLE", "t019-ext-fc-child", "fail-closed子角色", null, null), creator))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .hasMessageContaining("父资源投影缺失");
+        Long residue = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM abstract_role WHERE tenant_id = ? AND external_id = 't019-ext-fc-child'",
+            Long.class, TENANT);
+        assertThat(residue).isZero();
+    }
+
+    @Test
+    @DisplayName("禁用主体拒鉴（评审 P1-2）：enabled=false 后有效角色置空、门禁全拒；name=null 以 externalId 兜底投影（评审 P1-1）")
+    void disabledSubjectShouldBeDeniedAndNullNameFallsBackToExternalId() {
+        Long creator = insertSubject("t019-op-disable", "禁用操作者");
+        Long creatorRole = insertBasicRole("t019-holder-disable", "禁用角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_USER, CREATE_BIT);
+        bindOperator(creator);
+
+        // name=null：abstract_user.name 可空，投影以 externalId 兜底（评审 P1-1）
+        UserResp targetResp = userManageAppService.createUser(
+            TENANT, new UserCreateReq("USER", "t019-ext-disabled", null, true, null));
+        Long target = targetResp.id();
+        assertThat(resourceRow(RESOURCE_TYPE_USER, String.valueOf(target)).get("name"))
+            .isEqualTo("t019-ext-disabled");
+
+        // 目标主体自身持角色 + 类型级授权（先于其首次引擎调用装配）
+        Long targetRole = insertBasicRole("t019-holder-target", "目标主体角色");
+        insertUserRole(target, targetRole);
+        insertScopeAllRolePerm(targetRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, target, "ROLE", null, "CREATE")).isTrue();
+
+        // 管理员实例 MANAGE 装配后禁用目标主体
+        Long manager = insertSubject("t019-op-disable-mgr", "禁用管理员");
+        Long managerRole = insertBasicRole("t019-holder-disable-mgr", "禁用管理员角色");
+        insertUserRole(manager, managerRole);
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, MANAGE_BIT,
+            ((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(target)).get("id")).longValue());
+        bindOperator(manager);
+        userManageAppService.updateUser(TENANT, new UserUpdateReq(target, null, false, null));
+
+        // DDL 语义 enabled=false 鉴权不通过：有效角色置空后门禁全拒（评审 P1-2）
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, target, "ROLE", null, "CREATE")).isFalse();
+        // 禁用镜像到投影 status=0，name 保持兜底值
+        Map<String, Object> disabledRow = resourceRow(RESOURCE_TYPE_USER, String.valueOf(target));
+        assertThat(((Number) disabledRow.get("status")).intValue()).isZero();
+        assertThat(disabledRow.get("name")).isEqualTo("t019-ext-disabled");
+    }
+
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====
 
     private void bindOperator(Long operatorId) {
@@ -327,7 +410,7 @@ class UserRoleWriteProjectionPgIT {
 
     private Map<String, Object> resourceRow(int resourceType, String code) {
         return jdbc.queryForMap(
-            "SELECT id, name, status, owner_service_code, delete_flag FROM resource_entity "
+            "SELECT id, name, status, parent_id, owner_service_code, delete_flag FROM resource_entity "
                 + "WHERE tenant_id = ? AND resource_type = ? AND code = ? AND code_type = 'default'",
             TENANT, resourceType, code);
     }

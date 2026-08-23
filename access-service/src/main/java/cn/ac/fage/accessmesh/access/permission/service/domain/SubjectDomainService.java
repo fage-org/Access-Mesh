@@ -126,4 +126,19 @@ public interface SubjectDomainService {
      * @param roleIds  角色ID集合
      */
     void invalidateRoleCacheByRoles(Long tenantId, Set<Long> roleIds);
+
+    /**
+     * 反查有效角色包含任一给定角色的用户 ID（直接绑定 + 经组角色展开）。
+     * <p>
+     * 按**当前**角色树解析——移动/删除角色场景须在树变更**前**调用，
+     * 提交后旧树关系不可再发现（T-ACCESS-019 评审 P1-3：受影响用户在事务内
+     * 预计算并 markUsers，afterCommit 按显式用户 ID 失效，不依赖提交后反查）。
+     * 与 {@link #invalidateRoleCacheByRoles} 共用同一查询口径。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 受影响用户 ID 集合
+     */
+    Set<Long> findUserIdsByEffectiveRoles(Long tenantId, Set<Long> roleIds);
 }

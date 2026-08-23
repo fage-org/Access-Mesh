@@ -100,6 +100,19 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
     List<AbstractUser> selectValidByIds(@Param("tenantId") Long tenantId, @Param("ids") Set<Long> ids);
 
     /**
+     * 批量查询禁用主体 ID（enabled=false 且未删除）。
+     * <p>
+     * DDL 语义：abstract_user.enabled=false 时鉴权不通过——有效角色解析用本方法
+     * 将禁用主体的有效角色置空（T-ACCESS-019 评审 P1-2）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      主体 ID 集合
+     * @return 其中处于禁用状态的主体 ID
+     */
+    List<Long> selectDisabledIdsByIds(@Param("tenantId") Long tenantId, @Param("ids") Set<Long> ids);
+
+    /**
      * 分页查询用户列表（带过滤条件）
      *
      * @param tenantId        租户ID

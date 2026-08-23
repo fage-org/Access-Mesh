@@ -96,3 +96,13 @@ last_updated: 2026-08-23
 - architecture §12.3：T-ACCESS-019 落地注记（管理入口范围、ROLE 父镜像 fail-closed、updateUser 实例级、sync 遗留口径）。
 - admin-service-api-contract §3 终态口径注：USER/ROLE 投影补齐已落地。
 - permission-center implementation §3.1：投影维护状态更新为已落地。
+
+## 评审修复记录（2026-08-23，codex gpt-5.6-sol 只读评审：4 P1 + 1 P2，全部核实属实并修复）
+
+- **P1-1 name=null 创建回归**（属实）：`abstract_user.name` 可空而 `resource_entity.name NOT NULL`，permission 域 `UserCreateReq.name` 无校验——null name 的合法创建在投影处违反约束回滚。修复：调用侧 `resourceName()` 兜底 externalId（create/update 两处）；IT 补断言。
+- **P1-2 禁用主体仍可通过鉴权**（属实，存量平台缺口、非本次引入；经用户拍板本任务内修）：`resolveEffectiveRoles` 只过滤角色状态，从不检查 `abstract_user.enabled`，违背 DDL 注释「false 时鉴权不通过」。修复：批量实现前置 `selectDisabledIdsByIds`（AbstractUserMapper 新增 + XML），禁用主体有效角色置空（空集回填缓存，重新启用由写路径 markUsers 失效）；单用户版委托批量实现天然覆盖。IT 补「禁用后类型级门禁全拒 + 投影 status=0」用例。
+- **P1-3 移动/删除角色失效不完整**（属实）：markRoles 的受影响用户反查发生在提交后、沿**当前**树解析——移动后旧父链成员、删除后已删角色的祖先链成员不可再发现，仅 TTL 兜底。修复：`SubjectDomainService` 新增 `findUserIdsByEffectiveRoles`（与 invalidateRoleCacheByRoles 共用查询口径，后者重构为复用）；moveRole 在树变更**前**预计算旧链成员 markUsers + 保留 markRoles 覆盖新链；deleteRoles 以预计算 markUsers 替换原 markRoles（markRoleSnapshots 照旧）。
+- **P1-4 ROLE 删除投影缺变更日志**（属实）：决策 4 要求逐投影写登记，但 deleteRoles 路径只有既有 `abstract-role-batch-remove` 角色事实日志且影响范围用 permittedIds（不含级联子孙）。修复：`softDeleteRoleResources` 后按 `allIdsToDelete` 全量补 `local-projection` 的逐角色 DELETE entries（一次 insertBatch）。
+- **P2 父镜像/moveRole 无测试覆盖**（属实）：补 moveRole 单测（投影镜像新父 + 预计算反查）与 IT 用例（createRole 投影 parent_id 镜像、moveRole 迁移投影父节点、裸父角色 fail-closed 整体回滚）。
+
+修复后全量回归：673 tests 0 failures（Testcontainers IT 扩至 6 用例，真实 PG+Redis）。评审另核实无 P0；`git diff --check` 无格式问题。

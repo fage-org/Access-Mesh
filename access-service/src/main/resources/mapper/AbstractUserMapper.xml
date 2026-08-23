@@ -50,6 +50,17 @@
           AND delete_flag = 0
     </select>
 
+    <select id="selectDisabledIdsByIds" resultType="java.lang.Long">
+        SELECT id FROM abstract_user
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND enabled = FALSE
+          AND delete_flag = 0
+    </select>
+
     <select id="selectUserListPaged" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractUser">
         SELECT * FROM abstract_user
         WHERE tenant_id = #{tenantId}

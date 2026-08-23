@@ -144,7 +144,7 @@ class RoleManageAppServiceImplTest {
         verify(auditDomainService).recordChangeLog(any(), any());
     }
 
-    /** T-ACCESS-019：deleteRoles 同事务批量软删 ROLE 投影（含级联子孙角色）。 */
+    /** T-ACCESS-019：deleteRoles 同事务批量软删 ROLE 投影（含级联子孙角色）并按预计算用户失效。 */
     @Test
     void shouldSoftDeleteRoleResourcesOnRemove() {
         AbstractRole role = new AbstractRole();
@@ -155,6 +155,8 @@ class RoleManageAppServiceImplTest {
         when(subjectDomainService.selectValidRolesByIds(eq(1L), eq(java.util.Set.of(123L)))).thenReturn(List.of(role));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
             eq(java.util.Set.of("123")), eq(OperationCodeConstants.MANAGE))).thenReturn(java.util.Set.of());
+        when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
+            .thenReturn(java.util.Set.of(55L));
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
@@ -164,5 +166,37 @@ class RoleManageAppServiceImplTest {
         }
 
         verify(localProjectionDomainService).softDeleteRoleResources(1L, java.util.Set.of(123L));
+        // 角色事实 BATCH_DELETE + 投影 DELETE 各一次（评审 P1-4）
+        verify(auditDomainService, org.mockito.Mockito.times(2)).recordChangeLog(any(), any());
+    }
+
+    /** T-ACCESS-019：moveRole 投影镜像新父节点，旧父链成员在树变更前预计算失效（评审 P1-3）。 */
+    @Test
+    void shouldProjectRoleResourceOnMove() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setName("运维角色");
+        role.setStatus(1);
+        AbstractRole newParent = new AbstractRole();
+        newParent.setId(200L);
+        newParent.setTenantId(1L);
+        newParent.setRoleType(6);
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(subjectDomainService.selectValidRoleById(1L, 200L)).thenReturn(newParent);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
+            .thenReturn(java.util.Set.of(66L));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.moveRole(1L, 123L, 200L, 100L);
+        }
+
+        verify(localProjectionDomainService).upsertRoleResource(1L, 123L, "运维角色", 1, 200L);
+        verify(auditDomainService).recordChangeLog(any(), any());
     }
 }
