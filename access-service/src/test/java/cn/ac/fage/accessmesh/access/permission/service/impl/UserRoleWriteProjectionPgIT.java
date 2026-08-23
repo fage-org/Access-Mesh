@@ -392,9 +392,17 @@ class UserRoleWriteProjectionPgIT {
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
 
-        // 禁用组角色：反查须覆盖 GROUP_ROLE 直绑成员（P1-B①，含预热缓存失效），
-        // 禁用组展开为空（P1-A）→ 重新回源后整体失权
+        // 禁用组角色：反查须覆盖 GROUP_ROLE 直绑成员（含预热缓存失效），
+        // 禁用组展开为空 → 重新回源后整体失权
         roleManageAppService.updateRole(TENANT, group.id(), "组角色-禁用", 0, null, null, creator);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isFalse();
+
+        // 重新启用恢复授权；status 写入口未限定 0/1，非启用值（如 2）fail-closed 视为禁用
+        roleManageAppService.updateRole(TENANT, group.id(), "组角色-启用", 1, null, null, creator);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isTrue();
+        roleManageAppService.updateRole(TENANT, group.id(), "组角色-异常状态", 2, null, null, creator);
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 

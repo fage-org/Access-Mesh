@@ -332,8 +332,10 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     public void upsertRoleResource(Long tenantId, Long roleId, String name, Integer status, Long parentRoleId) {
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ROLE);
         Long parentResourceId = resolveParentResourceId(tenantId, resourceType, parentRoleId);
+        // 仅 status=1 视启用（写入口未限定取值，非 0/1 值 fail-closed 落禁用，
+        // 与组角色展开/基础角色 selectEnabledIdsByIds 口径对齐）
         upsertResource(tenantId, resourceType, String.valueOf(roleId), name, parentResourceId,
-            status != null && status > 0 ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
+            status != null && status == 1 ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
     }
 
     @Override

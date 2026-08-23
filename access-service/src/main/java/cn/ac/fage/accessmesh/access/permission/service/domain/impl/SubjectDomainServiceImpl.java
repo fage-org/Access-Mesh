@@ -319,8 +319,9 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
      * 批量解析组角色
      * <p>
      * 使用PostgreSQL递归CTE一次性查询所有子孙角色，然后在内存中展开。
-     * 禁用组角色整体失权（二轮评审 P1-A）：根组角色禁用 → 展开为空；
-     * 递归展开遇禁用嵌套组 → 剪枝其整棵子树（基础角色仍由调用方 retainAll(enabled) 过滤）。
+     * 仅 status=1 的组角色参与展开（fail-closed：写入口未限定 status 取值，
+     * 非 0/1 值不得视为启用；与基础角色 selectEnabledIdsByIds 的 status=1 口径对齐）：
+     * 根组角色非启用 → 展开为空；递归遇非启用嵌套组 → 剪枝其整棵子树。
      * </p>
      */
     private Map<Long, Set<Long>> resolveGroupRolesBatch(Long tenantId, Set<Long> groupRoleIds) {
@@ -344,7 +345,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             .collect(Collectors.toSet());
 
         Set<Long> disabledRoleIds = allRoles.stream()
-            .filter(r -> r.getStatus() != null && r.getStatus() == 0)
+            .filter(r -> r.getStatus() == null || r.getStatus() != 1)
             .map(AbstractRole::getId)
             .collect(Collectors.toSet());
 
@@ -362,7 +363,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     /**
-     * 在内存中递归展开组角色；遇禁用嵌套组剪枝其整棵子树（二轮评审 P1-A）
+     * 在内存中递归展开组角色；遇非启用（status≠1）嵌套组剪枝其整棵子树（fail-closed）
      */
     private Set<Long> expandInMemory(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
                                      Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds,
@@ -466,8 +467,9 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     /**
      * 批量失效多个角色关联的所有用户缓存（T-PERM-018 P2：消除按角色循环 N+1）。
      * <p>
-     * 固定 ≤3 SQL：① 批量查多角色直接用户（ROLE）；② 批量递归查祖先 GROUP_ROLE；
-     * ③ 批量查组角色用户（GROUP_ROLE）。一次 evictBatch(EFFECTIVE_ROLES)。
+     * 固定 ≤4 SQL：① 批量查多角色直接用户（ROLE）；② 批量查多角色直接组绑定用户（GROUP_ROLE，
+     * 被变更角色本身为组角色时的组成员）；③ 批量递归查祖先 GROUP_ROLE；
+     * ④ 批量查组角色用户（GROUP_ROLE）。一次 evictBatch(EFFECTIVE_ROLES)。
      * </p>
      */
     @Override

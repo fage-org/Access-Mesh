@@ -119,7 +119,7 @@ public interface SubjectDomainService {
      * 批量失效多个角色关联的所有用户缓存（T-PERM-018 P2：消除按角色循环 N+1）。
      * <p>
      * 与 {@link #invalidateRoleCacheByRole} 语义一致，但一次查询多个角色的直接用户与祖先组角色用户，
-     * 固定 ≤3 SQL + 1 次 evictBatch，避免 afterCommit 阶段 O(R) SQL（资源批量删除等场景）。
+     * 固定 ≤4 SQL + 1 次 evictBatch，避免 afterCommit 阶段 O(R) SQL（资源批量删除等场景）。
      * </p>
      *
      * @param tenantId 租户ID

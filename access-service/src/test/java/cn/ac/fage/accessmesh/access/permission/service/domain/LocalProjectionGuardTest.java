@@ -39,13 +39,15 @@ class LocalProjectionGuardTest {
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedRoleType("POSITION"))
             .isInstanceOf(BizException.class);
-        // 管理入口类型保留清单 {USER, ORG, MENU}（T-ACCESS-018 换值；仅人工建资源入口使用，
-        // 外部 sync 不再调用本清单——本地投影行改按所有权保护）
+        // 管理入口类型保留清单 {USER, ORG, MENU, ROLE}（T-ACCESS-018 换值、T-ACCESS-019 增补 ROLE；
+        // 仅人工建资源入口使用，外部 sync 不再调用本清单——本地投影行改按所有权保护）
         assertThatThrownBy(() -> guard.rejectReservedResourceType("USER"))
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedResourceType("ORG"))
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedResourceType("MENU"))
+            .isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> guard.rejectReservedResourceType("ROLE"))
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedUserRoleSource("SYS_USER_ORG"))
             .isInstanceOf(BizException.class);
