@@ -135,29 +135,37 @@ if (data == null) {
 cacheService.evictAfterCommit(MyCacheCatalog.DETAIL, tenantId, id);
 ```
 
-### resource-permission-validator
+### permission-query-pipeline
 
-**自动触发条件**: 涉及权限校验代码、创建新 ResourcePermissionStrategy、使用 ResourcePermissionValidator、
-OperationType 枚举、权限相关逻辑、关键词 "permission"、"权限"、"validate"、"hasPermission"、
-"validateBatch"、"getDeniedIds"、"canGrant"、"ResourcePermissionStrategy"。
+**自动触发条件**: 涉及权限查询/校验代码、`PermQueryEngine`、`PermQuery`、`PermResult`、`OperationCodeConstants`、
+`ResourceTypeCode`、批量权限检查、权限相关逻辑，关键词 "permission"、"权限"、"hasPermissionByCode"、
+"getDeniedResourceCodes"、"hasPermissionByEntityId"、"getDeniedEntityIds"、"canGrant"。
 
-**核心 API**:
+**核心 API**（T-PERM-042 终态：旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已从引擎删除）：
 
 ```java
-// 单实例校验（无权限抛 SecurityException）
-permissionValidator.validate(tenantId, operatorId, "SERVICE", serviceCode, OperationType.MANAGE_API_MAPPING);
+// 门禁主体必须先转换为权限域投影主体（T-ORG-001 统一前）
+Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-// 批量校验
-permissionValidator.validateBatch(tenantId, operatorId, "ROLE", roleIds, OperationType.DELETE);
+// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用）——
+// 单目标鉴权（code 传 null = 类型级）
+boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
+    ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.MANAGE);
 
-// 非抛出检查（返回 boolean）
-boolean allowed = permissionValidator.hasPermission(tenantId, operatorId, "USER", userId, OperationType.MANAGE);
+// 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+    ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
 
-// 获取被拒绝的 ID
-Set<Long> denied = permissionValidator.getDeniedIds(tenantId, operatorId, "DOMAIN", domainIds, OperationType.VIEW);
+// —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
+boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
 
-**OperationType 枚举**: CREATE, VIEW, MANAGE, UPDATE, DELETE, ASSIGN, REVOKE, SYNC, MANAGE_API_MAPPING, SYNC_INTERFACE, GRANT
+**OperationCodeConstants 操作码**: CREATE, VIEW, MANAGE, UPDATE, DELETE, ASSIGN, REVOKE, SYNC,
+MANAGE_API_MAPPING, SYNC_INTERFACE, GRANT。禁止 `ResourcePermissionValidator` / `OperationType` 枚举 /
+`ResourcePermissionStrategy`（均已删除）；禁止绕过引擎直查 `rolePermMapper` 做权限判定。
 
 ## 常用命令（开发阶段预估）
 

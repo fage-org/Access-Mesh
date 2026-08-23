@@ -118,12 +118,21 @@ effectiveScopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限
 **AppService 层 API（单目标/批量校验）：**
 
 ```java
-// 单目标鉴权
-engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
-// 批量校验（拒绝时抛 SecurityException）
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
-// 批量获取拒绝 ID 集合
-Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.USER, userIds, OperationCodeConstants.MANAGE);
+// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用，T-PERM-042 终态）——
+// resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId（architecture §12.3）
+
+// 单目标鉴权（code 传 null = 类型级）
+boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
+    ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
+// 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+    ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE);
+
+// —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
+boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
 
 **复杂查询 API（`PermQuery` 工厂方法 + `engine.query()`）：**

@@ -180,7 +180,7 @@ class RoleManageAppServiceTest {
 
     @Test
     void shouldCreateRole() {
-        when(permQueryEngine.hasPermission(any(), any(), any(), any(), any()))
+        when(permQueryEngine.hasPermissionByCode(any(), any(), any(), any(), any()))
             .thenReturn(true);
 
         RoleResp result = roleManageAppService.createRole(TENANT_ID, req, OPERATOR_ID);
@@ -219,7 +219,7 @@ void shouldThrowException_whenRoleNotFound() {
 
 @Test
 void shouldReturnRole_whenUserHasViewPermission() {
-    when(permQueryEngine.hasPermission(any(), any(), eq(ROLE), eq(roleId), eq(VIEW)))
+    when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), eq(String.valueOf(roleId)), eq(VIEW)))
         .thenReturn(true);
 
     RoleResp result = roleService.getRole(TENANT_ID, roleId);

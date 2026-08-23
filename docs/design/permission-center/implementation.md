@@ -327,7 +327,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 - **业务编码语义定稿**：`resource_entity(USER).code = subjectId.toString()`、`resource_entity(ROLE).code = roleId.toString()`（投影由 T-ACCESS-019 全写路径同事务维护）；`code → entity` 解析统一下沉 `TypeResolutionService` 批量方法（禁 N+1）。
 - 未知类型/未知操作维持 fail-closed 全量拒绝（现状语义不变）。
 
-**`getDeniedResourceCodes` 优化策略**（批量拒绝场景，与现 `getDeniedIds` 相同管线）：
+**`getDeniedResourceCodes` 优化策略**（批量拒绝场景，与 `getDeniedEntityIds` 相同管线，T-PERM-042 已落地）：
 
 1. 一次查询解析用户角色（`SubjectDomainService.resolveEffectiveRoles`）
 2. 一次查询类型级权限（`selectScopeAllPermsByBitsBatch`）-- scopeAll 匹配则全部允许
@@ -525,9 +525,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         Long operatorId = OperatorContext.getOperatorId();
 
-        // ① 鉴权（先于一切分支；hasPermission 返回 boolean，必须显式判断 false 并抛异常）
+        // ① 鉴权（先于一切分支；hasPermissionByCode 返回 boolean，必须显式判断 false 并抛异常）
         Long roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), ...);
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -565,7 +565,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 - **写入口五项清单（定案，写入口必须齐全）**：① `@Transactional(rollbackFor=Exception.class)` 单事务原子 ② `@OperationLog` 入口级操作日志 ③ `@PermissionChange` 缓存失效 AOP（afterCommit flush markRoles -> 广播 + evict）④ `auditDomainService.recordChangeLog` 同事务聚合 permission_change_log ⑤ `PermissionChangeContext.markRoles` 登记影响范围。缺任一项会导致审计缺失或缓存失效遗漏（markRoles 未绑上下文时 no-op）。
 - **无 CAS / 无幂等表 / 无 clientRequestId**（收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功。
 - **受影响行数断言（问题 5 修复）**：`updates`/`removes` 执行后核对实际影响行数，少于预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
-- **hasPermission 显式判断（问题 1 修复）**：`engine.hasPermission()` 返回 boolean 不自动抛异常，必须 `if(!...) throw SecurityException`，否则 ROLE:MANAGE 门禁失效。
+- **hasPermissionByCode 显式判断（问题 1 修复；T-PERM-042 更名）**：`engine.hasPermissionByCode()` 返回 boolean 不自动抛异常（引擎纯查询），必须 `if(!...) throw SecurityException`，否则 ROLE:MANAGE 门禁失效。
 
 ## 5. 缓存设计
 

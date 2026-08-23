@@ -72,7 +72,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 可用操作权限下发的是**最终可用操作码**，不是数据库中显式授予的单个操作码。permission-center 会按 `operation_permission.inherit_mask` 展开 `effectiveBits`；例如仅显式授予 `ADMIN_USER:UPDATE` 且 UPDATE 继承 VIEW 时，下发结果必须同时包含 `ADMIN_USER:UPDATE` 和 `ADMIN_USER:VIEW`，前端不得自行复制操作继承规则。
 
-**收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ADMIN_ORG:CREATE")` 与后端 `engine.hasPermission(ADMIN_ORG, CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
+**收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ADMIN_ORG:CREATE")` 与后端 `engine.hasPermissionByCode(ADMIN_ORG, ..., CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
 
 **实现（T-ACCESS-006 修订）**：`UserMenuQueryService`（`access.application.query`）经 `PermissionViewAppService` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回（引擎封装在 permission 域内）；菜单可见性按 v3.5 §4.1 派生公式落地（评审 P1-1 修复）：`deriveVisibleMenuIds` 经 `PermissionViewAppService.getEffectiveResourceAccess`（scopeAll 类型 + 资源实例 ID 集合）与 `TypeResolutionService.batchResolveResourceIds` 匹配业务菜单，纯展示/DIR 全员可见，DIR 剪枝、HIDDEN 不进 menus[]（详见 access-service-architecture §3）。
 

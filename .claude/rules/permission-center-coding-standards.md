@@ -36,7 +36,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Transactional(rollbackFor = Exception.class)
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         // 1. 门禁校验
-        if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied");
         }
         // 2. 调用 DomainService
@@ -56,16 +56,21 @@ public PermResult<RoleResp> create(@RequestBody RoleCreateReq req) {
 
 ## 2. 权限查询铁律
 
-**MUST** 所有判定经过 `engine.query()` 或 `engine.hasPermission()`。
+**MUST** 所有判定经过 `engine.query()` 或四个显式入口（T-PERM-042 终态，旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已删除）：
+- 业务编码轨（对外，USER/ROLE 等业务对象门禁统一使用，`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId`）：`engine.hasPermissionByCode(tenantId, subjectId, type, code, op)`（code 传 null = 类型级）、`engine.getDeniedResourceCodes(...)`（引擎纯查询，拒绝时调用方显式 throw）。
+- 实体 ID 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等 resource_entity 管理链路）：`engine.hasPermissionByEntityId(...)`、`engine.getDeniedEntityIds(...)`。
+
 **仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
 
 ```java
-// ✅ 正确 — 权限判定走 PermQueryEngine
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+// ✅ 正确 — 权限判定走 PermQueryEngine 显式入口
+if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
     throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
 }
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
-Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId, ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
+if (!denied.isEmpty()) {
+    throw new SecurityException("Permission denied: VIEW on DOMAIN:" + denied);
+}
 
 // ✅ 正确 — 管理查询可直查 Mapper（不涉及权限判定）
 List<ResourceEntity> resources = resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, offset, limit);
@@ -114,7 +119,7 @@ PermResultUtils.validateOrThrow(engine.query(q));
 
 ```java
 // ✅ 鉴权失败
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
     throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
 }
 
@@ -454,8 +459,8 @@ import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
 
-engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
-engine.hasPermission(tenantId, operatorId, ResourceTypeCode.USER, userId, OperationCodeConstants.CREATE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.CREATE);
 
 // ❌ 禁止
 OperationType.MANAGE  // 类已删除
@@ -469,10 +474,10 @@ OperationType.MANAGE  // 类已删除
 // ✅ 正确
 import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
 
-engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
 
 // ❌ 禁止
-engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写错误风险
+engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), "MANAGE");  // 拼写错误风险
 ```
 
 ## 17. 已删除的类（禁止引用）
@@ -521,7 +526,7 @@ engine.hasPermission(tenantId, operatorId, "ROLE", roleId, "MANAGE");  // 拼写
 | 3 | 是否引用了已删除的类？ | §17 已删除的类 |
 | 4 | 是否引用了已删除的实体字段（如 `bizDomainId`）？ | §18 已删除的实体字段 |
 | 5 | 批量操作是否使用 Mapper 批量方法（禁止循环单条）？ | §6 批量实体加载、§10 类型解析 |
-| 6 | 权限判定是否走 `engine.query()` / `engine.hasPermission()`？ | §2 权限查询铁律 |
+| 6 | 权限判定是否走 `engine.query()` / 四个显式入口（`hasPermissionByCode`/`getDeniedResourceCodes`/`hasPermissionByEntityId`/`getDeniedEntityIds`）？ | §2 权限查询铁律 |
 
 ### 编码后检查
 

@@ -665,7 +665,7 @@ Map<Long, AbstractRole> roleMap = roles.stream()
 
 | 场景             | 批量方法                                                             |
 | ---------------- | -------------------------------------------------------------------- |
-| 权限批量检查     | `PermQueryEngine.validateBatch()` / `PermQueryEngine.getDeniedIds()` |
+| 权限批量检查     | `PermQueryEngine.getDeniedResourceCodes()` / `PermQueryEngine.getDeniedEntityIds()`（T-PERM-042 终态，旧 validateBatch/getDeniedIds 已删除） |
 | 授权批量校验     | `PermissionGrantDomainService.checkCanGrant()`                       |
 | 角色批量加载     | `PermQueryEngine.batchLoadRoles(Set<Long> roleIds)`                  |
 | 操作权限批量加载 | `PermQueryEngine.batchLoadOperations(Set<Long> opIds)`               |

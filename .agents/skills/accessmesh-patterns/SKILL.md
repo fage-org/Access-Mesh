@@ -115,7 +115,7 @@ private LocalDateTime deletedAt;
 | 角色权限撤销     | `PermissionGrantDomainService.revokePermissions()`                                                            |
 | 授权传递校验     | `PermissionGrantDomainService.checkCanGrant()`                                                                |
 | 类型批量解析     | `TypeResolutionService.batchResolveTypeValues()` / `batchResolveResourceIds()` / `batchResolveOperationIds()` |
-| 管理权限批量校验 | `PermQueryEngine.validateBatch()` / `getDeniedIds()`                                                          |
+| 管理权限批量校验 | `PermQueryEngine.getDeniedResourceCodes()`（业务编码）/ `getDeniedEntityIds()`（entityId 轨）                    |
 
 如果任务涉及缓存或权限查询引擎，不要在这里重复实现细节，直接切到专用 skill。
 

@@ -36,15 +36,31 @@ private final PermQueryEngine engine;
 // 操作者 sys_user.id → 权限域投影主体 abstract_user.id（一次转换，可同时用于门禁/自查/委托链）
 Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-// 批量校验（任意一个无权限抛 SecurityException）
-engine.validateBatch(tenantId, subjectId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁与跨服务 SDK 统一使用）——
+// resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId（architecture §12.3）
 
-// 非抛出检查（返回 boolean）
-boolean allowed = engine.hasPermission(tenantId, subjectId, ResourceTypeCode.USER, userId, OperationCodeConstants.MANAGE);
+// 非抛出检查（返回 boolean；code 传 null = 类型级校验）
+boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
+    ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.MANAGE);
 
-// 获取被拒绝的 ID（批量非抛出）
-Set<Long> denied = engine.getDeniedIds(tenantId, subjectId, ResourceTypeCode.DOMAIN, domainIds, OperationCodeConstants.VIEW);
+// 获取被拒绝的业务编码集合（批量非抛出；引擎纯查询，异常由调用方显式抛出）
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+    ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
+if (!denied.isEmpty()) {
+    throw new SecurityException("Permission denied: ...");
+}
+
+// —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
+
+boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+
+Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
+
+> **T-PERM-042 终态**：旧 `hasPermission(Object)` / `validateBatch` / `getDeniedIds` / `toLongId` 已从引擎删除。
+> 引擎纯查询不抛 `SecurityException`——admin 域经 `AdminPermissionValidator` 门面（`checkTypeLevel` / `checkInstanceLevel` / `checkBatchInstanceLevel`）抛出；permission 域 AppService 显式 `if-throw`。
 
 ## Domain 层 API（复杂查询场景）
 
