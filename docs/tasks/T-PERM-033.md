@@ -19,7 +19,7 @@ acceptance:
   - "explain 门禁从 SYSTEM_CONFIG:VIEW 切换为统一门禁；门禁方案任务中定稿（A=PERMISSION_QUERY:VIEW 即全租户排查能力；B=PERMISSION_QUERY:VIEW + 被查目标 USER:VIEW/ROLE:VIEW）"
   - "explain 响应扩展命中条件/条件评估过程/冲突详情 + 评估上下文来源（管理员输入 vs 当前请求）+ IP/时间条件评估 + 敏感条件值脱敏"
   - "recentChanges 按完整权限键 6 字段过滤（domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode；当前实现只按用户/角色取 50 条）"
-  - "ADMIN_USER/USER 主体语义核对（subjectTypeCode 来源与候选查询方式、TypeResolutionService.resolveUserId 解析路径）"
+  - "LOCAL_USER/USER 主体语义核对（subjectTypeCode 来源与候选查询方式、TypeResolutionService.resolveUserId 解析路径；ADMIN_USER 已随 T-ACCESS-018 更名 LOCAL_USER）"
   - "query-resources / permission-view/* 契约核对完成、差异登记（effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree + treeMode TODO）"
   - "前端联调路径为既有契约端点（/api/perm/permission-view/effective-permissions、/api/perm/permission-view/explain、/api/perm/auth/query-scopes）；无新增 Gateway 路由（3 路由契约不动）；前端 perms.ts 常量 SYSTEM_CONFIG:VIEW 切换为 PERMISSION_QUERY:VIEW"
 design_writeback:
@@ -47,14 +47,14 @@ T-FE-013 权限排查页前端已实现（Phase 1 mock 驱动，mock 路径 `/pe
 - query-resources/query-scopes 运行时接口无排查门禁
 - explain 响应无命中条件/条件评估/冲突详情
 - recentChanges 只按用户/角色取 50 条，未按权限键过滤
-- ADMIN_USER/USER 主体类型语义待核对
+- LOCAL_USER/USER 主体类型语义待核对
 
 ## 范围
 
 1. **统一门禁模型**：新增资源类型 `ResourceTypeCode.PERMISSION_QUERY`；类型/操作种子 + 默认角色授权；权限码下发白名单追加（`UserMenuQueryServiceImpl.EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES`）。门禁方案任务中用权限矩阵明确两种权限仅有其一的结果后定稿（A/B 见 acceptance）。
 2. **explain DTO 扩展**：命中条件/条件评估过程/冲突详情；评估上下文来源（管理员输入 vs 当前请求）；IP/时间等条件如何评估；敏感条件值脱敏。
 3. **recentChanges 按完整权限键过滤**：按 6 字段过滤，只返回与目标权限键相关的事件（契约 §6.8）。
-4. **ADMIN_USER/USER 主体语义核对**：`ADMIN_USER` 是 AccessMesh 管理端用户主要真实类型、`USER` 为通用类型；核对 `subjectTypeCode` 来源、候选查询方式与 `resolveUserId` 解析路径。
+4. **LOCAL_USER/USER 主体语义核对**：`LOCAL_USER` 是 AccessMesh 管理端用户（本地访问主体，原 ADMIN_USER 更名）、`USER` 为外部人员类型；核对 `subjectTypeCode` 来源、候选查询方式与 `resolveUserId` 解析路径。
 5. **query-resources API 核对**（§6.6 运行时 SDK 视角，前端不做 UI；treeMode TODO 一并核对）。
 6. **permission-view/* 契约差异核对**（§6.8 字段一致性）。
 7. **前端联调切换**：mock 路径 `/permission-query/*` 切换为契约路径 `/api/perm/*`（实际切换在 T-FE-019 联调执行）。

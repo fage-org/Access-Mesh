@@ -143,7 +143,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-ACCESS-017](../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ✅ | — | A |
 | [T-PERM-042](../tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | ✅ | T-ACCESS-016, T-ACCESS-017 | A |
 | [T-ORG-001](../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ✅ | T-PERM-042 | A |
-| [T-ACCESS-018](../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ⚙️ | T-ORG-001 | A |
+| [T-ACCESS-018](../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ✅ | T-ORG-001 | A |
 | [T-ACCESS-019](../tasks/T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | ⚙️ | T-ACCESS-018 | A |
 | [T-ACCESS-020](../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ⚙️ | T-ACCESS-019 | A |
 | [T-FE-041](../tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | ⚙️ | T-ACCESS-020 | A |
@@ -177,5 +177,6 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 - 2026-08-23 验收链路修订：E2E 固定 8 步顺序（角色分配先于授权、403 断言先于授权真实执行、撤权单调计时轮询）；bootstrap 管理角色业务门禁最小集明确到 operation/scopeMode/实例；bootstrap 幂等改三状态口径（完整存在整体 no-op / 部分残缺启动失败报告冲突）；T-FE-041 模块清单收敛为授权页实际消费五模块、新增 401 窄处理规则；任务卡规范改必填+按适用填写；索引旧"40 项"口径统一。计划自此冻结扩展，进入执行。
 - 前置事实基线：代码基线 @ `7b7cf3254`（计划与任务卡文档修改使工作区非 clean）；外部 Docker 主机已真实执行 9 类 68 项 Testcontainers 门控（修复链 `c8dc06c52` → `b9f48bb39` → `7b7cf3254`，构成历史验证基线）。
 - 2026-08-23 执行：T-ORG-001 done——主体 ID 统一（序列预取 + sys_user/abstract_user 同 ID 双表插入，Flex 主键策略适配 KeyType.None/insertWithExplicitId）；OperatorSubjectResolver 与 resolveOperatorSubjectId 全量删除清零（82 处调用 + Javadoc）；空库重建 runbook 落地（含 Redis 清理）；双层全绿（单测 674 + 容器 65，新增 LocalSubjectIdUnificationPgIT）。T-ACCESS-018 依赖解除。
+- 2026-08-23 执行：T-ACCESS-018 done——DDL 种子按 §13 终值重编（resource_type 28→23、operation_permission 139→117，LOCAL_USER 更名、ORG=29、USER:ENABLE bit32）；ResourceTypeCode 扩为 23 码单一常量源、AdminResourceType 删除（约 26 文件切换）、AdminOperationCode.GRANT/REVOKE 删除；subject 保留键 ADMIN_USER→LOCAL_USER（含登录会话与全链路投影解析）；resource 侧取消类型级保留、外部 sync mutation 前置 rejectIfLocalResource（20045，含 DELETE 负向测试）、管理入口清单换值 {USER, ORG, MENU}；前端权限串全量切换（user/grant/permission-query 页 + mock）；文档全量同步（api-contract、admin 契约、runbook fixture、org-user 契约 v1.5 等）；schema 双测试新增退役码值登记（16/17/18/19/22/28 不复用）。T-ACCESS-019 依赖解除。
 - 2026-08-23 执行：T-PERM-042 done——引擎四显式 API（hasPermissionByCode/getDeniedResourceCodes 对外、hasPermissionByEntityId/getDeniedEntityIds entityId 轨）落地，hasPermission/validateBatch/getDeniedIds/toLongId 删除清零；9 处 getDeniedIds 全量改造（USER/ROLE 6 处错传点改业务编码语义）；授权页 3 读接口补类型级 VIEW 门禁；新增 InstanceGateBusinessCodePgIT（自装配投影 fixtures）。全量双层验证 BUILD SUCCESS（单测 670 + 容器 63），T-ORG-001 依赖解除。
 - 2026-08-23 执行：T-ACCESS-017 done（`37de53f61` → `80e87fb98`）——五链路特征测试单测+PG 两层全绿；最小 CI 两 job（单测 push 强制 / 容器 PR+手动门控）在 GitHub Actions 真实跑通。过程中发现并修复两处生产缺陷：`OperationPermissionMapper.selectByResourceTypeAndCodes` XML 参数名与接口不一致（真实查询路径 BindingException）；MyBatis-Flex 全局方言被 H2 上下文污染致 PG 容器测试反引号 SQL（surefire 双 execution 分层隔离）。T-PERM-042 依赖解除，模型收敛 Epic 可启动。

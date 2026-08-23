@@ -12,7 +12,7 @@ depends_on: []
 acceptance:
   - "org-tree 接口新增 includePositions 参数（默认 false 兼容现有调用）：true 时返回组织树 + 岗位节点（岗位作为所属组织的子节点，同一树结构，不分页）；**响应定稿 `PermResult<OrgItemsResp>{data:{items:[...]}}`（P1-3：不再返回裸数组，含既有调用方适配）**"
   - "岗位节点复用现有 `orgType=2` 字段区分（组织 orgType=1，与 PositionTab 一致；不引入新字段）"
-  - "数据源门禁对齐现有 org-tree（ADMIN_ORG:VIEW / ADMIN_ORG:VIEW_POSITION）；**否定性验收：仅 ADMIN_ORG:VIEW（无 VIEW_POSITION）的调用者响应中不包含任何岗位节点（orgType=2）**；**故障验收：本地权限引擎技术故障时 org-tree 返回 SystemException 错误响应（统一响应业务码标识故障），不得返回裁剪后的树（岗位裁剪不得静默降级，P2-1；归并后无远程调用，原 Feign 不可达语义已失效）**"
+  - "数据源门禁对齐现有 org-tree（ORG:VIEW / ORG:VIEW_POSITION，T-ACCESS-018 收敛后类型码）；**否定性验收：仅 ORG:VIEW（无 VIEW_POSITION）的调用者响应中不包含任何岗位节点（orgType=2）**；**故障验收：本地权限引擎技术故障时 org-tree 返回 SystemException 错误响应（统一响应业务码标识故障），不得返回裁剪后的树（岗位裁剪不得静默降级，P2-1；归并后无远程调用，原 Feign 不可达语义已失效）**"
   - "design_writeback：docs/design/frontend/permission-grant.md §9 组织主体适配器描述确认；docs/design/services/admin-service-api-contract.md §4.2.1 includePositions 契约（P1-6）"
 design_writeback:
   required: true
@@ -44,8 +44,8 @@ last_updated: 2026-08-22
 - `includePositions=true` 时：组织树照常返回，岗位（orgType=2）作为其所属组织的**子节点**挂入同一树（岗位自身不再有下级）。
 - 节点区分：组织节点带 `orgType=1`（现有字段），岗位节点带 `orgType=2`（前端以此区分主体入口类型）。
 - 数据量：岗位总数为组织数量级（数百~数千），单次全量返回可接受；若未来超阈值再评估懒加载。
-- 门禁：对齐现有 org-tree 数据源门禁（`ADMIN_ORG:VIEW`；岗位部分需 `ADMIN_ORG:VIEW_POSITION`，按现有 PositionTab 门禁语义）。**后端按调用者岗位权限裁剪岗位节点**（仅 `ADMIN_ORG:VIEW` 的调用者不返回岗位节点；前端隐藏不作安全边界）。
-- **裁剪判定入口（P2-1 定稿，T-ACCESS-012 重基线）**：`AdminPermissionValidator` 新增**非抛出判定** `boolean hasTypeLevel(String resourceTypeCode, String operationCode)`——**仅成功响应且 `allowed=false` 返回 false**；本地权限引擎技术故障（如数据库异常）向上抛 `SystemException`（技术故障语义；不再使用 EXTERNAL_SERVICE_ERROR 远程语义，具体错误码实施时按 ErrorCode 现行定义选取）——**不得复用 `SecurityException`**（全局映射 403，与故障验收矛盾）；**注意：`GlobalExceptionHandler.handleSystemException` 无 `@ResponseStatus`，现状映射为 HTTP 200 + 业务码**——本任务**不改全局映射**（会影响既有抛点语义），故障可识别性由统一响应业务码保证（调用方判 code!=200 即错误）；`checkAndThrow` 保持不动（既有调用方语义不变）；岗位裁剪用 `hasTypeLevel(ADMIN_ORG, VIEW_POSITION)`，false 才裁剪。
+- 门禁：对齐现有 org-tree 数据源门禁（`ORG:VIEW`；岗位部分需 `ORG:VIEW_POSITION`，按现有 PositionTab 门禁语义；T-ACCESS-018 类型收敛后类型码）。**后端按调用者岗位权限裁剪岗位节点**（仅 `ORG:VIEW` 的调用者不返回岗位节点；前端隐藏不作安全边界）。
+- **裁剪判定入口（P2-1 定稿，T-ACCESS-012 重基线）**：`AdminPermissionValidator` 新增**非抛出判定** `boolean hasTypeLevel(String resourceTypeCode, String operationCode)`——**仅成功响应且 `allowed=false` 返回 false**；本地权限引擎技术故障（如数据库异常）向上抛 `SystemException`（技术故障语义；不再使用 EXTERNAL_SERVICE_ERROR 远程语义，具体错误码实施时按 ErrorCode 现行定义选取）——**不得复用 `SecurityException`**（全局映射 403，与故障验收矛盾）；**注意：`GlobalExceptionHandler.handleSystemException` 无 `@ResponseStatus`，现状映射为 HTTP 200 + 业务码**——本任务**不改全局映射**（会影响既有抛点语义），故障可识别性由统一响应业务码保证（调用方判 code!=200 即错误）；`checkAndThrow` 保持不动（既有调用方语义不变）；岗位裁剪用 `hasTypeLevel(ORG, VIEW_POSITION)`，false 才裁剪。
 
 ## 验收标准
 
