@@ -142,7 +142,7 @@ class PermissionCharacterizationPgIT {
     // ===== 链路 3：resolveEffectiveRoles 缓存 hit/miss 两态 =====
 
     @Test
-    @DisplayName("有效角色：miss 回源并回填 L2，hit 复用；失效后回源可见 DB 变化")
+    @DisplayName("有效角色：miss 回源回填 L2；hit 期间 DB 变更不可见；失效后回源见到新状态")
     void resolveEffectiveRolesShouldBackfillOnMissAndReuseOnHit() {
         Long user = insertAbstractUser("911001", "特征测试-角色用户");
         Long role = insertAbstractRole(ROLE_TYPE_BASIC, "911101", "特征测试-基础角色", 1, null);
@@ -153,13 +153,14 @@ class PermissionCharacterizationPgIT {
         assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(user)))
             .containsKey(user);
 
-        // hit：二次读结果一致（缓存路径，10s TTL 内）
-        assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, user)).containsExactlyInAnyOrder(role);
-
-        // 显式失效后回源可见 DB 变化：软删关系 → 空集（afterCommit 自动失效的特征见
-        // AuthorizationChangeInvalidationPgIT，此处固化失效 API + 回源语义）
+        // hit 证明：不失效缓存的情况下软删关系——二次读仍返回缓存的旧值；
+        // 若实现绕过缓存回源 DB，将得到空集，本断言即失败
         jdbc.update("UPDATE user_role SET delete_flag = id, deleted_at = now() "
             + "WHERE tenant_id = ? AND abstract_user_id = ? AND delete_flag = 0", TENANT, user);
+        assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, user)).containsExactlyInAnyOrder(role);
+
+        // 失效后回源见到 DB 新状态：空集（afterCommit 自动失效的特征见
+        // AuthorizationChangeInvalidationPgIT，此处固化失效 API + 回源语义）
         subjectDomainService.invalidateRoleCacheBatch(TENANT, Set.of(user));
         assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, user)).isEmpty();
     }

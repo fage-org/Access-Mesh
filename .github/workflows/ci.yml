@@ -22,7 +22,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: 全量单测（排除 Testcontainers）
-        run: mvn -B test -DexcludedGroups=testcontainers
+        run: mvn -B test -DskipTestcontainers=true
 
   testcontainers:
     name: Testcontainers（PR / 手动触发）

@@ -93,7 +93,11 @@ class SubjectDomainServiceImplTest {
         assertEquals(Set.of(10L), result.get(1L));
         assertEquals(Set.of(20L), result.get(2L));
         verify(userRoleMapper, never()).selectValidByUserIdsWithValidity(anyLong(), any(), any(LocalDateTime.class));
+        // 零回填：两个 putBatch 重载（token / catalog）都不得调用，
+        // 全 hit 也不应进入 miss 分支（beginRead 仅在存在未命中用户时发起）
+        verify(cacheService, never()).putBatch(any(cn.ac.fage.accessmesh.common.cache.CacheReadToken.class), anyLong(), any());
         verify(cacheService, never()).putBatch(any(cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class), anyLong(), any());
+        verify(cacheService, never()).beginRead(any());
     }
 
     @Test

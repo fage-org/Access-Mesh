@@ -98,7 +98,9 @@ class TypeResolutionServiceImplTest {
         assertNull(service.resolveUserId(1L, "UNKNOWN_TYPE", "9"));
 
         verify(abstractUserMapper, never()).selectByTypeAndExternalId(anyLong(), any(), any());
-        // null 解析结果不缓存：下一次同键解析仍需回源（负缓存不存在）
+        // null 解析结果不缓存：真实写入走 put(CacheReadToken, ...) 重载，
+        // 两个 put 重载都不得调用（下一次同键解析仍需回源，负缓存不存在）
+        verify(cacheService, never()).put(any(cn.ac.fage.accessmesh.common.cache.CacheReadToken.class), anyLong(), any(), any());
         verify(cacheService, never()).put(any(cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class), anyLong(), any(), any());
     }
 

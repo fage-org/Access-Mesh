@@ -56,16 +56,26 @@ last_updated: 2026-08-23
 
 `OperationPermissionMapper.selectByResourceTypeAndCodes` 的 XML `foreach collection="operationCodes"` 与接口 `@Param("codes")` 不一致：真实 DB 查询路径（引擎 hasPermission/getDeniedIds/query 带 operationCodes → `ResolveContext.prepareOperations` → `TypeResolutionServiceImpl.batchResolveOperationIds`）全部抛 `BindingException`，mock 单测不可见。该缺陷阻断 scopeAll 与 afterCommit 两条链路的 PG 特征测试；经用户裁决按接口为准一行修复 XML（`collection="codes"`），特征测试随之转绿。登记于此供 T-PERM-042 回归时知悉。
 
+### 评审修复记录（2026-08-23，AI 评审四项全部核实属实）
+
+- **P1 全量容器命令失败**：根因为上述 MyBatis-Flex 全局方言串扰（见「容器轨道 tag 与 CI 分工」），按用户决策「两类分开测试」以双 execution 分层修复，全量命令本地实测全绿。
+- **P2 缓存 hit 证明不足**：`PermissionCharacterizationPgIT` 有效角色用例重写——首查回填后不失效缓存直接软删关系，二次读必须返回缓存旧值（绕过缓存即失败），失效后回源见到新状态。
+- **P2 putBatch 重载校验错误**：`SubjectDomainServiceImplTest` 全 hit 零回填补测改为 token/catalog 两个 `putBatch` 重载都 `never`，并加 `beginRead` never（全 hit 不进 miss 分支）。
+- **P3 put 重载校验错误**：`TypeResolutionServiceImplTest` 空结果不缓存断言改为两个 `put` 重载都 `never`。
+
 ### 容器轨道 tag 与 CI 分工（用户决策 2026-08-23）
 
-- 既有 9 个容器测试类 + 新增 3 个特征 IT 统一标注 `@Tag("testcontainers")`；单测 job 以 `mvn test -DexcludedGroups=testcontainers` 排除（GitHub ubuntu runner 自带 Docker，不排除则容器门控失效）。
-- CI = 单个 workflow `.github/workflows/ci.yml`：`unit-tests` job（push/PR/手动，单测强制）+ `testcontainers` job（仅 PR/手动触发，全量 `mvn test`）。
+- 既有 9 个容器测试类 + 新增 3 个特征 IT 统一标注 `@Tag("testcontainers")`。
+- **双 execution 分层（评审修复后定稿，用户决策「两类分开测试」）**：MyBatis-Flex 方言挂在全局静态 `FlexGlobalConfig.defaultConfig`——同 JVM 混跑时先行的 H2 上下文（`AccessServiceApplicationTest` 等）把方言置为反引号风格，后续 PG 容器测试的 `BaseMapper` 语句全部 `BadSqlGrammar`（`INSERT INTO \`sys_job_log\`` 发给 PG 报语法错误；单类跑不触发，历史基线与 mock 单测均不可见）。access-service pom 的 surefire 拆两个 execution：默认 execution `excludedGroups=testcontainers`（单测轨道，可 `-DskipTestcontainers=true` 跳过容器组），`testcontainers` execution `groups=testcontainers`（容器轨道）。两个 execution 各自独立 fork 进程（surefire 每执行目标独立 JVM），物理隔离方言串扰与线程残留；进程内保持 fork 复用，时长不受类级分叉拖累。
+- CI = 单个 workflow `.github/workflows/ci.yml`：`unit-tests` job（push/PR/手动，`mvn -B test -DskipTestcontainers=true`）+ `testcontainers` job（仅 PR/手动触发，全量 `mvn -B test`）；退出状态判定成功，不建发布流水线与多分支矩阵。
 
-### 本地验证证据（2026-08-23，Docker Desktop 4.87 + WSL2，socat 代理 `docker-api-proxy` 容器暴露 tcp://localhost:2375）
+### 本地验证证据（2026-08-23 评审修复后，Docker Desktop 4.87 + WSL2，socat 代理 `docker-api-proxy` 容器暴露 tcp://localhost:2375）
 
-- 单测层：全仓库 `mvn test -DexcludedGroups=testcontainers` → BUILD SUCCESS，容器测试类 0 执行（tag 排除生效）。
-- 容器层：12 个容器测试类（9 既有 + 3 新增）在本地 Docker 全部跑绿——SchemaPostgres 12/12、PermissionCharacterizationPgIT 4/4、AuthorizationChangeInvalidationPgIT 1/1、LoginSessionPgIT 1/1、LocalProjectionBatchSqlIT 2/2、Menu/UserWrite/UserOrg FaultInjection 合跑 22/22、TaskExecutionLeaseConcurrency 10/10、DualInstance+SyncMetadata+Integration 合跑 8/8。
-- 环境限制备注：全部模块全部测试挤单进程一次 `mvn test` 时，本地 Windows + socat 代理环境在后段出现资源容量性失败（分批/单类重跑均绿，与代码无关）；CI runner 直连 Docker 无此瓶颈，以 CI 全量跑作为最终判据。
+- **CI 容器 job 精确命令 `mvn -B test -pl access-service`：BUILD SUCCESS**——单测 execution 662 项（2 既有 skip）+ 容器 execution 60 项（12 类），0 失败 0 错误，耗时 5m27s。
+- **CI 单测 job 命令 `mvn -B test -DskipTestcontainers=true`：BUILD SUCCESS**——662 项全绿、容器类 0 执行，耗时 1m29s。
+- 本地单类定向 `-Dtest=PermissionCharacterizationPgIT` 正常（另一 execution 空匹配容忍）。
+- 首轮曾以 `reuseForks=false`（每类独立 JVM）验证全量 722 项全绿（16m26s），确认根因修复有效后改为双 execution 分层（同样全绿且快 3 倍）。
+- 此前误判为「Windows + socat 容量问题」的记录作废：失败全部源于方言串扰，双 execution 后全量稳定全绿。
 
 ### 待办（CI 真实运行证据，由仓库所有者操作）
 

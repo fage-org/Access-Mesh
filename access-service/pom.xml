@@ -13,6 +13,12 @@
     <name>Access Service</name>
     <description>Unified admin + permission management service</description>
 
+    <properties>
+        <!-- 单测轨道开关（T-ACCESS-017 双 execution 分层）：true 时 mvn test 跳过
+             testcontainers 组 execution，只跑单测（CI 单测 job / 本地快速反馈） -->
+        <skipTestcontainers>false</skipTestcontainers>
+    </properties>
+
     <dependencies>
         <!-- Internal modules -->
         <dependency>
@@ -211,7 +217,33 @@
                         <include>**/*TestCase.java</include>
                         <include>**/*IT.java</include>
                     </includes>
+                    <!-- T-ACCESS-017（2026-08-23，用户决策「两类分开测试」）：默认 execution 排除容器组。
+                         MyBatis-Flex 方言挂在全局静态 FlexGlobalConfig.defaultConfig，同 JVM 混跑时
+                         先行的 H2 上下文（AccessServiceApplicationTest 等）会把方言置为反引号风格，
+                         后续 PG 容器测试的 BaseMapper 语句全部 BadSqlGrammar。两个 execution
+                         各自独立 fork 进程（surefire 每个执行目标独立起 JVM），物理隔离串扰；
+                         进程内各自保持 fork 复用，时长不受 reuseForks=false 类级分叉拖累。
+                         容器组内全部为 PG 上下文、单测组内 H2/Mockito 同类相聚，组内方言一致无串扰。 -->
+                    <excludedGroups>testcontainers</excludedGroups>
+                    <!-- 双 execution 下 -Dtest 定向只命中其中一个 execution，另一个必须容忍空匹配 -->
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>testcontainers</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <!-- 清空继承的 excludedGroups，改为按组纳入容器测试 -->
+                            <excludedGroups combine.self="override"/>
+                            <groups>testcontainers</groups>
+                            <!-- 单测轨道开关：mvn test -DskipTestcontainers=true 跳过本 execution -->
+                            <skip>${skipTestcontainers}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
