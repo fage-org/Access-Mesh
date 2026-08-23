@@ -4,12 +4,12 @@
 
 ## 特性
 
-- **多租户 SaaS**：所有数据租户隔离，支持租户级配置
-- **树形角色模型**：ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE 五种角色类型
+- **多租户数据隔离**：tenant_id 行级隔离底座已实现（租户上下文 + MyBatis-Flex TenantFactory）；租户开通/运营能力未交付（首期固定单租户试运行）
+- **树形角色模型**：ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE 五种角色类型已建模；首期功能角色仅 BASIC_ROLE（PERSONAL/GROUP_ROLE 未交付）
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
-- **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式
+- **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
 - **OAuth2 认证**：授权码+PKCE / 密码 / 客户端凭证多种模式
-- **SDK 快速集成**：perm-client / perm-data / perm-gateway 三个 Starter
+- **SDK**：perm-client（Feign 远程查询 SDK，业务服务按需使用）、perm-gateway（Gateway 鉴权插件，已使用）；perm-data 未实现（规划中）
 
 ## 技术栈
 
@@ -30,14 +30,14 @@
 Gateway (8080)
   ├── access-service (9100)    admin 域：用户/组织/菜单/认证/字典/通知/文件/审计/调度
   │                             permission 域：核心权限管理与鉴权引擎
-  └── example-service (9300)    对接演示 + SDK 参考实现
+  └── example-service (9300)    对接演示（启动骨架；单受保护接口随 T-API-001 交付）
 ```
 
 `admin-service` 与 `permission-center` 已归并为 `access-service`（单库 `access_db`），详见 [架构设计](docs/design/architecture.md) 与 [归并后目标架构](docs/design/access-service-architecture.md)。
 
 ## 项目状态
 
-**设计完成，待编码实现。** 设计文档入口见 [docs/README.md](docs/README.md)。
+**核心后端已实现并经容器化测试验证**：access-service 归并完成（T-ACCESS-001~015），权限引擎、缓存 30 秒撤权边界与 9 类 68 项 Docker 门控测试已在外部主机真实执行通过。**产品垂直切片推进中**：统一身份与资源模型、空库 bootstrap、前端真实登录、授权 E2E，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)；前端部分页面仍为 mock 联调。设计文档入口见 [docs/README.md](docs/README.md)。
 
 ## 文档
 
@@ -52,17 +52,10 @@ Gateway (8080)
 
 ## 快速开始（开发中）
 
-```bash
-# 1. 启动基础设施
-docker compose up -d nacos redis postgresql
-
-# 2. 初始化数据库（access-service 权威 DDL，单库 access_db）
-psql -h localhost -U postgres -f docs/design/schema/access-service.sql
-psql -h localhost -U postgres -f docs/design/schema/example-service.sql
-
-# 3. 启动服务（后续步骤，待编码）
-mvn spring-boot:run
-```
+- **基础设施**：需要 PostgreSQL、Redis、Nacos。一键编排（根目录 `docker-compose.yml` + 首管理员 bootstrap）随 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md) 的 T-ACCESS-020 提供；此前需自备对应服务。
+- **数据库**：执行唯一权威 DDL `docs/design/schema/access-service.sql`（单库 `access_db`；example 库用 `docs/design/schema/example-service.sql`）。
+- **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → 前端（`frontend/`，开发模式 `npm run dev`）。
+- **当前限制**：空库尚无首管理员种子（随 T-ACCESS-020）；前端登录链路仍为 mock（随 T-FE-041）。
 
 ## License
 
