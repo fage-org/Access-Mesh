@@ -57,12 +57,12 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("upsertAdminUser 插入 abstract_user 与 ADMIN_USER 资源，owner=access-service")
+    @DisplayName("upsertAdminUser 插入 abstract_user 与 USER 资源，owner=access-service")
     void upsertAdminUser_insertsOwnedProjection() {
-        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "ADMIN_USER")).thenReturn(3);
-        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_USER")).thenReturn(16);
+        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
         when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "10")).thenReturn(null);
-        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 16, "10", "default")).thenReturn(null);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "10", "default")).thenReturn(null);
         when(abstractUserMapper.insert(any(AbstractUser.class))).thenAnswer(inv -> {
             AbstractUser u = inv.getArgument(0);
             u.setId(100L);
@@ -87,10 +87,10 @@ class LocalProjectionDomainServiceImplTest {
     @Test
     @DisplayName("deleteAdminUser 软删除已有投影，缺失时不报错")
     void deleteAdminUser_softDeletesWhenPresent() {
-        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "ADMIN_USER")).thenReturn(3);
-        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_USER")).thenReturn(16);
+        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
         when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "10")).thenReturn(null);
-        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 16, "10", "default")).thenReturn(null);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "10", "default")).thenReturn(null);
 
         service.deleteAdminUser(TENANT, 10L);
 
@@ -103,15 +103,15 @@ class LocalProjectionDomainServiceImplTest {
     /** requireType mock：按 (typeKey, typeCode) 返回稳定值（lenient——各用例只用到子集）。 */
     private void mockTypes() {
         org.mockito.Mockito.lenient()
-            .when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "ADMIN_USER")).thenReturn(3);
+            .when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
         org.mockito.Mockito.lenient()
             .when(typeResolutionService.resolveTypeValue(TENANT, "role_type", "ORG")).thenReturn(10);
         org.mockito.Mockito.lenient()
             .when(typeResolutionService.resolveTypeValue(TENANT, "role_type", "POSITION")).thenReturn(11);
         org.mockito.Mockito.lenient()
-            .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_ORG")).thenReturn(16);
+            .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ORG")).thenReturn(29);
         org.mockito.Mockito.lenient()
-            .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ADMIN_USER")).thenReturn(16);
+            .when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
     }
 
     private AbstractUser user(long id, String extId) {
@@ -126,6 +126,92 @@ class LocalProjectionDomainServiceImplTest {
         r.setId(id);
         r.setExternalId(extId);
         return r;
+    }
+
+
+    // ===== 反向所有权碰撞（T-ACCESS-018 评审 P1）：USER/ORG/MENU 为公共类型，
+    // 按 (type, code, default) 命中的既有行可能属外部同步——本地投影只维护自己的行 =====
+
+    private ResourceEntity foreignResource(long id, String code) {
+        ResourceEntity r = new ResourceEntity();
+        r.setId(id);
+        r.setCode(code);
+        r.setCodeType("default");
+        r.setOwnerServiceCode(null); // 外部同步行 owner 保持 NULL
+        return r;
+    }
+
+    @Test
+    @DisplayName("upsertAdminUser 命中外部同步 USER 资源行：拒绝接管（20045），不写不删")
+    void upsertAdminUser_rejectsForeignResourceRow() {
+        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
+        when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "123")).thenReturn(null);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
+            .thenReturn(foreignResource(900L, "123"));
+
+        assertThatThrownBy(() -> service.upsertAdminUser(TENANT, 123L, "外部占用", true, null))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(20045);
+        verify(resourceEntityMapper, never()).update(any(ResourceEntity.class));
+        verify(resourceEntityMapper, never()).insert(any(ResourceEntity.class));
+        verify(resourceEntityMapper, never()).softDeleteBatch(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("deleteAdminUser 命中外部同步 USER 资源行：跳过资源行（本地生命周期不阻断、不触碰外部行）")
+    void deleteAdminUser_skipsForeignResourceRow() {
+        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
+        when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "123"))
+            .thenReturn(user(100L, "123"));
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
+            .thenReturn(foreignResource(900L, "123"));
+
+        service.deleteAdminUser(TENANT, 123L);
+
+        // 主体生命周期照常推进（abstract_user 软删），外部资源行不被触碰
+        verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
+        verify(resourceEntityMapper, never()).softDeleteBatch(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("batchUpsertAdminUsers 命中外部同步 USER 资源行：整批拒绝（20045）")
+    void batchUpsertAdminUsers_rejectsForeignResourceRow() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("123")))
+            .thenReturn(List.of(user(100L, "123")));
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123"), Set.of("default")))
+            .thenReturn(List.of(foreignResource(900L, "123")));
+
+        assertThatThrownBy(() -> service.batchUpsertAdminUsers(TENANT,
+                List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "外部占用", true, null))))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(20045);
+        verify(resourceEntityMapper, never()).batchUpdateValues(any(), anyString(), any(), any());
+    }
+
+    @Test
+    @DisplayName("batchDeleteAdminUsers 混合行：只软删自己的资源行，外部行跳过")
+    void batchDeleteAdminUsers_deletesOnlyOwnResourceRows() {
+        mockTypes();
+        when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("123", "456")))
+            .thenReturn(List.of(user(100L, "123"), user(101L, "456")));
+        ResourceEntity own = new ResourceEntity();
+        own.setId(800L);
+        own.setCode("456");
+        own.setCodeType("default");
+        own.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123", "456"), Set.of("default")))
+            .thenReturn(List.of(foreignResource(900L, "123"), own));
+
+        service.batchDeleteAdminUsers(TENANT, Set.of(123L, 456L));
+
+        // 两个主体都软删，但资源行只删 owner=access-service 的那行
+        verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L, 101L)), any());
+        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(800L)), any());
     }
 
     @Test
@@ -198,13 +284,13 @@ class LocalProjectionDomainServiceImplTest {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(role(110L, "100")); // ORG:100 父角色
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "200")).thenReturn(null);              // 岗位自身无投影
-        // 父 ADMIN_ORG 资源投影存在（fail-closed 前提），子资源无投影 → 走 insert
+        // 父 ORG 资源投影存在（fail-closed 前提），子资源无投影 → 走 insert
         ResourceEntity parentRes = new ResourceEntity();
         parentRes.setId(120L);
         parentRes.setCode("100");
-        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(16), eq("100"), eq("default")))
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(29), eq("100"), eq("default")))
             .thenReturn(parentRes);
-        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(16), eq("200"), eq("default")))
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(eq(TENANT), eq(29), eq("200"), eq("default")))
             .thenReturn(null);
         when(abstractRoleMapper.insert(any(AbstractRole.class))).thenAnswer(inv -> {
             AbstractRole r = inv.getArgument(0);
@@ -303,7 +389,7 @@ class LocalProjectionDomainServiceImplTest {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(role(110L, "100")); // ORG:100 父角色存在
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 11, "200")).thenReturn(null);              // 岗位自身无投影
-        // 父 ADMIN_ORG 资源投影缺失（父角色存在但资源缺失的异常状态）
+        // 父 ORG 资源投影缺失（父角色存在但资源缺失的异常状态）
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(any(), any(), any(), any())).thenReturn(null);
 
         assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1, 1, "{}"))
@@ -322,7 +408,8 @@ class LocalProjectionDomainServiceImplTest {
         res.setId(50L);
         res.setCode("10");
         res.setCodeType("default");
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 16, Set.of("10"), Set.of("default")))
+        res.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
             .thenReturn(List.of(res));
 
         Map<Long, Long> result = service.batchUpsertAdminUsers(TENANT,
@@ -348,14 +435,15 @@ class LocalProjectionDomainServiceImplTest {
         res.setId(50L);
         res.setCode("10");
         res.setCodeType("default");
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 16, Set.of("10"), Set.of("default")))
+        res.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
             .thenReturn(List.of(res));
 
         service.batchDeleteAdminUsers(TENANT, Set.of(10L));
 
         verify(resourceEntityMapper, never()).selectByTypeAndCodes(any(), any(), any());
         verify(resourceEntityMapper).selectByTypeAndCodesAndCodeTypes(
-            eq(TENANT), eq(16), eq(Set.of("10")), eq(Set.of("default")));
+            eq(TENANT), eq(6), eq(Set.of("10")), eq(Set.of("default")));
         // 同一事务级联软删该用户全部 user_role（含功能角色，不再依赖延迟补偿）
         verify(userRoleMapper).softDeleteByAbstractUserIds(eq(TENANT), eq(Set.of(100L)), any());
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());

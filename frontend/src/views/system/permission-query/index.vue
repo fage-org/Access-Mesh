@@ -260,7 +260,7 @@ function rowKey(row: any) {
               <!-- 仅 USER 主体（query-scopes 只解析用户） -->
               <el-form-item label="用户类型" class="mb-0!">
                 <el-select v-model="tab2.form.subjectTypeCode" class="w-40!">
-                  <el-option label="管理用户 ADMIN_USER" value="ADMIN_USER" />
+                  <el-option label="本地用户 LOCAL_USER" value="LOCAL_USER" />
                   <el-option label="普通用户 USER" value="USER" />
                 </el-select>
               </el-form-item>

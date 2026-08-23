@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.admin.service.UserOrgService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
@@ -59,8 +59,8 @@ public class UserOrgServiceImpl implements UserOrgService {
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.3.3
      * <ul>
-     *   <li>非默认树关系：ADMIN_ORG:UPDATE@orgId 门禁</li>
-     *   <li>默认树关系：ADMIN_USER:UPDATE@userId 门禁（按身份目录边界）</li>
+     *   <li>非默认树关系：ORG:UPDATE@orgId 门禁</li>
+     *   <li>默认树关系：USER:UPDATE@userId 门禁（按身份目录边界）</li>
      *   <li>移除后默认树关系归 0 时拒绝（身份目录高危保护）</li>
      * </ul>
      */
@@ -87,7 +87,7 @@ public class UserOrgServiceImpl implements UserOrgService {
                 AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
+            ResourceTypeCode.ORG,
             String.valueOf(orgId),
             OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), AdminOperationCode.UPDATE)
         );

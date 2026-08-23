@@ -41,7 +41,7 @@ public class AdminUserRoleController {
      * <p>
      * 返回全类型角色（ORG/POSITION/BASIC_ROLE/GROUP_ROLE/PERSONAL），
      * POSITION 角色补充所属组织名等显示字段。
-     * 门禁：ADMIN_USER:VIEW@userId。
+     * 门禁：USER:VIEW@userId。
      * </p>
      *
      * @param req 用户角色列表查询请求（含 userId）

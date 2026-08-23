@@ -432,11 +432,11 @@ import IFrame from "@/layout/frame.vue";
 
 ```vue
 <!-- ✅ 正确 — 组件方式 -->
-<Perms value="ADMIN_USER:CREATE">
+<Perms value="USER:CREATE">
   <el-button>添加用户</el-button>
 </Perms>
 
-<Auth :value="['ADMIN_USER:UPDATE', 'ADMIN_USER:DELETE']">
+<Auth :value="['USER:UPDATE', 'USER:DELETE']">
   <el-button>编辑</el-button>
 </Auth>
 
@@ -444,14 +444,14 @@ import IFrame from "@/layout/frame.vue";
 <script setup lang="ts">
 import { hasPerms } from "@/utils/auth";
 
-if (hasPerms("ADMIN_USER:CREATE")) {
+if (hasPerms("USER:CREATE")) {
   // 执行添加操作
 }
 </script>
 
 <!-- ❌ 禁止 — 硬编码权限判断 -->
 <script setup>
-if (user.permissions.includes("ADMIN_USER:CREATE")) {
+if (user.permissions.includes("USER:CREATE")) {
 }
 </script>
 ```

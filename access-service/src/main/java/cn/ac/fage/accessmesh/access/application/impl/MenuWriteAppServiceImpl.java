@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.application.MenuWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
@@ -32,7 +32,7 @@ import java.util.List;
  * sys_menu 仅承载 UI 路由元数据与资源 link：BUTTON 类型与 perm_code 唯一性
  * 校验已随权威 DDL 移除；唯一性由 uk_sys_menu_tenant_path /
  * uk_sys_menu_tenant_resource 承接（写前预查 + 唯一索引冲突按约束名映射错误码）。
- * ADMIN_MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN 全量维护
+ * MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN 全量维护
  * （实例级管理门禁依赖投影行授权到具体菜单实例；菜单可见性由 v3.5 §4.1
  * 派生公式在 UserMenuQueryService 读链路决定，不消费投影）。
  * </p>
@@ -66,7 +66,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @OperationLog(module = "ACCESS", action = "MENU_CREATE", targetType = "sys_menu",
         targetId = "#result", summary = "'create menu ' + #req.displayName()")
     public Long createMenu(MenuCreateReq req) {
-        permissionValidator.checkTypeLevel(AdminResourceType.MENU, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.MENU, AdminOperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
         // 空白字符串规范化为 null（用户决策 2026-08-22）：空串入库会命中部分唯一索引
         // （WHERE col IS NOT NULL 对 '' 生效）并被读链路误判为业务菜单 fail-closed
@@ -112,7 +112,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         targetId = "#req.id()", summary = "'update menu ' + #req.id()")
     public void updateMenu(MenuUpdateReq req) {
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.MENU, String.valueOf(req.id()), AdminOperationCode.UPDATE);
+            ResourceTypeCode.MENU, String.valueOf(req.id()), AdminOperationCode.UPDATE);
         Long tenantId = TenantContextHolder.getTenantId();
         SysMenu menu = menuDomainService.selectValidById(tenantId, req.id());
         if (menu == null) {
@@ -185,7 +185,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         targetId = "#id", summary = "'delete menu ' + #id")
     public void deleteMenu(Long id) {
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.MENU, String.valueOf(id), AdminOperationCode.DELETE);
+            ResourceTypeCode.MENU, String.valueOf(id), AdminOperationCode.DELETE);
         Long tenantId = TenantContextHolder.getTenantId();
         SysMenu menu = menuDomainService.selectValidById(tenantId, id);
         if (menu == null) {
@@ -197,7 +197,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
                 AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
-        // entityId 用 ADMIN_MENU 投影主键（resource_entity.id），不再用 sys_menu.id
+        // entityId 用 MENU 投影主键（resource_entity.id），不再用 sys_menu.id
         Long resourceId = localProjectionDomainService.findAdminMenuResourceId(tenantId, id);
         localProjectionDomainService.deleteAdminMenu(tenantId, id);
         auditDomainService.recordChangeLog(
@@ -244,7 +244,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     }
 
     /**
-     * ADMIN_MENU 投影全量维护（v3.5 五值枚举无 BUTTON 短路）。
+     * MENU 投影全量维护（v3.5 五值枚举无 BUTTON 短路）。
      */
     private void projectMenu(Long tenantId, SysMenu menu) {
         Long resourceId = localProjectionDomainService.upsertAdminMenu(

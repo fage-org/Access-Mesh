@@ -128,7 +128,7 @@ class LocalProjectionBatchSqlIT {
         assertThat(String.valueOf(row.get("extra"))).contains("zhang3");
 
         Map<String, Object> resRow = jdbcTemplate.queryForMap(
-            "SELECT name, status FROM resource_entity WHERE tenant_id = ? AND resource_type = 16"
+            "SELECT name, status FROM resource_entity WHERE tenant_id = ? AND resource_type = 6"
                 + " AND code = ? AND code_type = 'default' AND delete_flag = 0",
             TENANT, String.valueOf(sysUserId));
         assertThat(resRow.get("name")).isEqualTo("张三丰");
@@ -136,7 +136,7 @@ class LocalProjectionBatchSqlIT {
     }
 
     @Test
-    @DisplayName("batchDelete 级联：abstract_user + 全部 user_role + ADMIN_USER 资源同一事务软删")
+    @DisplayName("batchDelete 级联：abstract_user + 全部 user_role + USER 资源同一事务软删")
     void batchDeleteCascadesUserRoles() {
         Long sysUserId = 900002L;
         Map<Long, Long> ids = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
@@ -159,7 +159,7 @@ class LocalProjectionBatchSqlIT {
             "SELECT COUNT(*) FROM user_role WHERE abstract_user_id = ? AND delete_flag = 0",
             Integer.class, abstractUserId)).isZero();
         assertThat(jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 16"
+            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 6"
                 + " AND code = ? AND code_type = 'default' AND delete_flag = 0",
             Integer.class, TENANT, String.valueOf(sysUserId))).isZero();
     }

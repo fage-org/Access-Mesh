@@ -9,13 +9,13 @@ package cn.ac.fage.accessmesh.access.admin.security;
  * <p>使用示例：
  * <pre>
  * // 类型级校验（CREATE操作）
- * validator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
+ * validator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.CREATE);
  *
  * // 实例级校验（UPDATE/DELETE操作）
- * validator.checkInstanceLevel(AdminResourceType.USER, "123", AdminOperationCode.UPDATE);
+ * validator.checkInstanceLevel(ResourceTypeCode.USER, "123", AdminOperationCode.UPDATE);
  *
  * // 批量实例级校验
- * validator.checkBatchInstanceLevel(AdminResourceType.USER, List.of("123", "456"), AdminOperationCode.DELETE);
+ * validator.checkBatchInstanceLevel(ResourceTypeCode.USER, List.of("123", "456"), AdminOperationCode.DELETE);
  * </pre>
  * </p>
  *
@@ -30,7 +30,7 @@ public interface AdminPermissionValidator {
      * 权限拒绝时抛出SecurityException。
      * </p>
      *
-     * @param resourceTypeCode 资源类型码（如 AdminResourceType.USER）
+     * @param resourceTypeCode 资源类型码（如 ResourceTypeCode.USER）
      * @param operationCode    操作码（如 AdminOperationCode.CREATE）
      */
     void checkTypeLevel(String resourceTypeCode, String operationCode);
@@ -41,7 +41,7 @@ public interface AdminPermissionValidator {
      * 权限拒绝时抛出SecurityException。
      * </p>
      *
-     * @param resourceTypeCode 资源类型码（如 AdminResourceType.USER）
+     * @param resourceTypeCode 资源类型码（如 ResourceTypeCode.USER）
      * @param resourceCode     资源实例码（如 userId.toString()）
      * @param operationCode    操作码（如 AdminOperationCode.UPDATE）
      */

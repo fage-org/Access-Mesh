@@ -55,7 +55,7 @@ class InstanceGateBusinessCodePgIT {
     private static final Long TENANT = 1L;
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
-    /** type_definition 种子：user_type/ADMIN_USER = 3；role_type/BASIC_ROLE = 6 */
+    /** type_definition 种子：user_type/LOCAL_USER = 3；role_type/BASIC_ROLE = 6 */
     private static final int USER_TYPE_ADMIN = 3;
     private static final int ROLE_TYPE_BASIC = 6;
     /** resource_type 种子：USER = 6、ROLE = 5；操作种子：USER:MANAGE bit=16、ROLE:MANAGE bit=16 */

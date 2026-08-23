@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
@@ -91,7 +91,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @OperationLog(module = "ACCESS", action = "USER_CREATE", targetType = "sys_user",
         targetId = "#result.id()", summary = "'create user ' + #req.username()")
     public UserCreateResp createUser(UserCreateReq req) {
-        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
 
         if (userDomainService.existsByUsername(tenantId, req.username())) {
@@ -135,7 +135,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (req.orgId() != null) {
             validateOrgInDefaultTree(tenantId, req.orgId());
             permissionValidator.checkInstanceLevel(
-                AdminResourceType.ORG, String.valueOf(req.orgId()), AdminOperationCode.UPDATE);
+                ResourceTypeCode.ORG, String.valueOf(req.orgId()), AdminOperationCode.UPDATE);
 
             SysUserOrg userOrg = new SysUserOrg();
             userOrg.setTenantId(tenantId);
@@ -170,7 +170,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         Long currentUserId = currentOperatorId();
         if (!req.id().equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
-                AdminResourceType.USER, String.valueOf(req.id()), AdminOperationCode.UPDATE);
+                ResourceTypeCode.USER, String.valueOf(req.id()), AdminOperationCode.UPDATE);
         }
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, req.id());
@@ -243,7 +243,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             }
         }
         permissionValidator.checkBatchInstanceLevel(
-            AdminResourceType.USER,
+            ResourceTypeCode.USER,
             req.ids().stream().map(String::valueOf).collect(Collectors.toList()),
             AdminOperationCode.DELETE);
         validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
@@ -321,7 +321,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             }
         }
         permissionValidator.checkBatchInstanceLevel(
-            AdminResourceType.USER,
+            ResourceTypeCode.USER,
             req.ids().stream().map(String::valueOf).collect(Collectors.toList()),
             AdminOperationCode.ENABLE);
         Long tenantId = TenantContextHolder.getTenantId();

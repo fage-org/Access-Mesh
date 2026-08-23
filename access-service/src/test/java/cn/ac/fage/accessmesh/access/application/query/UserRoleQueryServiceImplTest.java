@@ -99,7 +99,7 @@ class UserRoleQueryServiceImplTest {
         }
 
         @Test
-        @DisplayName("门禁 ADMIN_ROLE:VIEW 在查询前执行")
+        @DisplayName("门禁 ROLE:VIEW 在查询前执行")
         void gateCheckedBeforeQuery() {
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("role_type"), anySet()))
                 .thenReturn(Map.of("BASIC_ROLE", 6, "GROUP_ROLE", 5, "PERSONAL", 3));
@@ -108,7 +108,7 @@ class UserRoleQueryServiceImplTest {
 
             service.listRoles(null);
 
-            verify(permissionValidator).checkTypeLevel(eq("ADMIN_ROLE"), eq("VIEW"));
+            verify(permissionValidator).checkTypeLevel(eq("ROLE"), eq("VIEW"));
         }
 
         @Test
@@ -143,7 +143,7 @@ class UserRoleQueryServiceImplTest {
         @Test
         @DisplayName("POSITION 角色补充所属组织名，其他类型保持业务键")
         void position_relationOrgName_filled() {
-            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(9000L);
             // 写路径语义：user_role.target_type 恒为 ROLE（岗位成员绑定同写 ROLE），
             // 岗位语义由 target 角色类型（role_type=2）承载
@@ -171,7 +171,7 @@ class UserRoleQueryServiceImplTest {
         @Test
         @DisplayName("用户投影缺失返回空列表（不查询角色关系）")
         void userProjectionMissing_returnsEmpty() {
-            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(null);
 
             List<UserRoleItemResp> result = service.listUserRoles(100L);
@@ -181,22 +181,22 @@ class UserRoleQueryServiceImplTest {
         }
 
         @Test
-        @DisplayName("门禁 ADMIN_USER:VIEW@userId 在查询前执行")
+        @DisplayName("门禁 USER:VIEW@userId 在查询前执行")
         void gateCheckedBeforeUserRoleQuery() {
-            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(9000L);
             when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of());
 
             service.listUserRoles(100L);
 
-            verify(permissionValidator).checkInstanceLevel(eq("ADMIN_USER"), eq("100"), eq("VIEW"));
+            verify(permissionValidator).checkInstanceLevel(eq("USER"), eq("100"), eq("VIEW"));
         }
 
         @Test
         @DisplayName("target 角色投影缺失保留关系行，角色字段为 null")
         void missingTargetRole_keepsRowWithNullFields() {
-            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(9000L);
             when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of(
@@ -212,7 +212,7 @@ class UserRoleQueryServiceImplTest {
         @Test
         @DisplayName("有效期窗口由 Mapper SQL 承载（now 透传），无 Java 层过滤")
         void validityWindow_passedToMapper() {
-            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(9000L);
             when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of());

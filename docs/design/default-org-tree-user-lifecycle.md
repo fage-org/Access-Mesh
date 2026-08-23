@@ -33,7 +33,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | 决策 | 说明 |
 |------|------|
 | 默认组织树承担用户目录语义 | `sys_org_tree_config.is_default=true` 的组织树不是普通展示默认值，而是租户内身份目录树。 |
-| 用户生命周期只归默认组织树 | 创建用户、删除用户、禁用/启用、重置密码、账号资料维护属于 `ADMIN_USER` 权限，不下放给普通业务组织树管理员。 |
+| 用户生命周期只归默认组织树 | 创建用户、删除用户、禁用/启用、重置密码、账号资料维护属于 `USER` 资源类型权限（T-ACCESS-018 收敛，原 ADMIN_USER），不下放给普通业务组织树管理员。 |
 | 非默认组织树只维护成员关系 | 非默认组织树可以添加/移除已有用户与本组织节点的关系，不能创建、禁用、删除真实用户。 |
 | 不新增 `USER_POOL` 资源类型 | 用户池概念由默认组织树承载，避免额外资源类型和额外授权面。 |
 | 候选用户不是全租户用户 | 给非默认组织增加成员时，候选集来自默认组织树中操作者可见/可管理范围内的用户，而不是所有用户。 |
@@ -45,31 +45,31 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 ### 3.1 用户生命周期权限
 
-用户生命周期操作使用 `ADMIN_USER`：
+用户生命周期操作使用 `USER` 资源类型：
 
 | 操作 | 权限 | 说明 |
 |------|------|------|
-| 新建用户 | `ADMIN_USER:CREATE` | 只能创建到默认组织树。 |
-| 修改用户资料 | `ADMIN_USER:UPDATE` | 作用于用户身份本身；自我修改可保留业务豁免。 |
-| 删除用户 | `ADMIN_USER:DELETE` | 高危生命周期操作，只能由身份目录管理员执行。 |
-| 启用/禁用用户 | `ADMIN_USER:ENABLE/DISABLE` | 高危生命周期操作，不属于普通组织成员管理。 |
-| 重置密码 | `ADMIN_USER:RESET_PASSWORD` | 高危账号操作，不属于普通组织成员管理。 |
+| 新建用户 | `USER:CREATE` | 只能创建到默认组织树。 |
+| 修改用户资料 | `USER:UPDATE` | 作用于用户身份本身；自我修改可保留业务豁免。 |
+| 删除用户 | `USER:DELETE` | 高危生命周期操作，只能由身份目录管理员执行。 |
+| 启用/禁用用户 | `USER:ENABLE`（toggle，v1.4 DISABLE 并入） | 高危生命周期操作，不属于普通组织成员管理。 |
+| 重置密码 | `USER:RESET_PASSWORD` | 高危账号操作，不属于普通组织成员管理。 |
 
 ### 3.2 组织成员关系权限
 
-用户与组织、岗位、团队等节点的关系管理使用 `ADMIN_ORG:UPDATE`，作用点是目标组织/岗位实例：
+用户与组织、岗位、团队等节点的关系管理使用 `ORG 成员关系操作（普通组织 MANAGE_MEMBER / 岗位 ASSIGN_POSITION_USER，经 OrgOperationCodeMapper.resolveForUserOrg 分发；原口径 ORG:UPDATE 已随 v1.4 精化）`，作用点是目标组织/岗位实例：
 
 | 操作 | 权限 | 说明 |
 |------|------|------|
-| 给非默认组织增加成员 | `ADMIN_ORG:UPDATE` | 添加已有用户与目标组织的关系。 |
-| 从非默认组织移除成员 | `ADMIN_ORG:UPDATE` | 只删除关系，不删除用户身份。 |
-| 给岗位挂载/移除用户 | `ADMIN_ORG:UPDATE` | 岗位是特殊组织，仍走组织成员关系。 |
+| 给非默认组织增加成员 | `ORG 成员关系操作（普通组织 MANAGE_MEMBER / 岗位 ASSIGN_POSITION_USER，经 OrgOperationCodeMapper.resolveForUserOrg 分发；原口径 ORG:UPDATE 已随 v1.4 精化）` | 添加已有用户与目标组织的关系。 |
+| 从非默认组织移除成员 | `ORG 成员关系操作（普通组织 MANAGE_MEMBER / 岗位 ASSIGN_POSITION_USER，经 OrgOperationCodeMapper.resolveForUserOrg 分发；原口径 ORG:UPDATE 已随 v1.4 精化）` | 只删除关系，不删除用户身份。 |
+| 给岗位挂载/移除用户 | `ORG 成员关系操作（普通组织 MANAGE_MEMBER / 岗位 ASSIGN_POSITION_USER，经 OrgOperationCodeMapper.resolveForUserOrg 分发；原口径 ORG:UPDATE 已随 v1.4 精化）` | 岗位是特殊组织，仍走组织成员关系。 |
 
 默认组织树上的成员变更具有身份目录含义，不能与非默认组织树采用同一套普通关系操作语义。移动用户默认归属、解除默认树关系、切换主组织等操作必须按用户生命周期/身份目录规则单独校验。
 
 ### 3.3 功能角色权限
 
-用户详情中分配 BASIC_ROLE、GROUP_ROLE、PERSONAL 等功能角色，仍使用 `ROLE:MANAGE`。这类操作不归 `ADMIN_ORG` 或 `ADMIN_USER`。
+用户详情中分配 BASIC_ROLE、GROUP_ROLE、PERSONAL 等功能角色，仍使用 `ROLE:MANAGE`。这类操作不归 `ORG` 或 `USER` 资源类型。
 
 ---
 
@@ -92,17 +92,17 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 | admin-service 对象 | permission-center 事实 | 用途 |
 |--------------------|------------------------|------|
-| `sys_user` | `abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)` | 作为权限主体参与鉴权。 |
-| `sys_user` | `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)` | 作为被管理资源支持实例级用户管理权限。 |
-| `sys_org` | `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)` | 作为可管理组织资源支持组织实例权限。 |
+| `sys_user` | `abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)`（原 ADMIN_USER 更名） | 作为权限主体参与鉴权。 |
+| `sys_user` | `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)` | 作为被管理资源支持实例级用户管理权限。 |
+| `sys_org` | `resource_entity(resourceTypeCode=ORG, resourceCode=sys_org.id)` | 作为可管理组织资源支持组织实例权限。 |
 | `sys_org` | `abstract_role(roleTypeCode=ORG/POSITION, roleExternalId=sys_org.id)` | 作为组织/岗位角色容器参与授权主链。 |
 | `sys_user_org` | `user_role(abstract_user -> abstract_role)` | 把组织成员关系落成权限计算事实。 |
 
 关键区分：
 
 - `abstract_user` 是”谁在访问系统”。
-- `resource_entity(ADMIN_USER)` 是”哪个用户对象被管理”。
-- `resource_entity(ADMIN_ORG)` 是”哪个组织对象被管理”。
+- `resource_entity(USER)` 是”哪个用户对象被管理”。
+- `resource_entity(ORG)` 是”哪个组织对象被管理”。
 - `abstract_role(ORG/POSITION)` 是”组织/岗位成员关系带来的角色”。
 
 这些概念不能混用。
@@ -117,10 +117,10 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 用户投影必须覆盖两个事实，由 `access.application` 在写入 `sys_user` 的同一事务内维护（本地投影，业务键定位，不回填内部 ID）：
 
-1. `sys_user -> abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)`
+1. `sys_user -> abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)`
    - `enabled` 跟随 `sys_user.status`
 
-2. `sys_user -> resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`
+2. `sys_user -> resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`
    - `codeType = default`
    - `name = sys_user.name`
 
@@ -130,9 +130,9 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 组织投影必须同时覆盖两条线，由 `access.application` 在写入 `sys_org` 的同一事务内维护（本地投影，业务键定位，不回填内部 ID）：
 
-1. 组织作为可管理资源：`resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)`
+1. 组织作为可管理资源：`resource_entity(resourceTypeCode=ORG, resourceCode=sys_org.id)`
    - `codeType = default`
-   - 父节点通过 `resourceTypeCode=ADMIN_ORG + resourceCode=父sys_org.id` 定位，permission-center 内部解析 parentId
+   - 父节点通过 `resourceTypeCode=ORG + resourceCode=父sys_org.id` 定位，permission-center 内部解析 parentId
    - `extra` 建议包含 `orgType`、`treeConfigId`、`rootOrgId`、`isDefaultTree`、`level`、`leaderId`
 
 2. 组织作为角色容器：
@@ -194,7 +194,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 4. `user-role/full-sync(sourceType=<外部 sourceType>&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId})`：同步外部成员关系。
 5. 其他资源按资源类型调用 `resource-entity/full-sync`。
 
-> **评审 P2（2026-08-15）**：禁止使用 `ADMIN_USER`/`ADMIN_ORG`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键——外部 sync/full-sync 携带保留键会被 `LocalProjectionGuard` 以 20045（`LOCAL_PROJECTION_IMMUTABLE`）拒绝；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
+> **评审 P2（2026-08-15）**：禁止使用 `LOCAL_USER`（subject 保留键，原 ADMIN_USER 更名）/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键（resource 侧取消类型级保留后，资源行保护按 owner=access-service 所有权检查，T-ACCESS-018）——外部 sync/full-sync 携带保留键会被 `LocalProjectionGuard` 以 20045（`LOCAL_PROJECTION_IMMUTABLE`）拒绝；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
 
 外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 
@@ -257,8 +257,8 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 修正 `user-org/assign` 的跨树全量删除语义，避免破坏默认组织树归属。 |
 | P0 | 补齐 permission-center 鉴权与写入接口的业务键重载，使 admin-service 无需存储内部 ID。 |
 | P0 | 补齐 permission-center 创建接口的父节点业务键解析能力：`resource_entity` 和 `abstract_role` 创建时接受父节点业务键（`resourceTypeCode+resourceCode` / `roleTypeCode+roleExternalId`），内部解析为 parentId。 |
-| P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(ADMIN_USER)`，使用业务键定位。 |
-| P0 | 补齐 `sys_org -> resource_entity(ADMIN_ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
+| P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(USER)`，使用业务键定位。 |
+| P0 | 补齐 `sys_org -> resource_entity(ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
 | P0 | 删除 `sys_user.perm_user_id`、`sys_org.perm_role_id` 字段及所有引用，改为业务键调用。 |
 | ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/role/*` 写端点退役（恒 20045/10111），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
@@ -271,7 +271,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 
 ## 9. 禁止事项
 
-- 禁止新增页面形状资源类型，例如 `ADMIN_ORG_USER`。
+- 禁止新增页面形状资源类型（历史上提过的 `ADMIN_ORG_USER` 即属此类）。
 - 禁止把非默认组织树管理员授予用户禁用、删除、重置密码等生命周期能力。
 - 禁止在 admin-service 存储 permission-center 的内部主键 ID（`abstract_user.id`、`resource_entity.id`、`abstract_role.id` 等）。所有跨服务引用使用业务键。
 - 禁止在 `user-org` 非默认树操作中删除用户所有组织关系。

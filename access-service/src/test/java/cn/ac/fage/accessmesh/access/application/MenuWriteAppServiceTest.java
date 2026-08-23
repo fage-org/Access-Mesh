@@ -84,14 +84,14 @@ class MenuWriteAppServiceTest {
         menu.setIcon("x");
         menu.setSortOrder(3);
         menu.setStatus(1);
-        menu.setResourceType("ADMIN_USER");
+        menu.setResourceType("USER");
         menu.setResourceCode("5");
         menu.setSourceService("access-service");
         return menu;
     }
 
     @Test
-    @DisplayName("创建：五值枚举（含 HIDDEN/DIR）全部投影 ADMIN_MENU，无 BUTTON 短路")
+    @DisplayName("创建：五值枚举（含 HIDDEN/DIR）全部投影 MENU，无 BUTTON 短路")
     void createProjectsAllMenuTypes() {
         when(menuDomainService.calculateDepth(eq(TENANT), isNull())).thenReturn(1);
         when(localProjectionDomainService.upsertAdminMenu(
@@ -122,10 +122,10 @@ class MenuWriteAppServiceTest {
     @Test
     @DisplayName("创建：资源关联冲突预查抛 MENU_RESOURCE_EXISTS(10206)")
     void createResourceConflictRejected() {
-        when(menuDomainService.resourceExists(TENANT, "ADMIN_USER", "5", null)).thenReturn(true);
+        when(menuDomainService.resourceExists(TENANT, "USER", "5", null)).thenReturn(true);
 
         assertThatThrownBy(() -> service.createMenu(new MenuCreateReq("MENU", "菜单X", null, null,
-            null, null, null, "ADMIN_USER", "5", null)))
+            null, null, null, "USER", "5", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
@@ -137,7 +137,7 @@ class MenuWriteAppServiceTest {
     void typeSwitchWithinFiveValuesUpsertsProjection() {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);
@@ -153,7 +153,7 @@ class MenuWriteAppServiceTest {
     void partialUpdateKeepsUnchangedFields() {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null));
@@ -166,7 +166,7 @@ class MenuWriteAppServiceTest {
         assertThat(updated.getIcon()).isEqualTo("x");
         assertThat(updated.getSortOrder()).isEqualTo(3);
         assertThat(updated.getStatus()).isEqualTo(1);
-        assertThat(updated.getResourceType()).isEqualTo("ADMIN_USER");
+        assertThat(updated.getResourceType()).isEqualTo("USER");
         assertThat(updated.getResourceCode()).isEqualTo("5");
         assertThat(updated.getSourceService()).isEqualTo("access-service"); // 不可改
         // 投影按更新后事实同步（名称保持旧值）
@@ -179,7 +179,7 @@ class MenuWriteAppServiceTest {
     void partialUpdateAppliesProvidedFields() {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, 9, 0, null, null));
@@ -213,7 +213,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
         // pathExists 排除自身后返回 false（未占用）
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("新名称"), eq(0L), eq(1), eq(3))).thenReturn(400L);
@@ -250,7 +250,7 @@ class MenuWriteAppServiceTest {
     @DisplayName("更新：path 传空白字符串等同未提供（跳过，保留原值）")
     void updateBlankPathKeepsOriginalValue() {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(menu("MENU"));
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);
@@ -378,7 +378,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.calculateDepth(TENANT, 30L)).thenReturn(3);
         when(menuDomainService.subtreeHeight(TENANT, MENU_ID)).thenReturn(2);
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(30L), eq(1), eq(3))).thenReturn(400L);
@@ -396,7 +396,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(existing);
         when(menuDomainService.subtreeHeight(TENANT, MENU_ID)).thenReturn(5);
         when(menuDomainService.pathExists(eq(TENANT), eq("/x"), eq(MENU_ID))).thenReturn(false);
-        when(menuDomainService.resourceExists(eq(TENANT), eq("ADMIN_USER"), eq("5"), eq(MENU_ID)))
+        when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
             eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);

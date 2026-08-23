@@ -47,7 +47,7 @@ class UserMenuQueryServiceImplTest {
 
     private static final Long TENANT = 1L;
     private static final Long USER = 100L;
-    private static final String SUBJECT = LocalProjectionOwner.SUBJECT_ADMIN_USER;
+    private static final String SUBJECT = LocalProjectionOwner.SUBJECT_LOCAL_USER;
 
     @Mock private UserMenuQueryMapper userMenuQueryMapper;
     @Mock private UserRoleQueryMapper userRoleQueryMapper;
@@ -83,7 +83,7 @@ class UserMenuQueryServiceImplTest {
             when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of(new UserRoleProjection(null, "ROLE", 6, "r-1", "基础管理员", null, null, null)));
             when(permissionViewAppService.getEffectivePermissionCodes(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
-                .thenReturn(new UserEffectivePermissionCodesResp(List.of("ADMIN_USER:VIEW", "ADMIN_ORG:VIEW")));
+                .thenReturn(new UserEffectivePermissionCodesResp(List.of("USER:VIEW", "ORG:VIEW")));
 
             UserInfoResp result = service.loadUserRolesAndPermissions(USER);
 
@@ -93,7 +93,7 @@ class UserMenuQueryServiceImplTest {
             assertThat(result.orgs().get(0).isPrimary()).isTrue();
             assertThat(result.roles()).extracting(UserInfoResp.RoleInfo::roleName)
                 .containsExactly("基础管理员");
-            assertThat(result.permissions()).containsExactly("ADMIN_USER:VIEW", "ADMIN_ORG:VIEW");
+            assertThat(result.permissions()).containsExactly("USER:VIEW", "ORG:VIEW");
         }
 
         @Test
@@ -131,28 +131,28 @@ class UserMenuQueryServiceImplTest {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
                 new MenuProjection(1L, null, "DIR", "系统管理", "/system", "setting", 1, 1, null, null),
-                new MenuProjection(2L, 1L, "MENU", "用户管理", "/system/user", null, 2, 1, "ADMIN_USER", "100"),
-                new MenuProjection(3L, 1L, "MENU", "组织管理", "/system/org", null, 3, 1, "ADMIN_ORG", "200"),
+                new MenuProjection(2L, 1L, "MENU", "用户管理", "/system/user", null, 2, 1, "USER", "100"),
+                new MenuProjection(3L, 1L, "MENU", "组织管理", "/system/org", null, 3, 1, "ORG", "200"),
                 new MenuProjection(4L, null, "MENU", "纯展示菜单", "/plain", null, 4, 1, null, null),
-                new MenuProjection(5L, null, "HIDDEN", "隐藏路由", "/hidden", null, 5, 1, "ADMIN_USER", "100"),
-                new MenuProjection(6L, null, "MENU", "停用菜单", "/disabled", null, 6, 0, "ADMIN_USER", "100"),
-                new MenuProjection(7L, 1L, "MENU", "无权限菜单", "/no-perm", null, 7, 1, "ADMIN_ORG", "300")));
-            // 有效资源访问事实：ADMIN_USER:100 有权限（实例匹配），ADMIN_ORG 类型 scopeAll 全范围
+                new MenuProjection(5L, null, "HIDDEN", "隐藏路由", "/hidden", null, 5, 1, "USER", "100"),
+                new MenuProjection(6L, null, "MENU", "停用菜单", "/disabled", null, 6, 0, "USER", "100"),
+                new MenuProjection(7L, 1L, "MENU", "无权限菜单", "/no-perm", null, 7, 1, "ORG", "300")));
+            // 有效资源访问事实：USER:100 有权限（实例匹配），ORG 类型 scopeAll 全范围
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(
-                    Set.of(2), Set.of(9001L))); // typeValue 2 = ADMIN_ORG（scopeAll），ADMIN_USER:100 → entity 9001
+                    Set.of(2), Set.of(9001L))); // typeValue 2 = ORG（scopeAll），USER:100 → entity 9001
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1, "ADMIN_ORG", 2));
+                .thenReturn(Map.of("USER", 1, "ORG", 2));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of(
-                    new ResourceResolveKey("ADMIN_USER", "100", null, null), 9001L,
-                    new ResourceResolveKey("ADMIN_ORG", "200", null, null), 9002L,
-                    new ResourceResolveKey("ADMIN_ORG", "300", null, null), 9003L));
+                    new ResourceResolveKey("USER", "100", null, null), 9001L,
+                    new ResourceResolveKey("ORG", "200", null, null), 9002L,
+                    new ResourceResolveKey("ORG", "300", null, null), 9003L));
 
             UserMenuResp result = service.buildUserMenuTree(USER);
 
-            // 可见：DIR(1)（子菜单可见 → 剪枝保留）；菜单 2（ADMIN_USER:100 实例匹配 9001）；
-            // 菜单 3 与 7（ADMIN_ORG 类型 scopeAll 全范围 → 该类型所有资源可见）；菜单 4（纯展示）
+            // 可见：DIR(1)（子菜单可见 → 剪枝保留）；菜单 2（USER:100 实例匹配 9001）；
+            // 菜单 3 与 7（ORG 类型 scopeAll 全范围 → 该类型所有资源可见）；菜单 4（纯展示）
             // 不可见：5（HIDDEN 不进 menus[]）、6（status=0）
             assertThat(result.menus()).hasSize(2);
             UserMenuResp.MenuRouteItem dir = result.menus().get(0);
@@ -177,11 +177,11 @@ class UserMenuQueryServiceImplTest {
         void unresolvedResource_failClosed() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "MENU", "无投影资源", "/x", null, 1, 1, "ADMIN_USER", "999")));
+                new MenuProjection(1L, null, "MENU", "无投影资源", "/x", null, 1, 1, "USER", "999")));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of()); // 资源无投影
 
@@ -196,11 +196,11 @@ class UserMenuQueryServiceImplTest {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
                 new MenuProjection(1L, null, "DIR", "空目录", "/empty", null, 1, 1, null, null),
-                new MenuProjection(2L, 1L, "MENU", "不可见子", "/empty/x", null, 2, 1, "ADMIN_USER", "999")));
+                new MenuProjection(2L, 1L, "MENU", "不可见子", "/empty/x", null, 2, 1, "USER", "999")));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of());
 
@@ -228,7 +228,7 @@ class UserMenuQueryServiceImplTest {
         void resourceAccessFailure_degradesToPlainMenus() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "MENU", "业务菜单", "/biz", null, 1, 1, "ADMIN_USER", "100"),
+                new MenuProjection(1L, null, "MENU", "业务菜单", "/biz", null, 1, 1, "USER", "100"),
                 new MenuProjection(2L, null, "MENU", "纯展示", "/plain", null, 2, 1, null, null)));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenThrow(new RuntimeException("engine down"));
@@ -245,12 +245,12 @@ class UserMenuQueryServiceImplTest {
         void halfMissingResourceLink_withoutScopeAll_failClosed() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "MENU", "缺实例菜单", "/missing-instance", null, 1, 1, "ADMIN_USER", null)));
+                new MenuProjection(1L, null, "MENU", "缺实例菜单", "/missing-instance", null, 1, 1, "USER", null)));
             // 该类型无 scopeAll，且 code 为空 resolve 不到实例
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of());
 
@@ -265,12 +265,12 @@ class UserMenuQueryServiceImplTest {
         void halfMissingResourceLink_withScopeAll_visible() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "MENU", "类型级菜单", "/type-level", null, 1, 1, "ADMIN_ORG", null)));
-            // ADMIN_ORG 类型 scopeAll 全范围授权（typeValue=2）
+                new MenuProjection(1L, null, "MENU", "类型级菜单", "/type-level", null, 1, 1, "ORG", null)));
+            // ORG 类型 scopeAll 全范围授权（typeValue=2）
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(2), Set.of()));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_ORG", 2));
+                .thenReturn(Map.of("ORG", 2));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of());
 
@@ -300,8 +300,8 @@ class UserMenuQueryServiceImplTest {
         void unknownMenuType_withAccessibleResource_failClosed() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "GADGET", "未知类型", "/gadget", null, 1, 1, "ADMIN_USER", "100")));
-            // 即便 ADMIN_USER:100 是用户可访问的资源实例，未知 menu_type 也不得进入业务匹配
+                new MenuProjection(1L, null, "GADGET", "未知类型", "/gadget", null, 1, 1, "USER", "100")));
+            // 即便 USER:100 是用户可访问的资源实例，未知 menu_type 也不得进入业务匹配
 
             UserMenuResp result = service.buildUserMenuTree(USER);
 
@@ -326,14 +326,14 @@ class UserMenuQueryServiceImplTest {
         void externalIframe_withResourceMatch_visible() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "EXTERNAL", "外链", "https://x", null, 1, 1, "ADMIN_USER", "100"),
-                new MenuProjection(2L, null, "IFRAME", "内嵌", "/iframe", null, 2, 1, "ADMIN_USER", "100")));
+                new MenuProjection(1L, null, "EXTERNAL", "外链", "https://x", null, 1, 1, "USER", "100"),
+                new MenuProjection(2L, null, "IFRAME", "内嵌", "/iframe", null, 2, 1, "USER", "100")));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of(9001L)));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
-                .thenReturn(Map.of(new ResourceResolveKey("ADMIN_USER", "100", null, null), 9001L));
+                .thenReturn(Map.of(new ResourceResolveKey("USER", "100", null, null), 9001L));
 
             UserMenuResp result = service.buildUserMenuTree(USER);
 
@@ -350,15 +350,15 @@ class UserMenuQueryServiceImplTest {
         void dirWithResourceType_keptWhenChildVisible() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                // DIR 自身带 ADMIN_USER:999（无可访问资源），不得按业务菜单 fail-closed 丢整棵子树
-                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "ADMIN_USER", "999"),
-                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "ADMIN_USER", "100")));
+                // DIR 自身带 USER:999（无可访问资源），不得按业务菜单 fail-closed 丢整棵子树
+                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "USER", "999"),
+                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "USER", "100")));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of(9001L)));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
-                .thenReturn(Map.of(new ResourceResolveKey("ADMIN_USER", "100", null, null), 9001L));
+                .thenReturn(Map.of(new ResourceResolveKey("USER", "100", null, null), 9001L));
 
             UserMenuResp result = service.buildUserMenuTree(USER);
 
@@ -373,12 +373,12 @@ class UserMenuQueryServiceImplTest {
         void dirWithResourceType_noVisibleChild_pruned() {
             mockUserContext();
             when(userMenuQueryMapper.selectMenus(TENANT)).thenReturn(List.of(
-                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "ADMIN_USER", "999"),
-                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "ADMIN_USER", "999")));
+                new MenuProjection(1L, null, "DIR", "目录", "/dir", null, 1, 1, "USER", "999"),
+                new MenuProjection(2L, 1L, "MENU", "子菜单", "/dir/child", null, 2, 1, "USER", "999")));
             when(permissionViewAppService.getEffectiveResourceAccess(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new PermissionViewAppService.EffectiveResourceAccess(Set.of(), Set.of()));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
-                .thenReturn(Map.of("ADMIN_USER", 1));
+                .thenReturn(Map.of("USER", 1));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
                 .thenReturn(Map.of());
 

@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginReq;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
+import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserMenuResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
@@ -119,7 +120,7 @@ public class AuthServiceImpl implements AuthService {
         return SaManager.getConfig().getTimeout();
     }
 
-    private static final String SUBJECT_TYPE_ADMIN_USER = "ADMIN_USER";
+    // 本地登录主体类型码：单一事实源 LocalProjectionOwner.SUBJECT_LOCAL_USER（评审 P3，不另设字面量）
 
     /**
      * 构造函数注入依赖
@@ -209,7 +210,7 @@ public class AuthServiceImpl implements AuthService {
         // FIX #1: Store tenantId in session for security validation
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
-        session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
+        session.set("subjectTypeCode", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
         session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();
@@ -285,7 +286,7 @@ public class AuthServiceImpl implements AuthService {
         // FIX #1: Store tenantId in session for security validation (sms login)
         SaSession session = StpUtil.getSession();
         session.set("tenantId", user.getTenantId());
-        session.set("subjectTypeCode", SUBJECT_TYPE_ADMIN_USER);
+        session.set("subjectTypeCode", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         // 操作者名称供 @OperationLog AOP 会话回填（未登录/无会话调用为 null）
         session.set("operatorName", user.getUsername());
         String token = StpUtil.getTokenValue();

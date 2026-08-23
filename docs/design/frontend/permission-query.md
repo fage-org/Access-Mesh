@@ -63,7 +63,7 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 - `ORG` / `POSITION`：domainCode 必填（组织域绑定）
 - `BASIC_ROLE` / `GROUP_ROLE` / `PERSONAL`：domainCode 可空（允许全局域）
 
-**用户类型码**：`ADMIN_USER`（AccessMesh 管理端用户主要真实类型）/ `USER`（通用）
+**用户类型码**：`LOCAL_USER`（AccessMesh 管理端用户/本地访问主体，原 ADMIN_USER 更名）/ `USER`（外部人员）
 
 ## 4. 字段定义
 
@@ -137,7 +137,7 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 | 2 | 统一门禁 PERMISSION_QUERY:VIEW | 🔧 | 方案 A/B + 全链路（资源类型/种子/默认角色/白名单） |
 | 3 | explain DTO 扩展 | 🔧 | 命中条件/条件评估/冲突详情 + 评估上下文 + 脱敏 |
 | 4 | recentChanges 按权限键过滤 | 🔧 | 完整 6 字段过滤（当前 :735 只按用户/角色取 50 条） |
-| 5 | ADMIN_USER/USER 主体语义 | 🔧 | 来源与候选查询方式 |
+| 5 | LOCAL_USER/USER 主体语义 | 🔧 | 来源与候选查询方式 |
 | 6 | query-resources API 核对 | 🔧 | 运行时 SDK 视角，不做 UI |
 | 7 | treeMode TODO | 🔧 | §6.6 L1249 + PermissionQueryAppServiceImpl:162 |
 | 8 | permission-view/* 契约差异 | 🔧 | effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree |

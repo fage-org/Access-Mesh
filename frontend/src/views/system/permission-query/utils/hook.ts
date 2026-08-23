@@ -61,7 +61,7 @@ export function usePermissionQuery() {
 function useEffectivePermissionsTab(canQuery: () => boolean) {
   const form = reactive({
     targetType: "USER" as TargetType,
-    subjectTypeCode: "ADMIN_USER",
+    subjectTypeCode: "LOCAL_USER",
     subjectExternalId: "",
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "",
@@ -163,7 +163,7 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
 
   function onReset() {
     form.targetType = "USER";
-    form.subjectTypeCode = "ADMIN_USER";
+    form.subjectTypeCode = "LOCAL_USER";
     form.subjectExternalId = "";
     form.roleTypeCode = "BASIC_ROLE";
     form.roleExternalId = "";
@@ -209,7 +209,7 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
 
 function useQueryScopesTab(canQuery: () => boolean) {
   const form = reactive({
-    subjectTypeCode: "ADMIN_USER",
+    subjectTypeCode: "LOCAL_USER",
     subjectExternalId: "",
     domainCode: "example",
     parentResourceTypeCode: "REPORT",
@@ -291,7 +291,7 @@ function useQueryScopesTab(canQuery: () => boolean) {
   }
 
   function onReset() {
-    form.subjectTypeCode = "ADMIN_USER";
+    form.subjectTypeCode = "LOCAL_USER";
     form.subjectExternalId = "";
     form.domainCode = "example";
     form.parentResourceTypeCode = "REPORT";
@@ -312,7 +312,7 @@ function useQueryScopesTab(canQuery: () => boolean) {
 function useExplainTab(canQuery: () => boolean) {
   const form = reactive({
     targetType: "USER" as TargetType,
-    subjectTypeCode: "ADMIN_USER",
+    subjectTypeCode: "LOCAL_USER",
     subjectExternalId: "",
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "",
@@ -416,7 +416,7 @@ function useExplainTab(canQuery: () => boolean) {
 
   function onReset() {
     form.targetType = "USER";
-    form.subjectTypeCode = "ADMIN_USER";
+    form.subjectTypeCode = "LOCAL_USER";
     form.subjectExternalId = "";
     form.roleTypeCode = "BASIC_ROLE";
     form.roleExternalId = "";

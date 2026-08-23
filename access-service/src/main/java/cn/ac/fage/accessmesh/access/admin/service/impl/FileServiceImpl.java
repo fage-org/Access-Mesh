@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
@@ -171,7 +171,7 @@ public class FileServiceImpl implements FileService {
         targetId = "#result", summary = "'upload file'")
     public Long uploadFile(MultipartFile file, String bizType) {
         // 权限检查 — FILE 类型级 CREATE
-        permissionValidator.checkTypeLevel(AdminResourceType.FILE, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.CREATE);
 
         // 1. 检查文件是否为空
         if (file == null || file.isEmpty()) {
@@ -287,7 +287,7 @@ public class FileServiceImpl implements FileService {
     public void deleteFiles(IdsReq req) {
         // 权限检查 — FILE 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.FILE, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_FILE, resourceCodes, AdminOperationCode.DELETE);
 
         Long tenantId = TenantContextHolder.getTenantId();
         // 批量查询有效文件

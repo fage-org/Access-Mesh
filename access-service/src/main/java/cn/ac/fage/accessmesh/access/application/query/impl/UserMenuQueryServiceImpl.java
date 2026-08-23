@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.application.query.impl;
 
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserMenuResp;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.access.application.query.mapper.UserMenuQueryMapper;
 import cn.ac.fage.accessmesh.access.application.query.mapper.UserRoleQueryMapper;
@@ -66,20 +66,19 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private static final String MENU_TYPE_IFRAME = "IFRAME";
     private static final String RESOURCE_TYPE_KEY = "resource_type";
 
+    /** 登录态 perm 串覆盖的资源类型（前端 hasPerms 消费；T-ACCESS-018 收敛后单一常量源，ROLE 去重） */
     private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
-        AdminResourceType.ORG,
-        AdminResourceType.USER,
-        AdminResourceType.ROLE,
-        AdminResourceType.NOTICE,
-        AdminResourceType.JOB,
-        AdminResourceType.DICT,
-        AdminResourceType.DICT_DATA,
-        AdminResourceType.CONFIG,
-        AdminResourceType.OAUTH2_CLIENT,
-        AdminResourceType.FILE,
-        AdminResourceType.ORG_TREE_CONFIG,
-        AdminResourceType.SYNC_TASK,
-        "ROLE"
+        ResourceTypeCode.ORG,
+        ResourceTypeCode.USER,
+        ResourceTypeCode.ROLE,
+        ResourceTypeCode.ADMIN_NOTICE,
+        ResourceTypeCode.ADMIN_JOB,
+        ResourceTypeCode.ADMIN_DICT,
+        ResourceTypeCode.ADMIN_DICT_DATA,
+        ResourceTypeCode.SYSTEM_CONFIG,
+        ResourceTypeCode.ADMIN_OAUTH2_CLIENT,
+        ResourceTypeCode.ADMIN_FILE,
+        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG
     );
 
     private final UserMenuQueryMapper userMenuQueryMapper;
@@ -178,7 +177,7 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
         try {
             access = permissionViewAppService.getEffectiveResourceAccess(tenantId,
                 new UserEffectivePermissionCodesReq(
-                    LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId), List.copyOf(menuTypeCodes)));
+                    LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(userId), List.copyOf(menuTypeCodes)));
         } catch (Exception e) {
             log.warn("Failed to load effective resource access for tenant={}, userId={}", tenantId, userId, e);
             return visible;
@@ -320,7 +319,7 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private List<UserInfoResp.RoleInfo> fetchUserRoles(Long tenantId, Long userId) {
         try {
             Long abstractUserId = typeResolutionService.resolveUserId(
-                tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId));
+                tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(userId));
             if (abstractUserId == null) {
                 return List.of();
             }
@@ -339,7 +338,7 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private List<String> fetchUserPermissions(Long tenantId, Long userId) {
         try {
             UserEffectivePermissionCodesReq req = new UserEffectivePermissionCodesReq(
-                LocalProjectionOwner.SUBJECT_ADMIN_USER,
+                LocalProjectionOwner.SUBJECT_LOCAL_USER,
                 String.valueOf(userId),
                 EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES
             );

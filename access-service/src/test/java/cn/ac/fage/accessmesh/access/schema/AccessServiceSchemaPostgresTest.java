@@ -119,18 +119,55 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 36 / operation_permission 139 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 31 / operation_permission 117 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
-        assertEquals(36, countRows("type_definition"));
-        assertEquals(139, countRows("operation_permission"));
+        assertEquals(31, countRows("type_definition"));
+        assertEquals(117, countRows("operation_permission"));
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
     }
 
     @Test
+    @DisplayName("退役类型码不复用：收敛前 ADMIN_* 资源类型码与退役 type_value 段均不得再出现")
+    void shouldNotHaveRetiredTypeCodesOrValues() throws SQLException {
+        // 沿用 ErrorCodeContractTest 退役清单模式（T-ACCESS-018）
+        String[][] retiredTypeCodes = {
+            {"resource_type", "ADMIN_USER"}, {"resource_type", "ADMIN_ORG"},
+            {"resource_type", "ADMIN_ROLE"}, {"resource_type", "ADMIN_MENU"},
+            {"resource_type", "ADMIN_CONFIG"}, {"resource_type", "ADMIN_SYNC_TASK"},
+            {"user_type", "ADMIN_USER"},
+        };
+        StringBuilder leaked = new StringBuilder();
+        for (String[] pair : retiredTypeCodes) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM type_definition WHERE tenant_id = 1 AND type_key = ? AND type_code = ?")) {
+                ps.setString(1, pair[0]);
+                ps.setString(2, pair[1]);
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    if (rs.getLong(1) > 0) {
+                        leaked.append(pair[0]).append(':').append(pair[1]).append(' ');
+                    }
+                }
+            }
+        }
+        assertTrue(leaked.isEmpty(), "退役类型码不得再现：" + leaked);
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT type_code, type_value FROM type_definition "
+                     + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_value IN (16,17,18,19,22,28)")) {
+            while (rs.next()) {
+                leaked.append(rs.getString(1)).append('=').append(rs.getInt(2)).append(' ');
+            }
+        }
+        assertTrue(leaked.isEmpty(), "退役 type_value 段不得被复用：" + leaked);
+    }
+
+    @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 27 对 = 权限中心 13 + Admin 14）
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 25 对 = 权限中心 13 + Admin 12；
+        // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER、ADMIN_ROLE:GRANT/REVOKE 删除）
         String[][] required = {
             {"USER", "MANAGE"},
             {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
@@ -141,11 +178,10 @@ class AccessServiceSchemaPostgresTest {
             {"OPERATION", "MANAGE"},
             {"DEPENDENCY", "SYNC"},
             {"API", "ACCESS"},
-            {"ADMIN_ORG", "CREATE_POSITION"}, {"ADMIN_ORG", "UPDATE_POSITION"},
-            {"ADMIN_ORG", "DELETE_POSITION"}, {"ADMIN_ORG", "ASSIGN_POSITION_USER"},
-            {"ADMIN_ORG", "MANAGE_MEMBER"}, {"ADMIN_ORG", "VIEW_POSITION"},
-            {"ADMIN_USER", "ENABLE"}, {"ADMIN_USER", "RESET_PASSWORD"},
-            {"ADMIN_ROLE", "GRANT"}, {"ADMIN_ROLE", "REVOKE"},
+            {"ORG", "CREATE_POSITION"}, {"ORG", "UPDATE_POSITION"},
+            {"ORG", "DELETE_POSITION"}, {"ORG", "ASSIGN_POSITION_USER"},
+            {"ORG", "MANAGE_MEMBER"}, {"ORG", "VIEW_POSITION"},
+            {"USER", "ENABLE"}, {"USER", "RESET_PASSWORD"},
             {"ADMIN_NOTICE", "PUBLISH"},
             {"ADMIN_JOB", "ENABLE"}, {"ADMIN_JOB", "TRIGGER"},
             {"ADMIN_ORG_TREE_CONFIG", "TOGGLE"},

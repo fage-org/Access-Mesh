@@ -132,6 +132,7 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldReturnStale_whenOldVersion() {
         mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
                 eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong()))
@@ -177,5 +178,98 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
         assertThat(resp.reason()).isEqualTo("SOURCE_SERVICE_MISMATCH");
+    }
+
+    // ------------------------------------------------------------------
+    // T-ACCESS-018：resource 侧取消类型级保留后，本地投影行的保护按所有权检查——
+    // 外部 sync 的 UPSERT/DISABLE/DELETE 任一 mutation 命中 owner=access-service
+    // 实体即整体拒绝（BizException 20045，事务回滚）。MENU 是公共基础类型，
+    // 本组用例证明保护与类型无关、只与所有权相关。
+    // ------------------------------------------------------------------
+
+    private ResourceEntity localProjectionRow() {
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(9001L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setName("Menu One");
+        existing.setOwnerServiceCode("access-service");
+        return existing;
+    }
+
+    private void stubExistingLocalProjectionRow() {
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(localProjectionRow());
+    }
+
+    @Test
+    void shouldRejectUpsert_whenHittingLocalProjectionRow() {
+        mockHeaderMatch();
+        stubExistingLocalProjectionRow();
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, upsertReq(), httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .hasMessageContaining("access-service")
+                .extracting("errorCode")
+                .isEqualTo(20045);
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    void shouldRejectDisable_whenHittingLocalProjectionRow() {
+        mockHeaderMatch();
+        stubExistingLocalProjectionRow();
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DISABLE", "MENU", "menu-1", "default",
+                null, null, null, null, null, 0, 0, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting("errorCode")
+                .isEqualTo(20045);
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    void shouldRejectDelete_whenHittingLocalProjectionRow() {
+        mockHeaderMatch();
+        stubExistingLocalProjectionRow();
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DELETE", "MENU", "menu-1", "default",
+                null, null, null, null, null, null, null, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        // DELETE 分支现状直接软删命中实体——所有权检查必须在其之前拦截（architecture §4.3）
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting("errorCode")
+                .isEqualTo(20045);
+        verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldRejectLocalRow_beforeVersionMetadataAndDependencyReturns() {
+        // 评审 P2：所有权是安全边界，必须先于 applyVersion（外部 sync_metadata 持久化副作用）
+        // 与 parent 缺失的 dependencyMissing 提前返回——否则命中本地行的 UPSERT 可携带
+        // 无效 parent 绕过 20045 并留下悬挂的外部同步元数据
+        mockHeaderMatch();
+        stubExistingLocalProjectionRow();
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", "MENU", "parent-not-exist", "default", "/menu/one", 1, 0, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting("errorCode")
+                .isEqualTo(20045);
+        // 不持久化外部 sync_metadata、不做 parent 解析（20045 优先级最高）
+        verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong());
+        verify(typeResolutionService, org.mockito.Mockito.never())
+                .resolveResourceId(anyLong(), anyString(), anyString(), anyString(), any());
     }
 }

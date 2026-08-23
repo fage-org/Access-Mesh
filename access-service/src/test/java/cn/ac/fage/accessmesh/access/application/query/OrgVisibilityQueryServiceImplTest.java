@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.application.query;
 
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.impl.OrgVisibilityQueryServiceImpl;
 import cn.ac.fage.accessmesh.access.application.query.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
@@ -62,9 +62,9 @@ class OrgVisibilityQueryServiceImplTest {
         @Test
         @DisplayName("engine 允许的 orgId 被保留（一次 getDeniedResourceCodes 业务编码批量门禁）")
         void allowedOrgs_kept() {
-            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(1000L);
-            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW")))
                 .thenReturn(new java.util.LinkedHashSet<>(List.of("300"))); // 300 → denied
 
@@ -72,16 +72,16 @@ class OrgVisibilityQueryServiceImplTest {
 
             assertThat(result).containsExactlyInAnyOrder(100L, 200L);
             assertThat(result).doesNotContain(300L);
-            verify(engine).getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            verify(engine).getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW"));
         }
 
         @Test
         @DisplayName("批量引擎异常整体传播（fail-closed，不再单条静默跳过）")
         void engineFailure_propagates() {
-            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(1000L);
-            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW")))
                 .thenThrow(new RuntimeException("timeout"));
 
@@ -125,9 +125,9 @@ class OrgVisibilityQueryServiceImplTest {
             when(cacheService.get(any(), any(), any())).thenReturn(null);
             when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
-            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(1000L);
-            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW")))
                 .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
 
@@ -144,9 +144,9 @@ class OrgVisibilityQueryServiceImplTest {
                 .thenThrow(new RuntimeException("redis down"));
             when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
-            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(1000L);
-            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW")))
                 .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
 
@@ -163,9 +163,9 @@ class OrgVisibilityQueryServiceImplTest {
             when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L))).thenReturn(null);
             when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L));
-            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
                 .thenReturn(1000L);
-            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
                 anySet(), eq("VIEW")))
                 .thenReturn(new java.util.LinkedHashSet<>());
             doThrow(new RuntimeException("redis down"))

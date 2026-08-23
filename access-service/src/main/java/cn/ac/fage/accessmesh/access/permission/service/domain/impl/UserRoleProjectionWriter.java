@@ -57,7 +57,7 @@ public class UserRoleProjectionWriter {
 
     public Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
                             Long relationSysOrgId) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
             tenantId, userType, String.valueOf(sysUserId));
@@ -93,7 +93,7 @@ public class UserRoleProjectionWriter {
 
     public Long unbindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
                               Long relationSysOrgId) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
             tenantId, userType, String.valueOf(sysUserId));
@@ -120,7 +120,7 @@ public class UserRoleProjectionWriter {
         if (keys == null || keys.isEmpty()) {
             return Map.of();
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
         Integer roleTypePosition = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_POSITION);
 
@@ -231,7 +231,7 @@ public class UserRoleProjectionWriter {
         if (keys == null || keys.isEmpty()) {
             return;
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
         Integer roleTypePosition = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_POSITION);
 

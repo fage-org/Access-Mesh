@@ -55,7 +55,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
         Long userId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(operatorId));
+            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
         if (userId == null) {
             log.warn("Permission check user not found: operatorId={}, resourceType={}, resourceCodes={}, operation={}",
                 operatorId, resourceTypeCode, resourceCodes, operationCode);
@@ -76,7 +76,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
         Long userId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(operatorId));
+            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
         if (userId == null) {
             log.warn("Permission check user not found: operatorId={}, resourceType={}, resourceCode={}, operation={}",
                 operatorId, resourceTypeCode, resourceCode, operationCode);

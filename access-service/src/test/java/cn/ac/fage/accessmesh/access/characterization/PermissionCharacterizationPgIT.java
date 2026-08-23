@@ -66,7 +66,7 @@ class PermissionCharacterizationPgIT {
     private static final Long TENANT = 1L;
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
-    /** type_definition 种子：user_type / ADMIN_USER = 3；role_type / GROUP_ROLE = 5、BASIC_ROLE = 6 */
+    /** type_definition 种子：user_type / LOCAL_USER = 3；role_type / GROUP_ROLE = 5、BASIC_ROLE = 6 */
     private static final int USER_TYPE_ADMIN = 3;
     private static final int ROLE_TYPE_GROUP = 5;
     private static final int ROLE_TYPE_BASIC = 6;

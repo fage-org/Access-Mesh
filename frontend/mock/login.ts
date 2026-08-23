@@ -97,7 +97,7 @@ import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms"
  *
  * 4.1 权限授予页（T-FE-036 v3 + T-FE-040 v3.1）：无新增权限串，全部为既有串复用——
  * - 配权门禁 `ROLE:VIEW`/`ROLE:MANAGE`（目标抽象角色）+ 只读依赖 `RESOURCE:VIEW`/
- *   `OPERATION:VIEW`；数据源门禁 `ADMIN_ORG:VIEW` 等（组织入口二期）。
+ *   `OPERATION:VIEW`；数据源门禁 `ORG:VIEW` 等（组织入口二期）。
  * - 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），`CONDITION:VIEW` 不再
  *   登记进角色矩阵（VIEW 列移除）；hr/auditor 不再持有条件读取串。
  * - admin 经 PERMISSION_GRANT_PERM_LIST 显式登记（与既有清单重复项无害，hasPerms 为 includes 判定）；

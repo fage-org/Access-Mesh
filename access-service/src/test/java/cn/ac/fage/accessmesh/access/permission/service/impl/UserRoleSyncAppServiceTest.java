@@ -152,7 +152,7 @@ class UserRoleSyncAppServiceTest {
     void shouldRejectReservedSubjectType_whenBind() {
         mockHeaderMatch();
         UserRoleSyncReq req = new UserRoleSyncReq("BIND", "HR_MEMBER",
-                "ADMIN_USER", "u1", "TEAM_ROLE", "1", "team-1", "TEAM_ROLE:team-2",
+                "LOCAL_USER", "u1", "TEAM_ROLE", "1", "team-1", "TEAM_ROLE:team-2",
                 null, null, SOURCE_SERVICE, "user", "u1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
 

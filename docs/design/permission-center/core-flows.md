@@ -95,10 +95,10 @@ flowchart LR
 关键逻辑：
 
 - 用户同步以 `subjectTypeCode + subjectExternalId` 幂等定位。调用方全程使用业务键引用主体和资源，permission-center 内部解析为内部 ID，调用方无需回填或存储内部 ID。
-- 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由 `access.application` 同一事务维护：`abstract_user(subjectTypeCode=ADMIN_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
+- 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由 `access.application` 同一事务维护：`abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。`access.application` 同一事务维护本地投影：`sys_org` → `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
-- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键；`ADMIN_USER`/`ORG`/`POSITION`/`ADMIN_ORG`/`ADMIN_MENU`/`SYS_USER_ORG` 保留键拒绝）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
+- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。`access.application` 同一事务维护本地投影：`sys_org` → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
+- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧取消类型级保留，本地投影行按 `owner=access-service` 所有权保护，T-ACCESS-018）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。
@@ -232,12 +232,12 @@ PermQueryEngine.query(PermQuery)
 
 ### 10.1 管理域查询可管理对象
 
-管理域可被权限控制的组织、角色、菜单资源由 `access.application` 在管理事实写入的同一事务内维护为本地权限投影（ADMIN_ORG/ADMIN_USER/MENU 资源与 ORG/POSITION 角色），运行时查询直接命中本地引擎。
+管理域可被权限控制的组织、角色、菜单资源由 `access.application` 在管理事实写入的同一事务内维护为本地权限投影（ORG/USER/MENU 资源与 ORG/POSITION 角色，T-ACCESS-018 收敛后类型码），运行时查询直接命中本地引擎。
 
 | 查询目标           | 资源建模                                                      | 运行时查询                                                                                     |
 | ------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 用户能管理哪些组织 | `resourceTypeCode=ADMIN_ORG`、`resourceCode={sys_org.id}`     | `query-resources` 传 `resourceTypeCodes=["ADMIN_ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
-| 用户能管理哪些用户 | `resourceTypeCode=ADMIN_USER`、`resourceCode={sys_user.id}`   | `query-resources` 传 `resourceTypeCodes=["ADMIN_USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","DISABLE","RESET_PASSWORD"]` |
+| 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode={sys_org.id}`         | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
+| 用户能管理哪些用户 | `resourceTypeCode=USER`、`resourceCode={sys_user.id}`       | `query-resources` 传 `resourceTypeCodes=["USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","RESET_PASSWORD"]` |
 | 用户能管理哪些角色 | `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
 | 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
 

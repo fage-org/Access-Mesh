@@ -53,7 +53,7 @@ import static org.mockito.Mockito.doReturn;
  * component / visible 列），验证：
  * </p>
  * <ul>
- *   <li>create/update/delete 全链路落库（sys_menu 新列 + ADMIN_MENU 投影 + change_log）</li>
+ *   <li>create/update/delete 全链路落库（sys_menu 新列 + MENU 投影 + change_log）</li>
  *   <li>uk_sys_menu_tenant_path / uk_sys_menu_tenant_resource 唯一索引冲突路径
  *       （预查报错 + 并发窗口兜底按约束名映射 10205/10206）</li>
  *   <li>写链路落的行可被读链路（UserMenuQueryMapper.selectMenus）正确消费</li>
@@ -111,7 +111,7 @@ class MenuWritePostgresIT {
 
     @BeforeAll
     static void setupSchema() throws Exception {
-        // 原样执行权威 DDL + 种子数据（type_definition ADMIN_MENU=19 供投影解析）
+        // 原样执行权威 DDL + 种子数据（type_definition MENU=1 供投影解析）
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (var conn = java.sql.DriverManager.getConnection(
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
@@ -145,7 +145,7 @@ class MenuWritePostgresIT {
         jdbcTemplate.execute("DELETE FROM permission_change_log WHERE tenant_id = " + TENANT);
         jdbcTemplate.execute("DELETE FROM sys_menu WHERE tenant_id = " + TENANT);
         jdbcTemplate.execute("DELETE FROM resource_entity WHERE tenant_id = " + TENANT
-            + " AND resource_type = 19");
+            + " AND resource_type = 1");
     }
 
     @AfterEach
@@ -155,11 +155,11 @@ class MenuWritePostgresIT {
     }
 
     @Test
-    @DisplayName("创建：新列落库（display_name/menu_type/resource link/source_service）+ ADMIN_MENU 投影 + change_log")
+    @DisplayName("创建：新列落库（display_name/menu_type/resource link/source_service）+ MENU 投影 + change_log")
     void createPersistsTerminalColumnsAndProjection() {
         Long id = menuWriteAppService.createMenu(new MenuCreateReq(
             "MENU", "用户管理", 0L, "/system/user", "user-icon", 5, 1,
-            "ADMIN_USER", "5", null));
+            "USER", "5", null));
 
         assertThat(id).isNotNull();
         var row = jdbcTemplate.queryForMap(
@@ -169,14 +169,14 @@ class MenuWritePostgresIT {
         assertThat(row.get("display_name")).isEqualTo("用户管理");
         assertThat(row.get("menu_type")).isEqualTo("MENU");
         assertThat(row.get("path")).isEqualTo("/system/user");
-        assertThat(row.get("resource_type")).isEqualTo("ADMIN_USER");
+        assertThat(row.get("resource_type")).isEqualTo("USER");
         assertThat(row.get("resource_code")).isEqualTo("5");
         assertThat(row.get("source_service")).isEqualTo("access-service"); // 缺省值
         assertThat(((Number) row.get("delete_flag")).longValue()).isZero();
 
-        // ADMIN_MENU 投影（resource_type=19，external_id=sys_menu.id）与 change_log
+        // MENU 投影（resource_type=1，external_id=sys_menu.id）与 change_log
         Integer projections = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 19"
+            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 1"
                 + " AND code = ? AND delete_flag = 0", Integer.class, TENANT, String.valueOf(id));
         assertThat(projections).isEqualTo(1);
         Integer changeLogs = jdbcTemplate.queryForObject(
@@ -191,7 +191,7 @@ class MenuWritePostgresIT {
             "HIDDEN", "隐藏路由", null, "/hidden/detail", null, null, null, null, null, null));
 
         Integer projections = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 19"
+            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 1"
                 + " AND code = ? AND delete_flag = 0", Integer.class, TENANT, String.valueOf(id));
         assertThat(projections).isEqualTo(1);
     }
@@ -218,10 +218,10 @@ class MenuWritePostgresIT {
     @DisplayName("唯一冲突-预查：同资源关联二次挂菜单抛 MENU_RESOURCE_EXISTS(10206)")
     void createDuplicateResourceRejectedByPrecheck() {
         menuWriteAppService.createMenu(new MenuCreateReq(
-            "MENU", "菜单A", null, "/a", null, null, null, "ADMIN_ORG", "7", null));
+            "MENU", "菜单A", null, "/a", null, null, null, "ORG", "7", null));
 
         assertThatThrownBy(() -> menuWriteAppService.createMenu(new MenuCreateReq(
-            "MENU", "菜单B", null, "/b", null, null, null, "ADMIN_ORG", "7", null)))
+            "MENU", "菜单B", null, "/b", null, null, null, "ORG", "7", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
@@ -253,14 +253,14 @@ class MenuWritePostgresIT {
     @DisplayName("唯一冲突-并发窗口兜底：资源关联撞 uk_sys_menu_tenant_resource 映射 10206")
     void concurrentResourceConflictMappedByIndexName() {
         menuWriteAppService.createMenu(new MenuCreateReq(
-            "MENU", "菜单A", null, "/race/a", null, null, null, "ADMIN_ORG", "7", null));
+            "MENU", "菜单A", null, "/race/a", null, null, null, "ORG", "7", null));
 
         // 预查失效（path 与 resource 均不拦截），resource 撞唯一索引
         doReturn(false).when(menuDomainService).pathExists(anyLong(), anyString(), any());
         doReturn(false).when(menuDomainService).resourceExists(anyLong(), anyString(), anyString(), any());
 
         assertThatThrownBy(() -> menuWriteAppService.createMenu(new MenuCreateReq(
-            "MENU", "菜单B", null, "/race/b", null, null, null, "ADMIN_ORG", "7", null)))
+            "MENU", "菜单B", null, "/race/b", null, null, null, "ORG", "7", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
             .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
@@ -284,7 +284,7 @@ class MenuWritePostgresIT {
 
         // 投影同步：name 刷新、status 置 DISABLED
         var projection = jdbcTemplate.queryForMap(
-            "SELECT name, status FROM resource_entity WHERE tenant_id = ? AND resource_type = 19"
+            "SELECT name, status FROM resource_entity WHERE tenant_id = ? AND resource_type = 1"
                 + " AND code = ? AND delete_flag = 0", TENANT, String.valueOf(id));
         assertThat(projection.get("name")).isEqualTo("新名称");
         assertThat(((Number) projection.get("status")).intValue()).isZero();
@@ -303,7 +303,7 @@ class MenuWritePostgresIT {
         assertThat(((Number) row.get("delete_flag")).longValue()).isEqualTo(id);
         assertThat(row.get("deleted_at")).isNotNull();
         Integer activeProjections = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 19"
+            "SELECT COUNT(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = 1"
                 + " AND code = ? AND delete_flag = 0", Integer.class, TENANT, String.valueOf(id));
         assertThat(activeProjections).isZero();
 
@@ -320,7 +320,7 @@ class MenuWritePostgresIT {
             "DIR", "系统管理", 0L, "/system", "sys-icon", 1, 1, null, null, null));
         menuWriteAppService.createMenu(new MenuCreateReq(
             "MENU", "用户管理", 0L, "/system/user", null, 2, 1,
-            "ADMIN_USER", "5", null));
+            "USER", "5", null));
 
         List<MenuProjection> menus = userMenuQueryMapper.selectMenus(TENANT);
 
@@ -333,7 +333,7 @@ class MenuWritePostgresIT {
         MenuProjection biz = menus.stream()
             .filter(m -> "MENU".equals(m.menuType())).findFirst().orElseThrow();
         assertThat(biz.name()).isEqualTo("用户管理");
-        assertThat(biz.resourceType()).isEqualTo("ADMIN_USER");
+        assertThat(biz.resourceType()).isEqualTo("USER");
         assertThat(biz.resourceCode()).isEqualTo("5");
         assertThat(((Number) biz.status()).intValue()).isEqualTo(1);
     }

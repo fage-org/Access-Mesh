@@ -4,7 +4,7 @@
  * 主体模型（核实 access-service 后端）：
  * - query-resources/query-scopes：仅支持用户主体（subjectTypeCode + subjectExternalId）
  * - effective-permissions/explain：支持 targetType=USER/ROLE
- *   - USER：subjectTypeCode（ADMIN_USER/USER）+ subjectExternalId
+ *   - USER：subjectTypeCode（LOCAL_USER/USER）+ subjectExternalId
  *   - ROLE：roleTypeCode（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）+ roleExternalId + domainCode
  *
  * 角色类型码对齐 access-service RoleType.java（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE），
@@ -28,14 +28,14 @@ export const TARGET_TYPE_OPTIONS: ReadonlyArray<{
 
 /**
  * 用户主体类型码选项（subjectTypeCode）。
- * ADMIN_USER 是 AccessMesh 管理端用户的主要真实类型；USER 为通用用户类型。
+ * LOCAL_USER 是 AccessMesh 管理端用户（本地访问主体）；USER 为外部人员类型。
  * 仅当确实存在 USER 类型主体时才展示 USER（Phase 1 mock 两项都保留）。
  */
 export const SUBJECT_TYPE_OPTIONS: ReadonlyArray<{
   label: string;
   value: string;
 }> = [
-  { label: "管理用户 ADMIN_USER", value: "ADMIN_USER" },
+  { label: "本地用户 LOCAL_USER", value: "LOCAL_USER" },
   { label: "普通用户 USER", value: "USER" }
 ];
 

@@ -47,15 +47,7 @@ public final class AdminOperationCode {
     public static final String RESET_PASSWORD = "RESET_PASSWORD";
 
     // ===== 权限操作 =====
-
-    /**
-     * 授权操作
-     */
-    public static final String GRANT = "GRANT";
-    /**
-     * 撤销权限操作
-     */
-    public static final String REVOKE = "REVOKE";
+    // （ADMIN_ROLE:GRANT/REVOKE 已随 T-ACCESS-018 类型收敛删除：零生产消费者，职责由 ROLE:MANAGE 承担）
 
     // ===== 其他操作 =====
 
@@ -86,9 +78,9 @@ public final class AdminOperationCode {
      */
     public static final String MANAGE_MEMBER = "MANAGE_MEMBER";
 
-    // ===== 岗位专属操作（资源类型仍为 ADMIN_ORG，按 sys_org.orgType=2 区分） =====
+    // ===== 岗位专属操作（资源类型为 ORG，按 sys_org.orgType=2 区分；原 ADMIN_ORG 已随 T-ACCESS-018 收敛） =====
     //
-    // 设计动机：岗位 = 特殊组织，与普通组织共用 /org/* 端点和 ADMIN_ORG 资源锚点，
+    // 设计动机：岗位 = 特殊组织，与普通组织共用 /org/* 端点和 ORG 资源锚点，
     // 但权限粒度需独立——例如 HR 能管组织树但不应直接动岗位，岗位负责人只管岗位
     // 不动组织树。通过精化操作码（CREATE_POSITION 之于 CREATE，类同 RESET_PASSWORD
     // 之于 UPDATE）将这两类管理权限解耦，避免新增独立 ADMIN_POSITION 资源类型造成
@@ -106,8 +98,8 @@ public final class AdminOperationCode {
     /**
      * 查看岗位 Tab（与组织树查看权限解耦——v1.4 VIEW 类细化到资源类型）
      * <p>
-     * 与 ADMIN_ORG:VIEW（组织树查看）独立，便于"只能看组织不能看岗位"或反之的细粒度配权。
-     * 资源类型仍为 {@link AdminResourceType#ORG}，按 orgType=2 实例过滤。
+     * 与 ORG:VIEW（组织树查看）独立，便于"只能看组织不能看岗位"或反之的细粒度配权。
+     * 资源类型仍为 {@code ResourceTypeCode.ORG}，按 orgType=2 实例过滤。
      */
     public static final String VIEW_POSITION = "VIEW_POSITION";
     /**
@@ -125,7 +117,7 @@ public final class AdminOperationCode {
     /**
      * 挂载/卸载/设主 岗位用户
      * <p>
-     * 与普通组织成员归属（ADMIN_ORG:UPDATE）解耦：作用在 orgType=2 的 sys_org 实例上的
+     * 与普通组织成员归属（ORG:UPDATE）解耦：作用在 orgType=2 的 sys_org 实例上的
      * user-org 关系动作走此操作码，便于"岗位用户运营"独立配权。
      * <p>
      * 映射关系：{@code OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)} → orgType=2 时返回本常量。

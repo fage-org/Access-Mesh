@@ -110,7 +110,7 @@ public interface UserService {
      * 查询候选用户（添加组织/岗位成员时使用）
      * <p>
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
-     * 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
+     * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
      *

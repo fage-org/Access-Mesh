@@ -86,8 +86,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
-        localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
         // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该资源类型
+        // （T-ACCESS-018：resource 侧取消类型级保留，USER/MENU 等公共类型外部同步合法；
+        //   本地投影行改按所有权保护，命中已有实体时在 doSyncOneInternal 统一拒绝）
         if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.resource(req.resourceTypeCode()))) {
             return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
         }
@@ -113,8 +114,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
-        localProjectionGuard.rejectReservedResourceType(req.scope().resourceTypeCode());
         // 服务-类型白名单（fail-closed）：scope 资源类型须在服务声明的 resourceTypeCodes 内
+        // （类型级保留已取消，本地投影保护按所有权在逐条 item 命中已有实体时拒绝）
         if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
                 SyncTypes.resource(req.scope().resourceTypeCode()))) {
             return SyncResultBuilder.fullSyncRejected(
@@ -200,7 +201,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     r.retryClass(), r.reason()));
         }
 
-        // 差异校准（批量软删 targetIds）
+        // 差异校准（批量软删 targetIds）。清理范围按 sync_metadata(entityKind=RESOURCE_ENTITY,
+        // sourceService, scopeKey) 界定（api-contract §6.2.2）：本地投影不写 sync_metadata
+        // （§4.2），天然不在清理集合内——类型级保留取消后仍不触及本地投影行。
         List<SyncMetadata> existingScope = syncMetadataDomainService.listScopeForFullSync(
                 tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
         List<Long> deactivateTargetIds = new ArrayList<>();
@@ -255,6 +258,26 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
         String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
+        Integer resourceTypeValue = preResolvedTypeValue != null
+                ? preResolvedTypeValue
+                : typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
+        if (resourceTypeValue == null) {
+            return SyncResultBuilder.dependencyMissing("RESOURCE_TYPE_NOT_FOUND");
+        }
+
+        ResourceEntity existing = preExistingResolved
+                ? preLoadedExisting
+                : resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceTypeValue, req.resourceCode(), codeType);
+
+        // T-ACCESS-018：resource 侧取消类型级保留后本地投影的唯一防线——
+        // 命中已有实体（existing != null）即按所有权拒绝（owner=access-service 抛 20045），
+        // UPSERT/DISABLE/DELETE 三个 mutation 分支统一前置覆盖；existing 为 null 的 INSERT
+        // 分支由 uk_resource_entity 唯一约束 fail-closed 兜底（撞本地投影 code 时约束冲突）。
+        // 评审 P2：检查前移到 applyVersion 与 parent 解析之前——所有权是安全边界，
+        // 必须先于任何可提交的提前返回（parent 缺失 dependencyMissing）与外部
+        // sync_metadata 持久化副作用，否则命中本地行的请求可绕过 20045 并留下悬挂元数据。
+        localProjectionGuard.rejectIfLocalResource(existing);
+
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
                 tenantId, ENTITY_KIND, req.sourceService(),
                 scopeKeyHash, scopeKey, businessKeyHash, businessKey,
@@ -262,13 +285,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 req.syncVersion().occurredAt(), req.syncVersion().sequenceNo());
         if (vr == SyncMetadataDomainService.ApplyVersionResult.STALE) {
             return SyncResultBuilder.stale();
-        }
-
-        Integer resourceTypeValue = preResolvedTypeValue != null
-                ? preResolvedTypeValue
-                : typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
-        if (resourceTypeValue == null) {
-            return SyncResultBuilder.dependencyMissing("RESOURCE_TYPE_NOT_FOUND");
         }
 
         // resolve parent (optional)
@@ -287,10 +303,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 return SyncResultBuilder.dependencyMissing("PARENT_RESOURCE_NOT_FOUND");
             }
         }
-
-        ResourceEntity existing = preExistingResolved
-                ? preLoadedExisting
-                : resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceTypeValue, req.resourceCode(), codeType);
 
         if (OP_UPSERT.equals(req.operation())) {
             if (existing == null) {

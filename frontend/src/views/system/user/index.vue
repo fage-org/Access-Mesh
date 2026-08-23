@@ -216,7 +216,7 @@ async function onNodeDelete(node: OrgTreeNode) {
 
 /**
  * 组织拖拽 → 调用 /org/update 修改 parentOrgId（契约 §4 A 区第 5 行：
- * 移动节点 = ADMIN_ORG:UPDATE），不调则刷新即丢
+ * 移动节点 = ORG:UPDATE），不调则刷新即丢
  */
 async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
   try {

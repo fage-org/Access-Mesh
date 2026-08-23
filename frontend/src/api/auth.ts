@@ -5,7 +5,7 @@ import type { PermResult } from "./_envelope";
  * `/auth/user-menu` 响应数据（v1.4 双轨并行）。
  * - `menus`：菜单可见性轨道（DIR/MENU 树）
  * - `roles`：用户角色（pure-admin-thin 模板按角色名 string 处理）
- * - `permissions`：按钮权限轨道，形如 `"ADMIN_ORG:CREATE_POSITION"` 的 perm 串
+ * - `permissions`：按钮权限轨道，形如 `"ORG:CREATE_POSITION"` 的 perm 串
  *
  * 注意：本文件返回 `Promise<PermResult<UserMenuData>>`（保留 PermResult 信封），
  * 由 store/user.ts 通过 `unwrap` 解包以触发 try/catch 抛错降级。

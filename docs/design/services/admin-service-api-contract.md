@@ -52,15 +52,15 @@ void checkInstanceLevel(String resourceTypeCode, String resourceCode, String ope
 void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes, String operationCode);
 ```
 
-> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：门面三方法形态不变，是 `SecurityException` 的唯一出口（引擎纯查询，见 permission-center implementation §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/user/**` 的 userId、`/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表资源类型串 `ADMIN_USER/ADMIN_ORG/ADMIN_ROLE` 按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；本契约各章节权限串全量替换归 T-ACCESS-018，本注记先行定稿口径）。
+> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：门面三方法形态不变，是 `SecurityException` 的唯一出口（引擎纯查询，见 permission-center implementation §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/user/**` 的 userId、`/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表及各章节资源类型串已按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；常量类已合一为 `ResourceTypeCode`，原 `AdminResourceType` 随 T-ACCESS-018 删除）。
 
-资源类型常量 (`AdminResourceType`):
+资源类型常量（`ResourceTypeCode`，T-ACCESS-018 合一后单一常量源，原 AdminResourceType 已删除）:
 
 | 常量 | 值 | 说明 |
 |------|------|------|
-| `AdminResourceType.USER` | `ADMIN_USER` | 被管理的用户实例 (resource_entity, code=sys_user.id) |
-| `AdminResourceType.ORG` | `ADMIN_ORG` | 被管理的组织/岗位实例 (resource_entity, code=sys_org.id) |
-| `AdminResourceType.ROLE` | `ADMIN_ROLE` | (本契约只读: 仅 /role/list 用) |
+| `ResourceTypeCode.USER` | `USER` | 被管理的用户实例 (resource_entity, code=sys_user.id；原 ADMIN_USER 并入，T-ACCESS-018) |
+| `ResourceTypeCode.ORG` | `ORG` | 被管理的组织/岗位实例 (resource_entity, code=sys_org.id；原 ADMIN_ORG 并入) |
+| `ResourceTypeCode.ROLE` | `ROLE` | (本契约只读: 仅 /role/list 用；原 ADMIN_ROLE 并入) |
 
 操作码常量 (`AdminOperationCode`): `CREATE / UPDATE / DELETE / VIEW / ENABLE / DISABLE / RESET_PASSWORD / GRANT / REVOKE`.
 
@@ -68,28 +68,28 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | 接口 | 资源类型 | 资源粒度 | 操作码 | 备注 |
 |------|----------|----------|--------|------|
-| `/user/page` | `ADMIN_USER` | 类型级 | `VIEW` | 默认树身份目录范围内列表 |
-| `/user/member-candidates` | `ADMIN_ORG` | 实例级 (目标 orgId) | `UPDATE` | 仅校验"能管理目标组织的成员"; 候选用户范围由默认树可见性二次裁剪 |
-| `/user/create` | `ADMIN_USER` | 类型级 | `CREATE` | 若入参带 orgId, 同时需 `ADMIN_ORG:UPDATE@orgId` |
-| `/user/update` | `ADMIN_USER` | 实例级 (userId) | `UPDATE` | 自我修改业务豁免在调用前处理 |
-| `/user/delete` | `ADMIN_USER` | 实例级批量 (ids) | `DELETE` | 默认树身份目录边界 |
-| `/user/enable` | `ADMIN_USER` | 实例级批量 (ids) | `ENABLE` 或 `DISABLE` | 按入参 `status` 派发: 1=ENABLE, 0=DISABLE |
-| `/user/reset-password` | `ADMIN_USER` | 实例级 (userId) | `RESET_PASSWORD` | 默认树身份目录边界 |
-| `/user/detail` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | 类型级 VIEW 门禁 + 默认树可见范围裁剪（P1-2：复用 `validateUsersInDefaultTreeScope`，与 `/user/page` 同等约束，防止知道 ID 即可读列表不可见用户；无组织关系用户拒绝）|
-| `/org/tree` | `ADMIN_ORG` | 类型级 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围; `CREATE`=新增用户时可选挂载点 (限默认树) |
-| `/org/page` | `ADMIN_ORG` | 类型级 | `VIEW` | |
-| `/org/users` | `ADMIN_ORG` | 实例级 (orgId) | `VIEW` | |
-| `/org/create` | `ADMIN_ORG` | 实例级 (parentOrgId, 顶级时类型级) | `CREATE` | |
-| `/org/update` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 改 `parentOrgId` 等价于"移动", 同时需新父级 `UPDATE` |
-| `/org/delete` | `ADMIN_ORG` | 实例级 (orgId) | `DELETE` | |
-| `/user-org/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | 读用户成员关系视图 |
-| `/user-org/assign` | `ADMIN_ORG` | 实例级批量 (orgIds) | `UPDATE` | 关系级追加; 默认树关系受身份目录边界二次校验 |
-| `/user-org/remove` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
-| `/user-org/set-primary` | `ADMIN_ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
-| `/user-role/list` | `ADMIN_USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
+| `/user/page` | `USER` | 类型级 | `VIEW` | 默认树身份目录范围内列表 |
+| `/user/member-candidates` | `ORG` | 实例级 (目标 orgId) | `UPDATE` | 仅校验"能管理目标组织的成员"; 候选用户范围由默认树可见性二次裁剪 |
+| `/user/create` | `USER` | 类型级 | `CREATE` | 若入参带 orgId, 同时需 `ORG:UPDATE@orgId` |
+| `/user/update` | `USER` | 实例级 (userId) | `UPDATE` | 自我修改业务豁免在调用前处理 |
+| `/user/delete` | `USER` | 实例级批量 (ids) | `DELETE` | 默认树身份目录边界 |
+| `/user/enable` | `USER` | 实例级批量 (ids) | `ENABLE` | 启停共用一码（toggle），按入参 `status` 设置实体字段 |
+| `/user/reset-password` | `USER` | 实例级 (userId) | `RESET_PASSWORD` | 默认树身份目录边界 |
+| `/user/detail` | `USER` | 实例级 (userId) | `VIEW` | 类型级 VIEW 门禁 + 默认树可见范围裁剪（P1-2：复用 `validateUsersInDefaultTreeScope`，与 `/user/page` 同等约束，防止知道 ID 即可读列表不可见用户；无组织关系用户拒绝）|
+| `/org/tree` | `ORG` | 类型级 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围; `CREATE`=新增用户时可选挂载点 (限默认树) |
+| `/org/page` | `ORG` | 类型级 | `VIEW` | |
+| `/org/users` | `ORG` | 实例级 (orgId) | `VIEW` | |
+| `/org/create` | `ORG` | 实例级 (parentOrgId, 顶级时类型级) | `CREATE` | |
+| `/org/update` | `ORG` | 实例级 (orgId) | `UPDATE` | 改 `parentOrgId` 等价于"移动", 同时需新父级 `UPDATE` |
+| `/org/delete` | `ORG` | 实例级 (orgId) | `DELETE` | |
+| `/user-org/list` | `USER` | 实例级 (userId) | `VIEW` | 读用户成员关系视图 |
+| `/user-org/assign` | `ORG` | 实例级批量 (orgIds) | `UPDATE` | 关系级追加; 默认树关系受身份目录边界二次校验 |
+| `/user-org/remove` | `ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
+| `/user-org/set-primary` | `ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
+| `/user-role/list` | `USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
 | `/user-role/assign` | — | — | — | ⛔ 已退役（T-ACCESS-006）：保留映射恒抛 `10111`（`ROLE_API_RETIRED`）；角色分配走 `/api/perm/user-role/assign`（`ROLE:MANAGE` 门禁由 permission 域 enforce）|
 | `/user-role/revoke` | — | — | — | ⛔ 已退役（T-ACCESS-006）：同上，走 `/api/perm/user-role/revoke` |
-| `/role/list` | `ADMIN_ROLE` | 类型级 | `VIEW` | 仅功能角色 |
+| `/role/list` | `ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
 > **默认树身份目录边界二次校验**: `/user/create`、`/user/delete`、`/user/enable`、`/user/reset-password`、`/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
 
@@ -103,14 +103,14 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | 管理事实 | 投影 | 外部键 |
 |----------|------|--------|
-| `sys_user` | `abstract_user(ADMIN_USER)` + `resource_entity(ADMIN_USER)` | `external_id` / `code` = `sys_user.id.toString()` |
-| `sys_org` | `abstract_role(ORG\|POSITION)` + `resource_entity(ADMIN_ORG)` | `external_id` / `code` = `sys_org.id.toString()` |
-| `sys_menu`（DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值全量投影，T-ACCESS-015） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
-| `sys_user_org` | `user_role` | 主体 `ADMIN_USER` + 角色 `ORG/POSITION` |
+| `sys_user` | `abstract_user(LOCAL_USER)` + `resource_entity(USER)` | `external_id` / `code` = `sys_user.id.toString()` |
+| `sys_org` | `abstract_role(ORG\|POSITION)` + `resource_entity(ORG)` | `external_id` / `code` = `sys_org.id.toString()` |
+| `sys_menu`（DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值全量投影，T-ACCESS-015） | `resource_entity(MENU)` | `code` = `sys_menu.id.toString()` |
+| `sys_user_org` | `user_role` | 主体 `LOCAL_USER` + 角色 `ORG/POSITION` |
 
-> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）。类型串在本契约的全量替换归 T-ACCESS-018；USER/ROLE 投影全写路径补齐归 T-ACCESS-019。
+> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）。类型串替换已随 T-ACCESS-018 落地（本契约全量切换）；USER/ROLE 投影全写路径补齐归 T-ACCESS-019。
 
-保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20045)`。
+保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影——所有权检查（`owner=access-service` 即 20045，外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置，T-ACCESS-018 落地）与保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名；resource 侧取消类型级保留，管理入口类型保留清单为 `{USER, ORG, MENU}`），以及内部 `sourceService`。拒绝类型为 `BizException(20045)`。
 
 本契约接口的投影动作：
 
@@ -179,7 +179,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgType` | `String` | 字典值 (Phase 2 决策: 后端固定为 String 字典编码; 前端 `OrgBrief.orgType` 可选) |
 | `isPrimary` | `boolean` | 是否主组织 |
 
-**门禁**: `ADMIN_USER:VIEW` 类型级 + 默认树可见范围裁剪 (操作者只能看到默认树中其有 `ADMIN_ORG:VIEW` 的子树成员).
+**门禁**: `USER:VIEW` 类型级 + 默认树可见范围裁剪 (操作者只能看到默认树中其有 `ORG:VIEW` 的子树成员).
 
 **同步动作**: 无 (只读)
 
@@ -188,7 +188,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **当前差距 (来自 api-gap-analysis，已归档 `docs/archive/2026-06-21/`)**: 需要明确语义为"默认组织树身份目录查询"; 区别于添加组织成员时的候选用户查询 (后者改用 §4.1.2 `/user/member-candidates`). 该差距已由 admin-service 实现收口。
 
 **验收要点**:
-- 操作者无 `ADMIN_USER:VIEW` 时返回空列表 + `code=200` (不抛 SecurityException).
+- 操作者无 `USER:VIEW` 时返回空列表 + `code=200` (不抛 SecurityException).
 - 操作者在默认树中无任一可见组织时返回空列表.
 - `orgId` 落在非默认树时返回 `BizException(ErrorCode.ORG_NOT_IN_DEFAULT_TREE)`; 该接口语义只服务身份目录视图.
 
@@ -220,7 +220,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `primaryOrgName` | `String` | 默认树主归属组织名, 便于识别 |
 | `alreadyAssigned` | `Boolean` | 固定 false (服务端已过滤; 字段保留用于一致性) |
 
-**门禁**: `ADMIN_ORG:UPDATE@targetOrgId` (实例级, 校验"能管理目标组织成员").
+**门禁**: `ORG:UPDATE@targetOrgId` (实例级, 校验"能管理目标组织成员").
 
 **同步动作**: 无 (只读)
 
@@ -229,7 +229,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **当前差距**: 接口未实现. 当前前端 mock 复用 `/user/page`, 但语义与默认树身份目录查询不同, 需独立接口.
 
 **验收要点**:
-- 候选集**严格**来自默认树中操作者具备 `ADMIN_USER:VIEW` (或 `ADMIN_ORG:VIEW`) 的范围; 不暴露全租户用户.
+- 候选集**严格**来自默认树中操作者具备 `USER:VIEW` (或 `ORG:VIEW`) 的范围; 不暴露全租户用户.
 - 必须排除目标组织已通过 `sys_user_org` 直接关联的用户.
 - `targetOrgId` 不存在或已删除时抛 `BizException`.
 
@@ -258,7 +258,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `id` | `Long` | 新用户 ID |
 | `initialPassword` | `String` | 系统生成的随机初始密码明文, **仅本次返回** |
 
-**门禁**: `ADMIN_USER:CREATE` 类型级 (+ 若带 `orgId` 还需 `ADMIN_ORG:UPDATE@orgId`).
+**门禁**: `USER:CREATE` 类型级 (+ 若带 `orgId` 还需 `ORG:UPDATE@orgId`).
 
 **投影动作**:
 1. 主事务: INSERT `sys_user` (+ 可选 INSERT `sys_user_org`)
@@ -294,7 +294,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_USER:UPDATE@id` (实例级). 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
+**门禁**: `USER:UPDATE@id` (实例级). 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
 
 **投影动作**: 同事务 `upsertAdminUser`（名称/状态变化一并投影）。
 
@@ -316,7 +316,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_USER:DELETE` 实例级批量 (`checkBatchInstanceLevel(USER, ids, DELETE)`) + 默认树边界二次校验 (操作者必须在每个目标用户的默认树主归属子树下具备 `ADMIN_ORG:UPDATE`).
+**门禁**: `USER:DELETE` 实例级批量 (`checkBatchInstanceLevel(USER, ids, DELETE)`) + 默认树边界二次校验 (操作者必须在每个目标用户的默认树主归属子树下具备 `ORG:UPDATE`).
 
 **投影动作** (每个 id):
 1. 主事务: 软删 `sys_user`, 级联软删 `sys_user_org`
@@ -350,8 +350,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **响应**: `PermResult<Void>`
 
 **门禁**:
-- `status=1`: `ADMIN_USER:ENABLE` 实例级批量
-- `status=0`: `ADMIN_USER:DISABLE` 实例级批量
+- `status=1`: `USER:ENABLE` 实例级批量
+- `status=0`: `USER:ENABLE（toggle）` 实例级批量
 - 加默认树边界二次校验 (与 §4.1.5 同).
 
 **投影动作** (每个 id):
@@ -364,7 +364,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **验收要点**:
 - 不允许禁用操作者本人 → `BizException(CANNOT_DISABLE_SELF)`.
-- 非默认树成员管理员调用此接口必须被门禁拦截 (因其无 `ADMIN_USER:ENABLE/DISABLE`).
+- 非默认树成员管理员调用此接口必须被门禁拦截 (因其无 `USER:ENABLE`（启停共用一码，v1.4 DISABLE 已并入）).
 
 ---
 
@@ -385,7 +385,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 |------|------|------|
 | `newPassword` | `String` | 生效的密码明文, **仅本次返回** |
 
-**门禁**: `ADMIN_USER:RESET_PASSWORD@userId` 实例级 + 默认树边界二次校验.
+**门禁**: `USER:RESET_PASSWORD@userId` 实例级 + 默认树边界二次校验.
 
 **同步动作**: 无 (密码不进入 permission-center)
 
@@ -436,9 +436,9 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `updatedAt` | `LocalDateTime` | |
 | `children` | `List<OrgResp>` | 树形 |
 
-**门禁**: `ADMIN_ORG:{operationCode}` 类型级.
+**门禁**: `ORG:{operationCode}` 类型级.
 
-**岗位节点裁剪（T-ADMIN-021）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ADMIN_ORG:VIEW`（无 `ADMIN_ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `hasTypeLevel(ADMIN_ORG, VIEW_POSITION)`（**仅明确拒绝返回 false；permission-center 技术故障抛异常向上，不得静默降级为裁剪后的树**，P2-1）。前端隐藏不作为安全边界。
+**岗位节点裁剪（T-ADMIN-021）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `hasTypeLevel(ORG, VIEW_POSITION)`（**仅明确拒绝返回 false；permission-center 技术故障抛异常向上，不得静默降级为裁剪后的树**，P2-1）。前端隐藏不作为安全边界。
 
 **同步动作**: 无.
 
@@ -465,7 +465,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PaginatedResult<OrgResp>` (children 字段为空数组, 平铺语义)
 
-**门禁**: `ADMIN_ORG:VIEW`.
+**门禁**: `ORG:VIEW`.
 
 ---
 
@@ -493,7 +493,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `avatar` | `String` | 可选 |
 | `isPrimary` | `Boolean` | 是否主组织 |
 
-**门禁**: `ADMIN_ORG:VIEW@id`.
+**门禁**: `ORG:VIEW@id`.
 
 ---
 
@@ -517,8 +517,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **响应**: `PermResult<Long>` (新组织 ID)
 
 **门禁**:
-- 顶级 (`parentOrgId=null`): `ADMIN_ORG:CREATE` 类型级
-- 子级: `ADMIN_ORG:UPDATE@parentOrgId` 实例级 (在父级下添加子节点等价于"修改父级结构")
+- 顶级 (`parentOrgId=null`): `ORG:CREATE` 类型级
+- 子级: `ORG:UPDATE@parentOrgId` 实例级 (在父级下添加子节点等价于"修改父级结构")
 
 **投影动作**:
 1. 主事务: INSERT `sys_org`
@@ -552,7 +552,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_ORG:UPDATE@id` 实例级. 若 `parentOrgId` 变化, 还需 `ADMIN_ORG:UPDATE@新parentOrgId`.
+**门禁**: `ORG:UPDATE@id` 实例级. 若 `parentOrgId` 变化, 还需 `ORG:UPDATE@新parentOrgId`.
 
 **投影动作**:
 1. 主事务: UPDATE `sys_org`
@@ -579,7 +579,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_ORG:DELETE@id` 实例级.
+**门禁**: `ORG:DELETE@id` 实例级.
 
 **投影动作**:
 1. 主事务: 软删 `sys_org` (delete_flag=1), 级联软删 `sys_user_org`
@@ -611,7 +611,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgType` | `String` | 字典值 |
 | `isPrimary` | `boolean` | |
 
-**门禁**: `ADMIN_USER:VIEW@userId`.
+**门禁**: `USER:VIEW@userId`.
 
 ---
 
@@ -629,7 +629,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: 对 `orgIds` 中每个组织实例分别 `ADMIN_ORG:UPDATE@orgId` (`checkBatchInstanceLevel`).
+**门禁**: 对 `orgIds` 中每个组织实例分别 `ORG:UPDATE@orgId` (`checkBatchInstanceLevel`).
 
 **写入语义** (关键决策):
 - **追加**已存在的关系幂等忽略, 不删除用户在其他组织树的关系.
@@ -647,7 +647,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **验收要点**:
 - `userId` 在默认树有归属时方可追加非默认树关系; 未在默认树时抛 `BizException(USER_NOT_IN_DEFAULT_TREE)`.
 - 候选 `orgIds` 中含已删除组织 → `BizException(ORG_NOT_FOUND)`.
-- 任一 `orgId` 操作者无 `ADMIN_ORG:UPDATE` → `SecurityException`, 整批回滚.
+- 任一 `orgId` 操作者无 `ORG:UPDATE` → `SecurityException`, 整批回滚.
 
 ---
 
@@ -665,8 +665,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **响应**: `PermResult<Void>`
 
 **门禁**:
-- 非默认树关系: `ADMIN_ORG:UPDATE@orgId`
-- 默认树关系: `ADMIN_USER:UPDATE@userId` (按身份目录边界, 等同"移动用户默认归属")
+- 非默认树关系: `ORG:UPDATE@orgId`
+- 默认树关系: `USER:UPDATE@userId` (按身份目录边界, 等同"移动用户默认归属")
 
 **投影动作**:
 - DELETE `sys_user_org` (单条) → `unbindUserOrg`
@@ -694,7 +694,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **响应**: `PermResult<Void>`
 
-**门禁**: `ADMIN_ORG:UPDATE@orgId` + 默认树边界校验.
+**门禁**: `ORG:UPDATE@orgId` + 默认树边界校验.
 
 **写入语义**:
 - 仅在默认树内将 `(userId, orgId)` 的 `is_primary=true`, 同时把该用户在默认树的其他关系置 `is_primary=false`.
@@ -744,7 +744,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `validFrom` | `LocalDateTime` | |
 | `validTo` | `LocalDateTime` | |
 
-**门禁**: `ADMIN_USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
+**门禁**: `USER:VIEW@userId` (admin-service 层); permission-center 层不再额外要求 (本接口为读).
 
 **代理动作（T-ACCESS-006 修订）**: `UserRoleQueryService`（`access.application.query`）经专用 QueryMapper 读取 `user_role ⨝ abstract_role`（有效期窗口过滤），再批量查 `sys_org` 补 `relationOrgName`。返回业务键 `(roleTypeCode, roleExternalId)` 替代 roleId。
 
@@ -780,7 +780,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **代理动作**:
 1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException`，应走 /user-org/*).
-2. 翻译 `userId → subjectTypeCode=ADMIN_USER, subjectExternalId={userId}`; 直接用入参 `(roleTypeCode, roleExternalId)`.
+2. 翻译 `userId → subjectTypeCode=LOCAL_USER, subjectExternalId={userId}`; 直接用入参 `(roleTypeCode, roleExternalId)`.
 3. 本地调用 `UserManageAppService.assignRole`.
 
 **错误码段**: 10520-10549
@@ -844,7 +844,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `roleName` | `String` | 角色名称 |
 | `roleTypeLabel` | `String` | 角色类型显示名 |
 
-**门禁**: `ADMIN_ROLE:VIEW`.
+**门禁**: `ROLE:VIEW`.
 
 **数据来源**: 本地经 `application.query`（`UserRoleQueryService` 直读 `user_role ⨝ abstract_role` 跨域只读）按 `roleTypeCodes` 过滤, 无跨服务调用.
 
@@ -875,7 +875,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误**: `10201` 菜单不存在（含正数 `parentId` 指向的父菜单不存在）/ `10203` 深度超限 / `10205` 路径已存在 / `10206` 资源关联已被占用 / `10207` 父菜单为自身或后代 / `90001` 成对校验失败。
 
-**门禁**: `ADMIN_MENU:CREATE`（类型级）。
+**门禁**: `MENU:CREATE`（类型级）。
 
 #### 4.6.2 `POST /menu/update` 🔧
 
@@ -885,17 +885,17 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误**: `10201` 菜单不存在（含目标 `parentId` 不存在）/ `10203` 深度超限（换父按整棵子树）/ `10205` / `10206`（排除自身的冲突预查 + 唯一索引兜底）/ `10207` 父菜单为自身或后代（防环）。
 
-**门禁**: `ADMIN_MENU:UPDATE`（实例级，按 sys_menu.id）。
+**门禁**: `MENU:UPDATE`（实例级，按 sys_menu.id）。
 
 #### 4.6.3 `POST /menu/delete` 🔧
 
 **请求 DTO**: `IdReq`（`id`）。
 
-**响应**: `PermResult<Void>`。软删（`delete_flag=id`）+ 同事务清理 ADMIN_MENU 投影；软删后部分唯一索引释放（path/资源可复用）。
+**响应**: `PermResult<Void>`。软删（`delete_flag=id`）+ 同事务清理 MENU 投影；软删后部分唯一索引释放（path/资源可复用）。
 
 **错误**: `10201` 不存在 / `10204` 存在子菜单。
 
-**门禁**: `ADMIN_MENU:DELETE`（实例级）。
+**门禁**: `MENU:DELETE`（实例级）。
 
 #### 4.6.4 `POST /menu/detail` 🔧
 
@@ -911,7 +911,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 - 可选字符串字段（`path/icon/resourceType/resourceCode/sourceService`）收到空白字符串时**服务端规范化为 null**（空串写库会命中部分唯一索引并被读链路误判为业务菜单；update 时空白等同未提供，跳过保留原值）——用户决策 2026-08-22
 - `status` 仅允许 `0/1`（DTO `@Min(0) @Max(1)` 校验，违规 90001）
-- ADMIN_MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **全量维护**（无 BUTTON 短路；实例级门禁依赖投影行授权到具体菜单实例）
+- MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **全量维护**（无 BUTTON 短路；实例级门禁依赖投影行授权到具体菜单实例）
 - 菜单可见性由 v3.5 §4.1 派生公式在 `/auth/user-menu` 读链路决定（业务菜单 = `resource_type` 非空走资源访问事实，纯展示 `resource_type` 为空全员可见），不消费投影
 - 菜单层级最多 5 级（根=第 1 层）：`calculateDepth` 返回父节点自身深度，新节点深度 = 父深度 + 1；**换父按整棵子树校验**（新根深度 + 子树高度 - 1 ≤ 5，即最深节点不超上限；顶级目标父深度按 0 计，防止把不存在的父层多算一层）
 - 父菜单校验：正数 `parentId` 必须为同租户有效菜单（否则 `10201`，无外键兜底防孤儿节点）；换父时目标父不能是被移动菜单自身或其后代（否则 `10207`，防 parent 链成环——环会导致祖先链遍历与递归 CTE 不收敛）
@@ -1024,7 +1024,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 8.3 OAuth2 客户端管理 (`/oauth2/client/*`)
 
-门禁：`AdminResourceType.OAUTH2_CLIENT`（类型级 CREATE / 实例级 UPDATE/DELETE）；操作日志 `@OperationLog`（sys_oauth2_client）。
+门禁：`ResourceTypeCode.ADMIN_OAUTH2_CLIENT`（类型级 CREATE / 实例级 UPDATE/DELETE）；操作日志 `@OperationLog`（sys_oauth2_client）。
 
 | 端点 | 请求 | 响应 | 备注 |
 |------|------|------|------|

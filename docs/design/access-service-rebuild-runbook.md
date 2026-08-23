@@ -50,11 +50,11 @@ SELECT nextval(pg_get_serial_sequence('abstract_user','id'));   -- 假设返回 
 
 -- 同 ID 主体链（与 createLocalUserSubject 等价的手工形态）
 INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra)
-VALUES (N, 1, 3, N::text, '重建验证管理员', true, '{}');
+VALUES (N, 1, 3, N::text, '重建验证管理员', true, '{}');   -- user_type 3 = LOCAL_USER（原 ADMIN_USER 更名，值不变）
 INSERT INTO sys_user (id, tenant_id, username, password, name, status, user_type, force_reset_pwd)
-VALUES (N, 1, 'rebuild-admin', '<BCRYPT_HASH>', '重建验证管理员', 1, 3, false);
+VALUES (N, 1, 'rebuild-admin', '<BCRYPT_HASH>', '重建验证管理员', 1, 3, false);  -- user_type 3 = LOCAL_USER
 INSERT INTO resource_entity (tenant_id, resource_type, code, code_type, name, status)
-VALUES (1, 16, N::text, 'default', '重建验证管理员', 1);        -- resource_type 16 = ADMIN_USER（现行种子值）
+VALUES (1, 6, N::text, 'default', '重建验证管理员', 1);         -- resource_type 6 = USER（T-ACCESS-018 终值，原 ADMIN_USER=16 已并入）
 
 -- 角色 + 绑定
 INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, extra)
@@ -66,15 +66,14 @@ VALUES (1, N, 'ROLE', (SELECT id FROM abstract_role WHERE tenant_id=1 AND extern
 INSERT INTO role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, grant_source)
 SELECT 1, r.id, NULL, v.bits, v.rtype, true, 'MANUAL'
 FROM abstract_role r,
-     (VALUES (16, 1),    -- ADMIN_USER:CREATE  —— /user/create 本地用户创建
-             (6,  1),    -- USER:CREATE         —— /api/perm/abstract-user/create 外部主体创建
+     (VALUES (6,  1),    -- USER:CREATE         —— /user/create 本地用户创建与 /api/perm/abstract-user/create 外部主体创建（T-ACCESS-018 收敛：原 ADMIN_USER 门禁并入 USER，两入口同码）
              (5,  1),    -- ROLE:CREATE         —— /api/perm/abstract-role/create 角色创建
              (5,  16),   -- ROLE:MANAGE         —— 角色分配/删除与角色树读链（掩码含 VIEW）
-             (17, 1),    -- ADMIN_ORG:CREATE    —— /org/create 顶级组织创建
-             (17, 4),    -- ADMIN_ORG:UPDATE    —— 子组织创建的父级实例校验（普通组织 UPDATE）
-             (17, 256),  -- ADMIN_ORG:MANAGE_MEMBER —— /user-org/assign 普通组织用户挂载（resolveForUserOrg 将 UPDATE 映射为 MANAGE_MEMBER，scopeAll 不跨操作码覆盖）
-             (17, 128),  -- ADMIN_ORG:ASSIGN_POSITION_USER —— 岗位用户挂载（验证 POSITION 时需要）
-             (19, 1)     -- ADMIN_MENU:CREATE   —— /menu/create 菜单创建
+             (29, 1),    -- ORG:CREATE          —— /org/create 顶级组织创建（ORG 终值 29，原 ADMIN_ORG=17 已并入）
+             (29, 4),    -- ORG:UPDATE          —— 子组织创建的父级实例校验（普通组织 UPDATE）
+             (29, 256),  -- ORG:MANAGE_MEMBER   —— /user-org/assign 普通组织用户挂载（resolveForUserOrg 将 UPDATE 映射为 MANAGE_MEMBER，scopeAll 不跨操作码覆盖）
+             (29, 128),  -- ORG:ASSIGN_POSITION_USER —— 岗位用户挂载（验证 POSITION 时需要）
+             (1,  1)     -- MENU:CREATE         —— /menu/create 菜单创建（MENU 终值 1，原 ADMIN_MENU=19 已并入）
      ) AS v(rtype, bits)
 WHERE r.tenant_id = 1 AND r.external_id = 'rebuild-verify-role';
 ```
@@ -96,7 +95,7 @@ captchaId/captchaCode，再 `POST /auth/login`，请求体
    必然大于 N——不要复用 fixture 的 N 回查，否则命中的是 fixture 已有数据）：
    - `SELECT id FROM sys_user WHERE username=...` = M；
      `SELECT id, external_id FROM abstract_user WHERE id=M` → external_id = M 的字符串；
-     `SELECT code FROM resource_entity WHERE resource_type=16 AND code=M::text` 存在。
+     `SELECT code FROM resource_entity WHERE resource_type=6 AND code=M::text` 存在。
    - 同 ID 双表由序列预取保证（architecture §12.2）。
 2. **创建外部主体**（直连 `POST /api/perm/abstract-user/create`，外部 subjectTypeCode）：仅 `abstract_user` 行，
    自增取号；与本地用户互不碰撞（两种创建顺序均安全，id 均大于已有主体最大 id）。
@@ -104,7 +103,7 @@ captchaId/captchaCode，再 `POST /auth/login`，请求体
    步骤 1 用户 M 挂步骤 3 角色）：`user_role.abstract_user_id` = M（主体 ID）。
 4. **登录会话**（`/auth/login`）：Sa-Token loginId = N；直连 `POST /role/my-info` 正常返回。
 5. **创建组织并挂载用户/菜单**（直连 `/org/create`、`/user-org/assign`、`/menu/create`）：
-   组织角色投影（ORG/POSITION）与 ADMIN_MENU 资源行正常生成，菜单可见性派生正常。
+   组织角色投影（ORG/POSITION）与 MENU 资源行正常生成，菜单可见性派生正常。
 6. **权限抽查**：对步骤 3 角色授予任一权限后（SQL 或授权链），Redis 中 `1:perm:effective-roles:M` 命中
    （主体键即 M），变更后 afterCommit 失效可见。
 

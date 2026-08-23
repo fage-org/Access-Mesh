@@ -104,7 +104,7 @@ class AuthTokenFilterTest {
             session.set("tenantId", TENANT_ID);
         }
         if (withSubjectTypeCode) {
-            session.set("subjectTypeCode", "ADMIN_USER");
+            session.set("subjectTypeCode", "LOCAL_USER");
         }
         if (withOperatorName) {
             session.set("operatorName", "alice");
@@ -135,7 +135,7 @@ class AuthTokenFilterTest {
         // getLoginIdByToken 经 dao 反序列化返回 String 形式的 loginId
         assertThat((Object) exchange.getAttribute("userId")).isEqualTo(String.valueOf(LOGIN_ID));
         assertThat((Object) exchange.getAttribute("tenantId")).isEqualTo(TENANT_ID);
-        assertThat((Object) exchange.getAttribute("subjectTypeCode")).isEqualTo("ADMIN_USER");
+        assertThat((Object) exchange.getAttribute("subjectTypeCode")).isEqualTo("LOCAL_USER");
         assertThat((Object) exchange.getAttribute("userName")).isEqualTo("alice");
         assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
     }

@@ -5,10 +5,12 @@ import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
  * </p>
  * <p>
  * 资源行统一限定 {@code code_type = 'default'}（与单条路径 selectByTypeCodeAndCodeType 语义一致），
- * 避免误伤外部同步以其他 code_type 创建的 ADMIN_USER 资源行。
+ * 避免误伤外部同步以其他 code_type 创建的 USER 资源行。
  * </p>
  */
 public class BatchAdminUserProjectionWriter {
@@ -41,6 +43,8 @@ public class BatchAdminUserProjectionWriter {
     private final AbstractUserMapper abstractUserMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final UserRoleMapper userRoleMapper;
+    /** 所有权防线（无状态）：公共类型下防本地投影接管外部同步行（T-ACCESS-018 评审 P1） */
+    private final LocalProjectionGuard localProjectionGuard = new LocalProjectionGuard();
 
     public BatchAdminUserProjectionWriter(TypeResolutionService typeResolutionService,
                                           AbstractUserMapper abstractUserMapper,
@@ -56,8 +60,8 @@ public class BatchAdminUserProjectionWriter {
         if (sysUserIds == null || sysUserIds.isEmpty()) {
             return;
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         Set<String> extIds = sysUserIds.stream().map(String::valueOf).collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();
         List<AbstractUser> users = abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds);
@@ -68,7 +72,9 @@ public class BatchAdminUserProjectionWriter {
             abstractUserMapper.softDeleteBatch(tenantId, userIds, now);
         }
         List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
+            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT)).stream()
+            .filter(BatchAdminUserProjectionWriter::isOwnResource)
+            .collect(Collectors.toList());
         if (!resources.isEmpty()) {
             resourceEntityMapper.softDeleteBatch(tenantId,
                 resources.stream().map(ResourceEntity::getId).collect(Collectors.toList()), now);
@@ -79,8 +85,8 @@ public class BatchAdminUserProjectionWriter {
         if (sysUserIds == null || sysUserIds.isEmpty()) {
             return;
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         Set<String> extIds = sysUserIds.stream().map(String::valueOf).collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();
         List<AbstractUser> users = abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds);
@@ -89,7 +95,9 @@ public class BatchAdminUserProjectionWriter {
                 users.stream().map(AbstractUser::getId).collect(Collectors.toSet()), now);
         }
         List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
+            tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT)).stream()
+            .filter(BatchAdminUserProjectionWriter::isOwnResource)
+            .collect(Collectors.toList());
         if (!resources.isEmpty()) {
             resourceEntityMapper.batchDisableStatus(tenantId,
                 resources.stream().map(ResourceEntity::getId).collect(Collectors.toSet()), now);
@@ -100,8 +108,8 @@ public class BatchAdminUserProjectionWriter {
         if (keys == null || keys.isEmpty()) {
             return Map.of();
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         Set<String> extIds = keys.stream()
             .map(k -> String.valueOf(k.sysUserId())).collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();
@@ -148,6 +156,8 @@ public class BatchAdminUserProjectionWriter {
                 toUpdateUsers.add(user);
             }
             ResourceEntity resource = resourcesByCode.get(externalId);
+            // 公共类型（USER）下命中行可能属外部同步：fail-closed 拒绝接管（评审 P1）
+            localProjectionGuard.rejectIfForeignResource(resource);
             if (resource == null) {
                 resource = new ResourceEntity();
                 resource.setTenantId(tenantId);
@@ -201,7 +211,7 @@ public class BatchAdminUserProjectionWriter {
         if (sysUserIds == null || sysUserIds.isEmpty()) {
             return Map.of();
         }
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Set<String> extIds = sysUserIds.stream().map(String::valueOf).collect(Collectors.toSet());
         Map<Long, Long> result = new HashMap<>();
         for (AbstractUser user : abstractUserMapper.selectByTypeAndExternalIds(tenantId, userType, extIds)) {
@@ -212,6 +222,11 @@ public class BatchAdminUserProjectionWriter {
             }
         }
         return result;
+    }
+
+    /** 仅 owner=access-service 的行才是本地投影可操作的行（禁用/删除路径跳过外部行） */
+    private static boolean isOwnResource(ResourceEntity resource) {
+        return resource != null && LocalProjectionOwner.isLocalOwner(resource.getOwnerServiceCode());
     }
 
     private Integer requireType(Long tenantId, String typeKey, String typeCode) {

@@ -195,7 +195,7 @@ class DualInstanceContainerTest {
     @DisplayName("跨实例缓存：A 写入 B 可读（共享 L2），A 失效后 B 读取为 null（L1 广播失效）")
     void crossInstanceCache_sharedL2AndInvalidationBroadcast() throws Exception {
         Object key = "dual-instance-probe";
-        Map<String, Long> value = Map.of("ADMIN_USER:VIEW", 1L);
+        Map<String, Long> value = Map.of("USER:VIEW", 1L);
 
         // 实例 A 写入（L1+L2）；实例 B 首读 miss L1 → 命中共享 L2 并回填 B 的 L1
         cacheServiceA.put(AdminCacheCatalog.OPERATION_CODE, TENANT_ID, key, value);

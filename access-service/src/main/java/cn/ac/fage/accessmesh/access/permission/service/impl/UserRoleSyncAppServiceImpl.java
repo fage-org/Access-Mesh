@@ -80,7 +80,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         // 2. payload 校验：sourceType/主体/目标角色/relationKey 角色类型均为调用方自有类型，
-        // 保留键（SYS_USER_ORG/ADMIN_USER/ORG|POSITION）由 guard 拒绝（20045 整体回滚）
+        // 保留键（SYS_USER_ORG/LOCAL_USER/ORG|POSITION）由 guard 拒绝（20045 整体回滚）
         localProjectionGuard.rejectReservedUserRoleSource(req.sourceType());
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());

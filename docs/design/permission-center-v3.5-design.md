@@ -111,7 +111,7 @@ private Long grantDepId;
 
 | 项 | 处理 |
 |---|---|
-| ADMIN_MENU 资源类型 | type_definition 表行 status=DISABLED |
+| ADMIN_MENU 资源类型（MENU 单类型承载配置后台门禁） | v3.5 迁移时置 status=DISABLED；T-ACCESS-018 类型收敛后已从种子直接删除（ADMIN_MENU 并入 MENU，退役值 19 不复用） |
 | sys_menu.perm_code / operations / primary_operation / default_preset | 历史 v3.0~v3.3 字段，物理删除 |
 | OperationPermission.is_entry / sensitivity_level | v3.4 提案，未上线 → 不实施 |
 | field_descriptor 表 | v3.5 初版提案，未上线 → 不引入 |

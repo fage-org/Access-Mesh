@@ -1109,7 +1109,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * 本管线不设 {@code USER:VIEW} 门禁：调用方各自负责入口门禁——
      * permission 域独立 HTTP 入口走 {@link #getEffectivePermissionCodesForManage}
      * （自查豁免 + 查他人需 USER:VIEW）；query 包内部调用由其入口 Controller 门禁
-     * （自查豁免 + {@code ADMIN_USER:VIEW}）兜底。
+     * （自查豁免 + {@code USER:VIEW}）兜底。
      * </p>
      */
     private PermViewResult buildEffectiveView(Long tenantId, UserEffectivePermissionCodesReq req) {

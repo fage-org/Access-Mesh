@@ -58,28 +58,28 @@ class AdminPermissionValidatorImplTest {
     @Test
     @DisplayName("批量校验：一次 getDeniedResourceCodes（业务编码语义），不循环单条 query")
     void batchCheckUsesSingleBatchQuery() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
-        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ADMIN_ORG"),
+        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"),
             eq(new LinkedHashSet<>(List.of("1", "2", "3"))), eq("VIEW")))
             .thenReturn(Set.of());
 
-        assertThatCode(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2", "3"), "VIEW"))
+        assertThatCode(() -> validator.checkBatchInstanceLevel("ORG", List.of("1", "2", "3"), "VIEW"))
             .doesNotThrowAnyException();
 
-        verify(engine).getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ADMIN_ORG"), any(), eq("VIEW"));
+        verify(engine).getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"), any(), eq("VIEW"));
         verify(engine, never()).query(any());
     }
 
     @Test
     @DisplayName("批量校验：denied 业务编码直接抛 SecurityException")
     void batchCheckRejectsDeniedCodes() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
-        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ADMIN_ORG"), any(), eq("VIEW")))
+        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"), any(), eq("VIEW")))
             .thenReturn(new LinkedHashSet<>(List.of("2")));
 
-        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2"), "VIEW"))
+        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ORG", List.of("1", "2"), "VIEW"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("[2]");
     }
@@ -87,22 +87,22 @@ class AdminPermissionValidatorImplTest {
     @Test
     @DisplayName("批量校验：未解析业务编码由引擎归入拒绝集合 → fail-closed 拒绝")
     void batchCheckUnresolvedCodeRejected() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
         // 引擎对无投影实体的 code fail-closed（含未解析与无权限两类），门面统一拒绝
-        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ADMIN_ORG"), any(), eq("VIEW")))
+        when(engine.getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"), any(), eq("VIEW")))
             .thenReturn(new LinkedHashSet<>(List.of("2")));
 
-        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1", "2"), "VIEW"))
+        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ORG", List.of("1", "2"), "VIEW"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("[2]");
-        verify(engine).getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ADMIN_ORG"), any(), eq("VIEW"));
+        verify(engine).getDeniedResourceCodes(eq(TENANT), eq(501L), eq("ORG"), any(), eq("VIEW"));
     }
 
     @Test
     @DisplayName("批量校验：空列表直接返回，不查询")
     void batchCheckEmptySkipsQuery() {
-        validator.checkBatchInstanceLevel("ADMIN_ORG", List.of(), "VIEW");
+        validator.checkBatchInstanceLevel("ORG", List.of(), "VIEW");
         verify(typeResolutionService, never()).resolveUserId(any(), any(), any());
         verify(engine, never()).getDeniedResourceCodes(any(), any(), any(), any(), any());
     }
@@ -110,10 +110,10 @@ class AdminPermissionValidatorImplTest {
     @Test
     @DisplayName("批量校验：操作者主体不存在 → SecurityException fail-closed")
     void batchCheckMissingOperatorRejected() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(null);
 
-        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ADMIN_ORG", List.of("1"), "VIEW"))
+        assertThatThrownBy(() -> validator.checkBatchInstanceLevel("ORG", List.of("1"), "VIEW"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("操作者主体不存在");
     }
@@ -123,24 +123,24 @@ class AdminPermissionValidatorImplTest {
     @Test
     @DisplayName("单点校验：checkInstanceLevel 走 hasPermissionByCode（业务编码语义），通过时不抛")
     void instanceCheckShouldUseHasPermissionByCode() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
-        when(engine.hasPermissionByCode(TENANT, 501L, "ADMIN_ORG", "1", "VIEW")).thenReturn(true);
+        when(engine.hasPermissionByCode(TENANT, 501L, "ORG", "1", "VIEW")).thenReturn(true);
 
-        assertThatCode(() -> validator.checkInstanceLevel("ADMIN_ORG", "1", "VIEW"))
+        assertThatCode(() -> validator.checkInstanceLevel("ORG", "1", "VIEW"))
             .doesNotThrowAnyException();
-        verify(engine).hasPermissionByCode(TENANT, 501L, "ADMIN_ORG", "1", "VIEW");
+        verify(engine).hasPermissionByCode(TENANT, 501L, "ORG", "1", "VIEW");
         verify(engine, never()).query(any());
     }
 
     @Test
     @DisplayName("单点校验：拒绝时抛 SecurityException")
     void instanceCheckShouldThrowWhenDenied() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
-        when(engine.hasPermissionByCode(TENANT, 501L, "ADMIN_ORG", "1", "VIEW")).thenReturn(false);
+        when(engine.hasPermissionByCode(TENANT, 501L, "ORG", "1", "VIEW")).thenReturn(false);
 
-        assertThatThrownBy(() -> validator.checkInstanceLevel("ADMIN_ORG", "1", "VIEW"))
+        assertThatThrownBy(() -> validator.checkInstanceLevel("ORG", "1", "VIEW"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("权限被拒绝");
     }
@@ -148,22 +148,22 @@ class AdminPermissionValidatorImplTest {
     @Test
     @DisplayName("类型级校验：checkTypeLevel 以 null code 走 hasPermissionByCode")
     void typeLevelCheckShouldPassNullCode() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(501L);
-        when(engine.hasPermissionByCode(TENANT, 501L, "ADMIN_USER", null, "CREATE")).thenReturn(true);
+        when(engine.hasPermissionByCode(TENANT, 501L, "USER", null, "CREATE")).thenReturn(true);
 
-        assertThatCode(() -> validator.checkTypeLevel("ADMIN_USER", "CREATE"))
+        assertThatCode(() -> validator.checkTypeLevel("USER", "CREATE"))
             .doesNotThrowAnyException();
-        verify(engine).hasPermissionByCode(TENANT, 501L, "ADMIN_USER", null, "CREATE");
+        verify(engine).hasPermissionByCode(TENANT, 501L, "USER", null, "CREATE");
     }
 
     @Test
     @DisplayName("单点校验：操作者主体不存在 → SecurityException fail-closed")
     void instanceCheckMissingOperatorRejected() {
-        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_ADMIN_USER, "9"))
+        when(typeResolutionService.resolveUserId(TENANT, LocalProjectionOwner.SUBJECT_LOCAL_USER, "9"))
             .thenReturn(null);
 
-        assertThatThrownBy(() -> validator.checkInstanceLevel("ADMIN_ORG", "1", "VIEW"))
+        assertThatThrownBy(() -> validator.checkInstanceLevel("ORG", "1", "VIEW"))
             .isInstanceOf(SecurityException.class)
             .hasMessageContaining("操作者主体不存在");
         verify(engine, never()).hasPermissionByCode(any(), any(), any(), any(), any());

@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
@@ -114,7 +114,7 @@ public class ConfigServiceImpl implements ConfigService {
     public void updateConfig(ConfigUpdateReq req) {
         // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.CONFIG,
+            ResourceTypeCode.SYSTEM_CONFIG,
             String.valueOf(req.id()),
             AdminOperationCode.UPDATE
         );
@@ -160,7 +160,7 @@ public class ConfigServiceImpl implements ConfigService {
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(AdminResourceType.CONFIG, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.SYSTEM_CONFIG, resourceCodes, AdminOperationCode.DELETE);
 
         // 批量查询检查系统配置并过滤有效ID
         List<SystemConfig> configs = configMapper.selectListByIdsAndTenantId(TenantContextHolder.getTenantId(), req.ids());

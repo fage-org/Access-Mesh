@@ -19,7 +19,7 @@ public interface UserRoleQueryService {
      * 查询功能角色列表（/role/list）。
      * <p>
      * 默认仅返回功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL），显式传入 ORG/POSITION 时拒绝；
-     * 门禁 ADMIN_ROLE:VIEW。结果固定 {@code LIMIT 0,200}：功能角色面向前端下拉，
+     * 门禁 ROLE:VIEW。结果固定 {@code LIMIT 0,200}：功能角色面向前端下拉，
      * 最多返回 200 条，超出属配置异常（由组织治理收敛），调用方不得假定全量返回。
      * </p>
      *
@@ -32,7 +32,7 @@ public interface UserRoleQueryService {
      * 查询用户角色列表（/user-role/list）。
      * <p>
      * 返回全类型角色（ORG/POSITION/BASIC_ROLE/GROUP_ROLE/PERSONAL），
-     * POSITION 角色补充所属组织名；门禁 ADMIN_USER:VIEW@userId。
+     * POSITION 角色补充所属组织名；门禁 USER:VIEW@userId。
      * </p>
      *
      * @param userId 用户 ID

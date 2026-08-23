@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.admin.controller;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 用户管理控制器门禁行为测试（T-ACCESS-006 评审修复 P1-2：/user/user-menus 查己豁免、查他人需 ADMIN_USER:VIEW）。
+ * 用户管理控制器门禁行为测试（T-ACCESS-006 评审修复 P1-2：/user/user-menus 查己豁免、查他人需 USER:VIEW）。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminUserControllerTest {
@@ -72,7 +72,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    @DisplayName("查他人需 ADMIN_USER:VIEW 实例级门禁，通过后返回")
+    @DisplayName("查他人需 USER:VIEW 实例级门禁，通过后返回")
     void getUserMenus_other_requiresAdminUserView() {
         when(userMenuQueryService.loadUserRolesAndPermissions(OTHER_ID))
             .thenReturn(new UserInfoResp(OTHER_ID, null, null, null, null, null, null,
@@ -81,16 +81,16 @@ class AdminUserControllerTest {
         PermResult<UserInfoResp> result = controller.getUserMenus(new IdReq(OTHER_ID));
 
         verify(permissionValidator).checkInstanceLevel(
-            AdminResourceType.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
+            ResourceTypeCode.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
         assertEquals(OTHER_ID, result.getData().userId());
     }
 
     @Test
-    @DisplayName("查他人无 ADMIN_USER:VIEW 时门禁异常传播（fail-closed）")
+    @DisplayName("查他人无 USER:VIEW 时门禁异常传播（fail-closed）")
     void getUserMenus_other_withoutPermission_propagates() {
         doThrow(new SecurityException("Permission denied"))
             .when(permissionValidator)
-            .checkInstanceLevel(AdminResourceType.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
+            .checkInstanceLevel(ResourceTypeCode.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
 
         assertThrows(SecurityException.class, () -> controller.getUserMenus(new IdReq(OTHER_ID)));
         verify(userMenuQueryService, never()).loadUserRolesAndPermissions(OTHER_ID);

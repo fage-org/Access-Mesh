@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.UserRoleQueryService;
 import cn.ac.fage.accessmesh.access.application.query.mapper.UserRoleQueryMapper;
 import cn.ac.fage.accessmesh.access.application.query.projection.FunctionalRoleProjection;
@@ -66,7 +66,7 @@ public class UserRoleQueryServiceImpl implements UserRoleQueryService {
     @Override
     @Transactional(readOnly = true)
     public List<RoleListItemResp> listRoles(List<String> roleTypeCodes) {
-        permissionValidator.checkTypeLevel(AdminResourceType.ROLE, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ROLE, AdminOperationCode.VIEW);
         List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
             ? roleTypeCodes
             : FUNCTIONAL_ROLE_TYPES;
@@ -109,10 +109,10 @@ public class UserRoleQueryServiceImpl implements UserRoleQueryService {
     @Transactional(readOnly = true)
     public List<UserRoleItemResp> listUserRoles(Long userId) {
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.USER, String.valueOf(userId), AdminOperationCode.VIEW);
+            ResourceTypeCode.USER, String.valueOf(userId), AdminOperationCode.VIEW);
         Long tenantId = TenantContextHolder.getTenantId();
         Long abstractUserId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(userId));
+            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(userId));
         if (abstractUserId == null) {
             return List.of();
         }

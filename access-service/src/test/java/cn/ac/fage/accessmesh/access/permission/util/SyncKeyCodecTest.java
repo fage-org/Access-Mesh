@@ -34,8 +34,8 @@ class SyncKeyCodecTest {
 
     @Test
     void resourceEntityBusinessKey_shouldIncludeCodeType() {
-        String key = SyncKeyCodec.resourceEntityBusinessKey("ADMIN_ORG", "1001", "default");
-        assertEquals("resourceTypeCode=ADMIN_ORG&resourceCode=1001&codeType=default", key);
+        String key = SyncKeyCodec.resourceEntityBusinessKey("ORG", "1001", "default");
+        assertEquals("resourceTypeCode=ORG&resourceCode=1001&codeType=default", key);
     }
 
     @Test
@@ -66,8 +66,8 @@ class SyncKeyCodecTest {
     @Test
     void resourceEntityScopeKey_shouldUseResourceTypeCodeOnly() {
         assertEquals(
-                "resourceTypeCode=ADMIN_ORG",
-                SyncKeyCodec.resourceEntityScopeKey("ADMIN_ORG"));
+                "resourceTypeCode=ORG",
+                SyncKeyCodec.resourceEntityScopeKey("ORG"));
     }
 
     @Test

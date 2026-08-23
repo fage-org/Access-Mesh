@@ -101,7 +101,7 @@ last_reviewed: 2026-08-22
 - access-service admin 域中的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
 - 组织既是业务树，也是角色容器。组织结构由 admin 域主维护；与组织相关的角色、用户角色事实最终落在 permission 域（同进程同库，`access.application` 同事务写入）。
 - `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由 `access.application` 编排，permission 域保存最终权限事实。
-- 权限模型内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(ADMIN_USER)` 表示被管理用户资源，`resource_entity(ADMIN_ORG)` 表示被管理组织资源，`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin 域不存储这些事实的内部 ID，所有跨域操作使用业务键。
+- 权限模型内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(USER)` 表示被管理用户资源，`resource_entity(ORG)` 表示被管理组织资源（T-ACCESS-018 类型收敛后），`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin 域不存储这些事实的内部 ID，所有跨域操作使用业务键。
 - 业务域只承担角色、权限分类和后台管理视角隔离职责，不承担数据权限载体、运行时鉴权主链或资源归属重构职责。
 - 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
@@ -216,8 +216,8 @@ last_reviewed: 2026-08-22
 
 - `sys_user` 是 **admin 域事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
 - 用户生命周期由默认组织树承载。创建用户时必须绑定默认组织树中的组织节点；禁用、删除、重置密码等高危账号操作不属于非默认组织树成员管理。
-- 用户创建/更新/删除时，由 `access.application` 在**同一 PostgreSQL 事务**内写入/更新权限域本地投影（`abstract_user` + `resource_entity(ADMIN_USER)`），无跨服务同步链路（T-ACCESS-005）。
-- 若需要 `ADMIN_USER:{userId}` 实例级管理权限，用户投影同时维护 `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id` 定位。
+- 用户创建/更新/删除时，由 `access.application` 在**同一 PostgreSQL 事务**内写入/更新权限域本地投影（`abstract_user` + `resource_entity(USER)`），无跨服务同步链路（T-ACCESS-005）。
+- 若需要 `USER:{userId}` 实例级管理权限，用户投影同时维护 `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=USER + resourceCode=sys_user.id` 定位。
 - 投影字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
 
 关键字段（概要）：
@@ -299,9 +299,9 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权限事实（`abstract_user`/`abstract_role`/`resource_entity`/`user_role`）位于同一进程、同一数据库（`access_db.public`）。跨域写操作由 `access.application` 在同一 PostgreSQL 事务内编排：更新管理事实的同事务写入对应权限投影，任一步失败整体回滚。原跨服务 API 同步、消息通知与补偿链路（内部同步子系统）已随 T-ACCESS-005 退役。
 
 - **用户投影（双事实，不可混淆）**：
-  - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=ADMIN_USER + externalId=sys_user.id`；
-  - `resource_entity(ADMIN_USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=ADMIN_USER + resourceCode=sys_user.id`。只维护 `abstract_user` 时用户可参与鉴权，但 `ADMIN_USER:{userId}` 的更新/删除/启停等实例级权限无法稳定解析。
-- **组织投影（双事实）**：`resource_entity(ADMIN_ORG)`（组织作为可管理资源，支撑 `ADMIN_ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，`access.application` 同事务写入对应 `user_role`；组织树层级由 permission 域自动维护，编排层只传当前节点和父节点业务键。
+  - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=LOCAL_USER + externalId=sys_user.id`（原 ADMIN_USER 更名，T-ACCESS-016）；
+  - `resource_entity(USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=USER + resourceCode=sys_user.id`。只维护 `abstract_user` 时用户可参与鉴权，但 `USER:{userId}` 的更新/删除/启停等实例级权限无法稳定解析。
+- **组织投影（双事实）**：`resource_entity(ORG)`（组织作为可管理资源，支撑 `ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，`access.application` 同事务写入对应 `user_role`；组织树层级由 permission 域自动维护，编排层只传当前节点和父节点业务键。
 - **菜单**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不承载权限语义；菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，前端经 `/auth/user-menu` 单 RPC 获取 `menus[] + permissions[]`，动态注册 Vue Router 路由。
 - **投影所有权**：本地投影统一标记 `owner_service_code='access-service'`，只能经 `LocalProjectionDomainService` 写入；权限管理 API 不得直接修改本地投影，外部 sync 不得冒充本地来源（`sourceService=access-service/admin-service` 被拒绝）。
 
@@ -386,7 +386,7 @@ perm-sdk/
 | #   | 事项              | 决策                                                                 |
 | --- | ----------------- | -------------------------------------------------------------------- |
 | Q1  | 菜单数据归属      | sys_menu 由 access-service admin 域维护（UI 路由元数据 + 关联资源 link）；关联资源经同事务本地投影落 permission 域 resource_entity |
-| Q2  | 组织-权限域映射   | 组织以 `resource_entity(ADMIN_ORG)` + `abstract_role(ORG/POSITION)` 双事实投影，由 access.application 同事务维护，均使用业务键定位 |
+| Q2  | 组织-权限域映射   | 组织以 `resource_entity(ORG)` + `abstract_role(ORG/POSITION)` 双事实投影，由 access.application 同事务维护，均使用业务键定位 |
 | Q3  | 限流方案          | 首期不做，后续按需集成                                               |
 | Q4  | 任务调度          | Spring Scheduler（轻量），兼演示定时任务的权限控制                   |
 | Q5  | 前端技术栈        | Vue 3 + Element Plus                                                 |

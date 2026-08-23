@@ -160,7 +160,7 @@ public final class PermCacheCatalog {
      * 操作者可见组织范围缓存
      * <p>
      * Key: operatorId（操作者用户 ID）
-     * Value: Set&lt;Long&gt; 操作者通过 ADMIN_ORG:VIEW 可见的默认树组织 ID 集合
+     * Value: Set&lt;Long&gt; 操作者通过 ORG:VIEW 可见的默认树组织 ID 集合
      * <p>
      * L2_ONLY（用户决策）：安全敏感目录，L1 本地缓存会造成跨实例旧可见范围；
      * 纯 Redis 共享存储 + 权限变更后租户级 evictAll 保证全实例一致。

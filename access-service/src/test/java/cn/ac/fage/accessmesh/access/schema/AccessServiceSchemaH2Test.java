@@ -203,10 +203,10 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 36 行 / operation_permission 139 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 31 行 / operation_permission 117 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
-        assertEquals(36, countRows("type_definition"), "type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28）");
-        assertEquals(139, countRows("operation_permission"), "operation_permission 种子 139 行（静态类型 CRUD 112 + 非预置扩展 15 + 权限中心运行时必需 12）");
+        assertEquals(31, countRows("type_definition"), "type_definition 系统种子 31 行（user_type 3 + role_type 5 + resource_type 23，T-ACCESS-018 收敛）");
+        assertEquals(117, countRows("operation_permission"), "operation_permission 种子 117 行（静态类型 CRUD 92 + 非预置扩展 13 + 权限中心运行时必需 12）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（T-ACCESS-007 迁移至 admin.* 前缀）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
@@ -228,7 +228,9 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 27 对 = 权限中心 13 + Admin 14）
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 25 对 = 权限中心 13 + Admin 12；
+        // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER（ENABLE bit 32）、
+        // ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移）
         String[][] required = {
             // 权限中心家族（13 对，含既有 ROLE:MANAGE；评审 11 缺失 + API:ACCESS 接口鉴权）
             {"USER", "MANAGE"},
@@ -240,12 +242,11 @@ class AccessServiceSchemaH2Test {
             {"OPERATION", "MANAGE"},
             {"DEPENDENCY", "SYNC"},
             {"API", "ACCESS"},
-            // Admin 家族扩展码（14 对）
-            {"ADMIN_ORG", "CREATE_POSITION"}, {"ADMIN_ORG", "UPDATE_POSITION"},
-            {"ADMIN_ORG", "DELETE_POSITION"}, {"ADMIN_ORG", "ASSIGN_POSITION_USER"},
-            {"ADMIN_ORG", "MANAGE_MEMBER"}, {"ADMIN_ORG", "VIEW_POSITION"},
-            {"ADMIN_USER", "ENABLE"}, {"ADMIN_USER", "RESET_PASSWORD"},
-            {"ADMIN_ROLE", "GRANT"}, {"ADMIN_ROLE", "REVOKE"},
+            // Admin 家族扩展码（12 对）
+            {"ORG", "CREATE_POSITION"}, {"ORG", "UPDATE_POSITION"},
+            {"ORG", "DELETE_POSITION"}, {"ORG", "ASSIGN_POSITION_USER"},
+            {"ORG", "MANAGE_MEMBER"}, {"ORG", "VIEW_POSITION"},
+            {"USER", "ENABLE"}, {"USER", "RESET_PASSWORD"},
             {"ADMIN_NOTICE", "PUBLISH"},
             {"ADMIN_JOB", "ENABLE"}, {"ADMIN_JOB", "TRIGGER"},
             {"ADMIN_ORG_TREE_CONFIG", "TOGGLE"},
@@ -257,6 +258,43 @@ class AccessServiceSchemaH2Test {
             }
         }
         assertTrue(missing.isEmpty(), "缺少运行时必需操作种子：" + missing);
+    }
+
+    @Test
+    @DisplayName("退役类型码不复用：收敛前 ADMIN_* 资源类型码与退役 type_value 段均不得再出现")
+    void shouldNotHaveRetiredTypeCodesOrValues() throws SQLException {
+        // 沿用 ErrorCodeContractTest 退役清单模式（T-ACCESS-018）：
+        // 五组 ADMIN_* 管理类型已并入 USER/ROLE/MENU/SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除，
+        // user_type ADMIN_USER 更名 LOCAL_USER——旧码出现即视为种子回退或码值复用。
+        String[][] retiredTypeCodes = {
+            {"resource_type", "ADMIN_USER"}, {"resource_type", "ADMIN_ORG"},
+            {"resource_type", "ADMIN_ROLE"}, {"resource_type", "ADMIN_MENU"},
+            {"resource_type", "ADMIN_CONFIG"}, {"resource_type", "ADMIN_SYNC_TASK"},
+            {"user_type", "ADMIN_USER"},
+        };
+        StringBuilder leaked = new StringBuilder();
+        for (String[] pair : retiredTypeCodes) {
+            try (Statement s = conn.createStatement();
+                 ResultSet rs = s.executeQuery(
+                     "SELECT COUNT(*) FROM type_definition WHERE tenant_id = 1 AND type_key = '" + pair[0]
+                         + "' AND type_code = '" + pair[1] + "'")) {
+                rs.next();
+                if (rs.getLong(1) > 0) {
+                    leaked.append(pair[0]).append(':').append(pair[1]).append(' ');
+                }
+            }
+        }
+        assertTrue(leaked.isEmpty(), "退役类型码不得再现：" + leaked);
+        // 退役 type_value 段（16/17/18/19/22/28）不复用：resource_type 内不得有任何类型占用
+        try (Statement s = conn.createStatement();
+             ResultSet rs = s.executeQuery(
+                 "SELECT type_code, type_value FROM type_definition "
+                     + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_value IN (16,17,18,19,22,28)")) {
+            while (rs.next()) {
+                leaked.append(rs.getString(1)).append('=').append(rs.getInt(2)).append(' ');
+            }
+        }
+        assertTrue(leaked.isEmpty(), "退役 type_value 段不得被复用：" + leaked);
     }
 
     private boolean operationExists(String typeCode, String opCode) throws SQLException {
@@ -272,22 +310,23 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("type_definition 种子数值与枚举一致：USER=1/SERVICE=2/ADMIN_USER=3/ORG=1/BASIC_ROLE=6/MENU=1/ADMIN_ORG=17")
+    @DisplayName("type_definition 种子数值与终值分配表一致：USER=1/SERVICE=2/LOCAL_USER=3/ORG=1/BASIC_ROLE=6/MENU=1/ORG=29")
     void shouldHaveAuthoritativeTypeValues() throws SQLException {
         assertTypeValue("user_type", "USER", 1);
         assertTypeValue("user_type", "SERVICE", 2);
-        assertTypeValue("user_type", "ADMIN_USER", 3);
+        assertTypeValue("user_type", "LOCAL_USER", 3);
         assertTypeValue("role_type", "ORG", 1);
         assertTypeValue("role_type", "BASIC_ROLE", 6);
         assertTypeValue("resource_type", "MENU", 1);
-        assertTypeValue("resource_type", "ADMIN_ORG", 17);
+        assertTypeValue("resource_type", "ORG", 29);
         assertTypeValue("resource_type", "ROLE", 5);
+        assertTypeValue("resource_type", "USER", 6);
     }
 
     @Test
     @DisplayName("每个静态 resource_type 均预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE）")
     void shouldHaveCrudOperationsForEveryStaticResourceType() throws SQLException {
-        // 28 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
+        // 23 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT td.type_code, COUNT(*) FROM type_definition td " +
@@ -301,14 +340,17 @@ class AccessServiceSchemaH2Test {
             }
             assertTrue(missing.isEmpty(), "存在未完整预置 CRUD 的资源类型：" + missing);
         }
-        // 关键类型抽查：MENU=1 与 ADMIN_ORG=17 的 CRUD 位值正确
+        // 关键类型抽查：MENU=1 与 ORG=29 的 CRUD 位值正确
         assertOperationBit("MENU", "CREATE", 1, 0);
         assertOperationBit("MENU", "VIEW", 2, 0);
         assertOperationBit("MENU", "UPDATE", 4, 2);
         assertOperationBit("MENU", "DELETE", 8, 2);
-        assertOperationBit("ADMIN_ORG", "CREATE", 1, 0);
-        // 扩展码与 CRUD 位不冲突（ADMIN_ORG:VIEW_POSITION 从 512 起）
-        assertOperationBit("ADMIN_ORG", "VIEW_POSITION", 512, 0);
+        assertOperationBit("ORG", "CREATE", 1, 0);
+        // 扩展码与 CRUD 位不冲突（ORG:VIEW_POSITION 从 512 起；USER:ENABLE bit 重分配 32——16 被 MANAGE 占用）
+        assertOperationBit("ORG", "VIEW_POSITION", 512, 0);
+        assertOperationBit("USER", "ENABLE", 32, 2);
+        assertOperationBit("USER", "RESET_PASSWORD", 64, 2);
+        assertOperationBit("USER", "MANAGE", 16, 2);
     }
 
     private void assertOperationBit(String typeCode, String opCode, long expectedBit, long expectedMask) throws SQLException {

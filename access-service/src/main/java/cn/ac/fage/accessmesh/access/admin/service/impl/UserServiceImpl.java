@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
 import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
@@ -115,7 +115,7 @@ public class UserServiceImpl implements UserService {
      * <p>
      * 创建新用户并生成随机初始密码（BCrypt哈希存储）。
      * 支持创建时一步完成默认组织树分配（orgId）。
-     * 校验用户名和手机号唯一性；权限投影（abstract_user + ADMIN_USER 资源 + 成员关系）
+     * 校验用户名和手机号唯一性；权限投影（abstract_user + USER 资源 + 成员关系）
      * 由 {@code UserWriteAppService} 同一事务维护。
      * </p>
      *
@@ -192,7 +192,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResp getUser(Long id) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
-        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -234,7 +234,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
-        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -245,7 +245,7 @@ public class UserServiceImpl implements UserService {
             // 契约 §4.1.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
             validateOrgInDefaultTree(tenantId, req.orgId());
 
-            // EXT-3 修复：验证操作者对该 orgId 有 ADMIN_ORG:VIEW 权限
+            // EXT-3 修复：验证操作者对该 orgId 有 ORG:VIEW 权限
             Long operatorId = StpUtil.getLoginIdAsLong();
             Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (!visibleOrgIds.contains(req.orgId())) {
@@ -361,7 +361,7 @@ public class UserServiceImpl implements UserService {
         // 自我修改豁免：用户可重置自己的密码无需权限检查
         if (!userId.equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
-                AdminResourceType.USER,
+                ResourceTypeCode.USER,
                 String.valueOf(userId),
                 AdminOperationCode.RESET_PASSWORD
             );
@@ -442,7 +442,7 @@ public class UserServiceImpl implements UserService {
      * 查询候选用户（添加组织/岗位成员时使用）。
      * <p>
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
-     * 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
+     * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
      *
@@ -453,9 +453,9 @@ public class UserServiceImpl implements UserService {
     public PaginatedResult<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 门禁：ADMIN_ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
+        // 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
+            ResourceTypeCode.ORG,
             String.valueOf(req.targetOrgId()),
             AdminOperationCode.UPDATE
         );
@@ -467,7 +467,7 @@ public class UserServiceImpl implements UserService {
                 AdminErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
-        // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ADMIN_ORG:VIEW 裁剪）
+        // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ORG:VIEW 裁剪）
         Long operatorId = StpUtil.getLoginIdAsLong();
         Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
@@ -584,7 +584,7 @@ public class UserServiceImpl implements UserService {
     /**
      * 默认树边界 + 操作者可见范围二次校验（EXT-4 修复）。
      * <p>
-     * 验证每个目标用户在操作者 ADMIN_ORG:VIEW 可见的默认树组织范围内有至少一个归属关系。
+     * 验证每个目标用户在操作者 ORG:VIEW 可见的默认树组织范围内有至少一个归属关系。
      * 若任一用户不在操作者可见范围内，整批操作拒绝。
      * <p>
      * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §2 门禁规范

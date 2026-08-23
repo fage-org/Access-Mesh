@@ -18,7 +18,7 @@ import java.util.List;
  * <p>
  * 调用方需要在 {@code resourceTypeCodes} 中显式声明白名单，避免下发无关资源类型。
  *
- * @param subjectTypeCode    主体类型码，如 "ADMIN_USER"
+ * @param subjectTypeCode    主体类型码，如 "LOCAL_USER"
  * @param subjectExternalId  主体外部 ID，如 userId.toString()
  * @param resourceTypeCodes  资源类型码白名单（必填，非空）；仅这些类型的有效操作码会被聚合下发
  *

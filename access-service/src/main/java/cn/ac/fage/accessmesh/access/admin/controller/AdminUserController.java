@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.ac.fage.accessmesh.common.model.IdReq;
@@ -191,10 +191,10 @@ public class AdminUserController {
     @PostMapping("/user-menus")
     public PermResult<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
         // 权限边界：改己豁免——当前登录用户可查自己的权限信息；
-        // 查询其他用户需 ADMIN_USER:VIEW 实例级门禁，防普通用户枚举 ID 读取他人角色/权限/组织
+        // 查询其他用户需 USER:VIEW 实例级门禁，防普通用户枚举 ID 读取他人角色/权限/组织
         Long currentUserId = StpUtil.getLoginIdAsLong();
         if (!java.util.Objects.equals(req.id(), currentUserId)) {
-            permissionValidator.checkInstanceLevel(AdminResourceType.USER,
+            permissionValidator.checkInstanceLevel(ResourceTypeCode.USER,
                 String.valueOf(req.id()), AdminOperationCode.VIEW);
         }
         return PermResult.success(userMenuQueryService.loadUserRolesAndPermissions(req.id()));

@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysMenuMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.MenuService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.application.MenuWriteAppService;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * 菜单管理服务实现类
  * <p>
  * 提供菜单的CRUD操作、树形查询功能。
- * 写操作委托 {@code MenuWriteAppService} 同一事务维护 ADMIN_MENU 权限投影。
+ * 写操作委托 {@code MenuWriteAppService} 同一事务维护 MENU 权限投影。
  * 支持菜单层级深度限制（最多5级）、路由路径与资源关联唯一性校验（v3.5 终态）。
  * 使用MenuDomainService处理菜单数据查询。
  * </p>
@@ -48,7 +48,7 @@ public class MenuServiceImpl implements MenuService {
      * @param menuMapper 菜单数据访问Mapper
      * @param menuDomainService 菜单领域服务，处理菜单数据查询
      * @param permissionValidator 权限校验器，校验菜单操作权限
-     * @param menuWriteAppService 菜单写编排，同一事务维护 ADMIN_MENU 投影
+     * @param menuWriteAppService 菜单写编排，同一事务维护 MENU 投影
      */
     public MenuServiceImpl(SysMenuMapper menuMapper,
                            MenuDomainService menuDomainService,
@@ -64,7 +64,7 @@ public class MenuServiceImpl implements MenuService {
      * 创建菜单
      * <p>
      * 创建新菜单，校验路由路径/资源关联唯一性和菜单层级深度（不超过5级）。
-     * ADMIN_MENU 投影由 {@code MenuWriteAppService} 同一事务维护。
+     * MENU 投影由 {@code MenuWriteAppService} 同一事务维护。
      * </p>
      *
      * @param req 菜单创建请求，包含菜单类型、显示名、路径、资源关联等

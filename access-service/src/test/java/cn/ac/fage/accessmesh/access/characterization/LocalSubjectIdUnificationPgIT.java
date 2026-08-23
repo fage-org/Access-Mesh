@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 主体 ID 统一验收（T-ORG-001，真实 PostgreSQL + Redis，Testcontainers；architecture §12）。
  * <p>
  * 验收两条：① 新建本地用户后 {@code sys_user.id == abstract_user.id}（同 ID 双表插入，
- * external_id / resource_entity(ADMIN_USER).code = 主体 ID 字符串化）；② 外部主体与本地用户
+ * external_id / resource_entity(USER).code = 主体 ID 字符串化）；② 外部主体与本地用户
  * 共用 {@code abstract_user.id} 序列（本地创建 nextval 预取、外部创建自增取号），
  * 「先外部后本地」与「先本地后外部」两种顺序均不碰撞。
  * </p>
@@ -63,9 +63,9 @@ class LocalSubjectIdUnificationPgIT {
     private static final Long OPERATOR = 9L;
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
-    /** type_definition 种子：user_type/ADMIN_USER = 3；resource_type 种子：ADMIN_USER = 16 */
+    /** type_definition 种子：user_type/LOCAL_USER = 3；resource_type 种子：USER = 6 */
     private static final int USER_TYPE_ADMIN = 3;
-    private static final int RESOURCE_TYPE_ADMIN_USER = 16;
+    private static final int RESOURCE_TYPE_USER = 6;
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -146,7 +146,7 @@ class LocalSubjectIdUnificationPgIT {
         // 资源投影业务编码 = 主体 ID 字符串化（USER 门禁编码语义，T-PERM-042 契约）
         Map<String, Object> resource = jdbc.queryForMap(
             "SELECT id, code FROM resource_entity WHERE tenant_id = ? AND resource_type = ? AND code = ?",
-            TENANT, RESOURCE_TYPE_ADMIN_USER, String.valueOf(subjectId));
+            TENANT, RESOURCE_TYPE_USER, String.valueOf(subjectId));
         assertThat(resource.get("code")).isEqualTo(String.valueOf(subjectId));
     }
 

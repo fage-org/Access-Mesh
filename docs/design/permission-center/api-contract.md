@@ -228,7 +228,7 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 
 ```json
 {
-  "resourceTypeCode": "ADMIN_ORG",
+  "resourceTypeCode": "ORG",
   "includeGlobalFallback": true
 }
 ```
@@ -535,7 +535,7 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发。
 - 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
-- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 内部管理域类型（`ADMIN_USER`/`ADMIN_ORG`/`ADMIN_MENU` 等保留键）由 `access.application` 同事务维护本地投影，本接口对其返回 20045 拒绝。
+- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 本地投影行（`owner_service_code=access-service`）由 `access.application` 同事务维护，本接口 UPSERT/DISABLE/DELETE 任一 mutation 命中已有本地投影实体时前置所有权检查返回 20045 拒绝（T-ACCESS-018：resource 侧取消类型级保留——USER/MENU 为公共基础类型，外部同步自身用户/菜单资源合法，新建撞本地投影 code 由唯一约束兜底；管理入口 `/perm/resource-entity/create|update` 的类型保留清单为 `{USER, ORG, MENU}`，人工不得绕过管理事实链路）。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 
 #### 6.2.2.1 资源实体分领域全量校准
@@ -627,7 +627,7 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 
 #### 6.2.2.3 主体、角色、用户角色同步接口
 
-外部业务服务的主体/角色/成员关系同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。请求中的 `subjectTypeCode`/`roleTypeCode`/`sourceType` 均为调用方自有类型，禁止使用 AccessMesh 内部保留键（`ADMIN_USER`/`ORG|POSITION`/`SYS_USER_ORG`，20045 拒绝）——内部管理事实由 `access.application` 同事务维护本地投影，不经过 sync 链路。
+外部业务服务的主体/角色/成员关系同步使用专用 sync/full-sync 接口，不通过 `resource-entity/sync`，也不复用角色授权管理接口表达同步语义。请求中的 `subjectTypeCode`/`roleTypeCode`/`sourceType` 均为调用方自有类型，禁止使用 AccessMesh 内部保留键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`，20045 拒绝；subject 侧原 `ADMIN_USER` 已随 T-ACCESS-016 更名 `LOCAL_USER`，旧名经类型解析失败直接拒绝）——内部管理事实由 `access.application` 同事务维护本地投影，不经过 sync 链路。
 
 | 接口 | 用途 | scopeKey / businessKey |
 |------|------|------------|
@@ -976,7 +976,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **四条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；资源同步校验 `resourceTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）。
 - **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝。
 - **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
-- **保留键纵深**：即使白名单错误声明 `ADMIN_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
+- **保留键纵深**：即使白名单错误声明 `LOCAL_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
 - **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、四分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
@@ -995,7 +995,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
   "domainCode": "admin",
   "roleTypeCode": "BASIC_ROLE",
   "roleExternalId": "role_admin",
-  "resourceTypeCode": "ADMIN_ORG",
+  "resourceTypeCode": "ORG",
   "includeChildren": false
 }
 ```
@@ -1004,7 +1004,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **`resourceTypeCode`（可选；🔧 T-PERM-040，单类型矩阵上下文定稿）**：按资源类型过滤主权限（`depend_on IS NULL` 且 `resource_type` 匹配当前类型）。**授权矩阵调用时必填**（矩阵一次只呈现一个类型，见 permission-grant.md §2.2）；null/缺省 = 不过滤（兼容既有调用方，如管理域菜单授权按角色取全量）。
 - `includeChildren`（可选，默认 `true` 兼容现行为）：
   - `false`：只返回该类型主权限（`depend_on IS NULL` + 上述类型过滤），子权限不进列表（辅助查询用）；
-  - `true`：返回**该类型主权限及其全部子权限**——子权限按 `depend_on` 挂在其父主权限下返回，**子权限自身可能属于其他资源类型，不能按子记录自身 `resource_type` 过滤**（如父为 `ADMIN_ORG` 权限、子为 `BUTTON`/`DATA` 权限是合法配置）；**子权限集合双重约束：`depend_on` ∈ 主权限集合 且 `abstract_role_id` = 目标角色**（跨类型返回不引入其他角色或其他主权限下的记录）；`resourceTypeCode=null` 时按现状返回全量主权限 + 全部子权限。
+  - `true`：返回**该类型主权限及其全部子权限**——子权限按 `depend_on` 挂在其父主权限下返回，**子权限自身可能属于其他资源类型，不能按子记录自身 `resource_type` 过滤**（如父为 `ORG` 权限、子为 `BUTTON`/`DATA` 权限是合法配置）；**子权限集合双重约束：`depend_on` ∈ 主权限集合 且 `abstract_role_id` = 目标角色**（跨类型返回不引入其他角色或其他主权限下的记录）；`resourceTypeCode=null` 时按现状返回全量主权限 + 全部子权限。
 
 响应：`data.items[]`，每项为 `RolePermissionItemResp`（14 字段；`grantSource`/`grantedBits`/`createdAt`/`childCount` 与 `includeChildren` 已实现）：
 
@@ -1172,10 +1172,10 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ```json
 {
-  "subjectTypeCode": "ADMIN_USER",
+  "subjectTypeCode": "LOCAL_USER",
   "subjectExternalId": "10001",
   "domainCode": "admin",
-  "resourceTypeCodes": ["ADMIN_ORG"],
+  "resourceTypeCodes": ["ORG"],
   "operationCodes": ["UPDATE"],
   "codeType": "default",
   "includeInherited": true,
@@ -1194,7 +1194,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 {
   "items": [
     {
-      "resourceTypeCode": "ADMIN_ORG",
+      "resourceTypeCode": "ORG",
       "resourceCode": "100",
       "resourceName": "研发中心",
       "codeType": "default",
@@ -1206,7 +1206,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "grantSources": ["MANUAL"]
     },
     {
-      "resourceTypeCode": "ADMIN_ORG",
+      "resourceTypeCode": "ORG",
       "resourceCode": null,
       "resourceName": null,
       "codeType": null,
@@ -1226,8 +1226,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 | 查询目标   | 建模方式                                                                           | 查询参数                                                                  |
 | ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 可管理组织 | 组织同步为管理资源，例如 `resourceTypeCode=ADMIN_ORG`、`resourceCode={sys_org.id}` | `resourceTypeCodes=["ADMIN_ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
-| 可管理用户 | 用户同步为管理资源，例如 `resourceTypeCode=ADMIN_USER`、`resourceCode={sys_user.id}` | `resourceTypeCodes=["ADMIN_USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","DISABLE","RESET_PASSWORD"]` |
+| 可管理组织 | 组织同步为管理资源，例如 `resourceTypeCode=ORG`、`resourceCode={sys_org.id}` | `resourceTypeCodes=["ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
+| 可管理用户 | 用户同步为管理资源，例如 `resourceTypeCode=USER`、`resourceCode={sys_user.id}` | `resourceTypeCodes=["USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","RESET_PASSWORD"]` |
 | 可管理角色 | 角色同步为资源，例如 `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
 | 可见菜单   | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
 
@@ -1235,8 +1235,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - 查询接口只返回权限事实和资源业务键，不查询 admin 域的组织、角色、菜单业务表。
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
-- AccessMesh 管理端中，`ADMIN_USER`/`ADMIN_ORG` 的 `resourceCode` 固定使用 admin 域本地主键字符串，避免与组织编码、用户名等可变业务字段混用。
-- AccessMesh 管理端中，ADMIN_USER/ADMIN_ORG 的 resourceCode 固定使用 admin 域本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
+- AccessMesh 管理端中，`USER`/`ORG` 的 `resourceCode` 固定使用 admin 域本地主键字符串（T-ACCESS-018 收敛后类型码），避免与组织编码、用户名等可变业务字段混用。
+- AccessMesh 管理端中，USER/ORG 的 resourceCode 固定使用 admin 域本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
 - `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量资源权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null；不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。

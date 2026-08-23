@@ -6,11 +6,13 @@ import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
+    /** 所有权防线（无状态）：USER/ORG/MENU 为公共类型后防本地投影接管外部行（评审 P1） */
+    private final LocalProjectionGuard localProjectionGuard = new LocalProjectionGuard();
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;
@@ -58,8 +62,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         // T-ORG-001（§12.2）：abstract_user.id 序列预取主体 ID，external_id 终态 = 主体 ID 字符串化，
         // 不能先插行再回填——本地用户由调用方以同一 N 显式插 sys_user(id=N)
         Long subjectId = abstractUserMapper.nextSubjectId();
@@ -87,8 +91,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled, String extraJson) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         String externalId = String.valueOf(sysUserId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -123,8 +127,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public void disableAdminUser(Long tenantId, Long sysUserId) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         String externalId = String.valueOf(sysUserId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -136,7 +140,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (resource != null) {
+        if (isOwnResource(resource)) {
             resource.setStatus(STATUS_DISABLED);
             resource.setUpdatedAt(now);
             resourceEntityMapper.update(resource);
@@ -145,8 +149,8 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public void deleteAdminUser(Long tenantId, Long sysUserId) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         String externalId = String.valueOf(sysUserId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -156,7 +160,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (resource != null) {
+        if (isOwnResource(resource)) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
     }
@@ -167,7 +171,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
                                String extraJson) {
         String roleTypeCode = resolveOrgRoleType(orgType);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_ORG);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ORG);
         String externalId = String.valueOf(sysOrgId);
         LocalDateTime now = LocalDateTime.now();
         int statusVal = status != null ? status : STATUS_ENABLED;
@@ -215,7 +219,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     public void deleteAdminOrg(Long tenantId, Long sysOrgId, String orgType) {
         String roleTypeCode = resolveOrgRoleType(orgType);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_ORG);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ORG);
         String externalId = String.valueOf(sysOrgId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -225,7 +229,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (resource != null) {
+        if (isOwnResource(resource)) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
     }
@@ -233,7 +237,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     @Override
     public Long upsertAdminMenu(Long tenantId, Long sysMenuId, String name, Long parentMenuId,
                                 Integer status, Integer sortOrder) {
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.MENU);
         String externalId = String.valueOf(sysMenuId);
         LocalDateTime now = LocalDateTime.now();
         int statusVal = status != null ? status : STATUS_ENABLED;
@@ -243,11 +247,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public void deleteAdminMenu(Long tenantId, Long sysMenuId) {
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.MENU);
         String externalId = String.valueOf(sysMenuId);
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (resource != null) {
+        if (isOwnResource(resource)) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), LocalDateTime.now());
         }
     }
@@ -302,7 +306,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long findAdminUserId(Long tenantId, Long sysUserId) {
-        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         AbstractUser user = abstractUserMapper.selectByTypeAndExternalId(
             tenantId, userType, String.valueOf(sysUserId));
         return user == null ? null : user.getId();
@@ -318,16 +322,24 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long findAdminMenuResourceId(Long tenantId, Long sysMenuId) {
-        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_MENU);
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.MENU);
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, String.valueOf(sysMenuId), CODE_TYPE_DEFAULT);
         return resource == null ? null : resource.getId();
+    }
+
+    /** 仅 owner=access-service 的行才是本地投影可操作的行（禁用/删除路径跳过外部行） */
+    private static boolean isOwnResource(ResourceEntity resource) {
+        return resource != null && LocalProjectionOwner.isLocalOwner(resource.getOwnerServiceCode());
     }
 
     private Long upsertResource(Long tenantId, Integer resourceType, String code, String name,
                                 Long parentId, int status, LocalDateTime now) {
         ResourceEntity existing = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, code, CODE_TYPE_DEFAULT);
+        // 公共类型（USER/ORG/MENU）下命中行可能属外部同步：fail-closed 拒绝接管，
+        // 不改写 owner、不留悬挂的 sync_metadata.target_id（评审 P1）
+        localProjectionGuard.rejectIfForeignResource(existing);
         if (existing == null) {
             ResourceEntity resource = new ResourceEntity();
             resource.setTenantId(tenantId);

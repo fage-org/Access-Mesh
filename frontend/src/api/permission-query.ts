@@ -11,14 +11,14 @@
  * 主体模型（核实 access-service 后端 PermissionQueryAppServiceImpl:126 / PermissionViewAppServiceImpl:698）：
  * - query-resources/query-scopes：仅支持用户主体（subjectTypeCode + subjectExternalId）
  * - effective-permissions/explain：支持 targetType=USER/ROLE
- *   - USER：subjectTypeCode（ADMIN_USER/USER）+ subjectExternalId
+ *   - USER：subjectTypeCode（LOCAL_USER/USER）+ subjectExternalId
  *   - ROLE：roleTypeCode（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）+ roleExternalId + domainCode
  *
  * 🔧 T-PERM-033 登记项（详见 docs/tasks/T-PERM-033.md）：
  * - 统一门禁 PERMISSION_QUERY:VIEW 全链路（资源类型常量+种子+默认角色授权+权限码下发白名单 UserMenuQueryServiceImpl；聚合层已取消）
  * - explain DTO 扩展（命中条件/条件评估过程/冲突详情 + 评估上下文来源 + IP/时间条件 + 敏感值脱敏）
  * - recentChanges 按完整权限键过滤（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
- * - ADMIN_USER/USER 主体来源与候选查询方式核对
+ * - LOCAL_USER/USER 主体来源与候选查询方式核对
  * - query-resources API 核对 + treeMode TODO + 全部 permission-view/* 契约差异
  */
 import { http } from "@/utils/http";
@@ -44,7 +44,7 @@ export interface SourceRole {
 /** effective-permissions 请求（管理端分页排查视图，支持 USER/ROLE） */
 export interface EffectivePermissionsReq {
   targetType: TargetType;
-  /** USER 分支：用户主体类型码（ADMIN_USER/USER） */
+  /** USER 分支：用户主体类型码（LOCAL_USER/USER） */
   subjectTypeCode?: string;
   /** USER 分支：用户外部 ID */
   subjectExternalId?: string;
@@ -109,7 +109,7 @@ export interface EffectivePermissionsResp {
 
 /** query-scopes 请求（范围权限四态，仅 USER 主体） */
 export interface QueryScopesReq {
-  /** 用户主体类型码（ADMIN_USER/USER） */
+  /** 用户主体类型码（LOCAL_USER/USER） */
   subjectTypeCode: string;
   /** 用户外部 ID */
   subjectExternalId: string;

@@ -33,21 +33,21 @@
 -- 种子数据：
 --   sys_oauth2_client 3 条（原样保留）
 --   system_config 9 条（原 sys_config 种子，键名保持现状）
---   type_definition 系统种子 36 行（user_type 3 + role_type 5 + resource_type 28；
---     type_value 为权威数值，与 RoleType/ResourceType 枚举一致；代码不硬编码数值，
---     运行时经 TypeResolutionService 动态解析；归档文档中 SERVICE=10 的历史数值作废重排）
---   operation_permission 139 条：28 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
---     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 112 条；DDL 直接种入的类型不会触发运行时
---     生成，必须在初始化阶段种入）+ 非预置扩展操作 15 条（原 seed-admin-operations.sql 16 条 +
---     seed-perm-operations.sql 1 条 = 17 条，其中 ADMIN_ORG:VIEW 与 ADMIN_USER:VIEW 两条与 CRUD
---     预置 VIEW 完全重复（同 code/bit/mask），合并时消除；其余 bit 从 16 起分配与 CRUD 不冲突）
---     + 权限中心运行时必需操作 12 条（代码实际校验的 MANAGE/ASSIGN/REVOKE/SYNC/
---     MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，缺失时权限引擎 fail-closed 全量拒绝）
+--   type_definition 系统种子 31 行（user_type 3 + role_type 5 + resource_type 23；
+--     type_value 为权威数值，按 T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，
+--     运行时经 TypeResolutionService 动态解析；退役值 16/17/18/19/22/28 不复用）
+--   operation_permission 117 条：23 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
+--     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 92 条；DDL 直接种入的类型不会触发运行时
+--     生成，必须在初始化阶段种入）+ 非预置扩展操作 13 条（ORG 六码同名同 bit 迁移自 ADMIN_ORG、
+--     USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、ADMIN_ROLE:GRANT/REVOKE 零消费者
+--     删除不迁移；bit 与 CRUD 不冲突）+ 权限中心运行时必需操作 12 条（代码实际校验的
+--     MANAGE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
+--     缺失时权限引擎 fail-closed 全量拒绝）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 --
--- type_value 终值分配表（T-ACCESS-016 定稿 2026-08-23；种子实际重编归 T-ACCESS-018，
--- 本注释是终态权威，届时 INSERT 按此重写，退役值不复用、后续新类型从 30 起顺延）：
+-- type_value 终值分配表（T-ACCESS-016 定稿 2026-08-23，T-ACCESS-018 已落地重编；
+-- 本注释是终态权威，INSERT 与本表一致，退役值不复用、后续新类型从 30 起顺延）：
 --   user_type（3 行）：USER=1 / SERVICE=2 / LOCAL_USER=3（原 ADMIN_USER 更名，值不变；
 --     主体来源语义，不再兼任资源类型；subjectTypeCode 与保留业务键 subject 侧同步更名，无兼容别名。
 --     保留业务键终态（T-ACCESS-016）：subject 侧 ADMIN_USER→LOCAL_USER；role 侧 ORG|POSITION 与
@@ -179,7 +179,7 @@ COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
 COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 摘要传输）';
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
 COMMENT ON COLUMN sys_user.status IS '状态：0=停用，1=启用';
-COMMENT ON COLUMN sys_user.user_type IS '用户类型（对应 type_definition user_type 的 type_value），默认 1=人员';
+COMMENT ON COLUMN sys_user.user_type IS '用户类型（对应 type_definition user_type 的 type_value），默认 1=人员（USER）；本地登录用户为 3=LOCAL_USER（主体 ID 与 abstract_user 同源，T-ORG-001）';
 COMMENT ON COLUMN sys_user.force_reset_pwd IS '是否需要强制修改密码（首次登录/管理员重置后）';
 COMMENT ON COLUMN sys_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
@@ -211,7 +211,7 @@ CREATE UNIQUE INDEX uk_org_code ON sys_org (tenant_id, code) WHERE delete_flag =
 CREATE INDEX idx_org_parent ON sys_org (tenant_id, parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_org_path ON sys_org (tenant_id, path) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ADMIN_ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission 域内部 ID';
+COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ORG resource_entity（管理权限，T-ACCESS-018 收敛，原 ADMIN_ORG 并入）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission 域内部 ID';
 COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，NULL=根节点';
 COMMENT ON COLUMN sys_org.org_type IS '组织类型标签（字典管理），仅分类用';
 COMMENT ON COLUMN sys_org.code IS '组织编码，租户内唯一';
@@ -639,21 +639,23 @@ COMMENT ON COLUMN type_definition.sort_order IS '排序';
 COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
--- 预置类型种子（tenant 1；type_value 为权威数值，详见文件头说明与文件头 type_value 终值分配表——
--- T-ACCESS-016 定稿收敛映射由 T-ACCESS-018 实施重编，当前 INSERT 仍为收敛前现状）
+-- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
+-- T-ACCESS-016 定稿收敛映射，T-ACCESS-018 重编：五组 ADMIN_* 管理类型并入既有公共类型、
+-- ADMIN_SYNC_TASK 删除、user_type ADMIN_USER 更名 LOCAL_USER、ORG 取新值 29）
 INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
-    -- user_type（USER=外部人员 / SERVICE=外部服务 / ADMIN_USER=本地管理用户，
-    --   access.application 本地投影以 ADMIN_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
-    (1, 'user_type', 'USER',       1, '人员', true, 1, 0, now(), now()),
-    (1, 'user_type', 'SERVICE',    2, '服务', true, 2, 0, now(), now()),
-    (1, 'user_type', 'ADMIN_USER', 3, '本地管理用户', true, 3, 0, now(), now()),
+    -- user_type（USER=外部人员 / SERVICE=外部服务 / LOCAL_USER=本地访问主体，
+    --   access.application 本地投影以 LOCAL_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
+    (1, 'user_type', 'USER',        1, '人员', true, 1, 0, now(), now()),
+    (1, 'user_type', 'SERVICE',     2, '服务', true, 2, 0, now(), now()),
+    (1, 'user_type', 'LOCAL_USER',  3, '本地用户', true, 3, 0, now(), now()),
     -- role_type（RoleType 枚举权威值：4 留空不可用）
     (1, 'role_type', 'ORG',        1, '组织',     true, 1, 0, now(), now()),
     (1, 'role_type', 'POSITION',   2, '职位',     true, 2, 0, now(), now()),
     (1, 'role_type', 'PERSONAL',   3, '个人',     true, 3, 0, now(), now()),
     (1, 'role_type', 'GROUP_ROLE', 5, '分组角色', true, 5, 0, now(), now()),
     (1, 'role_type', 'BASIC_ROLE', 6, '基本角色', true, 6, 0, now(), now()),
-    -- resource_type（ResourceType 枚举权威值 1-4，其余按 ResourceTypeCode/AdminResourceType 声明顺序）
+    -- resource_type（T-ACCESS-016 §13.1 终态 23 个：五组管理类型已并入 USER/ROLE/MENU/
+    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；退役值 16/17/18/19/22/28 不复用）
     (1, 'resource_type', 'MENU',                1,  '菜单',         true,  1, 0, now(), now()),
     (1, 'resource_type', 'BUTTON',              2,  '按钮',         true,  2, 0, now(), now()),
     (1, 'resource_type', 'API',                 3,  'API接口',      true,  3, 0, now(), now()),
@@ -669,19 +671,14 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'resource_type', 'CONDITION',          13,  '权限条件',     true, 13, 0, now(), now()),
     (1, 'resource_type', 'CONFLICT_RULE',      14,  '冲突规则',     true, 14, 0, now(), now()),
     (1, 'resource_type', 'DEPENDENCY',         15,  '资源依赖',     true, 15, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_USER',         16,  '用户管理',     true, 16, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_ORG',          17,  '组织管理',     true, 17, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_ROLE',         18,  '角色管理',     true, 18, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_MENU',         19,  '菜单管理',     true, 19, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_DICT',         20,  '字典类型',     true, 20, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_DICT_DATA',    21,  '字典数据',     true, 21, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_CONFIG',       22,  '系统配置',     true, 22, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_OAUTH2_CLIENT', 23, 'OAuth2客户端', true, 23, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_NOTICE',       24,  '通知公告',     true, 24, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_FILE',         25,  '文件管理',     true, 25, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_JOB',          26,  '定时任务',     true, 26, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_ORG_TREE_CONFIG', 27, '组织树配置', true, 27, 0, now(), now()),
-    (1, 'resource_type', 'ADMIN_SYNC_TASK',    28,  '同步任务',     true, 28, 0, now(), now());
+    (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -825,7 +822,7 @@ COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 
--- 静态资源类型 CRUD 预置种子（112 条 = 28 个 resource_type × CREATE/VIEW/UPDATE/DELETE）：
+-- 静态资源类型 CRUD 预置种子（92 条 = 23 个 resource_type × CREATE/VIEW/UPDATE/DELETE）：
 -- DDL 直接种入的 resource_type 不会触发运行时自动生成（当前应用亦无该生成逻辑），
 -- 必须在初始化阶段种入；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
@@ -840,23 +837,22 @@ CROSS JOIN (VALUES
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
--- 非预置操作码种子（原 seed-admin-operations.sql 16 条 + seed-perm-operations.sql 1 条 = 17 条，
--- 其中 ADMIN_ORG:VIEW / ADMIN_USER:VIEW 与 CRUD 预置 VIEW 完全重复（同 code/bit/mask），
--- 合并时消除 → 实际 15 条；binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
--- ADMIN_ORG(17)：岗位 CRUD 精化 + 成员关系（普通组织 VIEW 由 CRUD 预置覆盖）
+-- 非预置操作码种子（13 条，按 T-ACCESS-016 §13.3 bit 终值表随类型收敛重新归属；
+-- ADMIN_ORG 六码同名同 bit 迁移 ORG(29)、ADMIN_USER 两码迁 USER(6)（ENABLE bit 16→32 重分配，
+-- USER 下 16 已被 MANAGE 占用）、ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；
+-- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
+-- ORG(29)：岗位 CRUD 精化 + 成员关系（普通组织 VIEW 由 CRUD 预置覆盖）
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
-    (1, 17, 'CREATE_POSITION',     '创建岗位',       16,  2, 0, 0, 0),
-    (1, 17, 'UPDATE_POSITION',     '编辑/移动/启停岗位', 32, 2, 0, 0, 0),
-    (1, 17, 'DELETE_POSITION',     '删除岗位',       64,  2, 0, 0, 0),
-    (1, 17, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
-    (1, 17, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
-    (1, 17, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
-    -- ADMIN_USER(16)：启停 + 重置密码（用户列表查看由 CRUD 预置 VIEW 覆盖）
-    (1, 16, 'ENABLE',              '启用/禁用用户',  16,  2, 0, 0, 0),
-    (1, 16, 'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
-    -- ADMIN_ROLE(18)：授权/撤销
-    (1, 18, 'GRANT',               '授权',           16,  2, 0, 0, 0),
-    (1, 18, 'REVOKE',              '撤销权限',       32,  2, 0, 0, 0),
+    (1, 29, 'CREATE_POSITION',     '创建岗位',       16,  2, 0, 0, 0),
+    (1, 29, 'UPDATE_POSITION',     '编辑/移动/启停岗位', 32, 2, 0, 0, 0),
+    (1, 29, 'DELETE_POSITION',     '删除岗位',       64,  2, 0, 0, 0),
+    (1, 29, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
+    (1, 29, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
+    (1, 29, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
+    -- USER(6)：启停 + 重置密码（bit 重分配：USER 下 16 被 MANAGE 占用，ENABLE 取 32；
+    -- 用户列表查看由 CRUD 预置 VIEW 覆盖）
+    (1, 6,  'ENABLE',              '启用/禁用用户',  32,  2, 0, 0, 0),
+    (1, 6,  'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
     -- ADMIN_NOTICE(24)：发布公告
     (1, 24, 'PUBLISH',             '发布公告',       16,  2, 0, 0, 0),
     -- ADMIN_JOB(26)：启停任务 + 触发执行
@@ -929,9 +925,9 @@ CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE del
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象可通过扩展资源类型（如 ADMIN_USER/ADMIN_ORG）建模实例级权限';
+COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；本地投影行 owner_service_code=access-service 按所有权保护（外部 sync mutation 前置拒绝，architecture §4.3）';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
-COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 外，租户可通过 type_definition 扩展 ADMIN_USER、ADMIN_ORG 等管理资源类型';
+COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 等公共基础类型外，租户可通过 type_definition 扩展管理资源类型（T-ACCESS-016 §13.1 终态注册表 23 个）';
 COMMENT ON COLUMN resource_entity.code IS '资源编码';
 COMMENT ON COLUMN resource_entity.code_type IS '编码类型，默认 "default"；同一资源不同编码体系用不同 code_type 区分';
 COMMENT ON COLUMN resource_entity.name IS '名称';

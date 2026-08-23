@@ -13,7 +13,7 @@ import java.util.Map;
  */
 public record AuthCheckReq(
     /**
-     * 主体类型码，如 "ADMIN_USER"
+     * 主体类型码，如 "LOCAL_USER"
      */
     @NotBlank String subjectTypeCode,
     /**
@@ -21,7 +21,7 @@ public record AuthCheckReq(
      */
     @NotBlank String subjectExternalId,
     /**
-     * 资源类型码，如 "ADMIN_USER"、"ADMIN_ORG"
+     * 资源类型码，如 "USER"、"ORG"
      */
     @NotBlank String resourceTypeCode,
     /**

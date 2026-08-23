@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.application.query.impl;
 
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.application.query.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
@@ -22,7 +22,7 @@ import java.util.Set;
  * 组织可见性查询实现（跨域只读）。
  * <p>
  * 组织树与组织树配置读取经 {@link OrgVisibilityQueryMapper}，操作者主体解析与
- * ADMIN_ORG:VIEW 判定经 {@link TypeResolutionService} / {@link PermQueryEngine}；
+ * ORG:VIEW 判定经 {@link TypeResolutionService} / {@link PermQueryEngine}；
  * 默认树可见范围按操作者缓存（ORG_VISIBILITY 目录，L2_ONLY，租户级失效由
  * PermissionChangeAspect 统一执行）。
  * </p>
@@ -56,7 +56,7 @@ public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService 
             return Set.of();
         }
         Long userId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(operatorId));
+            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
         if (userId == null) {
             return Set.of();
         }
@@ -66,7 +66,7 @@ public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService 
             .map(String::valueOf)
             .collect(java.util.stream.Collectors.toSet());
         Set<String> deniedOrgCodes = engine.getDeniedResourceCodes(
-            tenantId, userId, AdminResourceType.ORG, orgCodes, OPERATION_VIEW);
+            tenantId, userId, ResourceTypeCode.ORG, orgCodes, OPERATION_VIEW);
         Set<Long> visible = new LinkedHashSet<>();
         for (Long orgId : orgIds) {
             if (!deniedOrgCodes.contains(String.valueOf(orgId))) {

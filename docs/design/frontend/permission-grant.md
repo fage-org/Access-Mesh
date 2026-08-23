@@ -424,7 +424,7 @@ interface MatrixContext {
 
 | 能力                          | 门控                                                                           | 降级                           |
 | ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------ |
-| 左栏数据源（组织树/用户列表） | ADMIN_ORG:VIEW / ADMIN_USER:VIEW（沿用 2.1 页数据源门禁，perms.ts 现有权限码） | 左栏不可见/占位                |
+| 左栏数据源（组织树/用户列表） | ORG:VIEW / USER:VIEW（沿用 2.1 页数据源门禁，perms.ts 现有权限码） | 左栏不可见/占位                |
 | 矩阵查看（两入口）            | ROLE:VIEW（目标抽象角色）                                                      | 无权占位                       |
 | 授权/撤销（两入口）           | ROLE:MANAGE（目标抽象角色）                                                    | 按钮禁用 + tooltip             |
 | 条件选择/复制条件            | 无门禁（🔧 2026-08-08 产品确认：条件查看无需权限控制；后端 `condition/list` 无 VIEW 校验，T-PERM-029 待办 4 取消） | 始终可用，不置灰 |
@@ -432,7 +432,7 @@ interface MatrixContext {
 | 操作列                        | OPERATION:VIEW                                                                 | 操作列不可见                   |
 | 权限详情                      | ROLE:VIEW                                                                      | 分支、来源与子权限只读展示     |
 
-> 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ADMIN_ORG:VIEW` / `ADMIN_USER:VIEW` / 岗位 `ADMIN_ORG:VIEW_POSITION`，admin-service 数据，对齐 frontend `user/utils/perms.ts`）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` L152/482/520/587/748）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
+> 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ORG:VIEW` / `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，对齐 frontend `user/utils/perms.ts`；T-ACCESS-018 类型收敛后权限串）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` L152/482/520/587/748）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
 > 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——待个人 `abstract_role` 同步链路建成后恢复（§12 注）。
 
 > **已知缺口（2026-08-07 记录，暂不修改）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），但本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**决策：全链路未打通前不做处理**（mock 不校验权限，开发不受阻）；联调任务 T-FE-018 汇合时评估：为授权页声明 `TYPE_DEFINITION:VIEW` 只读依赖（perms.ts 门控 + 缺权限明确提示 + mock 角色矩阵补权限串），或由后端提供免类型管理权限的候选来源。

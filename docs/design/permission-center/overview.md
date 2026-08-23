@@ -77,10 +77,10 @@ AccessMesh 管理端的用户与组织需要使用以下资源建模：
 
 | 管理对象 | 资源建模 | 说明 |
 |----------|----------|------|
-| 被管理用户 | `resource_entity(resourceTypeCode=ADMIN_USER, resourceCode=sys_user.id)` | 支撑 `ADMIN_USER:{userId}` 的更新、删除、启停、重置密码等实例级校验。 |
-| 被管理组织/岗位 | `resource_entity(resourceTypeCode=ADMIN_ORG, resourceCode=sys_org.id)` | 支撑 `ADMIN_ORG:{orgId}` 的组织 CRUD、成员管理和可管理组织查询。 |
+| 被管理用户 | `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)` | 支撑 `USER:{userId}` 的更新、删除、启停、重置密码等实例级校验（T-ACCESS-018 收敛：原 ADMIN_USER 并入 USER）。 |
+| 被管理组织/岗位 | `resource_entity(resourceTypeCode=ORG, resourceCode=sys_org.id)` | 支撑 `ORG:{orgId}` 的组织 CRUD、成员管理和可管理组织查询（原 ADMIN_ORG 并入）。 |
 
-注意：`abstract_user` 只表示访问主体，不能替代 `ADMIN_USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ADMIN_ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知 permission 域内部主键。
+注意：`abstract_user` 只表示访问主体，不能替代 `USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知 permission 域内部主键。
 
 ## 资源依赖
 

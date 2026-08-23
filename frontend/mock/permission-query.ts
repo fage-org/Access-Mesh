@@ -110,7 +110,7 @@ interface PermissionGrant {
 const ok = (data: unknown) => ({ code: 200, message: "success", data });
 
 // 已知主体（复合键）：
-// - 用户：(ADMIN_USER, u-10001)
+// - 用户：(LOCAL_USER, u-10001)
 // - 角色：(example, BASIC_ROLE, role_report_viewer)
 // 域：example（report:sales / data:*）/ finance（report:finance）/ hr（report:hr）
 // 资源类型：REPORT / DATA
@@ -158,7 +158,7 @@ const SOURCE_ROLE_AUDITOR: SourceRole = {
 
 // ========== 统一授权事实表 ==========
 
-/** USER (ADMIN_USER, u-10001) 有效授权事实（13 条 grant，派生 8 条 EffectivePermissionItem） */
+/** USER (LOCAL_USER, u-10001) 有效授权事实（13 条 grant，派生 8 条 EffectivePermissionItem） */
 const userGrants: PermissionGrant[] = [
   {
     permissionId: 200,
@@ -385,7 +385,7 @@ const roleGrants: PermissionGrant[] = [
 // ========== 主体键解析（P1 修复：复合键） ==========
 
 const KNOWN_USER = {
-  subjectTypeCode: "ADMIN_USER",
+  subjectTypeCode: "LOCAL_USER",
   subjectExternalId: "u-10001"
 };
 const KNOWN_ROLE = {

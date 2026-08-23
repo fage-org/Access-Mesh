@@ -50,13 +50,13 @@ class PermissionViewControllerTest {
     @Test
     @DisplayName("effective-permission-codes 转发到带门禁方法（getEffectivePermissionCodesForManage），而非无门禁内部方法")
     void getEffectivePermissionCodes_delegatesToGuardedMethod() {
-        UserEffectivePermissionCodesReq req = new UserEffectivePermissionCodesReq("ADMIN_USER", "100", List.of("ADMIN_USER"));
+        UserEffectivePermissionCodesReq req = new UserEffectivePermissionCodesReq("LOCAL_USER", "100", List.of("USER"));
         when(permissionViewAppService.getEffectivePermissionCodesForManage(eq(TENANT), eq(req)))
-            .thenReturn(new UserEffectivePermissionCodesResp(List.of("ADMIN_USER:VIEW")));
+            .thenReturn(new UserEffectivePermissionCodesResp(List.of("USER:VIEW")));
 
         PermResult<UserEffectivePermissionCodesResp> result = controller.getEffectivePermissionCodes(req);
 
-        assertEquals(List.of("ADMIN_USER:VIEW"), result.getData().permissions());
+        assertEquals(List.of("USER:VIEW"), result.getData().permissions());
         verify(permissionViewAppService).getEffectivePermissionCodesForManage(eq(TENANT), eq(req));
     }
 }

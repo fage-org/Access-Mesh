@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * <p>
  * 前端传入业务键（userId + roleTypeCode + roleExternalId），
  * 代理层直接透传给 access-service，无需 ID → 业务键翻译。
- * 门禁：ADMIN_ROLE:GRANT（对目标角色做实例级校验）。
+ * 门禁：ROLE:MANAGE（接口已随 T-ACCESS-006 退役恒抛 10111，现行链路 /api/perm/user-role/assign，permission 域 enforce）。
  * <p>
  * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.2
  *

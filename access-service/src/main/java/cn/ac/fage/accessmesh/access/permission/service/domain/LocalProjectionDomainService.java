@@ -15,7 +15,7 @@ public interface LocalProjectionDomainService {
 
     /**
      * 创建本地用户主体链（T-ORG-001，architecture §12.2）：预取主体 ID N 后显式写
-     * abstract_user(id=N, external_id=N, ADMIN_USER) + resource_entity(ADMIN_USER, code=N)。
+     * abstract_user(id=N, external_id=N, LOCAL_USER) + resource_entity(USER, code=N)。
      * <p>
      * 调用方（access.application 用户创建编排）随后以同一 N 写 sys_user(id=N)——
      * 本方法只负责主体侧，不写 admin 域事实。与外部主体（仅 abstract_user 自增取号）
@@ -27,24 +27,24 @@ public interface LocalProjectionDomainService {
     Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson);
 
     /**
-     * UPSERT abstract_user(ADMIN_USER) + resource_entity(ADMIN_USER)。
+     * UPSERT abstract_user(LOCAL_USER) + resource_entity(USER)。
      *
      * @return abstract_user.id
      */
     Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled, String extraJson);
 
     /**
-     * 停用 abstract_user 与 ADMIN_USER 资源。
+     * 停用 abstract_user 与 USER 资源。
      */
     void disableAdminUser(Long tenantId, Long sysUserId);
 
     /**
-     * 软删除 abstract_user 与 ADMIN_USER 资源。
+     * 软删除 abstract_user 与 USER 资源。
      */
     void deleteAdminUser(Long tenantId, Long sysUserId);
 
     /**
-     * UPSERT abstract_role(ORG|POSITION) + resource_entity(ADMIN_ORG)。
+     * UPSERT abstract_role(ORG|POSITION) + resource_entity(ORG)。
      *
      * @param parentOrgType 父节点实际 orgType（POSITION 子节点的父通常为 ORG， 修复：
      *                      按父节点实际类型解析父角色，避免 POSITION 子节点查 ORG 父角色失败；
@@ -55,12 +55,12 @@ public interface LocalProjectionDomainService {
                         Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder, String extraJson);
 
     /**
-     * 软删除组织角色与 ADMIN_ORG 资源。
+     * 软删除组织角色与 ORG 资源。
      */
     void deleteAdminOrg(Long tenantId, Long sysOrgId, String orgType);
 
     /**
-     * UPSERT resource_entity(ADMIN_MENU)。DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值
+     * UPSERT resource_entity(MENU)。DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值
      * 全量维护（v3.5 无 BUTTON 短路，T-ACCESS-015）。
      *
      * @return resource_entity.id
@@ -69,7 +69,7 @@ public interface LocalProjectionDomainService {
                          Integer status, Integer sortOrder);
 
     /**
-     * 软删除 ADMIN_MENU 资源。
+     * 软删除 MENU 资源。
      */
     void deleteAdminMenu(Long tenantId, Long sysMenuId);
 
@@ -117,19 +117,19 @@ public interface LocalProjectionDomainService {
                                       Long oldRelationOrgId, Long newRelationOrgId);
 
     /**
-     * 批量软删 abstract_user 与 ADMIN_USER 资源（按 sys_user.id 定位）。
+     * 批量软删 abstract_user 与 USER 资源（按 sys_user.id 定位）。
      * 一次批量加载 + 一次批量软删，消除删除路径循环单条 deleteAdminUser 的 N+1。
      */
     void batchDeleteAdminUsers(Long tenantId, Set<Long> sysUserIds);
 
     /**
-     * 批量停用 abstract_user 与 ADMIN_USER 资源（按 sys_user.id 定位）。
+     * 批量停用 abstract_user 与 USER 资源（按 sys_user.id 定位）。
      * 批量加载 + 批量状态更新（2 条 SQL），消除启停路径循环单条 disable 的 N+1。
      */
     void batchDisableAdminUsers(Long tenantId, Set<Long> sysUserIds);
 
     /**
-     * 批量 UPSERT abstract_user(ADMIN_USER) + resource_entity(ADMIN_USER)。
+     * 批量 UPSERT abstract_user(LOCAL_USER) + resource_entity(USER)。
      * 批量加载已有投影，新行 insertBatch（插入后批量回查主键），已有行更新；
      * 消除启用路径循环单条 upsert 的 N+1。
      *
@@ -172,7 +172,7 @@ public interface LocalProjectionDomainService {
     Long findAdminOrgRoleId(Long tenantId, Long sysOrgId, String orgType);
 
     /**
-     * 按 sys_menu.id 定位 resource_entity.id（ADMIN_MENU 投影主键），供变更日志 entityId 使用。
+     * 按 sys_menu.id 定位 resource_entity.id（MENU 投影主键），供变更日志 entityId 使用。
      */
     Long findAdminMenuResourceId(Long tenantId, Long sysMenuId);
 }

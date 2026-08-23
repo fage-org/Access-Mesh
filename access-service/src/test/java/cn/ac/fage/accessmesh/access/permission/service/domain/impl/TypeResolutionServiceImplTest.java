@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
  * 类型解析服务单元测试（T-ACCESS-017 特征测试·链路 2：sys_user.id → abstract_user.id 映射）。
  * <p>
  * 固化 {@code TypeResolutionServiceImpl.resolveUserId} 的当前正确行为：
- * ADMIN_USER 类型经 type_definition 解析 user_type 值后，
+ * LOCAL_USER 类型经 type_definition 解析 user_type 值后，
  * 按 {@code abstract_user.external_id = sys_user.id.toString()} 定位投影主体；
  * 类型未定义或投影缺失时返回 null（调用方 fail-closed），且 null 不回填缓存。
  * 真实 SQL 语义（uk_abstract_user 部分唯一索引、软删过滤）由
@@ -39,8 +39,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TypeResolutionServiceImplTest {
 
-    /** type_definition 种子：user_type / ADMIN_USER = 3（docs/design/schema/access-service.sql） */
-    private static final Integer ADMIN_USER_TYPE_VALUE = 3;
+    /** type_definition 种子：user_type / LOCAL_USER = 3（docs/design/schema/access-service.sql） */
+    private static final Integer LOCAL_USER_TYPE_VALUE = 3;
 
     @Mock private TypeDefinitionMapper typeDefinitionMapper;
     @Mock private AbstractUserMapper abstractUserMapper;
@@ -72,20 +72,20 @@ class TypeResolutionServiceImplTest {
     }
 
     @Test
-    @DisplayName("resolveUserId：ADMIN_USER 外部ID（sys_user.id 字符串）解析为 abstract_user.id")
+    @DisplayName("resolveUserId：LOCAL_USER 外部ID（sys_user.id 字符串）解析为 abstract_user.id")
     void resolveUserIdShouldMapAdminUserExternalIdToSubjectId() {
         TypeDefinition td = new TypeDefinition();
         td.setTypeKey("user_type");
-        td.setTypeCode("ADMIN_USER");
-        td.setTypeValue(ADMIN_USER_TYPE_VALUE);
+        td.setTypeCode("LOCAL_USER");
+        td.setTypeValue(LOCAL_USER_TYPE_VALUE);
 
         AbstractUser projection = new AbstractUser();
         projection.setId(501L);
 
-        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "ADMIN_USER")).thenReturn(td);
-        when(abstractUserMapper.selectByTypeAndExternalId(1L, ADMIN_USER_TYPE_VALUE, "9")).thenReturn(projection);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "LOCAL_USER")).thenReturn(td);
+        when(abstractUserMapper.selectByTypeAndExternalId(1L, LOCAL_USER_TYPE_VALUE, "9")).thenReturn(projection);
 
-        Long subjectId = service.resolveUserId(1L, "ADMIN_USER", "9");
+        Long subjectId = service.resolveUserId(1L, "LOCAL_USER", "9");
 
         assertEquals(501L, subjectId);
     }
@@ -108,29 +108,29 @@ class TypeResolutionServiceImplTest {
     @DisplayName("resolveUserId：投影中不存在该外部ID时返回 null")
     void resolveUserIdShouldReturnNullWhenProjectionMissing() {
         TypeDefinition td = new TypeDefinition();
-        td.setTypeValue(ADMIN_USER_TYPE_VALUE);
+        td.setTypeValue(LOCAL_USER_TYPE_VALUE);
 
-        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "ADMIN_USER")).thenReturn(td);
-        when(abstractUserMapper.selectByTypeAndExternalId(1L, ADMIN_USER_TYPE_VALUE, "404")).thenReturn(null);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "LOCAL_USER")).thenReturn(td);
+        when(abstractUserMapper.selectByTypeAndExternalId(1L, LOCAL_USER_TYPE_VALUE, "404")).thenReturn(null);
 
-        assertNull(service.resolveUserId(1L, "ADMIN_USER", "404"));
+        assertNull(service.resolveUserId(1L, "LOCAL_USER", "404"));
     }
 
     @Test
     @DisplayName("resolveUserId：user_type 解析值经类型缓存目录回填（TYPE_VALUE）")
     void resolveUserIdShouldBackfillTypeValueCacheOnMiss() {
         TypeDefinition td = new TypeDefinition();
-        td.setTypeValue(ADMIN_USER_TYPE_VALUE);
+        td.setTypeValue(LOCAL_USER_TYPE_VALUE);
 
-        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "ADMIN_USER")).thenReturn(td);
-        when(abstractUserMapper.selectByTypeAndExternalId(eq(1L), eq(ADMIN_USER_TYPE_VALUE), any()))
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "user_type", "LOCAL_USER")).thenReturn(td);
+        when(abstractUserMapper.selectByTypeAndExternalId(eq(1L), eq(LOCAL_USER_TYPE_VALUE), any()))
             .thenReturn(null);
 
-        service.resolveUserId(1L, "ADMIN_USER", "9");
+        service.resolveUserId(1L, "LOCAL_USER", "9");
 
         var tokenCaptor = org.mockito.ArgumentCaptor.forClass(
             cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
-        verify(cacheService).put(tokenCaptor.capture(), eq(1L), eq("user_type:ADMIN_USER"), any());
+        verify(cacheService).put(tokenCaptor.capture(), eq(1L), eq("user_type:LOCAL_USER"), any());
         assertEquals(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE,
             tokenCaptor.getValue().catalog());
     }

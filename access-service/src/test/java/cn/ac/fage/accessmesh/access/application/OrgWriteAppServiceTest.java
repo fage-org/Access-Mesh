@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
@@ -143,7 +143,7 @@ class OrgWriteAppServiceTest {
         when(orgDomainService.selectValidById(TENANT, 20L)).thenReturn(newParent);
         // lenient：org 自身 UPDATE 校验（"10"）先执行，与新父级 stub（"20"）参数不同，strict 模式需放宽
         org.mockito.Mockito.lenient().doThrow(new SecurityException("denied"))
-            .when(permissionValidator).checkInstanceLevel(eq(AdminResourceType.ORG), eq("20"), anyString());
+            .when(permissionValidator).checkInstanceLevel(eq(ResourceTypeCode.ORG), eq("20"), anyString());
 
         assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 20L, null, null, null)))
             .isInstanceOf(SecurityException.class);
@@ -255,7 +255,7 @@ class OrgWriteAppServiceTest {
         when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
         // lenient：自身 CREATE 校验（类型级）先执行；父 UPDATE 门禁在树校验前抛异常（tree stub 无需）
         org.mockito.Mockito.lenient().doThrow(new SecurityException("denied"))
-            .when(permissionValidator).checkInstanceLevel(eq(AdminResourceType.ORG), eq("999"), anyString());
+            .when(permissionValidator).checkInstanceLevel(eq(ResourceTypeCode.ORG), eq("999"), anyString());
 
         assertThatThrownBy(() -> service.createOrg(orgCreateReq(999L)))
             .isInstanceOf(SecurityException.class);
@@ -299,7 +299,7 @@ class OrgWriteAppServiceTest {
         service.createOrg(orgCreateReq(999L));
 
         verify(permissionValidator, never()).checkTypeLevel(anyString(), anyString());
-        verify(permissionValidator).checkInstanceLevel(eq(AdminResourceType.ORG), eq("999"), anyString());
+        verify(permissionValidator).checkInstanceLevel(eq(ResourceTypeCode.ORG), eq("999"), anyString());
     }
 
     @Test
@@ -316,7 +316,7 @@ class OrgWriteAppServiceTest {
 
         service.createOrg(new cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq(1, "新组织", null, "NEW", 1, 1));
 
-        verify(permissionValidator).checkTypeLevel(eq(AdminResourceType.ORG), anyString());
+        verify(permissionValidator).checkTypeLevel(eq(ResourceTypeCode.ORG), anyString());
         verify(permissionValidator, never()).checkInstanceLevel(anyString(), anyString(), anyString());
     }
 

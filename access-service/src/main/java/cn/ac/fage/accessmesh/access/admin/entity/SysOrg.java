@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 
 /**
  * 统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系。
- * 组织/岗位同步为 ADMIN_ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 access-service 内部 ID。
+ * 组织/岗位同步为 ORG resource_entity（管理权限）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 access-service 内部 ID。
  */
 @Getter
 @Setter

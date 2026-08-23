@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.admin.security.AdminResourceType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.admin.service.OrgService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * <p>
  * Provides CRUD and tree query for orgs/positions. Writes delegate to
  * {@code OrgWriteAppService} which maintains the ORG/POSITION projection (abstract_role +
- * ADMIN_ORG resource_entity) in the same transaction, keyed by business keys.
+ * ORG resource_entity) in the same transaction, keyed by business keys.
  *
  * @implNote v1.4 起所有读接口（{@link #getOrg}、{@link #pageOrgs}、{@link #treeOrgs}、{@link #listOrgUsers}）
  *           必须经过 {@code permissionValidator} 门禁；按 orgType 分发 VIEW / VIEW_POSITION，
@@ -101,7 +101,7 @@ public class OrgServiceImpl implements OrgService {
 
         // D1=A 实例级 VIEW，按 orgType 分发到 VIEW / VIEW_POSITION
         permissionValidator.checkInstanceLevel(
-            AdminResourceType.ORG,
+            ResourceTypeCode.ORG,
             String.valueOf(id),
             OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.VIEW)
         );
@@ -120,7 +120,7 @@ public class OrgServiceImpl implements OrgService {
 
         // 类型级 VIEW，按 orgType 分发
         permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG,
+            ResourceTypeCode.ORG,
             OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
         );
 
@@ -164,7 +164,7 @@ public class OrgServiceImpl implements OrgService {
 
         // 类型级 VIEW，按 orgType 分发
         permissionValidator.checkTypeLevel(
-            AdminResourceType.ORG,
+            ResourceTypeCode.ORG,
             OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
         );
 
@@ -178,7 +178,7 @@ public class OrgServiceImpl implements OrgService {
 
         // D3=A 组织成员列表归属 USER:VIEW（契约 §4 B 区：「看成员 = 看用户」），
         // 与组织实例的 VIEW / VIEW_POSITION 解耦
-        permissionValidator.checkTypeLevel(AdminResourceType.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
 
         cn.ac.fage.accessmesh.access.admin.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.access.admin.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
         com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()

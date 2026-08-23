@@ -23,7 +23,7 @@ last_reviewed: 2026-07-26
 | `ORG` / `POSITION` | 组织投影自动生成（`access.application` 同事务维护，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口二期） |
 | `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema access-service.sql `abstract_role` 注释） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
 
-**设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ADMIN_ORG`/`ADMIN_USER`）。
+**设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ORG`/`USER` 资源类型）。
 
 - **本页可 CRUD**：BASIC_ROLE / GROUP_ROLE（`MANAGEABLE_ROLE_TYPES`）。
 - **配权入口已恢复（T-FE-036，2026-08-02）**：角色信息卡片提供「权限授予」按钮（`ROLE:VIEW` 门控），跳转 `/perm/grant?subjectType=ROLE`；BASIC_ROLE 携带 `roleExternalId` 预选，GROUP_ROLE 到授予页展开选择基础角色。本页不内嵌配权矩阵。

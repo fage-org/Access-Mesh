@@ -31,18 +31,28 @@ class LocalProjectionGuardTest {
     }
 
     @Test
-    @DisplayName("保留业务键 ADMIN_USER / ORG / ADMIN_MENU / SYS_USER_ORG 拒绝")
+    @DisplayName("保留业务键 LOCAL_USER / ORG / USER|ORG|MENU（管理入口清单）/ SYS_USER_ORG 拒绝")
     void rejectReservedKeys() {
-        assertThatThrownBy(() -> guard.rejectReservedSubjectType("ADMIN_USER"))
+        assertThatThrownBy(() -> guard.rejectReservedSubjectType("LOCAL_USER"))
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedRoleType("ORG"))
             .isInstanceOf(BizException.class);
-        assertThatThrownBy(() -> guard.rejectReservedResourceType("ADMIN_MENU"))
+        assertThatThrownBy(() -> guard.rejectReservedRoleType("POSITION"))
+            .isInstanceOf(BizException.class);
+        // 管理入口类型保留清单 {USER, ORG, MENU}（T-ACCESS-018 换值；仅人工建资源入口使用，
+        // 外部 sync 不再调用本清单——本地投影行改按所有权保护）
+        assertThatThrownBy(() -> guard.rejectReservedResourceType("USER"))
+            .isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> guard.rejectReservedResourceType("ORG"))
+            .isInstanceOf(BizException.class);
+        assertThatThrownBy(() -> guard.rejectReservedResourceType("MENU"))
             .isInstanceOf(BizException.class);
         assertThatThrownBy(() -> guard.rejectReservedUserRoleSource("SYS_USER_ORG"))
             .isInstanceOf(BizException.class);
         assertDoesNotThrow(() -> guard.rejectReservedSubjectType("USER"));
+        assertDoesNotThrow(() -> guard.rejectReservedSubjectType("ADMIN_USER"));
         assertDoesNotThrow(() -> guard.rejectReservedRoleType("BASIC_ROLE"));
+        assertDoesNotThrow(() -> guard.rejectReservedResourceType("ADMIN_DICT"));
     }
 
     @Test
