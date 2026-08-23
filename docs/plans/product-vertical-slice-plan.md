@@ -140,7 +140,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | ID | 标题 | 状态 | 直接依赖 | 里程碑 |
 |---|---|---|---|---|
 | [T-ACCESS-016](../tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约 + 首管理员权限模型） | ✅ | — | A |
-| [T-ACCESS-017](../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ⚙️ | — | A |
+| [T-ACCESS-017](../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ✅ | — | A |
 | [T-PERM-042](../tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | ⚙️ | T-ACCESS-016, T-ACCESS-017 | A |
 | [T-ORG-001](../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ⚙️ | T-PERM-042 | A |
 | [T-ACCESS-018](../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ⚙️ | T-ORG-001 | A |
@@ -176,3 +176,4 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 - 2026-08-23 契约修订：真实登录契约补全（LoginReq 四要素+验证码强校验、tenantId=1/clientId=admin-web、expiresIn 转绝对时间、不接刷新令牌、复用 _envelope.unwrap 不改全局解包、删默认账号密码）；Gateway 唯一外部路径约定（/auth/**、/admin/**、/perm/api/perm/**、/example/**，vite 同路径转发，仅切换登录+授权页消费模块）；bootstrap 管理 API 清单补授权页初始化读接口；幂等口径统一（业务键 create/no-op、占用即 fail-fast、专用写入组件不加公开无操作者入口）；导航口径改"里程碑 A 只显示冒烟通过的页面"；测试要求改最小适用层；CI 证据以 GHA 两 job 真实跑通为准（外部主机基线为历史事实）；README 架构图与两处索引的旧口径（SDK 参考实现、40 项）真实化。
 - 2026-08-23 验收链路修订：E2E 固定 8 步顺序（角色分配先于授权、403 断言先于授权真实执行、撤权单调计时轮询）；bootstrap 管理角色业务门禁最小集明确到 operation/scopeMode/实例；bootstrap 幂等改三状态口径（完整存在整体 no-op / 部分残缺启动失败报告冲突）；T-FE-041 模块清单收敛为授权页实际消费五模块、新增 401 窄处理规则；任务卡规范改必填+按适用填写；索引旧"40 项"口径统一。计划自此冻结扩展，进入执行。
 - 前置事实基线：代码基线 @ `7b7cf3254`（计划与任务卡文档修改使工作区非 clean）；外部 Docker 主机已真实执行 9 类 68 项 Testcontainers 门控（修复链 `c8dc06c52` → `b9f48bb39` → `7b7cf3254`，构成历史验证基线）。
+- 2026-08-23 执行：T-ACCESS-017 done（`37de53f61` → `80e87fb98`）——五链路特征测试单测+PG 两层全绿；最小 CI 两 job（单测 push 强制 / 容器 PR+手动门控）在 GitHub Actions 真实跑通。过程中发现并修复两处生产缺陷：`OperationPermissionMapper.selectByResourceTypeAndCodes` XML 参数名与接口不一致（真实查询路径 BindingException）；MyBatis-Flex 全局方言被 H2 上下文污染致 PG 容器测试反引号 SQL（surefire 双 execution 分层隔离）。T-PERM-042 依赖解除，模型收敛 Epic 可启动。

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-017
 title: 窄回归安全网与最小 CI
-status: in-progress
+status: done
 plan: docs/plans/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
@@ -83,14 +83,14 @@ last_updated: 2026-08-23
 - 首轮曾以 `reuseForks=false`（每类独立 JVM）验证全量 722 项全绿（16m26s），确认根因修复有效后改为双 execution 分层（同样全绿且快 3 倍）。
 - 此前误判为「Windows + socat 容量问题」的记录作废：失败全部源于方言串扰，双 execution 后全量稳定全绿。
 
-### CI 真实运行证据（验收第 5 条）
+### CI 真实运行证据（验收第 5 条，2026-08-23 闭环）
 
 | 项 | 状态 | 记录 |
 |---|---|---|
-| 单测 job（push 自动触发） | ✅ 成功 | 提交 `80e87fb98`，2026-08-23 push 后 GitHub Actions 自动运行成功（仓库所有者确认）；workflow URL 待补记 |
-| Testcontainers job（手动 dispatch） | ⏳ 待执行 | GitHub Web UI → Actions → CI → Run workflow 手动触发；成功后补记 URL 与退出状态 |
+| 单测 job（push 自动触发） | ✅ 成功 | 提交 `80e87fb98` push 后 GitHub Actions 自动运行成功（仓库所有者确认） |
+| Testcontainers job（手动 dispatch） | ✅ 成功 | 仓库所有者于 GitHub Web UI 手动触发运行成功（含全部 722 项与 12 个容器类） |
 
-两个 job 各成功一次后本任务转 done。
+两个 job 均以退出状态判定成功（任务卡口径：不维护测试数量计数）。本任务验收全部达成，转 done。
 
 ## 非目标 / 遗留
 

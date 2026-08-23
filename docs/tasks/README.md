@@ -44,7 +44,7 @@
 | [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
 | [T-ACCESS-015](T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（sys_menu DDL-实体漂移收口） | [access-post-merge](../plans/access-post-merge-plan.md) | access-service-architecture §3；v3.5-design §2.1/§4.1；schema/access-service.sql；admin-service-api-contract | T-ACCESS-012 | ✅ | ✓ |
 | [T-ACCESS-016](T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | access-service-architecture（新增章节）；schema/access-service.sql；api-contract；implementation；admin-service-api-contract | — | ✅ | ✓ |
-| [T-ACCESS-017](T-ACCESS-017.md) | 窄回归安全网与最小 CI | product-vertical-slice | access-service-architecture；core-flows | — | ⚙️ | — |
+| [T-ACCESS-017](T-ACCESS-017.md) | 窄回归安全网与最小 CI | product-vertical-slice | access-service-architecture；core-flows | — | ✅ | ✓ |
 | [T-ACCESS-018](T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | product-vertical-slice | schema/access-service.sql；access-service-architecture；api-contract；admin-service-api-contract；frontend/README | T-ORG-001 | ⚙️ | ⏳ |
 | [T-ACCESS-019](T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | product-vertical-slice | access-service-architecture；schema/access-service.sql；admin-service-api-contract | T-ACCESS-018 | ⚙️ | ⏳ |
 | [T-ACCESS-020](T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | product-vertical-slice | schema/access-service.sql；access-service-architecture；architecture | T-ACCESS-019 | ⚙️ | ⏳ |
