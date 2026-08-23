@@ -391,7 +391,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 ### 12.3 业务编码语义与 `resource_entity.id` 边界
 
-- `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019）。
+- `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019 已落地 2026-08-23：admin 域 `UserWriteAppService`（既有）与 permission 域 `RoleManageAppService`/`UserManageAppService` 的 create/update/move/remove/启停全量经 `LocalProjectionDomainService` 维护投影；ROLE 投影 `parent_id` 镜像角色树且父投影缺失 fail-closed 回滚；`abstract-user/update` 门禁升实例级 `USER:MANAGE@subjectId`。范围口径：外部 `/api/perm/**/sync|full-sync` 三入口不产投影、亦无缓存失效登记，为登记遗留——外部主体的 USER 资源按 §4.3 由外部经 resource-entity sync 自行维护，`UserRoleSync` 缓存失效缺口见 T-ACCESS-019 任务卡遗留节）。
 - **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp`/`ResourcePermissionTreeResp` 等契约不因此重构。
 - 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 permission-center `implementation.md` §3.1 为准。
 
