@@ -147,7 +147,9 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         if (roleId == null) {
             return null;
         }
-        return abstractRoleMapper.selectValidById(tenantId, roleId);
+        // T-ACCESS-019 IT 暴露的存量参数反转：mapper 约定为 (id, tenantId)，
+        // 原实参 (tenantId, roleId) 使 updateRole/moveRole/deleteRoles 对 roleId≠租户号的角色恒报不存在
+        return abstractRoleMapper.selectValidById(roleId, tenantId);
     }
 
     @Override

@@ -175,4 +175,36 @@ public interface LocalProjectionDomainService {
      * 按 sys_menu.id 定位 resource_entity.id（MENU 投影主键），供变更日志 entityId 使用。
      */
     Long findAdminMenuResourceId(Long tenantId, Long sysMenuId);
+
+    /**
+     * UPSERT resource_entity(ROLE)——permission 域功能角色管理写路径投影（T-ACCESS-019）。
+     * <p>
+     * abstract_role 事实由调用方（RoleManageAppService 编排）维护，本方法只写资源投影：
+     * code = roleId.toString()（architecture §12.3）。parent 镜像角色树，父角色资源投影缺失
+     * 抛 LOCAL_PROJECTION_DEPENDENCY_MISSING 整体回滚（fail-closed，2026-08-23 用户决策）。
+     * </p>
+     */
+    void upsertRoleResource(Long tenantId, Long roleId, String name, Integer status, Long parentRoleId);
+
+    /**
+     * 批量软删 resource_entity(ROLE)（按 roleId 定位；仅 owner=access-service 行，
+     * 外部行跳过不阻断——本地生命周期不触碰外部同步资源）。
+     */
+    void softDeleteRoleResources(Long tenantId, Set<Long> roleIds);
+
+    /**
+     * UPSERT resource_entity(USER)——permission 域主体管理写路径投影（T-ACCESS-019）。
+     * <p>
+     * abstract_user 事实由调用方（UserManageAppService 编排）维护，本方法只写资源投影：
+     * code = subjectId.toString()（architecture §12.3）。LOCAL_USER 主体的 USER 投影归
+     * admin 域写链路（{@link #upsertAdminUser}），本方法仅供外部主体管理入口使用。
+     * </p>
+     */
+    void upsertUserResource(Long tenantId, Long subjectId, String name, boolean enabled);
+
+    /**
+     * 批量软删 resource_entity(USER)（按 subjectId 定位；仅 owner=access-service 行，
+     * 外部行跳过不阻断）。
+     */
+    void softDeleteUserResources(Long tenantId, Set<Long> subjectIds);
 }

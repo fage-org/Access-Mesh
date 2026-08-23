@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.permission.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
@@ -66,18 +67,20 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final ObjectMapper objectMapper;
     private final AuditDomainService auditDomainService;
     private final LocalProjectionGuard localProjectionGuard;
+    private final LocalProjectionDomainService localProjectionDomainService;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入依赖
      *
-     * @param abstractRoleMapper    抽象角色数据访问层
-     * @param subjectDomainService  主体领域服务
-     * @param typeResolutionService 类型解析服务
-     * @param domainClassifyService 域分类服务
-     * @param objectMapper          JSON解析器
-     * @param auditDomainService    审计领域服务
-     * @param engine                权限查询引擎
+     * @param abstractRoleMapper           抽象角色数据访问层
+     * @param subjectDomainService         主体领域服务
+     * @param typeResolutionService        类型解析服务
+     * @param domainClassifyService        域分类服务
+     * @param objectMapper                 JSON解析器
+     * @param auditDomainService           审计领域服务
+     * @param localProjectionDomainService 本地投影领域服务（ROLE 资源投影，T-ACCESS-019）
+     * @param engine                       权限查询引擎
      */
     public RoleManageAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                  SubjectDomainService subjectDomainService,
@@ -86,6 +89,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  ObjectMapper objectMapper,
                                  AuditDomainService auditDomainService,
                                  LocalProjectionGuard localProjectionGuard,
+                                 LocalProjectionDomainService localProjectionDomainService,
                                  PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
@@ -94,6 +98,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.objectMapper = objectMapper;
         this.auditDomainService = auditDomainService;
         this.localProjectionGuard = localProjectionGuard;
+        this.localProjectionDomainService = localProjectionDomainService;
         this.engine = engine;
     }
 
@@ -131,6 +136,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             req.externalId(), req.name(), req.sortOrder(), req.extra()
         );
 
+        // T-ACCESS-019：ROLE 资源投影与角色事实同事务（code=roleId，§12.3）；
+        // 新角色无授权快照与成员，无需 PermissionChange 失效登记
+        localProjectionDomainService.upsertRoleResource(
+            tenantId, roleId, req.name(), 1, req.parentId());
+        recordProjectionChange(tenantId, roleId, "UPSERT");
+
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         return toRoleResp(role);
     }
@@ -143,6 +154,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_UPDATE", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -165,11 +177,19 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         role.setUpdatedBy(operatorId);
         abstractRoleMapper.update(role);
 
+        // T-ACCESS-019：ROLE 资源投影同事务镜像 name/status；status 禁用/启用影响有效角色解析，
+        // 登记 markRoles 反查受影响用户失效（afterCommit 由 @PermissionChange AOP 处理）
+        localProjectionDomainService.upsertRoleResource(
+            tenantId, roleId, role.getName(), role.getStatus(), role.getParentId());
+        recordProjectionChange(tenantId, roleId, "UPSERT");
+        PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
+
         return toRoleResp(role);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_MOVE", targetType = "abstract_role", targetId = "#roleId", summary = "'move role ' + #roleId + ' to ' + #parentId")
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -194,6 +214,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         role.setUpdatedBy(operatorId);
         role.setUpdatedAt(LocalDateTime.now());
         abstractRoleMapper.update(role);
+
+        // T-ACCESS-019：ROLE 资源投影同事务镜像父节点；移动改变组角色展开结果，登记 markRoles
+        localProjectionDomainService.upsertRoleResource(
+            tenantId, roleId, role.getName(), role.getStatus(), role.getParentId());
+        recordProjectionChange(tenantId, roleId, "UPSERT");
+        PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
     }
 
     @Override
@@ -277,6 +303,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
 
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
+        // T-ACCESS-019：ROLE 资源投影同事务软删（含级联子孙角色），实例授权目标随之不可解析（fail-closed）
+        localProjectionDomainService.softDeleteRoleResources(tenantId, allIdsToDelete);
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + allIdsToDelete.size() + " role(s), rootPermitted="
             + permittedIds.size() + ", denied=" + deniedRoleCodes.size()
@@ -294,7 +322,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             itemsJson.add(it);
         }
 
-        // 登记需直清角色权限快照的角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
+        // 登记需直清角色权限快照的角色，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）；
+        // markRoles 反查持有者失效 EFFECTIVE_ROLES（角色删除同时影响角色快照与用户，二者可叠加）
+        PermissionChangeContext.markRoles(tenantId, allIdsToDelete);
         PermissionChangeContext.markRoleSnapshots(tenantId, allIdsToDelete);
 
         ObjectNode diffRoot = objectMapper.createObjectNode();
@@ -382,6 +412,16 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             matchNone = matchNone || !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
         }
         return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone);
+    }
+
+    /** 投影写变更日志（T-ACCESS-019：ROLE 投影 UPSERT 与角色事实同事务登记） */
+    private void recordProjectionChange(Long tenantId, Long roleId, String operation) {
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(
+                tenantId, OperatorContext.getOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+            List.of(new AuditDomainService.ChangeLogEntry(
+                "abstract_role", roleId, operation, null, null, null,
+                new Long[0], new Long[]{roleId})));
     }
 
     private RoleTypeFilter resolveRoleTypeFilter(Long tenantId, String roleTypeCode, List<String> roleTypeCodes) {

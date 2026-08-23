@@ -28,6 +28,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
@@ -59,10 +60,10 @@ import java.util.stream.Collectors;
  * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
  * 批量操作采用批量查询和批量插入策略，避免N+1查询问题。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
- * 注意：这里管理的是 permission 域（access-service）的 abstract_user 主体事实。
- * AccessMesh admin 域中的用户生命周期事实源仍是 sys_user；
- * USER 实例级管理权限还需要独立的 resource_entity 同步。
- * admin 域通过业务键引用，不存储本服务内部 ID。
+ * 注意：这里管理的是 permission 域（access-service）的 abstract_user 主体事实，
+ * 主体写路径（创建/更新/删除）在同一事务维护 resource_entity(USER) 投影
+ * （code = subjectId，architecture §12.3，T-ACCESS-019）；LOCAL_USER 主体的
+ * 事实与投影归 admin 域写链路（UserWriteAppService），本入口按保留业务键拒绝。
  * </p>
  */
 @Service
@@ -80,6 +81,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private final DomainClassifyService domainClassifyService;
     private final AuditDomainService auditDomainService;
     private final LocalProjectionGuard localProjectionGuard;
+    private final LocalProjectionDomainService localProjectionDomainService;
     private final ObjectMapper objectMapper;
     private final PermQueryEngine engine;
 
@@ -111,6 +113,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  DomainClassifyService domainClassifyService,
                                  AuditDomainService auditDomainService,
                                  LocalProjectionGuard localProjectionGuard,
+                                 LocalProjectionDomainService localProjectionDomainService,
                                  ObjectMapper objectMapper,
                                  PermQueryEngine engine) {
         this.abstractUserMapper = abstractUserMapper;
@@ -121,6 +124,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         this.domainClassifyService = domainClassifyService;
         this.auditDomainService = auditDomainService;
         this.localProjectionGuard = localProjectionGuard;
+        this.localProjectionDomainService = localProjectionDomainService;
         this.objectMapper = objectMapper;
         this.engine = engine;
     }
@@ -140,6 +144,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_CREATE", targetType = "abstract_user", targetId = "#result.id()", summary = "'create user ' + #req.externalId()")
     public UserResp createUser(Long tenantId, UserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -169,11 +174,18 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         user.setUpdatedAt(now);
         user.setDeleteFlag(0L);
         abstractUserMapper.insert(user);
+
+        // T-ACCESS-019：USER 资源投影与主体事实同事务（code=subjectId，§12.3）
+        boolean enabled = Boolean.TRUE.equals(user.getEnabled());
+        localProjectionDomainService.upsertUserResource(tenantId, user.getId(), user.getName(), enabled);
+        recordProjectionChange(tenantId, user.getId(), "UPSERT");
+        PermissionChangeContext.markUsers(tenantId, Set.of(user.getId()));
         return toUserResp(user);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_UPDATE", targetType = "abstract_user", targetId = "#req.userId()", summary = "'update user ' + #req.userId()")
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
@@ -185,8 +197,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         localProjectionGuard.rejectIfLocalUser(existing);
 
         if (!operatorId.equals(req.userId())) {
-            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
-                throw new SecurityException("Permission denied: MANAGE on USER");
+            // T-ACCESS-019：升实例级门禁（resource_entity(USER).code = subjectId），与 deleteUsers/updateRole 对齐
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(req.userId()), OperationCodeConstants.MANAGE)) {
+                throw new SecurityException("Permission denied: MANAGE on USER:" + req.userId());
             }
         }
 
@@ -201,6 +214,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         existing.setUpdatedAt(LocalDateTime.now());
         abstractUserMapper.update(existing);
+
+        // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性，
+        // 登记 markUsers 失效主体有效角色缓存（afterCommit 由 @PermissionChange AOP 处理）
+        localProjectionDomainService.upsertUserResource(
+            tenantId, existing.getId(), existing.getName(), Boolean.TRUE.equals(existing.getEnabled()));
+        recordProjectionChange(tenantId, existing.getId(), "UPSERT");
+        PermissionChangeContext.markUsers(tenantId, Set.of(existing.getId()));
         return toUserResp(existing);
     }
 
@@ -259,7 +279,21 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
         }
 
+        // T-ACCESS-019：USER 资源投影同事务软删，实例授权目标随之不可解析（fail-closed）
+        localProjectionDomainService.softDeleteUserResources(tenantId, existingUserIds);
+
         OperationLogRuntimeContext.setSummary("Deleted " + existingUserIds.size() + " users");
+
+        // 投影删除变更日志（T-ACCESS-019，一次 insertBatch，与 UserWriteAppServiceImpl 删除路径同模式）
+        List<AuditDomainService.ChangeLogEntry> deleteEntries = existingUserIds.stream()
+            .map(userId -> new AuditDomainService.ChangeLogEntry(
+                "abstract_user", userId, "DELETE", null, null, null,
+                new Long[]{userId}, new Long[0]))
+            .collect(Collectors.toList());
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+            deleteEntries);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
         PermissionChangeContext.markUsers(tenantId, existingUserIds);
@@ -806,6 +840,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             matchNone = true;
         }
         return abstractUserMapper.selectUserListCount(tenantId, userType, keyword, matchNone);
+    }
+
+    /** 投影写变更日志（T-ACCESS-019：USER 投影 UPSERT 与主体事实同事务登记） */
+    private void recordProjectionChange(Long tenantId, Long userId, String operation) {
+        auditDomainService.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(
+                tenantId, OperatorContext.getOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+            List.of(new AuditDomainService.ChangeLogEntry(
+                "abstract_user", userId, operation, null, null, null,
+                new Long[]{userId}, new Long[0])));
     }
 
     private UserResp toUserResp(AbstractUser user) {

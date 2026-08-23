@@ -328,6 +328,53 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         return resource == null ? null : resource.getId();
     }
 
+    @Override
+    public void upsertRoleResource(Long tenantId, Long roleId, String name, Integer status, Long parentRoleId) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ROLE);
+        Long parentResourceId = resolveParentResourceId(tenantId, resourceType, parentRoleId);
+        upsertResource(tenantId, resourceType, String.valueOf(roleId), name, parentResourceId,
+            status != null && status > 0 ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
+    }
+
+    @Override
+    public void softDeleteRoleResources(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return;
+        }
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ROLE);
+        softDeleteOwnResources(tenantId, resourceType, roleIds.stream()
+            .map(String::valueOf).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Override
+    public void upsertUserResource(Long tenantId, Long subjectId, String name, boolean enabled) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
+        upsertResource(tenantId, resourceType, String.valueOf(subjectId), name, null,
+            enabled ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
+    }
+
+    @Override
+    public void softDeleteUserResources(Long tenantId, Set<Long> subjectIds) {
+        if (subjectIds == null || subjectIds.isEmpty()) {
+            return;
+        }
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
+        softDeleteOwnResources(tenantId, resourceType, subjectIds.stream()
+            .map(String::valueOf).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    /** 批量按 code 软删本地投影资源行（一次批量加载 + 过滤 owner + 一次批量软删；外部行跳过） */
+    private void softDeleteOwnResources(Long tenantId, Integer resourceType, Set<String> codes) {
+        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodes(tenantId, resourceType, codes);
+        List<Long> ownIds = resources.stream()
+            .filter(LocalProjectionDomainServiceImpl::isOwnResource)
+            .map(ResourceEntity::getId)
+            .toList();
+        if (!ownIds.isEmpty()) {
+            resourceEntityMapper.softDeleteBatch(tenantId, ownIds, LocalDateTime.now());
+        }
+    }
+
     /** 仅 owner=access-service 的行才是本地投影可操作的行（禁用/删除路径跳过外部行） */
     private static boolean isOwnResource(ResourceEntity resource) {
         return resource != null && LocalProjectionOwner.isLocalOwner(resource.getOwnerServiceCode());

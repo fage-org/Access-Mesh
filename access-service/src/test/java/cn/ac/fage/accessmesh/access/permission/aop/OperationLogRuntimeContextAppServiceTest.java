@@ -93,6 +93,9 @@ class OperationLogRuntimeContextAppServiceTest {
     private AuditDomainService auditDomainService;
 
     @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService localProjectionDomainService;
+
+    @Mock
     private PermQueryEngine engine;
 
     @BeforeEach
@@ -166,6 +169,7 @@ class OperationLogRuntimeContextAppServiceTest {
             domainClassifyService,
             auditDomainService,
             new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
+            localProjectionDomainService,
             new ObjectMapper(),
             engine
         );
