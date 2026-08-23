@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-08-22
+last_reviewed: 2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -129,12 +129,12 @@ flowchart LR
 
 ### 4.2 标识与事务
 
-- 管理事实和权限投影保留独立主键，不强制共享数值 ID。
+- 管理事实和权限投影保留独立主键，不强制共享数值 ID（本条为统一前口径；本地用户已由 §12.2 定稿取代——`sys_user.id = abstract_user.id` 序列预取共享主体 ID。其余管理事实表如 `sys_org`/`sys_menu` 与投影仍保持独立主键、以稳定外部键关联，不受 §12 影响）。
 - 本地投影通过稳定外部键关联，例如本地用户投影的 `external_id = sys_user.id.toString()`。
 - 权限投影必须具有明确的来源/所有权标识，AccessMesh 本地投影统一标记为 `access-service` 管理。
 - `access.application` 在同一 PostgreSQL 事务内更新管理事实、权限投影和强事务审计；任一步骤失败，全部回滚。
 - 内部投影不写 `sync_metadata`。`sync_metadata` 仅保留给外部服务的增量/全量同步。
-- **门禁主体（两套 ID 空间）**：登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 `sys_user.id`；权限引擎按 `abstract_user.id` 匹配 `user_role.abstract_user_id`。所有 engine 门禁（`hasPermission` / `validateBatch` / `getDeniedIds`）与投影空间自查逻辑，操作者 ID 必须先经 `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)` 转换为投影主体；转换失败（投影不存在）fail-closed 抛 `SecurityException`。非门禁用途（createdBy 戳记、审计 `ChangeLogContext`、日志消息）保留 `sys_user.id`。
+- **门禁主体（两套 ID 空间 → 已由 §12 终态取代）**：本段为统一前过渡态口径。登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 `sys_user.id`；权限引擎按 `abstract_user.id` 匹配 `user_role.abstract_user_id`；所有 engine 门禁（`hasPermission` / `validateBatch` / `getDeniedIds`）与投影空间自查逻辑，操作者 ID 必须先经 `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)` 转换为投影主体；转换失败（投影不存在）fail-closed 抛 `SecurityException`。非门禁用途（createdBy 戳记、审计 `ChangeLogContext`、日志消息）保留 `sys_user.id`。**终态（T-ACCESS-016 定稿，实施 T-ORG-001）**：`sys_user.id = abstract_user.id`（§12.2 唯一 ID 源），操作者 ID 即主体 ID，`OperatorSubjectResolver`/`resolveOperatorSubjectId` 删除，上述转换与"非门禁用途保留 sys_user.id"的区分整体消失。
 
 ### 4.3 内部同步退役
 
@@ -146,6 +146,12 @@ flowchart LR
 - 为旧同步链路存在的配置、测试和运行手册。
 
 面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（`ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`）。本地投影只能由 `access.application` 经 `LocalProjectionDomainService` 写入。
+
+**保留业务键终态（T-ACCESS-016 定稿，收敛后按所有权保护，实施归 T-ACCESS-018）**：
+
+- subject 保留类型（user_type）：`ADMIN_USER`→`LOCAL_USER`（类型解析与保留清单同步更名，无兼容别名）；role 保留类型 `ORG|POSITION` 不变（role_type 未收敛）；`SYS_USER_ORG` 不变。
+- **resource 侧取消类型级保留**：收敛后 `USER`/`MENU` 是既有公共基础类型（外部业务服务同步自身菜单/用户资源合法，`ResourceEntitySyncAppServiceTest` 以 MENU 类型为 fixture），若把保留清单换成公共类型会整体拒绝合法外部同步（20045）。本地 `resource_entity` 投影行的保护改为**所有权检查**：外部 sync 的 UPSERT/DISABLE/DELETE 任一 mutation 分支，在进入分支前按 code 命中已有实体（`existing != null`）即统一执行 `owner=access-service` 拒绝（现状三个分支均缺失所有权检查，类型级保留是唯一防线，收敛时必须补齐——DELETE 分支现状直接软删命中实体，移除类型保留后外部服务可删除本地投影）；新建撞本地投影 code 由 `uk_resource_entity (tenant_id, resource_type, code, code_type)` 唯一约束 fail-closed 兜底；资源实体 full-sync 的清理范围按 api-contract §6.2.2 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 界定（`owner_service_code/maintain_source/sync_key` 不是本接口清理依据），本地投影不写 `sync_metadata`（§4.2），天然不在清理集合内。
+- 管理入口（`/perm/resource-entity/create|update` 等人工建资源）的类型保留清单换值为 `{USER, ORG, MENU}`：人工不得绕过管理事实链路（用户/组织/菜单管理）直接建这三类本地业务资源投影；其余类型不受限。
 
 ## 5. 数据库与共享表
 
@@ -202,7 +208,7 @@ flowchart LR
 | 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头），通过写 `SIGNATURE_VERIFIED` attribute |
 | 3 | `RequestContextInterceptor` | `/**` | 唯一上下文绑定入口：安全策略矩阵决策 + MDC 注入 + afterCompletion 清理；/error ERROR dispatch 放行（防真实错误被 401 掩蔽） |
 
-操作者绑定规则（T-ACCESS-004 用户决策；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。
+操作者绑定规则（T-ACCESS-004 落地；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。**主体 ID 语义（§12 定稿）**：统一后 `operatorId` 承载的即主体 ID（`abstract_user.id` = `sys_user.id`），会话 `loginId` 与审计操作者同源，无需转换。
 
 OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 用户决策）：
 
@@ -356,3 +362,173 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - 在授权读取需要 L1 时引入租户级权限版本屏障。
 - 首次正式部署前引入数据库版本管理工具，并以 `access-service.sql` 作为 V1 基线。
 - 根据查询与变更热点细化缓存、权限版本和任务分片粒度。
+
+## 12. 主体身份模型（B-lite 终态，T-ACCESS-016 定稿）
+
+> 本章是主体身份的唯一权威（2026-08-23 定稿）。§4.2「门禁主体（两套 ID 空间）」描述的 `sys_user.id → abstract_user.id` 转换要求由本章取代：统一后操作者 ID 即主体 ID，不再需要任何运行时转换。实施归 T-ORG-001（ID 统一与 Resolver 删除）；引擎门禁 API 形态归 T-PERM-042（见 permission-center implementation §3.1）。
+
+### 12.1 终态规则
+
+- `abstract_user.id` 是**唯一主体 ID**（"谁"）。本地用户 `sys_user.id = abstract_user.id`（数值一致，同一 Long）；外部同步主体仅有 `abstract_user` 行，业务键 `external_id` 同步链路不变（§4.2）。
+- 统一承载主体 ID 的位置（对外形态不变，仍为同一 Long）：Sa-Token 会话 `loginId`、`AccessRequestContext.operatorId` / `OperatorContext`、审计戳记 `createdBy/updatedBy/deletedBy`（含 `operation_log.operator_id`、`sys_login_log.user_id` 等）、`user_role.abstract_user_id`、`perm:effective-roles` 等主体键缓存的标识符。
+- `OperatorSubjectResolver` 与 `PermQueryEngine.resolveOperatorSubjectId` 目标态为**删除**（当前约 80 处调用分布于 18 个生产文件，随 T-ORG-001 全量清零，含 Javadoc）。统一后引擎门禁的操作者参数就是主体 ID，禁止再出现任何 ID 空间转换层。
+- 统一后保留的两个 ID 属不同概念，不视为重复设计：主体 ID（`abstract_user.id`/`sys_user.id`，"谁"）与 `resource_entity.id`（"哪条授权资源记录"）。二者的边界与业务编码语义见 §12.3。
+- 缓存框架与 catalog 零修改：主体键缓存（`perm:effective-roles` 等）本以 `abstract_user.id` 为标识符，统一后数值与键格式均不变；不做 evictAll 迁移或兼容键，空库重建 runbook 含清理开发/验收 Redis 实例（T-ORG-001）。
+
+### 12.2 ID 分配机制（abstract_user 唯一 ID 源）
+
+采用 **`abstract_user.id` 作为唯一 ID 生成源**，不新建序列：
+
+- `abstract_user.id` 保持 `BIGSERIAL` 自增不变。
+- `sys_user.id` 由 `BIGSERIAL` 改为普通 `BIGINT NOT NULL` 列（去自增，DDL 变更随 T-ORG-001 落地权威 DDL），插入时显式赋值。
+- 本地用户创建在同一事务内按**序列预取**闭环执行（`abstract_user.external_id NOT NULL` 且终态要求其等于主体 ID，不能先插行再回填）：
+  1. `SELECT nextval(pg_get_serial_sequence('abstract_user','id'))` 预取主体 ID `N`；
+  2. 显式 `INSERT abstract_user(id = N, external_id = N.toString(), user_type = LOCAL_USER, ...)`（serial 列显式插值合法，`GENERATED BY DEFAULT` 语义）；
+  3. `INSERT sys_user(id = N, ...)`。
+- 外部主体仅插 `abstract_user`（自增取号，`external_id` 为外部业务键），与本地用户共用同一生成源，天然不碰撞——"先创建外部主体、再创建本地用户"（T-ORG-001 验收口径）与反向顺序均不会碰撞。
+- **取舍说明**：备选方案是"用户主体专用共享序列"（新建独立 sequence，两表均显式 `nextval` 取号，插入顺序自由）。不采用的原因：多一个表外序列对象成为第三个"影子权威"，两表都要改显式取号，而其唯一收益（插入顺序自由）在单库强事务编排层（§4.2 `access.application` 同事务写链）下没有实际调用方需要。预取既有序列的代价——两表插入共用同一次取号——由 T-ORG-001 在用户创建写链路中落实：现状"先插 `sys_user` 再以其 id 为 `external_id` 插 `abstract_user`"改为"预取序列后两表同 ID 插入"，`external_id` = 主体 ID 的投影语义不变。
+- 不做在线数据迁移（未上线、空库重建模式）；不引入全局对象 ID 中心、全平台共享序列或 ID 包装类型双轨。
+
+### 12.3 业务编码语义与 `resource_entity.id` 边界
+
+- `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019）。
+- **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp`/`ResourcePermissionTreeResp` 等契约不因此重构。
+- 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 permission-center `implementation.md` §3.1 为准。
+
+## 13. 资源类型注册表（T-ACCESS-016 定稿）
+
+> 本章是资源类型命名与 `type_value` 分配的唯一权威（2026-08-23 定稿）。DDL 种子实际重编、双常量合一与全量代码/前端切换归 T-ACCESS-018；本注册表同时是其实施契约。退役码值不复用（T-ACCESS-018 已拍板：旧类型码直接删除，沿用 ErrorCodeContractTest 退役清单模式登记）。
+
+### 13.1 收敛映射定稿
+
+| 旧类型（type_value）          | 终态类型（type_value） | 说明                                       |
+| ----------------------------- | ---------------------- | ------------------------------------------ |
+| `ADMIN_USER`(16)              | `USER`(6)              | 用户管理门禁并入既有外部用户类型 USER      |
+| `ADMIN_ROLE`(18)              | `ROLE`(5)              | 角色管理门禁并入既有角色类型 ROLE          |
+| `ADMIN_MENU`(19)              | `MENU`(1)              | 菜单管理门禁并入既有菜单类型 MENU          |
+| `ADMIN_CONFIG`(22)            | `SYSTEM_CONFIG`(11)    | 系统配置门禁并入既有类型 SYSTEM_CONFIG     |
+| `ADMIN_ORG`(17)               | `ORG`(29，新值)        | 组织/岗位管理门禁收敛为 ORG；退役值 17 不复用，ORG 取当前最大值 28 之后的新值 29 |
+| `ADMIN_SYNC_TASK`(28)         | —（删除）              | 内部同步子系统已退役（§4.3），类型与种子一并删除 |
+
+- **不改名**（无重复对象的类型，防止范围扩大）：`ADMIN_DICT`(20)、`ADMIN_DICT_DATA`(21)、`ADMIN_OAUTH2_CLIENT`(23)、`ADMIN_NOTICE`(24)、`ADMIN_FILE`(25)、`ADMIN_JOB`(26)、`ADMIN_ORG_TREE_CONFIG`(27)。
+- **退役 type_value 段不复用**：16、17、18、19、22、28 从种子中消失，后续新类型从 30 起顺延分配，禁止复用退役值（防新旧语义在同一 `tenant_id + type_key` 内产生隐性撞值）。
+- **终态 resource_type 全表**（23 个，`tenant_id=1`）：`MENU`(1)、`BUTTON`(2)、`API`(3)、`DATA`(4)、`ROLE`(5)、`USER`(6)、`RESOURCE`(7)、`SERVICE`(8)、`DOMAIN`(9)、`TYPE_DEFINITION`(10)、`SYSTEM_CONFIG`(11)、`OPERATION`(12)、`CONDITION`(13)、`CONFLICT_RULE`(14)、`DEPENDENCY`(15)、`ADMIN_DICT`(20)、`ADMIN_DICT_DATA`(21)、`ADMIN_OAUTH2_CLIENT`(23)、`ADMIN_NOTICE`(24)、`ADMIN_FILE`(25)、`ADMIN_JOB`(26)、`ADMIN_ORG_TREE_CONFIG`(27)、`ORG`(29)。
+
+### 13.2 user_type 与 role_type
+
+- `user_type`：`USER`(1，外部人员)、`SERVICE`(2，外部服务)、**`LOCAL_USER`(3，原 `ADMIN_USER` 更名，值不变)**。更名后语义为**主体来源**（本地/外部），不再兼任资源类型；`subjectTypeCode` 对外值与 `abstract_user` 投影定位同步更名，无兼容别名——旧名经类型解析失败直接拒绝。§4.3 保留业务键的 subject 侧随之更名 `LOCAL_USER`；resource 侧取消类型级保留、本地投影行改按所有权保护（见 §4.3 终态注记）。
+- `role_type` 不变：`ORG`(1)、`POSITION`(2)、`PERSONAL`(3)、`GROUP_ROLE`(5)、`BASIC_ROLE`(6)。`role_type.ORG=1` 与 `resource_type.ORG=29` 属不同 `type_key`，唯一性约束按 `tenant_id + type_key` 判定，不冲突。
+- `type_value` 终值分配表以 `docs/design/schema/access-service.sql` 文件头注释为准（本任务同步写入）。
+
+### 13.3 扩展操作归属与 bit 终值
+
+扩展操作码随类型收敛重新归属。`operation_permission` 存在 `(tenant_id, resource_type, binary_bit)` 唯一索引（`uk_operation_permission_typed_bit`）与 `(tenant_id, resource_type, code)` 唯一索引，迁移后同类型内 code 与 bit 均不得与既有操作冲突，因此**不是简单换 `resource_type`**：
+
+| 旧归属（code@bit）                                                                                       | 终态归属                       | 说明                                                         |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------ |
+| `ADMIN_USER:ENABLE`@16                                                                                    | `USER:ENABLE`@32               | bit 重分配：USER 下 16 已被 `MANAGE` 占用（bit 唯一索引），32 空闲 |
+| `ADMIN_USER:RESET_PASSWORD`@64                                                                            | `USER:RESET_PASSWORD`@64       | bit 不变：USER 下 1/2/4/8/16 被占，64 空闲                    |
+| `ADMIN_ROLE:GRANT`@16 / `ADMIN_ROLE:REVOKE`@32                                                            | —（删除，不迁移）              | 零生产消费者（原用于已退役的 `/user-role/assign|revoke` 门禁）；职责已由 `ROLE:MANAGE` 承担；且 bit 与 `ROLE:MANAGE`@16 / `ROLE:ASSIGN`@32 冲突、`REVOKE` 与既有 `ROLE:REVOKE`@64（撤用户角色，语义不同）code 冲突。`AdminOperationCode.GRANT/REVOKE` 常量随 T-ACCESS-018 删除 |
+| `ADMIN_ORG:CREATE_POSITION`@16 / `UPDATE_POSITION`@32 / `DELETE_POSITION`@64 / `ASSIGN_POSITION_USER`@128 / `MANAGE_MEMBER`@256 / `VIEW_POSITION`@512 | `ORG:*` 同名同 bit 迁移 | ORG 为新类型，仅 CRUD 预置 1/2/4/8 占用，16-512 空闲无冲突     |
+| `ADMIN_ORG:VIEW` / `ADMIN_USER:VIEW`（与 CRUD 预置 VIEW 完全重复，同 code/bit/mask）                      | 由 CRUD 预置 VIEW 覆盖         | 既有去重语义保持，不单独立行                                  |
+
+`inherit_mask` 语义不变（写类继承 VIEW=2、读类 0）；终态操作码全集与 bit 分配由 T-ACCESS-018 按本表落 DDL 并核对生产消费清单（缺漏补种、无消费者不保留）。
+
+### 13.4 常量合一与关联模型
+
+- 引擎枚举 `ResourceTypeCode`（12 码）与管理门禁 `AdminResourceType`（14 码）**合一为单一常量类**（T-ACCESS-018 实施命名），全量生产代码、前端权限串、安全矩阵按终态类型码切换；无兼容别名双写。
+- 对外 API 只使用稳定字符串 `type_code`；内部表继续存 `type_value INT`（api-contract §3.4 原则不变）。
+- 业务域分类模型联动：`domain_config` 的 `CLASSIFY` 配置按 `resourceTypeCode` 关联，类型码切换后自然生效；全局域（`global=true`）范围隐式包含未被其他域认领的资源类型，注册表收敛不改变三模式（ALL/GLOBAL_PLUS/DOMAIN_ONLY）过滤逻辑。
+- **MENU 资源语义**：`MENU:CREATE/UPDATE/DELETE/VIEW` 仅保护菜单配置后台（`/menu/**` 管理链路）；普通用户菜单可见性仍按 `sys_menu.resource_type`/`resource_code` 关联业务权限派生（`UserMenuQueryService` v3.5 §4.1 语义，§3 已述），两者不混同。
+
+## 14. 空库 bootstrap 首管理员权限模型（T-ACCESS-016 定稿）
+
+> 本章定稿空库首管理员的权限种子模型（2026-08-23 定稿）。种子执行、幂等实现与 docker-compose 归 T-ACCESS-020；E2E 验收链路归 T-ACCESS-021。
+
+### 14.1 总则（闭环只能靠最小种子，不开任何旁路）
+
+- **双角色双用户模型**：bootstrap 只创建首管理员（绑定一个管理用功能角色）；E2E 目标用户与普通功能角色（BASIC_ROLE）由 E2E 场景内经管理链路创建。
+- **禁止**：平台超管旁路、硬编码超级用户、Gateway 临时白名单、API 类型级 `scopeAll` 大包授权。
+- 两个"先有鸡"问题经最小种子解决：Gateway 对空快照默认拒绝（无授权则一切 403）；授权传递要求操作者持有目标权限且 `canGrant=true`（首管理员经管理角色对目标 API 预持 `API:ACCESS + canGrant`，授权传递链合法）。
+- 存在业务门禁的管理 API 采用**双层最小权限**：Gateway 层实例级 `API:ACCESS`（精确到该 API 的 `resource_entity(API)`）+ 接口内部业务门禁（含读接口 VIEW 门禁）。例外：`permission-condition/list` 无业务门禁（api-contract §5.6 既有产品确认，见 §14.5），仅由 Gateway 层实例授权保护，不得为其补建 `CONDITION:VIEW`。
+- **授权落库载体**：`role_resource_permission.abstract_role_id NOT NULL`，权限事实只能挂角色，不存在用户直授权；首管理员不引入 PERSONAL 个人角色链路（生命周期机制未实现），全部授权——含目标 API 的 `API:ACCESS + canGrant`——统一落**管理用功能角色**。首期首管理员是该角色唯一绑定者，效果等价"仅首管理员持有"。
+
+### 14.2 载体终态
+
+- 固定租户 1（类型种子即租户 1，不做租户开通）；载体为 access-service 内**默认关闭**（`access.bootstrap.enabled`，默认 false）的幂等 `ApplicationRunner`，仅负责触发一个事务化 initializer。
+- 复用现有领域服务（用户/主体/投影/角色创建与授权绑定链）与 BCrypt；不走带操作者权限校验的管理 AppService、不向通用授权链加入 `bootstrapBypass`——需要无操作者写入的授权环节使用包内可见、bootstrap 专用的写入组件（复用 DomainService 内部逻辑），不给通用授权服务增加公开的无操作者入口。
+- 首管理员密码经环境变量注入（`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`，Java 侧 BCrypt 哈希落库，无明文）；`enabled=true` 时密码缺失或空白 fail-fast，密码不写日志。
+- **固定图稳定业务键（三状态幂等的判定依据）**：
+  - 首管理员：`username=admin`（租户 1 内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
+  - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
+  - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
+  - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/admin/role/my-info`、`POST:/perm/api/perm/abstract-role/tree`），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
+  - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
+- **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权完全匹配——整体 no-op，绝不重置密码；③ 部分存在、关联缺失或固定业务键被其他数据占用——启动失败并报告具体冲突，不自动修复、不补权、不扩权。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（仅单实例启用）。
+- 不维护 SQL bootstrap 种子链路，不建 bootstrap 框架/独立模块/分布式锁；docker-compose 仅承诺一键基础设施（PostgreSQL/Redis/Nacos），README 写明 access-service → Gateway → 前端的启动顺序。
+
+### 14.3 固定图组成与 bootstrap 管理 API 清单
+
+固定图幂等写入以下对象：
+
+1. `resource_entity(SERVICE, code=access-service)`——当前 DDL 无 SERVICE 类型资源种子、本地投影亦不产出（仅 USER/ROLE/MENU 投影），实例级 `SERVICE:MANAGE_API_MAPPING` 需要该服务资源作为绑定对象。
+2. 管理用功能角色（BASIC_ROLE，业务键固定）。
+3. 首管理员主体链：`abstract_user(LOCAL_USER)` + `sys_user`（同主体 ID，§12.2）+ `resource_entity(USER)` 投影。
+4. 管理 API 清单内每个接口的 `resource_entity(API)` 资源 + `resource_api_mapping`，并给管理角色精确授予实例级 `API:ACCESS`。
+5. 业务门禁最小集授权（§14.4）。
+6. 目标接口 `/admin/role/my-info` 的 `resource_entity(API)` 资源 + 管理角色上 `API:ACCESS + canGrant=true` 的实例授权（授权载体见 §14.1；`canGrant` 使首管理员可向 BASIC_ROLE 传递该权限），**不创建**其 `resource_api_mapping`（映射由 E2E 真实创建）。
+
+**bootstrap 管理 API 清单**（Gateway 外部路径口径：admin 域 `/admin/**`、权限域 `/perm/api/perm/**`；目标 API 与管理 API 的 `resource_entity(API)` 资源均由 bootstrap 内部写入，E2E 外部管理链路只创建目标映射，不授予 `RESOURCE:CREATE`）：
+
+| # | 外部路径（Gateway）                                              | 动作 | 用途                                   |
+| - | ---------------------------------------------------------------- | ---- | -------------------------------------- |
+| 1 | `POST /perm/api/perm/abstract-role/tree`                          | 读   | 授权页角色树（选择目标角色）           |
+| 2 | `POST /perm/api/perm/type-definition/list`                        | 读   | 授权页类型定义列表（无条件加载）       |
+| 3 | `POST /perm/api/perm/resource-entity/tree`                        | 读   | 授权页资源树                           |
+| 4 | `POST /perm/api/perm/operation-permission/list`                   | 读   | 授权页操作列表                         |
+| 5 | `POST /perm/api/perm/permission-condition/list`                   | 读   | 授权页条件列表（无业务读取门禁，api-contract §5.6：条件规则全租户开放、非敏感；访问控制仅由 Gateway 层实例授权承担） |
+| 6 | `POST /perm/api/perm/role-resource-permission/list`               | 读   | 授权页既有授权查询（baseline）         |
+| 7 | `POST /perm/api/perm/role-resource-permission/sub-perm-allowed-types` | 读 | 授权页子权限类型只读查询               |
+| 8 | `POST /admin/user/create`                                        | 写   | 创建 E2E 目标用户                      |
+| 9 | `POST /perm/api/perm/abstract-role/create`                        | 写   | 创建 BASIC_ROLE                        |
+| 10 | `POST /perm/api/perm/resource-api-mapping/create`                | 写   | E2E 真实创建目标 API 映射             |
+| 11 | `POST /perm/api/perm/role-resource-permission/apply-grant-plan`  | 写   | 授权与回收（removes 段；授权与撤权同接口族，bootstrap 不为回收单列接口） |
+| 12 | `POST /perm/api/perm/user-role/assign`                           | 写   | 将 BASIC_ROLE 分配给目标用户           |
+| T | `POST /admin/role/my-info`                                       | 目标 | 登录用户自查（无二层管理门禁）；仅预建资源 + 预授 `API:ACCESS+canGrant`，**无映射** |
+
+> 读接口以授权页（`views/perm/grant`）实际加载链路为准逐项核定（role-manage/type-def/resource-operation/permission-condition/permission-grant 五个消费模块）；缺读接口则首管理员能进页面但初始化请求全 403。
+
+### 14.4 业务门禁最小集
+
+管理角色按以下清单授予业务门禁（明确到 resourceType + operation + scopeMode；实施时按写入口门禁全量核对微调——缺漏补种、过授收敛）：
+
+| 权限                                   | scopeMode          | 资源/说明                                                                                       |
+| -------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
+| `USER:CREATE`                          | ALL                | 创建目标用户                                                                                     |
+| `ROLE:CREATE`                          | ALL                | 创建 BASIC_ROLE                                                                                  |
+| `ROLE:MANAGE`                          | ALL                | 管理新建角色与为用户分配角色；继承掩码已含 VIEW，角色树 `ROLE:VIEW`、授权列表与 sub-perm 查询的 `ROLE:VIEW@目标角色` 均被覆盖，不重复授 `ROLE:VIEW` |
+| `SERVICE:MANAGE_API_MAPPING`           | INSTANCE(`access-service`) | 创建目标 API 映射（依赖固定图对象 1 的 SERVICE 资源）                                     |
+| `TYPE_DEFINITION:VIEW`                 | ALL                | 授权页无条件加载类型列表且后端 `listTypes` 强制门禁                                              |
+| `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
+| `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
+| `API:ACCESS`（目标 `my-info` 资源实例） | INSTANCE + `canGrant=true` | 向 BASIC_ROLE 授权（授权传递链）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1） |
+
+不授予 `RESOURCE:CREATE` 等 API 资源创建权限，避免无谓扩大根权限。
+
+### 14.5 授权页读接口 VIEW 门禁终态（随 T-PERM-042 补齐 3 项）
+
+以下 3 个读接口现状无业务门禁（仅 `type-definition/list` 有 `TYPE_DEFINITION:VIEW`、`role-resource-permission/list` 有 `ROLE:VIEW@角色`），终态补齐**类型级 VIEW 门禁**，实施随 T-PERM-042 门禁改造落地（同一批 AppService 文件）。`permission-condition/list` 维持无业务读取门禁——api-contract §5.6 既有产品确认（条件规则全租户开放、非敏感、用户自查询权限亦涉及），不在补齐范围，其访问控制仅由 Gateway 层实例级 `API:ACCESS` 承担：
+
+| 接口（服务内路径）                        | 终态门禁（类型级）     |
+| ----------------------------------------- | ---------------------- |
+| `/api/perm/abstract-role/tree`            | `ROLE:VIEW`            |
+| `/api/perm/resource-entity/tree`          | `RESOURCE:VIEW`        |
+| `/api/perm/operation-permission/list`     | `OPERATION:VIEW`       |
+
+bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `ROLE:MANAGE` 掩码）以本终态为前提闭合。
+
+### 14.6 E2E 目标接口定稿
+
+- 目标接口固定为 `POST /admin/role/my-info`（登录用户自查，无二层管理门禁）。
+- bootstrap 仅预建其 `resource_entity(API)` 资源并在管理角色上精确授予该 API 的 `API:ACCESS + canGrant=true`（首管理员经该角色预持，授权载体见 §14.1），不创建其 `resource_api_mapping`——映射由 E2E 真实创建：既保证「真实创建 API 映射」步骤成立，又使 `canGrant` 授权传递链合法、目标用户保持初始 403。
+- E2E 目标用户与普通功能角色由 E2E 场景内经管理链路创建（双角色双用户模型，配合 T-ACCESS-020/T-ACCESS-021）。

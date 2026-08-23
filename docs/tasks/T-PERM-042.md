@@ -12,10 +12,11 @@ design_refs:
 depends_on: [T-ACCESS-016, T-ACCESS-017]
 blocks: [T-ORG-001]
 acceptance:
-  - "引擎落地 T-ACCESS-016 定稿 API：hasPermissionByCode / getDeniedResourceCodes 对外；getDeniedEntityIds 仅引擎内部或已完成解析的调用方；泛型 <ID>、Object resourceId、toLongId() 运行时猜测全部删除"
+  - "引擎落地 T-ACCESS-016 定稿 API：hasPermissionByCode / getDeniedResourceCodes 对外；getDeniedEntityIds / hasPermissionByEntityId 仅引擎内部或已完成解析的调用方；泛型 <ID>、Object resourceId、toLongId() 运行时猜测全部删除；validateBatch 等抛异常便捷方法从引擎删除（引擎纯查询，异常由调用方显式抛出：admin 域经 AdminPermissionValidator 门面、permission 域 AppService if-throw）"
   - "全部 USER/ROLE 实例门禁调用点改为业务编码语义：生产代码 9 处 getDeniedIds 外部调用逐处改造（含 UserManageAppServiceImpl、RoleManageAppServiceImpl 已核实的 abstract id 错传点），改造清单在任务卡登记并以全量 grep 复核清零"
   - "USER/ROLE 等业务对象门禁调用点与跨服务 SDK 不使用 resource_entity.id，统一业务编码；资源实体管理类接口（资源树、API 映射、资源依赖、权限树——现有 ApiMappingResp/ResourceDependencyResp/ResourcePermissionTreeResp 等）保留 resource_entity.id 现状，不在本任务重构"
   - "code → entity 解析统一下沉 TypeResolutionService 批量方法（无 N+1）"
+  - "授权页 3 个读接口补齐类型级 VIEW 门禁（T-ACCESS-016 §14.5 终态，随本任务落地）：abstract-role/tree→ROLE:VIEW、resource-entity/tree→RESOURCE:VIEW、operation-permission/list→OPERATION:VIEW（现状无业务门禁，bootstrap 最小种子依赖该终态；permission-condition/list 维持无门禁——api-contract §5.6 产品确认条件列表全租户开放，不在补齐范围）"
   - "USER/ROLE 实例门禁错参的正确预期测试在本任务内新增（测试自装配 resource_entity 投影 fixtures，不依赖生产写路径投影）并同提交转绿；T-ACCESS-017 特征测试保持全绿。真实 USER/ROLE 写路径产生投影后的实例授权端到端转绿归 T-ACCESS-019"
   - "单测 + PostgreSQL Testcontainers 双层验证"
 design_writeback:
@@ -39,6 +40,7 @@ last_updated: 2026-08-23
 ## 当前口径
 
 - 对外语义统一业务编码（String code）；entityId 只在引擎内部流转。
+- 引擎纯查询：`hasPermissionByCode`/`getDeniedResourceCodes` 对外、`getDeniedEntityIds`/`hasPermissionByEntityId` 内部；抛异常便捷方法从引擎删除，异常由调用方显式抛出（admin 域经 `AdminPermissionValidator` 门面、permission 域 AppService if-throw，见 implementation §3.1）。
 - 实施顺序上先于资源类型收敛（T-ACCESS-018），本任务仍使用现行类型码，类型切换由 T-ACCESS-018 承担，两者独立提交。
 
 ## 非目标 / 遗留

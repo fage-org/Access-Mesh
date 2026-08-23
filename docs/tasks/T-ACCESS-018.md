@@ -19,7 +19,8 @@ acceptance:
   - "前端权限串全量切换（已核实约 23 处：user 页 ADMIN_USER/ADMIN_ORG、role 页、config 页、permission-query 临时口径等），与后端类型码一致；无兼容别名双写"
   - "权限矩阵/种子/错误码/文档（api-contract、admin-service-api-contract、frontend 页设计）同步更新；种子、后端、前端权限串与现行文档中不再出现已合并的重复资源类型"
   - "范围排除：@OperationLog.targetType 契约为小写物理表名/逻辑对象码（sys_user、abstract_role 等，见 OperationLogAspect.resolveTargetType 与覆盖测试 KNOWN_TABLE_NAMES 白名单），与资源类型码是两个命名空间，不在本任务修改；若个别日志字段实际存储资源类型码，逐项列名处理，禁止全局替换"
-  - "扩展操作归属统一类型（如 USER:ENABLE、USER:RESET_PASSWORD、ROLE:GRANT）随合并落地"
+  - "扩展操作按 T-ACCESS-016 §13.3 bit 终值表落地：USER:ENABLE=32（重分配）、USER:RESET_PASSWORD=64、ORG 六码同名同 bit；ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移（AdminOperationCode.GRANT/REVOKE 常量一并删除），uk_operation_permission_typed_bit 无冲突"
+  - "保留业务键按 T-ACCESS-016 §4.3 终态切换：subject 侧 ADMIN_USER→LOCAL_USER；resource 侧取消类型级保留（LocalProjectionOwner 资源保留常量与 sync 入口 rejectReservedResourceType 调用删除），同批补齐资源 sync 所有权检查——UPSERT/DISABLE/DELETE 任一 mutation 分支在进入前对命中实体统一 rejectIfLocalResource（owner=access-service 即 20045；DELETE 分支现状直接软删命中实体，必须覆盖），并核实 resource-entity/full-sync 清理范围按 sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey) 界定、不触及本地投影行（本地投影不写 sync_metadata）；管理入口（resource-entity create/update）类型保留清单换值 {USER, ORG, MENU}；补外部同步命中本地投影行 20045 的负向测试（含 DELETE）"
   - "单测 + PostgreSQL Testcontainers 全绿；空库执行新 DDL 后类型种子自洽（无类型码冲突、无悬挂引用）"
 design_writeback:
   required: true

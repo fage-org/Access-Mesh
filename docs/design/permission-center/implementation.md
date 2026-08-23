@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-08 复审（§4.1 授权写链路收敛、SubPermissionPolicy）
+last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 契约定稿（§3.1/§7.2/§7.3/§7.6）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -295,25 +295,44 @@ public interface PermissionGrantDomainService {
 
 所有权限查询和校验统一通过 `PermQueryEngine` 执行。引擎提供两层 API：
 
-**AppService 层便捷 API**（适合内部 ID 级单目标/批量校验）：
+**引擎便捷 API（T-ACCESS-016 定稿终态，2026-08-23；实施归 T-PERM-042）**——显式资源语义，`code` 与 `entityId` 两轨不得混用：
 
 ```java
-// 单目标鉴权
-boolean ok = engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE);
+// —— 对外：业务编码语义（USER/ROLE 等业务对象门禁与跨服务 SDK 统一使用）——
 
-// 批量校验（拒绝时抛 SecurityException）
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
+// 单目标鉴权（boolean）
+boolean ok = engine.hasPermissionByCode(tenantId, subjectId,
+    ResourceTypeCode.ROLE, roleId.toString(), OperationCodeConstants.MANAGE);
 
-// 批量获取拒绝 ID 集合
-Set<Long> denied = engine.getDeniedIds(tenantId, operatorId, ResourceTypeCode.USER, userIds, OperationCodeConstants.MANAGE);
+// 批量获取被拒绝的业务编码集合（纯查询，不抛异常）
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+    ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE);
+
+// —— 内部 / 已完成解析的调用方：resource_entity.id 语义 ——
+// （仅限引擎内部与直接管理资源实体的后台链路：资源树、API 映射、资源依赖、权限树等，
+//   这些入口手里的 id 本就是 resource_entity.id）
+
+boolean okEntity = engine.hasPermissionByEntityId(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+
+Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
 
-**`getDeniedIds` 优化策略**（批量拒绝场景）：
+**终态契约要点**：
+
+- **删除**泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测；删除现名 `hasPermission`/`validateBatch`/`getDeniedIds`（调用点由 T-PERM-042 逐处改造，全量 grep 清零）。
+- **抛异常语义从引擎删除**（引擎只留拒绝集方法，纯查询、不抛 `SecurityException`）。抛异常是**调用方**职责：admin 域统一经 `AdminPermissionValidator` 门面（`checkTypeLevel` / `checkInstanceLevel` / `checkBatchInstanceLevel` 基于 `hasPermissionByCode`/`getDeniedResourceCodes` 封装，接口形态不变，见 admin-service-api-contract §2）；permission 域 AppService 延续 `if (!engine.hasPermissionByCode(...)) throw new SecurityException(...)` 显式模式。「唯一出口」约束仅指**引擎层面不再提供抛异常便捷方法**（`validateBatch` 删除），不限制业务调用方显式抛出。
+- **主体参数即主体 ID**（T-ORG-001 统一后 `operatorId = abstract_user.id = sys_user.id`），无任何运行时 ID 空间转换；`OperatorSubjectResolver`/`resolveOperatorSubjectId` 随统一删除。
+- **业务编码语义定稿**：`resource_entity(USER).code = subjectId.toString()`、`resource_entity(ROLE).code = roleId.toString()`（投影由 T-ACCESS-019 全写路径同事务维护）；`code → entity` 解析统一下沉 `TypeResolutionService` 批量方法（禁 N+1）。
+- 未知类型/未知操作维持 fail-closed 全量拒绝（现状语义不变）。
+
+**`getDeniedResourceCodes` 优化策略**（批量拒绝场景，与现 `getDeniedIds` 相同管线）：
 
 1. 一次查询解析用户角色（`SubjectDomainService.resolveEffectiveRoles`）
 2. 一次查询类型级权限（`selectScopeAllPermsByBitsBatch`）-- scopeAll 匹配则全部允许
-3. 否则，一次批量查询实例级权限（`selectInstancePermsByBitsBatch`）
-4. 内存计算拒绝 ID 集合
+3. 否则，一次批量 `code → resource_entity.id` 解析 + 一次批量查询实例级权限（`selectInstancePermsByBitsBatch`）
+4. 内存计算拒绝 code 集合
 
 **复杂查询 API**（`PermQuery` 工厂方法 + `engine.query(PermQuery)`）：
 
@@ -730,30 +749,37 @@ record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}
 
 #### 内部入口 `PermQueryEngine`
 
-permission-center 内部各 Service 的常规鉴权统一通过 `PermQueryEngine` 完成。对单目标使用 `hasPermission`，对批量目标使用 `validateBatch` 或 `getDeniedIds`；涉及资源编码、接口路径或范围查询时继续走 `query(PermQuery)`。
+permission-center 内部各 Service 的常规鉴权统一通过 `PermQueryEngine` 完成（终态 API 见 §3.1，T-ACCESS-016 定稿）。对单目标使用 `hasPermissionByCode`，对批量目标使用 `getDeniedResourceCodes`（抛异常语义走 `AdminPermissionValidator` 门面）；涉及资源实体管理链路（id 即 `resource_entity.id`）使用 `hasPermissionByEntityId`/`getDeniedEntityIds`；复杂查询继续走 `query(PermQuery)`。
 
 ```java
-// 单目标鉴权
-if (!engine.hasPermission(tenantId, operatorId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+// 单目标鉴权（业务编码语义）
+if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE,
+        roleId.toString(), OperationCodeConstants.MANAGE)) {
     throw new SecurityException("Permission denied");
 }
 
-// 批量鉴权
-engine.validateBatch(tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.DELETE);
-Set<Long> deniedUserIds = engine.getDeniedIds(
-    tenantId, operatorId, ResourceTypeCode.USER, userIds, OperationCodeConstants.MANAGE
+// 批量获取拒绝集合（业务编码语义，纯查询）
+Set<String> deniedUserCodes = engine.getDeniedResourceCodes(
+    tenantId, subjectId, ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE
 );
 
+// 资源实体管理链路（req.id() 本就是 resource_entity.id）
+if (!engine.hasPermissionByEntityId(tenantId, subjectId, ResourceTypeCode.RESOURCE,
+        req.id(), OperationCodeConstants.MANAGE)) {
+    throw new SecurityException("Permission denied");
+}
+
 // 复杂查询
-PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
+PermQuery q = PermQuery.forAuthCheck(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
 PermResult r = engine.query(q);
 ```
 
-**适用边界**：
+**适用边界（T-ACCESS-016 定稿）**：
 | 场景 | 入口 |
 |------|------|
-| 内部 ID 级单目标鉴权 | `engine.hasPermission` |
-| 内部 ID 级批量校验 | `engine.validateBatch` / `engine.getDeniedIds` |
+| 业务对象单目标鉴权（USER/ROLE 等，业务编码） | `engine.hasPermissionByCode` |
+| 业务对象批量校验（业务编码） | `engine.getDeniedResourceCodes`（抛异常由门面/调用方封装） |
+| 资源实体管理链路单目标/批量（`resource_entity.id`） | `engine.hasPermissionByEntityId` / `engine.getDeniedEntityIds` |
 | 资源编码、接口路径、范围查询 | `engine.query(PermQuery)` |
 | 授权流程中的 `canGrant` 校验 | `PermissionGrantDomainService.checkCanGrant()`（直查 Mapper 批量匹配位运算） |
 
@@ -764,19 +790,19 @@ PermResult r = engine.query(q);
 批量操作禁止循环调用单目标鉴权，必须复用 `PermQueryEngine` 的批量 API，避免 N+1 查询。
 
 ```java
-Set<Long> deniedRoleIds = engine.getDeniedIds(
-    tenantId, operatorId, ResourceTypeCode.ROLE, roleIds, OperationCodeConstants.MANAGE
+Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+    tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCodeConstants.MANAGE
 );
-if (!deniedRoleIds.isEmpty()) {
-    throw new SecurityException("No permission to manage roles: " + deniedRoleIds);
+if (!deniedRoleCodes.isEmpty()) {
+    throw new SecurityException("No permission to manage roles: " + deniedRoleCodes);
 }
 ```
 
 **N+1 对比**：
 | 方式 | 批量删除 100 个用户 | 批量删除 100 个角色 |
 |------|---------------------|---------------------|
-| 循环调用 `hasPermission` | 100 次校验/查询 | 100 次校验/查询 |
-| 使用 `validateBatch` / `getDeniedIds` | 1 次统一管线 + 批量查询 | 1 次统一管线 + 批量查询 |
+| 循环调用 `hasPermissionByCode` | 100 次校验/查询 | 100 次校验/查询 |
+| 使用 `getDeniedResourceCodes`（admin 门禁经 `checkBatchInstanceLevel` 同源） | 1 次统一管线 + 批量查询 | 1 次统一管线 + 批量查询 |
 
 ---
 
@@ -869,8 +895,8 @@ public record PermissionTreeResp(
 
 1. **移除 `CAN_MANAGE` 误用**：不再使用 `CAN_MANAGE` 作为权限判断条件，统一使用 `OperationCodeConstants.MANAGE`
 2. **`canGrant` 只用于授权流程**：在 `PermissionGrantAppServiceImpl` 中通过 `PermissionGrantDomainService.checkCanGrant()` 校验，不在普通鉴权时使用
-3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermission/validateBatch/getDeniedIds` 或 `query(PermQuery)`，避免各 Service 分散实现
-4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `validateBatch`、`getDeniedIds`，一次统一管线完成全部权限校验
+3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermissionByCode/getDeniedResourceCodes`（业务编码）或 `hasPermissionByEntityId/getDeniedEntityIds`（资源实体管理链路）或 `query(PermQuery)`，避免各 Service 分散实现（T-ACCESS-016 终态，旧 `hasPermission/validateBatch/getDeniedIds` 随 T-PERM-042 删除）
+4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `getDeniedResourceCodes`/`getDeniedEntityIds`，一次统一管线完成全部权限校验
 5. **业务例外显式处理**：如”允许操作自己”之类的场景，由具体业务服务在调用引擎前后显式处理，不再引入独立的 `PermissionCheckUtils` 抽象
 6. **树形遍历深度限制**：`query-permission-tree` 必须有 `maxDepth` 限制，防止无限递归
 

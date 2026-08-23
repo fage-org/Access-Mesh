@@ -139,7 +139,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 
 | ID | 标题 | 状态 | 直接依赖 | 里程碑 |
 |---|---|---|---|---|
-| [T-ACCESS-016](../tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约 + 首管理员权限模型） | ⚙️ | — | A |
+| [T-ACCESS-016](../tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约 + 首管理员权限模型） | ✅ | — | A |
 | [T-ACCESS-017](../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ⚙️ | — | A |
 | [T-PERM-042](../tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | ⚙️ | T-ACCESS-016, T-ACCESS-017 | A |
 | [T-ORG-001](../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ⚙️ | T-PERM-042 | A |

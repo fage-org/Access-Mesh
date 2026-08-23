@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-22
+last_reviewed: 2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -51,6 +51,8 @@ void checkTypeLevel(String resourceTypeCode, String operationCode);
 void checkInstanceLevel(String resourceTypeCode, String resourceCode, String operationCode);
 void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes, String operationCode);
 ```
+
+> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：门面三方法形态不变，是 `SecurityException` 的唯一出口（引擎纯查询，见 permission-center implementation §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/user/**` 的 userId、`/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表资源类型串 `ADMIN_USER/ADMIN_ORG/ADMIN_ROLE` 按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；本契约各章节权限串全量替换归 T-ACCESS-018，本注记先行定稿口径）。
 
 资源类型常量 (`AdminResourceType`):
 
@@ -105,6 +107,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `sys_org` | `abstract_role(ORG\|POSITION)` + `resource_entity(ADMIN_ORG)` | `external_id` / `code` = `sys_org.id.toString()` |
 | `sys_menu`（DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值全量投影，T-ACCESS-015） | `resource_entity(ADMIN_MENU)` | `code` = `sys_menu.id.toString()` |
 | `sys_user_org` | `user_role` | 主体 `ADMIN_USER` + 角色 `ORG/POSITION` |
+
+> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）。类型串在本契约的全量替换归 T-ACCESS-018；USER/ROLE 投影全写路径补齐归 T-ACCESS-019。
 
 保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影（`owner=access-service` 或保留业务键 `ADMIN_USER` / `ORG|POSITION` / `ADMIN_USER|ADMIN_ORG|ADMIN_MENU` / `SYS_USER_ORG`，以及内部 `sourceService`）。拒绝类型为 `BizException(20045)`。
 

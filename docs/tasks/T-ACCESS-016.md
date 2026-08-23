@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-016
 title: 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约）
-status: proposed
+status: done
 plan: docs/plans/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
@@ -19,7 +19,7 @@ acceptance:
   - "api-contract/implementation 定稿引擎显式资源 API 契约：对外 hasPermissionByCode(...) 与 getDeniedResourceCodes(...)；getDeniedEntityIds(...) 仅引擎内部或已完成解析的调用方使用；删除泛型 <ID>、Object resourceId、toLongId() 运行时猜测；resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId 的业务编码语义定稿"
   - "明确 resource_entity.id 边界：USER/ROLE 等业务对象门禁与跨服务 SDK 不得使用 resource_entity.id（统一业务 code/externalId）；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 resource_entity 自身的管理链路）允许继续使用，现有 ApiMappingResp/ResourceDependencyResp/ResourcePermissionTreeResp 等契约不因此重构"
   - "bootstrap 首管理员权限模型定稿：bootstrap 创建首管理员并绑定一个管理用功能角色（按 bootstrap 管理 API 清单双层最小授权）；禁止平台超管旁路与硬编码超级用户；首管理员对目标接口仅预授 API:ACCESS+canGrant 用于授权传递，因目标 API 无映射，首管理员自身无法经 Gateway 调用它；E2E 目标用户与普通功能角色由 E2E 场景内经管理链路创建（双角色双用户模型，配合 T-ACCESS-020/T-ACCESS-021）"
-  - "bootstrap 管理 API 清单定稿（首管理员授权链闭合）：固定 E2E 实际所需的管理 API 外部路径——写动作（用户创建、角色创建、API 映射创建、授权、角色分配、回收）与授权页初始化所需读接口（角色树、类型定义、资源树、操作列表、条件列表、既有授权查询等，以授权页加载链路为准逐项列入；缺读接口则首管理员能进页面但初始化请求全 403），每个管理 API 授予双层最小权限——Gateway 层 API:ACCESS（实例级）+ 接口内部业务门禁（含读接口 VIEW 门禁）；目标 API 与管理 API 的 resource_entity(API) 资源均由 bootstrap 内部写入，E2E 外部管理链路只创建目标映射，不授予 RESOURCE:CREATE；禁止 API 类型级 scopeAll、Gateway 临时白名单、平台超管旁路（Gateway 对空快照默认拒绝，授权传递要求操作者持有目标权限且 canGrant=true，闭环只能靠最小种子解决，不开任何旁路）"
+  - "bootstrap 管理 API 清单定稿（首管理员授权链闭合）：固定 E2E 实际所需的管理 API 外部路径——写动作（用户创建、角色创建、API 映射创建、授权、角色分配、回收）与授权页初始化所需读接口（角色树、类型定义、资源树、操作列表、条件列表、既有授权查询等，以授权页加载链路为准逐项列入；缺读接口则首管理员能进页面但初始化请求全 403），存在业务门禁的管理 API 授予双层最小权限——Gateway 层 API:ACCESS（实例级）+ 接口内部业务门禁（含读接口 VIEW 门禁；permission-condition/list 例外：无业务门禁、仅 Gateway 层实例授权，不得补建 CONDITION:VIEW）；目标 API 与管理 API 的 resource_entity(API) 资源均由 bootstrap 内部写入，E2E 外部管理链路只创建目标映射，不授予 RESOURCE:CREATE；禁止 API 类型级 scopeAll、Gateway 临时白名单、平台超管旁路（Gateway 对空快照默认拒绝，授权传递要求操作者持有目标权限且 canGrant=true，闭环只能靠最小种子解决，不开任何旁路）"
   - "E2E 目标接口定稿为 POST /admin/role/my-info（登录用户自查，无二层管理门禁）：bootstrap 仅预建其 resource_entity(API) 资源并给首管理员精确授予该 API 的 API:ACCESS + canGrant=true，不创建其 resource_api_mapping——映射由 E2E 真实创建，既保证「真实创建 API 映射」步骤成立，又使 canGrant 授权传递链合法、目标用户保持初始 403"
   - "bootstrap 管理角色业务门禁最小集（明确到 resourceType+operation+scopeMode+resourceCode，实施时按写入口门禁全量核对微调——缺漏补种、过授收敛）：USER:CREATE（scopeAll，创建目标用户）；ROLE:CREATE（scopeAll，创建 BASIC_ROLE）；ROLE:MANAGE（scopeAll，管理新建角色与为用户分配角色；其继承掩码已含 VIEW，不重复授 ROLE:VIEW）；SERVICE:MANAGE_API_MAPPING（access-service 实例，创建目标 API 映射）；TYPE_DEFINITION:VIEW（scopeAll，授权页无条件加载类型列表且后端 listTypes 强制门禁）；RESOURCE:VIEW（scopeAll，授权页资源树加载门控）；OPERATION:VIEW（scopeAll，授权页操作列表加载门控）；目标 API 实例的 API:ACCESS+canGrant（向 BASIC_ROLE 授权）。不授予 RESOURCE:CREATE 等 API 资源创建权限，避免无谓扩大根权限"
   - "bootstrap 固定图包含 resource_entity(SERVICE, code=access-service)：当前 DDL 无 SERVICE 类型资源种子、本地投影亦不产出（仅有 USER/ROLE/MENU 投影），实例级 SERVICE:MANAGE_API_MAPPING 需要该服务资源作为绑定对象，由 bootstrap 幂等写入"
@@ -28,8 +28,8 @@ acceptance:
   - "T-PERM-042 / T-ACCESS-018 / T-ACCESS-019 / T-ORG-001 可直接按定稿章节实施，无需二次设计决策"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-08-22
+  status: done
+last_updated: 2026-08-23
 ---
 
 # T-ACCESS-016 身份与资源模型设计定稿
@@ -60,3 +60,17 @@ last_updated: 2026-08-22
 - 不做全局统一对象 ID 中心、全平台共享序列、ID 包装类型双轨。
 - 不做在线数据迁移设计（空库重建模式，runbook 归 T-ORG-001）。
 - 菜单可见性派生逻辑不改（已按 v3.5 实现），仅定稿 MENU 管理资源语义。
+
+## 设计回写（2026-08-23）
+
+定稿内容与写回位置：
+
+- `access-service-architecture.md`：新增 §12 主体身份模型（abstract_user 唯一 ID 源、序列预取闭环、OperatorSubjectResolver 退役、业务编码语义）、§13 资源类型注册表（收敛映射、type_value 终值、扩展操作 code/bit 终值）、§14 空库 bootstrap 首管理员权限模型（授权统一落管理用功能角色、固定图稳定业务键、管理 API 清单、业务门禁最小集、目标接口定稿）；§4.2/§4.3/§6.1 终态注记。
+- 保留业务键终态（§4.3）：subject 侧 `ADMIN_USER`→`LOCAL_USER`；role 侧 `ORG|POSITION` 与 `SYS_USER_ORG` 不变；resource 侧取消类型级保留——USER/MENU 保持公共基础类型，本地投影行按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `rejectIfLocalResource`、新建撞 code 由唯一索引兜底、full-sync 删除范围不触及 `owner=access-service` 行），管理入口类型保留清单换值 `{USER, ORG, MENU}`。
+- 授权页读接口 VIEW 门禁补齐范围为 3 项（§14.5：角色树/资源树/操作列表，随 T-PERM-042 落地）；`permission-condition/list` 维持无业务读取门禁（api-contract §5.6 既有产品确认：条件规则全租户开放、非敏感），访问控制仅由 Gateway 层实例级 `API:ACCESS` 承担。
+- `schema/access-service.sql`：文件头 type_value 终值分配表、扩展操作 bit 终值与保留业务键终态（INSERT 不动，种子重编归 T-ACCESS-018）；`sys_user`/`abstract_user` 表注释终态注记。
+- `permission-center/api-contract.md`：§3.4 实例授权业务编码语义；§10 决策 18。
+- `permission-center/implementation.md`：§3.1 引擎便捷 API 终态（引擎纯查询不抛异常）；§7.2/§7.3/§7.6 同步。
+- `services/admin-service-api-contract.md`：§2 门禁终态口径；§3 投影终态注记。
+
+T-PERM-042 / T-ACCESS-018 / T-ACCESS-019 / T-ORG-001 按定稿章节实施。

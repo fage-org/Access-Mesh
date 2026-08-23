@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-08 复审（v3.1 §6.5.2 子权限类型只读契约、resolveSubPermissionPolicy 唯一公开入口与调用链）
+last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编码语义定稿（§3.4/§10-18）
 ---
 
 # Permission Center 外部 API 契约
@@ -117,6 +117,7 @@ last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-0
 - 同一接口不同时接受 `id/code/externalId` 多套定位方式，避免歧义。
 - 所有请求体禁止出现 `tenantId`；服务端统一从 `X-Tenant-Id` 和安全上下文读取租户。
 - 对外 API 使用稳定字符串 `typeCode`；数据库实体继续保存 `type_value INT`，由服务端通过缓存解析，避免外部系统依赖内部数字枚举。
+- **实例授权业务编码语义（T-ACCESS-016 定稿）**：`resource_entity(USER).code = subjectId`（主体 ID 字符串化）、`resource_entity(ROLE).code = roleId`（`abstract_role.id` 字符串化）；业务对象门禁与跨服务 SDK 统一使用业务 `resourceCode`，不得使用 `resource_entity.id`——权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp`/`ResourcePermissionTreeResp` 等契约不因此重构。引擎内部 Java API 契约见 implementation §3.1（`hasPermissionByCode`/`getDeniedResourceCodes` 对外，`getDeniedEntityIds`/`hasPermissionByEntityId` 仅引擎内部或已完成解析的调用方）。
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一，不随 `domainCode/biz_domain_id` 重复；`type_code` 仍可按业务域和全局分别定义。
 - `domainCode` 用于**管理查询的域过滤与同步命名空间**：管理查询经 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按 **ALL / GLOBAL_PLUS / DOMAIN_ONLY** 三种模式过滤（`domain_config` 表 `CLASSIFY` 配置按 `resourceTypeCode` 关联）；**查询管线不做按域的对象过滤，仅按域分类过滤资源类型**（`queryResources`/`queryScopes` 经 `DomainClassifyService(GLOBAL_PLUS)` 分类过滤，非按 domainCode 定位对象）；角色/资源实体不内嵌域列，`domainCode` 不参与角色/资源定位（仅域存在性校验，见 §6.4/§6.10）。**不存在"传域查域+全局，不传只查全局"的旧命名空间语义**——如有接口确需旧语义，须逐项列出并标注迁移（ P2-2 修正）。
 - Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
@@ -1843,3 +1844,4 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 15. **变更摘要枚举**：`diff_snapshot.eventType`、`items[].changeType` 和 `recent-changes.impactLevel` 使用固定枚举，不使用开放字符串。
 16. **子权限类型只读契约（v3.1，D5，2026-08-08 评审复审修订）**：授权页面子权限配置器通过 `POST /api/perm/role-resource-permission/sub-perm-allowed-types`（§6.5.2）按父资源类型获取 SUB_PERM 允许的子资源类型并过滤选择器；请求携带目标角色业务键（domainCode/roleTypeCode/roleExternalId），门禁使用与 §6.4 list **相同的 ROLE:VIEW 权限资源与操作码，但失败响应不同**（list 失败返回空列表，本接口角色定位失败 20001、无 VIEW 抛 SecurityException 走统一访问拒绝）；`mode` 判定（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE + reason 细分）与写校验 `assertSubPermissionAllowed` 完全同口径——覆盖顶层与嵌套 `"*"` 通配、多匹配项并集去重、大小写不敏感，**读写复用同一策略解析函数**；前端不硬编码允许集；本契约不改变任何写语义，不新增错误码（复用 20007/20001）。
 17. **子权限属性系统不变量（2026-08-08 复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043**）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20042 不再描述 child create（子权限带条件 -> 20043 而非 20042）。
+18. **引擎显式资源 API 与实例门禁业务编码（T-ACCESS-016 定稿，2026-08-23）**：引擎便捷 API 拆分为 `hasPermissionByCode(...)`/`getDeniedResourceCodes(...)`（对外，业务编码语义）与 `getDeniedEntityIds(...)`/`hasPermissionByEntityId(...)`（仅引擎内部或已完成解析的调用方）；泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测全部删除，抛异常便捷方法从引擎移除（引擎纯查询不抛 `SecurityException`，异常由调用方显式抛出：admin 域经 `AdminPermissionValidator` 门面、permission 域 AppService if-throw）。`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId` 业务编码定稿（§3.4）；资源类型收敛映射、`type_value` 终值与扩展操作 bit 终值以 access-service-architecture §13 资源类型注册表为准（实施 T-PERM-042/T-ACCESS-018）。

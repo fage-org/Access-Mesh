@@ -45,6 +45,34 @@
 --     MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，缺失时权限引擎 fail-closed 全量拒绝）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
+--
+-- type_value 终值分配表（T-ACCESS-016 定稿 2026-08-23；种子实际重编归 T-ACCESS-018，
+-- 本注释是终态权威，届时 INSERT 按此重写，退役值不复用、后续新类型从 30 起顺延）：
+--   user_type（3 行）：USER=1 / SERVICE=2 / LOCAL_USER=3（原 ADMIN_USER 更名，值不变；
+--     主体来源语义，不再兼任资源类型；subjectTypeCode 与保留业务键 subject 侧同步更名，无兼容别名。
+--     保留业务键终态（T-ACCESS-016）：subject 侧 ADMIN_USER→LOCAL_USER；role 侧 ORG|POSITION 与
+--     SYS_USER_ORG 不变；resource 侧取消类型级保留——USER/MENU 为公共基础类型，本地投影行改按
+--     所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 owner=access-service 即 20045，
+--     新建撞 code 由 uk 兜底），
+--     管理入口类型保留清单换值 {USER, ORG, MENU}）
+--   role_type（5 行，不变）：ORG=1 / POSITION=2 / PERSONAL=3 / GROUP_ROLE=5 / BASIC_ROLE=6
+--     （role_type.ORG=1 与 resource_type.ORG=29 属不同 type_key，不冲突）
+--   resource_type（终态 23 行）：MENU=1 / BUTTON=2 / API=3 / DATA=4 / ROLE=5 / USER=6 /
+--     RESOURCE=7 / SERVICE=8 / DOMAIN=9 / TYPE_DEFINITION=10 / SYSTEM_CONFIG=11 /
+--     OPERATION=12 / CONDITION=13 / CONFLICT_RULE=14 / DEPENDENCY=15 / ADMIN_DICT=20 /
+--     ADMIN_DICT_DATA=21 / ADMIN_OAUTH2_CLIENT=23 / ADMIN_NOTICE=24 / ADMIN_FILE=25 /
+--     ADMIN_JOB=26 / ADMIN_ORG_TREE_CONFIG=27 / ORG=29（新值，退役值 17 不复用）
+--   收敛映射：ADMIN_USER(16)→USER(6)、ADMIN_ROLE(18)→ROLE(5)、ADMIN_MENU(19)→MENU(1)、
+--     ADMIN_CONFIG(22)→SYSTEM_CONFIG(11)、ADMIN_ORG(17)→ORG(29)；ADMIN_SYNC_TASK(28) 删除；
+--     退役段 16/17/18/19/22/28 不复用；ADMIN_DICT/ADMIN_DICT_DATA/ADMIN_OAUTH2_CLIENT/
+--     ADMIN_NOTICE/ADMIN_FILE/ADMIN_JOB/ADMIN_ORG_TREE_CONFIG 无重复对象不改名
+--   扩展操作归属与 bit 终值（uk_operation_permission_typed_bit 要求同类型 code/bit 均唯一）：
+--     ADMIN_USER:ENABLE bit16→USER:ENABLE bit32（USER 下 16 被 MANAGE 占用）；
+--     ADMIN_USER:RESET_PASSWORD bit64→USER:RESET_PASSWORD bit64（不变，USER 下空闲）；
+--     ADMIN_ROLE:GRANT/REVOKE 删除不迁移（零生产消费者，职责由 ROLE:MANAGE 承担；bit 与
+--     ROLE:MANAGE@16/ASSIGN@32 冲突、REVOKE 与既有 ROLE:REVOKE@64 code 冲突）；
+--     ADMIN_ORG:CREATE_POSITION 等 6 码同名同 bit 迁移 ORG（16-512 空闲无冲突）；
+--     ADMIN_ORG:VIEW 与 ADMIN_USER:VIEW 由 CRUD 预置 VIEW 覆盖（去重语义保持）
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -146,7 +174,7 @@ CREATE TABLE sys_user (
 CREATE UNIQUE INDEX uk_user_username ON sys_user (tenant_id, username) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_user_phone ON sys_user (tenant_id, phone) WHERE delete_flag = 0 AND phone IS NOT NULL;
 
-COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期';
+COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期。终态（T-ACCESS-016 §12.2）：id = abstract_user.id 同值（主体 ID），列改 BIGINT 显式赋值去自增，本地用户创建先 nextval 预取主体 ID N，再显式插 abstract_user(id=N, external_id=N) 与本表(id=N)——实施归 T-ORG-001';
 COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
 COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 摘要传输）';
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
@@ -611,7 +639,8 @@ COMMENT ON COLUMN type_definition.sort_order IS '排序';
 COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
--- 预置类型种子（tenant 1；type_value 为权威数值，详见文件头说明）
+-- 预置类型种子（tenant 1；type_value 为权威数值，详见文件头说明与文件头 type_value 终值分配表——
+-- T-ACCESS-016 定稿收敛映射由 T-ACCESS-018 实施重编，当前 INSERT 仍为收敛前现状）
 INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, is_system, sort_order, created_by, created_at, updated_at) VALUES
     -- user_type（USER=外部人员 / SERVICE=外部服务 / ADMIN_USER=本地管理用户，
     --   access.application 本地投影以 ADMIN_USER 作为 subjectTypeCode 维护 abstract_user，必须可解析）
@@ -707,8 +736,8 @@ CREATE TABLE abstract_user (
 CREATE UNIQUE INDEX uk_abstract_user ON abstract_user (tenant_id, user_type, external_id) WHERE delete_flag = 0;
 CREATE INDEX idx_abstract_user_tenant ON abstract_user (tenant_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。创建时自动创建个人角色 PERSONAL_{external_id}。支持外部系统 API 同步（幂等）。ADMIN_USER 类型表示访问主体，不等同于被管理用户资源；具体同步方由调用方 serviceCode 标识';
-COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)外部人员/SERVICE(2)外部服务/ADMIN_USER(3)本地管理用户，来自 type_definition';
+COMMENT ON TABLE abstract_user IS '抽象用户，user_type 来自 type_definition。支持外部系统 API 同步（幂等）。LOCAL_USER（原 ADMIN_USER，T-ACCESS-016 更名）类型表示访问主体，不等同于被管理用户资源；具体同步方由调用方 serviceCode 标识；id 为唯一主体 ID 生成源（sys_user.id 同值，§12.2）。PERSONAL 个人角色类型在 type_definition 保留，但生命周期机制未实现，创建 abstract_user 时不自动创建（T-ACCESS-016 §14.1：bootstrap 固定图亦不含个人角色）';
+COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)外部人员/SERVICE(2)外部服务/LOCAL_USER(3，原 ADMIN_USER)本地访问主体，来自 type_definition';
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识；本地投影使用 external_id = sys_user.id.toString()';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
 COMMENT ON COLUMN abstract_user.enabled IS '是否启用：false 时鉴权不通过';
