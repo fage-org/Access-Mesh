@@ -78,7 +78,7 @@
         WHERE tenant_id = #{tenantId}
           AND resource_type = #{resourceType}
           AND code IN
-        <foreach collection="operationCodes" item="code" open="(" separator="," close=")">
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
             #{code}
         </foreach>
           AND delete_flag = 0
