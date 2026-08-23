@@ -18,6 +18,7 @@ docs/
 │   │   ├── api-contract.md            # API契约
 │   │   ├── core-flows.md              # 核心调用链路
 │   │   ├── implementation.md          # 实现设计
+│   ├── access-service-rebuild-runbook.md  # 空库重建 runbook（含统一主体 ID 后 Redis 清理）
 │   ├── services/                      # 服务设计
 │   │   ├── admin-service-api-contract.md  # admin 域对前端 API 契约（access-service 管理域承载）
 │   │   ├── gateway.md
@@ -56,6 +57,7 @@ docs/
 | 项目工程规范         | [design/project-rules.md](design/project-rules.md)                                                                                   |
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |
 | access-service 目标架构 | [design/access-service-architecture.md](design/access-service-architecture.md)（归并拓扑、事务、数据、缓存与安全的权威约束） |
+| 空库重建 runbook      | [design/access-service-rebuild-runbook.md](design/access-service-rebuild-runbook.md)（DDL 重建 + 种子 + Redis 清理 + 主体链验证） |
 | 权限中心概念模型     | [design/permission-center/overview.md](design/permission-center/overview.md)                                                         |
 | 权限中心 API 契约    | [design/permission-center/api-contract.md](design/permission-center/api-contract.md)                                                 |
 | 权限中心核心调用链路 | [design/permission-center/core-flows.md](design/permission-center/core-flows.md)                                                     |

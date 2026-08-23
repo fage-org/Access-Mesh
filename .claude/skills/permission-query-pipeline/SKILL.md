@@ -24,17 +24,15 @@ metadata:
 
 ## 业务层 API（Service Impl 使用）
 
-> **门禁主体契约**：engine 门禁主体必须是权限域投影主体（`abstract_user.id`）。
-> 登录会话/签名代理持有的操作者 ID 是 admin 域 `sys_user.id`，必须先经
-> `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)` 转换
-> （转换失败 fail-closed 抛 SecurityException），禁止把 `sys_user.id` 直接传给门禁。
+> **门禁主体契约（T-ORG-001 统一后）**：操作者 ID 即主体 ID
+> （`operatorId = abstract_user.id = sys_user.id`），直接传给 engine 门禁，无任何运行时 ID 空间转换层
+> （原 `OperatorSubjectResolver` 已删除）。
 
 ```java
 // 注入 PermQueryEngine
 private final PermQueryEngine engine;
 
-// 操作者 sys_user.id → 权限域投影主体 abstract_user.id（一次转换，可同时用于门禁/自查/委托链）
-Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
+// 统一主体 ID：operatorId 直接用于门禁/自查/委托链
 
 // —— 业务编码轨（对外；USER/ROLE 等业务对象门禁与跨服务 SDK 统一使用）——
 // resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId（architecture §12.3）

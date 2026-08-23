@@ -144,22 +144,20 @@ cacheService.evictAfterCommit(MyCacheCatalog.DETAIL, tenantId, id);
 **核心 API**（T-PERM-042 终态：旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已从引擎删除）：
 
 ```java
-// 门禁主体必须先转换为权限域投影主体（T-ORG-001 统一前）
-Long subjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-
 // —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用）——
+// T-ORG-001 统一后操作者 ID 即主体 ID（operatorId = abstract_user.id = sys_user.id），无转换层
 // 单目标鉴权（code 传 null = 类型级）
-boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
+boolean allowed = engine.hasPermissionByCode(tenantId, operatorId,
     ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.MANAGE);
 
 // 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
-Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
     ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
 
 // —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
-boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
+boolean ok = engine.hasPermissionByEntityId(tenantId, operatorId,
     ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
-Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
+Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, operatorId,
     ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
 

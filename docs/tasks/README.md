@@ -132,7 +132,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle | T-PERM-042 | ⚙️ | ⏳ |
+| [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
 | [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice | example-service；gateway；architecture | T-ACCESS-021 | ⚙️ | ⏳ |
 
 ### 前端（前端 Phase 1/3/4 拆分）

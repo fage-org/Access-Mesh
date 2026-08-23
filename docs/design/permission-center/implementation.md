@@ -323,7 +323,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 - **删除**泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测；删除现名 `hasPermission`/`validateBatch`/`getDeniedIds`（调用点由 T-PERM-042 逐处改造，全量 grep 清零）。
 - **抛异常语义从引擎删除**（引擎只留拒绝集方法，纯查询、不抛 `SecurityException`）。抛异常是**调用方**职责：admin 域统一经 `AdminPermissionValidator` 门面（`checkTypeLevel` / `checkInstanceLevel` / `checkBatchInstanceLevel` 基于 `hasPermissionByCode`/`getDeniedResourceCodes` 封装，接口形态不变，见 admin-service-api-contract §2）；permission 域 AppService 延续 `if (!engine.hasPermissionByCode(...)) throw new SecurityException(...)` 显式模式。「唯一出口」约束仅指**引擎层面不再提供抛异常便捷方法**（`validateBatch` 删除），不限制业务调用方显式抛出。
-- **主体参数即主体 ID**（T-ORG-001 统一后 `operatorId = abstract_user.id = sys_user.id`），无任何运行时 ID 空间转换；`OperatorSubjectResolver`/`resolveOperatorSubjectId` 随统一删除。
+- **主体参数即主体 ID**（T-ORG-001 已统一：`operatorId = abstract_user.id = sys_user.id`），无任何运行时 ID 空间转换；`OperatorSubjectResolver`/`resolveOperatorSubjectId` 已删除清零。
 - **业务编码语义定稿**：`resource_entity(USER).code = subjectId.toString()`、`resource_entity(ROLE).code = roleId.toString()`（投影由 T-ACCESS-019 全写路径同事务维护）；`code → entity` 解析统一下沉 `TypeResolutionService` 批量方法（禁 N+1）。
 - 未知类型/未知操作维持 fail-closed 全量拒绝（现状语义不变）。
 
