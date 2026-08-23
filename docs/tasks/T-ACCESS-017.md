@@ -83,11 +83,14 @@ last_updated: 2026-08-23
 - 首轮曾以 `reuseForks=false`（每类独立 JVM）验证全量 722 项全绿（16m26s），确认根因修复有效后改为双 execution 分层（同样全绿且快 3 倍）。
 - 此前误判为「Windows + socat 容量问题」的记录作废：失败全部源于方言串扰，双 execution 后全量稳定全绿。
 
-### 待办（CI 真实运行证据，由仓库所有者操作）
+### CI 真实运行证据（验收第 5 条）
 
-1. push 本提交到 `origin/feat-permission-center`（push 自动触发 `unit-tests` job）。
-2. GitHub Web UI → Actions → CI → Run workflow 手动触发（执行 `testcontainers` job）。
-3. 两个 job 各成功一次后，将 workflow URL、提交 SHA 与退出状态补记至本节（验收第 5 条闭环前本任务保持 in-progress）。
+| 项 | 状态 | 记录 |
+|---|---|---|
+| 单测 job（push 自动触发） | ✅ 成功 | 提交 `80e87fb98`，2026-08-23 push 后 GitHub Actions 自动运行成功（仓库所有者确认）；workflow URL 待补记 |
+| Testcontainers job（手动 dispatch） | ⏳ 待执行 | GitHub Web UI → Actions → CI → Run workflow 手动触发；成功后补记 URL 与退出状态 |
+
+两个 job 各成功一次后本任务转 done。
 
 ## 非目标 / 遗留
 
